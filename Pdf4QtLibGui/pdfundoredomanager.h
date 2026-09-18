@@ -23,6 +23,7 @@
 #ifndef PDFUNDOREDOMANAGER_H
 #define PDFUNDOREDOMANAGER_H
 
+#include "pdfviewerglobal.h"
 #include "pdfdocument.h"
 
 #include <QObject>
@@ -32,7 +33,7 @@ namespace pdfviewer
 
 /// Undo/Redo document manager, it is managing undo and redo steps,
 /// when document is modified.
-class PDFUndoRedoManager : public QObject
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFUndoRedoManager : public QObject
 {
     Q_OBJECT
 

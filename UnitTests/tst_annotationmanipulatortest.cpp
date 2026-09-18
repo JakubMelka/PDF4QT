@@ -23,6 +23,8 @@
 #include "pdfannotationmanipulator.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentwriter.h"
+#include "pdfdocumentreader.h"
+#include "pdffile.h"
 
 #include <QtTest>
 #include <QBuffer>
@@ -90,6 +92,19 @@ private slots:
     void measurementLine();
     void measurementNumberFormats();
     void measurementPolygon();
+    void reviewMeasurementAmbiguousArea();
+    void reviewMeasurementPreservesCommentNumber();
+    void reviewMeasurementUsesPath();
+    void measurementField();
+    void measurementFieldOfPolygon();
+    void measurementOfEditedShape();
+    void measurementOfPath();
+    void setRectangle();
+    void addedAndReplacedParts();
+    void erasedInk();
+    void inkPoints();
+    void addedReply();
+    void replacedFileAttachment();
     void measurementAngle();
     void measurementPointCount();
     void measurementIsNotGuessed();
@@ -116,6 +131,15 @@ private:
 
     /// Creates a measure dictionary. Zero factor means, that the entry is missing.
     static PDFObject measure(PDFReal x, PDFReal y, PDFReal distance, PDFReal area, PDFReal angle);
+
+    /// Creates an array of number formats (pairs of the unit and the conversion factor)
+    static PDFObject numberFormats(std::initializer_list<std::pair<const char*, PDFReal>> formats);
+
+    /// Creates a measure dictionary with the number format arrays
+    static PDFObject measureOf(std::initializer_list<std::pair<const char*, PDFObject>> formats);
+
+    /// Creates a path (array of arrays of numbers)
+    static PDFObject pathArray(std::initializer_list<std::vector<PDFReal>> items);
 
     /// Turns the annotation into a measurement
     static void setMeasurement(PDFDocumentBuilder& builder, PDFObjectReference annotation, const char* intent, const QString& contents, PDFObject measure);
@@ -1593,6 +1617,54 @@ PDFObject AnnotationManipulatorTest::measure(PDFReal x, PDFReal y, PDFReal dista
     return factory.takeObject();
 }
 
+PDFObject AnnotationManipulatorTest::numberFormats(std::initializer_list<std::pair<const char*, PDFReal>> formats)
+{
+    PDFObjectFactory factory;
+    factory.beginArray();
+    for (const auto& [unit, factor] : formats)
+    {
+        factory.beginDictionary();
+        factory.beginDictionaryItem("U");
+        factory << QString::fromLatin1(unit);
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("C");
+        factory << factor;
+        factory.endDictionaryItem();
+        factory.endDictionary();
+    }
+    factory.endArray();
+    return factory.takeObject();
+}
+
+PDFObject AnnotationManipulatorTest::measureOf(std::initializer_list<std::pair<const char*, PDFObject>> formats)
+{
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Type");
+    factory << WrapName("Measure");
+    factory.endDictionaryItem();
+    for (const auto& [key, format] : formats)
+    {
+        factory.beginDictionaryItem(key);
+        factory << format;
+        factory.endDictionaryItem();
+    }
+    factory.endDictionary();
+    return factory.takeObject();
+}
+
+PDFObject AnnotationManipulatorTest::pathArray(std::initializer_list<std::vector<PDFReal>> items)
+{
+    PDFObjectFactory factory;
+    factory.beginArray();
+    for (const std::vector<PDFReal>& item : items)
+    {
+        factory << item;
+    }
+    factory.endArray();
+    return factory.takeObject();
+}
+
 void AnnotationManipulatorTest::setMeasurement(PDFDocumentBuilder& builder, PDFObjectReference annotation, const char* intent, const QString& contents, PDFObject measure)
 {
     PDFObjectFactory factory;
@@ -2571,8 +2643,8 @@ void AnnotationManipulatorTest::markedRegionEndsSpecialCases()
         return PDFAnnotationManipulator::getEditablePoints(PDFAnnotation::parse(&currentDocument.getStorage(), annotation).data());
     };
 
-    // Too many regions - the points would cover the whole annotation
-    QVERIFY(!getPoints(document, crowded).isValid());
+    // Each region has its points, whatever the count of the regions is
+    QCOMPARE(getPoints(document, crowded).points.size(), size_t(66));
 
     // Region without a size has no direction, so the x axis is used. Such a region is not
     // visible, so the annotation rectangle is used as another region by the parser.
@@ -2750,6 +2822,603 @@ void AnnotationManipulatorTest::freeTextCalloutLine()
     QVERIFY(!PDFAnnotationManipulator::setFreeTextCalloutLine(&invalidBuilder, plain, { QPointF(1, 1), QPointF(2, 2), QPointF(3, 3), QPointF(4, 4) }));
     QVERIFY(!PDFAnnotationManipulator::setFreeTextCalloutLine(&invalidBuilder, square, { QPointF(1, 1), QPointF(2, 2) }));
     QVERIFY(!PDFAnnotationManipulator::setFreeTextCalloutLine(nullptr, plain, { QPointF(1, 1), QPointF(2, 2) }));
+}
+
+void AnnotationManipulatorTest::reviewMeasurementAmbiguousArea()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const QPolygonF square = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, square, 1.0, Qt::yellow, Qt::black, "Title", "Area", "");
+    // Four metres on each side: perimeter and area both have the numeric value 16.
+    setMeasurement(builder, polygon, "PolygonDimension", "A = 16.00 sq m", measure(0.04, 0.0, 1.0, 1.0, 0.0));
+    const PDFDocument document = builder.build();
+    PDFDocumentBuilder modifiedBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::transformAnnotation(&modifiedBuilder, polygon, QTransform::fromScale(2.0, 2.0)));
+    const PDFDocument modified = modifiedBuilder.build();
+    QVERIFY(fuzzyCompare(numbers(modified, polygon, "Vertices"), std::vector<PDFReal>{ 200, 200, 400, 200, 400, 400, 200, 400 }));
+    QCOMPARE(text(modified, polygon, "Contents"), QString("A = 64.00 sq m"));
+}
+
+void AnnotationManipulatorTest::reviewMeasurementPreservesCommentNumber()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(50, 150), QPointF(150, 150),
+        1.0, Qt::red, Qt::blue, "Title", "Subject", "", AnnotationLineEnding::None, AnnotationLineEnding::None);
+    setMeasurement(builder, line, "LineDimension", "Wall 100: 100.00 mm", measure(1.0, 0.0, 1.0, 0.0, 0.0));
+    const PDFDocument document = builder.build();
+    PDFDocumentBuilder modifiedBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::transformAnnotation(&modifiedBuilder, line, QTransform::fromScale(2.0, 2.0)));
+    const PDFDocument modified = modifiedBuilder.build();
+    QVERIFY(fuzzyCompare(numbers(modified, line, "L"), std::vector<PDFReal>{ 100, 300, 300, 300 }));
+    QCOMPARE(text(modified, line, "Contents"), QString("Wall 100: 200.00 mm"));
+}
+
+void AnnotationManipulatorTest::reviewMeasurementUsesPath()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const QPolygonF vertices = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, vertices, 1.0, Qt::yellow, Qt::black, "Title", "Area", "");
+    PDFObjectFactory factory;
+    factory.beginArray();
+    factory << std::vector<PDFReal>{ 100, 100 } << std::vector<PDFReal>{ 300, 100 }
+            << std::vector<PDFReal>{ 300, 200 } << std::vector<PDFReal>{ 100, 200 };
+    factory.endArray();
+    setEntry(builder, polygon, "Path", factory.takeObject());
+    setMeasurement(builder, polygon, "PolygonDimension", "A = 200.00 sq m", measure(0.1, 0.0, 1.0, 1.0, 0.0));
+    const PDFDocument document = builder.build();
+    PDFDocumentBuilder modifiedBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::transformAnnotation(&modifiedBuilder, polygon, QTransform::fromScale(2.0, 2.0)));
+    const PDFDocument modified = modifiedBuilder.build();
+    const PDFAnnotationPtr parsed = PDFAnnotation::parse(&modified.getStorage(), polygon);
+    const auto* polygonal = dynamic_cast<const PDFPolygonalGeometryAnnotation*>(parsed.data());
+    QVERIFY(polygonal);
+    QVERIFY(fuzzyCompare(polygonal->getPath().boundingRect(), QRectF(200, 200, 400, 200)));
+    QCOMPARE(text(modified, polygon, "Contents"), QString("A = 800.00 sq m"));
+}
+
+void AnnotationManipulatorTest::measurementField()
+{
+    const QTransform scaling = QTransform::fromScale(2.0, 2.0);
+    const PDFObject plainMeasure = measure(1.0, 0.0, 0.0, 0.0, 0.0);
+
+    // The line is 100 units long. The value formatted by the number format of the
+    // measure is the measured value, whatever other numbers the text contains.
+    QCOMPARE(transformedLineContents("Wall 100: 100.00 u", plainMeasure, scaling), QString("Wall 100: 200.00 u"));
+    QCOMPARE(transformedLineContents("100 walls, each 100.00 u long", plainMeasure, scaling), QString("100 walls, each 200.00 u long"));
+
+    // Value displayed in several units (5 ft 3 in)
+    const PDFObject imperialMeasure = measureOf({ { "X", numberFormats({ { "ft", 0.0525 }, { "in", 12.0 } }) } });
+    QCOMPARE(transformedLineContents("Height 5 ft 3.00 in", imperialMeasure, scaling), QString("Height 10 ft 6.00 in"));
+
+    // The formatted value is there twice, and it is a part of a longer number
+    QCOMPARE(transformedLineContents("100.00 u / 100.00 u", plainMeasure, scaling), QString("100.00 u / 100.00 u"));
+    QCOMPARE(transformedLineContents("1100.00 u", plainMeasure, scaling), QString("1100.00 u"));
+    QCOMPARE(transformedLineContents("100.00 um", plainMeasure, scaling), QString("200.00 um"));
+
+    // A number followed by a colon (by an equal sign) is a label
+    QCOMPARE(transformedLineContents("Wall 100: 100.0 mm", plainMeasure, scaling), QString("Wall 100: 200.0 mm"));
+    QCOMPARE(transformedLineContents("Wall 100 = 100.0 mm", plainMeasure, scaling), QString("Wall 100 = 200.0 mm"));
+    QCOMPARE(transformedLineContents("Wall 100:", plainMeasure, scaling), QString("Wall 100:"));
+
+    // Line measures one quantity, so its symbol can be anything (side a of a triangle)
+    QCOMPARE(transformedLineContents("L = 100.0 mm", plainMeasure, scaling), QString("L = 200.0 mm"));
+    QCOMPARE(transformedLineContents("a = 100.0 mm", plainMeasure, scaling), QString("a = 200.0 mm"));
+
+    // Two equal numbers - the one with the unit of the measure is the measured value
+    const PDFObject metreMeasure = measureOf({ { "X", numberFormats({ { "m", 1.0 } }) } });
+    QCOMPARE(transformedLineContents("100.0 m (100.0 mm)", metreMeasure, scaling), QString("200.0 m (100.0 mm)"));
+    QCOMPARE(transformedLineContents("100.0 mm (100.0 m)", metreMeasure, scaling), QString("100.0 mm (200.0 m)"));
+    QCOMPARE(transformedLineContents("100.0 m^2 (100.0 m)", metreMeasure, scaling), QString("100.0 m^2 (200.0 m)"));
+
+    // ...and if nothing distinguishes them, then the text is left alone
+    QCOMPARE(transformedLineContents("100.0 mm, 100.0 mm", plainMeasure, scaling), QString("100.0 mm, 100.0 mm"));
+    QCOMPARE(transformedLineContents("Wall 100 is 100.0 mm long", plainMeasure, scaling), QString("Wall 100 is 100.0 mm long"));
+
+    // The measure does not define the label of the unit
+    const PDFObject noUnitMeasure = measureOf({ { "X", numberFormats({ { "", 1.0 } }) } });
+    QCOMPARE(transformedLineContents("100.0 mm", noUnitMeasure, scaling), QString("200.0 mm"));
+
+    // Digits, which are a part of a word, are not numbers
+    QCOMPARE(transformedLineContents("W100 100.0 mm", plainMeasure, scaling), QString("W100 200.0 mm"));
+}
+
+void AnnotationManipulatorTest::measurementFieldOfPolygon()
+{
+    const QTransform scaling = QTransform::fromScale(2.0, 2.0);
+
+    auto transformedPolygonContents = [&](const QString& contents, PDFObject measureObject)
+    {
+        PDFDocumentBuilder builder;
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+        const QPolygonF square = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+        const PDFObjectReference polygon = builder.createAnnotationPolygon(page, square, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+        setMeasurement(builder, polygon, "PolygonDimension", contents, measureObject);
+        return transformedContents(builder.build(), polygon, scaling);
+    };
+
+    // Perimeter is 40, area is 100. Both values are updated.
+    const PDFObject plainMeasure = measure(0.1, 0.0, 0.0, 0.0, 0.0);
+    QCOMPARE(transformedPolygonContents("P = 40.00 m, A = 100.00 sq m", plainMeasure), QString("P = 80.00 m, A = 400.00 sq m"));
+    QCOMPARE(transformedPolygonContents("A = 100.00 sq m, P = 40.00 m", plainMeasure), QString("A = 400.00 sq m, P = 80.00 m"));
+
+    // Perimeter is found as the formatted value, the area as a number
+    QCOMPARE(transformedPolygonContents("P = 40.00 u, A = 100.00 sq m", measure(0.1, 0.0, 1.0, 0.0, 0.0)), QString("P = 80.00 u, A = 400.00 sq m"));
+    QCOMPARE(transformedPolygonContents("A = 100.00 sq m, P = 40.00 u", measure(0.1, 0.0, 1.0, 0.0, 0.0)), QString("A = 400.00 sq m, P = 80.00 u"));
+
+    // Number with the symbol of the quantity has precedence over an equal number
+    QCOMPARE(transformedPolygonContents("Room 40 P = 40.00 m", plainMeasure), QString("Room 40 P = 80.00 m"));
+    QCOMPARE(transformedPolygonContents("Room 100 has 100.00 m2", plainMeasure), QString("Room 100 has 400.00 m2"));
+
+    // The unit of the measure is a stronger evidence, than the symbol of the quantity
+    QCOMPARE(transformedPolygonContents("P = 40.0 m, 40.0 u", plainMeasure), QString("P = 40.0 m, 80.0 u"));
+    QCOMPARE(transformedPolygonContents("40.0 u, P = 40.0 m", plainMeasure), QString("80.0 u, P = 40.0 m"));
+    QCOMPARE(transformedPolygonContents("40.0 u 40.0 u", plainMeasure), QString("40.0 u 40.0 u"));
+
+    // The number is equal to the perimeter, but it is an area according to the text
+    QCOMPARE(transformedPolygonContents("A = 40.00 sq m", plainMeasure), QString("A = 40.00 sq m"));
+    QCOMPARE(transformedPolygonContents("40.00 m2", plainMeasure), QString("40.00 m2"));
+    QCOMPARE(transformedPolygonContents("P = 100.00 m", plainMeasure), QString("P = 100.00 m"));
+
+    // The symbol and the unit contradict each other, so the value decides
+    QCOMPARE(transformedPolygonContents("P = 40.00 m2", plainMeasure), QString("P = 80.00 m2"));
+
+    // The perimeter and the area have the same value (the side of the square is 4)
+    const PDFObject equalMeasure = measure(0.04, 0.0, 1.0, 1.0, 0.0);
+    QCOMPARE(transformedPolygonContents("16.00 u", equalMeasure), QString("16.00 u"));
+    QCOMPARE(transformedPolygonContents("16.0 u", equalMeasure), QString("16.0 u"));
+    QCOMPARE(transformedPolygonContents("A = 16.00 u", equalMeasure), QString("A = 64.00 u"));
+    QCOMPARE(transformedPolygonContents("P = 16.00 u", equalMeasure), QString("P = 32.00 u"));
+    QCOMPARE(transformedPolygonContents("Perimeter: 16.00 u, Area: 16.00 u", equalMeasure), QString("Perimeter: 32.00 u, Area: 64.00 u"));
+
+    // The units of the measure distinguish the quantities
+    const PDFObject unitsMeasure = measureOf({ { "X", numberFormats({ { "m", 0.04 } }) }, { "D", numberFormats({ { "m", 1.0 } }) }, { "A", numberFormats({ { "sq m", 1.0 } }) } });
+    QCOMPARE(transformedPolygonContents("16.00 sq m", unitsMeasure), QString("64.00 sq m"));
+    QCOMPARE(transformedPolygonContents("16.00 m", unitsMeasure), QString("32.00 m"));
+    QCOMPARE(transformedPolygonContents("16.0 sq m", unitsMeasure), QString("64.0 sq m"));
+    QCOMPARE(transformedPolygonContents("16.0 m", unitsMeasure), QString("32.0 m"));
+
+    // The scale is not known - the quantity is recognized by its symbol, or by a unit of area
+    QCOMPARE(transformedPolygonContents("100 m2", PDFObject()), QString("400 m2"));
+    QCOMPARE(transformedPolygonContents("100 m^2", PDFObject()), QString("400 m^2"));
+    QCOMPARE(transformedPolygonContents(QString("100 m") + QChar(0x00B2), PDFObject()), QString("400 m") + QChar(0x00B2));
+    QCOMPARE(transformedPolygonContents("100 sq m", PDFObject()), QString("400 sq m"));
+    QCOMPARE(transformedPolygonContents("100 sqm", PDFObject()), QString("100 sqm"));
+    QCOMPARE(transformedPolygonContents("L = 40 m", PDFObject()), QString("L = 80 m"));
+    QCOMPARE(transformedPolygonContents("D: 40 m", PDFObject()), QString("D: 80 m"));
+    QCOMPARE(transformedPolygonContents("P = 40 m2", PDFObject()), QString("P = 40 m2"));
+    QCOMPARE(transformedPolygonContents("40 m", PDFObject()), QString("40 m"));
+}
+
+void AnnotationManipulatorTest::measurementOfEditedShape()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const std::vector<QPointF> square = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, QPolygonF(QList<QPointF>(square.cbegin(), square.cend())), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+    setMeasurement(builder, polygon, "PolygonDimension", "P = 40.00 m, A = 100.00 sq m", measure(0.1, 0.0, 0.0, 0.0, 0.0));
+    PDFDocument document = builder.build();
+
+    // A single vertex is moved...
+    std::vector<QPointF> edited = square;
+    edited[2] = QPointF(300, 300);
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        QVERIFY(PDFAnnotationManipulator::setEditablePoints(&modifyBuilder, polygon, edited));
+        document = modifyBuilder.build();
+    }
+    QCOMPARE(text(document, polygon, "Contents"), QString("P = 64.72 m, A = 200.00 sq m"));
+
+    // ...the polygon is scaled (the displayed value is rounded, the new value is exact)...
+    document = transform(document, polygon, QTransform::fromScale(0.5, 0.5));
+    QCOMPARE(text(document, polygon, "Contents"), QString("P = 32.36 m, A = 50.00 sq m"));
+    document = transform(document, polygon, QTransform::fromScale(2.0, 2.0));
+    QCOMPARE(text(document, polygon, "Contents"), QString("P = 64.72 m, A = 200.00 sq m"));
+
+    // ...and the vertex is moved back
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        QVERIFY(PDFAnnotationManipulator::setEditablePoints(&modifyBuilder, polygon, square));
+        document = modifyBuilder.build();
+    }
+    QCOMPARE(text(document, polygon, "Contents"), QString("P = 40.00 m, A = 100.00 sq m"));
+}
+
+void AnnotationManipulatorTest::measurementOfPath()
+{
+    const QTransform scaling = QTransform::fromScale(2.0, 2.0);
+    const QPolygonF vertices = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+
+    // Polygon defined just by its path (rectangle 200 x 100)
+    const PDFObjectReference pathOnly = builder.createAnnotationPolygon(page, vertices, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+    setEntry(builder, pathOnly, "Path", pathArray({ { 100, 100 }, { 300, 100 }, { 300, 200 }, { 100, 200 } }));
+    setEntry(builder, pathOnly, "Vertices", PDFObject());
+    setMeasurement(builder, pathOnly, "PolygonDimension", "P = 60.00 m, A = 200.00 sq m", measure(0.1, 0.0, 0.0, 0.0, 0.0));
+
+    // Path with a curve (the scale is not known, the value is scaled by the ratio)
+    const PDFObjectReference curve = builder.createAnnotationPolygon(page, vertices, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+    setEntry(builder, curve, "Path", pathArray({ { 100, 100 }, { 200, 100 }, { 200, 150, 200, 200, 150, 200 }, { 100, 200 } }));
+    setMeasurement(builder, curve, "PolygonDimension", "A = 100 a", PDFObject());
+
+    // Angle defined by a path
+    const QPolygonF angleVertices = { QPointF(100, 150), QPointF(100, 100), QPointF(150, 100) };
+    const PDFObjectReference angle = builder.createAnnotationPolyline(page, angleVertices, 1.0, QColor(), Qt::black, "Title", "Subject", "",
+                                                                      AnnotationLineEnding::None, AnnotationLineEnding::None);
+    setEntry(builder, angle, "Path", pathArray({ { 100, 150 }, { 100, 100 }, { 150, 100 } }));
+    setMeasurement(builder, angle, "PolyLineDimension", "90.00 deg", measure(1.0, 0.0, 0.0, 0.0, 1.0));
+    const PDFDocument document = builder.build();
+
+    QCOMPARE(transformedContents(document, pathOnly, scaling), QString("P = 120.00 m, A = 800.00 sq m"));
+    QCOMPARE(transformedContents(document, curve, scaling), QString("A = 400 a"));
+
+    // A single point of the path is moved
+    const PDFAnnotationPtr parsed = PDFAnnotation::parse(&document.getStorage(), pathOnly);
+    std::vector<QPointF> points = PDFAnnotationManipulator::getEditablePoints(parsed.data()).points;
+    QCOMPARE(points.size(), size_t(4));
+    points[1] = QPointF(200, 100);
+    points[2] = QPointF(200, 200);
+    PDFDocumentBuilder modifyBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::setEditablePoints(&modifyBuilder, pathOnly, points));
+    PDFDocument modified = modifyBuilder.build();
+    QCOMPARE(text(modified, pathOnly, "Contents"), QString("P = 40.00 m, A = 100.00 sq m"));
+    QVERIFY(entry(modified, pathOnly, "Vertices").isNull());
+
+    // Mirroring keeps the angle - the order of the points of the path is reversed too
+    modified = transform(document, angle, QTransform::fromScale(-1.0, 1.0));
+    QCOMPARE(text(modified, angle, "Contents"), QString("90.00 deg"));
+    QVERIFY(fuzzyCompare(numbers(modified, angle, "Vertices"), std::vector<PDFReal>{ -150, 100, -100, 100, -100, 150 }));
+
+    const PDFObject path = entry(modified, angle, "Path");
+    QVERIFY(path.isArray());
+    QCOMPARE(path.getArray()->getCount(), size_t(3));
+    PDFDocumentDataLoaderDecorator loader(&modified.getStorage());
+    QVERIFY(fuzzyCompare(loader.readNumberArray(path.getArray()->getItem(0)), std::vector<PDFReal>{ -150, 100 }));
+    QVERIFY(fuzzyCompare(loader.readNumberArray(path.getArray()->getItem(2)), std::vector<PDFReal>{ -100, 150 }));
+}
+
+void AnnotationManipulatorTest::setRectangle()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const QPolygonF vertices = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, vertices, 4.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 400, 400), QPointF(50, 150), QPointF(150, 250), 2.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "Contents", AnnotationLineEnding::OpenArrow, AnnotationLineEnding::ClosedArrow);
+    const PDFObjectReference note = builder.createAnnotationText(page, QRectF(50, 50, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", false);
+    const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(300, 300, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    const PDFObjectReference empty = builder.createAnnotationSquare(page, QRectF(10, 10, 50, 30), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    setEntry(builder, empty, "Rect", numberArray({ 10.0, 10.0, 10.0, 10.0 }));
+    const PDFDocument document = builder.build();
+
+    // The rectangle of a polygon is its geometry with the margin of the line. The margin is
+    // not scaled with the geometry, but the rectangle, which the user has asked for, is reached.
+    for (const PDFObjectReference annotation : { polygon, line })
+    {
+        const QRectF oldRectangle = rectangle(document, annotation);
+        const QRectF newRectangle(oldRectangle.left() + 30.0, oldRectangle.top() - 20.0, oldRectangle.width() * 2.5, oldRectangle.height() * 0.5);
+
+        PDFDocumentBuilder modifyBuilder(&document);
+        QVERIFY(PDFAnnotationManipulator::setRectangle(&modifyBuilder, annotation, newRectangle));
+        const PDFDocument modified = modifyBuilder.build();
+        QVERIFY(fuzzyCompare(rectangle(modified, annotation), newRectangle, 0.01));
+
+        // Nothing to do
+        PDFDocumentBuilder sameBuilder(&modified);
+        QVERIFY(!PDFAnnotationManipulator::setRectangle(&sameBuilder, annotation, rectangle(modified, annotation)));
+    }
+
+    // The geometry follows the rectangle
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        const QRectF oldRectangle = rectangle(document, polygon);
+        QVERIFY(PDFAnnotationManipulator::setRectangle(&modifyBuilder, polygon, oldRectangle.translated(50.0, 0.0)));
+        const PDFDocument modified = modifyBuilder.build();
+        QVERIFY(fuzzyCompare(numbers(modified, polygon, "Vertices"), std::vector<PDFReal>{ 150, 100, 250, 100, 250, 200, 150, 200 }));
+    }
+
+    // The icon cannot be resized, it is moved to the center of the rectangle
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        const QRectF oldRectangle = rectangle(document, note);
+        QVERIFY(PDFAnnotationManipulator::setRectangle(&modifyBuilder, note, QRectF(100, 200, 80, 60)));
+        const PDFDocument modified = modifyBuilder.build();
+        QCOMPARE(rectangle(modified, note).size(), oldRectangle.size());
+        QVERIFY(QLineF(rectangle(modified, note).center(), QPointF(140, 230)).length() < 0.001);
+    }
+
+    // Invalid input
+    PDFDocumentBuilder modifyBuilder(&document);
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(nullptr, polygon, QRectF(0, 0, 10, 10)));
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, polygon, QRectF(0, 0, 0, 10)));
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, PDFObjectReference(), QRectF(0, 0, 10, 10)));
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, empty, QRectF(0, 0, 10, 10)));
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, link, QRectF(0, 0, 10, 10)));
+}
+
+void AnnotationManipulatorTest::addedAndReplacedParts()
+{
+    const QPolygonF lines = { QPointF(100, 212), QPointF(300, 212), QPointF(100, 200), QPointF(300, 200) };
+    const Polygons strokes = { QPolygonF({ QPointF(10, 10), QPointF(50, 50), QPointF(90, 10) }) };
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference highlight = builder.createAnnotationHighlight(page, lines, Qt::yellow);
+    const PDFObjectReference ink = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference inkWithPath = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference inkWithoutList = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(100, 100, 50, 30), 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    setEntry(builder, inkWithPath, "Path", pathArray({ { 10, 10 }, { 50, 50 } }));
+    setEntry(builder, inkWithoutList, "InkList", PDFObject());
+    const PDFDocument document = builder.build();
+
+    QVERIFY(PDFAnnotationManipulator::getParts(&document.getStorage(), highlight).isSupported);
+    QVERIFY(PDFAnnotationManipulator::getParts(&document.getStorage(), ink).isSupported);
+    QVERIFY(PDFAnnotationManipulator::getParts(&document.getStorage(), inkWithoutList).isSupported);
+    QVERIFY(!PDFAnnotationManipulator::getParts(&document.getStorage(), inkWithPath).isSupported);
+    QVERIFY(!PDFAnnotationManipulator::getParts(&document.getStorage(), square).isSupported);
+
+    PDFDocumentBuilder modifyBuilder(&document);
+
+    // A marked area is added. The corners go around the area, they are stored
+    // in the order top left, top right, bottom left, bottom right.
+    const QPolygonF area = { QPointF(100, 192), QPointF(200, 192), QPointF(200, 180), QPointF(100, 180) };
+    QVERIFY(PDFAnnotationManipulator::addPart(&modifyBuilder, highlight, area));
+
+    // A stroke is added (also to an ink, which has no stroke)
+    const QPolygonF stroke = { QPointF(200, 300), QPointF(250, 350), QPointF(300, 300) };
+    QVERIFY(PDFAnnotationManipulator::addPart(&modifyBuilder, ink, stroke));
+    QVERIFY(PDFAnnotationManipulator::addPart(&modifyBuilder, inkWithoutList, stroke));
+
+    // Invalid parts
+    QVERIFY(!PDFAnnotationManipulator::addPart(nullptr, highlight, area));
+    QVERIFY(!PDFAnnotationManipulator::addPart(&modifyBuilder, highlight, QPolygonF({ QPointF(0, 0), QPointF(10, 0), QPointF(10, 10) })));
+    QVERIFY(!PDFAnnotationManipulator::addPart(&modifyBuilder, highlight, QPolygonF({ QPointF(0, 0), QPointF(10, 0), QPointF(10, 10), QPointF(0, 10), QPointF(0, 5) })));
+    QVERIFY(!PDFAnnotationManipulator::addPart(&modifyBuilder, ink, QPolygonF({ QPointF(0, 0) })));
+    QVERIFY(!PDFAnnotationManipulator::addPart(&modifyBuilder, inkWithPath, stroke));
+    QVERIFY(!PDFAnnotationManipulator::addPart(&modifyBuilder, square, stroke));
+    QVERIFY(!PDFAnnotationManipulator::setParts(nullptr, ink, { stroke }));
+    QVERIFY(!PDFAnnotationManipulator::setParts(&modifyBuilder, ink, { }));
+
+    PDFDocument modified = modifyBuilder.build();
+    QVERIFY(fuzzyCompare(numbers(modified, highlight, "QuadPoints"), std::vector<PDFReal>{ 100, 212, 300, 212, 100, 200, 300, 200, 100, 192, 200, 192, 100, 180, 200, 180 }));
+    QVERIFY(rectangle(modified, highlight).contains(QRectF(100, 180, 200, 32)));
+    QVERIFY(normalAppearance(modified, highlight) != normalAppearance(document, highlight));
+
+    PDFAnnotationManipulator::Parts parts = PDFAnnotationManipulator::getParts(&modified.getStorage(), ink);
+    QCOMPARE(parts.shapes.size(), size_t(2));
+    QCOMPARE(parts.shapes[1], stroke);
+    QVERIFY(rectangle(modified, ink).contains(QRectF(10, 10, 290, 340)));
+    QCOMPARE(PDFAnnotationManipulator::getParts(&modified.getStorage(), inkWithoutList).shapes.size(), size_t(1));
+
+    // All parts are replaced (another text is marked)
+    PDFDocumentBuilder replaceBuilder(&modified);
+    QVERIFY(PDFAnnotationManipulator::setParts(&replaceBuilder, highlight, { area }));
+    modified = replaceBuilder.build();
+    QVERIFY(fuzzyCompare(numbers(modified, highlight, "QuadPoints"), std::vector<PDFReal>{ 100, 192, 200, 192, 100, 180, 200, 180 }));
+    QVERIFY(fuzzyCompare(rectangle(modified, highlight), QRectF(100, 180, 100, 12), 1.5));
+}
+
+void AnnotationManipulatorTest::erasedInk()
+{
+    const Polygons strokes = { QPolygonF({ QPointF(0, 100), QPointF(100, 100), QPointF(200, 100) }),
+                               QPolygonF({ QPointF(300, 300), QPointF(300, 300), QPointF(350, 350), QPointF(350, 350) }) };
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference ink = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference dots = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference highlight = builder.createAnnotationHighlight(page, QRectF(50, 250, 100, 12), Qt::yellow);
+
+    PDFObjectFactory factory;
+    factory.beginArray();
+    factory << std::vector<PDFReal>{ 10, 10 } << std::vector<PDFReal>{ } << std::vector<PDFReal>{ 50, 50, 60, 50 };
+    factory.endArray();
+    setEntry(builder, dots, "InkList", factory.takeObject());
+    const PDFDocument document = builder.build();
+
+    auto erase = [&document](PDFObjectReference annotation, const QPointF& center, PDFReal radius, bool expectedResult)
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        if (PDFAnnotationManipulator::eraseInk(&modifyBuilder, annotation, center, radius) != expectedResult)
+        {
+            return Polygons{ QPolygonF({ QPointF(-1, -1) }) };
+        }
+
+        const PDFDocument modified = modifyBuilder.build();
+        return PDFAnnotationManipulator::getParts(&modified.getStorage(), annotation).shapes;
+    };
+
+    // The middle of a segment is erased - the stroke is split, the cuts are at the border of the circle
+    Polygons shapes = erase(ink, QPointF(50, 100), 10.0, true);
+    QCOMPARE(shapes.size(), size_t(3));
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(0, 100), QPointF(40, 100) }));
+    QCOMPARE(shapes[1], QPolygonF({ QPointF(60, 100), QPointF(100, 100), QPointF(200, 100) }));
+    QCOMPARE(shapes[2], strokes[1]);
+
+    // A vertex is erased
+    shapes = erase(ink, QPointF(100, 100), 10.0, true);
+    QCOMPARE(shapes.size(), size_t(3));
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(0, 100), QPointF(90, 100) }));
+    QCOMPARE(shapes[1], QPolygonF({ QPointF(110, 100), QPointF(200, 100) }));
+
+    // The start and the end of the stroke are erased
+    shapes = erase(ink, QPointF(0, 100), 10.0, true);
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(10, 100), QPointF(100, 100), QPointF(200, 100) }));
+    shapes = erase(ink, QPointF(200, 100), 10.0, true);
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(0, 100), QPointF(100, 100), QPointF(190, 100) }));
+
+    // The circle covers a whole segment (both its ends are inside), a whole stroke
+    shapes = erase(ink, QPointF(50, 100), 60.0, true);
+    QCOMPARE(shapes.size(), size_t(2));
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(110, 100), QPointF(200, 100) }));
+    shapes = erase(ink, QPointF(100, 100), 150.0, true);
+    QCOMPARE(shapes.size(), size_t(1));
+    QCOMPARE(shapes[0], strokes[1]);
+
+    // Points, which are in the stroke twice (segments without a length)
+    shapes = erase(ink, QPointF(300, 300), 5.0, true);
+    QCOMPARE(shapes.size(), size_t(2));
+    QCOMPARE(shapes[1].size(), 3);
+    QVERIFY(QLineF(shapes[1][0], QPointF(300, 300)).length() > 4.99);
+    QCOMPARE(shapes[1][2], QPointF(350, 350));
+
+    // The circle touches nothing, or the line of the segment only, or it would erase everything
+    QCOMPARE(erase(ink, QPointF(50, 150), 10.0, false).size(), size_t(2));
+    QCOMPARE(erase(ink, QPointF(250, 100), 10.0, false).size(), size_t(2));
+    QCOMPARE(erase(ink, QPointF(200, 200), 1000.0, false).size(), size_t(2));
+
+    // Strokes with a single point and without points
+    shapes = erase(dots, QPointF(10, 10), 5.0, true);
+    QCOMPARE(shapes.size(), size_t(1));
+    QCOMPARE(shapes[0], QPolygonF({ QPointF(50, 50), QPointF(60, 50) }));
+    QCOMPARE(erase(dots, QPointF(200, 200), 5.0, false).size(), size_t(3));
+
+    // Invalid input
+    PDFDocumentBuilder modifyBuilder(&document);
+    QVERIFY(!PDFAnnotationManipulator::eraseInk(nullptr, ink, QPointF(50, 100), 10.0));
+    QVERIFY(!PDFAnnotationManipulator::eraseInk(&modifyBuilder, ink, QPointF(50, 100), 0.0));
+    QVERIFY(!PDFAnnotationManipulator::eraseInk(&modifyBuilder, highlight, QPointF(100, 256), 10.0));
+    QVERIFY(!PDFAnnotationManipulator::eraseInk(&modifyBuilder, page, QPointF(100, 256), 10.0));
+}
+
+void AnnotationManipulatorTest::inkPoints()
+{
+    const Polygons strokes = { QPolygonF({ QPointF(10, 10), QPointF(50, 50), QPointF(90, 10) }), QPolygonF({ QPointF(200, 300), QPointF(250, 350) }) };
+
+    Polygons longStrokes(1);
+    for (int i = 0; i < 65; ++i)
+    {
+        longStrokes[0] << QPointF(10 + i, 10 + (i % 2));
+    }
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference ink = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference inkWithPath = builder.createAnnotationInk(page, strokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference longInk = builder.createAnnotationInk(page, longStrokes, 2.0, Qt::black, "Title", "Subject", "Contents");
+    setEntry(builder, inkWithPath, "Path", pathArray({ { 10, 10 }, { 50, 50 } }));
+    const PDFDocument document = builder.build();
+
+    auto getPoints = [](const PDFDocument& currentDocument, PDFObjectReference annotation)
+    {
+        return PDFAnnotationManipulator::getEditablePoints(PDFAnnotation::parse(&currentDocument.getStorage(), annotation).data());
+    };
+
+    // Points of the strokes. Their count is fixed.
+    const PDFAnnotationManipulator::EditablePoints points = getPoints(document, ink);
+    QVERIFY(points.isStrokePoints());
+    QCOMPARE(points.points.size(), size_t(5));
+    QVERIFY(points.strokeSizes == (std::vector<size_t>{ 3, 2 }));
+    QVERIFY(!points.canInsertPoint());
+    QVERIFY(!points.canRemovePoint(1));
+
+    // A stroke drawn by hand has too many points, a path can contain curves
+    QVERIFY(!getPoints(document, longInk).isValid());
+    QVERIFY(!getPoints(document, inkWithPath).isValid());
+
+    // A point is moved
+    std::vector<QPointF> newPoints = points.points;
+    newPoints[1] = QPointF(50, 150);
+    newPoints[4] = QPointF(300, 350);
+    PDFDocumentBuilder modifyBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::setEditablePoints(&modifyBuilder, ink, newPoints));
+    newPoints.pop_back();
+    QVERIFY(!PDFAnnotationManipulator::setEditablePoints(&modifyBuilder, ink, newPoints));
+    const PDFDocument modified = modifyBuilder.build();
+
+    const PDFAnnotationManipulator::Parts parts = PDFAnnotationManipulator::getParts(&modified.getStorage(), ink);
+    QCOMPARE(parts.shapes.size(), size_t(2));
+    QCOMPARE(parts.shapes[0], QPolygonF({ QPointF(10, 10), QPointF(50, 150), QPointF(90, 10) }));
+    QCOMPARE(parts.shapes[1], QPolygonF({ QPointF(200, 300), QPointF(300, 350) }));
+    QVERIFY(rectangle(modified, ink).contains(QRectF(10, 10, 290, 340)));
+    QVERIFY(normalAppearance(modified, ink) != normalAppearance(document, ink));
+}
+
+void AnnotationManipulatorTest::addedReply()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(100, 100, 50, 30), 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(300, 300, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    const PDFObjectReference onNoPage = builder.createAnnotationSquare(page, QRectF(100, 100, 50, 30), 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference otherPage = builder.appendPage(QRectF(0, 0, 400, 400));
+    builder.createAnnotationSquare(otherPage, QRectF(100, 100, 50, 30), 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFDocument document = builder.build();
+
+    PDFDocumentBuilder modifyBuilder(&document);
+    const PDFObjectReference reply = PDFAnnotationManipulator::addReply(&modifyBuilder, square, "Reviewer", "I do not agree.");
+    QVERIFY(reply.isValid());
+    const PDFObjectReference nestedReply = PDFAnnotationManipulator::addReply(&modifyBuilder, reply, "Author", "Why?");
+    QVERIFY(nestedReply.isValid());
+
+    // Invalid input
+    QVERIFY(!PDFAnnotationManipulator::addReply(nullptr, square, "Reviewer", "Text").isValid());
+    QVERIFY(!PDFAnnotationManipulator::addReply(&modifyBuilder, square, "Reviewer", "  ").isValid());
+    QVERIFY(!PDFAnnotationManipulator::addReply(&modifyBuilder, PDFObjectReference(), "Reviewer", "Text").isValid());
+    QVERIFY(!PDFAnnotationManipulator::addReply(&modifyBuilder, link, "Reviewer", "Text").isValid());
+
+    // Annotation, which is not on any page
+    PDFDocumentBuilder orphanBuilder(&document);
+    setEntry(orphanBuilder, page, "Annots", PDFObject());
+    QVERIFY(!PDFAnnotationManipulator::addReply(&orphanBuilder, onNoPage, "Reviewer", "Text").isValid());
+
+    const PDFDocument modified = modifyBuilder.build();
+    const PDFObjectStorage* storage = &modified.getStorage();
+
+    // The replies are a part of the thread of the annotation
+    const std::vector<PDFObjectReference> replies = PDFAnnotationManipulator::getReplies(storage, page, square);
+    QCOMPARE(replies.size(), size_t(2));
+    QVERIFY(std::find(replies.cbegin(), replies.cend(), reply) != replies.cend());
+    QVERIFY(std::find(replies.cbegin(), replies.cend(), nestedReply) != replies.cend());
+
+    const PDFAnnotationPtr parsedReply = PDFAnnotation::parse(storage, reply);
+    QVERIFY(parsedReply->isReplyTo());
+    QCOMPARE(parsedReply->getContents(), QString("I do not agree."));
+    QCOMPARE(parsedReply->asMarkupAnnotation()->getWindowTitle(), QString("Reviewer"));
+    QCOMPARE(entry(modified, reply, "IRT"), PDFObject::createReference(square));
+    QCOMPARE(entry(modified, nestedReply, "IRT"), PDFObject::createReference(reply));
+    QCOMPARE(entry(modified, reply, "RT"), PDFObject::createName("R"));
+    QCOMPARE(PDFAnnotationManipulator::findAnnotationPage(storage, reply), page);
+}
+
+void AnnotationManipulatorTest::replacedFileAttachment()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference fileSpecification = builder.createFileSpecification("old.txt");
+    const PDFObjectReference attachment = builder.createAnnotationFileAttachment(page, QPointF(100, 100), fileSpecification, FileAttachmentIcon::Paperclip, "Title", "Description");
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(100, 100, 50, 30), 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFDocument document = builder.build();
+
+    const QByteArray data = "Content of the new file";
+    PDFDocumentBuilder modifyBuilder(&document);
+    QVERIFY(PDFAnnotationManipulator::setFileAttachment(&modifyBuilder, attachment, "new.txt", data));
+    QVERIFY(!PDFAnnotationManipulator::setFileAttachment(nullptr, attachment, "new.txt", data));
+    QVERIFY(!PDFAnnotationManipulator::setFileAttachment(&modifyBuilder, attachment, QString(), data));
+    QVERIFY(!PDFAnnotationManipulator::setFileAttachment(&modifyBuilder, square, "new.txt", data));
+    QVERIFY(!PDFAnnotationManipulator::setFileAttachment(&modifyBuilder, PDFObjectReference(), "new.txt", data));
+
+    // The document is written and read again, the attached file is the new file
+    const PDFDocument modified = modifyBuilder.build();
+    PDFDocumentReader reader(nullptr, [](bool*) { return QString(); }, true, false);
+    const PDFDocument reopened = reader.readFromBuffer(write(modified));
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+
+    const PDFAnnotationPtr parsed = PDFAnnotation::parse(&reopened.getStorage(), pageAnnotations(reopened, 0).front());
+    const PDFFileAttachmentAnnotation* fileAttachment = dynamic_cast<const PDFFileAttachmentAnnotation*>(parsed.data());
+    QVERIFY(fileAttachment);
+
+    const PDFFileSpecification& specification = fileAttachment->getFileSpecification();
+    QCOMPARE(specification.getPlatformFileName(), QString("new.txt"));
+    const PDFEmbeddedFile* embeddedFile = specification.getPlatformFile();
+    QVERIFY(embeddedFile && embeddedFile->isValid());
+    QCOMPARE(embeddedFile->getSize(), PDFInteger(data.size()));
+    QCOMPARE(reopened.getDecodedStream(embeddedFile->getStream()), data);
 }
 
 QTEST_MAIN(AnnotationManipulatorTest)

@@ -30,6 +30,8 @@
 #include "pdfwidgetutils.h"
 #include "pdfcms.h"
 #include "pdfprogress.h"
+#include "pdfobjecteditormodel.h"
+#include "pdffile.h"
 
 #include <QtTest>
 #include <QAction>
@@ -37,8 +39,13 @@
 #include <QMimeData>
 #include <QMenu>
 #include <QTimer>
+#include <QPushButton>
+#include <QDoubleSpinBox>
+#include <QTextEdit>
+#include <QLabel>
 
 #include <map>
+#include <set>
 #include <functional>
 
 using namespace pdf;
@@ -86,12 +93,27 @@ private slots:
     void handlesFollowCapabilities();
     void rotationHandleOfSquareSnapsToRightAngle();
     void frameOfNoRotateAnnotation();
+    void reviewPointDragNoRotate_data();
+    void reviewPointDragNoRotate();
+    void editsOfNoRotateAnnotation_data();
+    void editsOfNoRotateAnnotation();
+    void textBoxOfNoRotateCallout();
     void nudgeOnDifferentlyRotatedPages();
+    void resizeSnapsToOtherAnnotation();
+    void dragAndDropSnaps();
+    void dragAndDropMovesTextBox();
+    void interactionScope();
+    void previewIsResultOfOperation();
     void thinShapeDoesNotBlockAnnotationsInside();
     void altClickCyclesOverlappingAnnotations();
     void textBoxOfCalloutIsResizedAlone();
     void calloutLineCanBeAddedAndRemoved();
     void markedLineEndsAndParts();
+    void partsAreDrawnByMouse();
+    void inkIsErasedAndItsPointsAreEdited();
+    void handlesOfLongMarkupAreNearCursor();
+    void replyIsWrittenInPopup();
+    void attachedFileIsReplaced();
     void pointSnapsToOtherAnnotation();
     void alignAndDistribute();
     void keyboardEditsPoints();
@@ -99,6 +121,10 @@ private slots:
     void commonProperties();
     void annotationRectangleTransformsGeometry();
     void geometryDialog();
+    void geometryDialogReferencePointAndSegments();
+    void geometryDialogFromMenu();
+    void propertiesDialogRectangle();
+    void propertiesModelAttributes();
     void selectionIsDrawn();
 
 private:
@@ -275,6 +301,82 @@ struct SelectionFixture
         timer.stop();
 
         return result;
+    }
+
+    /// Shows the menu, triggers its action with the text, and lets the function to operate the
+    /// modal dialogs opened by the action (the function is called once for each dialog, a dialog
+    /// without a function is rejected). Returns true, if the action has been triggered.
+    static bool triggerMenuAction(const std::function<void()>& showMenu, const QString& text, const std::function<void(QDialog*)>& onDialog)
+    {
+        bool isTriggered = false;
+        bool isMenuHandled = false;
+        std::set<QDialog*> handledDialogs;
+
+        QTimer timer;
+        QObject::connect(&timer, &QTimer::timeout, [&]()
+        {
+            // The popup window of an annotation is a dialog, which is a popup widget
+            QDialog* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (!dialog)
+            {
+                dialog = qobject_cast<QDialog*>(QApplication::activePopupWidget());
+            }
+
+            if (dialog)
+            {
+                if (handledDialogs.insert(dialog).second)
+                {
+                    if (onDialog)
+                    {
+                        onDialog(dialog);
+                    }
+                    else
+                    {
+                        dialog->reject();
+                    }
+                }
+                return;
+            }
+
+            QMenu* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (menu && !isMenuHandled)
+            {
+                isMenuHandled = true;
+
+                // The action can be in a submenu
+                QList<QAction*> actions = menu->actions();
+                for (qsizetype i = 0; i < actions.size(); ++i)
+                {
+                    if (actions[i]->menu())
+                    {
+                        actions.append(actions[i]->menu()->actions());
+                    }
+                }
+
+                for (QAction* action : actions)
+                {
+                    if (action->text() == text && action->isEnabled())
+                    {
+                        // A timer is not activated again, until its slot returns, so the action (which
+                        // opens a modal dialog operated by this timer) is triggered by another timer
+                        isTriggered = true;
+                        QTimer::singleShot(0, menu, [menu, action]()
+                        {
+                            action->trigger();
+                            menu->close();
+                        });
+                        return;
+                    }
+                }
+
+                menu->close();
+            }
+        });
+        timer.start(1);
+        showMenu();
+        timer.stop();
+
+        return isTriggered;
     }
 
     static void setEntry(PDFDocumentBuilder& builder, PDFObjectReference reference, const char* key, PDFObject value)
@@ -1814,11 +1916,17 @@ void AnnotationSelectionTest::annotationRectangleTransformsGeometry()
     const PDFObjectReference note = builder.createAnnotationText(page, QRectF(50, 50, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", false);
     SelectionFixture fixture(builder.build());
 
-    // The points of the line follow the rectangle
+    // The points of the line follow the rectangle. The rectangle is the line with a margin (the
+    // width of the line), which is not scaled - the rectangle is exactly, what has been asked for.
     const QRectF lineRectangle = fixture.rectangle(line);
-    QVERIFY(fixture.annotations.setAnnotationRectangle(line, QRectF(lineRectangle.left() + 100.0, lineRectangle.top() + 50.0, lineRectangle.width() * 2.0, lineRectangle.height())));
+    const QRectF newLineRectangle(lineRectangle.left() + 100.0, lineRectangle.top() + 50.0, lineRectangle.width() * 2.0, lineRectangle.height());
+    const PDFReal margin = 50.0 - lineRectangle.left();
+    QVERIFY(margin > 0.0);
+    QVERIFY(fixture.annotations.setAnnotationRectangle(line, newLineRectangle));
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(line), newLineRectangle, 0.001));
     const std::vector<PDFReal> points = fixture.numbers(line, "L");
-    QVERIFY(std::abs((points[2] - points[0]) - 200.0) < 0.01);
+    QVERIFY(std::abs(points[0] - (newLineRectangle.left() + margin)) < 0.01);
+    QVERIFY(std::abs(points[2] - (newLineRectangle.right() - margin)) < 0.01);
     QVERIFY(std::abs(points[1] - 200.0) < 0.01);
 
     // A sticky note cannot be resized, so it is moved to the center of the rectangle
@@ -1892,6 +2000,654 @@ void AnnotationSelectionTest::geometryDialog()
         QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(50, 60, 20, 20), 0.001));
         QCOMPARE(dialog.getRotation(), 0.0);
     }
+}
+
+void AnnotationSelectionTest::geometryDialogReferencePointAndSegments()
+{
+    using Manipulator = PDFAnnotationManipulator;
+    using ReferencePoint = PDFAnnotationGeometryDialog::ReferencePoint;
+    const Manipulator::Capabilities all = Manipulator::Move | Manipulator::Resize | Manipulator::RotateRightAngle | Manipulator::RotateArbitrary | Manipulator::Mirror | Manipulator::EditPoints;
+
+    // The reference point stays, when the size is changed. The y axis points upwards.
+    {
+        PDFAnnotationGeometryDialog dialog(QRectF(0, 0, 100, 50), Manipulator::EditablePoints(), all, nullptr);
+        QCOMPARE(dialog.getReferencePoint(QRectF(0, 0, 100, 50)), QPointF(50, 25));
+        dialog.setSize(QSizeF(200, 50));
+        QVERIFY(dialog.isRectangleChanged());
+        QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(-50, 0, 200, 50), 0.001));
+
+        dialog.setReferencePoint(ReferencePoint::BottomLeft);
+        QCOMPARE(dialog.getReferencePoint(dialog.getRectangle()), QPointF(-50, 0));
+        QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(-50, 0, 200, 50), 0.001));
+        dialog.setSize(QSizeF(100, 100));
+        QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(-50, 0, 100, 100), 0.001));
+
+        dialog.setReferencePoint(ReferencePoint::TopRight);
+        QCOMPARE(dialog.getReferencePoint(dialog.getRectangle()), QPointF(50, 100));
+        dialog.setSize(QSizeF(50, 20));
+        QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(0, 80, 50, 20), 0.001));
+
+        // The whole rectangle is set regardless of the reference point
+        dialog.setReferencePoint(ReferencePoint::Right);
+        dialog.setRectangle(QRectF(10, 20, 30, 40));
+        QVERIFY(SelectionFixture::fuzzyCompare(dialog.getRectangle(), QRectF(10, 20, 30, 40), 0.001));
+    }
+
+    // Length and angle of the line are typed directly - the start of the line stays
+    {
+        Manipulator::EditablePoints line;
+        line.points = { QPointF(10, 10), QPointF(110, 10) };
+        line.minimalCount = 2;
+        line.maximalCount = 2;
+
+        PDFAnnotationGeometryDialog dialog(QRectF(5, 5, 110, 10), line, all, nullptr);
+        dialog.setSegmentLength(50.0);
+        QVERIFY(dialog.isPointsChanged());
+        QVERIFY(!dialog.isRectangleChanged());
+        QVERIFY(QLineF(dialog.getPoints()[1], QPointF(60, 10)).length() < 0.001);
+
+        dialog.setSegmentAngle(90.0);
+        QVERIFY(QLineF(dialog.getPoints()[0], QPointF(10, 10)).length() < 0.001);
+        QVERIFY(QLineF(dialog.getPoints()[1], QPointF(10, 60)).length() < 0.001);
+        QVERIFY(dialog.getLineInfo().contains("90"));
+
+        // The length is typed in the selected unit
+        dialog.setUnit(2);
+        dialog.setSegmentLength(144.0);
+        QVERIFY(QLineF(dialog.getPoints()[1], QPointF(10, 154)).length() < 0.01);
+    }
+
+    // The closing segment of a polygon ends at its first point
+    {
+        Manipulator::EditablePoints polygon;
+        polygon.points = { QPointF(0, 0), QPointF(100, 0), QPointF(100, 100) };
+        polygon.isClosed = true;
+        polygon.minimalCount = 3;
+
+        PDFAnnotationGeometryDialog dialog(QRectF(0, 0, 100, 100), polygon, all, nullptr);
+        dialog.setSegment(2);
+        QVERIFY(dialog.getLineInfo().contains("141"));
+        dialog.setSegmentAngle(180.0);
+        dialog.setSegmentLength(100.0);
+        QVERIFY(QLineF(dialog.getPoints()[0], QPointF(0, 100)).length() < 0.001);
+        QVERIFY(QLineF(dialog.getPoints()[2], QPointF(100, 100)).length() < 0.001);
+
+        dialog.setSegment(7);
+        dialog.setSegment(1);
+        QVERIFY(dialog.getLineInfo().contains("100"));
+    }
+
+    // Points of an annotation, which does not allow to edit them, are read only
+    {
+        Manipulator::EditablePoints line;
+        line.points = { QPointF(10, 10), QPointF(110, 10) };
+        PDFAnnotationGeometryDialog dialog(QRectF(5, 5, 110, 10), line, Manipulator::Move | Manipulator::Resize, nullptr);
+        QVERIFY(!dialog.isPointsChanged());
+        QVERIFY(dialog.getLineInfo().contains("100"));
+    }
+}
+
+void AnnotationSelectionTest::geometryDialogFromMenu()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(50, 150), QPointF(150, 150), 1.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "", AnnotationLineEnding::None, AnnotationLineEnding::None);
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(50, 50, 60, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+
+    // The length and the angle of the line are typed in the dialog
+    fixture.annotations.setSelectedAnnotations({ line });
+    auto showLineMenu = [&]() { fixture.press(fixture.device(QPointF(100, 150)), Qt::NoModifier, Qt::RightButton); };
+    QVERIFY(SelectionFixture::triggerMenuAction(showLineMenu, "Geometry...", [](QDialog* dialog)
+    {
+        PDFAnnotationGeometryDialog* geometryDialog = qobject_cast<PDFAnnotationGeometryDialog*>(dialog);
+        if (!geometryDialog)
+        {
+            dialog->reject();
+            return;
+        }
+        geometryDialog->setSegmentLength(80.0);
+        geometryDialog->setSegmentAngle(90.0);
+        geometryDialog->accept();
+    }));
+    QCOMPARE(fixture.modificationCount, 1);
+    const std::vector<PDFReal> points = fixture.numbers(line, "L");
+    QVERIFY(std::abs(points[0] - 50.0) < 0.01 && std::abs(points[1] - 150.0) < 0.01);
+    QVERIFY(std::abs(points[2] - 50.0) < 0.01 && std::abs(points[3] - 230.0) < 0.01);
+
+    // The square is rotated around its corner
+    fixture.annotations.setSelectedAnnotations({ square });
+    auto showSquareMenu = [&]() { fixture.press(fixture.device(QPointF(80, 70)), Qt::NoModifier, Qt::RightButton); };
+    QVERIFY(SelectionFixture::triggerMenuAction(showSquareMenu, "Geometry...", [](QDialog* dialog)
+    {
+        PDFAnnotationGeometryDialog* geometryDialog = qobject_cast<PDFAnnotationGeometryDialog*>(dialog);
+        if (!geometryDialog)
+        {
+            dialog->reject();
+            return;
+        }
+        geometryDialog->setReferencePoint(PDFAnnotationGeometryDialog::ReferencePoint::BottomLeft);
+        geometryDialog->setRotation(-90.0);
+        geometryDialog->accept();
+    }));
+    QCOMPARE(fixture.modificationCount, 2);
+
+    // Counterclockwise rotation around the point (50, 50)
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(square), QRectF(10, 50, 40, 60), 0.01));
+
+    // The dialog is cancelled
+    QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(30, 80)), Qt::NoModifier, Qt::RightButton); }, "Geometry...", nullptr));
+    QVERIFY(!SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(30, 80)), Qt::NoModifier, Qt::RightButton); }, "No Such Action", nullptr));
+    QCOMPARE(fixture.modificationCount, 2);
+}
+
+void AnnotationSelectionTest::propertiesDialogRectangle()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, { QPointF(50, 50), QPointF(110, 50), QPointF(110, 90), QPointF(50, 90) }, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ polygon });
+    const QRectF oldRectangle = fixture.rectangle(polygon);
+
+    // Jakub Melka: the real dialog of the properties is operated - the button of the rectangle
+    // opens the dialog with the coordinates, both dialogs are confirmed. The geometry of the
+    // annotation must follow the rectangle.
+    QDialog* propertiesDialog = nullptr;
+    bool isRectangleEdited = false;
+    auto onDialog = [&](QDialog* dialog)
+    {
+        if (!propertiesDialog)
+        {
+            propertiesDialog = dialog;
+
+            QPushButton* rectangleButton = nullptr;
+            for (QPushButton* button : dialog->findChildren<QPushButton*>())
+            {
+                if (button->text().startsWith(QChar('[')))
+                {
+                    rectangleButton = button;
+                }
+            }
+
+            if (!rectangleButton)
+            {
+                dialog->reject();
+                return;
+            }
+
+            // The click opens a modal dialog, so it cannot be done in the slot of the timer, which operates it
+            QTimer::singleShot(0, rectangleButton, &QPushButton::click);
+            return;
+        }
+
+        const QList<QDoubleSpinBox*> spinBoxes = dialog->findChildren<QDoubleSpinBox*>();
+        if (spinBoxes.size() == 4)
+        {
+            spinBoxes[0]->setValue(oldRectangle.left() + 100.0);
+            spinBoxes[1]->setValue(oldRectangle.top() + 120.0);
+            spinBoxes[2]->setValue(oldRectangle.width() * 2.0);
+            spinBoxes[3]->setValue(oldRectangle.height());
+            isRectangleEdited = true;
+            dialog->accept();
+        }
+        else
+        {
+            dialog->reject();
+        }
+
+        QTimer::singleShot(0, propertiesDialog, isRectangleEdited ? &QDialog::accept : &QDialog::reject);
+    };
+
+    auto showMenu = [&]() { fixture.press(fixture.device(QPointF(80, 70)), Qt::NoModifier, Qt::RightButton); };
+    QVERIFY(SelectionFixture::triggerMenuAction(showMenu, "Edit...", onDialog));
+    QVERIFY(isRectangleEdited);
+    QCOMPARE(fixture.modificationCount, 1);
+
+    const QRectF expectedRectangle(oldRectangle.left() + 100.0, oldRectangle.top() + 120.0, oldRectangle.width() * 2.0, oldRectangle.height());
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(polygon), expectedRectangle, 0.01));
+
+    // The vertices follow the rectangle (the margin of the rectangle - the width of the line - is not scaled)
+    const std::vector<PDFReal> vertices = fixture.numbers(polygon, "Vertices");
+    QCOMPARE(vertices.size(), size_t(8));
+    const PDFReal margin = 50.0 - oldRectangle.left();
+    QVERIFY(margin > 0.0);
+    QVERIFY(std::abs(vertices[0] - (expectedRectangle.left() + margin)) < 0.01 && std::abs(vertices[1] - (expectedRectangle.top() + margin)) < 0.01);
+    QVERIFY(std::abs(vertices[4] - (expectedRectangle.right() - margin)) < 0.01 && std::abs(vertices[5] - (expectedRectangle.bottom() - margin)) < 0.01);
+
+    // The dialog is cancelled
+    QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(vertices[0] + 20, vertices[1] + 20)), Qt::NoModifier, Qt::RightButton); }, "Edit...", nullptr));
+    QCOMPARE(fixture.modificationCount, 1);
+}
+
+void AnnotationSelectionTest::propertiesModelAttributes()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(50, 150), QPointF(150, 150), 1.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "Contents", AnnotationLineEnding::None, AnnotationLineEnding::None);
+    const PDFObjectReference freeText = builder.createAnnotationFreeText(page, QRectF(150, 200, 100, 50), "Title", "Subject", "Contents", Qt::AlignLeft);
+    const PDFObjectReference note = builder.createAnnotationText(page, QRectF(50, 50, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", false);
+    const PDFDocument document = builder.build();
+
+    // The functions of the model are public in its base class
+    PDFObjectEditorAnnotationsModel model(nullptr);
+    PDFObjectEditorAbstractModel& baseModel = model;
+
+    auto findAttribute = [&model](const QString& subcategory, const QString& name)
+    {
+        for (size_t i = 0; i < model.getAttributeCount(); ++i)
+        {
+            if (model.getAttributeSubcategory(i) == subcategory && model.getAttributeName(i) == name)
+            {
+                return i;
+            }
+        }
+        return model.getAttributeCount();
+    };
+
+    const size_t borderWidth = findAttribute("Border Style", "Width");
+    const size_t leaderLength = findAttribute("Style", "Leader line length (negative for the other side)");
+    const size_t captionAlong = findAttribute("Text", "Caption offset along the line");
+    const size_t captionPerpendicular = findAttribute("Text", "Caption offset perpendicular to the line");
+    QVERIFY(borderWidth < model.getAttributeCount());
+    QVERIFY(leaderLength < model.getAttributeCount());
+    QVERIFY(captionAlong < model.getAttributeCount());
+    QVERIFY(captionPerpendicular < model.getAttributeCount());
+
+    // The attribute belongs to the annotation, if the type of the annotation
+    // has it, and if its selector (the border style is optional) is switched on
+    auto setEditedObject = [&model](const PDFObject& object)
+    {
+        model.setEditedObject(object);
+        for (const size_t selector : model.getSelectorAttributes())
+        {
+            model.setSelectorValue(selector, true);
+        }
+    };
+
+    // Free text annotation has the border style, a sticky note has none
+    setEditedObject(document.getObjectByReference(freeText));
+    QVERIFY(model.queryAttribute(borderWidth, PDFObjectEditorAbstractModel::Question::HasAttribute));
+    QVERIFY(!model.queryAttribute(leaderLength, PDFObjectEditorAbstractModel::Question::HasAttribute));
+    setEditedObject(document.getObjectByReference(note));
+    QVERIFY(!model.queryAttribute(borderWidth, PDFObjectEditorAbstractModel::Question::HasAttribute));
+
+    // The length of the leader lines is oriented
+    setEditedObject(document.getObjectByReference(line));
+    QVERIFY(model.queryAttribute(leaderLength, PDFObjectEditorAbstractModel::Question::HasAttribute));
+    QVERIFY(model.getMinimumValue(leaderLength).toDouble() < 0.0);
+
+    PDFDocumentDataLoaderDecorator loader(&document);
+    PDFObject object = baseModel.writeAttributeValueToObject(leaderLength, model.getEditedObject(), PDFObject::createReal(-12.0));
+    QCOMPARE(loader.readNumberFromDictionary(document.getDictionaryFromObject(object), "LL", 0.0), -12.0);
+
+    // The offset of the caption is an array of two numbers. If the second number is written
+    // into a missing array, then the first one is the default value (it is not a null object).
+    object = baseModel.writeAttributeValueToObject(captionPerpendicular, object, PDFObject::createReal(5.0));
+    const PDFObject captionOffset = document.getDictionaryFromObject(object)->get("CO");
+    QVERIFY(captionOffset.isArray());
+    QCOMPARE(captionOffset.getArray()->getCount(), size_t(2));
+    QVERIFY(captionOffset.getArray()->getItem(0).isReal() || captionOffset.getArray()->getItem(0).isInt());
+    QVERIFY(loader.readNumberArray(captionOffset) == (std::vector<PDFReal>{ 0.0, 5.0 }));
+
+    // The other items of the array are taken from the edited object
+    model.setEditedObject(object);
+    object = baseModel.writeAttributeValueToObject(captionAlong, object, PDFObject::createReal(-3.0));
+    QVERIFY(loader.readNumberArray(document.getDictionaryFromObject(object)->get("CO")) == (std::vector<PDFReal>{ -3.0, 5.0 }));
+
+    // The values are read back
+    model.setEditedObject(object);
+    QCOMPARE(loader.readNumber(baseModel.getValue(captionAlong, true), 0.0), -3.0);
+    QCOMPARE(loader.readNumber(baseModel.getValue(captionPerpendicular, true), 0.0), 5.0);
+}
+
+void AnnotationSelectionTest::partsAreDrawnByMouse()
+{
+    using PartEdit = PDFWidgetAnnotationManager::PartEdit;
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference ink = builder.createAnnotationInk(page, Polygons{ QPolygonF({ QPointF(50, 100), QPointF(250, 100) }) }, 2.0, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference highlight = builder.createAnnotationHighlight(page, QRectF(50, 250, 100, 12), Qt::yellow);
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(200, 200, 50, 30), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+
+    auto partCount = [&fixture](PDFObjectReference annotation)
+    {
+        return PDFAnnotationManipulator::getParts(&fixture.document->getStorage(), annotation).shapes.size();
+    };
+
+    auto render = [&fixture]()
+    {
+        QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        fixture.annotations.drawPostRendering(&painter, image.rect());
+        return image;
+    };
+
+    // The edit needs a single selected annotation, which has the parts
+    QVERIFY(!fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    fixture.annotations.setSelectedAnnotations({ square });
+    QVERIFY(!fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    fixture.annotations.setSelectedAnnotations({ ink });
+    QVERIFY(!fixture.annotations.beginPartEdit(PartEdit::None));
+    QVERIFY(!fixture.annotations.beginPartEdit(PartEdit::AddMarkedAreas));
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::None);
+
+    // The menu offers it
+    std::map<QString, bool> actions = SelectionFixture::menuActions([&]() { fixture.press(fixture.device(QPointF(150, 100)), Qt::NoModifier, Qt::RightButton); });
+    QVERIFY(actions.count("Add Stroke"));
+    QVERIFY(actions.count("Erase Stroke at This Place"));
+    QVERIFY(!actions.count("Add Marked Text or Area"));
+
+    // Escape cancels the edit, the selection stays
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::AddStroke);
+    QVERIFY(fixture.key(Qt::Key_Escape));
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::None);
+    QVERIFY(fixture.annotations.isAnnotationSelected(ink));
+
+    // A new stroke is drawn by the mouse (even over another annotation, which is not selected by it)
+    QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(150, 100)), Qt::NoModifier, Qt::RightButton); }, "Add Stroke", nullptr));
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::AddStroke);
+    QVERIFY(fixture.move(fixture.device(QPointF(190, 190)), Qt::NoModifier, Qt::NoButton));
+    QVERIFY(fixture.press(fixture.device(QPointF(190, 190))));
+    for (int i = 1; i <= 8; ++i)
+    {
+        QVERIFY(fixture.move(fixture.device(QPointF(190 + 10 * i, 190 + 5 * i))));
+    }
+    const QImage strokeImage = render();
+    QVERIFY(fixture.release(fixture.device(QPointF(270, 230))));
+    QCOMPARE(fixture.modificationCount, 1);
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::None);
+    QVERIFY(fixture.annotations.isAnnotationSelected(ink));
+    QVERIFY(!fixture.annotations.isAnnotationSelected(square));
+    QCOMPARE(partCount(ink), size_t(2));
+
+    const QPolygonF newStroke = PDFAnnotationManipulator::getParts(&fixture.document->getStorage(), ink).shapes.back();
+    QVERIFY(newStroke.size() >= 5);
+    QVERIFY(QLineF(newStroke.front(), QPointF(190, 190)).length() < 2.0);
+    QVERIFY(QLineF(newStroke.back(), QPointF(270, 230)).length() < 2.0);
+
+    // The stroke is displayed, when it is drawn
+    const QPoint onStroke = fixture.device(QPointF(230, 210));
+    bool hasStrokePixel = false;
+    for (int dx = -3; dx <= 3 && !hasStrokePixel; ++dx)
+    {
+        for (int dy = -3; dy <= 3 && !hasStrokePixel; ++dy)
+        {
+            const QColor color = strokeImage.pixelColor(onStroke + QPoint(dx, dy));
+            hasStrokePixel = color.red() > color.green() + 40 && color.red() > color.blue() + 40;
+        }
+    }
+    QVERIFY(hasStrokePixel);
+
+    // A click draws nothing, the edit is finished
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    QVERIFY(fixture.press(fixture.device(QPointF(20, 20))));
+    QVERIFY(fixture.release(fixture.device(QPointF(20, 20))));
+    QCOMPARE(fixture.modificationCount, 1);
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::None);
+
+    // The press out of the page cancels the edit
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    fixture.press(QPoint(-50, -50));
+    fixture.release(QPoint(-50, -50));
+    QCOMPARE(fixture.annotations.getPartEdit(), PartEdit::None);
+    QCOMPARE(fixture.modificationCount, 1);
+
+    // Another area is marked (there is no text on the page, so the area itself is marked)
+    fixture.annotations.setSelectedAnnotations({ highlight });
+    QVERIFY(!fixture.annotations.beginPartEdit(PartEdit::AddStroke));
+    actions = SelectionFixture::menuActions([&]() { fixture.press(fixture.device(QPointF(100, 256)), Qt::NoModifier, Qt::RightButton); });
+    QVERIFY(actions.count("Add Marked Text or Area"));
+    QVERIFY(actions.count("Mark Another Text or Area Instead"));
+    QVERIFY(!actions.count("Add Stroke"));
+
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::AddMarkedAreas));
+    QVERIFY(fixture.press(fixture.device(QPointF(50, 230))));
+    QVERIFY(fixture.move(fixture.device(QPointF(120, 218))));
+    render();
+    QVERIFY(fixture.release(fixture.device(QPointF(120, 218))));
+    QCOMPARE(fixture.modificationCount, 2);
+    QCOMPARE(partCount(highlight), size_t(2));
+    QVERIFY(SelectionFixture::fuzzyCompare(PDFAnnotationManipulator::getParts(&fixture.document->getStorage(), highlight).shapes.back().boundingRect(), QRectF(50, 218, 70, 12), 2.0));
+
+    // Another area is marked instead
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::ReplaceMarkedAreas));
+    QVERIFY(fixture.press(fixture.device(QPointF(60, 180))));
+    QVERIFY(fixture.move(fixture.device(QPointF(160, 168))));
+    QVERIFY(fixture.release(fixture.device(QPointF(160, 168))));
+    QCOMPARE(fixture.modificationCount, 3);
+    QCOMPARE(partCount(highlight), size_t(1));
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(highlight), QRectF(60, 168, 100, 12), 3.0));
+
+    // Nothing is marked
+    QVERIFY(fixture.annotations.beginPartEdit(PartEdit::ReplaceMarkedAreas));
+    QVERIFY(fixture.press(fixture.device(QPointF(60, 100))));
+    QVERIFY(fixture.release(fixture.device(QPointF(60, 100))));
+    QCOMPARE(fixture.modificationCount, 3);
+    QCOMPARE(partCount(highlight), size_t(1));
+
+    QVERIFY(fixture.annotations.getMarkedShapes(0, QPointF(10, 10), QPointF(10.5, 40)).empty());
+    QCOMPARE(fixture.annotations.getMarkedShapes(0, QPointF(10, 40), QPointF(30, 10)), (std::vector<QPolygonF>{ QPolygonF({ QPointF(10, 40), QPointF(30, 40), QPointF(30, 10), QPointF(10, 10) }) }));
+
+    // Functions of the manager
+    QVERIFY(!fixture.annotations.addAnnotationParts(highlight, { }));
+    QVERIFY(!fixture.annotations.addAnnotationParts(highlight, { QPolygonF({ QPointF(0, 0), QPointF(1, 1) }) }));
+    QVERIFY(!fixture.annotations.addAnnotationParts(PDFObjectReference(), { QPolygonF({ QPointF(0, 0), QPointF(1, 1) }) }));
+    QVERIFY(!fixture.annotations.setAnnotationParts(highlight, { }));
+    QVERIFY(!fixture.annotations.setAnnotationParts(PDFObjectReference(), { }));
+    QCOMPARE(fixture.modificationCount, 3);
+}
+
+void AnnotationSelectionTest::inkIsErasedAndItsPointsAreEdited()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference ink = builder.createAnnotationInk(page, Polygons{ QPolygonF({ QPointF(50, 100), QPointF(250, 100) }), QPolygonF({ QPointF(50, 200), QPointF(150, 250), QPointF(250, 200) }) },
+                                                               2.0, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ ink });
+
+    auto getShapes = [&]() { return PDFAnnotationManipulator::getParts(&fixture.document->getStorage(), ink).shapes; };
+
+    // The stroke is erased at the place of the menu, so it is split
+    QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(150, 100)), Qt::NoModifier, Qt::RightButton); }, "Erase Stroke at This Place", nullptr));
+    QCOMPARE(fixture.modificationCount, 1);
+    Polygons shapes = getShapes();
+    QCOMPARE(shapes.size(), size_t(3));
+    QVERIFY(shapes[0].back().x() < 150.0 && shapes[0].back().x() > 120.0);
+    QVERIFY(shapes[1].front().x() > 150.0 && shapes[1].front().x() < 180.0);
+
+    QVERIFY(!fixture.annotations.eraseAnnotationInk(ink, QPointF(10, 10), 3.0));
+    QVERIFY(!fixture.annotations.eraseAnnotationInk(PDFObjectReference(), QPointF(10, 10), 3.0));
+    QVERIFY(fixture.annotations.eraseAnnotationInk(ink, QPointF(250, 100), 10.0));
+    QCOMPARE(fixture.modificationCount, 2);
+
+    // Points of the strokes are dragged
+    shapes = getShapes();
+    const QPointF vertex = shapes.back()[1];
+    QVERIFY(QLineF(vertex, QPointF(150, 250)).length() < 0.01);
+    QVERIFY(fixture.press(fixture.device(vertex)));
+    QVERIFY(fixture.move(fixture.device(QPointF(150, 280)), Qt::ControlModifier));
+
+    QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        fixture.annotations.drawPostRendering(&painter, image.rect());
+    }
+
+    QVERIFY(fixture.release(fixture.device(QPointF(150, 280)), Qt::ControlModifier));
+    QCOMPARE(fixture.modificationCount, 3);
+
+    const Polygons editedShapes = getShapes();
+    QCOMPARE(editedShapes.size(), shapes.size());
+    QVERIFY(QLineF(editedShapes.back()[1], QPointF(150, 280)).length() < 2.0);
+    QCOMPARE(editedShapes.back()[0], shapes.back()[0]);
+    QCOMPARE(editedShapes.front(), shapes.front());
+
+    // Points of an ink cannot be inserted, nor removed
+    std::map<QString, bool> actions = SelectionFixture::menuActions([&]() { fixture.press(fixture.device(editedShapes.back()[1]), Qt::NoModifier, Qt::RightButton); });
+    QVERIFY(!actions.count("Delete Point") || !actions["Delete Point"]);
+}
+
+void AnnotationSelectionTest::handlesOfLongMarkupAreNearCursor()
+{
+    // Text markup with forty marked lines
+    QPolygonF quadrilaterals;
+    for (int i = 0; i < 40; ++i)
+    {
+        const qreal bottom = 20.0 + i * 6.0;
+        quadrilaterals << QPointF(50, bottom + 5) << QPointF(250, bottom + 5) << QPointF(50, bottom) << QPointF(250, bottom);
+    }
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference highlight = builder.createAnnotationHighlight(page, quadrilaterals, Qt::yellow);
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ highlight });
+
+    // Returns the count of the red pixels (handles of the points) around the place
+    auto countHandlePixels = [&fixture](const QPointF& pagePoint)
+    {
+        QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        {
+            QPainter painter(&image);
+            fixture.annotations.drawPostRendering(&painter, image.rect());
+        }
+
+        int count = 0;
+        const QPoint center = fixture.device(pagePoint);
+        for (int dx = -4; dx <= 4; ++dx)
+        {
+            for (int dy = -4; dy <= 4; ++dy)
+            {
+                const QColor color = image.pixelColor(center + QPoint(dx, dy));
+                count += (color.red() > 180 && color.green() < 80 && color.blue() < 80) ? 1 : 0;
+            }
+        }
+        return count;
+    };
+
+    // The handles near to the cursor are displayed, all the handles can be dragged
+    fixture.move(fixture.device(QPointF(50, 22)), Qt::NoModifier, Qt::NoButton);
+    QVERIFY(countHandlePixels(QPointF(50, 22.5)) > 0);
+    QCOMPARE(countHandlePixels(QPointF(50, 20.0 + 39 * 6.0 + 2.5)), 0);
+
+    fixture.move(fixture.device(QPointF(250, 20.0 + 39 * 6.0 + 2.5)), Qt::NoModifier, Qt::NoButton);
+    QVERIFY(countHandlePixels(QPointF(250, 20.0 + 39 * 6.0 + 2.5)) > 0);
+    QCOMPARE(countHandlePixels(QPointF(50, 22.5)), 0);
+
+    QVERIFY(fixture.press(fixture.device(QPointF(250, 20.0 + 39 * 6.0 + 2.5))));
+    QVERIFY(fixture.move(fixture.device(QPointF(200, 20.0 + 39 * 6.0 + 2.5)), Qt::ControlModifier));
+    QVERIFY(fixture.release(fixture.device(QPointF(200, 20.0 + 39 * 6.0 + 2.5)), Qt::ControlModifier));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    const std::vector<PDFReal> quadPoints = fixture.numbers(highlight, "QuadPoints");
+    QCOMPARE(quadPoints.size(), size_t(320));
+    QVERIFY(std::abs(quadPoints[39 * 8 + 2] - 200.0) < 2.0);
+    QVERIFY(std::abs(quadPoints[38 * 8 + 2] - 250.0) < 0.01);
+}
+
+void AnnotationSelectionTest::replyIsWrittenInPopup()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(50, 50, 60, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ square });
+
+    auto showMenu = [&]() { fixture.press(fixture.device(QPointF(80, 70)), Qt::NoModifier, Qt::RightButton); };
+
+    // The reply is written in the popup window of the annotation
+    bool isReplyWritten = false;
+    QVERIFY(SelectionFixture::triggerMenuAction(showMenu, "Show Popup Window", [&isReplyWritten](QDialog* dialog)
+    {
+        QTextEdit* replyEdit = dialog->findChild<QTextEdit*>("replyEdit");
+        QPushButton* replyButton = dialog->findChild<QPushButton*>("replyButton");
+        if (!replyEdit || !replyButton || replyButton->isEnabled())
+        {
+            dialog->reject();
+            return;
+        }
+
+        // Empty reply cannot be sent
+        replyEdit->setPlainText("   ");
+        if (replyButton->isEnabled())
+        {
+            dialog->reject();
+            return;
+        }
+
+        replyEdit->setPlainText("I do not agree.");
+        isReplyWritten = replyButton->isEnabled();
+        replyButton->click();
+    }));
+    QVERIFY(isReplyWritten);
+    QCOMPARE(fixture.modificationCount, 1);
+
+    const std::vector<PDFObjectReference> replies = PDFAnnotationManipulator::getReplies(&fixture.document->getStorage(), page, square);
+    QCOMPARE(replies.size(), size_t(1));
+    QCOMPARE(fixture.contents(replies.front()), QString("I do not agree."));
+    QVERIFY(fixture.annotations.isAnnotationSelected(square));
+
+    // The popup window displays the reply
+    bool isReplyDisplayed = false;
+    QVERIFY(SelectionFixture::triggerMenuAction(showMenu, "Show Popup Window", [&isReplyDisplayed](QDialog* dialog)
+    {
+        for (const QLabel* label : dialog->findChildren<QLabel*>())
+        {
+            isReplyDisplayed = isReplyDisplayed || label->text() == "I do not agree.";
+        }
+        dialog->reject();
+    }));
+    QVERIFY(isReplyDisplayed);
+    QCOMPARE(fixture.modificationCount, 1);
+
+    QVERIFY(!fixture.annotations.addAnnotationReply(square, QString()));
+    QVERIFY(!fixture.annotations.addAnnotationReply(PDFObjectReference(), "Text"));
+    QVERIFY(fixture.annotations.addAnnotationReply(replies.front(), "Why?"));
+    QCOMPARE(PDFAnnotationManipulator::getReplies(&fixture.document->getStorage(), page, square).size(), size_t(2));
+}
+
+void AnnotationSelectionTest::attachedFileIsReplaced()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference fileSpecification = builder.createFileSpecification("old.txt");
+    const PDFObjectReference attachment = builder.createAnnotationFileAttachment(page, QPointF(100, 100), fileSpecification, FileAttachmentIcon::Paperclip, "Title", "Description");
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(200, 200, 60, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+
+    fixture.annotations.setSelectedAnnotations({ attachment });
+    const QRectF rectangle = fixture.rectangle(attachment);
+    std::map<QString, bool> actions = SelectionFixture::menuActions([&]() { fixture.press(fixture.device(rectangle.center()), Qt::NoModifier, Qt::RightButton); });
+    QVERIFY(actions.count("Replace Attached File..."));
+
+    fixture.annotations.setSelectedAnnotations({ square });
+    actions = SelectionFixture::menuActions([&]() { fixture.press(fixture.device(QPointF(230, 220)), Qt::NoModifier, Qt::RightButton); });
+    QVERIFY(!actions.count("Replace Attached File..."));
+
+    const QByteArray data = "Content of the new file";
+    QVERIFY(fixture.annotations.setAnnotationFileAttachment(attachment, "new.txt", data));
+    QVERIFY(!fixture.annotations.setAnnotationFileAttachment(square, "new.txt", data));
+    QVERIFY(!fixture.annotations.setAnnotationFileAttachment(PDFObjectReference(), "new.txt", data));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    const PDFAnnotationPtr parsed = PDFAnnotation::parse(&fixture.document->getStorage(), attachment);
+    const PDFFileAttachmentAnnotation* fileAttachment = dynamic_cast<const PDFFileAttachmentAnnotation*>(parsed.data());
+    QVERIFY(fileAttachment);
+    QCOMPARE(fileAttachment->getFileSpecification().getPlatformFileName(), QString("new.txt"));
+    const PDFEmbeddedFile* embeddedFile = fileAttachment->getFileSpecification().getPlatformFile();
+    QVERIFY(embeddedFile && embeddedFile->isValid());
+    QCOMPARE(fixture.document->getDecodedStream(embeddedFile->getStream()), data);
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(attachment), rectangle, 0.01));
 }
 
 void AnnotationSelectionTest::selectionIsDrawn()
@@ -1979,6 +2735,378 @@ void AnnotationSelectionTest::selectionIsDrawn()
     fixture.move(fixture.device(QPointF(210, 210)), Qt::NoModifier, Qt::NoButton);
     QVERIFY(countDrawnPixels() > 0);
     QCOMPARE(fixture.modificationCount, 0);
+}
+
+void AnnotationSelectionTest::reviewPointDragNoRotate_data()
+{
+    QTest::addColumn<int>("rotation");
+    QTest::newRow("unrotated-control") << 0;
+    QTest::newRow("rotate-90") << 90;
+    QTest::newRow("rotate-180") << 180;
+    QTest::newRow("rotate-270") << 270;
+}
+
+void AnnotationSelectionTest::reviewPointDragNoRotate()
+{
+    QFETCH(int, rotation);
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const QPolygonF points = { QPointF(60, 100), QPointF(140, 100), QPointF(100, 160) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, points, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+    SelectionFixture::setEntry(builder, page, "Rotate", PDFObject::createInteger(rotation));
+    SelectionFixture::setEntry(builder, polygon, "F", PDFObject::createInteger(PDFAnnotation::NoRotate));
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({polygon});
+
+    auto displayedPoints = [&]()
+    {
+        const PDFAnnotationPtr annotation = PDFAnnotation::parse(&fixture.document->getStorage(), polygon);
+        QRectF rectangle = annotation->getRectangle();
+        const QTransform matrix = fixture.annotations.prepareTransformations(fixture.pageToDevice(), &fixture.widget,
+            annotation->getEffectiveFlags(), fixture.document->getCatalog()->getPage(0), rectangle);
+        QPolygonF result;
+        for (const QPointF& point : PDFAnnotationManipulator::getEditablePoints(annotation.data()).points)
+        {
+            result << matrix.map(point);
+        }
+        return result;
+    };
+
+    const QPolygonF before = displayedPoints();
+    // Moving the top vertex changes the annotation anchor. The other vertices must stay put.
+    const QPoint target = before[2].toPoint() + QPoint(30, -20);
+    QVERIFY(fixture.press(before[2].toPoint()));
+    QVERIFY(fixture.move(target, Qt::ControlModifier));
+    QVERIFY(fixture.release(target, Qt::ControlModifier));
+    QCOMPARE(fixture.modificationCount, 1);
+    const QPolygonF after = displayedPoints();
+    qInfo() << "Displayed points before/after:" << before << after << "target:" << target;
+    const bool followsCursor = QLineF(after[2], QPointF(target)).length() < 2.0;
+    const bool otherPointsStayPut = QLineF(after[0], before[0]).length() < 2.0 && QLineF(after[1], before[1]).length() < 2.0;
+    QVERIFY(followsCursor && otherPointsStayPut);
+}
+
+void AnnotationSelectionTest::editsOfNoRotateAnnotation_data()
+{
+    QTest::addColumn<int>("rotation");
+    QTest::addColumn<int>("flags");
+    QTest::newRow("no-rotate-90") << 90 << int(PDFAnnotation::NoRotate);
+    QTest::newRow("no-rotate-180") << 180 << int(PDFAnnotation::NoRotate);
+    QTest::newRow("no-zoom-90") << 90 << int(PDFAnnotation::NoZoom);
+    QTest::newRow("no-rotate-no-zoom-270") << 270 << int(PDFAnnotation::NoRotate | PDFAnnotation::NoZoom);
+}
+
+void AnnotationSelectionTest::editsOfNoRotateAnnotation()
+{
+    QFETCH(int, rotation);
+    QFETCH(int, flags);
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const QPolygonF points = { QPointF(60, 100), QPointF(140, 100), QPointF(140, 140), QPointF(100, 160) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, points, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "");
+    SelectionFixture::setEntry(builder, page, "Rotate", PDFObject::createInteger(rotation));
+    SelectionFixture::setEntry(builder, polygon, "F", PDFObject::createInteger(flags));
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ polygon });
+
+    auto displayedPoints = [&]()
+    {
+        const PDFAnnotationPtr annotation = PDFAnnotation::parse(&fixture.document->getStorage(), polygon);
+        QRectF rectangle = annotation->getRectangle();
+        const QTransform matrix = fixture.annotations.prepareTransformations(fixture.pageToDevice(), &fixture.widget,
+            annotation->getEffectiveFlags(), fixture.document->getCatalog()->getPage(0), rectangle);
+        QPolygonF result;
+        for (const QPointF& point : PDFAnnotationManipulator::getEditablePoints(annotation.data()).points)
+        {
+            result << matrix.map(point);
+        }
+        return result;
+    };
+
+    auto isNear = [](const QPointF& left, const QPointF& right) { return QLineF(left, right).length() < 0.5; };
+
+    // The top vertex (it defines the anchor of the displayed annotation) is moved by the
+    // keyboard. It moves in the direction of the arrow on the screen, other vertices stay.
+    const QPolygonF before = displayedPoints();
+    QVERIFY(fixture.key(Qt::Key_Left, Qt::AltModifier));
+    QCOMPARE(fixture.annotations.getActivePoint(), 3);
+
+    for (const auto& [key, direction] : { std::pair<Qt::Key, QPointF>{ Qt::Key_Up, QPointF(0, -1) }, std::pair<Qt::Key, QPointF>{ Qt::Key_Left, QPointF(-1, 0) },
+                                          std::pair<Qt::Key, QPointF>{ Qt::Key_Down, QPointF(0, 1) }, std::pair<Qt::Key, QPointF>{ Qt::Key_Right, QPointF(1, 0) } })
+    {
+        const QPolygonF start = displayedPoints();
+        QVERIFY(fixture.key(key, Qt::ShiftModifier));
+        const QPolygonF moved = displayedPoints();
+        const QPointF difference = moved[3] - start[3];
+        const qreal distance = QLineF(moved[3], start[3]).length();
+        QVERIFY(distance > 2.0);
+        QVERIFY(isNear(difference / distance, direction));
+        QVERIFY(isNear(moved[0], before[0]) && isNear(moved[1], before[1]) && isNear(moved[2], before[2]));
+    }
+    QVERIFY(isNear(displayedPoints()[3], before[3]));
+
+    // The vertex is removed
+    QVERIFY(fixture.key(Qt::Key_Delete));
+    const QPolygonF after = displayedPoints();
+    QCOMPARE(after.size(), 3);
+    QVERIFY(isNear(after[0], before[0]) && isNear(after[1], before[1]) && isNear(after[2], before[2]));
+}
+
+void AnnotationSelectionTest::textBoxOfNoRotateCallout()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference callout = builder.createAnnotationFreeText(page, QRectF(10, 10, 190, 140), QRectF(110, 110, 80, 30), "Title", "Subject", "Contents",
+                                                                        Qt::AlignLeft, QPointF(20, 20), QPointF(110, 120), AnnotationLineEnding::OpenArrow, AnnotationLineEnding::None);
+    SelectionFixture::setEntry(builder, page, "Rotate", PDFObject::createInteger(90));
+    SelectionFixture::setEntry(builder, callout, "F", PDFObject::createInteger(PDFAnnotation::NoRotate));
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ callout });
+
+    auto matrix = [&]()
+    {
+        const PDFAnnotationPtr annotation = PDFAnnotation::parse(&fixture.document->getStorage(), callout);
+        QRectF rectangle = annotation->getRectangle();
+        return fixture.annotations.prepareTransformations(fixture.pageToDevice(), &fixture.widget, annotation->getEffectiveFlags(),
+                                                          fixture.document->getCatalog()->getPage(0), rectangle);
+    };
+    auto displayedTextBox = [&]()
+    {
+        return matrix().mapRect(PDFAnnotationManipulator::getFreeTextRectangle(&fixture.document->getStorage(), callout)).normalized();
+    };
+    auto displayedTip = [&]()
+    {
+        const std::vector<PDFReal> calloutLine = fixture.numbers(callout, "CL");
+        return matrix().map(QPointF(calloutLine[0], calloutLine[1]));
+    };
+
+    // The text box is resized - it is, where the user has put it, and the tip of the callout line stays
+    const QRectF before = displayedTextBox();
+    const QPointF tipBefore = displayedTip();
+    QVERIFY(fixture.press(before.topLeft().toPoint()));
+    QVERIFY(fixture.move(before.topLeft().toPoint() - QPoint(30, 20)));
+    QVERIFY(fixture.release(before.topLeft().toPoint() - QPoint(30, 20)));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    QRectF expected = before;
+    expected.setTopLeft(before.topLeft() - QPointF(30, 20));
+    QVERIFY(SelectionFixture::fuzzyCompare(displayedTextBox(), expected, 2.0));
+    QVERIFY(QLineF(displayedTip(), tipBefore).length() < 2.0);
+}
+
+void AnnotationSelectionTest::resizeSnapsToOtherAnnotation()
+{
+    for (const bool isSnappingEnabled : { true, false })
+    {
+        TwoSquares squares;
+        SelectionFixture fixture(squares.document);
+        fixture.annotations.setSelectedAnnotations({ squares.first });
+
+        // The corner of the frame is dragged near to the corner of the other square. Snapping is disabled by Ctrl.
+        const Qt::KeyboardModifiers modifiers = isSnappingEnabled ? Qt::NoModifier : Qt::ControlModifier;
+        QVERIFY(fixture.press(fixture.device(QPointF(110, 90))));
+        QVERIFY(fixture.move(fixture.device(QPointF(148, 148)), modifiers));
+        QVERIFY(fixture.release(fixture.device(QPointF(148, 148)), modifiers));
+        QCOMPARE(fixture.modificationCount, 1);
+
+        const QRectF rectangle = fixture.rectangle(squares.first);
+        QVERIFY(SelectionFixture::fuzzyCompare(rectangle, QRectF(50, 50, 98, 98), 1.0) != isSnappingEnabled);
+        QCOMPARE(SelectionFixture::fuzzyCompare(rectangle, QRectF(50, 50, 100, 100), 0.01), isSnappingEnabled);
+    }
+}
+
+void AnnotationSelectionTest::dragAndDropSnaps()
+{
+    for (const bool isSnappingEnabled : { true, false })
+    {
+        TwoSquares squares;
+        SelectionFixture fixture(squares.document);
+        fixture.annotations.setSelectedAnnotations({ squares.first });
+        QVERIFY(!fixture.annotations.createAnnotationDragData());
+
+        // The drag and drop operation is prepared by the press on the selected annotation
+        QVERIFY(fixture.press(fixture.device(QPointF(80, 70))));
+        std::unique_ptr<QMimeData> data(fixture.annotations.createAnnotationDragData());
+        QVERIFY(data);
+        QVERIFY(fixture.annotations.canAcceptAnnotationDrag(data.get()));
+
+        // The corner of the dragged square is near to the corner of the other square
+        const QPoint dropPosition = fixture.device(QPointF(218, 172));
+        fixture.annotations.updateAnnotationDropFeedback(data.get(), dropPosition, isSnappingEnabled);
+        const std::optional<QPointF> snapPoint = fixture.annotations.getAnnotationDropSnapPoint();
+        QCOMPARE(snapPoint.has_value(), isSnappingEnabled);
+        if (snapPoint)
+        {
+            QVERIFY(QLineF(*snapPoint, fixture.pageToDevice().map(QPointF(190, 150))).length() < 0.5);
+        }
+
+        QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        {
+            QPainter painter(&image);
+            fixture.annotations.drawPostRendering(&painter, image.rect());
+        }
+
+        QVERIFY(fixture.annotations.handleAnnotationDrop(data.get(), dropPosition, Qt::MoveAction, isSnappingEnabled));
+        QVERIFY(!fixture.annotations.getAnnotationDropSnapPoint());
+        QCOMPARE(fixture.modificationCount, 1);
+        // The position of the cursor is rounded to pixels, if the annotation does not snap
+        QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.first), isSnappingEnabled ? QRectF(190, 150, 60, 40) : QRectF(188, 152, 60, 40), 2.0));
+        QCOMPARE(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.first), QRectF(190, 150, 60, 40), 0.01), isSnappingEnabled);
+        fixture.release(dropPosition);
+
+        // The feedback is cleared, when the cursor leaves the widget
+        fixture.annotations.updateAnnotationDropFeedback(data.get(), QPoint(-100, -100), true);
+        fixture.annotations.clearAnnotationDropFeedback();
+        QVERIFY(!fixture.annotations.getAnnotationDropSnapPoint());
+    }
+}
+
+void AnnotationSelectionTest::dragAndDropMovesTextBox()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference callout = builder.createAnnotationFreeText(page, QRectF(10, 10, 190, 140), QRectF(110, 110, 80, 30), "Title", "Subject", "Contents",
+                                                                        Qt::AlignLeft, QPointF(20, 20), QPointF(110, 120), AnnotationLineEnding::OpenArrow, AnnotationLineEnding::None);
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ callout });
+
+    // The text box is dragged - the tip of the callout line stays
+    QVERIFY(fixture.press(fixture.device(QPointF(150, 125))));
+    std::unique_ptr<QMimeData> data(fixture.annotations.createAnnotationDragData());
+    QVERIFY(data);
+    QVERIFY(fixture.annotations.handleAnnotationDrop(data.get(), fixture.device(QPointF(180, 165)), Qt::MoveAction, false));
+    fixture.release(fixture.device(QPointF(180, 165)));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    QVERIFY(SelectionFixture::fuzzyCompare(PDFAnnotationManipulator::getFreeTextRectangle(&fixture.document->getStorage(), callout), QRectF(140, 150, 80, 30), 2.0));
+    std::vector<PDFReal> calloutLine = fixture.numbers(callout, "CL");
+    QVERIFY(std::abs(calloutLine[0] - 20.0) < 0.01 && std::abs(calloutLine[1] - 20.0) < 0.01);
+
+    // The whole annotation is dragged by its callout line
+    const QRectF textRectangle = PDFAnnotationManipulator::getFreeTextRectangle(&fixture.document->getStorage(), callout);
+    const QPointF onLine = (QPointF(calloutLine[0], calloutLine[1]) + QPointF(calloutLine[2], calloutLine[3])) * 0.5;
+    QVERIFY(fixture.press(fixture.device(onLine)));
+    data.reset(fixture.annotations.createAnnotationDragData());
+    QVERIFY(data);
+    QVERIFY(fixture.annotations.handleAnnotationDrop(data.get(), fixture.device(onLine + QPointF(30, 20)), Qt::MoveAction, false));
+    fixture.release(fixture.device(onLine + QPointF(30, 20)));
+    QCOMPARE(fixture.modificationCount, 2);
+
+    QVERIFY(SelectionFixture::fuzzyCompare(PDFAnnotationManipulator::getFreeTextRectangle(&fixture.document->getStorage(), callout), textRectangle.translated(30, 20), 2.0));
+    calloutLine = fixture.numbers(callout, "CL");
+    QVERIFY(std::abs(calloutLine[0] - 50.0) < 2.0 && std::abs(calloutLine[1] - 40.0) < 2.0);
+}
+
+void AnnotationSelectionTest::interactionScope()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page1 = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference page2 = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference first = builder.createAnnotationSquare(page1, QRectF(50, 50, 60, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference second = builder.createAnnotationSquare(page1, QRectF(150, 150, 40, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference third = builder.createAnnotationSquare(page2, QRectF(50, 50, 60, 40), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+
+    // Handles and dragging work with the annotations of a single page. If the selection
+    // spans several pages, then the user is told about it during the whole interaction.
+    fixture.annotations.setSelectedAnnotations({ first, second });
+    QVERIFY(fixture.annotations.getInteractionScopeText(0).isEmpty());
+
+    fixture.annotations.setSelectedAnnotations({ first, second, third });
+    QVERIFY(fixture.annotations.getInteractionScopeText(0).contains("2 of 3"));
+    QVERIFY(fixture.annotations.getInteractionScopeText(1).contains("1 of 3"));
+
+    // The handles change the annotations of the page (the text is a part of the feedback of
+    // the interaction; fonts are not available on the offscreen platform, so it is just drawn)
+    const QRectF frame = fixture.pageToDevice().mapRect(QRectF(50, 50, 140, 140)).normalized();
+    QVERIFY(fixture.press(frame.bottomRight().toPoint()));
+    QVERIFY(fixture.move(frame.bottomRight().toPoint() + QPoint(40, 40), Qt::ControlModifier));
+
+    QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        fixture.annotations.drawPostRendering(&painter, image.rect());
+    }
+
+    QVERIFY(fixture.release(frame.bottomRight().toPoint() + QPoint(40, 40), Qt::ControlModifier));
+    QCOMPARE(fixture.modificationCount, 1);
+    QVERIFY(!SelectionFixture::fuzzyCompare(fixture.rectangle(first), QRectF(50, 50, 60, 40), 1.0));
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(third), QRectF(50, 50, 60, 40), 0.01));
+}
+
+void AnnotationSelectionTest::previewIsResultOfOperation()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(50, 150), QPointF(150, 150), 1.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "100 pt", AnnotationLineEnding::None, AnnotationLineEnding::None, 0.0, 0.0, 0.0, true, true);
+    SelectionFixture::setEntry(builder, line, "IT", PDFObject::createName("LineDimension"));
+    const PDFObjectReference stamp = builder.createAnnotationStamp(page, QRectF(20, 20, 120, 40), Stamp::Approved, "Title", "Subject", "Contents");
+    const PDFObjectReference callout = builder.createAnnotationFreeText(page, QRectF(160, 160, 130, 130), QRectF(210, 250, 80, 30), "Title", "Subject", "Contents",
+                                                                        Qt::AlignLeft, QPointF(170, 170), QPointF(210, 260), AnnotationLineEnding::OpenArrow, AnnotationLineEnding::None);
+    SelectionFixture fixture(builder.build());
+
+    // Point of a measurement is dragged - the preview displays the new measured value
+    fixture.annotations.setSelectedAnnotations({ line });
+    QVERIFY(!fixture.annotations.getInteractionPreview(line));
+    QVERIFY(fixture.press(fixture.device(QPointF(150, 150))));
+    QVERIFY(fixture.move(fixture.device(QPointF(250, 150)), Qt::ControlModifier));
+    PDFAnnotationPtr preview = fixture.annotations.getInteractionPreview(line);
+    QVERIFY(preview);
+    QCOMPARE(preview->getContents(), QString("200 pt"));
+    QCOMPARE(fixture.contents(line), QString("100 pt"));
+    QCOMPARE(fixture.modificationCount, 0);
+
+    QImage image(fixture.widget.getDrawWidget()->getWidget()->size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        fixture.annotations.drawPostRendering(&painter, image.rect());
+    }
+    // The preview of the line is drawn - there is a red pixel behind the old end of the line
+    const QPoint onNewPart = fixture.device(QPointF(220, 150));
+    bool hasLinePixel = false;
+    for (int dy = -2; dy <= 2; ++dy)
+    {
+        const QColor color = image.pixelColor(onNewPart + QPoint(0, dy));
+        hasLinePixel = hasLinePixel || (color.red() > color.green() + 40 && color.red() > color.blue() + 40);
+    }
+    QVERIFY(hasLinePixel);
+
+    QVERIFY(fixture.release(fixture.device(QPointF(250, 150)), Qt::ControlModifier));
+    QCOMPARE(fixture.contents(line), QString("200 pt"));
+    QVERIFY(!fixture.annotations.getInteractionPreview(line));
+
+    // Text box is resized - the preview has the new text box
+    fixture.annotations.setSelectedAnnotations({ callout });
+    const QRectF textFrame = fixture.pageToDevice().mapRect(QRectF(210, 250, 80, 30)).normalized();
+    QVERIFY(fixture.press(textFrame.topLeft().toPoint()));
+    QVERIFY(fixture.move(textFrame.topLeft().toPoint() - QPoint(20, 20), Qt::ControlModifier));
+    preview = fixture.annotations.getInteractionPreview(callout);
+    QVERIFY(preview);
+    const PDFFreeTextAnnotation* freeTextPreview = dynamic_cast<const PDFFreeTextAnnotation*>(preview.data());
+    QVERIFY(freeTextPreview);
+    QVERIFY(freeTextPreview->getTextRectangle().width() > 85.0);
+    QVERIFY(freeTextPreview->getTextRectangle().height() > 35.0);
+    QVERIFY(SelectionFixture::fuzzyCompare(PDFAnnotationManipulator::getFreeTextRectangle(&fixture.document->getStorage(), callout), QRectF(210, 250, 80, 30), 0.01));
+
+    // Escape cancels the interaction, nothing is changed
+    QVERIFY(fixture.key(Qt::Key_Escape));
+    QVERIFY(!fixture.annotations.getInteractionPreview(callout));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    // A stamp is displayed by its appearance stream, which is transformed by the preview.
+    // A square, which is resized together with it, is displayed as the result of the operation.
+    const QRectF stampFrame = fixture.pageToDevice().mapRect(QRectF(20, 20, 120, 40)).normalized();
+    fixture.annotations.setSelectedAnnotations({ stamp });
+    QVERIFY(fixture.press(stampFrame.bottomRight().toPoint()));
+    QVERIFY(fixture.move(stampFrame.bottomRight().toPoint() + QPoint(20, 20), Qt::ControlModifier));
+    QVERIFY(!fixture.annotations.getInteractionPreview(stamp));
+    QVERIFY(fixture.key(Qt::Key_Escape));
+    QCOMPARE(fixture.modificationCount, 1);
 }
 
 QTEST_MAIN(AnnotationSelectionTest)

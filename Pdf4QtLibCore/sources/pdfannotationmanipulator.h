@@ -133,6 +133,18 @@ public:
     /// \returns true, if the annotation has been modified
     static bool transformAnnotation(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QTransform& transform);
 
+    /// Moves and resizes the annotation, so its rectangle is the given rectangle. The
+    /// rectangle is not just overwritten - the annotation is transformed, so its geometry
+    /// (points, callout line, ...) follows the rectangle. An annotation, which cannot be
+    /// resized, is moved to the center of the rectangle. The rectangle of an annotation is
+    /// its geometry with a margin (width of the line, line endings), which is not scaled with
+    /// the geometry, so the transformation is repeated, until the rectangle is reached.
+    /// \param builder Document builder
+    /// \param annotation Annotation
+    /// \param rectangle New rectangle of the annotation in page coordinates
+    /// \returns true, if the annotation has been modified
+    static bool setRectangle(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QRectF& rectangle);
+
     /// Returns the transformation, which is really applied to an annotation of the given
     /// type, when the annotation is transformed by \ref transformAnnotation - it is either
     /// the transformation itself, or just a translation to the transformed position, if
@@ -159,10 +171,14 @@ public:
         bool isClosed = false;      ///< Points form a closed shape (polygon)
         bool isCalloutLine = false; ///< Points are the callout line of a free text annotation
         bool isQuadEnds = false;    ///< Points are the ends of the marked regions (two points for each quadrilateral)
+        std::vector<size_t> strokeSizes; ///< Points are the points of the strokes of an ink (count of the points of each stroke)
         size_t minimalCount = 0;    ///< Minimal number of the points
         size_t maximalCount = 0;    ///< Maximal number of the points
 
         bool isValid() const { return !points.empty(); }
+
+        /// Returns true, if the points are the points of the strokes of an ink
+        bool isStrokePoints() const { return !strokeSizes.empty(); }
 
         /// Returns true, if a point can be inserted (into any segment)
         bool canInsertPoint() const { return isValid() && points.size() < maximalCount; }
@@ -184,7 +200,11 @@ public:
     /// of the page (usually lines of a text) by quadrilaterals. Each region has two
     /// points - the middle of its start and the middle of its end - so a single marked
     /// line can be made longer or shorter. The points move only along the region.
-    /// Annotations with too many regions have no points (they would cover the annotation).
+    ///
+    /// An ink has the points of its strokes, if it is defined by the ink list (not by
+    /// a path), and if it has a reasonable count of points (a stroke drawn by hand has
+    /// hundreds of points, which cannot be edited one by one). The count of the points
+    /// of the strokes cannot be changed.
     /// \param annotation Annotation
     static EditablePoints getEditablePoints(const PDFAnnotation* annotation);
 
@@ -206,16 +226,62 @@ public:
     {
         std::vector<QPolygonF> shapes;  ///< Shapes of the parts (page coordinates)
         bool isFilled = false;          ///< Parts are areas (otherwise they are lines)
+        bool isSupported = false;       ///< The annotation consists of parts (even if it has no part now)
 
         /// Returns true, if a part can be removed (the last part cannot be removed,
         /// the whole annotation should be deleted instead)
         bool canRemovePart() const { return shapes.size() > 1; }
     };
 
+    /// Adds a reply to the annotation. The reply is a text annotation, which is not displayed
+    /// on the page - it is a part of the comment thread displayed in the popup window of the
+    /// annotation. A reply to a reply is allowed.
+    /// \param builder Document builder
+    /// \param annotation Markup annotation, to which the reply is added
+    /// \param author Author of the reply
+    /// \param contents Text of the reply
+    /// \returns Reference of the reply, or invalid reference, if the reply cannot be added
+    static PDFObjectReference addReply(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QString& author, const QString& contents);
+
+    /// Replaces the file, which is attached by a file attachment annotation. The file
+    /// is embedded into the document. The old embedded file is not referenced any more.
+    /// \param builder Document builder
+    /// \param annotation File attachment annotation
+    /// \param fileName Name of the file (without a path)
+    /// \param data Content of the file
+    /// \returns true, if the annotation has been modified
+    static bool setFileAttachment(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QString& fileName, const QByteArray& data);
+
     /// Returns the parts of the annotation
     /// \param storage Object storage
     /// \param annotation Annotation
     static Parts getParts(const PDFObjectStorage* storage, PDFObjectReference annotation);
+
+    /// Replaces the parts of the annotation - the marked areas (each of them has four corners,
+    /// which go around the area, starting with the top left and the top right one), or the strokes
+    /// of an ink (each of them has at least two points). The annotation must have a part.
+    /// \param builder Document builder
+    /// \param annotation Annotation
+    /// \param shapes Shapes of the parts (page coordinates)
+    /// \returns true, if the annotation has been modified
+    static bool setParts(PDFDocumentBuilder* builder, PDFObjectReference annotation, const std::vector<QPolygonF>& shapes);
+
+    /// Adds a part to the annotation - a marked area to a text markup (redaction), or a stroke to an ink
+    /// \param builder Document builder
+    /// \param annotation Annotation
+    /// \param shape Shape of the part (page coordinates, see \ref setParts)
+    /// \returns true, if the annotation has been modified
+    static bool addPart(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QPolygonF& shape);
+
+    /// Erases the parts of the strokes of an ink, which are in the circle. The strokes are
+    /// cut at the border of the circle, so a stroke can be split into several strokes. If
+    /// nothing would remain, then the ink is not modified (it should be deleted instead).
+    /// \param builder Document builder
+    /// \param annotation Annotation
+    /// \param center Center of the erased circle (page coordinates)
+    /// \param radius Radius of the erased circle
+    /// \returns true, if the annotation has been modified
+    static bool eraseInk(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QPointF& center, PDFReal radius);
 
     /// Removes a part of the annotation (see \ref getParts)
     /// \param builder Document builder
@@ -406,6 +472,14 @@ private:
     /// polyline with three points, the second point is the vertex of the angle)
     static bool isAngularMeasurement(const PDFAnnotation* annotation);
 
+    /// Returns the points of the displayed shape of a polygon (polyline). The path
+    /// has precedence over the vertices, as it has, when the annotation is drawn.
+    /// Returns empty array, if the path contains curves.
+    static std::vector<QPointF> getPolygonalPoints(const PDFPolygonalGeometryAnnotation* annotation);
+
+    /// Reverses the order of the items of an array (of the points of a path without curves)
+    static void reverseArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key);
+
     /// Returns the points of the path. Returns empty array, if the path contains
     /// curves. The point, which closes the path, is not returned.
     static std::vector<QPointF> getPathPoints(const QPainterPath& path);
@@ -427,16 +501,45 @@ private:
     /// Formats the value the same way, as the number token is formatted
     static QString formatNumberToken(const NumberToken& token, PDFReal value);
 
+    /// Quantity, which must be distinguished from another quantity measured by the same annotation
+    enum class MeasuredQuantity
+    {
+        Unknown,
+        Length,
+        Area
+    };
+
+    /// Value measured by a measurement annotation
+    struct MeasuredValue
+    {
+        PDFReal value = 0.0;                                    ///< Value in the displayed units
+        MeasuredQuantity quantity = MeasuredQuantity::Unknown;  ///< Quantity, if the annotation measures several quantities (perimeter and area of a polygon)
+        QString unit;                                           ///< Label of the unit defined by the measure (can be empty)
+        QString text;                                           ///< Value formatted by the number format of the measure (can be empty)
+    };
+
     /// Returns the quantities measured by a measurement annotation - length of
     /// a dimension line or of a polyline, angle of an angular dimension, perimeter
     /// and area of a polygon. Returns empty array, if the annotation is not
     /// a measurement. The values are in the units of the measure, or in the units
-    /// of the default user space, if the measure is not valid.
-    static std::vector<PDFReal> getMeasuredValues(const PDFAnnotation* annotation, const PDFMeasure& measure);
+    /// of the default user space, if the measure is not valid. The displayed
+    /// shape is measured (the path has precedence over the vertices).
+    static std::vector<MeasuredValue> getMeasuredValues(const PDFAnnotation* annotation, const PDFMeasure& measure);
 
-    /// Returns the text of a measurement annotation with the measured value updated,
+    /// Returns the quantity, which the number in the text displays according to the text
+    /// around the number - symbol of the quantity before it ("A = "), unit of area after it.
+    /// \param before Text before the number
+    /// \param after Text after the number (without leading spaces)
+    static MeasuredQuantity getQuantityCue(const QString& before, const QString& after);
+
+    /// Returns, how much the number in the text looks like the measured value (the greater
+    /// score, the better; zero means, that nothing speaks for it, nor against it). Returns
+    /// a negative number, if the number cannot be the measured value.
+    static int getMeasurementFieldScore(const QString& text, const NumberToken& token, const MeasuredValue& value);
+
+    /// Returns the text of a measurement annotation with the measured values updated,
     /// or the unchanged text, if no measured value was recognized in it.
-    static QString updateMeasurementText(const QString& text, bool isMeasureValid, bool isPolygon, const std::vector<PDFReal>& oldValues, const std::vector<PDFReal>& newValues);
+    static QString updateMeasurementText(const QString& text, bool isMeasureValid, const std::vector<MeasuredValue>& oldValues, const std::vector<MeasuredValue>& newValues);
 
     /// Updates the measured value displayed by the measurement annotation after its
     /// geometry has been changed. Returns true, if the annotation has been modified.

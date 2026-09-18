@@ -32,6 +32,7 @@
 #include <QPixmap>
 #include <QUuid>
 
+#include <map>
 #include <array>
 #include <optional>
 #include <functional>
@@ -140,7 +141,35 @@ public:
                             QPoint globalMenuPosition);
 
     bool canAcceptAnnotationDrag(const QMimeData* data) const;
-    bool handleAnnotationDrop(const QMimeData* data, const QPoint& widgetPos, Qt::DropAction action);
+    bool handleAnnotationDrop(const QMimeData* data, const QPoint& widgetPos, Qt::DropAction action, bool isSnappingEnabled = true);
+
+    /// Updates the feedback of the drag and drop operation - the place, to which the dragged
+    /// annotations snap, and the scope of the operation. It is displayed until it is cleared.
+    /// \param data Dragged data
+    /// \param widgetPos Position of the cursor
+    /// \param isSnappingEnabled Snap the dragged annotations to the geometry of the page and of the other annotations
+    void updateAnnotationDropFeedback(const QMimeData* data, const QPoint& widgetPos, bool isSnappingEnabled);
+
+    /// Clears the feedback of the drag and drop operation
+    void clearAnnotationDropFeedback();
+
+    /// Returns the place, to which the dragged annotations snap (device coordinates),
+    /// if the feedback of the drag and drop operation is displayed and they snap
+    std::optional<QPointF> getAnnotationDropSnapPoint() const;
+
+    /// Creates the data of the drag and drop operation, which has been prepared by the mouse
+    /// press on the selection. Returns nullptr, if no operation is prepared. The caller
+    /// is the owner of the data.
+    QMimeData* createAnnotationDragData() const;
+
+    /// Returns a text, which tells the user, that the interaction changes just a part of the selection
+    /// (the selection can span several pages, handles and dragging work with a single page). Returns
+    /// empty text, if the whole selection is changed.
+    QString getInteractionScopeText(PDFInteger pageIndex) const;
+
+    /// Returns the annotation, as it will look like, when the running interaction (dragging
+    /// of a handle, or of a point) is finished. Returns nullptr, if there is no such preview.
+    PDFAnnotationPtr getInteractionPreview(PDFObjectReference annotation) const;
 
     /// Returns whether a visible, editable annotation can be deleted by the user.
     /// Checks both document permissions and annotation flags.
@@ -176,7 +205,8 @@ public:
     /// Returns snap information generated from editable annotation geometry on a page.
     /// \param pageIndex Page index
     /// \param excludedAnnotation Annotation, whose geometry is skipped (the annotation being edited)
-    PDFSnapInfo getSnapInfo(PDFInteger pageIndex, PDFObjectReference excludedAnnotation = PDFObjectReference()) const;
+    /// \param excludeSelection Selected annotations are excluded too
+    PDFSnapInfo getSnapInfo(PDFInteger pageIndex, PDFObjectReference excludedAnnotation = PDFObjectReference(), bool excludeSelection = false) const;
 
     /// Returns references of the selected annotations
     std::vector<PDFObjectReference> getSelectedAnnotations() const;
@@ -299,6 +329,48 @@ public:
     /// \returns true, if the annotation has been modified
     bool removeAnnotationPart(PDFObjectReference annotation, size_t index);
 
+    /// Adds parts to the annotation (marked areas of a text markup, strokes of an ink), see PDFAnnotationManipulator::addPart
+    /// \returns true, if the annotation has been modified
+    bool addAnnotationParts(PDFObjectReference annotation, const std::vector<QPolygonF>& shapes);
+
+    /// Replaces the parts of the annotation, see PDFAnnotationManipulator::setParts
+    /// \returns true, if the annotation has been modified
+    bool setAnnotationParts(PDFObjectReference annotation, const std::vector<QPolygonF>& shapes);
+
+    /// Erases the parts of the strokes of an ink, which are in the circle (page coordinates)
+    /// \returns true, if the annotation has been modified
+    bool eraseAnnotationInk(PDFObjectReference annotation, const QPointF& center, PDFReal radius);
+
+    /// Adds a reply to the markup annotation (the author is the author from the settings). The
+    /// reply is displayed in the popup window of the annotation, where the user can write it.
+    /// \returns true, if the reply has been added
+    bool addAnnotationReply(PDFObjectReference annotation, const QString& contents);
+
+    /// Replaces the file attached by a file attachment annotation
+    /// \returns true, if the annotation has been modified
+    bool setAnnotationFileAttachment(PDFObjectReference annotation, const QString& fileName, const QByteArray& data);
+
+    /// Edit of the parts of the selected annotation, which is done by the next dragging of the mouse
+    enum class PartEdit
+    {
+        None,
+        AddStroke,          ///< A new stroke of an ink is drawn
+        AddMarkedAreas,     ///< Another text (or an area, if there is no text) is marked
+        ReplaceMarkedAreas  ///< Another text (or an area) is marked instead of the text, which is marked now
+    };
+
+    /// Starts the edit of the parts of the selected annotation. The next dragging of the mouse
+    /// on the page of the annotation does the edit (Escape cancels it).
+    /// \returns true, if a single annotation, which supports the edit, is selected
+    bool beginPartEdit(PartEdit partEdit);
+
+    /// Returns the edit of the parts, which waits for the dragging of the mouse
+    PartEdit getPartEdit() const { return m_partEdit; }
+
+    /// Returns the areas marked by the dragging of the mouse from the start to the end (page
+    /// coordinates) - the lines of the text between them, or the rectangle, if there is no text
+    std::vector<QPolygonF> getMarkedShapes(PDFInteger pageIndex, const QPointF& start, const QPointF& end) const;
+
     /// Sets the color of the selected annotations
     void setSelectedAnnotationsColor(const QColor& color);
 
@@ -387,7 +459,8 @@ private:
         None,
         RubberBand,     ///< Selection of annotations by a dragged rectangle
         Handle,         ///< Resizing or rotation using a handle of the selection frame
-        Point           ///< Dragging of a single point of the selected annotation
+        Point,          ///< Dragging of a single point of the selected annotation
+        Part            ///< Drawing of a new part of the selected annotation (see PartEdit)
     };
 
     struct InteractionState
@@ -409,8 +482,23 @@ private:
         std::vector<QPointF> previewPoints; ///< Points of the annotation with the dragged point (page coordinates)
         bool isPreviewClosed = false;   ///< Preview points form a closed shape
         bool isPreviewQuadEnds = false; ///< Preview points are the ends of the marked regions
-        bool isSnapped = false;         ///< Dragged point is snapped
+        std::vector<size_t> previewStrokeSizes; ///< Preview points are the points of the strokes of an ink
+        std::vector<QPointF> partPoints;    ///< Points of the drawn part (page coordinates) - the stroke, or the start and the end of the marked text
+        std::vector<QPolygonF> partShapes;  ///< Shapes of the drawn parts (page coordinates)
+        bool isSnapped = false;         ///< Dragged point (handle) is snapped
+        QPointF snappedDevicePoint;     ///< Place, to which the dragged handle is snapped (device coordinates)
         QRectF textRectangle;           ///< Text box, which is manipulated by the handles (page coordinates)
+        std::map<PDFObjectReference, PDFAnnotationPtr> previewAnnotations; ///< Annotations, as they will look like, when the interaction is finished
+    };
+
+    /// Feedback of the drag and drop operation
+    struct DropFeedback
+    {
+        bool isActive = false;
+        PDFInteger pageIndex = -1;
+        QPoint devicePosition;
+        bool isSnapped = false;
+        QPointF snappedDevicePoint;
     };
 
     /// Text box of the selected free text annotation with a callout line
@@ -507,6 +595,13 @@ private:
     /// directions and orientations between the screen and the page).
     QTransform getPageToDeviceMatrix(PDFInteger pageIndex) const;
 
+    /// Keeps the displayed position of an annotation, which is not displayed by the matrix
+    /// of the page (flags NoRotate, NoZoom), after its geometry has been edited in the builder.
+    /// Such an annotation is anchored at the corner of its rectangle, so an edit, which changes
+    /// the rectangle, would move the whole displayed annotation. The function moves the edited
+    /// annotation, so it is displayed at the place, where the user edited it.
+    void keepDisplayedPosition(PDFDocumentBuilder* builder, PDFObjectReference annotation) const;
+
     /// Returns the operations, which the user can do with the selection on the page
     PDFAnnotationManipulator::Capabilities getSelectionCapabilities(PDFInteger pageIndex) const;
 
@@ -545,7 +640,22 @@ private:
     void drawInfoText(QPainter* painter, const QString& text, const PDFColorConvertor& convertor) const;
 
     /// Draws the annotation, as it will look like after the transformation
-    void drawAnnotationPreview(QPainter* painter, const PageAnnotation& annotation, PDFInteger pageIndex, const QTransform& annotationToDevice) const;
+    /// \param isDrawnDirectly The annotation is not drawn by its appearance stream (it is an annotation of a preview, its appearance stream is not in the document)
+    void drawAnnotationPreview(QPainter* painter, const PageAnnotation& annotation, PDFInteger pageIndex, const QTransform& annotationToDevice, bool isDrawnDirectly = false) const;
+
+    /// Draws the annotation of the preview of the interaction (see updateInteractionPreview). Returns false, if there is none.
+    bool drawInteractionPreview(QPainter* painter, PDFObjectReference annotation, PDFInteger pageIndex, const QTransform& annotationToDevice) const;
+
+    /// Creates the annotations of the preview - the operation, which the interaction does, when it is finished,
+    /// is done in a temporary document, so the preview displays the real result (new measured value, new layout of the text)
+    void updateInteractionPreview();
+
+    /// Prepares the snapper for an interaction on the page
+    void prepareSnapper(const PDFWidgetSnapshot& snapshot, PDFInteger pageIndex, PDFObjectReference excludedAnnotation, bool excludeSelection);
+
+    /// Snaps the rectangle (page coordinates), which is moved on the page, by one of its corners, or by its center.
+    /// Returns the correction of the position (page coordinates).
+    QPointF snapMovedRectangle(PDFInteger pageIndex, const QRectF& rectangle, bool* isSnapped, QPointF* snappedDevicePoint);
 
     /// Returns the explanation of the limited capabilities of the annotation for the user
     QString getCapabilitiesHint(PDFAnnotationManipulator::Capabilities capabilities) const;
@@ -597,7 +707,7 @@ private:
     void updateHandleInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers);
 
     /// Computes the transformation (in page coordinates) of the handle interaction
-    QTransform computeHandleTransform(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers, qreal* angle) const;
+    QTransform computeHandleTransform(const QPointF& devicePosition, Qt::KeyboardModifiers modifiers, qreal* angle) const;
 
     /// Finishes the interaction (applies the transformation, or selects the annotations)
     void finishInteraction();
@@ -624,6 +734,12 @@ private:
 
     /// Starts dragging of the point handle at the device position
     bool beginPointInteraction(const QPoint& devicePosition);
+
+    /// Starts drawing of a new part of the selected annotation (see beginPartEdit)
+    bool beginPartInteraction(const QPoint& devicePosition);
+
+    /// Updates the drawn part
+    void updatePartInteraction(const QPoint& devicePosition);
 
     /// Updates the preview of the dragged point
     void updatePointInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers);
@@ -710,7 +826,10 @@ private:
     HoveredAnnotation m_hoveredAnnotation;
     Handle m_hoveredHandle = Handle::None;
     int m_hoveredPoint = -1;
+    QPoint m_lastMousePosition;
+    PartEdit m_partEdit = PartEdit::None;
     InteractionState m_interaction;
+    DropFeedback m_dropFeedback;
     DragState m_dragState;
 
     /// Identifier of this manager, it is stored in the drag data, so the drop
