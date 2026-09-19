@@ -34,7 +34,7 @@
 namespace pdfplugin
 {
 
-namespace
+namespace signdialog
 {
 
 constexpr const char* SETTINGS_GROUP = "SignaturePlugin";
@@ -50,7 +50,9 @@ constexpr const char* DEFAULT_TIMESTAMP_URLS[] =
     "https://freetsa.org/tsr"
 };
 
-}   // namespace
+}   // namespace signdialog
+
+using namespace signdialog;
 
 SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
     QDialog(parent),

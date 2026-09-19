@@ -38,7 +38,7 @@
 
 namespace pdfpagemaster
 {
-namespace
+namespace imageoptimizationsettingsdialog
 {
 template<typename Enum>
 void addItem(QComboBox* comboBox, const QString& text, Enum value)
@@ -70,7 +70,9 @@ void setCurrentEnum(QComboBox* comboBox, Enum value, Enum fallback)
         comboBox->setCurrentIndex(index);
     }
 }
-}   // namespace
+}   // namespace imageoptimizationsettingsdialog
+
+using namespace imageoptimizationsettingsdialog;
 
 ImageOptimizationSettingsDialog::ImageOptimizationSettingsDialog(pdf::PDFImageOptimizer::Settings settings, QWidget* parent) :
     QDialog(parent),

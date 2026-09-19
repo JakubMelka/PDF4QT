@@ -128,7 +128,7 @@ public:
     }
 };
 
-namespace
+namespace mainwindow
 {
 
 enum class SplitMode
@@ -580,7 +580,9 @@ std::vector<int> parseSplitPagePositions(const QString& text, bool* ok)
     return positions;
 }
 
-} // namespace
+}   // namespace mainwindow
+
+using namespace mainwindow;
 
 class WorkspaceFilterProxyModel : public QSortFilterProxyModel
 {

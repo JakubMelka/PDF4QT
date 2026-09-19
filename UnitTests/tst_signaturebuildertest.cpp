@@ -34,7 +34,7 @@
 
 using namespace pdf;
 
-namespace
+namespace signaturebuildertest
 {
 PDFObject dictionary(std::initializer_list<std::pair<const char*, PDFObject>> entries)
 {
@@ -66,7 +66,9 @@ PDFObjectReference appearance(PDFDocumentBuilder& builder, QRectF bbox)
     streamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(data.size()));
     return builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(streamDictionary), std::move(data))));
 }
-}
+}   // namespace signaturebuildertest
+
+using namespace signaturebuildertest;
 
 class SignatureBuilderTest : public QObject
 {

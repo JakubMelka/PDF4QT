@@ -33,14 +33,16 @@
 namespace pdfplugin
 {
 
-namespace
+namespace dimensionsettings
 {
 
 constexpr const char* SETTINGS_GROUP = "DimensionsPlugin";
 constexpr const char* SETTINGS_PRESETS_ARRAY = "ScalePresets";
 constexpr const char* SETTINGS_DOCUMENT_SCALES_ARRAY = "DocumentScales";
 
-}   // namespace
+}   // namespace dimensionsettings
+
+using namespace dimensionsettings;
 
 DocumentIdentity DocumentIdentity::create(const pdf::PDFDocument* document, const QString& fileName)
 {

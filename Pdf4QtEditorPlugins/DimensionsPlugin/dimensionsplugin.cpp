@@ -45,7 +45,7 @@
 namespace pdfplugin
 {
 
-namespace
+namespace dimensionsplugin
 {
 
 /// Escapes the field so it can be written to a csv file
@@ -61,7 +61,9 @@ QString escapeCsvField(const QString& text)
     return text;
 }
 
-}   // namespace
+}   // namespace dimensionsplugin
+
+using namespace dimensionsplugin;
 
 DimensionsPlugin::DimensionsPlugin() :
     pdf::PDFPlugin(nullptr),

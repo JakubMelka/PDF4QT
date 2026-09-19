@@ -38,7 +38,7 @@
 
 namespace pdf
 {
-namespace
+namespace imageoptimizer
 {
 constexpr int ANALYSIS_MAX_SIZE = 256;
 constexpr int MAX_UNIQUE_COLOR_SAMPLES = 512;
@@ -499,7 +499,9 @@ PDFDictionary mergeDictionaries(const PDFDictionary& base,
     return merged;
 }
 
-} // namespace
+}   // namespace imageoptimizer
+
+using namespace imageoptimizer;
 
 PDFImageOptimizer::Settings PDFImageOptimizer::Settings::createDefault()
 {

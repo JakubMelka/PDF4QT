@@ -35,7 +35,7 @@
 namespace pdf
 {
 
-namespace
+namespace transparencyrenderer
 {
 
 template<typename Callback>
@@ -55,7 +55,9 @@ void forEachTile(const QRect& rect, const QSize& tileSize, Callback&& callback)
     }
 }
 
-} // namespace
+}   // namespace transparencyrenderer
+
+using namespace transparencyrenderer;
 
 PDFFloatBitmap::PDFFloatBitmap() :
     m_width(0),

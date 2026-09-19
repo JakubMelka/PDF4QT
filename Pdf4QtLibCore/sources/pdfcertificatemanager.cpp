@@ -326,7 +326,7 @@ bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry,
     return false;
 }
 
-namespace
+namespace certificatemanager
 {
 
 /// Fills the verification context of a RFC 3161 timestamp. The functions with
@@ -419,7 +419,9 @@ bool postTimestampRequest(const QByteArray& requestData,
     return true;
 }
 
-}   // namespace
+}   // namespace certificatemanager
+
+using namespace certificatemanager;
 
 bool PDFSignatureFactory::signWithTimestamp(const PDFCertificateEntry& certificateEntry,
                                             QString password,
@@ -754,7 +756,12 @@ bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& cert
             SignParams.cbSize = sizeof(CRYPT_SIGN_MESSAGE_PARA);
             SignParams.dwMsgEncodingType = PKCS_7_ASN_ENCODING | X509_ASN_ENCODING;
             SignParams.pSigningCert = pCertContext;
-            SignParams.HashAlgorithm.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
+            // Jakub Melka: this member is the hash algorithm, not the signature
+            // algorithm. The identifier of the hash alone is used, so the signature
+            // is created by the algorithm of the key of the certificate. The
+            // certificates stored on smart cards often use an elliptic curve key,
+            // which cannot be signed by a RSA algorithm identifier.
+            SignParams.HashAlgorithm.pszObjId = (LPSTR)szOID_NIST_sha256;
             SignParams.HashAlgorithm.Parameters.cbData = 0;
             SignParams.HashAlgorithm.Parameters.pbData = NULL;
             SignParams.cMsgCert = 1;

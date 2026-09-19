@@ -48,7 +48,7 @@
 namespace pdf
 {
 
-namespace
+namespace image
 {
 
 struct PreparedImageData
@@ -744,7 +744,9 @@ static QByteArray encodeJPEG2000(const PreparedImageData& data,
     return result;
 }
 
-} // namespace
+}   // namespace image
+
+using namespace image;
 
 struct PDFJPEG2000ImageData
 {

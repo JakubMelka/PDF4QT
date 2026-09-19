@@ -52,7 +52,7 @@
 
 using namespace pdf;
 
-namespace
+namespace timestamptest
 {
 
 /// Returns the DER encoded certificate
@@ -564,7 +564,9 @@ QByteArray TestTimestampAuthority::createRejection() const
     return result;
 }
 
-}   // namespace
+}   // namespace timestamptest
+
+using namespace timestamptest;
 
 /// Tests of the RFC 3161 timestamps - the timestamp of a digital signature and
 /// the document timestamp. A timestamp authority of the test, running on the

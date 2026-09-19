@@ -1,5 +1,4 @@
 CURRENT:
- - Issue #188: Timestamp feature request
  - Issue #417: Allow Digital Signature support with visible signatures
  - Issue #427: Bitonal scans lose thin strokes: precompiled page images are downsampled bilinearly instead of area-averaged
  - Issue #425: Update bitonal document feature
@@ -30,6 +29,7 @@ CURRENT:
  - Issue #211: Text is inverted on edit
  - Issue #204: Editor corrupts some vector graphics
  - Issue #203: Editor seems to forget location of text after editing it
+ - Issue #188: Timestamp feature request
  - Issue #169: Option to render text as text when using Qpainter backend
 
 V: 1.6.0.0 14.6.2026

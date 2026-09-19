@@ -32,7 +32,7 @@
 #include <QMenu>
 #include <QProxyStyle>
 
-namespace
+namespace pagemastermain
 {
 
 class PageMasterStyle : public QProxyStyle
@@ -61,7 +61,9 @@ void installPageMasterStyle(QApplication& application)
     application.setStyle(new PageMasterStyle(currentStyle ? currentStyle->objectName() : QString()));
 }
 
-}   // namespace
+}   // namespace pagemastermain
+
+using namespace pagemastermain;
 
 int main(int argc, char *argv[])
 {

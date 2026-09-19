@@ -1106,13 +1106,15 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
     }
 }
 
-namespace
+namespace sidebarwidget
 {
 // Must match the same literal used in PDFViewerSettingsDialog::getActionShortcutDisplayText,
 // which reads this property to prefix these actions' names in the Settings shortcuts table
 // (they otherwise keep their plain text, e.g. "XYZ", in the outline context menu).
 constexpr const char* OUTLINE_ACTION_CATEGORY_PROPERTY = "pdf4qtActionCategory";
-}
+}   // namespace sidebarwidget
+
+using namespace sidebarwidget;
 
 void PDFSidebarWidget::createOutlineActions()
 {

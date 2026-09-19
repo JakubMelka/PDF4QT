@@ -40,7 +40,7 @@
 
 namespace pdfviewer
 {
-namespace
+namespace optimizeimagesdialog
 {
 template<typename Enum>
 static void addItem(QComboBox* combo, const QString& text, Enum value)
@@ -144,7 +144,9 @@ QPointF getEffectiveMinimalDpi(const pdf::PDFImageOptimizer::ImageInfo& info,
 
     return effectiveDpi;
 }
-} // namespace
+}   // namespace optimizeimagesdialog
+
+using namespace optimizeimagesdialog;
 
 PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* document,
                                                  pdf::PDFProgress* progress,

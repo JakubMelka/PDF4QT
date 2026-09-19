@@ -62,7 +62,7 @@
 namespace pdf
 {
 
-namespace
+namespace signaturehandler
 {
 
 /// Fills the verification context of a RFC 3161 timestamp. The functions with
@@ -82,7 +82,9 @@ void setTimestampVerifyContextData(TS_VERIFY_CTX* context, X509_STORE* store, ST
 #endif
 }
 
-}   // namespace
+}   // namespace signaturehandler
+
+using namespace signaturehandler;
 
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;

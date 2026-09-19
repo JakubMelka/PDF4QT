@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace
+namespace dimensionunits
 {
 
 // Conversion factors from a single point of the default user space
@@ -85,7 +85,9 @@ const DimensionUnit* findUnit(const DimensionUnits& units, const QByteArray& id)
     return it != units.cend() ? &*it : nullptr;
 }
 
-}   // namespace
+}   // namespace dimensionunits
+
+using namespace dimensionunits;
 
 DimensionUnits DimensionUnit::getLengthUnits()
 {

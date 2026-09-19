@@ -42,7 +42,7 @@
 namespace pdf
 {
 
-namespace
+namespace pagegeometrydialog
 {
 
 QDoubleSpinBox* createMillimeterSpinBox(QWidget* parent, double value = 0.0)
@@ -55,7 +55,9 @@ QDoubleSpinBox* createMillimeterSpinBox(QWidget* parent, double value = 0.0)
     return spinBox;
 }
 
-}   // namespace
+}   // namespace pagegeometrydialog
+
+using namespace pagegeometrydialog;
 
 PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     QDialog(parent),
