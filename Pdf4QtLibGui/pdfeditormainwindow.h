@@ -86,7 +86,7 @@ public:
     PDFProgramController* getProgramController() const { return m_programController; }
 
     virtual void updateUI(bool fullUpdate) override;
-    virtual QMenu* addToolMenu(QString name) override;
+    virtual QMenu* addToolMenu(QString name, pdf::PDFPlugin::PluginMenuLocation location) override;
     virtual void setStatusBarMessage(QString message, int time) override;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual void adjustToolbar(QToolBar* toolbar) override final;

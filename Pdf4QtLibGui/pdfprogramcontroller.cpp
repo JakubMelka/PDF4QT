@@ -696,6 +696,7 @@ void PDFProgramController::initialize(Features features,
 
     connect(this, &PDFProgramController::queryPasswordRequest, this, &PDFProgramController::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFProgramController::onDrawSpaceChanged);
+    connect(m_pdfWidget, &pdf::PDFWidget::sceneActivityChanged, this, &PDFProgramController::updateUndoRedoActions);
     connect(m_pdfWidget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::pageLayoutChanged, this, &PDFProgramController::onPageLayoutChanged);
     connect(m_pdfWidget, &pdf::PDFWidget::pageRenderingErrorsChanged, this, &PDFProgramController::onPageRenderingErrorsChanged, Qt::QueuedConnection);
     connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFProgramController::onViewerSettingsChanged);
@@ -1773,7 +1774,12 @@ void PDFProgramController::updateUndoRedoActions()
 {
     if (m_undoRedoManager)
     {
-        const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
+        // Jakub Melka: while a page content scene of a plugin is active, the plugin has
+        // its own undo history bound to the same shortcuts. The document undo/redo is
+        // turned off, so the shortcuts are not ambiguous and the document is not changed
+        // behind the back of the editor.
+        const bool isSceneActive = m_pdfWidget && m_pdfWidget->isAnySceneActive(nullptr);
+        const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy || isSceneActive;
         const bool canUndo = !isBusy && m_undoRedoManager->canUndo();
         const bool canRedo = !isBusy && m_undoRedoManager->canRedo();
 
@@ -2622,36 +2628,53 @@ void PDFProgramController::loadPlugins()
         plugin.second->setWidget(m_pdfWidget);
         plugin.second->setCMSManager(m_CMSManager);
         std::vector<QAction*> actions = plugin.second->getActions();
+        std::vector<QAction*> toolbarActions = plugin.second->getToolbarActions();
 
         if (!actions.empty())
         {
-            if (isPluginToolBarBreakNeeded)
+            QToolBar* toolBar = nullptr;
+
+            // A plugin with many actions can keep its toolbar small, or have no
+            // toolbar at all, and offer all the actions in its menu only.
+            if (!toolbarActions.empty())
             {
-                // Toolbars of the plugins are placed in their own row, so they do not
-                // push the toolbar of the application out of the window. Qt does not
-                // wrap the toolbars by itself, a new row is created only by a toolbar
-                // break. The user can rearrange the toolbars, the arrangement is then
-                // restored from the window state.
-                m_mainWindow->addToolBarBreak();
-                isPluginToolBarBreakNeeded = false;
+                if (isPluginToolBarBreakNeeded)
+                {
+                    // Toolbars of the plugins are placed in their own row, so they do not
+                    // push the toolbar of the application out of the window. Qt does not
+                    // wrap the toolbars by itself, a new row is created only by a toolbar
+                    // break. The user can rearrange the toolbars, the arrangement is then
+                    // restored from the window state.
+                    m_mainWindow->addToolBarBreak();
+                    isPluginToolBarBreakNeeded = false;
+                }
+
+                toolBar = m_mainWindow->addToolBar(plugin.first.name);
+                toolBar->setObjectName(QString("Plugin_Toolbar_%1").arg(plugin.first.name));
+                m_mainWindowInterface->adjustToolbar(toolBar);
             }
 
-            QToolBar* toolBar = m_mainWindow->addToolBar(plugin.first.name);
-            toolBar->setObjectName(QString("Plugin_Toolbar_%1").arg(plugin.first.name));
-            m_mainWindowInterface->adjustToolbar(toolBar);
-            QMenu* menu = m_mainWindowInterface->addToolMenu(plugin.second->getPluginMenuName());
+            QMenu* menu = m_mainWindowInterface->addToolMenu(plugin.second->getPluginMenuName(), plugin.second->getPluginMenuLocation());
             for (QAction* action : actions)
             {
                 if (!action)
                 {
                     menu->addSeparator();
-                    toolBar->addSeparator();
                     continue;
                 }
 
                 m_actionManager->addAdditionalAction(action);
-
                 menu->addAction(action);
+            }
+
+            for (QAction* action : toolbarActions)
+            {
+                if (!action)
+                {
+                    toolBar->addSeparator();
+                    continue;
+                }
+
                 toolBar->addAction(action);
             }
         }

@@ -69,7 +69,7 @@ public:
     virtual ~IMainWindow() = default;
 
     virtual void updateUI(bool fullUpdate) = 0;
-    virtual QMenu* addToolMenu(QString name) = 0;
+    virtual QMenu* addToolMenu(QString name, pdf::PDFPlugin::PluginMenuLocation location) = 0;
     virtual void setStatusBarMessage(QString message, int time) = 0;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) = 0;
     virtual void adjustToolbar(QToolBar* toolbar) = 0;

@@ -42,6 +42,10 @@ class PDFTextEditPseudowidget;
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreatePCElementTool : public PDFWidgetTool
 {
     Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
 public:
     PDFCreatePCElementTool(PDFDrawWidgetProxy* proxy,
                            PDFPageContentScene* scene,
@@ -57,10 +61,46 @@ public:
     virtual void setAlignment(Qt::Alignment alignment);
     virtual void setTextAngle(pdf::PDFReal angle);
 
+    /// Returns true, if the tool stays active after an element has been created.
+    bool isMultipleElementCreationEnabled() const { return m_multipleElementCreationEnabled; }
+
+    /// Sets, if the tool stays active after an element has been created, so the user
+    /// can create several elements of the same kind in a row. Size of the last created
+    /// element is then reused for the elements created by a single click.
+    /// \param enabled Create multiple elements?
+    void setMultipleElementCreationEnabled(bool enabled);
+
 protected:
     static QRectF getRectangleFromPickTool(PDFPickTool* pickTool, const QTransform& pagePointToDevicePointMatrix);
 
+    /// Returns true, if the user wants to define the geometry of the new element
+    /// manually, instead of reusing the size of the last created element.
+    /// \param modifiers Keyboard modifiers of the mouse event
+    static bool isManualGeometryRequested(Qt::KeyboardModifiers modifiers);
+
+    virtual void setActiveImpl(bool active) override;
+
+    /// Deactivates the tool, when the creation of multiple elements is turned off.
+    /// It is called after the created element has been added to the scene.
+    void finishElementCreation();
+
+    /// Stores the size of the last created element, so it can be reused by a single
+    /// click. Nothing is stored, when the creation of multiple elements is turned off.
+    /// \param size Size of the last created element
+    void storeLastElementSize(QSizeF size);
+
+    /// Returns a rectangle of the size of the last created element, placed into the
+    /// bottom right quadrant of the cross, which marks the given point. An invalid
+    /// rectangle is returned, when the size of the last created element cannot be reused.
+    /// \param point Corner of the rectangle
+    /// \param modifiers Keyboard modifiers of the mouse event, which picked the point
+    QRectF getLastElementRectangle(const QPointF& point, Qt::KeyboardModifiers modifiers) const;
+
     PDFPageContentScene* m_scene;
+
+private:
+    bool m_multipleElementCreationEnabled;
+    QSizeF m_lastElementSize;
 };
 
 /// Tool that creates rectangle element.
@@ -91,6 +131,7 @@ public:
     virtual PDFPageContentElement* getElement() override;
 
 private:
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     PDFPickTool* m_pickTool;
@@ -130,6 +171,7 @@ protected:
 
 private:
     void selectImage();
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     PDFPickTool* m_pickTool;
@@ -165,6 +207,9 @@ public:
 
     virtual const PDFPageContentElement* getElement() const override;
     virtual PDFPageContentElement* getElement() override;
+
+protected:
+    virtual void setActiveImpl(bool active) override;
 
 private:
     void clear();
@@ -234,6 +279,8 @@ public:
     virtual const PDFPageContentElement* getElement() const override;
     virtual PDFPageContentElement* getElement() override;
 
+    virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
+
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
@@ -245,6 +292,7 @@ private:
     void resetTool();
 
     PDFPageContentElementFreehandCurve* m_element;
+    QPoint m_mousePosition;
 };
 
 /// Tool that displays SVG image
@@ -286,7 +334,9 @@ public:
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
 
 private:
+    void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+    void startEditing(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     void finishEditing();
     void resetTool();

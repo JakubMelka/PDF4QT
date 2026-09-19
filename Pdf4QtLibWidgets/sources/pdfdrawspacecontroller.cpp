@@ -848,12 +848,18 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
             }
 
             const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, PDFAsynchronousPageCompiler::CompileMode::Viewport);
-            if (compiledPage && compiledPage->isValid())
+            const bool isCompiledPageValid = compiledPage && compiledPage->isValid();
+            const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
+
+            // Jakub Melka: the draw interfaces are asked to draw the page even when the
+            // page has not been compiled yet. They draw their own graphics - previews of
+            // the created elements, edited page content, annotations - which do not depend
+            // on the compiled page, so they must not disappear while the page is compiled.
+            if (page)
             {
                 QElapsedTimer timer;
                 timer.start();
 
-                const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
@@ -863,7 +869,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     isPageContentDrawSuppressed = isPageContentDrawSuppressed || drawInterface->isPageContentDrawSuppressed();
                 }
 
-                if (!isPageContentDrawSuppressed)
+                if (isCompiledPageValid && !isPageContentDrawSuppressed)
                 {
                     compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency, &m_scaledImageCache);
                 }
@@ -933,7 +939,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                 const qint64 drawTimeNS = timer.nsecsElapsed();
 
                 // Draw rendering times
-                if (features.testFlag(PDFRenderer::DisplayTimes))
+                if (isCompiledPageValid && features.testFlag(PDFRenderer::DisplayTimes))
                 {
                     QFont font = m_widget->font();
                     font.setPointSize(12);
@@ -962,10 +968,9 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     painter->restore();
                 }
 
-                const QList<PDFRenderError>& pageErrors = compiledPage->getErrors();
-                if (!pageErrors.empty() || !drawInterfaceErrors.empty())
+                QList<PDFRenderError> errors = isCompiledPageValid ? compiledPage->getErrors() : QList<PDFRenderError>();
+                if (!errors.empty() || !drawInterfaceErrors.empty())
                 {
-                    QList<PDFRenderError> errors = pageErrors;
                     if (!drawInterfaceErrors.isEmpty())
                     {
                         errors.append(drawInterfaceErrors);

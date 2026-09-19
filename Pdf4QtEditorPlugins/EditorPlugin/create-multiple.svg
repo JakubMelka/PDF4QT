@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<g>
+	<rect x="2.500" y="2.500" fill="none" stroke="#292D32" stroke-width="1.2" stroke-miterlimit="10" width="9.000" height="9.000"/>
+	<rect x="12.500" y="2.500" fill="none" stroke="#292D32" stroke-width="1.2" stroke-miterlimit="10" width="9.000" height="9.000"/>
+	<rect x="2.500" y="12.500" fill="none" stroke="#292D32" stroke-width="1.2" stroke-miterlimit="10" width="9.000" height="9.000"/>
+	<rect x="12.500" y="12.500" fill="#292D32" stroke="#292D32" stroke-width="1.2" stroke-miterlimit="10" width="9.000" height="9.000"/>
+</g>
+</svg>

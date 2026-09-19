@@ -222,6 +222,40 @@ PDFWidgetTool* PDFWidgetTool::getTopToolstackTool() const
     return nullptr;
 }
 
+void PDFWidgetTool::drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize)
+{
+    QPoint hleft = point;
+    QPoint hright = point;
+    QPoint vtop = point;
+    QPoint vbottom = point;
+
+    if (markSize)
+    {
+        hleft.setX(hleft.x() - markSize.value());
+        hright.setX(hright.x() + markSize.value());
+        vtop.setY(vtop.y() - markSize.value());
+        vbottom.setY(vbottom.y() + markSize.value());
+    }
+    else
+    {
+        hleft.setX(0);
+        hright.setX(rect.width());
+        vtop.setY(0);
+        vbottom.setY(rect.height());
+    }
+
+    // Jakub Melka: The cross must stay visible regardless of the page background
+    // color (white page, dark page via inverted colors, dark UI theme, etc.).
+    // CompositionMode_Difference draws the inverse of whatever is underneath,
+    // so a white pen is guaranteed to contrast with both light and dark content.
+    painter->save();
+    painter->setCompositionMode(QPainter::CompositionMode_Difference);
+    painter->setPen(Qt::white);
+    painter->drawLine(hleft, hright);
+    painter->drawLine(vtop, vbottom);
+    painter->restore();
+}
+
 void PDFWidgetTool::addTool(PDFWidgetTool* tool)
 {
     tool->setActive(isActive());
@@ -1317,6 +1351,7 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     BaseClass(proxy, parent),
     m_mode(mode),
     m_pageIndex(-1),
+    m_lastPickModifiers(Qt::NoModifier),
     m_drawSelectionRectangle(true),
     m_selectionRectangleColor(Qt::blue),
     m_isSelectionRectangleAnnotationColor(false),
@@ -1405,38 +1440,13 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
     {
         m_snapper.drawSnapPoints(painter);
 
-        QPoint snappedPoint = m_snapper.getSnappedPoint().toPoint();
-        QPoint hleft = snappedPoint;
-        QPoint hright = snappedPoint;
-        QPoint vtop = snappedPoint;
-        QPoint vbottom = snappedPoint;
-
-        if (!m_hideLargeCross)
+        std::optional<int> markSize;
+        if (m_hideLargeCross)
         {
-            hleft.setX(0);
-            hright.setX(rect.width());
-            vtop.setY(0);
-            vbottom.setY(rect.height());
-        }
-        else
-        {
-            const int markSize = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 4);
-            hleft.setX(hleft.x() - markSize);
-            hright.setX(hright.x() + markSize);
-            vtop.setY(vtop.y() - markSize);
-            vbottom.setY(vbottom.y() + markSize);
+            markSize = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 4);
         }
 
-        // Jakub Melka: The cross must stay visible regardless of the page background
-        // color (white page, dark page via inverted colors, dark UI theme, etc.).
-        // CompositionMode_Difference draws the inverse of whatever is underneath,
-        // so a white pen is guaranteed to contrast with both light and dark content.
-        painter->save();
-        painter->setCompositionMode(QPainter::CompositionMode_Difference);
-        painter->setPen(Qt::white);
-        painter->drawLine(hleft, hright);
-        painter->drawLine(vtop, vbottom);
-        painter->restore();
+        drawCross(painter, rect, m_snapper.getSnappedPoint().toPoint(), markSize);
     }
 
     if (m_mode == Mode::Pages && m_pageIndex != -1)
@@ -1457,6 +1467,8 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 
     if (event->button() == Qt::LeftButton)
     {
+        m_lastPickModifiers = event->modifiers();
+
         switch (m_mode)
         {
             case Mode::Pages:

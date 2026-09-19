@@ -42,9 +42,65 @@ PDFCreatePCElementTool::PDFCreatePCElementTool(PDFDrawWidgetProxy* proxy,
                                                QAction* action,
                                                QObject* parent) :
     PDFWidgetTool(proxy, action, parent),
-    m_scene(scene)
+    m_scene(scene),
+    m_multipleElementCreationEnabled(false)
 {
 
+}
+
+void PDFCreatePCElementTool::setMultipleElementCreationEnabled(bool enabled)
+{
+    m_multipleElementCreationEnabled = enabled;
+    m_lastElementSize = QSizeF();
+}
+
+bool PDFCreatePCElementTool::isManualGeometryRequested(Qt::KeyboardModifiers modifiers)
+{
+    return modifiers.testFlag(Qt::ShiftModifier);
+}
+
+void PDFCreatePCElementTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        // Jakub Melka: the size of the last created element is valid only for a single
+        // session of the tool, so the user is not surprised by an element created by an
+        // accidental click after the tool has been activated again.
+        m_lastElementSize = QSizeF();
+    }
+}
+
+void PDFCreatePCElementTool::finishElementCreation()
+{
+    if (!m_multipleElementCreationEnabled)
+    {
+        setActive(false);
+    }
+}
+
+void PDFCreatePCElementTool::storeLastElementSize(QSizeF size)
+{
+    m_lastElementSize = m_multipleElementCreationEnabled ? size : QSizeF();
+}
+
+QRectF PDFCreatePCElementTool::getLastElementRectangle(const QPointF& point, Qt::KeyboardModifiers modifiers) const
+{
+    if (!m_multipleElementCreationEnabled || m_lastElementSize.isEmpty() || isManualGeometryRequested(modifiers))
+    {
+        return QRectF();
+    }
+
+    // Jakub Melka: the element is placed into the bottom right quadrant of the cross,
+    // which marks the picked point, so the point is the corner from which the user would
+    // drag the rectangle - the single click then places the element where the two picked
+    // points would place it. The y axis of the page grows upwards, so the edge of the
+    // rectangle lying at the picked point is its bottom edge in the page coordinates.
+    return QRectF(point.x(),
+                  point.y() - m_lastElementSize.height(),
+                  m_lastElementSize.width(),
+                  m_lastElementSize.height());
 }
 
 void PDFCreatePCElementTool::setPen(const QPen& pen)
@@ -130,6 +186,7 @@ PDFCreatePCElementRectangleTool::PDFCreatePCElementRectangleTool(PDFDrawWidgetPr
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setDrawSelectionRectangle(false);
     addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreatePCElementRectangleTool::onPointPicked);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementRectangleTool::onRectanglePicked);
 
     QPen pen(Qt::SolidLine);
@@ -185,6 +242,30 @@ PDFPageContentElement* PDFCreatePCElementRectangleTool::getElement()
     return m_element;
 }
 
+void PDFCreatePCElementRectangleTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    if (m_pickTool->getPickedPoints().size() != 1)
+    {
+        // The user is already defining the rectangle manually, this point is its
+        // second corner - it must not be replaced by the size of the last element.
+        return;
+    }
+
+    QRectF rectangle = getLastElementRectangle(pagePoint, m_pickTool->getLastPickModifiers());
+    if (rectangle.isEmpty())
+    {
+        // We do not reuse the size of the last created element, so the rectangle
+        // is defined by the two points picked by the user.
+        return;
+    }
+
+    // The first picked point has already been stored by the pick tool, it must be
+    // discarded, otherwise it would be used as a corner of the next rectangle.
+    m_pickTool->resetTool();
+
+    onRectanglePicked(pageIndex, rectangle);
+}
+
 void PDFCreatePCElementRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
     if (pageRectangle.isEmpty())
@@ -196,7 +277,8 @@ void PDFCreatePCElementRectangleTool::onRectanglePicked(PDFInteger pageIndex, QR
     m_element->setRectangle(pageRectangle);
     m_scene->addElement(m_element->clone());
 
-    setActive(false);
+    storeLastElementSize(pageRectangle.size());
+    finishElementCreation();
 }
 
 PDFCreatePCElementLineTool::PDFCreatePCElementLineTool(PDFDrawWidgetProxy* proxy,
@@ -282,9 +364,24 @@ PDFPageContentElement* PDFCreatePCElementLineTool::getElement()
     return m_element;
 }
 
+void PDFCreatePCElementLineTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        clear();
+    }
+}
+
 void PDFCreatePCElementLineTool::clear()
 {
+    // Jakub Melka: both the start point and the page of the line must be forgotten.
+    // A start point left from an unfinished line would be used as the start point of
+    // the line created in the next session of the tool, so the line would be created
+    // somewhere else than the user clicked, or it would not be created at all.
     m_startPoint = std::nullopt;
+    m_element->setPageIndex(-1);
 }
 
 void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
@@ -311,7 +408,7 @@ void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pag
     m_scene->addElement(m_element->clone());
     clear();
 
-    setActive(false);
+    finishElementCreation();
 }
 
 PDFCreatePCElementImageTool::PDFCreatePCElementImageTool(PDFDrawWidgetProxy* proxy,
@@ -328,6 +425,7 @@ PDFCreatePCElementImageTool::PDFCreatePCElementImageTool(PDFDrawWidgetProxy* pro
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setDrawSelectionRectangle(false);
     addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreatePCElementImageTool::onPointPicked);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementImageTool::onRectanglePicked);
 
     m_element = new PDFPageContentImageElement();
@@ -453,6 +551,30 @@ void PDFCreatePCElementImageTool::selectImage()
     }
 }
 
+void PDFCreatePCElementImageTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    if (m_pickTool->getPickedPoints().size() != 1)
+    {
+        // The user is already defining the rectangle manually, this point is its
+        // second corner - it must not be replaced by the size of the last element.
+        return;
+    }
+
+    QRectF rectangle = getLastElementRectangle(pagePoint, m_pickTool->getLastPickModifiers());
+    if (rectangle.isEmpty())
+    {
+        // We do not reuse the size of the last created element, so the rectangle
+        // is defined by the two points picked by the user.
+        return;
+    }
+
+    // The first picked point has already been stored by the pick tool, it must be
+    // discarded, otherwise it would be used as a corner of the next rectangle.
+    m_pickTool->resetTool();
+
+    onRectanglePicked(pageIndex, rectangle);
+}
+
 void PDFCreatePCElementImageTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
     if (pageRectangle.isEmpty())
@@ -464,7 +586,8 @@ void PDFCreatePCElementImageTool::onRectanglePicked(PDFInteger pageIndex, QRectF
     m_element->setRectangle(pageRectangle);
     m_scene->addElement(m_element->clone());
 
-    setActive(false);
+    storeLastElementSize(pageRectangle.size());
+    finishElementCreation();
 }
 
 PDFCreatePCElementDotTool::PDFCreatePCElementDotTool(PDFDrawWidgetProxy* proxy,
@@ -534,7 +657,7 @@ void PDFCreatePCElementDotTool::onPointPicked(PDFInteger pageIndex, QPointF page
     m_scene->addElement(m_element->clone());
     m_element->setPageIndex(-1);
 
-    setActive(false);
+    finishElementCreation();
 }
 
 PDFCreatePCElementFreehandCurveTool::PDFCreatePCElementFreehandCurveTool(PDFDrawWidgetProxy* proxy,
@@ -551,6 +674,10 @@ PDFCreatePCElementFreehandCurveTool::PDFCreatePCElementFreehandCurveTool(PDFDraw
     m_element = new PDFPageContentElementFreehandCurve();
     m_element->setBrush(Qt::NoBrush);
     m_element->setPen(std::move(pen));
+
+    // Jakub Melka: the tool draws the same large cross as the tools which pick points,
+    // so the user aims the curve the same way as the rest of the creation tools.
+    setCursor(Qt::BlankCursor);
 }
 
 PDFCreatePCElementFreehandCurveTool::~PDFCreatePCElementFreehandCurveTool()
@@ -639,23 +766,42 @@ void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMo
     Q_EMIT getProxy()->repaintNeeded();
 }
 
+void PDFCreatePCElementFreehandCurveTool::drawPostRendering(QPainter* painter, QRect rect) const
+{
+    if (!isActive())
+    {
+        return;
+    }
+
+    drawCross(painter, rect, m_mousePosition, std::nullopt);
+}
+
 void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
     event->accept();
 
+    if (m_mousePosition == event->pos())
+    {
+        return;
+    }
+
+    m_mousePosition = event->pos();
+
     if (event->buttons() & Qt::LeftButton && m_element->getPageIndex() != -1)
     {
         // Try to add point to the path
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_mousePosition, &pagePoint);
         if (pageIndex == m_element->getPageIndex())
         {
             m_element->addPoint(pagePoint);
         }
-
-        Q_EMIT getProxy()->repaintNeeded();
     }
+
+    // The cross marking the position of the mouse must be repainted on every move,
+    // not only while the curve is being drawn.
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreatePCElementFreehandCurveTool::setActiveImpl(bool active)
@@ -684,6 +830,7 @@ PDFCreatePCElementTextTool::PDFCreatePCElementTextTool(PDFDrawWidgetProxy* proxy
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setDrawSelectionRectangle(true);
+    connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreatePCElementTextTool::onPointPicked);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreatePCElementTextTool::onRectanglePicked);
 
     QFont font = QGuiApplication::font();
@@ -772,6 +919,30 @@ void PDFCreatePCElementTextTool::setActiveImpl(bool active)
     m_pickTool->setActive(active);
 }
 
+void PDFCreatePCElementTextTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
+{
+    if (m_pickTool->getPickedPoints().size() != 1)
+    {
+        // The user is already defining the rectangle manually, this point is its
+        // second corner - it must not be replaced by the size of the last element.
+        return;
+    }
+
+    QRectF rectangle = getLastElementRectangle(pagePoint, m_pickTool->getLastPickModifiers());
+    if (rectangle.isEmpty())
+    {
+        // We do not reuse the size of the last created element, so the rectangle
+        // is defined by the two points picked by the user.
+        return;
+    }
+
+    // The first picked point has already been stored by the pick tool, it must be
+    // discarded, otherwise it would be used as a corner of the next rectangle.
+    m_pickTool->resetTool();
+
+    startEditing(pageIndex, rectangle);
+}
+
 void PDFCreatePCElementTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
     if (pageRectangle.isEmpty())
@@ -779,6 +950,11 @@ void PDFCreatePCElementTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF 
         return;
     }
 
+    startEditing(pageIndex, pageRectangle);
+}
+
+void PDFCreatePCElementTextTool::startEditing(PDFInteger pageIndex, QRectF pageRectangle)
+{
     m_element->setPageIndex(pageIndex);
     m_element->setRectangle(pageRectangle);
 
@@ -798,9 +974,20 @@ void PDFCreatePCElementTextTool::finishEditing()
     if (!m_element->getText().isEmpty())
     {
         m_scene->addElement(m_element->clone());
+        storeLastElementSize(m_element->getRectangle().size());
     }
 
     resetTool();
+
+    if (isMultipleElementCreationEnabled())
+    {
+        // Restore the pick tool, so the user can create the next text label
+        Q_ASSERT(!getTopToolstackTool());
+        addTool(m_pickTool);
+        Q_EMIT getProxy()->repaintNeeded();
+        return;
+    }
+
     setActive(false);
 }
 

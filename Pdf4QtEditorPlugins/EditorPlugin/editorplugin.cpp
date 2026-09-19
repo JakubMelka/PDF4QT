@@ -38,6 +38,8 @@
 #include <QMainWindow>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QSettings>
+#include <QCoreApplication>
 
 namespace pdfplugin
 {
@@ -73,6 +75,7 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     QAction* createLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-line.svg"), tr("Create L&ine"), this);
     QAction* createDotAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-dot.svg"), tr("Create &Dot"), this);
     QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-svg-image.svg"), tr("Create &SVG Image"), this);
+    QAction* createMultipleElementsAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-multiple.svg"), tr("Create &Multiple Elements"), this);
     QAction* undoAction = new QAction(QIcon(":/resources/undo.svg"), tr("&Undo"), this);
     QAction* redoAction = new QAction(QIcon(":/resources/redo.svg"), tr("&Redo"), this);
     QAction* clearAction = new QAction(QIcon(":/pdfplugins/editorplugin/clear.svg"), tr("Clear A&ll Graphics"), this);
@@ -89,6 +92,7 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     createLineAction->setObjectName("editortool_createLineAction");
     createDotAction->setObjectName("editortool_createDotAction");
     createSvgImageAction->setObjectName("editortool_createSvgImageAction");
+    createMultipleElementsAction->setObjectName("editortool_createMultipleElementsAction");
     undoAction->setObjectName("editortool_undoAction");
     redoAction->setObjectName("editortool_redoAction");
     clearAction->setObjectName("editortool_clearAction");
@@ -105,6 +109,12 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     createLineAction->setCheckable(true);
     createDotAction->setCheckable(true);
     createSvgImageAction->setCheckable(true);
+    createMultipleElementsAction->setCheckable(true);
+    createMultipleElementsAction->setToolTip(tr("Create Multiple Elements\n\n"
+                                                "The creation tool stays active after an element has been created "
+                                                "and the size of the last created element is reused, so a single click "
+                                                "creates the next element of the same size. "
+                                                "Hold Shift to define a different size."));
 
     m_actions[Activate] = activateAction;
     m_actions[Text] = createTextAction;
@@ -118,12 +128,31 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     m_actions[Line] = createLineAction;
     m_actions[Dot] = createDotAction;
     m_actions[SvgImage] = createSvgImageAction;
+    m_actions[CreateMultipleElements] = createMultipleElementsAction;
     m_actions[Undo] = undoAction;
     m_actions[Redo] = redoAction;
     m_actions[Clear] = clearAction;
 
     undoAction->setShortcut(QKeySequence::Undo);
     redoAction->setShortcut(QKeySequence::Redo);
+
+    // Jakub Melka: the tool actions are enabled only when the page content editing
+    // is active, so single letter shortcuts do not collide with the rest of the
+    // application. While a text label is being edited, the printable characters are
+    // consumed by the text editor, so the shortcuts do not interfere with typing.
+    activateAction->setShortcut(QKeySequence("Ctrl+Shift+E"));
+    createTextAction->setShortcut(QKeySequence("T"));
+    createFreehandCurveAction->setShortcut(QKeySequence("F"));
+    createAcceptMarkAction->setShortcut(QKeySequence("A"));
+    createRejectMarkAction->setShortcut(QKeySequence("X"));
+    createRectangleAction->setShortcut(QKeySequence("R"));
+    createRoundedRectangleAction->setShortcut(QKeySequence("Shift+R"));
+    createHorizontalLineAction->setShortcut(QKeySequence("H"));
+    createVerticalLineAction->setShortcut(QKeySequence("V"));
+    createLineAction->setShortcut(QKeySequence("L"));
+    createDotAction->setShortcut(QKeySequence("D"));
+    createSvgImageAction->setShortcut(QKeySequence("I"));
+    createMultipleElementsAction->setShortcut(QKeySequence("M"));
 
     QFile acceptMarkFile(":/pdfplugins/editorplugin/accept-mark.svg");
     QByteArray acceptMarkContent;
@@ -170,9 +199,12 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     connect(undoAction, &QAction::triggered, this, &EditorPlugin::onUndoTriggered);
     connect(redoAction, &QAction::triggered, this, &EditorPlugin::onRedoTriggered);
     connect(activateAction, &QAction::triggered, this, &EditorPlugin::onSetActive);
+    connect(createMultipleElementsAction, &QAction::triggered, this, &EditorPlugin::onCreateMultipleElementsTriggered);
+    connect(createMultipleElementsAction, &QAction::triggered, this, &EditorPlugin::writeSettings);
     connect(m_widget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &EditorPlugin::onDrawSpaceChanged);
     connect(m_widget, &pdf::PDFWidget::sceneActivityChanged, this, &EditorPlugin::onSceneActivityChanged);
 
+    readSettings();
     updateActions();
 }
 
@@ -190,9 +222,28 @@ void EditorPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 
 std::vector<QAction*> EditorPlugin::getActions() const
 {
+    // Jakub Melka: all the actions are offered, so the page content editing and its
+    // tools can be found in the menu of the application and not only in the toolbox,
+    // which is displayed when the editing is already active. A null action creates
+    // a separator both in the menu and in the toolbar of the plugin.
     std::vector<QAction*> result;
 
     result.push_back(m_actions[Activate]);
+    result.push_back(nullptr);
+
+    for (auto actionId : { Text, FreehandCurve, AcceptMark, RejectMark,
+                           Rectangle, RoundedRectangle, HorizontalLine,
+                           VerticalLine, Line, Dot, SvgImage })
+    {
+        result.push_back(m_actions[actionId]);
+    }
+
+    result.push_back(nullptr);
+    result.push_back(m_actions[CreateMultipleElements]);
+    result.push_back(nullptr);
+    result.push_back(m_actions[Undo]);
+    result.push_back(m_actions[Redo]);
+    result.push_back(m_actions[Clear]);
 
     return result;
 }
@@ -200,6 +251,23 @@ std::vector<QAction*> EditorPlugin::getActions() const
 QString EditorPlugin::getPluginMenuName() const
 {
     return tr("Ed&itor");
+}
+
+pdf::PDFPlugin::PluginMenuLocation EditorPlugin::getPluginMenuLocation() const
+{
+    return PluginMenuLocation::Edit;
+}
+
+std::vector<QAction*> EditorPlugin::getToolbarActions() const
+{
+    // Jakub Melka: only the activation of the page content editing is placed on the
+    // toolbar - the tools would not fit on it. They are offered in the menu of the
+    // plugin and in the toolbox, which is displayed while the editing is active.
+    std::vector<QAction*> result;
+
+    result.push_back(m_actions[Activate]);
+
+    return result;
 }
 
 bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
@@ -701,18 +769,56 @@ void EditorPlugin::onSetActive(bool active)
     setActive(active);
 }
 
+void EditorPlugin::onCreateMultipleElementsTriggered(bool enabled)
+{
+    for (pdf::PDFWidgetTool* tool : m_tools)
+    {
+        if (pdf::PDFCreatePCElementTool* createTool = qobject_cast<pdf::PDFCreatePCElementTool*>(tool))
+        {
+            createTool->setMultipleElementCreationEnabled(enabled);
+        }
+    }
+}
+
+void EditorPlugin::readSettings()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+    settings.beginGroup("EditorPlugin");
+    const bool createMultipleElements = settings.value("CreateMultipleElements", false).toBool();
+    settings.endGroup();
+
+    m_actions[CreateMultipleElements]->setChecked(createMultipleElements);
+    onCreateMultipleElementsTriggered(createMultipleElements);
+}
+
+void EditorPlugin::writeSettings()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+    settings.beginGroup("EditorPlugin");
+    settings.setValue("CreateMultipleElements", m_actions[CreateMultipleElements]->isChecked());
+    settings.endGroup();
+}
+
 void EditorPlugin::updateActions()
 {
     m_actions[Activate]->setEnabled(m_document);
 
     if (!m_scene.isActive() || !m_document)
     {
-        // Inactive scene - disable all except activate action
+        // Inactive scene - disable all except activate action and the settings
+        // of the creation tools, which can be changed at any time
         for (QAction* action : m_actions)
         {
             if (action == m_actions[Activate])
             {
                 action->setEnabled(m_widget && !m_widget->isAnySceneActive(&m_scene));
+                continue;
+            }
+
+            if (action == m_actions[CreateMultipleElements])
+            {
                 continue;
             }
 

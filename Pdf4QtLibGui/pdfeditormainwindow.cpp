@@ -505,9 +505,10 @@ void PDFEditorMainWindow::updateUI(bool fullUpdate)
     m_pageZoomSpinBox->setValue(m_programController->getPdfWidget()->getDrawWidgetProxy()->getZoom() * 100);
 }
 
-QMenu* PDFEditorMainWindow::addToolMenu(QString name)
+QMenu* PDFEditorMainWindow::addToolMenu(QString name, pdf::PDFPlugin::PluginMenuLocation location)
 {
-    return ui->menuTools->addMenu(name);
+    QMenu* parentMenu = (location == pdf::PDFPlugin::PluginMenuLocation::Edit) ? ui->menuEdit : ui->menuTools;
+    return parentMenu->addMenu(name);
 }
 
 void PDFEditorMainWindow::setStatusBarMessage(QString message, int time)

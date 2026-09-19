@@ -70,7 +70,7 @@ private:
 /// Asynchronous page compiler compiles pages asynchronously, and stores them in the
 /// cache. Cache size can be set. This object is designed to cooperate with
 /// draw widget proxy.
-class PDFAsynchronousPageCompiler : public QObject, public PDFOperationControl
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAsynchronousPageCompiler : public QObject, public PDFOperationControl
 {
     Q_OBJECT
 

@@ -138,6 +138,16 @@ protected:
     inline void setCursor(QCursor cursor) { m_cursor = qMove(cursor); }
     inline void unsetCursor() { m_cursor = std::nullopt; }
 
+    /// Draws a cross, which marks the given point of the widget. The cross is drawn in
+    /// the difference composition mode, so it is visible on both light and dark page
+    /// content, and on both light and dark theme of the user interface.
+    /// \param painter Painter
+    /// \param rect Rectangle of the widget
+    /// \param point Point marked by the cross
+    /// \param markSize Size of the arms of the cross; the cross is drawn over the whole
+    ///        widget, when no size is given
+    static void drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize);
+
     void addTool(PDFWidgetTool* tool);
     void removeTool();
 
@@ -398,6 +408,9 @@ public:
     PDFInteger getPageIndex() const { return m_pageIndex; }
     const std::vector<QPointF>& getPickedPoints() const { return m_pickedPoints; }
 
+    /// Returns keyboard modifiers of the mouse event, which picked the last point.
+    Qt::KeyboardModifiers getLastPickModifiers() const { return m_lastPickModifiers; }
+
     static QPointF getStaticOrthogonalPoint(const QPointF& referencePoint, const QPointF& originalPoint);
     QPointF getOrthogonalPoint(const QPointF& originalPoint) const;
 
@@ -452,6 +465,7 @@ private:
     QPoint m_mousePosition;
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
+    Qt::KeyboardModifiers m_lastPickModifiers;
     bool m_drawSelectionRectangle;
     QColor m_selectionRectangleColor;
     bool m_isSelectionRectangleAnnotationColor;

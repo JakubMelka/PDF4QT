@@ -56,6 +56,16 @@ void PDFPlugin::setDocument(const PDFModifiedDocument& document)
     m_document = document;
 }
 
+PDFPlugin::PluginMenuLocation PDFPlugin::getPluginMenuLocation() const
+{
+    return PluginMenuLocation::Tools;
+}
+
+std::vector<QAction*> PDFPlugin::getToolbarActions() const
+{
+    return getActions();
+}
+
 std::vector<QAction*> PDFPlugin::getActions() const
 {
     return std::vector<QAction*>();

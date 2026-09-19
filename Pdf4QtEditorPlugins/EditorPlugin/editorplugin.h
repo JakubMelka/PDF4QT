@@ -54,6 +54,8 @@ public:
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual std::vector<QAction*> getActions() const override;
     virtual QString getPluginMenuName() const override;
+    virtual PluginMenuLocation getPluginMenuLocation() const override;
+    virtual std::vector<QAction*> getToolbarActions() const override;
 
     /// Returns true, if the page content editing is active. The edited page
     /// content is written into the document when the editing is finished,
@@ -87,6 +89,10 @@ private:
     void onAlignmentChanged(Qt::Alignment alignment);
     void onTextAngleChanged(pdf::PDFReal angle);
 
+    /// Turns on/off the creation of multiple elements by all the creation tools
+    /// and stores the setting, so it is restored in the next session.
+    void onCreateMultipleElementsTriggered(bool enabled);
+
     enum Action
     {
         // Activate action
@@ -108,6 +114,10 @@ private:
         Line,
         Dot,
         SvgImage,
+
+        // Settings of the creation tools
+        CreateMultipleElements,
+
         Clear,
 
         LastAction
@@ -137,6 +147,14 @@ private:
 
     void updateActions();
     void updateGraphics();
+
+    /// Reads the settings of the plugin, which are not a part of the application
+    /// settings (the creation of multiple elements).
+    void readSettings();
+
+    /// Writes the settings of the plugin.
+    void writeSettings();
+
     void updateDockWidget();
     void updateEditedPages();
 

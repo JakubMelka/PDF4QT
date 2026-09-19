@@ -275,6 +275,18 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsPageContentEditorTools tst_pagecontenteditortoolstest.cpp)
+    target_link_libraries(UnitTestsPageContentEditorTools PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsPageContentEditorTools PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsPageContentEditorTools "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsPageContentEditorTools")
+    set_tests_properties(UnitTestsPageContentEditorTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsDrawSpace tst_drawspacetest.cpp)
     target_link_libraries(UnitTestsDrawSpace PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
     set_target_properties(UnitTestsDrawSpace PROPERTIES

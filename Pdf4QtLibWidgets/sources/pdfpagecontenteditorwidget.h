@@ -58,6 +58,11 @@ public:
 
     QToolButton* getToolButtonForOperation(int operation) const;
 
+    /// Returns the tool tip of the button of the action. The shortcut of the action,
+    /// if it has one, is appended to the first line of the tool tip of the action.
+    /// \param action Action
+    static QString getToolTipForAction(const QAction* action);
+
     /// Update items in list widget
     void updateItemsInListWidget();
 

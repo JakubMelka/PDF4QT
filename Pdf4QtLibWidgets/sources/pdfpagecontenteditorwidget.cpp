@@ -126,14 +126,17 @@ void PDFPageContentEditorWidget::addAction(QAction* action)
         }
     }
 
+    // Jakub Melka: the shortcut is not set on the button, it is handled by the action
+    // itself - two shortcuts of the same key sequence in a single window would be
+    // ambiguous and neither of them would work. The shortcut is displayed in the tool
+    // tip of the button instead.
     QToolButton* button = new QToolButton(this);
     button->setIcon(action->icon());
     button->setText(action->text());
-    button->setToolTip(action->toolTip());
+    button->setToolTip(getToolTipForAction(action));
     button->setCheckable(action->isCheckable());
     button->setChecked(action->isChecked());
     button->setEnabled(action->isEnabled());
-    button->setShortcut(action->shortcut());
     button->setIconSize(m_toolButtonIconSize);
     m_actionMapper.setMapping(button, action);
     connect(button, &QToolButton::clicked, &m_actionMapper, QOverload<>::of(&QSignalMapper::map));
@@ -221,6 +224,26 @@ void PDFPageContentEditorWidget::onActionChanged()
 
     button->setChecked(action->isChecked());
     button->setEnabled(action->isEnabled());
+    button->setToolTip(getToolTipForAction(action));
+}
+
+QString PDFPageContentEditorWidget::getToolTipForAction(const QAction* action)
+{
+    const QString shortcut = action->shortcut().toString(QKeySequence::NativeText);
+    const QString toolTip = action->toolTip();
+
+    if (shortcut.isEmpty())
+    {
+        return toolTip;
+    }
+
+    // The shortcut is appended to the first line of the tool tip, the rest of the
+    // tool tip, if it exists, is a description of the action.
+    const qsizetype firstLineEnd = toolTip.indexOf(QChar(QChar::LineFeed));
+    const QString firstLine = (firstLineEnd != -1) ? toolTip.left(firstLineEnd) : toolTip;
+    const QString rest = (firstLineEnd != -1) ? toolTip.mid(firstLineEnd) : QString();
+
+    return tr("%1 (%2)").arg(firstLine, shortcut) + rest;
 }
 
 void PDFPageContentEditorWidget::onItemSelectionChanged()
