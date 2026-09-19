@@ -51,13 +51,35 @@ public:
         SignDigitallyInvisible
     };
 
+    enum SignatureType
+    {
+        /// Digital signature of the document
+        SignatureOnly,
+
+        /// Digital signature of the document, the time of the signing is
+        /// attested by a timestamp authority
+        SignatureWithTimestamp,
+
+        /// Document timestamp, which attests, that the document existed at
+        /// the time of the timestamp, without signing it
+        TimestampOnly
+    };
+
     SignMethod getSignMethod() const;
+    SignatureType getSignatureType() const;
     QString getPassword() const;
     QString getReasonText() const;
     QString getContactInfoText() const;
+    QString getTimestampUrl() const;
     const pdf::PDFCertificateEntry* getCertificate() const;
 
 private:
+    /// Enables only the settings, which are used by the selected signature type
+    void updateUi();
+
+    void loadSettings();
+    void saveSettings();
+
     Ui::SignDialog* ui;
     pdf::PDFCertificateEntries m_certificates;
 };

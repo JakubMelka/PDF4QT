@@ -1316,11 +1316,13 @@ public:
     /// \param contents Contents (reserved data for signature).
     /// \param signingTime Signing date/time
     /// \param byteRangeItem Item which will fill byte range array.
+    /// \param type Type of the signature dictionary (Sig, DocTimeStamp)
     PDFObjectReference createSignatureDictionary(QByteArray filter,
                                                  QByteArray subfilter,
                                                  QByteArray contents,
                                                  QDateTime signingTime,
-                                                 PDFInteger byteRangeItem);
+                                                 PDFInteger byteRangeItem,
+                                                 QByteArray type);
 
 
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not call this 
@@ -1641,6 +1643,20 @@ public:
 /* END GENERATED CODE */
 
 public:
+    /// Creates signature dictionary of a digital signature, the type of the
+    /// created dictionary is Sig. Use the overload with the type to create
+    /// a dictionary of a document timestamp.
+    /// \param filter Filter (for example, Adobe.PPKLite, Entrust.PPKEF, CiCi.SignIt, ...)
+    /// \param subfilter Subfilter (for example, adbe.pkcs7.detached, adbe.pkcs7.sha1, ETSI.CAdES.detached, ...)
+    /// \param contents Contents (reserved data for signature).
+    /// \param signingTime Signing date/time
+    /// \param byteRangeItem Item which will fill byte range array.
+    PDFObjectReference createSignatureDictionary(QByteArray filter,
+                                                 QByteArray subfilter,
+                                                 QByteArray contents,
+                                                 QDateTime signingTime,
+                                                 PDFInteger byteRangeItem);
+
     static QByteArray normalizeFreeTextFontName(QString fontName);
     static QString decodeFreeTextFontName(QByteArray fontName);
     static QByteArray createFreeTextDefaultAppearance(const PDFFreeTextStyle& style);

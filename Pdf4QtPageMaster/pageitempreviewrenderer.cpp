@@ -42,7 +42,7 @@
 namespace pdfpagemaster
 {
 
-namespace
+namespace pageitempreviewrenderer
 {
 
 class FontCacheShrinkGuard
@@ -91,7 +91,9 @@ QMarginsF mapCropMarginsToRenderedPage(QMarginsF cropMargins, pdf::PageRotation 
     return cropMargins;
 }
 
-} // namespace
+}   // namespace pageitempreviewrenderer
+
+using namespace pageitempreviewrenderer;
 
 PageItemPreviewRenderer::PageItemPreviewRenderer(PageItemModel* model, QObject* parent) :
     QObject(parent),

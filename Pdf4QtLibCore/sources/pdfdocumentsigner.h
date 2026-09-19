@@ -37,6 +37,7 @@ namespace pdf
 {
 class PDFDocument;
 class PDFDocumentBuilder;
+class PDFForm;
 class PDFProgress;
 
 /// Creates a digitally signed document.
@@ -105,6 +106,11 @@ public:
 
         QByteArray filter = "Adobe.PPKLite";
         QByteArray subfilter = "adbe.pkcs7.detached";
+
+        /// Type of the created signature dictionary - "Sig" for a digital
+        /// signature and "DocTimeStamp" for a document timestamp
+        QByteArray signatureDictionaryType = "Sig";
+
         QDateTime signingTime = QDateTime::currentDateTime();
 
         /// Progress reporting of the document writer, can be nullptr
@@ -135,6 +141,9 @@ private:
     /// Maximal count of the signing attempts
     static constexpr int MAXIMAL_ATTEMPT_COUNT = 4;
 
+    /// Value of the Type entry of the signature dictionary of a document timestamp
+    static constexpr const char* DOCUMENT_TIMESTAMP_TYPE = "DocTimeStamp";
+
     /// Placeholder written into the byte range array, it is replaced by the real
     /// offsets when the document is written
     static constexpr const char* BYTE_RANGE_MARK_STRING = "123456789123";
@@ -147,11 +156,13 @@ private:
     /// reserved space, \p requiredSignatureSize is set to the size of the
     /// signature which did not fit.
     /// \param parameters Signing parameters
+    /// \param trialSignature Signature of the trial data, used as the placeholder
     /// \param reservedSignatureSize Size of the space reserved for the signature
     /// \param preserveExistingSignatures Document must be written as an incremental update
     /// \param signedDocument Bytes of the signed document
     /// \param requiredSignatureSize Size of the signature, which did not fit
     static Result signAttempt(const Parameters& parameters,
+                              const QByteArray& trialSignature,
                               int reservedSignatureSize,
                               bool preserveExistingSignatures,
                               QByteArray& signedDocument,
@@ -160,7 +171,22 @@ private:
     /// Verifies the signature of the given field in the written document
     /// \param signedDocument Bytes of the signed document
     /// \param signatureField Field holding the signature being verified
-    static bool verifySignedDocument(const QByteArray& signedDocument, PDFObjectReference signatureField);
+    /// \param isDocumentTimestamp Field holds a document timestamp
+    static bool verifySignedDocument(const QByteArray& signedDocument,
+                                     PDFObjectReference signatureField,
+                                     bool isDocumentTimestamp);
+
+    /// Verifies, that the timestamp token of the given field belongs to the
+    /// bytes of the written document covered by it. The certificate chain of
+    /// the timestamp authority is not verified - it is unknown here and the
+    /// trust in the authority is a decision of the user, not a property of
+    /// the signing process.
+    /// \param form Form of the written document
+    /// \param signedDocument Bytes of the signed document
+    /// \param signatureField Field holding the timestamp being verified
+    static bool verifyDocumentTimestamp(const PDFForm& form,
+                                        const QByteArray& signedDocument,
+                                        PDFObjectReference signatureField);
 };
 
 }   // namespace pdf

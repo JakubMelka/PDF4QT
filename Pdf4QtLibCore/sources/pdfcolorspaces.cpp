@@ -45,7 +45,7 @@ static thread_local std::vector<float> s_rowInputColors;
 static thread_local std::vector<unsigned char> s_rowOutputColors;
 static thread_local std::vector<unsigned char> s_rowAlphaValues;
 
-namespace
+namespace colorspaces
 {
 
 class PDFDecodeTransform
@@ -93,7 +93,9 @@ private:
     size_t m_tableSize = 0;
 };
 
-} // namespace
+}   // namespace colorspaces
+
+using namespace colorspaces;
 
 PDFColorComponentMatrix_3x3 getInverseMatrix(const PDFColorComponentMatrix_3x3& matrix)
 {

@@ -36,7 +36,7 @@
 #include <QPixmap>
 #include <QPushButton>
 
-namespace
+namespace dimensionsettingsdialog
 {
 
 /// Creates the icon, which displays the color. The color is drawn over a checker
@@ -71,7 +71,9 @@ QIcon createColorIcon(const QColor& color, QSize size)
     return QIcon(pixmap);
 }
 
-}   // namespace
+}   // namespace dimensionsettingsdialog
+
+using namespace dimensionsettingsdialog;
 
 SettingsDialog::SettingsDialog(QWidget* parent, pdfplugin::DimensionsPluginSettings& originalSettings) :
     QDialog(parent),

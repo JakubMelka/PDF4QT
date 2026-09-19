@@ -49,7 +49,7 @@ private slots:
     void fallback();
 };
 
-namespace
+namespace signatureappearancetest
 {
 struct Fixture
 {
@@ -115,7 +115,9 @@ PDFObjectReference makeAppearance(PDFDocumentBuilder& builder, QPointF origin)
     builder.mergeTo(objects[1].getReference(), factory.takeObject());
     return objects[1].getReference();
 }
-}
+}   // namespace signatureappearancetest
+
+using namespace signatureappearancetest;
 
 void SignatureAppearanceTest::strokeBounds()
 {

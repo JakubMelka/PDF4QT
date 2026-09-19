@@ -37,7 +37,7 @@
 namespace pdf
 {
 
-namespace
+namespace pagecontenteditorcontentstreambuilder
 {
 
 /// Formats the real number, so it can be written into the content stream.
@@ -100,7 +100,9 @@ PDFObject createSoftMaskObject(const QImage& alphaImage)
     return PDFObject::createStream(std::make_shared<PDFStream>(qMove(softMaskDictionary), qMove(compressedData)));
 }
 
-}   // anonymous namespace
+}   // namespace pagecontenteditorcontentstreambuilder
+
+using namespace pagecontenteditorcontentstreambuilder;
 
 class PDFContentEditorPaintEngine : public QPaintEngine
 {

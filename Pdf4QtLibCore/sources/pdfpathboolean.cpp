@@ -31,7 +31,7 @@
 namespace pdf
 {
 
-namespace
+namespace pathboolean
 {
 
 /// Size of the working coordinate space. Both operands are translated and scaled
@@ -178,7 +178,9 @@ QPainterPath getPainterPath(const PathsD& paths, const PDFWorkSpace& workSpace)
     return path;
 }
 
-}   // namespace
+}   // namespace pathboolean
+
+using namespace pathboolean;
 
 QPainterPath PDFPathBoolean::intersect(const QPainterPath& path, const QPainterPath& clipPath)
 {

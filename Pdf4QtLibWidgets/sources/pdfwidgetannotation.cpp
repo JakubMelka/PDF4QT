@@ -50,7 +50,7 @@
 namespace pdf
 {
 
-namespace
+namespace widgetannotation
 {
 constexpr quint32 kAnnotationDragMagic = 0x5044414E; // "PDAN"
 constexpr quint32 kAnnotationDragVersion = 1;
@@ -155,7 +155,9 @@ bool removeAnnotationReferenceFromPage(PDFDocumentBuilder* builder,
     builder->mergeTo(pageReference, factory.takeObject());
     return true;
 }
-}
+}   // namespace widgetannotation
+
+using namespace widgetannotation;
 
 PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(proxy->getFontCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),

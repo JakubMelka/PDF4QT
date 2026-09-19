@@ -41,7 +41,7 @@
 
 namespace pdf
 {
-namespace
+namespace imagecompressor
 {
 static double updateAxisDpi(double currentValue, double candidate)
 {
@@ -160,7 +160,9 @@ private:
     std::map<PDFObjectReference, PDFImageCompressor::ImageStatistics>* m_statistics = nullptr;
 };
 
-}   // namespace
+}   // namespace imagecompressor
+
+using namespace imagecompressor;
 
 PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document) const
 {

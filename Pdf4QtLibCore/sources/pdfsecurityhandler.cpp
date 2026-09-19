@@ -174,10 +174,13 @@ void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dict
     Q_ASSERT(dictionary);
 
     // We must check, if it is or isn't a signature dictionary. If it is,
-    // then don't decrypt/encrypt the Content value. We also don't check, if signature
-    // isn't indirectly referenced by reference. Hope it isn't...
+    // then don't decrypt/encrypt the Content value. Document timestamps are
+    // signature dictionaries, too - they only use a different type. We also
+    // don't check, if signature isn't indirectly referenced by reference.
+    // Hope it isn't...
     const PDFObject& typeObject = dictionary->get("Type");
-    bool isSignatureObject = (typeObject.isName() && typeObject.getString() == "Sig");
+    const bool isSignatureObject = typeObject.isName() &&
+                                   (typeObject.getString() == "Sig" || typeObject.getString() == "DocTimeStamp");
 
     std::vector<PDFDictionary::DictionaryEntry> entries;
     entries.reserve(dictionary->getCount());

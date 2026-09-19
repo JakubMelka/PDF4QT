@@ -9272,6 +9272,13 @@ appendTo(page, pageObject);</property>
               <property name="parameterType">_PDFInteger</property>
               <property name="parameterDescription">Item which will fill byte range array.</property>
             </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">type</property>
+              <property name="parameterType">_QByteArray</property>
+              <property name="parameterDescription">Type of the signature dictionary (Sig, DocTimeStamp)</property>
+            </QObject>
           </property>
           <property name="actionType">Parameters</property>
           <property name="variableName"></property>
@@ -9289,7 +9296,7 @@ appendTo(page, pageObject);</property>
                   <property name="items"/>
                   <property name="dictionaryItemName">Type</property>
                   <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">WrapName("Sig")</property>
+                  <property name="value">WrapName(type)</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>

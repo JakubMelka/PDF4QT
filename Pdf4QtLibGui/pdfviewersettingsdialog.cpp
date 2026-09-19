@@ -44,14 +44,16 @@
 namespace pdfviewer
 {
 
-namespace
+namespace viewersettingsdialog
 {
 // Must match the same literal used in PDFSidebarWidget::createOutlineActions,
 // which tags its outline-item actions with this property so their entries in
 // this dialog's shortcuts table can be prefixed by category (e.g. "Outline: XYZ")
 // without changing the action's own text, which is what shows up in its context menu.
 constexpr const char* ACTION_CATEGORY_PROPERTY = "pdf4qtActionCategory";
-}
+}   // namespace viewersettingsdialog
+
+using namespace viewersettingsdialog;
 
 QString PDFViewerSettingsDialog::getActionShortcutDisplayText(const QAction* action)
 {

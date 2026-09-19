@@ -28,7 +28,7 @@
 namespace pdftool
 {
 
-namespace
+namespace removeexternallinks
 {
 struct RemovalResult
 {
@@ -95,7 +95,9 @@ RemovalResult removeExternalLinkAnnotations(const pdf::PDFDocument* document)
 
     return result;
 }
-}
+}   // namespace removeexternallinks
+
+using namespace removeexternallinks;
 
 static PDFToolRemoveExternalLinks s_removeExternalLinksApplication;
 

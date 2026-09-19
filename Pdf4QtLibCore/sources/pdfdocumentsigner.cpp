@@ -22,6 +22,7 @@
 
 #include "pdfdocumentsigner.h"
 
+#include "pdfcertificatemanager.h"
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
@@ -95,7 +96,7 @@ PDFDocumentSigner::Result PDFDocumentSigner::sign(const Parameters& parameters, 
     {
         QByteArray attemptResult;
         int requiredSignatureSize = 0;
-        const Result result = signAttempt(parameters, reservedSignatureSize, preserveExistingSignatures, attemptResult, requiredSignatureSize);
+        const Result result = signAttempt(parameters, trialSignature, reservedSignatureSize, preserveExistingSignatures, attemptResult, requiredSignatureSize);
 
         if (result == Result::OK)
         {
@@ -118,16 +119,19 @@ PDFDocumentSigner::Result PDFDocumentSigner::sign(const Parameters& parameters, 
 }
 
 PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& parameters,
+                                                         const QByteArray& trialSignature,
                                                          int reservedSignatureSize,
                                                          bool preserveExistingSignatures,
                                                          QByteArray& signedDocument,
                                                          int& requiredSignatureSize)
 {
-    // The placeholder keeps a trial signature at its beginning, so that it can be
+    // The placeholder keeps the trial signature at its beginning, so that it can be
     // reliably found in the written document, and is padded to the reserved size.
-    // All of it is overwritten by the final signature.
-    QByteArray placeholder;
-    if (!parameters.signFunction(getTrialData(), placeholder) || placeholder.isEmpty())
+    // All of it is overwritten by the final signature. The trial signature is reused
+    // here, because creating it can be expensive - a timestamp of the signature is
+    // requested from a timestamp authority over the network.
+    QByteArray placeholder = trialSignature;
+    if (placeholder.isEmpty())
     {
         return Result::SigningFailed;
     }
@@ -140,12 +144,29 @@ PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& param
 
     placeholder.resize(reservedSignatureSize, char(0));
 
+    const bool isDocumentTimestamp = parameters.signatureDictionaryType == DOCUMENT_TIMESTAMP_TYPE;
+
     PDFDocumentBuilder builder(parameters.document);
     const PDFObjectReference signatureDictionary = builder.createSignatureDictionary(parameters.filter,
                                                                                     parameters.subfilter,
                                                                                     placeholder,
                                                                                     parameters.signingTime,
-                                                                                    BYTE_RANGE_MARK);
+                                                                                    BYTE_RANGE_MARK,
+                                                                                    parameters.signatureDictionaryType);
+
+    // The time of a document timestamp is the time attested by the timestamp
+    // authority and stored in the timestamp token. The time of the computer,
+    // which created it, says nothing about the document, so it is removed from
+    // the dictionary of the timestamp.
+    if (isDocumentTimestamp)
+    {
+        if (const PDFDictionary* dictionary = builder.getDictionaryFromObject(builder.getObjectByReference(signatureDictionary)))
+        {
+            PDFDictionary timestampDictionary(*dictionary);
+            timestampDictionary.removeEntry("M");
+            builder.setObject(signatureDictionary, PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(timestampDictionary))));
+        }
+    }
     const PDFObjectReference signatureField = parameters.createSignatureFieldFunction(builder, signatureDictionary);
 
     PDFDocument documentToBeSigned = builder.build();
@@ -254,7 +275,7 @@ PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& param
     QByteArray writtenDocument = buffer.data();
     buffer.close();
 
-    if (!verifySignedDocument(writtenDocument, signatureField))
+    if (!verifySignedDocument(writtenDocument, signatureField, isDocumentTimestamp))
     {
         return Result::VerificationFailed;
     }
@@ -263,7 +284,9 @@ PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& param
     return Result::OK;
 }
 
-bool PDFDocumentSigner::verifySignedDocument(const QByteArray& signedDocument, PDFObjectReference signatureField)
+bool PDFDocumentSigner::verifySignedDocument(const QByteArray& signedDocument,
+                                             PDFObjectReference signatureField,
+                                             bool isDocumentTimestamp)
 {
     PDFDocumentReader reader(nullptr, nullptr, true, false);
     PDFDocument document = reader.readFromBuffer(signedDocument);
@@ -274,6 +297,11 @@ bool PDFDocumentSigner::verifySignedDocument(const QByteArray& signedDocument, P
     }
 
     const PDFForm form = PDFForm::parse(&document, document.getCatalog()->getFormObject());
+
+    if (isDocumentTimestamp)
+    {
+        return verifyDocumentTimestamp(form, signedDocument, signatureField);
+    }
 
     // We are verifying the signature we have just created, so we are interested
     // in this signature only - other signatures of the document can be invalid
@@ -291,6 +319,45 @@ bool PDFDocumentSigner::verifySignedDocument(const QByteArray& signedDocument, P
     auto isCreatedSignature = [signatureField](const PDFSignatureVerificationResult& result) { return result.getSignatureFieldReference() == signatureField; };
     auto it = std::find_if(results.cbegin(), results.cend(), isCreatedSignature);
     return it != results.cend() && it->isSignatureValid();
+}
+
+bool PDFDocumentSigner::verifyDocumentTimestamp(const PDFForm& form,
+                                                const QByteArray& signedDocument,
+                                                PDFObjectReference signatureField)
+{
+    const PDFSignature* timestamp = nullptr;
+    form.apply([&timestamp, signatureField](const PDFFormField* field)
+    {
+        if (field->getSelfReference() != signatureField)
+        {
+            return;
+        }
+
+        if (const PDFFormFieldSignature* signatureFormField = dynamic_cast<const PDFFormFieldSignature*>(field))
+        {
+            timestamp = &signatureFormField->getSignature();
+        }
+    });
+
+    if (!timestamp || timestamp->getType() != PDFSignature::Type::DocTimeStamp)
+    {
+        return false;
+    }
+
+    // The bytes attested by the timestamp are reconstructed from the byte ranges
+    // of the written document, exactly as a verifier of the document would do it.
+    QByteArray timestampedData;
+    for (const PDFSignature::ByteRange& byteRange : timestamp->getByteRanges())
+    {
+        if (byteRange.offset < 0 || byteRange.size < 0 || byteRange.offset + byteRange.size > signedDocument.size())
+        {
+            return false;
+        }
+
+        timestampedData.append(signedDocument.constData() + byteRange.offset, byteRange.size);
+    }
+
+    return PDFSignatureFactory::verifyTimestampToken(timestampedData, timestamp->getContents());
 }
 
 QString PDFDocumentSigner::getResultMessage(Result result)
