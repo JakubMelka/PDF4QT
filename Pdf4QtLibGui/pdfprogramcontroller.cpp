@@ -1244,6 +1244,11 @@ void PDFProgramController::onActionRenderingOptionTriggered(bool checked)
 
 void PDFProgramController::performSaveAs()
 {
+    if (!askForWriteUnwrittenChanges())
+    {
+        return;
+    }
+
     QFileInfo fileInfo(m_fileInfo.originalFileName);
     QString saveFileName = QFileDialog::getSaveFileName(m_mainWindow, tr("Save As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName), tr("Portable Document (*.pdf);;All files (*.*)"));
     if (!saveFileName.isEmpty())
@@ -1254,7 +1259,53 @@ void PDFProgramController::performSaveAs()
 
 void PDFProgramController::performSave()
 {
+    if (!askForWriteUnwrittenChanges())
+    {
+        return;
+    }
+
     saveDocument(m_fileInfo.originalFileName);
+}
+
+bool PDFProgramController::askForWriteUnwrittenChanges()
+{
+    // Changes, which are held by a plugin (for example the edited page content),
+    // are not a part of the document - they would be lost in the saved file.
+    for (const auto& plugin : m_loadedPlugins)
+    {
+        if (!plugin.second->hasUnwrittenChanges())
+        {
+            continue;
+        }
+
+        QString title = tr("Save Document");
+        QString message = tr("Changes made by the plugin '%1' have not been written to the document yet and they will not be saved. "
+                             "Do you wish to write them to the document before it is saved?").arg(plugin.first.name);
+
+        switch (QMessageBox::question(m_mainWindow, title, message, QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Cancel))
+        {
+            case QMessageBox::Yes:
+            {
+                if (!plugin.second->writeUnwrittenChanges())
+                {
+                    return false;
+                }
+                break;
+            }
+
+            case QMessageBox::No:
+                break;
+
+            case QMessageBox::Cancel:
+                return false;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    return true;
 }
 
 void PDFProgramController::saveDocument(const QString& fileName)

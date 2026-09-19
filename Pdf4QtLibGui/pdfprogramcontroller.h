@@ -451,6 +451,13 @@ private:
     void saveDocument(const QString& fileName);
     void savePageLayoutPerDocument();
 
+    /// Asks the user, if the changes, which are held by the plugins and are not
+    /// written into the document yet (for example the edited page content), should
+    /// be written into the document before it is saved. Confirmed changes are
+    /// written into the document.
+    /// \returns False, if the saving of the document should be cancelled
+    bool askForWriteUnwrittenChanges();
+
     PDFActionManager* m_actionManager;
     QMainWindow* m_mainWindow;
     IMainWindow* m_mainWindowInterface;

@@ -61,6 +61,16 @@ std::vector<QAction*> PDFPlugin::getActions() const
     return std::vector<QAction*>();
 }
 
+bool PDFPlugin::hasUnwrittenChanges() const
+{
+    return false;
+}
+
+bool PDFPlugin::writeUnwrittenChanges()
+{
+    return true;
+}
+
 PDFPluginInfo PDFPluginInfo::loadFromJson(const QJsonObject* json)
 {
     PDFPluginInfo result;

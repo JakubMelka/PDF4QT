@@ -29,6 +29,7 @@ CURRENT:
  - Issue #211: Text is inverted on edit
  - Issue #204: Editor corrupts some vector graphics
  - Issue #203: Editor seems to forget location of text after editing it
+ - Issue #196: Not able to edit PDF files.
  - Issue #188: Timestamp feature request
  - Issue #169: Option to render text as text when using Qpainter backend
 

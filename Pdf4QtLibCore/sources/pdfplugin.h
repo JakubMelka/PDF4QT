@@ -88,6 +88,18 @@ public:
     virtual std::vector<QAction*> getActions() const;
     virtual QString getPluginMenuName() const = 0;
 
+    /// Returns true, if the plugin holds changes, which were not written into
+    /// the document yet (for example the edited page content, which is written
+    /// into the document when the page content editing is finished). Such changes
+    /// are not a part of the saved document, so the user is asked before saving,
+    /// if the changes should be written into the document.
+    virtual bool hasUnwrittenChanges() const;
+
+    /// Writes the changes held by the plugin into the document. It is called
+    /// before the document is saved, when the user confirms it.
+    /// \returns False, if the changes were not written into the document
+    virtual bool writeUnwrittenChanges();
+
 protected:
     IPluginDataExchange* m_dataExchangeInterface;
     PDFWidget* m_widget;

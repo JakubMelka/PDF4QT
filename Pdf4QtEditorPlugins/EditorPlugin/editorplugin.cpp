@@ -395,6 +395,20 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     return true;
 }
 
+bool EditorPlugin::hasUnwrittenChanges() const
+{
+    // While the page content editing is active, the edited content is held
+    // by the scene only - it is written into the document when the editing
+    // is finished.
+    return m_scene.isActive();
+}
+
+bool EditorPlugin::writeUnwrittenChanges()
+{
+    pdf::PDFTemporaryValueChange guard(&m_isSaving, true);
+    return writePageContentToDocument();
+}
+
 bool EditorPlugin::save()
 {
     pdf::PDFTemporaryValueChange guard(&m_isSaving, true);
@@ -408,58 +422,65 @@ bool EditorPlugin::save()
 
     if (answer == QMessageBox::Yes)
     {
-        pdf::PDFDocumentModifier modifier(m_document);
-        pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+        return writePageContentToDocument();
+    }
 
-        std::set<pdf::PDFInteger> pageIndices;
-        for (const auto& item : m_editedPageContent)
+    return true;
+}
+
+bool EditorPlugin::writePageContentToDocument()
+{
+    pdf::PDFDocumentModifier modifier(m_document);
+    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+
+    std::set<pdf::PDFInteger> pageIndices;
+    for (const auto& item : m_editedPageContent)
+    {
+        pageIndices.insert(item.first);
+    }
+
+    std::map<pdf::PDFInteger, std::vector<const pdf::PDFPageContentElement*>> elementsByPage = m_scene.getElementsByPage();
+    for (pdf::PDFInteger pageIndex : pageIndices)
+    {
+        if (m_editedPageContent.count(pageIndex) == 0)
         {
-            pageIndices.insert(item.first);
+            continue;
         }
 
-        std::map<pdf::PDFInteger, std::vector<const pdf::PDFPageContentElement*>> elementsByPage = m_scene.getElementsByPage();
-        for (pdf::PDFInteger pageIndex : pageIndices)
+        std::vector<const pdf::PDFPageContentElement*> elements;
+        auto it = elementsByPage.find(pageIndex);
+        if (it != elementsByPage.cend())
         {
-            if (m_editedPageContent.count(pageIndex) == 0)
-            {
-                continue;
-            }
-
-            std::vector<const pdf::PDFPageContentElement*> elements;
-            auto it = elementsByPage.find(pageIndex);
-            if (it != elementsByPage.cend())
-            {
-                elements = std::move(it->second);
-            }
-
-            if (!updatePageContent(pageIndex, elements, builder))
-            {
-                return false;
-            }
-
-            modifier.markReset();
+            elements = std::move(it->second);
         }
 
-        pdf::PDFTemporaryValueChange restoreGuard(&m_isUndoRedoInProgress, true);
-        clearUndoRedo();
-        m_scene.clear();
-        m_editedPageContent.clear();
-
-        if (modifier.finalize())
+        if (!updatePageContent(pageIndex, elements, builder))
         {
-            pdf::PDFDocument document = *modifier.getDocument();
-            pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::DereferenceSimpleObjects |
-                                        pdf::PDFOptimizer::RemoveNullObjects |
-                                        pdf::PDFOptimizer::RemoveUnusedObjects |
-                                        pdf::PDFOptimizer::MergeIdenticalObjects |
-                                        pdf::PDFOptimizer::ShrinkObjectStorage, nullptr);
-            optimizer.setDocument(&document);
-            optimizer.optimize();
-            document = optimizer.takeOptimizedDocument();
-
-            const pdf::PDFModifiedDocument::ModificationFlags flags = modifier.getFlags() | pdf::PDFModifiedDocument::PreserveUndoRedo;
-            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), nullptr, flags));
+            return false;
         }
+
+        modifier.markReset();
+    }
+
+    pdf::PDFTemporaryValueChange restoreGuard(&m_isUndoRedoInProgress, true);
+    clearUndoRedo();
+    m_scene.clear();
+    m_editedPageContent.clear();
+
+    if (modifier.finalize())
+    {
+        pdf::PDFDocument document = *modifier.getDocument();
+        pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::DereferenceSimpleObjects |
+                                    pdf::PDFOptimizer::RemoveNullObjects |
+                                    pdf::PDFOptimizer::RemoveUnusedObjects |
+                                    pdf::PDFOptimizer::MergeIdenticalObjects |
+                                    pdf::PDFOptimizer::ShrinkObjectStorage, nullptr);
+        optimizer.setDocument(&document);
+        optimizer.optimize();
+        document = optimizer.takeOptimizedDocument();
+
+        const pdf::PDFModifiedDocument::ModificationFlags flags = modifier.getFlags() | pdf::PDFModifiedDocument::PreserveUndoRedo;
+        Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), nullptr, flags));
     }
 
     return true;

@@ -55,6 +55,15 @@ public:
     virtual std::vector<QAction*> getActions() const override;
     virtual QString getPluginMenuName() const override;
 
+    /// Returns true, if the page content editing is active. The edited page
+    /// content is written into the document when the editing is finished,
+    /// so while it is active, the edits are not a part of the document.
+    virtual bool hasUnwrittenChanges() const override;
+
+    /// Writes the edited page content into the document. The user is not asked
+    /// for a confirmation - the caller is responsible for it.
+    virtual bool writeUnwrittenChanges() override;
+
     bool save();
 
 private:
@@ -144,6 +153,12 @@ private:
     /// \param state Source scene snapshot
     /// \return Cloned snapshot that can be safely restored later
     pdf::PDFPageContentScene::SceneState copySceneState(const pdf::PDFPageContentScene::SceneState& state) const;
+
+    /// Writes the edited page content of all edited pages into the document.
+    /// The editing session is finished - the scene and the undo/redo history
+    /// are cleared and the modified document is sent to the application.
+    /// \returns False, if the content was not written into the document
+    bool writePageContentToDocument();
 
     bool updatePageContent(pdf::PDFInteger pageIndex,
                            const std::vector<const pdf::PDFPageContentElement*>& elements,
