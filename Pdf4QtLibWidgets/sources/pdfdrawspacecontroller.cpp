@@ -552,39 +552,15 @@ void PDFDrawWidgetProxy::update()
     Q_ASSERT(m_verticalScrollbar);
 
     QWidget* widget = m_widget->getDrawWidget()->getWidget();
-    QScreen* primaryScreen = QGuiApplication::primaryScreen();
 
     // First, we must calculate pixel per mm ratio to obtain DPMM (device pixel per mm),
     // we also assume, that zoom is correctly set.
-    QSizeF physicalSize = primaryScreen->physicalSize();
-    QSizeF pixelSize = primaryScreen->size();
-
-    m_pixelPerMM = pixelSize.width() / physicalSize.width();
-
-    // Are we using logical pixels instead of physical ones?
-    if (m_features.testFlag(PDFRenderer::LogicalSizeZooming))
-    {
-        qreal ldpi = primaryScreen->logicalDotsPerInch();
-        qreal pdpi = primaryScreen->physicalDotsPerInch();
-        qreal ratioLogicalToPhysical = ldpi / pdpi;
-        m_pixelPerMM *= ratioLogicalToPhysical;
-    }
-
-    if (m_zoomMode != ZoomMode::Custom)
-    {
-        m_zoom = qBound(MIN_ZOOM, getZoomForMode(m_zoomMode), MAX_ZOOM);
-    }
-
-    Q_ASSERT(m_zoom > 0.0);
-    Q_ASSERT(m_pixelPerMM > 0.0);
-
-    m_deviceSpaceUnitToPixel = m_pixelPerMM * m_zoom;
-    m_pixelToDeviceSpaceUnit = 1.0 / m_deviceSpaceUnitToPixel;
-
-    m_layout.clear();
+    m_pixelPerMM = getPixelPerMM();
 
     // Switch to the first block, if we haven't selected any, otherwise fix active
-    // block item (select first block available).
+    // block item (select first block available). This must be done before the zoom
+    // is calculated - the zoom modes reserve the space of the scrollbars of the
+    // current block.
     if (m_controller->getBlockCount() > 0)
     {
         if (m_currentBlock == INVALID_BLOCK_INDEX)
@@ -600,6 +576,19 @@ void PDFDrawWidgetProxy::update()
     {
         m_currentBlock = INVALID_BLOCK_INDEX;
     }
+
+    if (m_zoomMode != ZoomMode::Custom)
+    {
+        m_zoom = qBound(MIN_ZOOM, getZoomForMode(m_zoomMode), MAX_ZOOM);
+    }
+
+    Q_ASSERT(m_zoom > 0.0);
+    Q_ASSERT(m_pixelPerMM > 0.0);
+
+    m_deviceSpaceUnitToPixel = m_pixelPerMM * m_zoom;
+    m_pixelToDeviceSpaceUnit = 1.0 / m_deviceSpaceUnitToPixel;
+
+    m_layout.clear();
 
     // Then, create pixel size layout of the pages using the draw space controller
     QRectF rectangle = m_controller->getBlockBoundingRectangle(m_currentBlock);
@@ -1334,6 +1323,161 @@ PDFReal PDFDrawWidgetProxy::getZoomHint(ZoomHint hint) const
     return getZoomHintForPage(hint, -1);
 }
 
+QScreen* PDFDrawWidgetProxy::getCurrentScreen() const
+{
+    if (m_widget)
+    {
+        if (QScreen* screen = m_widget->screen())
+        {
+            return screen;
+        }
+    }
+
+    return QGuiApplication::primaryScreen();
+}
+
+PDFReal PDFDrawWidgetProxy::getPixelPerMM() const
+{
+    QScreen* screen = getCurrentScreen();
+
+    if (!screen)
+    {
+        return PDF_DEFAULT_DPMM;
+    }
+
+    const QSizeF physicalSize = screen->physicalSize();
+    const QSizeF pixelSize = screen->size();
+
+    if (!(physicalSize.width() > 0.0) || !(pixelSize.width() > 0.0))
+    {
+        // Screen does not report a usable physical size (this happens on Windows,
+        // when the monitor does not provide a valid EDID)
+        return PDF_DEFAULT_DPMM;
+    }
+
+    PDFReal pixelPerMM = pixelSize.width() / physicalSize.width();
+
+    // Are we using logical pixels instead of physical ones?
+    if (m_features.testFlag(PDFRenderer::LogicalSizeZooming))
+    {
+        const qreal ldpi = screen->logicalDotsPerInch();
+        const qreal pdpi = screen->physicalDotsPerInch();
+
+        if (pdpi > 0.0)
+        {
+            const qreal ratioLogicalToPhysical = ldpi / pdpi;
+            pixelPerMM *= ratioLogicalToPhysical;
+        }
+    }
+
+    return (pixelPerMM > 0.0) ? pixelPerMM : PDF_DEFAULT_DPMM;
+}
+
+QSizeF PDFDrawWidgetProxy::getViewportSize(bool verticalScrollbar, bool horizontalScrollbar) const
+{
+    if (!m_widget)
+    {
+        return QSizeF();
+    }
+
+    // Draw widget and both scrollbars are placed in a grid layout without any margins
+    // or spacing, so the whole widget area is available for the pages, decreased by the
+    // scrollbars which are visible.
+    QSizeF size = m_widget->size();
+
+    if (verticalScrollbar && m_verticalScrollbar)
+    {
+        size.rwidth() -= m_verticalScrollbar->sizeHint().width();
+    }
+
+    if (horizontalScrollbar && m_horizontalScrollbar)
+    {
+        size.rheight() -= m_horizontalScrollbar->sizeHint().height();
+    }
+
+    return size;
+}
+
+PDFReal PDFDrawWidgetProxy::getZoomToFitSize(ZoomHint hint, QSizeF referenceSizeMM) const
+{
+    if (!m_widget || !referenceSizeMM.isValid() ||
+        qFuzzyIsNull(referenceSizeMM.width()) || qFuzzyIsNull(referenceSizeMM.height()))
+    {
+        // Return default 100% zoom
+        return 1.0;
+    }
+
+    const PDFReal pixelPerMM = getPixelPerMM();
+    const QSizeF blockSizeMM = m_controller->getBlockBoundingRectangle(m_currentBlock).size();
+
+    // Scrollbars take the space away from the viewport and the zoom depends on the viewport
+    // size. We must not derive the prediction from the scrollbars which are visible right now -
+    // a scrollbar appearing would lower the zoom, the lower zoom would hide the scrollbar again
+    // and the layout would oscillate. We start without the scrollbars instead and we only add
+    // them, we never remove them. This converges in at most three steps and in the worst case
+    // the space of both scrollbars is reserved (so nothing is clipped).
+    bool isVerticalScrollbarVisible = isBlockMode() && m_controller->getBlockCount() > 1;
+    bool isHorizontalScrollbarVisible = false;
+
+    PDFReal zoom = 1.0;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const QSizeF viewportSize = getViewportSize(isVerticalScrollbarVisible, isHorizontalScrollbarVisible);
+
+        const PDFReal availableWidth = qMax(viewportSize.width() - FIT_MARGIN_PIXELS, FIT_MARGIN_PIXELS);
+        const PDFReal availableHeight = qMax(viewportSize.height() - FIT_MARGIN_PIXELS, FIT_MARGIN_PIXELS);
+
+        const PDFReal widthHint = availableWidth / (referenceSizeMM.width() * pixelPerMM);
+        const PDFReal heightHint = availableHeight / (referenceSizeMM.height() * pixelPerMM);
+
+        switch (hint)
+        {
+            case ZoomHint::Fit:
+                zoom = qMin(widthHint, heightHint);
+                break;
+
+            case ZoomHint::FitWidth:
+                zoom = widthHint;
+                break;
+
+            case ZoomHint::FitHeight:
+                zoom = heightHint;
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        if (!blockSizeMM.isValid())
+        {
+            break;
+        }
+
+        // Which scrollbars will be shown by the update for this zoom? In the block mode,
+        // the vertical scrollbar switches the blocks, so it does not depend on the zoom.
+        const PDFReal blockWidth = blockSizeMM.width() * zoom * pixelPerMM;
+        const PDFReal blockHeight = blockSizeMM.height() * zoom * pixelPerMM;
+
+        const bool needsVerticalScrollbar = isVerticalScrollbarVisible ||
+                                            (!isBlockMode() && blockHeight > viewportSize.height());
+        const bool needsHorizontalScrollbar = isHorizontalScrollbarVisible ||
+                                              (blockWidth > viewportSize.width());
+
+        if (needsVerticalScrollbar == isVerticalScrollbarVisible &&
+            needsHorizontalScrollbar == isHorizontalScrollbarVisible)
+        {
+            break;
+        }
+
+        isVerticalScrollbarVisible = needsVerticalScrollbar;
+        isHorizontalScrollbarVisible = needsHorizontalScrollbar;
+    }
+
+    return zoom;
+}
+
 PDFReal PDFDrawWidgetProxy::getZoomHintForPage(ZoomHint hint, PDFInteger pageIndex) const
 {
     pageIndex = getPreferredPageForZoom(pageIndex);
@@ -1352,33 +1496,8 @@ PDFReal PDFDrawWidgetProxy::getZoomHintForPage(ZoomHint hint, PDFInteger pageInd
     {
         referenceSize = m_controller->getReferenceBoundingBox();
     }
-    if (referenceSize.isValid())
-    {
-        const PDFReal ratio = 0.95;
-        const PDFReal widthMM = m_widget->widthMM() * ratio;
-        const PDFReal heightMM = m_widget->heightMM() * ratio;
 
-        const PDFReal widthHint = widthMM / referenceSize.width();
-        const PDFReal heightHint = heightMM / referenceSize.height();
-
-        switch (hint)
-        {
-            case ZoomHint::Fit:
-                return qMin(widthHint, heightHint);
-
-            case ZoomHint::FitWidth:
-                return widthHint;
-
-            case ZoomHint::FitHeight:
-                return heightHint;
-
-            default:
-                break;
-        }
-    }
-
-    // Return default 100% zoom
-    return 1.0;
+    return getZoomToFitSize(hint, referenceSize);
 }
 
 void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
@@ -1616,17 +1735,12 @@ void PDFDrawWidgetProxy::fitToDestinationRectangle(PDFInteger pageIndex, const Q
 
     const QRectF normalizedRectangle = rectangle.normalized();
 
-    const PDFReal ratio = 0.95;
-    const PDFReal widthMM = m_widget->widthMM() * ratio;
-    const PDFReal heightMM = m_widget->heightMM() * ratio;
     const QRectF destinationRectangleMM = page->getRectMM(normalizedRectangle);
 
     if (destinationRectangleMM.isValid() && !qFuzzyIsNull(destinationRectangleMM.width()) && !qFuzzyIsNull(destinationRectangleMM.height()))
     {
-        const PDFReal widthHint = widthMM / destinationRectangleMM.width();
-        const PDFReal heightHint = heightMM / destinationRectangleMM.height();
         m_zoomMode = ZoomMode::Custom;
-        zoomImpl(qMin(widthHint, heightHint));
+        zoomImpl(getZoomToFitSize(ZoomHint::Fit, destinationRectangleMM.size()));
     }
 
     goToPage(pageIndex);

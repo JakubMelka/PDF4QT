@@ -64,6 +64,9 @@ class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidget : public QWidget
 {
     Q_OBJECT
 
+private:
+    using BaseClass = QWidget;
+
 public:
     /// Constructs new PDFWidget.
     /// \param cmsManager Color management system manager
@@ -130,6 +133,9 @@ public:
 signals:
     void sceneActivityChanged();
     void pageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
+
+protected:
+    virtual bool event(QEvent* event) override;
 
 private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);

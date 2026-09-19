@@ -38,6 +38,7 @@
 #include <QMarginsF>
 
 class QPainter;
+class QScreen;
 class QScrollBar;
 class QTimer;
 
@@ -439,6 +440,11 @@ private:
     static constexpr PDFReal MIN_ZOOM = 8.0 / 100.0;
     static constexpr PDFReal MAX_ZOOM = 6400.0 / 100.0;
 
+    // Margin left around the fitted content [pixels]. It absorbs the rounding of the page
+    // rectangles to the whole pixels, so the fit itself does not make a scrollbar appear.
+
+    static constexpr PDFReal FIT_MARGIN_PIXELS = 1.0;
+
     static constexpr qint64 CACHE_CLEAR_TIMEOUT = 5000;
     static constexpr qint64 CACHE_PAGE_EXPIRATION_TIMEOUT = 30000;
 
@@ -452,6 +458,29 @@ private:
 
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
+
+    /// Returns the screen on which the widget is currently displayed. Primary screen
+    /// is returned as a fallback, when the widget is not assigned to any screen.
+    QScreen* getCurrentScreen() const;
+
+    /// Calculates the count of the pixels per one millimeter on the screen, on which
+    /// the widget is currently displayed. This is the single source of truth for the
+    /// conversion between the device space (millimeters) and the pixels - zoom hints
+    /// must use it too, otherwise the layout and the zoom would disagree on screens
+    /// with a different physical size or a different dpi than the primary one.
+    PDFReal getPixelPerMM() const;
+
+    /// Returns the size of the area available for the pages, when the given scrollbars
+    /// are visible. Zero size is returned, when the widget is not set.
+    /// \param verticalScrollbar Is the vertical scrollbar visible?
+    /// \param horizontalScrollbar Is the horizontal scrollbar visible?
+    QSizeF getViewportSize(bool verticalScrollbar, bool horizontalScrollbar) const;
+
+    /// Calculates the zoom, at which the reference size fits into the viewport. Space
+    /// of the scrollbars, which will become visible at that zoom, is reserved.
+    /// \param hint Zoom hint type
+    /// \param referenceSizeMM Size to be fitted into the viewport [mm]
+    PDFReal getZoomToFitSize(ZoomHint hint, QSizeF referenceSizeMM) const;
 
     void zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPosition = std::nullopt);
     PDFInteger getPreferredPageForZoom(PDFInteger preferredPageIndex = -1) const;

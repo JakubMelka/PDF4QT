@@ -84,6 +84,31 @@ PDFWidget::~PDFWidget()
 
 }
 
+bool PDFWidget::event(QEvent* event)
+{
+    switch (event->type())
+    {
+        case QEvent::ScreenChangeInternal:
+        case QEvent::DevicePixelRatioChange:
+        {
+            // Conversion between the device space (millimeters) and the pixels depends
+            // on the screen, on which the widget is displayed. We must recalculate the
+            // draw space, otherwise the pages would keep the size (and the zoom modes
+            // the zoom) calculated for the previous screen.
+            if (m_proxy)
+            {
+                m_proxy->update();
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return BaseClass::event(event);
+}
+
 bool PDFWidget::focusNextPrevChild(bool next)
 {
     if (m_formManager && m_formManager->focusNextPrevFormField(next))

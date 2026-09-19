@@ -17,6 +17,7 @@ CURRENT:
  - Issue #397: No Audio Output When Using Text-to-Speech
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #393: Text in some PDFs is displayed incorrectly
+ - Issue #391: View options to fit page are not working on windows
  - Issue #337: Text removed from page when adding image with editor
  - Issue #332: Some suggestions and problem requests for PDF editors
  - Issue #328: PDF viewer display error visible only at some zoom levels
