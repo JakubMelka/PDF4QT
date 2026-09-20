@@ -24,6 +24,7 @@ CURRENT:
  - Issue #328: PDF viewer display error visible only at some zoom levels
  - Issue #327: Does not handle forms correctly
  - Issue #299: PDF element display error
+ - Issue #278: PDF4QT Diff
  - Issue #258: feat: Insert page number
  - Issue #238: Pdf Editor: "Edit page content" makes image disappear
  - Issue #231: PDF4Qt Diff does not open files on Linux

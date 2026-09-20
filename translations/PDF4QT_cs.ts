@@ -7594,6 +7594,94 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <source>Move</source>
         <translation>Přesunuto</translation>
     </message>
+    <message>
+        <source>Overlay View</source>
+        <translation>Překrytí dokumentů</translation>
+    </message>
+    <message>
+        <source>Choose View Overlay to align and blend the compared pages.</source>
+        <translation>Pro zarovnání a prolnutí porovnávaných stránek zvolte zobrazení překrytí.</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>Levý</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>Pravý</translation>
+    </message>
+    <message>
+        <source>50% / 50%</source>
+        <translation>50% / 50%</translation>
+    </message>
+    <message>
+        <source>Drag left to show the left document, or right to show the right document.</source>
+        <translation>Posunutím doleva zobrazíte levý dokument, posunutím doprava pravý dokument.</translation>
+    </message>
+    <message>
+        <source>Overlay blend</source>
+        <translation>Prolnutí dokumentů</translation>
+    </message>
+    <message>
+        <source>&amp;Page sizes:</source>
+        <translation>&amp;Velikosti stránek:</translation>
+    </message>
+    <message>
+        <source>Fit enlarges the smaller page to match the larger page as closely as possible, preserving proportions and centering both pages. Manual scale uses percentages of the original page sizes.</source>
+        <translation>Přizpůsobení zvětší menší stránku tak, aby co nejlépe odpovídala větší. Zachová poměr stran a obě stránky vystředí. Ruční měřítko se zadává v procentech původní velikosti stránek.</translation>
+    </message>
+    <message>
+        <source>&amp;Left scale:</source>
+        <translation>Měřítko &amp;levého:</translation>
+    </message>
+    <message>
+        <source>&amp;Right scale:</source>
+        <translation>Měřítko &amp;pravého:</translation>
+    </message>
+    <message>
+        <source>Scale the left document relative to its original size. Proportions are preserved.</source>
+        <translation>Změní velikost levého dokumentu vzhledem k původní velikosti. Poměr stran zůstane zachován.</translation>
+    </message>
+    <message>
+        <source>Scale the right document relative to its original size. Proportions are preserved.</source>
+        <translation>Změní velikost pravého dokumentu vzhledem k původní velikosti. Poměr stran zůstane zachován.</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
+        <source>&amp;Horizontal shift:</source>
+        <translation>Vo&amp;dorovný posun:</translation>
+    </message>
+    <message>
+        <source>&amp;Vertical shift:</source>
+        <translation>&amp;Svislý posun:</translation>
+    </message>
+    <message>
+        <source>Move the right document horizontally. Positive values move it to the right.</source>
+        <translation>Posune pravý dokument vodorovně. Kladné hodnoty jej posunou doprava.</translation>
+    </message>
+    <message>
+        <source>Move the right document vertically. Positive values move it down.</source>
+        <translation>Posune pravý dokument svisle. Kladné hodnoty jej posunou dolů.</translation>
+    </message>
+    <message>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <source>Reset Overlay</source>
+        <translation>Obnovit výchozí překrytí</translation>
+    </message>
+    <message>
+        <source>Restore original page sizes, zero shifts and an equal blend of both documents.</source>
+        <translation>Obnoví původní velikosti stránek, nulový posun a rovnoměrné prolnutí obou dokumentů.</translation>
+    </message>
+    <message>
+        <source>Applies to all paired pages in this view. Comparison results and exported reports use the original documents.</source>
+        <translation>Platí pro všechny dvojice stránek v tomto zobrazení. Výsledky porovnání a exportované zprávy používají původní dokumenty.</translation>
+    </message>
 </context>
 <context>
     <name>SignDialog</name>
@@ -14133,6 +14221,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtDiff/settingsdockwidget.cpp" line="54"/>
         <source>S&amp;ettings</source>
         <translation>&amp;Nastavení</translation>
+    </message>
+    <message>
+        <source>%1% / %2%</source>
+        <translation>%1% / %2%</translation>
+    </message>
+    <message>
+        <source>Original sizes</source>
+        <translation>Původní velikosti</translation>
+    </message>
+    <message>
+        <source>Fit smaller page to larger</source>
+        <translation>Přizpůsobit velikosti</translation>
+    </message>
+    <message>
+        <source>Manual scale</source>
+        <translation>Ruční měřítko</translation>
     </message>
 </context>
 <context>

@@ -53,7 +53,8 @@ public:
                 const pdf::PDFDiffResult& diff,
                 const pdf::PDFDocument* leftDocument,
                 const pdf::PDFDocument* rightDocument,
-                const pdf::PDFDocument* currentDocument);
+                const pdf::PDFDocument* currentDocument,
+                const OverlaySettings& overlay = {});
 
     const pdf::PDFDrawSpaceController::LayoutItems& getLayout() const { return m_layout; }
     void setPageSequence(const pdf::PDFDiffResult::PageSequence& sequence) { m_pageSequence = sequence; }

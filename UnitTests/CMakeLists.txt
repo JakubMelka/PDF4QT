@@ -341,3 +341,28 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsSignatureAppearance "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSignatureAppearance")
     set_tests_properties(UnitTestsSignatureAppearance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsDiffOverlay
+        tst_diffoverlaytest.cpp
+        ../Pdf4QtDiff/mainwindow.cpp
+        ../Pdf4QtDiff/mainwindow.ui
+        ../Pdf4QtDiff/aboutdialog.cpp
+        ../Pdf4QtDiff/aboutdialog.ui
+        ../Pdf4QtDiff/differencesdockwidget.cpp
+        ../Pdf4QtDiff/differencesdockwidget.ui
+        ../Pdf4QtDiff/resources.qrc
+        ../Pdf4QtDiff/utils.cpp
+        ../Pdf4QtDiff/settingsdockwidget.cpp
+        ../Pdf4QtDiff/settingsdockwidget.ui
+    )
+    target_include_directories(UnitTestsDiffOverlay PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtDiff)
+    target_link_libraries(UnitTestsDiffOverlay PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsDiffOverlay PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsDiffOverlay "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDiffOverlay")
+    set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()

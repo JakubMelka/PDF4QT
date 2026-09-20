@@ -26,6 +26,9 @@
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 
+#include <QScrollArea>
+#include <QSignalBlocker>
+
 namespace pdfdiff
 {
 
@@ -38,7 +41,7 @@ SettingsDockWidget::SettingsDockWidget(Settings* settings, QWidget* parent) :
     ui->setupUi(this);
 
     auto colorNames = QColor::colorNames();
-    for (QComboBox* comboBox : findChildren<QComboBox*>())
+    for (QComboBox* comboBox : { ui->removeColorCombo, ui->addColorCombo, ui->replaceColorCombo, ui->moveColorCombo })
     {
         for (const QString& colorName : colorNames)
         {
@@ -50,6 +53,34 @@ SettingsDockWidget::SettingsDockWidget(Settings* settings, QWidget* parent) :
     }
 
     connect(ui->transparencySlider, &QSlider::valueChanged, this, &SettingsDockWidget::transparencySliderChanged);
+    connect(ui->transparencySlider, &QSlider::valueChanged, this, [this](int value)
+    {
+        ui->blendValueLabel->setText(tr("%1% / %2%").arg(100 - value).arg(value));
+    });
+
+    ui->overlayScaleModeCombo->addItem(tr("Original sizes"), int(OverlaySettings::ScaleMode::Original));
+    ui->overlayScaleModeCombo->addItem(tr("Fit smaller page to larger"), int(OverlaySettings::ScaleMode::Fit));
+    ui->overlayScaleModeCombo->addItem(tr("Manual scale"), int(OverlaySettings::ScaleMode::Manual));
+    connect(ui->overlayScaleModeCombo, &QComboBox::currentIndexChanged, this, [this]()
+    {
+        updateOverlayControls();
+        Q_EMIT overlaySettingsChanged();
+    });
+    for (QDoubleSpinBox* spinBox : { ui->leftScaleSpinBox, ui->rightScaleSpinBox,
+                                   ui->horizontalOffsetSpinBox, ui->verticalOffsetSpinBox })
+    {
+        connect(spinBox, &QDoubleSpinBox::valueChanged, this, &SettingsDockWidget::overlaySettingsChanged);
+    }
+    connect(ui->resetOverlayButton, &QPushButton::clicked, this, &SettingsDockWidget::resetOverlay);
+    resetOverlay();
+    setOverlayEnabled(false);
+
+    // Keep every setting reachable on small screens and at high display scaling.
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setWidget(widget());
+    setWidget(scrollArea);
 
     toggleViewAction()->setText(tr("S&ettings"));
 }
@@ -113,6 +144,49 @@ void SettingsDockWidget::loadColors()
 int SettingsDockWidget::getTransparencySliderValue() const
 {
     return ui->transparencySlider->value();
+}
+
+OverlaySettings SettingsDockWidget::getOverlaySettings() const
+{
+    OverlaySettings settings;
+    settings.scaleMode = static_cast<OverlaySettings::ScaleMode>(ui->overlayScaleModeCombo->currentData().toInt());
+    settings.leftScale = ui->leftScaleSpinBox->value() * 0.01;
+    settings.rightScale = ui->rightScaleSpinBox->value() * 0.01;
+    settings.rightOffsetMM = QPointF(ui->horizontalOffsetSpinBox->value(), ui->verticalOffsetSpinBox->value());
+    return settings;
+}
+
+void SettingsDockWidget::setOverlayEnabled(bool enabled)
+{
+    ui->overlayControls->setEnabled(enabled);
+    ui->overlayHintLabel->setVisible(!enabled);
+}
+
+void SettingsDockWidget::updateOverlayControls()
+{
+    const bool manual = getOverlaySettings().scaleMode == OverlaySettings::ScaleMode::Manual;
+    for (QWidget* widget : QList<QWidget*>{ ui->leftScaleSpinBox, ui->rightScaleSpinBox,
+                                         ui->leftScaleLabel, ui->rightScaleLabel })
+    {
+        widget->setEnabled(manual);
+        widget->setVisible(manual);
+    }
+}
+
+void SettingsDockWidget::resetOverlay()
+{
+    {
+        const QSignalBlocker blocker(this);
+        ui->overlayScaleModeCombo->setCurrentIndex(0);
+        ui->leftScaleSpinBox->setValue(100.0);
+        ui->rightScaleSpinBox->setValue(100.0);
+        ui->horizontalOffsetSpinBox->setValue(0.0);
+        ui->verticalOffsetSpinBox->setValue(0.0);
+        ui->transparencySlider->setValue(50);
+        updateOverlayControls();
+    }
+    Q_EMIT overlaySettingsChanged();
+    Q_EMIT transparencySliderChanged(getTransparencySliderValue());
 }
 
 QIcon SettingsDockWidget::getIconForColor(QColor color) const

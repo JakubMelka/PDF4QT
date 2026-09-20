@@ -58,15 +58,20 @@ public:
     void saveColors();
 
     int getTransparencySliderValue() const;
+    OverlaySettings getOverlaySettings() const;
+    void setOverlayEnabled(bool enabled);
+    void resetOverlay();
 
 signals:
     void colorsChanged();
     void transparencySliderChanged(int value);
+    void overlaySettingsChanged();
 
 private:
     QIcon getIconForColor(QColor color) const;
 
     void onEditColorChanged();
+    void updateOverlayControls();
 
     Ui::SettingsDockWidget* ui;
     Settings* m_settings;

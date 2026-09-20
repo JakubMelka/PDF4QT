@@ -80,6 +80,7 @@ MainWindow::MainWindow(QWidget* parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
     connect(m_settingsDockWidget, &SettingsDockWidget::colorsChanged, this, &MainWindow::onColorsChanged);
     connect(m_settingsDockWidget, &SettingsDockWidget::transparencySliderChanged, this, &MainWindow::updateOverlayTransparency);
+    connect(m_settingsDockWidget, &SettingsDockWidget::overlaySettingsChanged, this, &MainWindow::updateCustomPageLayout);
 
     m_differencesDockWidget = new DifferencesDockWidget(this, &m_diffResult, &m_filteredDiffResult, &m_diffNavigator, &m_settings);
     addDockWidget(Qt::LeftDockWidgetArea, m_differencesDockWidget);
@@ -575,6 +576,11 @@ void MainWindow::performOperation(Operation operation)
         case Operation::ViewRight:
         case Operation::ViewOverlay:
             updateViewDocument();
+            if (operation == Operation::ViewOverlay)
+            {
+                m_settingsDockWidget->show();
+                m_settingsDockWidget->raise();
+            }
             break;
 
         case Operation::ShowPageswithDifferences:
@@ -763,6 +769,7 @@ void MainWindow::updateFilteredResult()
 void MainWindow::updateViewDocument()
 {
     pdf::PDFDocument* document = nullptr;
+    m_settingsDockWidget->setOverlayEnabled(getDocumentViewMode() == ComparedDocumentMapper::Mode::Overlay);
 
     switch (getDocumentViewMode())
     {
@@ -790,7 +797,8 @@ void MainWindow::updateCustomPageLayout()
                             m_filteredDiffResult,
                             &m_leftDocument,
                             &m_rightDocument,
-                            m_pdfWidget->getDrawWidgetProxy()->getDocument());
+                            m_pdfWidget->getDrawWidgetProxy()->getDocument(),
+                            m_settingsDockWidget->getOverlaySettings());
 
 
     m_pdfWidget->getDrawWidgetProxy()->setCustomPageLayout(m_documentMapper.getLayout());
@@ -843,6 +851,7 @@ std::optional<pdf::PDFDocument> MainWindow::openDocument()
 
 void MainWindow::setRightDocument(pdf::PDFDocument&& newRightDocument)
 {
+    m_settingsDockWidget->resetOverlay();
     m_rightDocument = newRightDocument;
 
     const size_t pageCount = m_rightDocument.getCatalog()->getPageCount();
@@ -862,6 +871,7 @@ void MainWindow::setRightDocument(pdf::PDFDocument&& newRightDocument)
 
 void MainWindow::setLeftDocument(pdf::PDFDocument&& newLeftDocument)
 {
+    m_settingsDockWidget->resetOverlay();
     m_leftDocument = newLeftDocument;
 
     const size_t pageCount = m_leftDocument.getCatalog()->getPageCount();

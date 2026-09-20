@@ -36,7 +36,8 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
                                     const pdf::PDFDiffResult& diff,
                                     const pdf::PDFDocument* leftDocument,
                                     const pdf::PDFDocument* rightDocument,
-                                    const pdf::PDFDocument* currentDocument)
+                                    const pdf::PDFDocument* currentDocument,
+                                    const OverlaySettings& overlay)
 {
     m_layout.clear();
 
@@ -166,6 +167,45 @@ void ComparedDocumentMapper::update(ComparedDocumentMapper::Mode mode,
             for (const pdf::PDFDiffResult::PageSequenceItem& item : pageSequence)
             {
                 double yAdvance = 0.0;
+
+                if (mode == Mode::Overlay && item.leftPage != -1 && item.rightPage != -1)
+                {
+                    const pdf::PDFInteger rightPageIndex = item.rightPage + offset;
+                    QSizeF leftSize = catalog->getPage(item.leftPage)->getRotatedMediaBoxMM().size();
+                    QSizeF rightSize = catalog->getPage(rightPageIndex)->getRotatedMediaBoxMM().size();
+
+                    if (overlay.scaleMode == OverlaySettings::ScaleMode::Fit &&
+                        !leftSize.isEmpty() && !rightSize.isEmpty())
+                    {
+                        // Fit each page into the common paper size without distorting drawings.
+                        const QSizeF target = leftSize.expandedTo(rightSize);
+                        leftSize *= qMin(target.width() / leftSize.width(), target.height() / leftSize.height());
+                        rightSize *= qMin(target.width() / rightSize.width(), target.height() / rightSize.height());
+                    }
+                    else if (overlay.scaleMode == OverlaySettings::ScaleMode::Manual)
+                    {
+                        leftSize *= overlay.leftScale;
+                        rightSize *= overlay.rightScale;
+                    }
+
+                    QRectF leftRect(QPointF(-leftSize.width() * 0.5, 0.0), leftSize);
+                    QRectF rightRect(QPointF(-rightSize.width() * 0.5, 0.0), rightSize);
+                    if (overlay.scaleMode != OverlaySettings::ScaleMode::Original)
+                    {
+                        leftRect.moveCenter(QPointF());
+                        rightRect.moveCenter(QPointF());
+                    }
+                    rightRect.translate(overlay.rightOffsetMM);
+
+                    const QRectF bounds = leftRect.united(rightRect);
+                    const QPointF translation(0.0, yPos - bounds.top());
+                    m_layout.emplace_back(0, item.leftPage, 1, leftRect.translated(translation));
+                    m_layout.emplace_back(0, rightPageIndex, 2, rightRect.translated(translation));
+                    m_leftPageIndices[item.leftPage] = item.leftPage;
+                    m_rightPageIndices[rightPageIndex] = item.rightPage;
+                    yPos += bounds.height() + 5.0;
+                    continue;
+                }
 
                 if (item.leftPage != -1)
                 {
@@ -386,7 +426,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 break;
 
             case pdf::PDFDiffResult::Type::PageMoved:
-                text = QString("%1🠖%2").arg(m_diffResult->getLeftPage(*pageMoveIndex) + 1).arg(m_diffResult->getRightPage(*pageMoveIndex) + 1);
+                text = QString("%1đź –%2").arg(m_diffResult->getLeftPage(*pageMoveIndex) + 1).arg(m_diffResult->getRightPage(*pageMoveIndex) + 1);
                 break;
 
             default:

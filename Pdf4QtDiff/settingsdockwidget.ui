@@ -82,23 +82,284 @@
     <item>
      <widget class="QGroupBox" name="overlayGroupBox">
       <property name="title">
-       <string>Transparency | Overlay View</string>
+       <string>Overlay View</string>
       </property>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
+      <layout class="QVBoxLayout" name="overlayLayout">
        <item>
-        <widget class="QSlider" name="transparencySlider">
-         <property name="maximum">
-          <number>100</number>
+        <widget class="QLabel" name="overlayHintLabel">
+         <property name="text">
+          <string>Choose View Overlay to align and blend the compared pages.</string>
          </property>
-         <property name="value">
-          <number>50</number>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="tickPosition">
-          <enum>QSlider::TicksAbove</enum>
-         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="overlayControls" native="true">
+         <layout class="QVBoxLayout" name="overlayControlsLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <layout class="QHBoxLayout" name="transparencyLabelsLayout">
+            <item>
+             <widget class="QLabel" name="leftBlendLabel">
+              <property name="text">
+               <string>Left</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="blendValueLabel">
+              <property name="text">
+               <string>50% / 50%</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="rightBlendLabel">
+              <property name="text">
+               <string>Right</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignRight|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QSlider" name="transparencySlider">
+            <property name="toolTip">
+             <string>Drag left to show the left document, or right to show the right document.</string>
+            </property>
+            <property name="accessibleName">
+             <string>Overlay blend</string>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>50</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::TicksAbove</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="overlayFormLayout">
+            <property name="rowWrapPolicy">
+             <enum>QFormLayout::WrapLongRows</enum>
+            </property>
+            <item row="0" column="0">
+             <widget class="QLabel" name="overlayScaleModeLabel">
+              <property name="text">
+               <string>&amp;Page sizes:</string>
+              </property>
+              <property name="buddy">
+               <cstring>overlayScaleModeCombo</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QComboBox" name="overlayScaleModeCombo">
+              <property name="toolTip">
+               <string>Fit enlarges the smaller page to match the larger page as closely as possible, preserving proportions and centering both pages. Manual scale uses percentages of the original page sizes.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="leftScaleLabel">
+              <property name="text">
+               <string>&amp;Left scale:</string>
+              </property>
+              <property name="buddy">
+               <cstring>leftScaleSpinBox</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QDoubleSpinBox" name="leftScaleSpinBox">
+              <property name="toolTip">
+               <string>Scale the left document relative to its original size. Proportions are preserved.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="suffix">
+               <string> %</string>
+              </property>
+              <property name="decimals">
+               <number>2</number>
+              </property>
+              <property name="minimum">
+               <double>1</double>
+              </property>
+              <property name="maximum">
+               <double>1000</double>
+              </property>
+              <property name="singleStep">
+               <double>1</double>
+              </property>
+              <property name="value">
+               <double>100</double>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="rightScaleLabel">
+              <property name="text">
+               <string>&amp;Right scale:</string>
+              </property>
+              <property name="buddy">
+               <cstring>rightScaleSpinBox</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QDoubleSpinBox" name="rightScaleSpinBox">
+              <property name="toolTip">
+               <string>Scale the right document relative to its original size. Proportions are preserved.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="suffix">
+               <string> %</string>
+              </property>
+              <property name="decimals">
+               <number>2</number>
+              </property>
+              <property name="minimum">
+               <double>1</double>
+              </property>
+              <property name="maximum">
+               <double>1000</double>
+              </property>
+              <property name="singleStep">
+               <double>1</double>
+              </property>
+              <property name="value">
+               <double>100</double>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="horizontalOffsetLabel">
+              <property name="text">
+               <string>&amp;Horizontal shift:</string>
+              </property>
+              <property name="buddy">
+               <cstring>horizontalOffsetSpinBox</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QDoubleSpinBox" name="horizontalOffsetSpinBox">
+              <property name="toolTip">
+               <string>Move the right document horizontally. Positive values move it to the right.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="decimals">
+               <number>2</number>
+              </property>
+              <property name="minimum">
+               <double>-1000</double>
+              </property>
+              <property name="maximum">
+               <double>1000</double>
+              </property>
+              <property name="singleStep">
+               <double>0.5</double>
+              </property>
+              <property name="value">
+               <double>0</double>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="verticalOffsetLabel">
+              <property name="text">
+               <string>&amp;Vertical shift:</string>
+              </property>
+              <property name="buddy">
+               <cstring>verticalOffsetSpinBox</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QDoubleSpinBox" name="verticalOffsetSpinBox">
+              <property name="toolTip">
+               <string>Move the right document vertically. Positive values move it down.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="decimals">
+               <number>2</number>
+              </property>
+              <property name="minimum">
+               <double>-1000</double>
+              </property>
+              <property name="maximum">
+               <double>1000</double>
+              </property>
+              <property name="singleStep">
+               <double>0.5</double>
+              </property>
+              <property name="value">
+               <double>0</double>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QPushButton" name="resetOverlayButton">
+            <property name="text">
+             <string>Reset Overlay</string>
+            </property>
+            <property name="toolTip">
+             <string>Restore original page sizes, zero shifts and an equal blend of both documents.</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="overlayScopeLabel">
+            <property name="text">
+             <string>Applies to all paired pages in this view. Comparison results and exported reports use the original documents.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
       </layout>

@@ -24,9 +24,26 @@
 #define PDFDIFF_SETTINGS_H
 
 #include <QColor>
+#include <QPointF>
 
 namespace pdfdiff
 {
+
+/// Size and alignment of paired pages in the overlay view.
+struct OverlaySettings
+{
+    enum class ScaleMode
+    {
+        Original,
+        Fit,
+        Manual
+    };
+
+    ScaleMode scaleMode = ScaleMode::Original;
+    double leftScale = 1.0;
+    double rightScale = 1.0;
+    QPointF rightOffsetMM;
+};
 
 struct Settings
 {
