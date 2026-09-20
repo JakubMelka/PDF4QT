@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PDFOCRLanguagesDialog</class>
+ <widget class="QDialog" name="PDFOCRLanguagesDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>980</width>
+    <height>620</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Manage OCR Languages</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout" stretch="0,1,0,0,0,0">
+   <item>
+    <layout class="QHBoxLayout" name="filterLayout" stretch="0,1,0,0,0,0">
+     <item>
+      <widget class="QLabel" name="searchLabel">
+       <property name="text">
+        <string>&amp;Search:</string>
+       </property>
+       <property name="buddy">
+        <cstring>searchEdit</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="searchEdit">
+       <property name="accessibleName">
+        <string>Search by name or code</string>
+       </property>
+       <property name="placeholderText">
+        <string>Name or code, for example Czech or ces</string>
+       </property>
+       <property name="clearButtonEnabled">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="profileFilterLabel">
+       <property name="text">
+        <string>Profile:</string>
+       </property>
+       <property name="buddy">
+        <cstring>profileFilterComboBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="profileFilterComboBox">
+       <property name="accessibleName">
+        <string>Profile filter</string>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+       </property>
+       <property name="minimumContentsLength">
+        <number>8</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="stateFilterLabel">
+       <property name="text">
+        <string>State:</string>
+       </property>
+       <property name="buddy">
+        <cstring>stateFilterComboBox</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="stateFilterComboBox">
+       <property name="accessibleName">
+        <string>State filter</string>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+       </property>
+       <property name="minimumContentsLength">
+        <number>8</number>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QTreeWidget" name="modelsTreeWidget">
+     <property name="accessibleName">
+      <string>OCR language models</string>
+     </property>
+     <property name="rootIsDecorated">
+      <bool>false</bool>
+     </property>
+     <property name="uniformRowHeights">
+      <bool>true</bool>
+     </property>
+     <property name="sortingEnabled">
+      <bool>true</bool>
+     </property>
+     <property name="selectionMode">
+      <enum>QAbstractItemView::ExtendedSelection</enum>
+     </property>
+     <column>
+      <property name="text">
+       <string>Language</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Code</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Profile</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Origin</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Version</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Size</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>State</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="detailLabel">
+     <property name="text">
+      <string></string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="progressLayout" stretch="1,1">
+     <item>
+      <widget class="QProgressBar" name="queueProgressBar">
+       <property name="accessibleName">
+        <string>Download progress</string>
+       </property>
+       <property name="value">
+        <number>0</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="queueLabel">
+       <property name="text">
+        <string></string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <widget class="QPushButton" name="downloadButton">
+       <property name="text">
+        <string>&amp;Download</string>
+       </property>
+       <property name="toolTip">
+        <string>Download the selected models</string>
+       </property>
+       <property name="accessibleName">
+        <string>Download</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="updateButton">
+       <property name="text">
+        <string>&amp;Update</string>
+       </property>
+       <property name="toolTip">
+        <string>Update the selected models</string>
+       </property>
+       <property name="accessibleName">
+        <string>Update</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="cancelButton">
+       <property name="text">
+        <string>&amp;Cancel</string>
+       </property>
+       <property name="toolTip">
+        <string>Cancel the download of the selected models</string>
+       </property>
+       <property name="accessibleName">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="retryButton">
+       <property name="text">
+        <string>&amp;Retry</string>
+       </property>
+       <property name="toolTip">
+        <string>Retry the failed download</string>
+       </property>
+       <property name="accessibleName">
+        <string>Retry</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="importButton">
+       <property name="text">
+        <string>&amp;Import from File...</string>
+       </property>
+       <property name="toolTip">
+        <string>Import a model file (.traineddata) from the disk</string>
+       </property>
+       <property name="accessibleName">
+        <string>Import from File</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="removeButton">
+       <property name="text">
+        <string>Re&amp;move User Model</string>
+       </property>
+       <property name="toolTip">
+        <string>Remove the downloaded or imported model. Built-in models cannot be removed.</string>
+       </property>
+       <property name="accessibleName">
+        <string>Remove User Model</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="hideButton">
+       <property name="text">
+        <string>&amp;Hide / Show</string>
+       </property>
+       <property name="toolTip">
+        <string>Hide or show the model in the language selection</string>
+       </property>
+       <property name="accessibleName">
+        <string>Hide / Show</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="openFolderButton">
+       <property name="text">
+        <string>&amp;Open Folder</string>
+       </property>
+       <property name="toolTip">
+        <string>Open the folder of the user models</string>
+       </property>
+       <property name="accessibleName">
+        <string>Open Folder</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="buttonsSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeButton">
+       <property name="text">
+        <string>Close</string>
+       </property>
+       <property name="accessibleName">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="infoLabel">
+     <property name="text">
+      <string></string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>searchEdit</tabstop>
+  <tabstop>profileFilterComboBox</tabstop>
+  <tabstop>stateFilterComboBox</tabstop>
+  <tabstop>modelsTreeWidget</tabstop>
+  <tabstop>downloadButton</tabstop>
+  <tabstop>updateButton</tabstop>
+  <tabstop>cancelButton</tabstop>
+  <tabstop>retryButton</tabstop>
+  <tabstop>importButton</tabstop>
+  <tabstop>removeButton</tabstop>
+  <tabstop>hideButton</tabstop>
+  <tabstop>openFolderButton</tabstop>
+  <tabstop>closeButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

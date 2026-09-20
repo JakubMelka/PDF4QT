@@ -21,6 +21,9 @@
 // SOFTWARE.
 
 #include "pdfviewersettingsdialog.h"
+#include "pdfocrengine.h"
+#include "pdfocrmodelmanager.h"
+#include "pdfocrlanguagesdialog.h"
 #include "ui_pdfviewersettingsdialog.h"
 
 #include "pdfglobal.h"
@@ -29,6 +32,7 @@
 #include "pdfrecentfilemanager.h"
 #include "pdfcolorconvertor.h"
 
+#include <QDir>
 #include <QAction>
 #include <QLineEdit>
 #include <QLocale>
@@ -120,6 +124,33 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/form-settings.svg"), tr("Forms"), ui->optionsPagesWidget, FormSettings);
     new QListWidgetItem(QIcon(":/resources/signature.svg"), tr("Signature"), ui->optionsPagesWidget, SignatureSettings);
     new QListWidgetItem(QIcon(":/resources/plugins.svg"), tr("Plugins"), ui->optionsPagesWidget, PluginsSettings);
+    new QListWidgetItem(QIcon(":/resources/ocr.svg"), tr("OCR"), ui->optionsPagesWidget, OCRSettings);
+
+    {
+        QStringList ocrInfo;
+        bool hasEngine = false;
+        for (const auto& factory : pdf::PDFOCREngineRegistry::getInstance()->getFactories())
+        {
+            if (factory->usesManagedModels())
+            {
+                hasEngine = true;
+                ocrInfo << tr("Engine: %1 %2 (license %3)").arg(factory->getName(), factory->getVersion(), factory->getLicense());
+            }
+        }
+        if (!hasEngine)
+        {
+            ocrInfo << tr("No OCR engine is available in this build.");
+        }
+        ocrInfo << tr("Built-in language models: %1").arg(QDir::toNativeSeparators(pdf::PDFOCRModelManager::getDefaultBuiltInDirectory()));
+        ocrInfo << tr("Downloaded and imported language models: %1").arg(QDir::toNativeSeparators(pdf::PDFOCRModelManager::getDefaultUserDirectory()));
+        ocrInfo << tr("The recognition works locally. The network is used only for an explicitly requested download of language models; documents and recognized text are never sent anywhere.");
+        ui->ocrInfoLabel->setText(ocrInfo.join(QStringLiteral("\n\n")));
+    }
+    connect(ui->manageOCRLanguagesButton, &QPushButton::clicked, this, [this]()
+    {
+        PDFOCRLanguagesDialog dialog(nullptr, this);
+        dialog.exec();
+    });
 
     ui->optionsPagesWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->optionsPagesWidget->setItemDelegate(new SettingsDelegate(ui->optionsPagesWidget));
@@ -316,6 +347,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case PluginsSettings:
             ui->stackedWidget->setCurrentWidget(ui->pluginsPage);
+            break;
+
+        case OCRSettings:
+            ui->stackedWidget->setCurrentWidget(ui->ocrPage);
             break;
 
         default:

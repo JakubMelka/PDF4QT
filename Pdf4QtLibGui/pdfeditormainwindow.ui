@@ -171,6 +171,9 @@
     <addaction name="actionRemoveExternalLinks"/>
     <addaction name="actionPageGeometry"/>
     <addaction name="actionCreateBitonalDocument"/>
+    <addaction name="separator"/>
+    <addaction name="actionRecognizeText"/>
+    <addaction name="actionManageOCRLanguages"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
     <property name="title">
@@ -1252,6 +1255,32 @@
    </property>
    <property name="statusTip">
     <string>Convert the colored images to monochromatic to create a bitonal document.</string>
+   </property>
+  </action>
+  <action name="actionRecognizeText">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/ocr.svg</normaloff>:/resources/ocr.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Recognize &amp;Text (OCR)...</string>
+   </property>
+   <property name="toolTip">
+    <string>Recognize Text (OCR)</string>
+   </property>
+   <property name="statusTip">
+    <string>Recognize the text of scanned pages, review it and insert an invisible searchable text layer.</string>
+   </property>
+  </action>
+  <action name="actionManageOCRLanguages">
+   <property name="text">
+    <string>Manage OCR &amp;Languages...</string>
+   </property>
+   <property name="toolTip">
+    <string>Manage OCR Languages</string>
+   </property>
+   <property name="statusTip">
+    <string>Download, import or remove the language models of the text recognition.</string>
    </property>
   </action>
   <action name="actionBookmarkPage">

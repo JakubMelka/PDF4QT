@@ -119,6 +119,42 @@
             ]
         },
         {
+            "name": "leptonica",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_SHARED_LIBS=ON",
+                "-DBUILD_PROG=OFF",
+                "-DSW_BUILD=OFF"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://github.com/DanBloomberg/leptonica/archive/1.87.0.tar.gz",
+                    "sha256": "fa2b40c5caea96d1bb93a97486262aed8731b69ce25a84a6bf5d25323e33f631"
+                }
+            ]
+        },
+        {
+            "name": "tesseract",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_SHARED_LIBS=ON",
+                "-DBUILD_TRAINING_TOOLS=OFF",
+                "-DDISABLE_CURL=ON",
+                "-DDISABLE_ARCHIVE=ON",
+                "-DSW_BUILD=OFF"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://github.com/tesseract-ocr/tesseract/archive/5.5.2.tar.gz",
+                    "sha256": "6235ea0dae45ea137f59c09320406f5888383741924d98855bd2ce0d16b54f21"
+                }
+            ]
+        },
+        {
             "name": "pdf4qt",
             "buildsystem": "cmake-ninja",
             "builddir": true,

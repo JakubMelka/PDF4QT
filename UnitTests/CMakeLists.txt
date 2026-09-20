@@ -325,6 +325,37 @@ set_target_properties(UnitTestsDocumentWriter PROPERTIES
 )
 add_test(UnitTestsDocumentWriter "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentWriter")
 
+add_executable(UnitTestsOCR tst_ocrtest.cpp)
+target_link_libraries(UnitTestsOCR PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Network Qt6::Test)
+target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_SOURCE_DATA_DIRECTORY="${CMAKE_SOURCE_DIR}/ocr")
+if(PDF4QT_ENABLE_OCR)
+    target_link_libraries(UnitTestsOCR PRIVATE Pdf4QtOcrTesseract)
+    target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_TESSERACT)
+endif()
+set_target_properties(UnitTestsOCR PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsOCR "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCR")
+set_tests_properties(UnitTestsOCR PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${CMAKE_SOURCE_DIR}/ocr")
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsOCRDialog tst_ocrdialogtest.cpp)
+    target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtLibGui Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    if(PDF4QT_ENABLE_OCR)
+        target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtOcrTesseract)
+        target_compile_definitions(UnitTestsOCRDialog PRIVATE PDF4QT_OCR_TESSERACT)
+    endif()
+    set_target_properties(UnitTestsOCRDialog PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsOCRDialog "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCRDialog")
+    set_tests_properties(UnitTestsOCRDialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${CMAKE_SOURCE_DIR}/ocr")
+endif()
+
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsSignatureAppearance
         tst_signatureappearancetest.cpp

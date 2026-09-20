@@ -1,0 +1,2448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PDFOCRDocumentDialog</class>
+ <widget class="QDialog" name="PDFOCRDocumentDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>820</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Recognize Text (OCR)</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout" stretch="0,0,1,0,0">
+   <item>
+    <widget class="QLabel" name="workflowLabel">
+     <property name="text">
+      <string></string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="engineWarningLabel">
+     <property name="text">
+      <string></string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QSplitter" name="mainSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
+     </property>
+     <widget class="QWidget" name="pagesPanel">
+      <layout class="QVBoxLayout" name="pagesPanelLayout">
+       <item>
+        <widget class="QLabel" name="pagesLabel">
+         <property name="text">
+          <string>&amp;Pages (checked pages will be recognized)</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="buddy">
+          <cstring>pagesListWidget</cstring>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="pagesListWidget">
+         <property name="accessibleName">
+          <string>Pages</string>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>64</width>
+           <height>90</height>
+          </size>
+         </property>
+         <property name="uniformItemSizes">
+          <bool>false</bool>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="textElideMode">
+          <enum>Qt::ElideNone</enum>
+         </property>
+         <property name="toolTip">
+          <string>Pages of the document. Check the pages to recognize; the state and the number of results requiring a review are displayed for every page.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="pageSelectionButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="selectAllPagesButton">
+           <property name="text">
+            <string>&amp;All</string>
+           </property>
+           <property name="toolTip">
+            <string>Check all pages</string>
+           </property>
+           <property name="accessibleName">
+            <string>All</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="selectNoPagesButton">
+           <property name="text">
+            <string>&amp;None</string>
+           </property>
+           <property name="toolTip">
+            <string>Uncheck all pages</string>
+           </property>
+           <property name="accessibleName">
+            <string>None</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="invertPagesButton">
+           <property name="text">
+            <string>In&amp;vert</string>
+           </property>
+           <property name="toolTip">
+            <string>Invert the page selection</string>
+           </property>
+           <property name="accessibleName">
+            <string>Invert</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="helperSelectionLayout" stretch="1,0">
+         <item>
+          <widget class="QComboBox" name="helperSelectionComboBox">
+           <property name="accessibleName">
+            <string>Helper selection</string>
+           </property>
+           <property name="sizeAdjustPolicy">
+            <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+           </property>
+           <property name="minimumContentsLength">
+            <number>8</number>
+           </property>
+           <property name="toolTip">
+            <string>Helper selections based on the page analysis. The analysis is a heuristic, check the selection manually.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="applyHelperSelectionButton">
+           <property name="text">
+            <string>Select</string>
+           </property>
+           <property name="toolTip">
+            <string>Check the pages according to the helper selection</string>
+           </property>
+           <property name="accessibleName">
+            <string>Select</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="selectionInfoLabel">
+         <property name="text">
+          <string>No page selected.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="viewPanel">
+      <layout class="QVBoxLayout" name="viewPanelLayout" stretch="0,0,1,0">
+       <item>
+        <layout class="QHBoxLayout" name="viewToolbarLayout">
+         <item>
+          <widget class="QComboBox" name="viewModeComboBox">
+           <property name="accessibleName">
+            <string>View mode</string>
+           </property>
+           <property name="sizeAdjustPolicy">
+            <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+           </property>
+           <property name="minimumContentsLength">
+            <number>8</number>
+           </property>
+           <property name="toolTip">
+            <string>Displayed image: original page, working image of the recognition, or both side by side</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="showOverlayCheckBox">
+           <property name="text">
+            <string>Show &amp;OCR overlay</string>
+           </property>
+           <property name="toolTip">
+            <string>Show or hide the overlay of the recognized words. Hiding the overlay does not change the results.</string>
+           </property>
+           <property name="accessibleName">
+            <string>Show OCR overlay</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="showRegionsCheckBox">
+           <property name="text">
+            <string>Show re&amp;gions</string>
+           </property>
+           <property name="toolTip">
+            <string>Show or hide the regions</string>
+           </property>
+           <property name="accessibleName">
+            <string>Show regions</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="zoomOutButton">
+           <property name="text">
+            <string>-</string>
+           </property>
+           <property name="toolTip">
+            <string>Zoom out</string>
+           </property>
+           <property name="accessibleName">
+            <string>Zoom out</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="zoomInButton">
+           <property name="text">
+            <string>+</string>
+           </property>
+           <property name="toolTip">
+            <string>Zoom in</string>
+           </property>
+           <property name="accessibleName">
+            <string>Zoom in</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="zoomFitButton">
+           <property name="text">
+            <string>Fit</string>
+           </property>
+           <property name="toolTip">
+            <string>Fit the page into the view</string>
+           </property>
+           <property name="accessibleName">
+            <string>Fit</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="zoomLabel">
+           <property name="text">
+            <string>100 %</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="viewToolbarSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="regionToolbarLayout">
+         <item>
+          <widget class="QToolButton" name="addRecognizeRegionButton">
+           <property name="text">
+            <string>Add Region</string>
+           </property>
+           <property name="toolTip">
+            <string>Draw a region, which will be recognized. If any such region exists, only these regions are recognized.</string>
+           </property>
+           <property name="accessibleName">
+            <string>Add Region</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="addExcludeRegionButton">
+           <property name="text">
+            <string>Add Excluded Region</string>
+           </property>
+           <property name="toolTip">
+            <string>Draw a region, which will be left out from the recognition (logo, stamp, photograph).</string>
+           </property>
+           <property name="accessibleName">
+            <string>Add Excluded Region</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="addLineButton">
+           <property name="text">
+            <string>Add Text Line</string>
+           </property>
+           <property name="toolTip">
+            <string>Draw the rectangle of a missing text line and enter its text.</string>
+           </property>
+           <property name="accessibleName">
+            <string>Add Text Line</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="regionsFromBlocksButton">
+           <property name="text">
+            <string>Regions from Blocks</string>
+           </property>
+           <property name="toolTip">
+            <string>Create editable regions from the detected text blocks of the page</string>
+           </property>
+           <property name="accessibleName">
+            <string>Regions from Blocks</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="regionPropertiesButton">
+           <property name="text">
+            <string>Region...</string>
+           </property>
+           <property name="toolTip">
+            <string>Name, order and settings of the selected region</string>
+           </property>
+           <property name="accessibleName">
+            <string>Region</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="removeRegionButton">
+           <property name="text">
+            <string>Remove Region</string>
+           </property>
+           <property name="toolTip">
+            <string>Remove the selected region</string>
+           </property>
+           <property name="accessibleName">
+            <string>Remove Region</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="regionToolbarSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QWidget" name="viewContainer">
+         <property name="accessibleName">
+          <string>Page view</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="pageInfoLabel">
+         <property name="text">
+          <string></string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QSplitter" name="rightSplitter">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>true</bool>
+      </property>
+      <widget class="QTabWidget" name="settingsTabWidget">
+       <property name="accessibleName">
+        <string>Settings</string>
+       </property>
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="pagesTab">
+        <attribute name="title">
+         <string>Pages</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="pagesTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="pagesTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="pagesTabContents">
+            <layout class="QVBoxLayout" name="pagesTabLayout">
+             <item>
+              <widget class="QRadioButton" name="allPagesRadioButton">
+               <property name="text">
+                <string>All pages</string>
+               </property>
+               <property name="accessibleName">
+                <string>All pages</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="currentPageRadioButton">
+               <property name="text">
+                <string>Current page</string>
+               </property>
+               <property name="accessibleName">
+                <string>Current page</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="visiblePagesRadioButton">
+               <property name="text">
+                <string>Visible pages</string>
+               </property>
+               <property name="accessibleName">
+                <string>Visible pages</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="editorSelectionRadioButton">
+               <property name="text">
+                <string>Pages selected in the editor</string>
+               </property>
+               <property name="accessibleName">
+                <string>Pages selected in the editor</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="customRangeRadioButton">
+               <property name="text">
+                <string>Custom range:</string>
+               </property>
+               <property name="accessibleName">
+                <string>Custom range:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="customRangeEdit">
+               <property name="accessibleName">
+                <string>Custom page range</string>
+               </property>
+               <property name="placeholderText">
+                <string>1, 3-5, 9</string>
+               </property>
+               <property name="toolTip">
+                <string>Physical page numbers starting from 1, regardless of the page labels. Example: 1, 3-5, 9</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="customRangeHintLabel">
+               <property name="text">
+                <string>Enter the physical page numbers counted from 1 (page labels such as iv or A-3 are not used).</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="parityLayout" stretch="0,1">
+               <item>
+                <widget class="QLabel" name="parityLabel">
+                 <property name="text">
+                  <string>Filter:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>parityComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="parityComboBox">
+                 <property name="accessibleName">
+                  <string>Odd or even pages filter</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                 <property name="toolTip">
+                  <string>Odd/even filter of the physical page numbers in the selected range</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QPushButton" name="applyPageSelectionButton">
+               <property name="text">
+                <string>Apply to the Page List</string>
+               </property>
+               <property name="toolTip">
+                <string>Check the pages of this selection in the page list</string>
+               </property>
+               <property name="accessibleName">
+                <string>Apply to the Page List</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="rangeErrorLabel">
+               <property name="text">
+                <string></string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="pageOverrideGroupBox">
+               <property name="title">
+                <string>Different settings for the current page</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <layout class="QGridLayout" name="pageOverrideLayout">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="overrideLanguagesLabel">
+                  <property name="text">
+                   <string>Languages:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>overrideLanguagesEdit</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QLineEdit" name="overrideLanguagesEdit">
+                  <property name="accessibleName">
+                   <string>Languages of the page</string>
+                  </property>
+                  <property name="placeholderText">
+                   <string>ces+eng</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Language codes separated by +, empty = common settings</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="overrideLayoutLabel">
+                  <property name="text">
+                   <string>Layout:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>overrideLayoutComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QComboBox" name="overrideLayoutComboBox">
+                  <property name="accessibleName">
+                   <string>Layout of the page</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="overrideRotationLabel">
+                  <property name="text">
+                   <string>Rotation:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>overrideRotationComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QComboBox" name="overrideRotationComboBox">
+                  <property name="accessibleName">
+                   <string>Rotation of the page</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0" rowspan="1" colspan="2">
+                 <widget class="QPushButton" name="clearPageOverrideButton">
+                  <property name="text">
+                   <string>Use Common Settings</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Remove the exception of the current page</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Use Common Settings</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <spacer name="pagesTabSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="recognitionTab">
+        <attribute name="title">
+         <string>Recognition</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="recognitionTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="recognitionTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="recognitionTabContents">
+            <layout class="QVBoxLayout" name="recognitionTabLayout">
+             <item>
+              <layout class="QGridLayout" name="recognitionGridLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="engineLabel">
+                 <property name="text">
+                  <string>Engine:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>engineComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QComboBox" name="engineComboBox">
+                 <property name="accessibleName">
+                  <string>OCR engine</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="profileLabel">
+                 <property name="text">
+                  <string>Quality:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>profileComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QComboBox" name="profileComboBox">
+                 <property name="accessibleName">
+                  <string>Model profile</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                 <property name="toolTip">
+                  <string>Fast models are built-in. Quality models are larger and slower; they are not always better.</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="layoutLabel">
+                 <property name="text">
+                  <string>Page layout:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>layoutComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QComboBox" name="layoutComboBox">
+                 <property name="accessibleName">
+                  <string>Page layout</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="existingTextLabel">
+                 <property name="text">
+                  <string>Existing text:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>existingTextPolicyComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QComboBox" name="existingTextPolicyComboBox">
+                 <property name="accessibleName">
+                  <string>Existing text policy</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="languagesLabel">
+               <property name="text">
+                <string>&amp;Languages (checked, in this order):</string>
+               </property>
+               <property name="buddy">
+                <cstring>languagesListWidget</cstring>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="languagesLayout">
+               <item>
+                <widget class="QListWidget" name="languagesListWidget">
+                 <property name="accessibleName">
+                  <string>Languages</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Check the languages of the document. The order of the languages can affect the result.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QVBoxLayout" name="languageButtonsLayout">
+                 <item>
+                  <widget class="QPushButton" name="languageUpButton">
+                   <property name="text">
+                    <string>Up</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>Move the language up</string>
+                   </property>
+                   <property name="accessibleName">
+                    <string>Up</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="languageDownButton">
+                   <property name="text">
+                    <string>Down</string>
+                   </property>
+                   <property name="toolTip">
+                    <string>Move the language down</string>
+                   </property>
+                   <property name="accessibleName">
+                    <string>Down</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="languageButtonsSpacer">
+                   <property name="orientation">
+                    <enum>Qt::Vertical</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>20</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QPushButton" name="manageLanguagesButton">
+               <property name="text">
+                <string>&amp;Manage OCR Languages...</string>
+               </property>
+               <property name="toolTip">
+                <string>Download, import and remove language models</string>
+               </property>
+               <property name="accessibleName">
+                <string>Manage OCR Languages</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="languageInfoLabel">
+               <property name="text">
+                <string></string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="policySummaryLabel">
+               <property name="text">
+                <string></string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="profilesGroupBox">
+               <property name="title">
+                <string>Saved profiles</string>
+               </property>
+               <layout class="QHBoxLayout" name="profilesLayout" stretch="1,0,0,0">
+                <item>
+                 <widget class="QComboBox" name="profilesComboBox">
+                  <property name="accessibleName">
+                   <string>Saved profiles</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="loadProfileButton">
+                  <property name="text">
+                   <string>Load</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Load</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="saveProfileButton">
+                  <property name="text">
+                   <string>Save...</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Save</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="deleteProfileButton">
+                  <property name="text">
+                   <string>Delete</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Delete</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="imageTab">
+        <attribute name="title">
+         <string>Image and regions</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="imageTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="imageTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="imageTabContents">
+            <layout class="QVBoxLayout" name="imageTabLayout">
+             <item>
+              <layout class="QGridLayout" name="imageGridLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="dpiLabel">
+                 <property name="text">
+                  <string>Resolution:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>dpiComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QComboBox" name="dpiComboBox">
+                 <property name="accessibleName">
+                  <string>Resolution of the working image</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="customDpiLabel">
+                 <property name="text">
+                  <string>Custom resolution:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>customDpiSpinBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="customDpiSpinBox">
+                 <property name="accessibleName">
+                  <string>Custom resolution</string>
+                 </property>
+                 <property name="minimum">
+                  <number>150</number>
+                 </property>
+                 <property name="maximum">
+                  <number>1200</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>50</number>
+                 </property>
+                 <property name="value">
+                  <number>300</number>
+                 </property>
+                 <property name="suffix">
+                  <string> DPI</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="rotationLabel">
+                 <property name="text">
+                  <string>Rotation:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>rotationComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QComboBox" name="rotationComboBox">
+                 <property name="accessibleName">
+                  <string>Rotation of the working image</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="binarizationLabel">
+                 <property name="text">
+                  <string>Binarization:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>binarizationComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QComboBox" name="binarizationComboBox">
+                 <property name="accessibleName">
+                  <string>Binarization</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLabel" name="memoryEstimateLabel">
+               <property name="text">
+                <string></string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="autoOrientationCheckBox">
+               <property name="text">
+                <string>Detect the orientation automatically</string>
+               </property>
+               <property name="toolTip">
+                <string>Detects the page orientation before the recognition. If there is not enough text, the orientation is kept; the manual rotation above is applied in addition.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Detect the orientation automatically</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="deskewCheckBox">
+               <property name="text">
+                <string>Straighten slightly skewed pages (deskew)</string>
+               </property>
+               <property name="toolTip">
+                <string>Small skew is corrected in the working image only. The original page is never changed.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Straighten slightly skewed pages (deskew)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="grayscaleCheckBox">
+               <property name="text">
+                <string>Convert to grayscale</string>
+               </property>
+               <property name="accessibleName">
+                <string>Convert to grayscale</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="denoiseCheckBox">
+               <property name="text">
+                <string>Remove noise (mild)</string>
+               </property>
+               <property name="accessibleName">
+                <string>Remove noise (mild)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="invertCheckBox">
+               <property name="text">
+                <string>Invert (light text on dark background)</string>
+               </property>
+               <property name="accessibleName">
+                <string>Invert (light text on dark background)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="detectBlankPagesCheckBox">
+               <property name="text">
+                <string>Detect blank pages</string>
+               </property>
+               <property name="toolTip">
+                <string>Pages without any ink are not recognized and get the state "No text found"</string>
+               </property>
+               <property name="accessibleName">
+                <string>Detect blank pages</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="overrideBlankCheckBox">
+               <property name="text">
+                <string>Recognize the current page even if it looks blank</string>
+               </property>
+               <property name="accessibleName">
+                <string>Recognize the current page even if it looks blank</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="imageNoteLabel">
+               <property name="text">
+                <string>These operations change only the working image of the recognition, never the appearance of the PDF document. Annotations and form fields are not part of the working image.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="imageTabSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="outputTab">
+        <attribute name="title">
+         <string>Output</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="outputTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="outputTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="outputTabContents">
+            <layout class="QVBoxLayout" name="outputTabLayout">
+             <item>
+              <widget class="QLabel" name="outputModeLabel">
+               <property name="text">
+                <string>Apply to PDF:</string>
+               </property>
+               <property name="buddy">
+                <cstring>outputModeComboBox</cstring>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="outputModeComboBox">
+               <property name="accessibleName">
+                <string>Output mode</string>
+               </property>
+               <property name="sizeAdjustPolicy">
+                <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+               </property>
+               <property name="minimumContentsLength">
+                <number>8</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="outputInfoLabel">
+               <property name="text">
+                <string></string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="onlyReviewedCheckBox">
+               <property name="text">
+                <string>Write only reviewed words</string>
+               </property>
+               <property name="toolTip">
+                <string>Only the confirmed and corrected words are written. The text layer will be incomplete.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Write only reviewed words</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="keepReviewDataCheckBox">
+               <property name="text">
+                <string>Keep data for detailed review in the document</string>
+               </property>
+               <property name="toolTip">
+                <string>Stores the original recognition, the scores and the review states in the PDF. Without this option, only the corrected text and its geometry are stored.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Keep data for detailed review in the document</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="removeLayerButton">
+               <property name="text">
+                <string>Remove OCR Layer from Checked Pages...</string>
+               </property>
+               <property name="toolTip">
+                <string>Removes the OCR text layer created by PDF4QT including its private data. Other content is never removed.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Remove OCR Layer from Checked Pages</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="exportGroupBox">
+               <property name="title">
+                <string>Text export</string>
+               </property>
+               <layout class="QVBoxLayout" name="exportLayout">
+                <item>
+                 <widget class="QCheckBox" name="preserveLinesCheckBox">
+                  <property name="text">
+                   <string>Preserve lines</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Preserve lines</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="joinHyphenatedCheckBox">
+                  <property name="text">
+                   <string>Join words hyphenated at the line end</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Join words hyphenated at the line end</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="normalizeNfcCheckBox">
+                  <property name="text">
+                   <string>Normalize the text (NFC)</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Normalize the text (NFC)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="pageSeparatorLayout" stretch="0,1">
+                  <item>
+                   <widget class="QLabel" name="pageSeparatorLabel">
+                    <property name="text">
+                     <string>Page separator:</string>
+                    </property>
+                    <property name="buddy">
+                     <cstring>pageSeparatorComboBox</cstring>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="pageSeparatorComboBox">
+                    <property name="accessibleName">
+                     <string>Page separator</string>
+                    </property>
+                    <property name="sizeAdjustPolicy">
+                     <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                    </property>
+                    <property name="minimumContentsLength">
+                     <number>8</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <spacer name="outputTabSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="advancedTab">
+        <attribute name="title">
+         <string>Advanced</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="advancedTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="advancedTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="advancedTabContents">
+            <layout class="QVBoxLayout" name="advancedTabLayout">
+             <item>
+              <layout class="QGridLayout" name="advancedGridLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="engineModeLabel">
+                 <property name="text">
+                  <string>Engine mode:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>engineModeComboBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QComboBox" name="engineModeComboBox">
+                 <property name="accessibleName">
+                  <string>Engine mode</string>
+                 </property>
+                 <property name="sizeAdjustPolicy">
+                  <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                 </property>
+                 <property name="minimumContentsLength">
+                  <number>8</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="reviewThresholdLabel">
+                 <property name="text">
+                  <string>Review threshold:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>reviewThresholdSpinBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="reviewThresholdSpinBox">
+                 <property name="accessibleName">
+                  <string>Review threshold</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>100</number>
+                 </property>
+                 <property name="value">
+                  <number>80</number>
+                 </property>
+                 <property name="toolTip">
+                  <string>Words with the score below this value require a review. It is an operational value, not a probability of an error.</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="workerCountLabel">
+                 <property name="text">
+                  <string>Parallel workers:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>workerCountSpinBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QSpinBox" name="workerCountSpinBox">
+                 <property name="accessibleName">
+                  <string>Parallel workers</string>
+                 </property>
+                 <property name="minimum">
+                  <number>1</number>
+                 </property>
+                 <property name="maximum">
+                  <number>16</number>
+                 </property>
+                 <property name="value">
+                  <number>2</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="memoryBudgetLabel">
+                 <property name="text">
+                  <string>Memory for images:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>memoryBudgetSpinBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QSpinBox" name="memoryBudgetSpinBox">
+                 <property name="accessibleName">
+                  <string>Memory for images</string>
+                 </property>
+                 <property name="minimum">
+                  <number>64</number>
+                 </property>
+                 <property name="maximum">
+                  <number>16384</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>128</number>
+                 </property>
+                 <property name="value">
+                  <number>1024</number>
+                 </property>
+                 <property name="suffix">
+                  <string> MB</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="4" column="0">
+                <widget class="QLabel" name="pageTimeoutLabel">
+                 <property name="text">
+                  <string>Page time limit:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>pageTimeoutSpinBox</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="4" column="1">
+                <widget class="QSpinBox" name="pageTimeoutSpinBox">
+                 <property name="accessibleName">
+                  <string>Page time limit</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>3600</number>
+                 </property>
+                 <property name="value">
+                  <number>0</number>
+                 </property>
+                 <property name="suffix">
+                  <string> s</string>
+                 </property>
+                 <property name="specialValueText">
+                  <string>No limit</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="5" column="0">
+                <widget class="QLabel" name="whitelistLabel">
+                 <property name="text">
+                  <string>Allowed characters:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>whitelistEdit</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="5" column="1">
+                <widget class="QLineEdit" name="whitelistEdit">
+                 <property name="accessibleName">
+                  <string>Allowed characters</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Empty = no restriction. Do not use for common documents.</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="6" column="0">
+                <widget class="QLabel" name="blacklistLabel">
+                 <property name="text">
+                  <string>Forbidden characters:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>blacklistEdit</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="6" column="1">
+                <widget class="QLineEdit" name="blacklistEdit">
+                 <property name="accessibleName">
+                  <string>Forbidden characters</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="advancedLayoutsCheckBox">
+               <property name="text">
+                <string>Offer all page layouts (with the segmentation mode number)</string>
+               </property>
+               <property name="accessibleName">
+                <string>Offer all page layouts (with the segmentation mode number)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="userWordsLabel">
+               <property name="text">
+                <string>User words (one per line):</string>
+               </property>
+               <property name="buddy">
+                <cstring>userWordsEdit</cstring>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPlainTextEdit" name="userWordsEdit">
+               <property name="accessibleName">
+                <string>User words</string>
+               </property>
+               <property name="toolTip">
+                <string>Hints for the engine dictionary. The words are never used as an automatic replacement of the recognized text.</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="userPatternsLabel">
+               <property name="text">
+                <string>User patterns (one per line):</string>
+               </property>
+               <property name="buddy">
+                <cstring>userPatternsEdit</cstring>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPlainTextEdit" name="userPatternsEdit">
+               <property name="accessibleName">
+                <string>User patterns</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+      <widget class="QTabWidget" name="reviewTabWidget">
+       <property name="accessibleName">
+        <string>Review</string>
+       </property>
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="reviewTab">
+        <attribute name="title">
+         <string>Review and correct</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="reviewPanelLayout" stretch="0,1,0,0">
+         <item>
+          <layout class="QHBoxLayout" name="reviewFilterLayout" stretch="0,1,0,0">
+           <item>
+            <widget class="QLabel" name="reviewFilterLabel">
+             <property name="text">
+              <string>Show:</string>
+             </property>
+             <property name="buddy">
+              <cstring>reviewFilterComboBox</cstring>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="reviewFilterComboBox">
+             <property name="accessibleName">
+              <string>Filter of the results</string>
+             </property>
+             <property name="sizeAdjustPolicy">
+              <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+             </property>
+             <property name="minimumContentsLength">
+              <number>8</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="undoButton">
+             <property name="text">
+              <string>&amp;Undo</string>
+             </property>
+             <property name="toolTip">
+              <string>Undo the last correction</string>
+             </property>
+             <property name="accessibleName">
+              <string>Undo</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="redoButton">
+             <property name="text">
+              <string>R&amp;edo</string>
+             </property>
+             <property name="toolTip">
+              <string>Redo the correction</string>
+             </property>
+             <property name="accessibleName">
+              <string>Redo</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QTreeWidget" name="resultsTreeWidget">
+           <property name="accessibleName">
+            <string>Recognized text</string>
+           </property>
+           <property name="uniformRowHeights">
+            <bool>true</bool>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>110</height>
+            </size>
+           </property>
+           <column>
+            <property name="text">
+             <string>Text</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>Confidence</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>State</string>
+            </property>
+           </column>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="statisticsLabel">
+           <property name="text">
+            <string></string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="inspectorGroupBox">
+           <property name="title">
+            <string>Selected word</string>
+           </property>
+           <layout class="QVBoxLayout" name="inspectorLayout">
+            <item>
+             <layout class="QGridLayout" name="inspectorGridLayout">
+              <item row="0" column="0">
+               <widget class="QLabel" name="wordTextLabel">
+                <property name="text">
+                 <string>&amp;Text:</string>
+                </property>
+                <property name="buddy">
+                 <cstring>wordTextEdit</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLineEdit" name="wordTextEdit">
+                <property name="accessibleName">
+                 <string>Text of the word</string>
+                </property>
+                <property name="toolTip">
+                 <string>Corrected text of the invisible text layer. The correction does not change the scanned image.</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="lineTextLabel">
+                <property name="text">
+                 <string>L&amp;ine:</string>
+                </property>
+                <property name="buddy">
+                 <cstring>lineTextEdit</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLineEdit" name="lineTextEdit">
+                <property name="accessibleName">
+                 <string>Text of the line</string>
+                </property>
+                <property name="toolTip">
+                 <string>Text of the whole line. Unchanged words keep their geometry, the geometry of the changed words is estimated.</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="originalTextCaptionLabel">
+                <property name="text">
+                 <string>Original:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLabel" name="originalTextLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="confidenceCaptionLabel">
+                <property name="text">
+                 <string>Confidence:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QLabel" name="confidenceLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="reviewStateCaptionLabel">
+                <property name="text">
+                 <string>State:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QLabel" name="reviewStateLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="modelCaptionLabel">
+                <property name="text">
+                 <string>Language / model:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QLabel" name="modelLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QLabel" name="regionCaptionLabel">
+                <property name="text">
+                 <string>Region / geometry:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
+               <widget class="QLabel" name="regionLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QGridLayout" name="inspectorButtonsLayout">
+              <item row="0" column="0">
+               <widget class="QPushButton" name="confirmNextButton">
+                <property name="text">
+                 <string>&amp;Confirm and Next</string>
+                </property>
+                <property name="toolTip">
+                 <string>Confirm the word and go to the next word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Confirm and Next</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QPushButton" name="skipButton">
+                <property name="text">
+                 <string>&amp;Skip</string>
+                </property>
+                <property name="toolTip">
+                 <string>Go to the next word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Skip</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QPushButton" name="previousReviewButton">
+                <property name="text">
+                 <string>Previous</string>
+                </property>
+                <property name="toolTip">
+                 <string>Go to the previous word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Previous</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QPushButton" name="restoreOriginalButton">
+                <property name="text">
+                 <string>Restore Original</string>
+                </property>
+                <property name="toolTip">
+                 <string>Restore the original recognition of the word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Restore Original</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QPushButton" name="notTextButton">
+                <property name="text">
+                 <string>Not Text</string>
+                </property>
+                <property name="toolTip">
+                 <string>The result is not a text (false detection); it will not be written</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Not Text</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QPushButton" name="rerecognizeButton">
+                <property name="text">
+                 <string>Recognize Again</string>
+                </property>
+                <property name="toolTip">
+                 <string>Recognize the area of the selected word or line again</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Recognize Again</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QPushButton" name="mergeButton">
+                <property name="text">
+                 <string>Merge with Next</string>
+                </property>
+                <property name="toolTip">
+                 <string>Merge the word with the next word of the line</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Merge with Next</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QPushButton" name="splitButton">
+                <property name="text">
+                 <string>Split at Cursor</string>
+                </property>
+                <property name="toolTip">
+                 <string>Split the word at the cursor position of the text field</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Split at Cursor</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QPushButton" name="insertWordButton">
+                <property name="text">
+                 <string>Insert Word After...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Insert a missing word after the selected word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Insert Word After</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QPushButton" name="deleteWordButton">
+                <property name="text">
+                 <string>Delete Word</string>
+                </property>
+                <property name="toolTip">
+                 <string>Delete the selected word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Delete Word</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QPushButton" name="moveUpButton">
+                <property name="text">
+                 <string>Move Up</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move the selected block or line up in the reading order</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Move Up</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QPushButton" name="moveDownButton">
+                <property name="text">
+                 <string>Move Down</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move the selected block or line down in the reading order</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Move Down</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QPushButton" name="editGeometryButton">
+                <property name="text">
+                 <string>Edit Box</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move or resize the box of the selected word in the page view</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Edit Box</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1" rowspan="1" colspan="2">
+               <widget class="QPushButton" name="confirmAllButton">
+                <property name="text">
+                 <string>Confirm All on Page...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Confirm all words of the current page</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Confirm All on Page</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="findReplaceTab">
+        <attribute name="title">
+         <string>Find and replace</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="findReplaceTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="findReplaceTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="findReplaceTabContents">
+            <layout class="QVBoxLayout" name="findReplaceTabLayout">
+             <item>
+              <widget class="QGroupBox" name="findReplaceGroupBox">
+               <property name="title">
+                <string>Find and replace in the OCR results</string>
+               </property>
+               <layout class="QGridLayout" name="findReplaceLayout">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="findLabel">
+                  <property name="text">
+                   <string>&amp;Find:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>findEdit</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1" rowspan="1" colspan="2">
+                 <widget class="QLineEdit" name="findEdit">
+                  <property name="accessibleName">
+                   <string>Find</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="replaceLabel">
+                  <property name="text">
+                   <string>&amp;Replace:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>replaceEdit</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1" rowspan="1" colspan="2">
+                 <widget class="QLineEdit" name="replaceEdit">
+                  <property name="accessibleName">
+                   <string>Replace with</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="findScopeLabel">
+                  <property name="text">
+                   <string>Scope:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>findScopeComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1" rowspan="1" colspan="2">
+                 <widget class="QComboBox" name="findScopeComboBox">
+                  <property name="accessibleName">
+                   <string>Scope of the search</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QCheckBox" name="caseSensitiveCheckBox">
+                  <property name="text">
+                   <string>Case sensitive</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Case sensitive</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QCheckBox" name="wholeWordsCheckBox">
+                  <property name="text">
+                   <string>Whole words</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Whole words</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0">
+                 <widget class="QPushButton" name="findNextButton">
+                  <property name="text">
+                   <string>Find Next</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Find Next</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="1">
+                 <widget class="QPushButton" name="replaceAllButton">
+                  <property name="text">
+                   <string>Replace All...</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Shows the number of occurrences and a preview before the replacement. The whole replacement is a single undo step.</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Replace All</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <spacer name="findReplaceTabSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="progressLayout" stretch="1,1">
+     <item>
+      <widget class="QProgressBar" name="progressBar">
+       <property name="accessibleName">
+        <string>Progress</string>
+       </property>
+       <property name="value">
+        <number>0</number>
+       </property>
+       <property name="textVisible">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="progressLabel">
+       <property name="text">
+        <string></string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <spacer name="buttonsSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="recognizeButton">
+       <property name="text">
+        <string>Recogni&amp;ze Checked</string>
+       </property>
+       <property name="toolTip">
+        <string>Recognize the checked pages. The document is not modified.</string>
+       </property>
+       <property name="accessibleName">
+        <string>Recognize Checked</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="stopButton">
+       <property name="text">
+        <string>Sto&amp;p</string>
+       </property>
+       <property name="toolTip">
+        <string>Stop the recognition. Finished results are kept.</string>
+       </property>
+       <property name="accessibleName">
+        <string>Stop</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="applyButton">
+       <property name="text">
+        <string>Appl&amp;y to PDF...</string>
+       </property>
+       <property name="toolTip">
+        <string>Write the invisible text layer into the document</string>
+       </property>
+       <property name="accessibleName">
+        <string>Apply to PDF</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="exportButton">
+       <property name="text">
+        <string>E&amp;xport...</string>
+       </property>
+       <property name="toolTip">
+        <string>Export the recognized text</string>
+       </property>
+       <property name="accessibleName">
+        <string>Export</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="openProjectButton">
+       <property name="text">
+        <string>Open Pro&amp;ject...</string>
+       </property>
+       <property name="toolTip">
+        <string>Open a saved OCR project</string>
+       </property>
+       <property name="accessibleName">
+        <string>Open Project</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="saveProjectButton">
+       <property name="text">
+        <string>Save Project...</string>
+       </property>
+       <property name="toolTip">
+        <string>Save the OCR project (results and corrections)</string>
+       </property>
+       <property name="accessibleName">
+        <string>Save Project</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeButton">
+       <property name="text">
+        <string>Close</string>
+       </property>
+       <property name="accessibleName">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>pagesListWidget</tabstop>
+  <tabstop>selectAllPagesButton</tabstop>
+  <tabstop>selectNoPagesButton</tabstop>
+  <tabstop>invertPagesButton</tabstop>
+  <tabstop>helperSelectionComboBox</tabstop>
+  <tabstop>applyHelperSelectionButton</tabstop>
+  <tabstop>viewModeComboBox</tabstop>
+  <tabstop>showOverlayCheckBox</tabstop>
+  <tabstop>showRegionsCheckBox</tabstop>
+  <tabstop>zoomOutButton</tabstop>
+  <tabstop>zoomInButton</tabstop>
+  <tabstop>zoomFitButton</tabstop>
+  <tabstop>addRecognizeRegionButton</tabstop>
+  <tabstop>addExcludeRegionButton</tabstop>
+  <tabstop>addLineButton</tabstop>
+  <tabstop>regionsFromBlocksButton</tabstop>
+  <tabstop>regionPropertiesButton</tabstop>
+  <tabstop>removeRegionButton</tabstop>
+  <tabstop>settingsTabWidget</tabstop>
+  <tabstop>reviewTabWidget</tabstop>
+  <tabstop>reviewFilterComboBox</tabstop>
+  <tabstop>undoButton</tabstop>
+  <tabstop>redoButton</tabstop>
+  <tabstop>resultsTreeWidget</tabstop>
+  <tabstop>wordTextEdit</tabstop>
+  <tabstop>lineTextEdit</tabstop>
+  <tabstop>confirmNextButton</tabstop>
+  <tabstop>skipButton</tabstop>
+  <tabstop>previousReviewButton</tabstop>
+  <tabstop>restoreOriginalButton</tabstop>
+  <tabstop>notTextButton</tabstop>
+  <tabstop>rerecognizeButton</tabstop>
+  <tabstop>mergeButton</tabstop>
+  <tabstop>splitButton</tabstop>
+  <tabstop>insertWordButton</tabstop>
+  <tabstop>deleteWordButton</tabstop>
+  <tabstop>moveUpButton</tabstop>
+  <tabstop>moveDownButton</tabstop>
+  <tabstop>editGeometryButton</tabstop>
+  <tabstop>confirmAllButton</tabstop>
+  <tabstop>findEdit</tabstop>
+  <tabstop>replaceEdit</tabstop>
+  <tabstop>findScopeComboBox</tabstop>
+  <tabstop>caseSensitiveCheckBox</tabstop>
+  <tabstop>wholeWordsCheckBox</tabstop>
+  <tabstop>findNextButton</tabstop>
+  <tabstop>replaceAllButton</tabstop>
+  <tabstop>recognizeButton</tabstop>
+  <tabstop>stopButton</tabstop>
+  <tabstop>applyButton</tabstop>
+  <tabstop>exportButton</tabstop>
+  <tabstop>openProjectButton</tabstop>
+  <tabstop>saveProjectButton</tabstop>
+  <tabstop>closeButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

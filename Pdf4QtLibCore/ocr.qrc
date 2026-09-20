@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/ocr">
+        <file alias="tesseract-catalog.json">../ocr/catalog/tesseract-catalog.json</file>
+    </qresource>
+</RCC>

@@ -247,6 +247,80 @@
         <File Id="filturbojpeg" KeyPath="yes" Source="$(var.MyInstallDir)\jpeg62.dll" />
       </Component>
 
+      <!-- OCR: Tesseract engine, its dependencies and the built-in language models -->
+      <Component Id="cmpocrPdf4QtOcrTesseract" Directory="INSTALLFOLDER" Guid="{EB7ED3DB-56AD-5FFC-B225-8A38B5514703}">
+        <File Id="filocrPdf4QtOcrTesseract" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtOcrTesseract.dll" />
+      </Component>
+      <Component Id="cmpocrtesseract55" Directory="INSTALLFOLDER" Guid="{15BF0417-590C-51E8-AE8B-8B6C6A73D6FB}">
+        <File Id="filocrtesseract55" KeyPath="yes" Source="$(var.MyInstallDir)\tesseract55.dll" />
+      </Component>
+      <Component Id="cmpocrleptonica1870" Directory="INSTALLFOLDER" Guid="{CC8E46B5-B2DF-55E0-B4EE-A127454F2329}">
+        <File Id="filocrleptonica1870" KeyPath="yes" Source="$(var.MyInstallDir)\leptonica-1.87.0.dll" />
+      </Component>
+      <Component Id="cmpocrarchive" Directory="INSTALLFOLDER" Guid="{E36A4844-2DDA-5986-A206-BDC934C7D7CA}">
+        <File Id="filocrarchive" KeyPath="yes" Source="$(var.MyInstallDir)\archive.dll" />
+      </Component>
+      <Component Id="cmpocrlibcurl" Directory="INSTALLFOLDER" Guid="{4301EA9C-C246-5ABF-98D8-1D0DD85C9375}">
+        <File Id="filocrlibcurl" KeyPath="yes" Source="$(var.MyInstallDir)\libcurl.dll" />
+      </Component>
+      <Component Id="cmpocrgif" Directory="INSTALLFOLDER" Guid="{C33F9B65-3FA8-5CAB-BB18-BAE5C0A48F02}">
+        <File Id="filocrgif" KeyPath="yes" Source="$(var.MyInstallDir)\gif.dll" />
+      </Component>
+      <Component Id="cmpocrtiff" Directory="INSTALLFOLDER" Guid="{0F098214-6CFE-5FA1-9B49-B25A89982EC5}">
+        <File Id="filocrtiff" KeyPath="yes" Source="$(var.MyInstallDir)\tiff.dll" />
+      </Component>
+      <Component Id="cmpocrlibwebp" Directory="INSTALLFOLDER" Guid="{AB603A2A-D6E2-5277-89D9-F5338D5DAA57}">
+        <File Id="filocrlibwebp" KeyPath="yes" Source="$(var.MyInstallDir)\libwebp.dll" />
+      </Component>
+      <Component Id="cmpocrlibwebpmux" Directory="INSTALLFOLDER" Guid="{A5FF09D9-4C56-565B-A24B-B6D0C5BA271A}">
+        <File Id="filocrlibwebpmux" KeyPath="yes" Source="$(var.MyInstallDir)\libwebpmux.dll" />
+      </Component>
+      <Component Id="cmpocrlibsharpyuv" Directory="INSTALLFOLDER" Guid="{81BD0CB3-0CC3-53C7-9EF1-F8ADD923EB40}">
+        <File Id="filocrlibsharpyuv" KeyPath="yes" Source="$(var.MyInstallDir)\libsharpyuv.dll" />
+      </Component>
+      <Component Id="cmpocrliblzma" Directory="INSTALLFOLDER" Guid="{6B3226F5-BD24-5951-AF05-E6E566CF460D}">
+        <File Id="filocrliblzma" KeyPath="yes" Source="$(var.MyInstallDir)\liblzma.dll" />
+      </Component>
+      <Component Id="cmpocrlz4" Directory="INSTALLFOLDER" Guid="{53AF2A51-BB18-569B-B20C-072A116512C9}">
+        <File Id="filocrlz4" KeyPath="yes" Source="$(var.MyInstallDir)\lz4.dll" />
+      </Component>
+      <Component Id="cmpocrzstd" Directory="INSTALLFOLDER" Guid="{7321D840-2CFA-564C-81F7-F38BCAEA170A}">
+        <File Id="filocrzstd" KeyPath="yes" Source="$(var.MyInstallDir)\zstd.dll" />
+      </Component>
+      <Component Id="cmpocrdatamanifestjson" Directory="dir_ocr_tesseract_fast" Guid="{8F1F3644-2978-5EA1-8747-9D3730FF33D9}">
+        <File Id="filocrdatamanifestjson" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\manifest.json" />
+      </Component>
+      <Component Id="cmpocrdataLICENSE" Directory="dir_ocr_tesseract_fast" Guid="{0205D490-F0F3-5C0E-950F-5BC288D4494E}">
+        <File Id="filocrdataLICENSE" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\LICENSE" />
+      </Component>
+      <Component Id="cmpocrmodelces" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{BFC6F201-7761-526A-B309-3C62EB820D3B}">
+        <File Id="filocrmodelces" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\ces.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodeleng" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{2071D539-C3AF-50DE-AA31-C46CCFA4D334}">
+        <File Id="filocrmodeleng" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\eng.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelslk" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{8822C205-7F62-5810-BB18-F42262F5F030}">
+        <File Id="filocrmodelslk" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\slk.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodeldeu" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{7B15FDDD-F2C7-5A24-AE47-AE7C1CCE837F}">
+        <File Id="filocrmodeldeu" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\deu.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelspa" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{452059A6-25CF-5858-873E-C83294D97CF2}">
+        <File Id="filocrmodelspa" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\spa.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelrus" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{C7DD1CC9-33DE-5436-BF1F-7A02A09265F5}">
+        <File Id="filocrmodelrus" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\rus.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelchisim" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{0EF279B2-72E3-56D4-98BD-23023EDD072B}">
+        <File Id="filocrmodelchisim" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\chi_sim.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelchitra" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{6281208B-DE32-5CA4-A7B2-B63AEB16385E}">
+        <File Id="filocrmodelchitra" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\chi_tra.traineddata" />
+      </Component>
+      <Component Id="cmpocrmodelosd" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{DBC0A65D-AD23-57F0-8737-E9F0ABFB6B86}">
+        <File Id="filocrmodelosd" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\osd.traineddata" />
+      </Component>
+
     </ComponentGroup>
   </Fragment>
 
@@ -348,6 +422,18 @@
   <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
       <Directory Id="dir_imageformats" Name="imageformats" />
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="dir_ocr" Name="ocr">
+        <Directory Id="dir_ocr_tesseract" Name="tesseract">
+          <Directory Id="dir_ocr_tesseract_fast" Name="fast">
+            <Directory Id="dir_ocr_tesseract_fast_tessdata" Name="tessdata" />
+          </Directory>
+        </Directory>
+      </Directory>
     </DirectoryRef>
   </Fragment>
 

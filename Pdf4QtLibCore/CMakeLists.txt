@@ -187,7 +187,26 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfapplicationtranslator.cpp
     sources/pdfsettings.h
     sources/pdfsettings.cpp
+    sources/pdfocrmodel.h
+    sources/pdfocrmodel.cpp
+    sources/pdfocrconfiguration.h
+    sources/pdfocrconfiguration.cpp
+    sources/pdfocrengine.h
+    sources/pdfocrengine.cpp
+    sources/pdfocrpagepreparer.h
+    sources/pdfocrpagepreparer.cpp
+    sources/pdfocrproject.h
+    sources/pdfocrproject.cpp
+    sources/pdfocrtextlayerwriter.h
+    sources/pdfocrtextlayerwriter.cpp
+    sources/pdfocrmodelmanager.h
+    sources/pdfocrmodelmanager.cpp
+    sources/pdfocrjobcontroller.h
+    sources/pdfocrjobcontroller.cpp
+    sources/pdfocrsession.h
+    sources/pdfocrsession.cpp
     fonts.qrc
+    ocr.qrc
 )
 
 include(GenerateExportHeader)

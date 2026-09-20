@@ -76,6 +76,14 @@ add_library(Pdf4QtLibGui SHARED
     pdfcreatebitonaldocumentdialog.ui
     pdfcreatebitonaldocumentdialog.cpp
     pdfcreatebitonaldocumentdialog.h
+    pdfocrdocumentdialog.ui
+    pdfocrdocumentdialog.cpp
+    pdfocrdocumentdialog.h
+    pdfocrlanguagesdialog.ui
+    pdfocrlanguagesdialog.cpp
+    pdfocrlanguagesdialog.h
+    pdfocrpageview.cpp
+    pdfocrpageview.h
     pdf4qtlibgui.qrc
     pdfbookmarkmanager.h
     pdfbookmarkmanager.cpp
@@ -97,6 +105,12 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibGui
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibgui_export.h")
 
 target_link_libraries(Pdf4QtLibGui PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
+# OCR engine adapter is optional; without it, the OCR dialog works with saved projects only
+if(PDF4QT_ENABLE_OCR)
+    target_link_libraries(Pdf4QtLibGui PRIVATE Pdf4QtOcrTesseract)
+    target_compile_definitions(Pdf4QtLibGui PRIVATE PDF4QT_OCR_TESSERACT)
+endif()
+
 target_include_directories(Pdf4QtLibGui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Pdf4QtLibGui PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
