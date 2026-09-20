@@ -21,6 +21,11 @@
 // SOFTWARE.
 
 #include "pdfaboutdialog.h"
+#include "pdfocrmodelmanager.h"
+
+#ifdef PDF4QT_OCR_TESSERACT
+#include "pdftesseractocrengine.h"
+#endif
 #include "ui_pdfaboutdialog.h"
 
 #include "pdfutils.h"
@@ -41,6 +46,34 @@ PDFAboutDialog::PDFAboutDialog(QWidget* parent) :
     ui->copyrightLabel->setText(html);
 
     std::vector<pdf::PDFDependentLibraryInfo> infos = pdf::PDFDependentLibraryInfo::getLibraryInfo();
+
+#ifdef PDF4QT_OCR_TESSERACT
+    {
+        // Versions and licenses of the distributed OCR components and of the built-in models (OPS-02)
+        pdf::PDFTesseractOCREngineFactory factory;
+        pdf::PDFDependentLibraryInfo tesseractInfo;
+        tesseractInfo.library = QStringLiteral("Tesseract OCR");
+        tesseractInfo.version = factory.getVersion();
+        tesseractInfo.license = QStringLiteral("Apache-2.0");
+        tesseractInfo.url = QStringLiteral("https://github.com/tesseract-ocr/tesseract");
+        infos.push_back(tesseractInfo);
+
+        pdf::PDFDependentLibraryInfo leptonicaInfo;
+        leptonicaInfo.library = QStringLiteral("Leptonica");
+        leptonicaInfo.version = pdf::PDFTesseractOCREngineFactory::getLeptonicaVersion();
+        leptonicaInfo.license = QStringLiteral("BSD-2-Clause");
+        leptonicaInfo.url = QStringLiteral("http://www.leptonica.org/");
+        infos.push_back(leptonicaInfo);
+
+        pdf::PDFOCRModelManager modelManager(nullptr);
+        pdf::PDFDependentLibraryInfo modelsInfo;
+        modelsInfo.library = QStringLiteral("Tesseract language models (built-in)");
+        modelsInfo.version = modelManager.getBuiltInSetId(QStringLiteral("tesseract"));
+        modelsInfo.license = QStringLiteral("Apache-2.0");
+        modelsInfo.url = QStringLiteral("https://github.com/tesseract-ocr/tessdata_fast");
+        infos.push_back(modelsInfo);
+    }
+#endif
 
     ui->tableWidget->setColumnCount(4);
     ui->tableWidget->setRowCount(static_cast<int>(infos.size()));

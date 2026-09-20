@@ -200,6 +200,8 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::RemoveExternalLinks, ui->actionRemoveExternalLinks);
     m_actionManager->setAction(PDFActionManager::PageGeometry, ui->actionPageGeometry);
     m_actionManager->setAction(PDFActionManager::CreateBitonalDocument, ui->actionCreateBitonalDocument);
+    m_actionManager->setAction(PDFActionManager::RecognizeText, ui->actionRecognizeText);
+    m_actionManager->setAction(PDFActionManager::ManageOCRLanguages, ui->actionManageOCRLanguages);
     m_actionManager->setAction(PDFActionManager::Encryption, ui->actionEncryption);
     m_actionManager->setAction(PDFActionManager::FitPage, ui->actionFitPage);
     m_actionManager->setAction(PDFActionManager::FitWidth, ui->actionFitWidth);

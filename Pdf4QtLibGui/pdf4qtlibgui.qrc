@@ -96,6 +96,7 @@
         <file>resources/web.svg</file>
         <file>resources/user.svg</file>
         <file>resources/create-bitonal-document.svg</file>
+        <file>resources/ocr.svg</file>
         <file>resources/sanitize-document.svg</file>
         <file>resources/sidebar-attachment.svg</file>
         <file>resources/sidebar-outline.svg</file>

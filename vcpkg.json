@@ -1,5 +1,5 @@
 {
   "name": "pdf4qt",
   "version-string": "1.5.2",
-  "dependencies": [ "tbb", "openssl", "lcms", "zlib", "openjpeg", "freetype", "libjpeg-turbo", "libpng", "blend2d", "clipper2" ]
+  "dependencies": [ "tbb", "openssl", "lcms", "zlib", "openjpeg", "freetype", "libjpeg-turbo", "libpng", "blend2d", "clipper2", "tesseract" ]
 }

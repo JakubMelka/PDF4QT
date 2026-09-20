@@ -123,6 +123,8 @@ public:
         RemoveExternalLinks,
         PageGeometry,
         CreateBitonalDocument,
+        RecognizeText,
+        ManageOCRLanguages,
         Encryption,
         FitPage,
         FitWidth,
@@ -382,6 +384,8 @@ private:
     void onActionRemoveExternalLinksTriggered();
     void onActionPageGeometryTriggered();
     void onActionCreateBitonalDocumentTriggered();
+    void onActionRecognizeTextTriggered();
+    void onActionManageOCRLanguagesTriggered();
     void onActionEncryptionTriggered();
     void onActionFitPageTriggered();
     void onActionFitWidthTriggered();

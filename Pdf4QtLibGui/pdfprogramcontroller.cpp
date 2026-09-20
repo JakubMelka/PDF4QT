@@ -40,6 +40,12 @@
 #include "pdfoptimizeimagesdialog.h"
 #include "pdfsanitizedocumentdialog.h"
 #include "pdfcreatebitonaldocumentdialog.h"
+#include "pdfocrdocumentdialog.h"
+#include "pdfocrlanguagesdialog.h"
+
+#ifdef PDF4QT_OCR_TESSERACT
+#include "pdftesseractocrengine.h"
+#endif
 #include "pdfviewersettingsdialog.h"
 #include "pdfaboutdialog.h"
 #include "pdfrenderingerrorswidget.h"
@@ -568,6 +574,14 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionCreateBitonalDocumentTriggered);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::RecognizeText))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionRecognizeTextTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::ManageOCRLanguages))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionManageOCRLanguagesTriggered);
+    }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Encryption))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionEncryptionTriggered);
@@ -725,7 +739,12 @@ void PDFProgramController::initialize(Features features,
     if (features.testFlag(UndoRedo))
     {
         // Connect undo/redo manager
-        m_undoRedoManager = new PDFUndoRedoManager(this);
+    #ifdef PDF4QT_OCR_TESSERACT
+    // OCR engines are registered by a stable identifier (the registration is idempotent)
+    pdf::PDFTesseractOCREngineFactory::registerEngine();
+#endif
+
+    m_undoRedoManager = new PDFUndoRedoManager(this);
         connect(m_undoRedoManager, &PDFUndoRedoManager::undoRedoStateChanged, this, &PDFProgramController::updateUndoRedoActions);
         connect(m_undoRedoManager, &PDFUndoRedoManager::documentChangeRequest, this, &PDFProgramController::onDocumentUndoRedo);
         connect(m_actionManager->getAction(PDFActionManager::Undo), &QAction::triggered, m_undoRedoManager, &PDFUndoRedoManager::doUndo);
@@ -1627,6 +1646,44 @@ void PDFProgramController::onActionPageGeometryTriggered()
     }
 }
 
+void PDFProgramController::onActionRecognizeTextTriggered()
+{
+    if (!m_pdfDocument || m_pdfDocument->getCatalog()->getPageCount() == 0)
+    {
+        return;
+    }
+
+    auto cms = m_CMSManager->getCurrentCMS();
+    const pdf::PDFSecurityHandler* securityHandler = m_pdfDocument->getStorage().getSecurityHandler();
+
+    PDFOCRDocumentDialog::Context context;
+    context.document = m_pdfDocument.data();
+    context.proxy = m_pdfWidget->getDrawWidgetProxy();
+    context.cms = cms.data();
+    context.progress = m_progress;
+    context.visiblePages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+    context.fileName = m_fileInfo.absoluteFilePath.isEmpty() ? m_fileInfo.originalFileName : m_fileInfo.absoluteFilePath;
+    context.canModify = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify);
+    context.canCopyContent = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent);
+    context.hasSignatures = !m_signatures.empty();
+    context.isEncrypted = securityHandler->getMode() != pdf::EncryptionMode::None;
+
+    PDFOCRDocumentDialog dialog(context, m_mainWindow);
+    if (dialog.exec() == QDialog::Accepted && dialog.hasModifiedDocument())
+    {
+        // Single atomic change of the document and a single undo/redo step. The text
+        // layouts, the search results and the page cache are invalidated by the flag.
+        pdf::PDFModifiedDocument document(dialog.takeModifiedDocument(), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::PageContents));
+        onDocumentModified(qMove(document));
+    }
+}
+
+void PDFProgramController::onActionManageOCRLanguagesTriggered()
+{
+    PDFOCRLanguagesDialog dialog(nullptr, m_mainWindow);
+    dialog.exec();
+}
+
 void PDFProgramController::onActionCreateBitonalDocumentTriggered()
 {
     auto cms = m_CMSManager->getCurrentCMS();
@@ -1987,6 +2044,11 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::RemoveExternalLinks, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::PageGeometry, hasValidDocument && canModify);
     m_actionManager->setEnabled(PDFActionManager::CreateBitonalDocument, hasValidDocument);
+
+    // OCR is available for a document with at least one page; the permissions are
+    // evaluated in the dialog separately for the recognition/export and for the writing.
+    m_actionManager->setEnabled(PDFActionManager::RecognizeText, hasValidDocument && m_pdfDocument->getCatalog()->getPageCount() > 0);
+    m_actionManager->setEnabled(PDFActionManager::ManageOCRLanguages, !isBusy);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);

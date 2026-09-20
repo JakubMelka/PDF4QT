@@ -85,7 +85,8 @@ public:
         SpeechSettings,
         FormSettings,
         SignatureSettings,
-        PluginsSettings
+        PluginsSettings,
+        OCRSettings
     };
 
     const PDFViewerSettings::Settings& getSettings() const { return m_settings; }

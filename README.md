@@ -60,6 +60,7 @@ Software have following features (the list is not complete):
 - [x] static XFA support (readonly, simple XFA only)
 - [x] electronically/digitally sign documents
 - [x] public key security encryption
+- [x] OCR - text recognition of scanned documents with a searchable invisible text layer (Tesseract)
 
 ## 4. THIRD PARTY LIBRARIES
 
@@ -73,6 +74,9 @@ Several third-party libraries are used.
 6. LittleCMS, http://www.littlecms.com/
 7. zlib, https://zlib.net/
 8. Blend2D, https://blend2d.com/
+9. Tesseract OCR, https://github.com/tesseract-ocr/tesseract, Apache 2.0 license (optional, see `PDF4QT_ENABLE_OCR`)
+10. Leptonica, http://www.leptonica.org/, BSD 2-clause license (dependency of Tesseract)
+11. Tesseract language models (tessdata_fast / tessdata_best), https://github.com/tesseract-ocr/tessdata_fast, Apache 2.0 license
 
 ## 5. CONTRIBUTIONS
 
@@ -164,6 +168,7 @@ CMake can prepare a Wix project to create a *.msi installer package.
 | `PDF4QT_INSTALL_DEPENDENCIES`          | Any      |Install dependent libraries into installation directory   |
 | `PDF4QT_INSTALL_QT_DEPENDENCIES`       | Any      |Install Qt dependent libraries into installation directory|
 | `VCPKG_OVERLAY_PORTS`                  | Linux    |Set it to prevent crashes with incompatible libpng library|
+| `PDF4QT_ENABLE_OCR`                    | Any      |Build the OCR feature (Tesseract engine), ON by default   |
  
 Following important variables should be set or checked before any attempt to compile this project:
 

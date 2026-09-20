@@ -49,6 +49,7 @@ endif()
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
+option(PDF4QT_ENABLE_OCR "Build the OCR support with the Tesseract engine (requires Tesseract and Leptonica)" ON)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
 
@@ -83,6 +84,14 @@ find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(blend2d CONFIG REQUIRED)
 find_package(Clipper2 CONFIG REQUIRED)
+
+if(PDF4QT_ENABLE_OCR)
+    find_package(Tesseract CONFIG)
+    if(NOT Tesseract_FOUND)
+        message(WARNING "Tesseract was not found, OCR support is disabled. Install the tesseract package (vcpkg) or set PDF4QT_ENABLE_OCR=OFF.")
+        set(PDF4QT_ENABLE_OCR OFF)
+    endif()
+endif()
 
 if(VCPKG_TOOLCHAIN)
     find_package(lcms2 REQUIRED)
@@ -169,6 +178,13 @@ else()
     set(PDF4QT_INSTALL_TRANS_DIR ${PDF4QT_INSTALL_BIN_DIR}/translations)
 endif()
 
+# Built-in OCR data (language models of the Tesseract engine)
+if(PDF4QT_LINUX)
+    set(PDF4QT_INSTALL_OCR_DIR ${PDF4QT_INSTALL_SHARE_DIR}/pdf4qt/ocr)
+else()
+    set(PDF4QT_INSTALL_OCR_DIR ${PDF4QT_INSTALL_BIN_DIR}/ocr)
+endif()
+
 # Relative paths are used by the config
 cmake_path(RELATIVE_PATH PDF4QT_PLUGINS_DIR
            BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
@@ -176,9 +192,21 @@ cmake_path(RELATIVE_PATH PDF4QT_PLUGINS_DIR
 cmake_path(RELATIVE_PATH PDF4QT_INSTALL_TRANS_DIR
            BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
            OUTPUT_VARIABLE PDF4QT_TRANSLATIONS_RELATIVE_PATH)
+cmake_path(RELATIVE_PATH PDF4QT_INSTALL_OCR_DIR
+           BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
+           OUTPUT_VARIABLE PDF4QT_OCR_DATA_RELATIVE_PATH)
 configure_file(config.h.cmake config.h)
 
 add_subdirectory(Pdf4QtLibCore)
+
+if(PDF4QT_ENABLE_OCR)
+    add_subdirectory(Pdf4QtOcrTesseract)
+endif()
+
+# Built-in OCR models are copied into the build tree (so the applications can be
+# run from the build directory) and installed with the applications.
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
 
 if(PDF4QT_INSTALL_INCLUDE)
     # Install public headers from Pdf4QtLibCore/include
