@@ -20932,12 +20932,12 @@ The creation tool stays active after an element has been created and the size of
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="336"/>
-        <source>Standard (larger models, download may be needed)</source>
+        <source>Standard (larger models, download needed)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="337"/>
-        <source>Quality (largest models, download may be needed)</source>
+        <source>Quality (largest models, download needed)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

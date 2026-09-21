@@ -47,6 +47,13 @@ a repeated run with the same commits does not modify the repository.
 
 Usage (Python 3.8+, no third party packages):
 
+    python ocr/tools/generate_catalog.py --fetch-builtin
+        Only downloads the built-in models of the present manifests (about 35 MB)
+        into ocr/tesseract/<profile>/tessdata and verifies their size and SHA-256.
+        The model files are not stored in the git repository, so this is the step
+        after a fresh clone and in a continuous integration. Nothing is generated,
+        the GitHub API and the cache directory are not used.
+
     python ocr/tools/generate_catalog.py
         Generates the files for the commits of the present catalog.
 
@@ -56,12 +63,15 @@ Usage (Python 3.8+, no third party packages):
         run UnitTestsOCR and commit the changed files.
 
     python ocr/tools/generate_catalog.py --update-builtin
-        Also copies the built-in models into ocr/tesseract/<profile>/tessdata
-        (the model files are not stored in the git repository).
+        Also copies the built-in models from the cache into
+        ocr/tesseract/<profile>/tessdata.
 
     python ocr/tools/generate_catalog.py --builtin-fast ces,eng,slk,osd --builtin-best eng
-        Changes the set of the built-in models of a profile. The models of the
-        installer are listed in WixInstaller/Product.wxs.in, update them as well.
+        Changes the set of the built-in models of a profile. Only the profile fast
+        has built-in models, the models of the other profiles are downloaded by
+        the user. An empty list removes the manifest and the license of the profile.
+        The models of the installer are listed in WixInstaller/Product.wxs.in,
+        update them as well.
 
 The environment variable GITHUB_TOKEN is used for the GitHub API when it is set
 (the anonymous limit of 60 requests per hour is sufficient for a normal run).
@@ -95,8 +105,8 @@ ENGINE = 'tesseract'
 ENGINE_COMPATIBILITY = 'Tesseract 4.x/5.x LSTM (tessdata_fast, tessdata, tessdata_best)'
 DEFAULT_BUILTIN_LANGUAGES = {
     'fast': ['ces', 'eng', 'slk', 'deu', 'spa', 'rus', 'chi_sim', 'chi_tra', 'osd'],
-    'standard': ['eng'],
-    'best': ['eng'],
+    'standard': [],
+    'best': [],
 }
 
 # Index of the LSTM component in the header of a traineddata file (TESSDATA_LSTM)
@@ -363,8 +373,60 @@ def synchronize_builtin_models(profile, builtin_models, cached_files, update):
                 warning('{}/{} is not a built-in model, remove it.'.format(relative_directory, name))
 
 
+def download_verified_file(url, file_name, size, sha256):
+    """Downloads the file and verifies it against the size and SHA-256 of the manifest."""
+    os.makedirs(os.path.dirname(file_name), exist_ok=True)
+    part_file_name = file_name + '.part'
+    last_error = None
+    for attempt in range(DOWNLOAD_ATTEMPTS):
+        try:
+            with open_url(url) as response, open(part_file_name, 'wb') as file:
+                shutil.copyfileobj(response, file, 1 << 20)
+            actual_size, _, actual_sha256 = compute_hashes(part_file_name)
+            if actual_size == size and actual_sha256 == sha256:
+                os.replace(part_file_name, file_name)
+                return
+            last_error = 'size or SHA-256 does not match the manifest'
+        except (urllib.error.URLError, OSError) as error:
+            last_error = str(error)
+        time.sleep(2 * (attempt + 1))
+
+    if os.path.isfile(part_file_name):
+        os.remove(part_file_name)
+    raise GeneratorError('Download of {} failed: {}'.format(url, last_error))
+
+
+def fetch_builtin_models():
+    """Downloads the built-in models of the present manifests, nothing is generated."""
+    catalog = read_json_file(CATALOG_FILE)
+    if not catalog:
+        raise GeneratorError('Catalog {} was not found.'.format(CATALOG_FILE))
+    urls = {model['id']: model['url'] for model in catalog.get('models', [])}
+
+    downloaded_count = 0
+    valid_count = 0
+    for profile in PROFILES:
+        manifest = read_json_file(builtin_path(profile, 'manifest.json')) or {}
+        for model in manifest.get('models', []):
+            file_name = builtin_path(profile, 'tessdata', model['fileName'])
+            relative_name = 'ocr/tesseract/{}/tessdata/{}'.format(profile, model['fileName'])
+            if os.path.isfile(file_name) and compute_hashes(file_name)[2] == model['sha256']:
+                valid_count += 1
+                continue
+            if model['id'] not in urls:
+                raise GeneratorError('Built-in model {} is not in the catalog.'.format(model['id']))
+            print('Downloading {} ({:.1f} MB)'.format(relative_name, model['size'] / 1e6))
+            download_verified_file(urls[model['id']], file_name, model['size'], model['sha256'])
+            downloaded_count += 1
+
+    print('{} built-in models downloaded, {} already valid.'.format(downloaded_count, valid_count))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generates the catalog of the OCR language models of Tesseract.')
+    parser.add_argument('--fetch-builtin', action='store_true',
+                        help='only download the built-in models of the present manifests and verify them')
     for profile in PROFILES:
         parser.add_argument('--{}-commit'.format(profile), metavar='REF',
                             help='commit, branch or tag of {} (default: commit of the present catalog)'.format(repository_name(profile)))
@@ -376,6 +438,9 @@ def main():
     parser.add_argument('--cache-dir', metavar='DIRECTORY', default=os.path.join(tempfile.gettempdir(), 'pdf4qt-ocr-catalog'),
                         help='directory of the downloaded models (default: %(default)s)')
     arguments = parser.parse_args()
+
+    if arguments.fetch_builtin:
+        return fetch_builtin_models()
 
     old_catalog = read_json_file(CATALOG_FILE) or {}
 
@@ -453,8 +518,12 @@ def main():
     builtin_count = 0
     for profile in PROFILES:
         if not builtin_languages[profile]:
-            if os.path.isfile(builtin_path(profile, 'manifest.json')):
-                warning('profile {} has no built-in model, remove ocr/tesseract/{}.'.format(profile, profile))
+            # Profile without built-in models has no manifest and no license
+            for name in ['manifest.json', 'LICENSE']:
+                if os.path.isfile(builtin_path(profile, name)):
+                    os.remove(builtin_path(profile, name))
+                    changed_files.append(builtin_path(profile, name))
+            synchronize_builtin_models(profile, [], cached_files, False)
             continue
 
         builtin_models = []
