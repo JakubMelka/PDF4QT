@@ -154,6 +154,7 @@ class OCRDialogTest : public QObject
 private slots:
     void initTestCase();
     void workflowWithTestEngine();
+    void stoppedRerunKeepsResults();
     void workflowWithTesseract();
 
 private:
@@ -462,6 +463,59 @@ void OCRDialogTest::runWorkflow(const QString& engineId, const QString& expected
     std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(modified.data(), 0);
     QVERIFY(layer.has_value());
     QCOMPARE(layer->getWords().front()->text, QStringLiteral("Corrected"));
+
+    {
+        WidgetFixture reopenedFixture{ PDFDocument(*modified) };
+
+        pdfviewer::PDFOCRDocumentDialog::Context reopenedContext = context;
+        reopenedContext.document = &reopenedFixture.document;
+        reopenedContext.proxy = reopenedFixture.widget.getDrawWidgetProxy();
+        reopenedContext.progress = &reopenedFixture.progress;
+
+        pdfviewer::PDFOCRDocumentDialog reopenedDialog(reopenedContext, nullptr);
+        reopenedDialog.show();
+
+        auto* reopenedPages = reopenedDialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* reopenedTree = reopenedDialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+        auto* reopenedWordEdit = reopenedDialog.findChild<QLineEdit*>(QStringLiteral("wordTextEdit"));
+        auto* reopenedApply = reopenedDialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        QVERIFY(reopenedPages && reopenedTree && reopenedWordEdit && reopenedApply);
+
+        auto findWordItem = [reopenedTree](const QString& text) -> QTreeWidgetItem*
+        {
+            QTreeWidgetItemIterator it(reopenedTree);
+            while (*it)
+            {
+                if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2 && (*it)->text(0) == text)
+                {
+                    return *it;
+                }
+                ++it;
+            }
+            return nullptr;
+        };
+
+        // The layer is loaded by the background analysis, no recognition is started
+        reopenedPages->setCurrentRow(0);
+        QTRY_VERIFY_WITH_TIMEOUT(findWordItem(QStringLiteral("Corrected")) != nullptr, 60000);
+        QTRY_VERIFY_WITH_TIMEOUT(reopenedApply->isEnabled(), 60000);
+
+        // The text can be corrected further
+        reopenedTree->setCurrentItem(findWordItem(QStringLiteral("Corrected")));
+        QVERIFY(reopenedWordEdit->isEnabled());
+        reopenedWordEdit->setText(QStringLiteral("Twice"));
+        QMetaObject::invokeMethod(reopenedWordEdit, "editingFinished");
+
+        responder.messages.clear();
+        reopenedApply->click();
+        QTRY_VERIFY_WITH_TIMEOUT(reopenedDialog.result() == QDialog::Accepted && !reopenedDialog.isVisible(), 60000);
+        QVERIFY2(reopenedDialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))));
+        PDFDocumentPointer twice = reopenedDialog.takeModifiedDocument();
+        QVERIFY(twice);
+        const QString twiceText = extractText(*twice, 0);
+        QVERIFY2(twiceText.contains(QStringLiteral("Twice")) && !twiceText.contains(QStringLiteral("Corrected")), qPrintable(twiceText));
+        QCOMPARE(PDFOCRTextLayerWriter::readLayerInfo(twice.data(), 0).layerId, PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 0).layerId);
+    }
 }
 
 void OCRDialogTest::workflowWithTestEngine()
@@ -495,14 +549,116 @@ void OCRDialogTest::workflowWithTestEngine()
     runWorkflow(QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER), QStringLiteral("Deterministic"));
 }
 
+void OCRDialogTest::stoppedRerunKeepsResults()
+{
+    m_testEngine->setRecognitionDelay(20);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        const double scale = input.dpi / 72.0;
+        PDFOCRRawBlock block;
+        PDFOCRRawLine line;
+        PDFOCRRawWord word;
+        word.text = QStringLiteral("Stable");
+        word.rect = QRectF(30 * scale, 40 * scale, 150 * scale, 30 * scale);
+        word.rawConfidence = 90.0;
+        line.rect = word.rect;
+        line.words = { word };
+        block.rect = line.rect;
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        return output;
+    });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("First page"), QStringLiteral("Second page"), QStringLiteral("Third page") }));
+
+    pdfviewer::PDFOCRDocumentDialog::Context context;
+    context.document = &fixture.document;
+    context.proxy = fixture.widget.getDrawWidgetProxy();
+    PDFCMSPointer cms = fixture.cms.getCurrentCMS();
+    context.cms = cms.data();
+    context.progress = &fixture.progress;
+    context.visiblePages = { 0 };
+    context.fileName = QStringLiteral("scan.pdf");
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("No"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* engineComboBox = dialog.findChild<QComboBox*>(QStringLiteral("engineComboBox"));
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    auto* findEdit = dialog.findChild<QLineEdit*>(QStringLiteral("findEdit"));
+    QVERIFY(pagesListWidget && engineComboBox && recognizeButton && stopButton && applyButton && resultsTreeWidget && findEdit);
+
+    engineComboBox->setCurrentIndex(engineComboBox->findData(QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER)));
+
+    // No button of the dialog is the default one: Enter in an edit box does not click "All"
+    for (QPushButton* button : dialog.findChildren<QPushButton*>())
+    {
+        QVERIFY2(!button->isDefault() && !button->autoDefault(), qPrintable(button->objectName()));
+    }
+    pagesListWidget->item(2)->setCheckState(Qt::Unchecked);
+    findEdit->setText(QStringLiteral("nothing"));
+    QTest::keyClick(findEdit, Qt::Key_Return);
+    QCOMPARE(pagesListWidget->item(2)->checkState(), Qt::Unchecked);
+    pagesListWidget->item(2)->setCheckState(Qt::Checked);
+
+    auto countWords = [&]()
+    {
+        int count = 0;
+        for (int row = 0; row < pagesListWidget->count(); ++row)
+        {
+            pagesListWidget->setCurrentRow(row);
+            QTreeWidgetItemIterator it(resultsTreeWidget);
+            while (*it)
+            {
+                if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2 && (*it)->text(0) == QStringLiteral("Stable"))
+                {
+                    ++count;
+                }
+                ++it;
+            }
+        }
+        return count;
+    };
+
+    // First recognition of all pages
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY(applyButton->isEnabled());
+    QCOMPARE(countWords(), 3);
+
+    // Repeated recognition is stopped before it finishes: no result may be lost (JOB-05)
+    m_testEngine->setRecognitionDelay(3000);
+    recognizeButton->click();
+    QVERIFY2(stopButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))));
+    QTest::qWait(200);
+    stopButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    m_testEngine->setRecognitionDelay(0);
+
+    QCOMPARE(countWords(), 3);
+    QVERIFY(applyButton->isEnabled());
+
+    dialog.reject();
+}
+
 void OCRDialogTest::workflowWithTesseract()
 {
 #ifndef PDF4QT_OCR_TESSERACT
     QSKIP("Tesseract engine is not compiled in.");
 #else
-    if (!QDir(PDFOCRModelManager::getDefaultBuiltInDirectory() + QStringLiteral("/tesseract/fast/tessdata")).exists())
+    if (!QFile::exists(PDFOCRModelManager::getDefaultBuiltInDirectory() + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR data directory is not available.");
+        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     runWorkflow(QStringLiteral("tesseract"), QStringLiteral("Hello"));

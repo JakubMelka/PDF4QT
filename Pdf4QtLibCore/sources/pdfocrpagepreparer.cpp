@@ -633,13 +633,26 @@ static QByteArray digestObject(const PDFObject& object,
 {
     if (object.isReference())
     {
+        // References are transparent: the digest must not depend on the fact, whether
+        // a dictionary is direct or indirect, because the writer of the text layer
+        // turns the indirect resource dictionaries into direct ones. Only the cycles
+        // are detected (by the path from the root, so the result does not depend on
+        // the order of the entries).
         const PDFObjectReference reference = object.getReference();
-        if (depth <= 0 || visited.count(reference))
+        if (visited.count(reference))
         {
             return QByteArrayLiteral("R");
         }
         visited.insert(reference);
-        return digestObject(storage->getObjectByReference(reference), storage, depth - 1, visited, skipKey);
+        QByteArray digest = digestObject(storage->getObjectByReference(reference), storage, depth, visited, skipKey);
+        visited.erase(reference);
+        return digest;
+    }
+
+    if ((object.isStream() || object.isDictionary() || object.isArray()) && depth <= 0)
+    {
+        // Depth of the nesting is limited
+        return QByteArrayLiteral("X");
     }
 
     if (object.isStream())
@@ -666,7 +679,7 @@ static QByteArray digestObject(const PDFObject& object,
                 continue;
             }
 
-            const QByteArray digest = digestObject(dictionary->getValue(i), storage, depth, visited, skipKey);
+            const QByteArray digest = digestObject(dictionary->getValue(i), storage, depth - 1, visited, skipKey);
             if (digest == EMPTY_DICTIONARY_DIGEST)
             {
                 continue;
@@ -698,9 +711,16 @@ static QByteArray digestObject(const PDFObject& object,
         hash.addData(QByteArrayLiteral("A"));
         for (size_t i = 0; i < array->getCount(); ++i)
         {
-            hash.addData(digestObject(array->getItem(i), storage, depth, visited, skipKey));
+            hash.addData(digestObject(array->getItem(i), storage, depth - 1, visited, skipKey));
         }
         return hash.result();
+    }
+
+    if (object.isNull())
+    {
+        // Missing value is the same as an empty dictionary (page without resources
+        // gets an empty resource dictionary, when the own layer is removed)
+        return EMPTY_DICTIONARY_DIGEST;
     }
 
     return PDFDocumentWriter::getSerializedObject(object);
@@ -733,37 +753,26 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     hash.addData(QByteArray::number(int(page->getPageRotation())));
     hash.addData(QByteArray::number(page->getUserUnit(), 'f', 4));
 
-    // Own OCR layer is excluded from the fingerprint
-    const PDFObjectReference ownContentReference = PDFOCRTextLayerWriter::getOwnLayerContentReference(document, pageIndex);
+    // Own OCR layer (text layer and the isolation of the foreign content) is excluded from the fingerprint
+    const std::vector<PDFObjectReference> ownContentReferences = PDFOCRTextLayerWriter::getOwnLayerContentReferences(document, pageIndex);
+    auto isOwnContent = [&ownContentReferences](PDFObjectReference reference)
+    {
+        return std::find(ownContentReferences.begin(), ownContentReferences.end(), reference) != ownContentReferences.end();
+    };
 
     // Content streams
-    std::vector<PDFObjectReference> contentReferences;
     std::vector<const PDFStream*> contentStreams;
-    const PDFObject& contents = page->getContents();
-    const PDFObject& dereferencedContents = document->getObject(contents);
-    if (dereferencedContents.isArray())
+    for (const PDFObjectReference& contentReference : PDFOCRTextLayerWriter::getPageContentReferences(document, pageIndex))
     {
-        const PDFArray* array = dereferencedContents.getArray();
-        for (size_t i = 0; i < array->getCount(); ++i)
+        if (isOwnContent(contentReference))
         {
-            const PDFObject& item = array->getItem(i);
-            if (item.isReference() && ownContentReference.isValid() && item.getReference() == ownContentReference)
-            {
-                continue;
-            }
-
-            const PDFObject& dereferencedItem = document->getObject(item);
-            if (dereferencedItem.isStream())
-            {
-                contentStreams.push_back(dereferencedItem.getStream());
-            }
+            continue;
         }
-    }
-    else if (dereferencedContents.isStream())
-    {
-        if (!(contents.isReference() && ownContentReference.isValid() && contents.getReference() == ownContentReference))
+
+        const PDFObject& contentObject = document->getObjectByReference(contentReference);
+        if (contentObject.isStream())
         {
-            contentStreams.push_back(dereferencedContents.getStream());
+            contentStreams.push_back(contentObject.getStream());
         }
     }
 
@@ -780,7 +789,7 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     {
         return key.startsWith(PDFOCRTextLayerWriter::FONT_RESOURCE_PREFIX);
     };
-    hash.addData(digestObject(page->getResources(), storage, 3, visited, skipKey));
+    hash.addData(digestObject(page->getResources(), storage, 4, visited, skipKey));
 
     return hash.result();
 }
@@ -837,7 +846,20 @@ double PDFOCRPagePreparer::getLimitedDpi(const PDFPage* page, double dpi, qint64
         return dpi;
     }
 
-    return std::floor(std::sqrt(double(maximumPixels) / areaInInches));
+    double limitedDpi = std::floor(std::sqrt(double(maximumPixels) / areaInInches));
+
+    // Size of the raster is rounded, so the limit can still be exceeded by a few pixels
+    for (int i = 0; i < 8 && limitedDpi > 1.0; ++i)
+    {
+        const QSize size = getRasterSize(page, limitedDpi);
+        if (size.isValid() && qint64(size.width()) * qint64(size.height()) <= maximumPixels)
+        {
+            break;
+        }
+        limitedDpi -= 1.0;
+    }
+
+    return limitedDpi;
 }
 
 qint64 PDFOCRPagePreparer::estimateRasterBytes(const PDFPage* page, double dpi)
@@ -965,6 +987,11 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
 
     // Composite onto white background (IMAGE-02)
     result.image = compositeOntoWhite(image);
+    if (result.image.isNull())
+    {
+        result.error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory, PDFTranslationContext::tr("Not enough memory for the image of the page %1.").arg(pageIndex + 1), PDFTranslationContext::tr("Rendering"));
+        return result;
+    }
 
     // Mask rectangles (annotations, unapplied redactions, IMAGE-03, PDF-13)
     if (!maskedRectangles.empty())
@@ -1011,11 +1038,22 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         return false;
     };
 
-    // 1. Orientation: manual rotation, optionally replaced by the detected orientation
+    // 1. Orientation: manual rotation, optionally replaced by the detected orientation.
+    // Orientation is detected on the unrotated raster, so it is an absolute value, which
+    // replaces the manual rotation (it is not added to it). Uncertain detection is not
+    // used: a wrong rotation destroys the recognition of a correctly oriented page.
     int rotation = preprocessing.rotation;
-    if (preprocessing.autoOrientation && detectedOrientation && detectedOrientation->rotation != 0)
+    if (preprocessing.autoOrientation && detectedOrientation)
     {
-        rotation = (rotation + detectedOrientation->rotation) % 360;
+        const bool isConfident = !detectedOrientation->confidence || *detectedOrientation->confidence >= MinimumOrientationConfidence;
+        if (isConfident)
+        {
+            rotation = detectedOrientation->rotation;
+        }
+        else if (detectedOrientation->rotation != 0)
+        {
+            geometry.pipeline << QStringLiteral("orientation(ignored,rotation=%1,low-confidence=%2)").arg(detectedOrientation->rotation).arg(*detectedOrientation->confidence, 0, 'f', 1);
+        }
     }
     rotation = ((rotation % 360) + 360) % 360;
 
@@ -1057,13 +1095,20 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
 
         if (std::abs(angle) >= 0.1 && std::abs(angle) <= 5.0 && confidence >= 30.0)
         {
+            // Angle is the skew of the content (positive clockwise), the image
+            // is straightened by the rotation by the opposite angle.
             QTransform deskewMatrix;
-            deskewMatrix.rotate(angle);
+            deskewMatrix.rotate(-angle);
             const QTransform trueMatrix = QImage::trueMatrix(deskewMatrix, image.width(), image.height());
             QImage rotated = image.transformed(deskewMatrix, Qt::SmoothTransformation);
 
             // Transparent corners must become white
             image = compositeOntoWhite(rotated.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+            if (image.isNull())
+            {
+                result.error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory, PDFTranslationContext::tr("Not enough memory for the straightened image."), PDFTranslationContext::tr("Preprocessing"));
+                return result;
+            }
             rasterToEngine = rasterToEngine * trueMatrix;
             geometry.pipeline << QStringLiteral("deskew(angle=%1,confidence=%2)").arg(angle, 0, 'f', 2).arg(confidence, 0, 'f', 0);
         }
@@ -1366,8 +1411,9 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
         }
     }
 
-    // Rotating the image by -bestAngle (counterclockwise in image coordinates
-    // means positive in QTransform, which has y axis growing downwards) fixes the skew.
+    // Projection uses the mapping of QTransform::rotate(angle), so the rotation by
+    // bestAngle makes the lines horizontal. The skew of the content is the opposite
+    // angle (positive clockwise in the image, see PDFOCROrientation::deskewAngle).
     return -bestAngle;
 }
 
@@ -1395,6 +1441,21 @@ PDFOCRQuad PDFOCRPagePreparer::imagePolygonToPageQuad(const QPolygonF& polygon, 
     return quad;
 }
 
+/// Intersection over union of two rectangles. Unlike the ratio to the smaller
+/// rectangle, a small word inside of a large (wrong) box is not a duplicate.
+static double getIntersectionOverUnion(const QRectF& first, const QRectF& second)
+{
+    const QRectF intersection = first.intersected(second);
+    if (intersection.isEmpty())
+    {
+        return 0.0;
+    }
+
+    const double intersectionArea = intersection.width() * intersection.height();
+    const double unionArea = first.width() * first.height() + second.width() * second.height() - intersectionArea;
+    return unionArea > 0.0 ? intersectionArea / unionArea : 0.0;
+}
+
 static double getOverlapRatio(const QRectF& first, const QRectF& second)
 {
     const QRectF intersection = first.intersected(second);
@@ -1420,7 +1481,9 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
 {
     const QTransform imageToPage = geometry.getEngineToPage();
 
-    // Existing words (for the deduplication, REGION-05)
+    // Existing words (for the deduplication, REGION-05). Only the words of the
+    // previous recognitions (other regions) are compared, words of this output
+    // are never duplicates of each other.
     std::vector<QRectF> existingWords;
     for (const PDFOCRWord* word : result.getWords())
     {
@@ -1502,7 +1565,7 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                 bool duplicate = false;
                 for (const QRectF& existing : existingWords)
                 {
-                    if (getOverlapRatio(existing, wordRect) > 0.6)
+                    if (getIntersectionOverUnion(existing, wordRect) > 0.5)
                     {
                         duplicate = true;
                         break;
@@ -1524,7 +1587,6 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                     }
                 }
 
-                existingWords.push_back(wordRect);
                 line.words.push_back(std::move(word));
             }
 

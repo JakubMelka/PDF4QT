@@ -68,16 +68,36 @@ public:
         PDFObjectReference contentReference;
         PDFObjectReference fontReference;
         PDFObjectReference dataReference;
+        PDFObjectReference isolationBeginReference; ///< Content stream "q" placed before the foreign content
+        PDFObjectReference isolationEndReference;   ///< Content stream "Q" placed after the foreign content
         QByteArray fontKey;
         bool hasReviewData = false;
         bool fingerprintMatches = false;
         int wordCount = 0;
         QDateTime created;
+
+        /// Metadata of the layer are an untrusted input. Objects are removed from the
+        /// page (and from the document) only if they are verified to be objects of
+        /// the own layer, otherwise a forged metadata could remove foreign content.
+        bool isContentOwn = false;      ///< Content stream is part of the page and looks like the own text layer
+        bool isDataOwn = false;         ///< Data stream contains the data of the own layer
+        bool isFontOwn = false;         ///< Font is the glyphless font of the own layer
+        bool isIsolationOwn = false;    ///< Isolation streams are part of the page and contain only q / Q
     };
 
     /// Returns reference of the content stream of the own layer (without any
     /// verification), or invalid reference, if page has no own layer metadata.
     static PDFObjectReference getOwnLayerContentReference(const PDFDocument* document, PDFInteger pageIndex);
+
+    /// Returns references of all content streams, which belong to the own layer
+    /// (text layer and the streams isolating the graphic state of the foreign
+    /// content), without any verification. These streams are not part of the
+    /// page fingerprint.
+    static std::vector<PDFObjectReference> getOwnLayerContentReferences(const PDFDocument* document, PDFInteger pageIndex);
+
+    /// Returns references of the content streams of the page in the order of the
+    /// page dictionary (single stream, or array of streams).
+    static std::vector<PDFObjectReference> getPageContentReferences(const PDFDocument* document, PDFInteger pageIndex);
 
     /// Reads the information about own OCR layer of the page (PDF-09).
     /// Validates the binding of the metadata to the actual page content.
@@ -115,11 +135,12 @@ public:
         std::vector<PDFInteger> writtenPages;
         std::vector<PDFInteger> unchangedPages;
         std::vector<PDFInteger> skippedPages;
+        std::vector<PDFInteger> removedPages;   ///< Pages without text to write, whose obsolete own layer was removed
         QStringList messages;
         PDFOCRError error;
         int writtenWords = 0;
 
-        bool isModified() const { return !writtenPages.empty(); }
+        bool isModified() const { return !writtenPages.empty() || !removedPages.empty(); }
     };
 
     /// Applies the results into the document (PDF-03, PDF-04, PDF-05, PDF-11).

@@ -36,6 +36,9 @@
 #include <memory>
 #include <atomic>
 #include <cstring>
+#include <string>
+#include <vector>
+#include <optional>
 
 namespace pdf
 {
@@ -111,6 +114,64 @@ QRectF boundingBox(const tesseract::PageIterator* iterator, tesseract::PageItera
         return QRectF(QPointF(left, top), QPointF(right, bottom));
     }
     return QRectF();
+}
+
+/// Reads the files for Tesseract. Tesseract opens the files by the narrow character
+/// functions, which use the ANSI code page on Windows, so a path with characters
+/// outside of the code page (user name with diacritics) would not work. Reading
+/// through Qt makes the model loading independent of the code page (AT-22).
+bool readFileForEngine(const char* fileName, std::vector<char>* data)
+{
+    if (!fileName || !data)
+    {
+        return false;
+    }
+
+    QFile file(QString::fromUtf8(fileName));
+    if (!file.open(QFile::ReadOnly))
+    {
+        return false;
+    }
+
+    constexpr qint64 MAXIMUM_MODEL_SIZE = qint64(1) << 30;
+    const qint64 size = file.size();
+    if (size < 0 || size > MAXIMUM_MODEL_SIZE)
+    {
+        return false;
+    }
+
+    data->resize(size_t(size));
+    return size == 0 || file.read(data->data(), size) == size;
+}
+
+/// Initializes the engine with the data path in UTF-8 and the file reader
+int initializeApi(tesseract::TessBaseAPI& api,
+                  const QString& dataPath,
+                  const QByteArray& languages,
+                  tesseract::OcrEngineMode mode,
+                  const std::vector<std::string>& variableNames,
+                  const std::vector<std::string>& variableValues)
+{
+    const QByteArray encodedDataPath = QDir::toNativeSeparators(dataPath).toUtf8();
+    return api.Init(encodedDataPath.constData(), 0, languages.constData(), mode, nullptr, 0, &variableNames, &variableValues, false, &readFileForEngine);
+}
+
+/// Encodes the name of a file, which is opened by the engine itself (user words and
+/// patterns). Returns no value, if the name cannot be represented.
+std::optional<QByteArray> encodeFileNameForEngine(const QString& fileName)
+{
+    const QString nativeFileName = QDir::toNativeSeparators(fileName);
+
+#ifdef Q_OS_WIN
+    const QByteArray encoded = nativeFileName.toLocal8Bit();
+    if (QString::fromLocal8Bit(encoded) != nativeFileName)
+    {
+        return std::nullopt;
+    }
+    return encoded;
+#else
+    return nativeFileName.toUtf8();
+#endif
 }
 
 QString takeText(char* text)
@@ -200,9 +261,60 @@ public:
             languages << language.section(QChar('@'), 0, 0);
         }
         const QByteArray languageString = languages.join(QChar('+')).toUtf8();
-        const QByteArray dataPath = QDir::toNativeSeparators(models.dataPath).toUtf8();
 
-        if (m_api->Init(dataPath.constData(), languageString.constData(), toEngineMode(configuration.engineMode)) != 0)
+        // User words and patterns are written into the managed working storage (ARCH-03).
+        // Tesseract loads them together with the dictionaries, so they must be passed
+        // to the initialization; setting them later has no effect (REC-03).
+        std::vector<std::string> initNames;
+        std::vector<std::string> initValues;
+
+        auto writeUserFile = [&](const QStringList& lines, const QString& prefix, const char* variable, QString& fileName) -> PDFOCRError
+        {
+            if (lines.isEmpty())
+            {
+                return PDFOCRError::none();
+            }
+
+            const QString workingDirectory = QDir(models.dataPath).absolutePath() + QStringLiteral("/../user");
+            QDir().mkpath(workingDirectory);
+            fileName = QDir::cleanPath(QDir(workingDirectory).absoluteFilePath(QStringLiteral("%1-%2.txt").arg(prefix, QUuid::createUuid().toString(QUuid::Id128).left(8))));
+
+            QFile file(fileName);
+            const QByteArray data = lines.join(QChar('\n')).toUtf8() + "\n";
+            if (!file.open(QFile::WriteOnly | QFile::Truncate) || file.write(data) != data.size())
+            {
+                fileName.clear();
+                return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration,
+                                           PDFTranslationContext::tr("User words cannot be written into the working directory '%1'.").arg(workingDirectory),
+                                           PDFTranslationContext::tr("Initialization"));
+            }
+            file.close();
+
+            const std::optional<QByteArray> encodedFileName = encodeFileNameForEngine(fileName);
+            if (!encodedFileName)
+            {
+                return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration,
+                                           PDFTranslationContext::tr("User words cannot be used, the path '%1' cannot be passed to the engine.").arg(fileName),
+                                           PDFTranslationContext::tr("Initialization"));
+            }
+
+            initNames.emplace_back(variable);
+            initValues.emplace_back(encodedFileName->constData());
+            return PDFOCRError::none();
+        };
+
+        if (PDFOCRError error = writeUserFile(configuration.userWords, QStringLiteral("words"), "user_words_file", m_userWordsFile))
+        {
+            release();
+            return error;
+        }
+        if (PDFOCRError error = writeUserFile(configuration.userPatterns, QStringLiteral("patterns"), "user_patterns_file", m_userPatternsFile))
+        {
+            release();
+            return error;
+        }
+
+        if (initializeApi(*m_api, models.dataPath, languageString, toEngineMode(configuration.engineMode), initNames, initValues) != 0)
         {
             m_api.reset();
             return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
@@ -241,37 +353,6 @@ public:
         if (!configuration.characterBlacklist.isEmpty())
         {
             setVariable("tessedit_char_blacklist", configuration.characterBlacklist.toUtf8());
-        }
-
-        // User words and patterns are written into the managed working storage (ARCH-03)
-        if (!configuration.userWords.isEmpty() || !configuration.userPatterns.isEmpty())
-        {
-            const QString workingDirectory = QDir(models.dataPath).absolutePath() + QStringLiteral("/../user");
-            QDir().mkpath(workingDirectory);
-
-            if (!configuration.userWords.isEmpty())
-            {
-                m_userWordsFile = QDir(workingDirectory).absoluteFilePath(QStringLiteral("words-%1.txt").arg(QUuid::createUuid().toString(QUuid::Id128).left(8)));
-                QFile file(m_userWordsFile);
-                if (file.open(QFile::WriteOnly | QFile::Truncate))
-                {
-                    file.write(configuration.userWords.join(QChar('\n')).toUtf8());
-                    file.close();
-                    setVariable("user_words_file", QDir::toNativeSeparators(m_userWordsFile).toUtf8());
-                }
-            }
-
-            if (!configuration.userPatterns.isEmpty())
-            {
-                m_userPatternsFile = QDir(workingDirectory).absoluteFilePath(QStringLiteral("patterns-%1.txt").arg(QUuid::createUuid().toString(QUuid::Id128).left(8)));
-                QFile file(m_userPatternsFile);
-                if (file.open(QFile::WriteOnly | QFile::Truncate))
-                {
-                    file.write(configuration.userPatterns.join(QChar('\n')).toUtf8());
-                    file.close();
-                    setVariable("user_patterns_file", QDir::toNativeSeparators(m_userPatternsFile).toUtf8());
-                }
-            }
         }
 
         // Engine specific typed parameters (validated names only)
@@ -314,8 +395,7 @@ public:
         if (!m_orientationApi)
         {
             m_orientationApi = std::make_unique<tesseract::TessBaseAPI>();
-            const QByteArray dataPath = QDir::toNativeSeparators(m_models.dataPath).toUtf8();
-            if (m_orientationApi->Init(dataPath.constData(), "osd", tesseract::OEM_TESSERACT_ONLY) != 0)
+            if (initializeApi(*m_orientationApi, m_models.dataPath, QByteArray("osd"), tesseract::OEM_TESSERACT_ONLY, { }, { }) != 0)
             {
                 m_orientationApi.reset();
                 if (error)
@@ -496,6 +576,8 @@ public:
             readResults(iterator.get(), output);
         }
 
+        // Iterator must not outlive the results it points to
+        iterator.reset();
         m_api->Clear();
 
         if (progressCallback)
@@ -546,7 +628,11 @@ private:
         PDFOCRRawBlock* currentBlock = nullptr;
         PDFOCRRawLine* currentLine = nullptr;
 
-        do
+        // The iterator is advanced explicitly at the end of the loop body. A "continue"
+        // in a do-while loop would evaluate the condition and advance the iterator once
+        // more, so the first word after a non-text block (image, ruling line) would be lost.
+        bool hasElement = true;
+        while (hasElement)
         {
             if (iterator->IsAtBeginningOf(tesseract::RIL_BLOCK))
             {
@@ -555,10 +641,7 @@ private:
                 {
                     currentBlock = nullptr;
                     currentLine = nullptr;
-                    if (!iterator->Next(tesseract::RIL_BLOCK))
-                    {
-                        break;
-                    }
+                    hasElement = iterator->Next(tesseract::RIL_BLOCK);
                     continue;
                 }
 
@@ -572,10 +655,7 @@ private:
 
             if (!currentBlock)
             {
-                if (!iterator->Next(tesseract::RIL_WORD))
-                {
-                    break;
-                }
+                hasElement = iterator->Next(tesseract::RIL_WORD);
                 continue;
             }
 
@@ -652,15 +732,16 @@ private:
                     }
                 } while (symbolIterator.Next(tesseract::RIL_SYMBOL));
 
-                // Right-to-left words are delivered in the visual order by the iterator;
-                // the logical order is the reading order, so RTL lines are reversed
-                // after the line is complete (EDIT-08).
+                // The result iterator delivers the words in the reading (logical) order,
+                // also for the right-to-left lines (EDIT-08). Boxes are visual.
                 if (!word.text.isEmpty() && word.rect.isValid())
                 {
                     currentLine->words.push_back(std::move(word));
                 }
             }
-        } while (iterator->Next(tesseract::RIL_WORD));
+
+            hasElement = iterator->Next(tesseract::RIL_WORD);
+        }
 
         // Remove empty lines and blocks
         for (PDFOCRRawBlock& block : output.blocks)
@@ -752,12 +833,11 @@ std::unique_ptr<PDFOCREngine> PDFTesseractOCREngineFactory::createEngine() const
 PDFOCRError PDFTesseractOCREngineFactory::validateModel(const QString& dataPath, const QString& language) const
 {
     tesseract::TessBaseAPI api;
-    const QByteArray nativeDataPath = QDir::toNativeSeparators(dataPath).toUtf8();
     const QByteArray languageCode = language.toUtf8();
 
     // Orientation data are legacy only, language models are LSTM
     const tesseract::OcrEngineMode mode = language == QStringLiteral("osd") ? tesseract::OEM_TESSERACT_ONLY : tesseract::OEM_LSTM_ONLY;
-    const int result = api.Init(nativeDataPath.constData(), languageCode.constData(), mode);
+    const int result = initializeApi(api, dataPath, languageCode, mode, { }, { });
     api.End();
 
     if (result != 0)

@@ -204,9 +204,16 @@ if(PDF4QT_ENABLE_OCR)
 endif()
 
 # Built-in OCR models are copied into the build tree (so the applications can be
-# run from the build directory) and installed with the applications.
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
+# run from the build directory) and installed with the applications. A build
+# without the OCR engine does not carry the models.
+if(PDF4QT_ENABLE_OCR)
+    file(GLOB PDF4QT_OCR_BUILTIN_MODELS ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/fast/tessdata/*.traineddata)
+    if(NOT PDF4QT_OCR_BUILTIN_MODELS)
+        message(WARNING "Built-in OCR language models are missing in ocr/tesseract/fast/tessdata. OCR will work only with downloaded or imported languages, and the OCR tests using Tesseract will be skipped. See ocr/tesseract/fast/manifest.json for the expected files.")
+    endif()
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
+endif()
 
 if(PDF4QT_INSTALL_INCLUDE)
     # Install public headers from Pdf4QtLibCore/include

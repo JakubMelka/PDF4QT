@@ -287,6 +287,7 @@ private:
         QString temporaryPath;
         qint64 received = 0;
         bool cancelled = false;
+        bool writeFailed = false;   ///< Data cannot be written (full disk), reported as such and not as a wrong checksum
     };
 
     struct InstalledFile
@@ -321,6 +322,14 @@ private:
     static bool isValidLanguageCode(const QString& language);
     static QString getProfileDirectoryName(PDFOCRModelProfile profile);
     PDFOCRError acquireLock(std::unique_ptr<QLockFile>& lock) const;
+
+    /// Returns true, if the path lies inside of the directory
+    static bool isInsideDirectory(const QString& path, const QString& directory);
+
+    /// Repairs the leftovers of an interrupted installation and removes stale
+    /// temporary files and runtime sets, which were not used for a long time
+    /// (LANG-07, OPS-04). It is done once, when no other instance holds the lock.
+    void performHousekeeping();
     QString getLanguageWithoutImport(const QString& language, QString* importId) const;
 
     mutable QMutex m_mutex;
@@ -332,6 +341,7 @@ private:
     std::map<QString, QString> m_errorStates;
     QNetworkAccessManager* m_networkAccessManager = nullptr;
     bool m_ownsNetworkAccessManager = false;
+    bool m_housekeepingDone = false;
     std::vector<QString> m_downloadQueue;
     std::vector<std::unique_ptr<Download>> m_activeDownloads;
     int m_maximumParallelDownloads = 2;

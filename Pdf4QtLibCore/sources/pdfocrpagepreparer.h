@@ -162,9 +162,13 @@ public:
     /// Returns true, if the image is blank (ratio of dark pixels is below the threshold)
     static bool isBlankImage(const QImage& image, double* inkRatio, const PDFOperationControl* operationControl);
 
-    /// Estimates skew angle of the text in degrees (positive = counterclockwise
-    /// rotation needed to fix the skew), with confidence 0-100. Only small angles
-    /// (up to +-5 degrees) are estimated.
+    /// Minimal confidence (0-100) of the detected orientation, which is applied (IMAGE-04)
+    static constexpr double MinimumOrientationConfidence = 10.0;
+
+    /// Estimates the skew of the text in degrees with confidence 0-100. Positive
+    /// angle means content rotated clockwise in the image (the sense of
+    /// QTransform::rotate), the content is straightened by the rotation by the
+    /// opposite angle. Only small angles (up to +-5 degrees) are estimated.
     static double estimateSkewAngle(const QImage& image, double* confidence, const PDFOperationControl* operationControl);
 
     /// Converts the raw output of the engine into the page result, transforming
