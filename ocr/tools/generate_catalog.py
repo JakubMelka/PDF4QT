@@ -24,18 +24,23 @@
 
 The script produces these files of the repository:
 
-    ocr/catalog/tesseract-catalog.json   all models of tessdata_fast and tessdata_best
-                                         (compiled into Pdf4QtLibCore by ocr.qrc)
-    ocr/tesseract/fast/manifest.json     models distributed with the application
-    ocr/tesseract/fast/LICENSE           license of tessdata_fast
+    ocr/catalog/tesseract-catalog.json       all models of the profiles (compiled into
+                                             Pdf4QtLibCore by ocr.qrc)
+    ocr/tesseract/<profile>/manifest.json    models distributed with the application
+    ocr/tesseract/<profile>/LICENSE          license of the model repository
 
-Both model repositories are pinned to a commit. The list of the files of the commit
+The profiles are fast (tessdata_fast), standard (tessdata) and best (tessdata_best).
+Every model repository is pinned to a commit. The list of the files of the commit
 is read from the GitHub API, every *.traineddata file is downloaded from
 raw.githubusercontent.com, verified against the size and the git blob SHA-1 of the
 commit, and its SHA-256 is stored in the catalog. The application never downloads
 a catalog from the network, so the checksums can be changed only by this script.
+A model without the LSTM component (legacy only data, for example equ) is not
+written into the catalog, because the application uses the LSTM engine. A symbolic
+link of the repository (frk of tessdata_fast points to deu_latf) is left out too,
+its raw download is only the name of the target.
 
-The downloads are kept in a cache directory (about 1.5 GB for both profiles), a file
+The downloads are kept in a cache directory (about 3 GB for all profiles), a file
 of the cache is downloaded again only when it does not match the commit. The field
 "generated" of the catalog changes only when something else has changed, so
 a repeated run with the same commits does not modify the repository.
@@ -45,17 +50,18 @@ Usage (Python 3.8+, no third party packages):
     python ocr/tools/generate_catalog.py
         Generates the files for the commits of the present catalog.
 
-    python ocr/tools/generate_catalog.py --fast-commit main --best-commit main
+    python ocr/tools/generate_catalog.py --fast-commit main --standard-commit main --best-commit main
         Moves the models to the newest commits. A branch, a tag and a short SHA
         are resolved to the full SHA. Check the result with "git diff", build,
-        run UnitTestsOCR and commit the three files.
+        run UnitTestsOCR and commit the changed files.
 
     python ocr/tools/generate_catalog.py --update-builtin
-        Also copies the built-in models into ocr/tesseract/fast/tessdata
+        Also copies the built-in models into ocr/tesseract/<profile>/tessdata
         (the model files are not stored in the git repository).
 
-    python ocr/tools/generate_catalog.py --builtin ces,eng,slk,osd
-        Changes the set of the built-in models.
+    python ocr/tools/generate_catalog.py --builtin-fast ces,eng,slk,osd --builtin-best eng
+        Changes the set of the built-in models of a profile. The models of the
+        installer are listed in WixInstaller/Product.wxs.in, update them as well.
 
 The environment variable GITHUB_TOKEN is used for the GitHub API when it is set
 (the anonymous limit of 60 requests per hour is sufficient for a normal run).
@@ -68,6 +74,7 @@ import hashlib
 import json
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import time
@@ -76,18 +83,27 @@ import urllib.request
 
 REPOSITORY_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 CATALOG_FILE = os.path.join(REPOSITORY_ROOT, 'ocr', 'catalog', 'tesseract-catalog.json')
-BUILTIN_DIRECTORY = os.path.join(REPOSITORY_ROOT, 'ocr', 'tesseract', 'fast')
-MANIFEST_FILE = os.path.join(BUILTIN_DIRECTORY, 'manifest.json')
-LICENSE_FILE = os.path.join(BUILTIN_DIRECTORY, 'LICENSE')
-TESSDATA_DIRECTORY = os.path.join(BUILTIN_DIRECTORY, 'tessdata')
+BUILTIN_DIRECTORY = os.path.join(REPOSITORY_ROOT, 'ocr', 'tesseract')
 
-PROFILES = ['fast', 'best']
-BUILTIN_PROFILE = 'fast'
+# Profiles in the order of the catalog and their repositories
+PROFILES = ['fast', 'standard', 'best']
+REPOSITORIES = {'fast': 'tessdata_fast', 'standard': 'tessdata', 'best': 'tessdata_best'}
+DEFAULT_COMMIT = 'main'
 MODEL_SUFFIX = '.traineddata'
 MODEL_LICENSE = 'Apache-2.0'
 ENGINE = 'tesseract'
-ENGINE_COMPATIBILITY = 'Tesseract 4.x/5.x LSTM (tessdata_fast, tessdata_best)'
-DEFAULT_BUILTIN_LANGUAGES = ['ces', 'eng', 'slk', 'deu', 'spa', 'rus', 'chi_sim', 'chi_tra', 'osd']
+ENGINE_COMPATIBILITY = 'Tesseract 4.x/5.x LSTM (tessdata_fast, tessdata, tessdata_best)'
+DEFAULT_BUILTIN_LANGUAGES = {
+    'fast': ['ces', 'eng', 'slk', 'deu', 'spa', 'rus', 'chi_sim', 'chi_tra', 'osd'],
+    'standard': ['eng'],
+    'best': ['eng'],
+}
+
+# Index of the LSTM component in the header of a traineddata file (TESSDATA_LSTM)
+TESSDATA_LSTM_INDEX = 17
+
+# Mode of a symbolic link in a git tree
+GIT_SYMBOLIC_LINK_MODE = '120000'
 DOWNLOAD_ATTEMPTS = 3
 DOWNLOAD_THREADS = 4
 USER_AGENT = 'PDF4QT-OCR-catalog-generator'
@@ -120,6 +136,7 @@ LANGUAGE_NAMES = {
     'slv': 'Slovenian', 'snd': 'Sindhi', 'spa': 'Spanish', 'spa_old': 'Spanish (Old)', 'sqi': 'Albanian',
     'srp': 'Serbian', 'srp_latn': 'Serbian (Latin)', 'sun': 'Sundanese', 'swa': 'Swahili',
     'swe': 'Swedish', 'syr': 'Syriac', 'tam': 'Tamil', 'tat': 'Tatar', 'tel': 'Telugu', 'tgk': 'Tajik',
+    'tgl': 'Tagalog', 'dan_frak': 'Danish (Fraktur)', 'deu_frak': 'German (Fraktur, legacy)', 'slk_frak': 'Slovak (Fraktur)',
     'tha': 'Thai', 'tir': 'Tigrinya', 'ton': 'Tongan', 'tur': 'Turkish', 'uig': 'Uyghur',
     'ukr': 'Ukrainian', 'urd': 'Urdu', 'uzb': 'Uzbek', 'uzb_cyrl': 'Uzbek (Cyrillic)',
     'vie': 'Vietnamese', 'yid': 'Yiddish', 'yor': 'Yoruba',
@@ -136,7 +153,11 @@ def warning(text):
 
 
 def repository_name(profile):
-    return 'tessdata_' + profile
+    return REPOSITORIES[profile]
+
+
+def builtin_path(profile, *names):
+    return os.path.join(BUILTIN_DIRECTORY, profile, *names)
 
 
 def repository_url(profile):
@@ -204,6 +225,21 @@ def compute_hashes(file_name):
             sha1.update(block)
             sha256.update(block)
     return size, sha1.hexdigest(), sha256.hexdigest()
+
+
+def has_lstm_component(file_name):
+    """Returns true, if the traineddata file contains a model of the LSTM engine."""
+    with open(file_name, 'rb') as file:
+        header = file.read(4)
+        if len(header) != 4:
+            return False
+        count = struct.unpack('<i', header)[0]
+        if count <= TESSDATA_LSTM_INDEX or count > 1024:
+            return False
+        offsets = file.read(8 * count)
+        if len(offsets) != 8 * count:
+            return False
+        return struct.unpack('<{}q'.format(count), offsets)[TESSDATA_LSTM_INDEX] >= 0
 
 
 def resolve_commit(profile, reference):
@@ -303,26 +339,28 @@ def create_builtin_model(model):
     }
 
 
-def synchronize_builtin_models(builtin_models, cached_files, update):
+def synchronize_builtin_models(profile, builtin_models, cached_files, update):
+    tessdata_directory = builtin_path(profile, 'tessdata')
+    relative_directory = 'ocr/tesseract/{}/tessdata'.format(profile)
     expected_files = set()
     for model in builtin_models:
         expected_files.add(model['fileName'])
-        file_name = os.path.join(TESSDATA_DIRECTORY, model['fileName'])
+        file_name = os.path.join(tessdata_directory, model['fileName'])
         is_valid = os.path.isfile(file_name) and compute_hashes(file_name)[2] == model['sha256']
         if is_valid:
             continue
         if update:
-            os.makedirs(TESSDATA_DIRECTORY, exist_ok=True)
+            os.makedirs(tessdata_directory, exist_ok=True)
             shutil.copyfile(cached_files[model['id']], file_name)
-            print('Built-in model {} updated.'.format(model['fileName']))
+            print('Built-in model {}/{} updated.'.format(relative_directory, model['fileName']))
         else:
             state = 'differs from the manifest' if os.path.isfile(file_name) else 'is missing'
-            warning('built-in model {} {}, run the script with --update-builtin.'.format(model['fileName'], state))
+            warning('built-in model {}/{} {}, run the script with --update-builtin.'.format(relative_directory, model['fileName'], state))
 
-    if os.path.isdir(TESSDATA_DIRECTORY):
-        for name in sorted(os.listdir(TESSDATA_DIRECTORY)):
+    if os.path.isdir(tessdata_directory):
+        for name in sorted(os.listdir(tessdata_directory)):
             if name.endswith(MODEL_SUFFIX) and name not in expected_files:
-                warning('{} in ocr/tesseract/fast/tessdata is not a built-in model, remove it.'.format(name))
+                warning('{}/{} is not a built-in model, remove it.'.format(relative_directory, name))
 
 
 def main():
@@ -330,37 +368,49 @@ def main():
     for profile in PROFILES:
         parser.add_argument('--{}-commit'.format(profile), metavar='REF',
                             help='commit, branch or tag of {} (default: commit of the present catalog)'.format(repository_name(profile)))
-    parser.add_argument('--builtin', metavar='LANGUAGES',
-                        help='comma separated built-in models (default: models of the present manifest)')
+    for profile in PROFILES:
+        parser.add_argument('--builtin-{}'.format(profile), metavar='LANGUAGES',
+                            help='comma separated built-in models of the profile {} (default: models of the present manifest)'.format(profile))
     parser.add_argument('--update-builtin', action='store_true',
-                        help='copy the built-in models into ocr/tesseract/fast/tessdata')
+                        help='copy the built-in models into ocr/tesseract/<profile>/tessdata')
     parser.add_argument('--cache-dir', metavar='DIRECTORY', default=os.path.join(tempfile.gettempdir(), 'pdf4qt-ocr-catalog'),
                         help='directory of the downloaded models (default: %(default)s)')
     arguments = parser.parse_args()
 
     old_catalog = read_json_file(CATALOG_FILE) or {}
-    old_manifest = read_json_file(MANIFEST_FILE) or {}
 
-    if arguments.builtin:
-        builtin_languages = [language.strip() for language in arguments.builtin.split(',') if language.strip()]
-    elif old_manifest.get('models'):
-        builtin_languages = [model['language'] for model in old_manifest['models']]
-    else:
-        builtin_languages = DEFAULT_BUILTIN_LANGUAGES
+    builtin_languages = {}
+    for profile in PROFILES:
+        argument = getattr(arguments, 'builtin_' + profile)
+        old_manifest = read_json_file(builtin_path(profile, 'manifest.json')) or {}
+        if argument is not None:
+            builtin_languages[profile] = [language.strip() for language in argument.split(',') if language.strip()]
+        elif old_manifest.get('models'):
+            builtin_languages[profile] = [model['language'] for model in old_manifest['models']]
+        else:
+            builtin_languages[profile] = DEFAULT_BUILTIN_LANGUAGES[profile]
 
     commits = {}
     trees = {}
     for profile in PROFILES:
         reference = getattr(arguments, profile + '_commit') or old_catalog.get('sources', {}).get(profile, {}).get('commit')
         if not reference:
-            raise GeneratorError('Commit of {} is not known, use --{}-commit.'.format(repository_name(profile), profile))
+            print('{}: commit is not in the catalog, {} is used.'.format(repository_name(profile), DEFAULT_COMMIT))
+            reference = DEFAULT_COMMIT
         commits[profile] = resolve_commit(profile, reference)
         trees[profile] = read_tree(profile, commits[profile])
         print('{}: commit {}'.format(repository_name(profile), commits[profile]))
 
     # Download and verification of the models
-    tasks = [(profile, item) for profile in PROFILES
-             for path, item in sorted(trees[profile].items()) if path.endswith(MODEL_SUFFIX)]
+    tasks = []
+    for profile in PROFILES:
+        for path, item in sorted(trees[profile].items()):
+            if not path.endswith(MODEL_SUFFIX):
+                continue
+            if item.get('mode') == GIT_SYMBOLIC_LINK_MODE:
+                print('{}/{} skipped, symbolic link'.format(repository_name(profile), path))
+                continue
+            tasks.append((profile, item))
     print('Verifying {} models in {}'.format(len(tasks), arguments.cache_dir))
 
     models = []
@@ -372,9 +422,13 @@ def main():
             file_name, sha256, is_downloaded = future.result()
             downloaded_count += 1 if is_downloaded else 0
             model = create_model(profile, commits[profile], item, sha256)
+            state = ' (downloaded)' if is_downloaded else ''
+            if model['family'] != 'osd' and not has_lstm_component(file_name):
+                print('[{}/{}] {}{} skipped, no LSTM model'.format(index + 1, len(tasks), model['id'], state))
+                continue
             models.append(model)
             cached_files[model['id']] = file_name
-            print('[{}/{}] {}'.format(index + 1, len(tasks), model['id']) + (' (downloaded)' if is_downloaded else ''))
+            print('[{}/{}] {}{}'.format(index + 1, len(tasks), model['id'], state))
 
     # Catalog
     catalog = {
@@ -390,45 +444,53 @@ def main():
     if catalog != old_catalog:
         catalog['generated'] = datetime.date.today().isoformat()
 
-    # Manifest of the built-in models
-    models_by_id = {model['id']: model for model in models}
-    builtin_models = []
-    for language in builtin_languages:
-        model = models_by_id.get('{}/{}/{}'.format(ENGINE, BUILTIN_PROFILE, language))
-        if model is None:
-            raise GeneratorError('Built-in model "{}" is not in {}.'.format(language, repository_name(BUILTIN_PROFILE)))
-        builtin_models.append(create_builtin_model(model))
-
-    manifest = {
-        'format': 'pdf4qt-ocr-builtin-manifest',
-        'version': 1,
-        'engine': ENGINE,
-        'profile': BUILTIN_PROFILE,
-        'setId': '{}-{}'.format(repository_name(BUILTIN_PROFILE), commits[BUILTIN_PROFILE][:12]),
-        'license': MODEL_LICENSE,
-        'licenseFile': 'LICENSE',
-        'models': builtin_models,
-    }
-
-    # License of the built-in models
-    license_item = trees[BUILTIN_PROFILE].get('LICENSE')
-    if license_item is None:
-        raise GeneratorError('File LICENSE is not in {}.'.format(repository_name(BUILTIN_PROFILE)))
-    license_file_name = fetch_file(BUILTIN_PROFILE, commits[BUILTIN_PROFILE], license_item, arguments.cache_dir)[0]
-    with open(license_file_name, 'r', encoding='utf-8') as file:
-        license_text = file.read()
-
     changed_files = []
     if write_json_file(CATALOG_FILE, catalog):
         changed_files.append(CATALOG_FILE)
-    if write_json_file(MANIFEST_FILE, manifest):
-        changed_files.append(MANIFEST_FILE)
-    if write_text_file(LICENSE_FILE, license_text):
-        changed_files.append(LICENSE_FILE)
 
-    synchronize_builtin_models(builtin_models, cached_files, arguments.update_builtin)
+    # Manifests and licenses of the built-in models
+    models_by_id = {model['id']: model for model in models}
+    builtin_count = 0
+    for profile in PROFILES:
+        if not builtin_languages[profile]:
+            if os.path.isfile(builtin_path(profile, 'manifest.json')):
+                warning('profile {} has no built-in model, remove ocr/tesseract/{}.'.format(profile, profile))
+            continue
 
-    print('{} models, {} downloaded, {} built-in.'.format(len(models), downloaded_count, len(builtin_models)))
+        builtin_models = []
+        for language in builtin_languages[profile]:
+            model = models_by_id.get('{}/{}/{}'.format(ENGINE, profile, language))
+            if model is None:
+                raise GeneratorError('Built-in model "{}" is not in {}.'.format(language, repository_name(profile)))
+            builtin_models.append(create_builtin_model(model))
+        builtin_count += len(builtin_models)
+
+        manifest = {
+            'format': 'pdf4qt-ocr-builtin-manifest',
+            'version': 1,
+            'engine': ENGINE,
+            'profile': profile,
+            'setId': 'tessdata_{}-{}'.format(profile, commits[profile][:12]),
+            'license': MODEL_LICENSE,
+            'licenseFile': 'LICENSE',
+            'models': builtin_models,
+        }
+
+        license_item = trees[profile].get('LICENSE')
+        if license_item is None:
+            raise GeneratorError('File LICENSE is not in {}.'.format(repository_name(profile)))
+        license_file_name = fetch_file(profile, commits[profile], license_item, arguments.cache_dir)[0]
+        with open(license_file_name, 'r', encoding='utf-8') as file:
+            license_text = file.read()
+
+        if write_json_file(builtin_path(profile, 'manifest.json'), manifest):
+            changed_files.append(builtin_path(profile, 'manifest.json'))
+        if write_text_file(builtin_path(profile, 'LICENSE'), license_text):
+            changed_files.append(builtin_path(profile, 'LICENSE'))
+
+        synchronize_builtin_models(profile, builtin_models, cached_files, arguments.update_builtin)
+
+    print('{} models, {} downloaded, {} built-in.'.format(len(models), downloaded_count, builtin_count))
     for file_name in changed_files:
         print('Changed: ' + os.path.relpath(file_name, REPOSITORY_ROOT))
     if not changed_files:

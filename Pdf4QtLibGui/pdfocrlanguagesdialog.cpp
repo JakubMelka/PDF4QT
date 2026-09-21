@@ -69,8 +69,10 @@ PDFOCRLanguagesDialog::PDFOCRLanguagesDialog(pdf::PDFOCRModelManager* manager, Q
     }
 
     ui->profileFilterComboBox->addItem(tr("All profiles"), -1);
-    ui->profileFilterComboBox->addItem(pdf::PDFOCRConfiguration::getProfileName(pdf::PDFOCRModelProfile::Fast), int(pdf::PDFOCRModelProfile::Fast));
-    ui->profileFilterComboBox->addItem(pdf::PDFOCRConfiguration::getProfileName(pdf::PDFOCRModelProfile::Best), int(pdf::PDFOCRModelProfile::Best));
+    for (const pdf::PDFOCRModelProfile profile : pdf::PDFOCRConfiguration::getProfiles())
+    {
+        ui->profileFilterComboBox->addItem(pdf::PDFOCRConfiguration::getProfileName(profile), int(profile));
+    }
 
     ui->stateFilterComboBox->addItem(tr("All states"), -1);
     ui->stateFilterComboBox->addItem(tr("Installed and built-in"), -2);
@@ -407,7 +409,11 @@ void PDFOCRLanguagesDialog::onImportClicked()
     }
 
     // The profile must be given explicitly (LANG-13)
-    const QStringList profiles = { pdf::PDFOCRConfiguration::getProfileName(pdf::PDFOCRModelProfile::Fast), pdf::PDFOCRConfiguration::getProfileName(pdf::PDFOCRModelProfile::Best) };
+    QStringList profiles;
+    for (const pdf::PDFOCRModelProfile profileItem : pdf::PDFOCRConfiguration::getProfiles())
+    {
+        profiles << pdf::PDFOCRConfiguration::getProfileName(profileItem);
+    }
     bool ok = false;
     const QString profileName = QInputDialog::getItem(this, tr("Import OCR Language Model"), tr("Profile, in which the model will be offered:"), profiles, 0, false, &ok);
     if (!ok)
@@ -415,7 +421,7 @@ void PDFOCRLanguagesDialog::onImportClicked()
         return;
     }
 
-    const pdf::PDFOCRModelProfile profile = profileName == profiles[1] ? pdf::PDFOCRModelProfile::Best : pdf::PDFOCRModelProfile::Fast;
+    const pdf::PDFOCRModelProfile profile = pdf::PDFOCRConfiguration::getProfiles()[size_t(qMax(0, int(profiles.indexOf(profileName))))];
 
     QString modelId;
     const pdf::PDFOCRError error = m_manager->importModel(fileName, QStringLiteral("tesseract"), profile, &modelId);

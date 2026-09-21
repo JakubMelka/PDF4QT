@@ -2601,6 +2601,38 @@ void OCRTest::modelManagerBuiltIn()
     QVERIFY(manager.isOrientationDataUsable(QStringLiteral("tesseract"), PDFOCRModelProfile::Fast));
     QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("fra"), PDFOCRModelProfile::Fast));
     QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("ces"), PDFOCRModelProfile::Best));
+    QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("ces"), PDFOCRModelProfile::Standard));
+
+    // English is built-in in every profile, the models of the profiles are different files
+    QStringList englishChecksums;
+    for (const PDFOCRModelProfile profile : PDFOCRConfiguration::getProfiles())
+    {
+        const QString profileId = PDFOCRConfiguration::getProfileIdentifier(profile);
+        if (!QFile::exists(builtInDirectory + QStringLiteral("/tesseract/%1/tessdata/eng.traineddata").arg(profileId)))
+        {
+            // Model files are not stored in the repository, see ocr/tools/generate_catalog.py
+            continue;
+        }
+
+        QVERIFY2(manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("eng"), profile), qPrintable(profileId));
+        QVERIFY(manager.isOrientationDataUsable(QStringLiteral("tesseract"), profile));
+        std::optional<PDFOCRModelInfo> english = manager.getModel(QStringLiteral("tesseract/%1/eng").arg(profileId));
+        QVERIFY(english.has_value());
+        QCOMPARE(english->origin, PDFOCRModelOrigin::BuiltIn);
+        QCOMPARE(english->profile, profile);
+        QVERIFY2(english->catalogVerified, qPrintable(profileId));
+
+        PDFOCRError resolveError;
+        const PDFOCRResolvedModelSet englishSet = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("eng") }, profile, &resolveError);
+        QVERIFY2(englishSet.isValid(), qPrintable(resolveError.message));
+        QCOMPARE(englishSet.profile, profile);
+        QVERIFY(!englishChecksums.contains(english->sha256));
+        englishChecksums << english->sha256;
+    }
+
+    QCOMPARE(PDFOCRConfiguration::parseProfileIdentifier(QStringLiteral("standard")), PDFOCRModelProfile::Standard);
+    QCOMPARE(PDFOCRConfiguration::parseProfileIdentifier(QStringLiteral("unknown")), PDFOCRModelProfile::Fast);
+    QCOMPARE(manager.getCatalog().getSetId(PDFOCRModelProfile::Standard).left(18), QStringLiteral("tessdata_standard-"));
     QCOMPARE(manager.getMissingModels(QStringLiteral("tesseract"), { QStringLiteral("ces"), QStringLiteral("fra") }, PDFOCRModelProfile::Fast), QStringList{ QStringLiteral("tesseract/fast/fra") });
 
     // Display text (LANG-03)
@@ -3015,6 +3047,39 @@ void OCRTest::tesseractRecognition()
     QVERIFY2(modified, qPrintable(report.error.message));
     PDFDocument reopened = read(write(*modified));
     QVERIFY(extractText(reopened, 0).contains(QStringLiteral("Hello")));
+
+    // Built-in English of the profiles Standard and Quality is recognized by the LSTM engine,
+    // the orientation data are taken from the built-in set of the profile Fast
+    for (const PDFOCRModelProfile profile : { PDFOCRModelProfile::Standard, PDFOCRModelProfile::Best })
+    {
+        const QString profileId = PDFOCRConfiguration::getProfileIdentifier(profile);
+        const QString profileTessdata = builtInDirectory + QStringLiteral("/tesseract/%1/tessdata").arg(profileId);
+        if (!QFile::exists(profileTessdata + QStringLiteral("/eng.traineddata")))
+        {
+            // Model files are not stored in the repository, see ocr/tools/generate_catalog.py
+            continue;
+        }
+
+        const PDFOCRError validation = factory->validateModel(profileTessdata, QStringLiteral("eng"));
+        QVERIFY2(!validation, qPrintable(validation.message));
+
+        PDFOCRJobDescription profileDescription = description;
+        profileDescription.configuration.profile = profile;
+        profileDescription.configuration.languages = { QStringLiteral("eng") };
+        profileDescription.models = manager.resolveModelSet(QStringLiteral("tesseract"), profileDescription.configuration.languages, profile, &error);
+        QVERIFY2(profileDescription.models.isValid(), qPrintable(error.message));
+        QVERIFY(profileDescription.models.hasOrientationData);
+        profileDescription.pages[0].configuration = profileDescription.configuration;
+
+        result.reset();
+        QVERIFY(controller.start(profileDescription, &generation));
+        QTRY_VERIFY_WITH_TIMEOUT(result.has_value(), 120000);
+        controller.waitForFinished();
+
+        QVERIFY2(result->state == PDFOCRPageState::Done, qPrintable(result->error.message));
+        QVERIFY2(result->getText().contains(QStringLiteral("Hello world 2026")), qPrintable(profileId + QChar(':') + result->getText()));
+        QVERIFY(result->provenance.modelIds.contains(QStringLiteral("tesseract/%1/eng").arg(profileId)));
+    }
 #endif
 }
 
