@@ -187,12 +187,33 @@ Cíl QA-02 je splněn pro oba jazyky. Korpus je malý a syntetický. Pro nekvali
 - Přírůstek odpovídá textu, fontu a metadatům. Na stránku připadá 318 slov, tedy asi 50 bajtů na slovo po kompresi.
 - Čísla platí pro tento stroj, model a korpus. Nejsou příslibem obecné rychlosti.
 
+### 7.4 Srovnání profilů
+
+Měřeno vestavěnou angličtinou na stejném stroji, 60 stran, 2 pracovní vlákna. Profil volí proměnná `PDF4QT_OCR_BENCHMARK_PROFILE`.
+
+| Veličina | Fast | Standard | Quality |
+| --- | --- | --- | --- |
+| Velikost modelu `eng` | 4,1 MB | 23,5 MB | 15,4 MB |
+| Propustnost | 106,7 stran/min | 78,6 stran/min | 50,2 stran/min |
+| Čas stránky p50 | 1111 ms | 1542 ms | 2434 ms |
+| Špička pracovní sady procesu | 350 MB | 332 MB | 349 MB |
+| CER a WER, čistý tisk 300 DPI | 0 % a 0 % | 0 % a 0 % | 0 % a 0 % |
+| CER a WER, sken převzorkovaný na 80 DPI | 0,31 % a 1,42 % | 0,08 % a 0,47 % | 0,08 % a 0,47 % |
+| CER a WER, 70 DPI | 0,39 % a 1,42 % | 0,71 % a 3,77 % | 0,63 % a 3,30 % |
+| CER a WER, 60 DPI | 1,41 % a 4,25 % | 1,25 % a 4,72 % | 1,10 % a 3,77 % |
+
+- Zhoršený sken vzniká převzorkováním stránky na dané rozlišení a zpět, přidáním šedého šumu se směrodatnou odchylkou 8 a snížením kontrastu. Zapíná ho `PDF4QT_OCR_BENCHMARK_DEGRADED_DPI`, šum mění `PDF4QT_OCR_BENCHMARK_DEGRADED_NOISE`.
+- Rozdíl v rychlosti je velký a stálý: *Standard* je asi o čtvrtinu a *Quality* asi o polovinu pomalejší než *Fast*.
+- Rozdíl v přesnosti je na tomto korpusu v řádu jednotlivých slov z 212 a nemá stálý směr. Při 70 DPI vyšel nejlépe profil *Fast*.
+- Při silném šumu, od směrodatné odchylky 20, selhávají všechny tři profily stejně, kolem 50 % CER. Selhává rozbor stránky, nikoli jazykový model, takže volba profilu nepomůže.
+- Korpus je malý a syntetický. Skutečné skeny, malá písma a jazyky s diakritikou mohou dopadnout jinak. Čeština v profilech *Standard* a *Quality* změřena není, protože není vestavěná.
+
 ## 8. Známé mezery a odchylky
 
 Skutečné mezery vůči P0:
 
 - **Ruční přejímka neproběhla.** Linux a macOS nebyly sestaveny ani vyzkoušeny. Hledání, označování a kopírování textu nebylo ověřeno v Acrobat Readeru, PDFiu ani Poppleru. Neověřeno je i ovládání klávesnicí, škálování displeje a české překlady nových textů.
-- **Profily *Standard* a *Quality* nebyly změřeny** (QA-04). Benchmark pracuje jen s profilem *Fast*. Test u obou profilů ověřuje jen to, že vestavěná angličtina rozpozná zkušební stránku.
+- **Profily *Standard* a *Quality* jsou změřeny jen pro angličtinu** (QA-04), viz kapitola 7.4. Ostatní jazyky v nich nejsou vestavěné a benchmark modely nestahuje.
 - **Profil *Standard* je nad rámec zadání.** Zadání zná jen profily Rychlý a Kvalitní. Modely repozitáře `tessdata` obsahují i data původního enginu, režimy OEM 0 a 2 ale zůstávají odmítnuté u všech profilů.
 - **Úpravy řádků.** Chybí spojení a rozdělení řádků a přesun řádku do jiného bloku (EDIT-02). Účaří a orientaci nelze v dialogu upravit a zapisovač účaří nepoužívá (EDIT-04).
 - **Oblasti.** Z dialogu nelze znovu rozpoznat jedinou oblast, i když session náhradu oblasti umí (REGION-03). Rotace oblasti se ignoruje a zapíše se do protokolu stránky (REGION-02).

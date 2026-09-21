@@ -68,6 +68,7 @@
 #include <QTemporaryDir>
 #include <QCryptographicHash>
 
+#include <random>
 #include <stdexcept>
 
 using namespace pdf;
@@ -3157,6 +3158,16 @@ void OCRTest::qualityAndPerformanceBenchmark()
     manager.setUserDirectory(userDirectory.path());
     manager.loadBundledCatalog();
 
+    // Profile of the models: fast (default), standard or best
+    const PDFOCRModelProfile profile = PDFOCRConfiguration::parseProfileIdentifier(qEnvironmentVariable("PDF4QT_OCR_BENCHMARK_PROFILE"));
+    QVERIFY2(manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("eng"), profile), "English model of the profile is not available.");
+
+    // Degraded scan: the page is resampled to the given resolution and back (blur), and a noise
+    // is added. The targets of the clean print (QA-02) are not evaluated for it.
+    const int degradedDpi = qEnvironmentVariableIntValue("PDF4QT_OCR_BENCHMARK_DEGRADED_DPI");
+    const bool isDegraded = degradedDpi > 0 && degradedDpi < 300;
+    const double degradedNoise = qEnvironmentVariableIsSet("PDF4QT_OCR_BENCHMARK_DEGRADED_NOISE") ? qBound(0, qEnvironmentVariableIntValue("PDF4QT_OCR_BENCHMARK_DEGRADED_NOISE"), 100) : 8.0;
+
     struct Corpus
     {
         QString name;
@@ -3202,7 +3213,12 @@ void OCRTest::qualityAndPerformanceBenchmark()
     const QSize imageSize(2480, 3508);
     QStringList report;
     report << QStringLiteral("OCR BENCHMARK");
-    report << QStringLiteral("Engine: Tesseract %1, profile fast, 300 DPI, clean print 11 pt (Times New Roman and Arial), A4").arg(PDFOCREngineRegistry::getInstance()->getFactory(QStringLiteral("tesseract"))->getVersion());
+    report << QStringLiteral("Engine: Tesseract %1, profile %2, 300 DPI, clean print 11 pt (Times New Roman and Arial), A4")
+              .arg(PDFOCREngineRegistry::getInstance()->getFactory(QStringLiteral("tesseract"))->getVersion(), PDFOCRConfiguration::getProfileIdentifier(profile));
+    if (isDegraded)
+    {
+        report << QStringLiteral("Degraded scan: resampled to %1 DPI and back, gray noise with the standard deviation %2, reduced contrast").arg(degradedDpi).arg(degradedNoise);
+    }
     report << QStringLiteral("Machine: %1, %2, %3 logical processors; Qt %4, %5 build")
               .arg(QSysInfo::prettyProductName(), QSysInfo::currentCpuArchitecture()).arg(QThread::idealThreadCount())
               .arg(QString::fromLatin1(qVersion()),
@@ -3231,6 +3247,29 @@ void OCRTest::qualityAndPerformanceBenchmark()
             y += 75;
         }
         painter.end();
+
+        if (isDegraded)
+        {
+            const QSize degradedSize = imageSize * (degradedDpi / 300.0);
+            image = image.scaled(degradedSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                         .scaled(imageSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                         .convertToFormat(QImage::Format_RGB888);
+            image.setDotsPerMeterX(qRound(300.0 / 0.0254));
+            image.setDotsPerMeterY(qRound(300.0 / 0.0254));
+
+            std::mt19937 generator(20260921);
+            std::normal_distribution<double> noise(0.0, qMax(degradedNoise, 0.001));
+            for (int row = 0; row < image.height(); ++row)
+            {
+                uchar* line = image.scanLine(row);
+                for (int column = 0; column < image.width(); ++column)
+                {
+                    const int value = qBound(0, int(line[3 * column] * 0.85 + 20.0 + noise(generator)), 255);
+                    line[3 * column] = line[3 * column + 1] = line[3 * column + 2] = uchar(value);
+                }
+            }
+        }
+
         return image;
     };
 
@@ -3238,7 +3277,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
     {
         RenderingContext context(&document);
         PDFOCRError error;
-        PDFOCRResolvedModelSet models = manager.resolveModelSet(QStringLiteral("tesseract"), languages, PDFOCRModelProfile::Fast, &error);
+        PDFOCRResolvedModelSet models = manager.resolveModelSet(QStringLiteral("tesseract"), languages, profile, &error);
         QVERIFY2(models.isValid(), qPrintable(error.message));
 
         PDFOCRJobController controller(nullptr);
@@ -3246,6 +3285,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
 
         PDFOCRJobDescription description;
         description.configuration.engineId = QStringLiteral("tesseract");
+        description.configuration.profile = profile;
         description.configuration.languages = languages;
         description.configuration.workerCount = workerCount;
         description.models = models;
@@ -3274,6 +3314,13 @@ void OCRTest::qualityAndPerformanceBenchmark()
     // Quality (QA-01, QA-02)
     for (const Corpus& corpus : corpora)
     {
+        if (!manager.getMissingModels(QStringLiteral("tesseract"), corpus.languages, profile).isEmpty())
+        {
+            // Only the built-in models are measured, the profiles standard and best have English only
+            report << QStringLiteral("%1: skipped, the models are not built-in in the profile").arg(corpus.name);
+            continue;
+        }
+
         size_t characterErrors = 0;
         size_t characterCount = 0;
         size_t wordErrors = 0;
@@ -3309,6 +3356,10 @@ void OCRTest::qualityAndPerformanceBenchmark()
         // QA-02: target of the clean print corpus, evaluated for each language set
         const double cer = 100.0 * characterErrors / characterCount;
         const double wer = 100.0 * wordErrors / wordCount;
+        if (isDegraded)
+        {
+            continue;
+        }
         QVERIFY2(cer <= 2.0, qPrintable(QStringLiteral("%1: CER %2 % is above the target 2 %").arg(corpus.name).arg(cer, 0, 'f', 2)));
         QVERIFY2(wer <= 5.0, qPrintable(QStringLiteral("%1: WER %2 % is above the target 5 %").arg(corpus.name).arg(wer, 0, 'f', 2)));
     }
@@ -3376,7 +3427,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         PDFDocument document = createImageDocument(createPageImage(corpora[1].lines + corpora[1].lines + corpora[1].lines, QStringLiteral("Arial")), pageSize);
         RenderingContext context(&document);
         PDFOCRError error;
-        PDFOCRResolvedModelSet models = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("eng") }, PDFOCRModelProfile::Fast, &error);
+        PDFOCRResolvedModelSet models = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("eng") }, profile, &error);
         PDFOCRJobController controller(nullptr);
         controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
         PDFOCRJobDescription description;
