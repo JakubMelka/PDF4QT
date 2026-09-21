@@ -117,6 +117,13 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRQuad
     static PDFOCRQuad fromRect(const QRectF& rect);
     static PDFOCRQuad fromPolygon(const QPolygonF& polygon);
 
+    /// Creates the smallest quad with the bottom edge running in given writing
+    /// direction, which contains all the quads. Orientation of the text is kept
+    /// (unlike the bounding rectangle, which is always axis aligned).
+    /// \param direction Writing direction (need not be normalized)
+    /// \param quads Quads to be united, invalid quads are ignored
+    static PDFOCRQuad fromOrientedBounds(const QPointF& direction, const std::vector<PDFOCRQuad>& quads);
+
     QRectF boundingRect() const;
     QPolygonF toPolygon() const;
     PDFOCRQuad transformed(const QTransform& transform) const;
@@ -536,7 +543,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCROrientation
     /// Confidence of the detection (engine specific, 0-100 normalized), or empty
     std::optional<double> confidence;
 
-    /// Deskew angle in degrees (counterclockwise), 0 if not available
+    /// Skew of the content in degrees, positive angle is clockwise in the image
+    /// (the sense of QTransform::rotate). The content is straightened by the
+    /// rotation by the opposite angle. 0 if not available.
     double deskewAngle = 0.0;
 
     /// Confidence of the deskew angle

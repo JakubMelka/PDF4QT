@@ -13781,7 +13781,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="499"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="177"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="180"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
@@ -16008,30 +16008,30 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrengine.cpp" line="48"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="468"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="489"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="309"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="323"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="388"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="552"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="573"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="390"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="403"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="468"/>
         <source>Orientation detection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrengine.cpp" line="174"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="154"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="215"/>
         <source>Configuration belongs to a different engine.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrengine.cpp" line="196"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="409"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="489"/>
         <source>Engine is not prepared.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrengine.cpp" line="210"/>
         <location filename="../Pdf4QtLibCore/sources/pdfocrengine.cpp" line="226"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="474"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="554"/>
         <source>Recognition was cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16163,61 +16163,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="872"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="911"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="400"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="894"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1166"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="484"/>
         <source>Page %1 does not exist.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="872"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="888"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="895"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="901"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="918"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="931"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="939"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="947"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="894"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="910"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="917"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="923"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="953"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="961"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="969"/>
         <source>Rasterization</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="888"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="910"/>
         <source>Page %1 is too large to be rasterized.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="895"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="917"/>
         <source>Page %1 has invalid size.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="901"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="923"/>
         <source>Raster of the page %1 (%2 x %3 pixels) exceeds the limit. Select a lower resolution or a smaller region.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="918"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="931"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1008"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="953"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1035"/>
         <source>Operation was cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="939"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="961"/>
         <source>Page %1 cannot be rendered: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="947"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="969"/>
         <source>Not enough memory for the raster of the page %1 (%2 x %3 pixels).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1008"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="493"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="505"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="992"/>
+        <source>Not enough memory for the image of the page %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1035"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1109"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="577"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="589"/>
         <source>Preprocessing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="1109"/>
+        <source>Not enough memory for the straightened image.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16258,663 +16269,706 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="396"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="397"/>
         <source>Page %1: word &apos;%2&apos; overlaps an excluded region and was not written.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="463"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="464"/>
         <source>Page %1: word &apos;%2&apos; has extreme horizontal scaling (%3 %).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="911"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="923"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="934"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1166"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1178"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1189"/>
         <source>Writing text layer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="922"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1177"/>
         <source>Result of the page %1 is invalid: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="934"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1189"/>
         <source>Page %1 has invalid dictionary.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="960"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1224"/>
+        <source>Page %1: no text to write, the existing OCR layer was removed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrtextlayerwriter.cpp" line="1230"/>
         <source>Page %1: no text to write.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="140"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="143"/>
         <source>Invalid model catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="165"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="192"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="168"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="195"/>
         <source>Built-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="167"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="170"/>
         <source>Installed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="169"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="172"/>
         <source>Available for download</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="171"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="174"/>
         <source>Update available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="173"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="176"/>
         <source>Downloading</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="175"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="178"/>
         <source>Verifying</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="179"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="182"/>
         <source>Incompatible</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="190"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="193"/>
         <source>Not installed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="197"/>
         <source>Downloaded</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="196"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="199"/>
         <source>Imported (origin not verified)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="787"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="898"/>
         <source>not installed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="790"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="901"/>
         <source>built-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="793"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="904"/>
         <source>downloaded</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="796"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="907"/>
         <source>imported</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="851"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="978"/>
         <source>OCR data directory &apos;%1&apos; is locked by another instance of the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="852"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="960"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="979"/>
         <source>Model management</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="901"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="959"/>
+        <source>OCR data directory &apos;%1&apos; is not writable. Check the permissions of the directory.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1028"/>
         <source>Model resolution</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="908"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1035"/>
         <source>No language selected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1067"/>
         <source>Language model &apos;%1&apos; is not installed for the profile &apos;%2&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="955"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1082"/>
         <source>Two different models with the language code &apos;%1&apos; cannot be used together.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1178"/>
         <source>Not enough free space in &apos;%1&apos; to prepare the model set (%2 MB required).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1054"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1194"/>
         <source>Cannot copy model &apos;%1&apos; into the runtime set directory &apos;%2&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1206"/>
+        <source>Model file &apos;%1&apos; is damaged, its checksum does not match. Reinstall the application or download the model again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1231"/>
         <source>Cannot write into the runtime set directory &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1247"/>
         <source>Cannot activate the runtime set directory &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1199"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1352"/>
         <source>Model &apos;%1&apos; is not in the catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1237"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1390"/>
         <source>Invalid or insecure download URL.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1238"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1391"/>
         <source>Invalid or insecure download URL &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1246"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1399"/>
         <source>Invalid target path.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1247"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1400"/>
         <source>Invalid target path of the model &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1255"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1408"/>
         <source>Not enough free space in &apos;%1&apos; for the model &apos;%2&apos; (%3 MB required).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1278"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1431"/>
         <source>Cannot create temporary file &apos;%1&apos; (%2).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1362"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1560"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1528"/>
+        <source>Downloaded data cannot be written into &apos;%1&apos;. Check the free space on the disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1535"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1733"/>
         <source>Download was cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1362"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1535"/>
         <source>Downloaded file is larger than declared in the catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1369"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1542"/>
         <source>Network error: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1372"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1545"/>
         <source>Network error (HTTP %1): %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1382"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1555"/>
         <source>Server returned a HTML page instead of the model file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1389"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1562"/>
         <source>Downloaded file has size %1 bytes, but %2 bytes were expected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1401"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1574"/>
         <source>Downloaded file is a HTML page, not a model file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1412"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1585"/>
         <source>Checksum of the downloaded file does not match the catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1457"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1630"/>
         <source>Model &apos;%1&apos; was installed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1497"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1670"/>
         <source>Cannot prepare the model for verification.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1497"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="767"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1670"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="847"/>
         <source>Model verification</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1527"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1700"/>
         <source>Cannot write the model into &apos;%1&apos;. Check the free space and the permissions of the directory.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1527"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1536"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1546"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1700"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1709"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1719"/>
         <source>Model installation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1536"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1709"/>
         <source>Cannot replace the existing model &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1546"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1719"/>
         <source>Cannot activate the model &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1619"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1792"/>
         <source>File &apos;%1&apos; does not exist.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1619"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1624"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1630"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1653"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1671"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1792"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1797"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1803"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1826"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1844"/>
         <source>Model import</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1624"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1797"/>
         <source>File &apos;%1&apos; is not a Tesseract model (.traineddata).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1803"/>
         <source>Invalid language code &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1826"/>
         <source>Cannot copy the model into &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1834"/>
         <source>%1 (imported)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1671"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1844"/>
         <source>Cannot write into &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1865"/>
         <source>Model &apos;%1&apos; was not found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1692"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1697"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1702"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1708"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1724"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1731"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1865"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1870"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1875"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1881"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1897"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1904"/>
         <source>Model removal</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1697"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1870"/>
         <source>Built-in model &apos;%1&apos; cannot be removed. It can be hidden in the language selection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1702"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1875"/>
         <source>Model &apos;%1&apos; is being downloaded.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1708"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1881"/>
         <source>Model &apos;%1&apos; is not a user model.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1724"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1731"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1897"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1904"/>
         <source>Cannot remove the model &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1752"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1925"/>
         <source>Cannot remove the runtime directory &apos;%1&apos;. A model set may be in use.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1752"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="1925"/>
         <source>Cache cleanup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="201"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="216"/>
         <source>OCR engine &apos;%1&apos; is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="202"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="386"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="210"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="292"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="217"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="229"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="233"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="237"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="470"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="289"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="298"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="322"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="373"/>
         <source>Initialization</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="258"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="381"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="304"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="465"/>
         <source>Recognition was stopped.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="258"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="391"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="304"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="475"/>
         <source>Scheduling</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="386"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="470"/>
         <source>OCR engine is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="395"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="400"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="409"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="459"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrpagepreparer.cpp" line="992"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="479"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="484"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="493"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="543"/>
         <source>Rendering</source>
         <translation type="unfinished">Отрисовка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="445"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="529"/>
         <source>Blank page detection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="451"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="535"/>
         <source>Page appears to be blank (ink ratio %1 %). Blank page detection can be disabled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="505"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="589"/>
         <source>Transformation of the page raster is not invertible.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="517"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="601"/>
         <source>No region to recognize.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="523"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="534"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="601"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="614"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="629"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="635"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="659"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="409"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="415"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="430"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="474"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="481"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="488"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="350"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="607"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="637"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="704"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="717"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="732"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="738"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="756"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="489"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="495"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="510"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="554"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="561"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="568"/>
         <source>Recognition</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="202"/>
+        <source>OCR engine failed unexpectedly.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="716"/>
         <source>Engine returned coordinates of a different image (%1 x %2 instead of %3 x %4).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="629"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="732"/>
         <source>Engine returned invalid geometry.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="635"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="738"/>
         <source>Engine returned too long text.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="665"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrjobcontroller.cpp" line="762"/>
         <source>No text was found on the page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="368"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="432"/>
         <source>Add region</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="395"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="459"/>
         <source>Change region</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="410"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="474"/>
         <source>Remove region</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="422"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="486"/>
         <source>Create regions from blocks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="474"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="538"/>
         <source>Change text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="498"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="562"/>
         <source>Change geometry</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="528"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="592"/>
         <source>Confirm word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="531"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="595"/>
         <source>Mark as not text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="534"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="598"/>
         <source>Mark as unreviewed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="537"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="601"/>
         <source>Mark as modified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="558"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="622"/>
         <source>Restore original recognition</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="578"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="648"/>
         <source>Confirm all words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="607"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="677"/>
         <source>Merge words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="746"/>
         <source>Split word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="751"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="852"/>
         <source>Insert word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="821"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="922"/>
         <source>Insert line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="907"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1008"/>
         <source>Remove word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1041"/>
         <source>Remove line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="961"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1062"/>
         <source>Change line text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1197"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1319"/>
         <source>Change block order</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1227"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1349"/>
         <source>Change line order</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1253"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1375"/>
         <source>Change baseline</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1296"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1425"/>
         <source>Apply repeated recognition</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1331"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1495"/>
         <source>Recognize line again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1361"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1525"/>
         <source>Recognize word again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1475"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1657"/>
         <source>Replace all</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="154"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="159"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="166"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="175"/>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="180"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="215"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="220"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="227"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="236"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="241"/>
         <source>Configuration</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="159"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="220"/>
         <source>No language model is available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="166"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="227"/>
         <source>Language model &apos;%1&apos; is not part of the resolved model set.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="174"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="235"/>
         <source>Engine mode %1 (legacy) is not supported by the LSTM models of the profile &apos;%2&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="180"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="241"/>
         <source>Layout &apos;segmentation only&apos; does not recognize any text.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="209"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="288"/>
+        <source>User words cannot be written into the working directory &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="297"/>
+        <source>User words cannot be used, the path &apos;%1&apos; cannot be passed to the engine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="321"/>
         <source>Tesseract cannot be initialized with the languages &apos;%1&apos; from &apos;%2&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="291"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="372"/>
         <source>Parameters &apos;%1&apos; were not accepted by the engine.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="309"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="390"/>
         <source>Orientation data (osd) are not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="323"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="403"/>
         <source>Orientation detection cannot be initialized.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="388"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="468"/>
         <source>Orientation was not detected (not enough text).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="415"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="495"/>
         <source>Input image is empty.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="430"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="510"/>
         <source>Cannot convert the input image.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="481"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="561"/>
         <source>Recognition exceeded the time limit of %1 s.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="488"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="568"/>
         <source>Tesseract recognition failed (code %1).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="766"/>
+        <location filename="../Pdf4QtOcrTesseract/pdftesseractocrengine.cpp" line="846"/>
         <source>Model &apos;%1&apos; cannot be loaded by Tesseract %2.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -20901,251 +20955,251 @@ The creation tool stays active after an element has been created and the size of
 <context>
     <name>pdfviewer::PDFOCRDocumentDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="244"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="298"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="253"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="313"/>
         <source>Original page</source>
         <translation type="unfinished">Исходная страница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="245"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="299"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="254"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="314"/>
         <source>Working image</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="288"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="303"/>
         <source>%1 %</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="300"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="315"/>
         <source>Side by side</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="302"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="317"/>
         <source>Pages without text (heuristic)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="303"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="318"/>
         <source>Pages with own OCR layer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="304"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="319"/>
         <source>Pages with errors</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="305"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="320"/>
         <source>Pages waiting for review</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="307"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="322"/>
         <source>All pages of the range</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="308"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="323"/>
         <source>Odd pages only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="309"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="324"/>
         <source>Even pages only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="316"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="331"/>
         <source>%1 %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="320"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="335"/>
         <source>Fast (built-in models)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="321"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="336"/>
         <source>Quality (larger models, download needed)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="323"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="338"/>
         <source>Only pages without text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="324"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="339"/>
         <source>Add text in the drawn regions</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="325"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="340"/>
         <source>Replace OCR created by PDF4QT</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="326"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="341"/>
         <source>Recognize for review/export only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="330"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="345"/>
         <source>%1 DPI</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="332"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="347"/>
         <source>Custom</source>
         <translation type="unfinished">Пользовательский</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="338"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1117"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3208"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3210"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="353"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1184"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3353"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3355"/>
         <source>Common settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="340"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="355"/>
         <source>No rotation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="341"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="356"/>
         <source>90 degrees clockwise</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="342"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="357"/>
         <source>180 degrees</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="343"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="358"/>
         <source>270 degrees clockwise</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="346"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="361"/>
         <source>Automatic (engine)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="347"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="362"/>
         <source>Otsu (PDF4QT)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="348"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="363"/>
         <source>Adaptive Otsu (engine)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="349"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="364"/>
         <source>Sauvola (engine)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="351"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="366"/>
         <source>Add/update invisible text in the current document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="352"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="367"/>
         <source>Create a copy of the document with OCR</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="353"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="368"/>
         <source>Only export the recognized text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="355"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="370"/>
         <source>Readable page label</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="356"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="371"/>
         <source>Form feed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="357"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="372"/>
         <source>None</source>
         <translation type="unfinished">Нет</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="359"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="374"/>
         <source>1 - LSTM neural network</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="360"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="375"/>
         <source>3 - Default of the available models</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="362"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="377"/>
         <source>All words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="363"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="378"/>
         <source>Words requiring review</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="364"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="379"/>
         <source>Words below the confidence threshold</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="365"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="380"/>
         <source>Words with unknown confidence</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="366"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="381"/>
         <source>Corrected words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="367"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="382"/>
         <source>Confirmed words</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="368"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2609"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="383"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2734"/>
         <source>Not text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="370"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3858"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="385"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4034"/>
         <source>Current page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="371"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3858"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="386"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4034"/>
         <source>Checked pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="372"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3858"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="387"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4034"/>
         <source>All results</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="489"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="505"/>
         <source>%n region(s) created from the detected blocks. They can be moved, resized, renamed and removed.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21154,42 +21208,42 @@ The creation tool stays active after an element has been created and the size of
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="490"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="506"/>
         <source>No block without a region was found on the page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="601"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="617"/>
         <source>Place the cursor inside the text of the word, where it should be split.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="933"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1000"/>
         <source>Original</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="937"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1004"/>
         <source>Page cannot be displayed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="942"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1009"/>
         <source>Working image, %1 x %2 pixels</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="945"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1012"/>
         <source> (orientation is detected during the recognition)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="951"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1018"/>
         <source>Working image cannot be created.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1074"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1141"/>
         <source>The following language models are not installed for the profile &apos;%1&apos;:
 
 %2
@@ -21198,48 +21252,48 @@ Do you want to open the language manager to download them?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1129"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1196"/>
         <source>%1 - %2</source>
         <translation type="unfinished">%1 – %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1165"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1232"/>
         <source>Languages are determined by the engine</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1169"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1236"/>
         <source>The selected engine does not use the language models managed by the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1210"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1277"/>
         <source>Not installed for this profile: %1. The languages are not replaced by another model; download them in the language manager.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1214"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1281"/>
         <source>No language model is installed for this profile.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1251"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1318"/>
         <source>Current page: %1 x %2 pixels (%3 MP), about %4 MB of memory.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1254"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1321"/>
         <source>The page is too large for %1 DPI; %2 DPI would be used. Select a lower resolution or recognize smaller regions.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1297"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1364"/>
         <source>Checked pages: %1 to recognize, %2 to skip, %3 to decide manually.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1300"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1599"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1367"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1666"/>
         <source>%n page(s) are not analyzed yet.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21248,44 +21302,44 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1304"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1371"/>
         <source>Results of this mode are never written into the PDF.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1330"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1397"/>
         <source>Save Profile</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1330"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1397"/>
         <source>Name of the profile:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1371"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1438"/>
         <source>The profile &apos;%1&apos; belongs to the engine &apos;%2&apos;, which is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1381"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1448"/>
         <source>The profile requires language models, which are not installed:
 
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1389"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1456"/>
         <source>Do you want to delete the profile &apos;%1&apos;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1533"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1600"/>
         <source>Selected page range is empty.</source>
         <translation type="unfinished">Выбранный диапазон страниц пуст.</translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1593"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1660"/>
         <source>%n page(s) selected.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21294,112 +21348,112 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1596"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1663"/>
         <source>The selection is based on a heuristic analysis of the pages; check it and change it manually, if needed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1610"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1677"/>
         <source>Waiting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1612"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1679"/>
         <source>Preparing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1614"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1681"/>
         <source>Recognizing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1616"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1683"/>
         <source>Done</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1618"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1685"/>
         <source>No text found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1620"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1687"/>
         <source>Skipped</source>
         <translation type="unfinished">Пропущено</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1622"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1689"/>
         <source>Error</source>
         <translation type="unfinished">Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1624"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1691"/>
         <source>Cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1626"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1693"/>
         <source>Outdated</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1636"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1703"/>
         <source>not analyzed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1638"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1705"/>
         <source>image page without text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1640"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1707"/>
         <source>page with visible text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1642"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1709"/>
         <source>page with invisible text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1644"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1711"/>
         <source>mixed page (text and images)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1646"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1713"/>
         <source>empty page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1648"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1715"/>
         <source>ambiguous content</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1664"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1731"/>
         <source>Page %1</source>
         <translation type="unfinished">Страница %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1667"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1734"/>
         <source> (label %1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1680"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1747"/>
         <source>, own OCR layer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1682"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1749"/>
         <source>Content: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1693"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1760"/>
         <source>: %n word(s)</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21408,7 +21462,7 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1696"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1763"/>
         <source>, %n to review</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21417,47 +21471,47 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1700"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1767"/>
         <source>, corrected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1707"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1774"/>
         <source>Error [%1] in step &apos;%2&apos;: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1721"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1788"/>
         <source>Recognized in %1 s at %2 DPI (requested %3 DPI), image %4 x %5 pixels.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1724"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1791"/>
         <source>Engine: %1 %2; models: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1725"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1792"/>
         <source>Pipeline: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1728"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1795"/>
         <source>Detected orientation: rotation %1 degrees, confidence indicator %2/100.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1735"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1802"/>
         <source>Different settings *</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1739"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1806"/>
         <source>Review/export only</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1743"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1810"/>
         <source>%n region(s)</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21466,12 +21520,12 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1759"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1826"/>
         <source>No page is checked.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1770"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1837"/>
         <source>%n page(s) checked: %1. Work estimate: %2 megapixels at %3 DPI.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21480,141 +21534,141 @@ Do you want to open the language manager to download them?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1798"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1799"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1865"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1866"/>
         <source>Loading...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1813"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1880"/>
         <source>Content: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1820"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1887"/>
         <source>Error in step &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1828"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1895"/>
         <source>No text was found, although the page is not empty. Try a different resolution, language or layout, or disable the blank page detection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1832"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1899"/>
         <source>Recognized at %1 DPI in %2 s.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1852"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1919"/>
         <source>Stopping...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1874"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1941"/>
         <source>OCR engine is not available. %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1879"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1946"/>
         <source>Recognition cannot be started:
 
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1928"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1995"/>
         <source>%1
 
 Do you want to open the language manager?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1972"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2039"/>
         <source>Page %1: overlapping regions with different settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="1996"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2063"/>
         <source>Recognition cannot be started. Resolve the overlapping regions first:
 
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2008"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2075"/>
         <source>Pages to recognize: %1
 Pages to skip because of the existing text: %2
 Pages requiring your decision: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2013"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2080"/>
         <source>Page %1: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2017"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2084"/>
         <source>Pages requiring decision: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2020"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2087"/>
         <source>Skipped pages are not recognized. Use the mode &apos;Recognize for review/export only&apos; to recognize them without writing into the PDF.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2021"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2088"/>
         <source>Pages requiring a decision contain both text and images, or their content is ambiguous. They can be recognized for review and export only; their results will not be written into the PDF. To add text to such pages, draw the regions and use the mode &apos;Add text in the drawn regions&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2022"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2089"/>
         <source>Continue</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2023"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2090"/>
         <source>Recognize Them for Review Only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2043"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2110"/>
         <source>Page requires a manual decision (existing text).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2082"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2149"/>
         <source>Pages %1 contain manual corrections.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2083"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2150"/>
         <source>The repeated recognition does not overwrite the corrections automatically. You can keep the current results of these pages, or compare the new recognition with the current text after it finishes and decide for every page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2084"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2151"/>
         <source>Keep Corrections (Skip Pages)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2085"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2152"/>
         <source>Recognize and Compare</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2117"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2184"/>
         <source>Existing text policy</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2229"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2313"/>
         <source>Recognition cannot be started.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2235"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2319"/>
         <source>Recognition started (%n page(s)).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21623,68 +21677,77 @@ Pages requiring your decision: %3</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2253"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2337"/>
         <source>Page %1: %2 (%3 of %4 finished)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2263"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2347"/>
         <source>Page %1: recognition %2 % (%3 of %4 finished)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2264"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2348"/>
         <source>Page %1: recognition (%2 of %3 finished)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2271"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2355"/>
         <source>, estimated remaining time %1 s</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2322"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2421"/>
         <source>Finished in %1 s: %2 recognized, %3 without text, %4 errors, %5 cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2326"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2425"/>
         <source>Stopped. </source>
         <translation type="unfinished"></translation>
     </message>
+    <message numerus="yes">
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2429"/>
+        <source>Previous results of %n page(s) were kept.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2353"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2462"/>
         <source>Recognition failed in step &apos;%1&apos;:
 
 %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2357"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2466"/>
         <source>%1
 
 The results are partial. Do you want to check only the pages with errors, so they can be recognized again with the same or changed settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2379"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2488"/>
         <source>Page %1: repeated recognition failed, the previous result is kept.
 
 %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2388"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2497"/>
         <source>Page %1 was recognized again. The current result contains manual corrections.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2389"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2498"/>
         <source>Do you want to replace the current result by the new recognition? The replacement can be undone.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2390"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2499"/>
         <source>CURRENT TEXT:
 %1
 
@@ -21693,22 +21756,22 @@ NEW RECOGNITION:
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2391"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2500"/>
         <source>Replace</source>
         <translation type="unfinished">Заменить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2392"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2501"/>
         <source>Keep Current</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2411"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2520"/>
         <source>No text was found in the selected area. The previous result is kept.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2426"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2535"/>
         <source>Current text:
 %1
 
@@ -21719,77 +21782,77 @@ Do you want to replace the current text?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2454"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2563"/>
         <source>Select a word or a line first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2458"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2567"/>
         <source>What should be recognized again?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2459"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2568"/>
         <source>Whole Line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2460"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2569"/>
         <source>Selected Word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2538"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2663"/>
         <source>Block %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2541"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2666"/>
         <source> (region %1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2586"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2711"/>
         <source>n/a</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2592"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2717"/>
         <source> (line)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2600"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2725"/>
         <source>To review</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2600"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2725"/>
         <source>Unreviewed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2603"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2728"/>
         <source>Confirmed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2606"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2731"/>
         <source>Corrected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2614"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2739"/>
         <source>, in excluded region</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2618"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2743"/>
         <source>, extreme scaling</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2697"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2822"/>
         <source>%n word(s)</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21798,42 +21861,42 @@ Do you want to replace the current text?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2701"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2826"/>
         <source>%1 below the threshold %2 (%3 % of %4 words with a score)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2703"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2828"/>
         <source>line scores</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2703"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2828"/>
         <source>word scores</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2704"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2829"/>
         <source>arithmetic mean of the original %1: %2/100</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2831"/>
         <source>unknown confidence: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2707"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2832"/>
         <source>manually added: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2708"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2833"/>
         <source>to review: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2709"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2834"/>
         <source>%n line(s) in %1 block(s)</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21842,138 +21905,138 @@ Do you want to replace the current text?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2712"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2837"/>
         <source>High scores do not prove that the transcript of the page is complete; check the areas without any detected text in the page view.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2729"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2854"/>
         <source>(inserted manually)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2735"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2860"/>
         <source>Confidence is not available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2743"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2868"/>
         <source>Manually corrected; original confidence %1/100</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2747"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2872"/>
         <source>%1/100 (score of the whole line, not of the word)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2747"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2872"/>
         <source>%1/100 (engine score, not a probability of correctness)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2756"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2881"/>
         <source>Not reviewed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2759"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2884"/>
         <source>Confirmed by the user</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2762"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2887"/>
         <source>Corrected by the user</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2765"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2890"/>
         <source>Not text (will not be written)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2770"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2895"/>
         <source>, %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2774"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2899"/>
         <source>unknown language</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2777"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2902"/>
         <source>; %1 %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2785"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2910"/>
         <source>geometry from the engine</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2788"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2913"/>
         <source>estimated geometry (check the box)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2791"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2916"/>
         <source>geometry edited manually</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2794"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2919"/>
         <source>geometry read from the document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2797"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2922"/>
         <source>geometry of digital text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2801"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2926"/>
         <source>whole page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2810"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2935"/>
         <source>region %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2815"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2940"/>
         <source>%1; %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2958"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3083"/>
         <source>Do you want to delete the whole line?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="2993"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3118"/>
         <source>No other word requires a review. Note that a complete review also includes the areas, where no text was detected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3037"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3087"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3162"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3219"/>
         <source>Text &apos;%1&apos; was not found in the OCR results.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3101"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3239"/>
         <source>Page %1: %2 -&gt; %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3106"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3244"/>
         <source>... and %1 more</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3109"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3247"/>
         <source>%n occurrence(s) of &apos;%1&apos; will be replaced by &apos;%2&apos; on %3 page(s).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21982,12 +22045,12 @@ Do you want to replace the current text?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3111"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3249"/>
         <source>The replacement changes only the invisible text, not the scanned image. The whole replacement can be undone in a single step.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3119"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3257"/>
         <source>%n occurrence(s) replaced.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -21996,77 +22059,82 @@ Do you want to replace the current text?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3154"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3270"/>
+        <source>Page %1 is being recognized, it can be changed after the recognition finishes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3299"/>
         <source>Add Text Line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3154"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3299"/>
         <source>Text of the line:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3196"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3341"/>
         <source>Region</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3201"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3346"/>
         <source>Recognize text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3202"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3347"/>
         <source>Leave out</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3217"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3362"/>
         <source>&amp;Name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3218"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3363"/>
         <source>&amp;Type:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3219"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3364"/>
         <source>Reading &amp;order:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3220"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3365"/>
         <source>&amp;Languages (for example ces+eng):</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3221"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3366"/>
         <source>&amp;Page layout:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3296"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3441"/>
         <source>Select the word, after which the new word should be inserted. To add a text to an area without any result, use &apos;Add Text Line&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3301"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3446"/>
         <source>Insert Word</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3301"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3446"/>
         <source>Text of the missing word:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3311"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3456"/>
         <source>The geometry of the inserted word is estimated. Use &apos;Edit Box&apos; to place it exactly.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3333"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3478"/>
         <source>Do you want to confirm %n word(s) of the page %1 as reviewed? The confidence scores are not changed.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22075,221 +22143,227 @@ Do you want to replace the current text?</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3350"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3495"/>
         <source>Copy Text of the Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3351"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3496"/>
         <source>Copy Text of the Selected Item</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3353"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3498"/>
         <source>Recognize Again...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3354"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3499"/>
         <source>Confirm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3355"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3500"/>
         <source>Not Text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3356"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3501"/>
         <source>Restore Original Recognition</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3407"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3552"/>
         <source>The output mode is &apos;Only export the recognized text&apos;. Use the button &apos;Export...&apos;, or change the output mode on the tab &apos;Output&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3415"/>
-        <source>The permissions of the document do not allow its modification. The recognized text can be exported or written into a copy, if it is permitted.</source>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3559"/>
+        <source>The permissions of the document do not allow its modification, so the text layer cannot be written into the document nor into its copy. The recognized text can be exported, if the permissions allow copying of the content.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3422"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3569"/>
         <source>The document declares the conformance with %1. The conformance of the result cannot be validated, so the text layer cannot be written into this document. Use the output mode &apos;Create a copy of the document with OCR&apos;; the copy will be an ordinary PDF without the unverified conformance declaration.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3452"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3599"/>
         <source>Page %1: recognized for review/export only.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3458"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3607"/>
         <source>Page %1: no text to write.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3469"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3618"/>
         <source>Page %1: the page content differs from the content, which was recognized.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3475"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3624"/>
         <source>Page %1: the result has invalid geometry.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3498"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3646"/>
         <source>There is no result, which can be written into the PDF.
 
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3507"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3655"/>
         <source>Create a Copy of the Document with OCR</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3507"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3655"/>
         <source>Portable Document (*.pdf)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3514"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3662"/>
         <source>The copy cannot overwrite the opened document.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3527"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3675"/>
         <source>Target: copy of the document, %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3527"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3675"/>
         <source>Target: current document (saved later by the standard Save command)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3528"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3676"/>
         <source>Pages: %1%2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3528"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3676"/>
         <source> (all pages with a result, because no checked page has a result)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3529"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3677"/>
         <source>Own OCR layers to be replaced: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3530"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3678"/>
         <source>Words requiring review: %1, unreviewed words: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3535"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3683"/>
         <source>Only reviewed words will be written: the text layer will be INCOMPLETE.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3539"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3687"/>
         <source>Uncertain words are written as well; the uncertainty is an information for the review, not a filter of the text.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3544"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3692"/>
         <source>The document is signed. Writing the text layer changes the content of the document; the state of the signatures or of the certification may stop to be valid, depending on the signature type and on the way of saving. Consider creating a copy.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3548"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3696"/>
         <source>The document is tagged. The existing structure tree is preserved and the text layer is written as an artifact; the result is not a complete accessible (PDF/UA) document.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3552"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3700"/>
         <source>The copy will be an ordinary PDF: the unverified declaration of conformance (%1) is removed from its metadata.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3554"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3702"/>
         <source>Correcting or deleting the text of the layer is not a redaction of the scanned image.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3556"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3704"/>
         <source>Apply to PDF</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3560"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3708"/>
         <source>Pages, which are not written:
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3562"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3710"/>
         <source>Apply</source>
         <translation type="unfinished">Применить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3580"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3728"/>
         <source>Writing the text layer...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3626"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3774"/>
         <source>Validation of the text layer of the page %1 failed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3671"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4222"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3805"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3905"/>
+        <source>Unexpected error.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3831"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4397"/>
         <source>The permissions of the document do not allow its modification.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3688"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3848"/>
         <source>No checked page contains an OCR layer created by PDF4QT.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3692"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3852"/>
         <source>Do you want to remove the OCR text layer created by PDF4QT from the pages %1, including its private data? The original content and the text of other tools are not removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3695"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3855"/>
         <source>The document is signed; the change of the content may invalidate the state of the signatures.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3697"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3857"/>
         <source>Note: an incremental save can keep the previous revision of the document in the file. To remove sensitive content safely, use the redaction and a full save.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3699"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3859"/>
         <source>Remove OCR Layer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3707"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3867"/>
         <source>Removing the text layer...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3771"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3943"/>
         <source>The text layer was not written.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3773"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3945"/>
         <source>The text layer was not written, the document was not changed.
 
 %1
@@ -22298,22 +22372,27 @@ You can uncheck the failing pages and repeat the action.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3780"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3952"/>
         <source>Pages with an identical layer (not changed): %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3784"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3956"/>
         <source>Pages without text to write: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3789"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3960"/>
+        <source>Pages without text, whose obsolete OCR layer was removed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3965"/>
         <source>The copy with OCR was created.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3791"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3967"/>
         <source>The copy of the document with the text layer on %n page(s) was saved to:
 %1</source>
         <translation type="unfinished">
@@ -22323,29 +22402,29 @@ You can uncheck the failing pages and repeat the action.</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3800"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3976"/>
         <source>The document already contains this text layer, nothing was changed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3802"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3978"/>
         <source>The document already contains the identical text layer. Nothing was changed.
 
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3807"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3983"/>
         <source>The text layer was removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3807"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3983"/>
         <source>The text layer was written.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3809"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3985"/>
         <source>The OCR layer was removed from %n page(s).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22354,7 +22433,7 @@ You can uncheck the failing pages and repeat the action.</source>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3810"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3986"/>
         <source>The invisible text layer with %1 words was written on %n page(s).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22363,62 +22442,62 @@ You can uncheck the failing pages and repeat the action.</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3811"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3987"/>
         <source>The dialog will be closed and the document of the editor will be updated in a single undo step. The file on the disk is changed by the standard Save command.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3814"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3990"/>
         <source>The confidence scores and the history of the corrections are kept only in the OCR project. Do you want to save the project now?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3837"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4013"/>
         <source>The permissions of the document do not allow to copy its content, so the recognized text cannot be exported.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3844"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4020"/>
         <source>The document is encrypted. The created file will contain the recognized text in a readable, unencrypted form. Passwords and keys are not stored. Do you want to continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3853"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3860"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3911"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3917"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3926"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3938"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4029"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4036"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4087"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4093"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4102"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4114"/>
         <source>Export Text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3860"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4036"/>
         <source>Pages to export (the current corrected text in the reading order):</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3911"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4087"/>
         <source>The selected pages do not contain any result to export.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3917"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4093"/>
         <source>Text file, UTF-8 (*.txt)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3931"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4107"/>
         <source>Exported pages: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3934"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4110"/>
         <source>Pages without a result (missing in the export): %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3938"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4114"/>
         <source>The text of %n page(s) (%1 words) was exported.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22427,7 +22506,7 @@ You can uncheck the failing pages and repeat the action.</source>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3941"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4117"/>
         <source>%n page(s) have no result and are missing in the export.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22436,44 +22515,44 @@ You can uncheck the failing pages and repeat the action.</source>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3949"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3961"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3987"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4125"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4137"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4163"/>
         <source>Save OCR Project</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3961"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4014"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4137"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4190"/>
         <source>PDF4QT OCR project (*.%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="3993"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4169"/>
         <source>The project was saved. It contains the recognized and corrected texts including the original recognitions, not the PDF document or page images.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4009"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4014"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4024"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4045"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4070"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4185"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4190"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4200"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4221"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4246"/>
         <source>Open OCR Project</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4009"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4185"/>
         <source>The current results and corrections are not saved and will be replaced by the project. Do you want to continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4045"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4221"/>
         <source>The project does not fully match the opened document.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4046"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4222"/>
         <source>Matching pages: %1
 Pages with a different content: %2
 Pages missing in the document: %3
@@ -22482,29 +22561,29 @@ Pages with a different content can be loaded for review and export only; they ca
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4047"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4048"/>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4049"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4223"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4224"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4225"/>
         <source>none</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4050"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4226"/>
         <source>Load Matching Pages Only</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4051"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4227"/>
         <source>Load All for Review/Export</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4070"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4246"/>
         <source>The project was created with the engine &apos;%1&apos;, which is not available. The results can be reviewed and exported; a new recognition uses the settings of the available engine.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4099"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4274"/>
         <source>The project was loaded: %n page(s).</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22513,117 +22592,117 @@ Pages with a different content can be loaded for review and export only; they ca
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4141"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4316"/>
         <source>1. Set up</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4141"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4316"/>
         <source>2. Recognize</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4141"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4316"/>
         <source>3. Review and correct</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4141"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4316"/>
         <source>4. Apply to PDF / Export</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4166"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4341"/>
         <source>No OCR engine is available in this build, so a new recognition cannot be started. Saved OCR projects can be opened, reviewed, exported and applied, and the language models can be managed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4171"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4346"/>
         <source>Recognizing...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4171"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4346"/>
         <source>Recogni&amp;ze Checked</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4173"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4348"/>
         <source>A recognition is running. Changes of the settings apply to the next run only.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4173"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4348"/>
         <source>Recognize the checked pages. The document is not modified.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4175"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4350"/>
         <source>The running recognition uses the settings from its start. Changes apply to the next run.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4186"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4361"/>
         <source>Undo: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4186"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4361"/>
         <source>Undo the last correction</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4187"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4362"/>
         <source>Redo: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4187"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4362"/>
         <source>Redo the correction</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4226"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4401"/>
         <source>The document declares %1: only an export or an ordinary PDF copy without the declaration is possible.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4230"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4405"/>
         <source>The document is signed; writing into it may invalidate the state of the signatures.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4234"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4409"/>
         <source>The document is tagged; the text layer is written as an artifact and the structure tree is preserved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4254"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4429"/>
         <source>Stopping the recognition before closing...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4262"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4437"/>
         <source>The OCR results and corrections are not saved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4263"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4438"/>
         <source>Do you want to save them into an OCR project, so the work can continue later?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4264"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4439"/>
         <source>Save Project...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4265"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4440"/>
         <source>Discard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4266"/>
+        <location filename="../Pdf4QtLibGui/pdfocrdocumentdialog.cpp" line="4441"/>
         <source>Continue Working</source>
         <translation type="unfinished"></translation>
     </message>
@@ -22631,77 +22710,77 @@ Pages with a different content can be loaded for review and export only; they ca
 <context>
     <name>pdfviewer::PDFOCRLanguagesDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="62"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="71"/>
         <source>All profiles</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="66"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="75"/>
         <source>All states</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="67"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="76"/>
         <source>Installed and built-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="96"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="105"/>
         <source>Built-in models are part of the application and work without an internet connection. Other models are downloaded from the official Tesseract repositories (tessdata_fast, tessdata_best) according to the catalog shipped with the application; every file is verified by its size and SHA-256 checksum. Documents and recognized text are never sent to any server. User models are stored in: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="115"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="124"/>
         <source>Manage OCR Languages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="115"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="124"/>
         <source>Downloads are in progress. Do you want to cancel them and close the dialog?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="131"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="140"/>
         <source>%1 MB</source>
         <translation type="unfinished">%1 МБ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="166"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="175"/>
         <source>%1 (not a document language)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="170"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="179"/>
         <source>%1 [hidden]</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="176"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="185"/>
         <source>%1 (%2 %)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="180"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="189"/>
         <source>%1 - %2</source>
         <translation type="unfinished">%1 – %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="294"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="303"/>
         <source>License: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="298"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="307"/>
         <source>File: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="302"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="311"/>
         <source>The origin of the imported model is not verified by the catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="312"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="321"/>
         <source>%n model(s) selected, %1</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22710,7 +22789,7 @@ Pages with a different content can be loaded for review and export only; they ca
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="343"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="352"/>
         <source>Downloading %n model(s)...</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -22719,7 +22798,7 @@ Pages with a different content can be loaded for review and export only; they ca
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="371"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="380"/>
         <source>The following models will be downloaded from the internet:
 
 %1
@@ -22731,41 +22810,41 @@ Do you want to continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="373"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="382"/>
         <source>Download OCR Languages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="394"/>
         <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="403"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="415"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="419"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="412"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="424"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="428"/>
         <source>Import OCR Language Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="394"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="403"/>
         <source>Tesseract models (*.traineddata)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="403"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="412"/>
         <source>Profile, in which the model will be offered:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="419"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="428"/>
         <source>The model was imported. Its origin is not verified by the catalog; it is offered as a separate language and never replaces a built-in model.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="440"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="450"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="449"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="459"/>
         <source>Remove User Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="440"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="449"/>
         <source>Do you want to remove the following user models?
 
 %1
@@ -22774,12 +22853,12 @@ If a built-in version of the language exists, it will be used again. OCR project
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="474"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="483"/>
         <source>%1: installed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="474"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="483"/>
         <source>%1: %2</source>
         <translation type="unfinished">%1: %2</translation>
     </message>

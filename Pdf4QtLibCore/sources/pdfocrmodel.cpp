@@ -153,6 +153,57 @@ qreal PDFOCRQuad::height() const
     return std::abs(QPointF::dotProduct(offset, normal));
 }
 
+PDFOCRQuad PDFOCRQuad::fromOrientedBounds(const QPointF& direction, const std::vector<PDFOCRQuad>& quads)
+{
+    const qreal length = std::hypot(direction.x(), direction.y());
+    const QPointF unitDirection = (std::isfinite(length) && !qFuzzyIsNull(length)) ? direction / length : QPointF(1.0, 0.0);
+    const QPointF unitNormal(-unitDirection.y(), unitDirection.x());
+
+    bool hasPoint = false;
+    qreal minU = 0.0;
+    qreal maxU = 0.0;
+    qreal minV = 0.0;
+    qreal maxV = 0.0;
+
+    for (const PDFOCRQuad& quad : quads)
+    {
+        if (!quad.isValid())
+        {
+            continue;
+        }
+
+        for (const QPointF& point : quad.points)
+        {
+            const qreal u = QPointF::dotProduct(point, unitDirection);
+            const qreal v = QPointF::dotProduct(point, unitNormal);
+
+            if (!hasPoint)
+            {
+                minU = maxU = u;
+                minV = maxV = v;
+                hasPoint = true;
+            }
+            else
+            {
+                minU = qMin(minU, u);
+                maxU = qMax(maxU, u);
+                minV = qMin(minV, v);
+                maxV = qMax(maxV, v);
+            }
+        }
+    }
+
+    PDFOCRQuad result;
+    if (hasPoint)
+    {
+        result.points[0] = unitDirection * minU + unitNormal * minV;
+        result.points[1] = unitDirection * maxU + unitNormal * minV;
+        result.points[2] = unitDirection * maxU + unitNormal * maxV;
+        result.points[3] = unitDirection * minU + unitNormal * maxV;
+    }
+    return result;
+}
+
 QPointF PDFOCRQuad::direction() const
 {
     QLineF line(points[0], points[1]);
@@ -206,20 +257,41 @@ QString PDFOCRLine::getText() const
 
 void PDFOCRLine::updateGeometryFromWords()
 {
-    QPolygonF polygon;
-    for (const PDFOCRWord& word : words)
+    // Orientation of the line must be kept (rotated pages, rotated text): the
+    // writing direction is taken from the line, or from the first valid word.
+    std::vector<PDFOCRQuad> quads;
+    quads.reserve(words.size());
+    std::optional<QPointF> writingDirection;
+    if (quad.isValid())
     {
-        polygon = polygon.united(word.quad.toPolygon());
+        writingDirection = quad.direction();
     }
 
-    if (!polygon.isEmpty())
+    for (const PDFOCRWord& word : words)
     {
-        quad = PDFOCRQuad::fromRect(polygon.boundingRect());
+        if (word.quad.isValid())
+        {
+            quads.push_back(word.quad);
+            if (!writingDirection)
+            {
+                writingDirection = word.quad.direction();
+            }
+        }
+    }
+
+    const PDFOCRQuad united = PDFOCRQuad::fromOrientedBounds(writingDirection.value_or(QPointF(1.0, 0.0)), quads);
+    if (united.isValid())
+    {
+        quad = united;
     }
 
     if (!words.empty())
     {
-        baseline = QLineF(words.front().quad.points[0], words.back().quad.points[1]);
+        // Words are stored in the logical order, quads are oriented visually
+        const bool rightToLeft = direction == PDFOCRTextDirection::RightToLeft;
+        const PDFOCRWord& visuallyFirst = rightToLeft ? words.back() : words.front();
+        const PDFOCRWord& visuallyLast = rightToLeft ? words.front() : words.back();
+        baseline = QLineF(visuallyFirst.quad.points[0], visuallyLast.quad.points[1]);
     }
 }
 
@@ -235,15 +307,30 @@ QString PDFOCRBlock::getText() const
 
 void PDFOCRBlock::updateGeometryFromLines()
 {
-    QPolygonF polygon;
-    for (const PDFOCRLine& line : lines)
+    std::vector<PDFOCRQuad> quads;
+    quads.reserve(lines.size());
+    std::optional<QPointF> writingDirection;
+    if (quad.isValid())
     {
-        polygon = polygon.united(line.quad.toPolygon());
+        writingDirection = quad.direction();
     }
 
-    if (!polygon.isEmpty())
+    for (const PDFOCRLine& line : lines)
     {
-        quad = PDFOCRQuad::fromRect(polygon.boundingRect());
+        if (line.quad.isValid())
+        {
+            quads.push_back(line.quad);
+            if (!writingDirection)
+            {
+                writingDirection = line.quad.direction();
+            }
+        }
+    }
+
+    const PDFOCRQuad united = PDFOCRQuad::fromOrientedBounds(writingDirection.value_or(QPointF(1.0, 0.0)), quads);
+    if (united.isValid())
+    {
+        quad = united;
     }
 }
 

@@ -25,6 +25,7 @@
 #include "pdfcatalog.h"
 #include "pdfpage.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfexception.h"
 
 #include <QRunnable>
 #include <QDateTime>
@@ -85,7 +86,9 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
         job->queue.push_back(i);
     }
 
-    const int workerCount = qBound(1, job->description.configuration.workerCount, 64);
+    // Every worker owns an engine instance with loaded models (JOB-09), so no more
+    // workers than pages are started.
+    const int workerCount = qBound(1, qMin(job->description.configuration.workerCount, int(qMin<size_t>(job->description.pages.size(), 64))), 64);
     job->activeWorkers = workerCount;
 
     {
@@ -192,23 +195,66 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
 {
     const PDFOperationControl* operationControl = job->cancelToken.get();
 
-    std::unique_ptr<PDFOCREngine> engine = PDFOCREngineRegistry::getInstance()->createEngine(job->description.configuration.engineId);
-    PDFOCRError criticalError;
+    // Engine is a foreign code (OPS-05): an exception thrown by the engine must
+    // end as an error of the page or of the job, never as a terminated application.
+    auto createCrashError = [](const QString& details, const QString& step)
+    {
+        return PDFOCRError::create(PDFOCRErrorCode::WorkerCrashed, PDFTranslationContext::tr("OCR engine failed unexpectedly."), step, details);
+    };
 
-    if (!engine)
+    std::unique_ptr<PDFOCREngine> engine;
+
+    auto createEngine = [&]() -> PDFOCRError
     {
-        criticalError = PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
-                                            PDFTranslationContext::tr("OCR engine '%1' is not available.").arg(job->description.configuration.engineId),
-                                            PDFTranslationContext::tr("Initialization"));
-    }
-    else
-    {
-        criticalError = engine->validateConfiguration(job->description.configuration, job->description.models);
-        if (!criticalError)
+        try
         {
-            criticalError = engine->prepare(job->description.configuration, job->description.models);
+            engine = PDFOCREngineRegistry::getInstance()->createEngine(job->description.configuration.engineId);
+
+            if (!engine)
+            {
+                return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
+                                           PDFTranslationContext::tr("OCR engine '%1' is not available.").arg(job->description.configuration.engineId),
+                                           PDFTranslationContext::tr("Initialization"));
+            }
+
+            PDFOCRError error = engine->validateConfiguration(job->description.configuration, job->description.models);
+            if (!error)
+            {
+                error = engine->prepare(job->description.configuration, job->description.models);
+            }
+            return error;
         }
-    }
+        catch (const PDFException& exception)
+        {
+            return createCrashError(exception.getMessage(), PDFTranslationContext::tr("Initialization"));
+        }
+        catch (const std::exception& exception)
+        {
+            return createCrashError(QString::fromLocal8Bit(exception.what()), PDFTranslationContext::tr("Initialization"));
+        }
+        catch (...)
+        {
+            return createCrashError(QString(), PDFTranslationContext::tr("Initialization"));
+        }
+    };
+
+    auto destroyEngine = [&]()
+    {
+        try
+        {
+            if (engine)
+            {
+                engine->release();
+            }
+        }
+        catch (...)
+        {
+            // Engine is in an unknown state, nothing else can be done
+        }
+        engine.reset();
+    };
+
+    PDFOCRError criticalError = createEngine();
 
     if (criticalError)
     {
@@ -271,14 +317,52 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
         }
 
         const PDFOCRPageTask& task = job->description.pages[taskIndex];
-        PDFOCRPageResult result = processPage(*job, task, engine.get(), operationControl);
+        PDFOCRPageResult result;
+        std::optional<QString> crashDetails;
+
+        try
+        {
+            result = processPage(*job, task, engine.get(), operationControl);
+        }
+        catch (const PDFException& exception)
+        {
+            crashDetails = exception.getMessage();
+        }
+        catch (const std::exception& exception)
+        {
+            crashDetails = QString::fromLocal8Bit(exception.what());
+        }
+        catch (...)
+        {
+            crashDetails = QString();
+        }
+
+        if (crashDetails)
+        {
+            result = PDFOCRPageResult();
+            result.pageIndex = task.pageIndex;
+            result.pageLabel = task.pageLabel;
+            result.pageFingerprint = task.pageFingerprint;
+            result.analysis = task.analysis;
+            result.regions = task.regions;
+            result.generation = task.generation;
+            result.state = PDFOCRPageState::Error;
+            result.error = createCrashError(*crashDetails, PDFTranslationContext::tr("Recognition"));
+
+            // State of the engine instance is unknown after the exception, the
+            // remaining pages of this worker get a new instance.
+            destroyEngine();
+            const PDFOCRError engineError = createEngine();
+            if (engineError)
+            {
+                destroyEngine();
+            }
+        }
+
         finishPage(*job, std::move(result));
     }
 
-    if (engine)
-    {
-        engine->release();
-    }
+    destroyEngine();
 
     bool last = false;
     {
@@ -523,6 +607,25 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Recognizing), PDFTranslationContext::tr("Recognition"));
 
     PDFOCRConfiguration preparedConfiguration = job.description.configuration;
+
+    // Engine prepared for an exception of a page or region must be returned to the
+    // configuration of the job on every path (also on errors and cancellation),
+    // otherwise the next page would be silently recognized with wrong languages.
+    auto restoreGuard = qScopeGuard([&]()
+    {
+        if (preparedConfiguration.languages != job.description.configuration.languages || preparedConfiguration.layout != job.description.configuration.layout)
+        {
+            try
+            {
+                engine->prepare(job.description.configuration, job.description.models);
+            }
+            catch (...)
+            {
+                // Reported by the next page, which fails in the recognition
+            }
+        }
+    });
+
     size_t rectangleIndex = 0;
     for (const auto& item : rectangles)
     {
@@ -645,12 +748,6 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
 
         PDFOCRPagePreparer::appendOutput(result, output, result.geometry, regionId, excludedRectangles);
         ++rectangleIndex;
-    }
-
-    // Restore the prepared configuration for the next page
-    if (preparedConfiguration.languages != job.description.configuration.languages || preparedConfiguration.layout != job.description.configuration.layout)
-    {
-        engine->prepare(job.description.configuration, job.description.models);
     }
 
     const QStringList validationErrors = PDFOCRValidator::validate(result);

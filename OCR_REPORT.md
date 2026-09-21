@@ -1,0 +1,217 @@
+# OCR v PDF4QT Editoru: zpráva o implementaci
+
+Tato zpráva doplňuje zadání [OCR.md](OCR.md). Popisuje, co bylo implementováno, jaká technická rozhodnutí padla, jak se funkce ovládá, co je ověřeno testy, jaké jsou naměřené hodnoty kvality a výkonu a co zůstává otevřené. Identifikátory v závorkách odkazují na požadavky zadání.
+
+Stav k 21. 9. 2026: implementace P0 je hotová a automaticky otestovaná na Windows. **Ruční a meziplatformní přejímka podle kapitoly 16.4 zadání neproběhla**, takže definice hotového P0 z kapitoly 16.5 zatím splněna není. Otevřené body jsou vyjmenované v kapitole 8.
+
+## 1. Shrnutí
+
+- Editor má nový nástroj *Tools / Recognize Text (OCR)* a správu jazyků *Manage OCR Languages*. Prohlížeč (Viewer) akci rozpoznání nenabízí.
+- Prvním enginem je Tesseract 5 použitý přímo přes C++ API. Rozhraní enginu je obecné a obsahuje vestavěný testovací engine, takže další engine (PaddleOCR, P1) se přidá bez zásahu do dialogu, session a zapisovače.
+- Rozpoznání, korektury a zápis do PDF jsou tři oddělené kroky. Dokument se mění až po potvrzení souhrnu, vždy jako jeden krok historie editoru.
+- Výsledkem je neviditelná textová vrstva se standardním režimem vykreslení textu 3 a vloženým fontem bez glyfů. Původní obsah stránky se nepřekresluje ani nepřekomprimovává.
+- S aplikací se dodává devět modelů `tessdata_fast`. Další jazyky se stahují do uživatelských dat programu vedle certifikátů.
+
+## 2. Technická rozhodnutí
+
+Kapitola 17 zadání požaduje rozhodnout tyto body před implementací.
+
+| Bod | Rozhodnutí |
+| --- | --- |
+| Verze knihoven | Tesseract 5.5.2 a Leptonica 1.87.0 z vcpkg. Manifest Flatpaku je připíná archivem a kontrolním součtem. |
+| Verze modelů | `tessdata_fast` na commitu `87416418657359cb625c412a48b6e1d6d41c29bd`, `tessdata_best` na commitu `e12c65a915945e4c28e237a9b52bc4a8f39a0cec`. Katalog [ocr/catalog/tesseract-catalog.json](ocr/catalog/tesseract-catalog.json) má 325 položek s velikostí a SHA-256. |
+| Umístění cíle CMake | Samostatná sdílená knihovna [Pdf4QtOcrTesseract/](Pdf4QtOcrTesseract/). Jen ona smí vkládat hlavičky Tesseractu a Leptonicy. Volba `PDF4QT_ENABLE_OCR`, definice `PDF4QT_OCR_TESSERACT`. Bez nalezeného Tesseractu se volba sama vypne s varováním a zbytek projektu se sestaví. |
+| Vložený font | Font bez glyfů `GlyphLessFont` z projektu Tesseract (572 bajtů), zapsaný jako Type0 s Identity-H a CIDFontType2, `/CIDToGIDMap` posílá všechny CID na glyf 1, `/DW 500`, identické `/ToUnicode`. Text se kóduje jako UTF-16BE, znaky mimo BMP jako dvojice CID. Font je v dokumentu jeden a sdílí ho všechny stránky. |
+| Vlákna, nebo proces | Vlákna. Rušení přes callback Tesseractu trvá na referenčním stroji 56 až 63 ms, což je hluboko pod cílem 2 s (JOB-06). Každé pracovní vlákno má vlastní instanci enginu. Výjimka vyhozená enginem skončí chybou stránky `WorkerCrashed` a vlákno si vytvoří novou instanci. Pád na úrovni procesu (porušení paměti v knihovně) izolovaný není. |
+| Schéma projektu | JSON, identifikátor formátu a verze 1, uložení přes `QSaveFile`. Novější nebo neplatná verze se odmítne. |
+| Identita vlastní vrstvy | Slovník stránky `/PieceInfo /PDF4QT_OCR` s privátními daty: verze, identifikátor vrstvy, generace, engine, modely, otisk stránky, odkazy na proud obsahu, font, datový proud a izolační proudy. |
+
+Další rozhodnutí přijatá během implementace:
+
+- **Kanonický souřadnicový prostor** je neotočený uživatelský prostor PDF. Engine vrací surové pixelové souřadnice. Zpětné mapování dělá `PDFOCRPagePreparer` přes matice `pageToRaster` a `rasterToEngine` (GEOM-01 až GEOM-03). Čtyřúhelníky jsou orientované vizuálně, slova jsou uložená v logickém pořadí čtení.
+- **Izolace grafického stavu.** Cizí obsah stránky se uzavírá mezi dva sdílené proudy `q` a `Q`. Skenery běžně zapisují `w 0 0 h 0 0 cm /Im0 Do` bez `q`/`Q` a textová vrstva by bez izolace zdědila transformaci i ořez.
+- **Nedůvěryhodná metadata.** Odkazy v `/PieceInfo` jsou vstup ze souboru. Objekt se ze stránky odebere nebo z dokumentu smaže jen tehdy, když se ověří, že je skutečně náš. Podvržená metadata tak nemohou smazat cizí obsah ani zapsat mimo pole objektů.
+- **Otisk stránky** je SHA-256 přes boxy, rotaci, `UserUnit`, dekódované proudy obsahu bez vlastní vrstvy a výtah zdrojů. Výtah nezávisí na tom, zda je slovník přímý, nebo nepřímý, protože zapisovač nepřímé slovníky zdrojů mění na přímé.
+- **Cesty s diakritikou.** Tesseract otevírá soubory úzkými funkcemi, které na Windows používají kódovou stránku ANSI. Modely se proto načítají přes vlastní čtečku souborů postavenou na Qt. Uživatelská slova a vzory se předávají už do inicializace, protože pozdější nastavení nemá v Tesseractu účinek.
+
+## 3. Architektura
+
+Část nezávislá na enginu je v `Pdf4QtLibCore` a nezávisí na Qt Widgets.
+
+| Třída | Úloha |
+| --- | --- |
+| `PDFOCRPageResult` a související | Datový model: stránka, oblasti, bloky, řádky, slova, jistota, stav revize, provenience (DATA-01 až DATA-03). |
+| `PDFOCREngine`, `PDFOCREngineFactory`, `PDFOCREngineRegistry` | Rozhraní enginu, deklarované schopnosti, registr podle stabilního identifikátoru, testovací engine `test` (ARCH-01 až ARCH-05). |
+| `PDFOCRPagePreparer` | Analýza stránky, pravidla pro existující text, rasterizace s maskami, předzpracování, otisky, zpětné mapování výstupu. |
+| `PDFOCRJobController` | Fronta stránek, pracovní vlákna, rozpočet paměti na rastry, rušení, stavy stránek, chyby (JOB-01 až JOB-10). |
+| `PDFOCRSession` | Výsledky, korektury, lokální historie s nejvýše 200 kroky, kandidáti opakovaného rozpoznání, hledání a nahrazování. |
+| `PDFOCRTextLayerWriter` | Zápis, čtení a odstranění vlastní vrstvy (PDF-03 až PDF-11, PDF-14, PDF-15). |
+| `PDFOCRModelManager` | Katalog, vestavěné, stažené a importované modely, stahování přes https, atomické běhové sady, úklid. |
+| `PDFOCRProject` | Projekt OCR a export prostého textu. |
+
+Dialogy `PDFOCRDocumentDialog`, `PDFOCRLanguagesDialog` a pohled `PDFOCRPageView` jsou v `Pdf4QtLibGui`. Napojení na editor je v `PDFProgramController`: změna dokumentu jde přes `PDFModifiedDocument` s příznakem `PageContents`.
+
+## 4. Uživatelská dokumentace
+
+Rozhraní je v angličtině a všechny texty jsou přeložitelné.
+
+### 4.1 Dialog Recognize Text (OCR)
+
+1. **Výběr stránek.** Levý seznam s náhledy a zaškrtávacími poli je jediný výběr pro rozpoznání, zápis, export i odstranění vrstvy. Tlačítka *All*, *None* a *Invert* mění zaškrtnutí. Na kartě *Settings / Pages* lze zvolit všechny stránky, aktuální stránku, viditelné stránky nebo vlastní rozsah, například `1, 3-5, 9`, s filtrem sudých a lichých. Čísla jsou vždy fyzická od 1, nikoli štítky stránek. Pomocný výběr zaškrtne stránky podle heuristiky, například stránky bez textu nebo stránky s chybou.
+2. **Nastavení rozpoznání.** Engine, kvalita modelu *Fast* nebo *Best*, rozvržení stránky, zacházení s existujícím textem a jazyky v pořadí, v jakém je uživatel seřadil. Výchozí jazyk se řídí jazykem rozhraní. Nastavení lze uložit jako pojmenovaný profil. Jedna stránka může mít výjimku v jazycích, rozvržení a rotaci.
+3. **Obraz a oblasti.** Rozlišení 200, 300, 400 nebo 600 DPI, případně vlastní hodnota 150 až 1200 DPI. Dále ruční rotace, automatická orientace, narovnání mírně šikmých stránek, převod do šedé, odstranění šumu, inverze a detekce prázdných stránek. Všechny úpravy se týkají jen pracovního obrazu, původní stránka se nemění. Do stránky lze nakreslit oblast k rozpoznání a vyloučenou oblast, například logo nebo razítko.
+4. **Rozpoznání.** Tlačítko *Recognize* spustí úlohu na pozadí, *Stop* ji zastaví. Hotové stránky zůstávají. Zastavené nebo neúspěšné opakované rozpoznání nezničí dřívější výsledek stránky. Stránky s ručními opravami se nikdy nepřepíší bez dotazu: lze je přeskočit, nebo nový výsledek po doběhnutí porovnat a rozhodnout pro každou stránku.
+5. **Kontrola a opravy.** Strom bloků, řádků a slov je svázaný s obrazem stránky. U slova se zobrazuje jistota enginu s úrovní, na které ji engine poskytl. Hodnota nedostupná se zobrazí jako *n/a*, nikoli jako nula. Práh pro kontrolu je 80 a lze ho měnit bez nového rozpoznání. Opravit lze jakékoli slovo včetně slov s vysokou jistotou. K dispozici je úprava textu slova a celého řádku, potvrzení, označení *not text*, spojení a rozdělení slov, změna pořadí, úprava rámečku slova, doplnění chybějícího řádku, hledání a hromadné nahrazení s náhledem a opakované rozpoznání jednoho řádku nebo slova. Undo a Redo jsou lokální pro dialog.
+6. **Zápis do PDF.** Karta *Output* volí mezi úpravou aktuálního dokumentu, vytvořením kopie a pouhým exportem. *Apply* nejprve ukáže souhrn: cíl, stránky, nahrazované vrstvy, počet nezkontrolovaných a nejistých slov a vyloučené stránky s důvodem. Chyba kterékoli stránky zruší celý zápis. Volba *Keep data for detailed review in the document* ukládá do PDF původní texty a skóre a je ve výchozím stavu vypnutá.
+7. **Znovuotevření.** Dokument s vlastní vrstvou lze v dialogu znovu otevřít. Vrstva se načte na pozadí a text jde dále opravovat bez nového rozpoznání. Bez uložených revizních dat se jistota zobrazí jako neznámá.
+8. **Projekt a export.** Projekt OCR uchovává nastavení, výsledky, opravy a otisky stránek. Při otevření se načtou jen stránky, jejichž obsah se nezměnil. Export do TXT v UTF-8 nabízí zachování řádků, spojení slov dělených na konci řádku, normalizaci NFC a oddělovač stránek. Zpráva exportu uvádí vynechané stránky.
+
+Chování u zvláštních dokumentů:
+
+- Dokument bez oprávnění k úpravám nelze zapsat ani do kopie, text lze exportovat, pokud to dovolují oprávnění ke kopírování obsahu.
+- U podepsaného dokumentu se zobrazí varování.
+- Dokument s deklarací PDF/A nebo PDF/UA nelze upravit na místě. Kopie se zapíše bez této deklarace, protože shodu nelze ověřit.
+- U tagovaného dokumentu se vrstva označí jako artefakt a strukturní strom se nemění.
+
+### 4.2 Jazyky a modely
+
+- Vestavěná sada: čeština, angličtina, slovenština, němčina, španělština, ruština, zjednodušená a tradiční čínština a data orientace `osd`. Manifest [ocr/tesseract/fast/manifest.json](ocr/tesseract/fast/manifest.json) uvádí verzi, SHA-256 a licenci.
+- Modely pocházejí z oficiálních repozitářů `tesseract-ocr/tessdata_fast` a `tesseract-ocr/tessdata_best` na GitHubu. Stahují se z `raw.githubusercontent.com` na připnutých commitech.
+- Uživatelské úložiště je `<AppDataLocation>/ocr`, tedy vedle složky `certificates`. Obsahuje složky `tesseract/fast`, `tesseract/best`, `tesseract/custom`, `tesseract/runtime` a `downloads`.
+- Stažení vyžaduje výslovné potvrzení s výčtem jazyků, velikostí a cílovou složkou. Přijímá se jen https. Kontroluje se velikost, SHA-256, to, že server nevrátil stránku HTML, a nakonec načtení modelu enginem. Neúspěšné stažení se nikdy nedotkne funkční starší verze.
+- Vlastní model lze importovat ze souboru. Dostane příponu `@id importu` a označení, že jeho původ není ověřen.
+- Engine nikdy nečte přímo z úložiště. Pro každou kombinaci jazyků se připraví běhová sada, tedy kopie jen pro čtení, která se zveřejní atomicky až po ověření kontrolních součtů. Běžící rozpoznání tak není ovlivněno stahováním ani odstraněním modelu.
+- Úklid proběhne jednou při prvním načtení správce, pokud zámek nedrží jiná instance. Vrátí poslední funkční verzi po pádu uprostřed aktivace, smaže dočasné soubory starší než jeden den a běhové sady nepoužité déle než 30 dní.
+- Bez sítě aplikace pracuje s vestavěnými a dříve staženými jazyky. Jiná síťová komunikace než výslovně vyžádané stažení neexistuje. OCR nic neloguje.
+
+## 5. Pokrytí požadavků P0
+
+Stav po opravách z interního auditu. *Splněno* znamená implementováno a kryto automatickým testem tam, kde to jde. *Částečně* má zbývající část popsanou v kapitole 8.
+
+| Skupina | Stav | Poznámka |
+| --- | --- | --- |
+| UI-01 až UI-07 | Splněno, UI-05 částečně | Pamatuje se geometrie a hlavní dělič. Barvy překryvu jsou pevné. |
+| PAGE-01 až PAGE-06 | Splněno | Výběr z editoru je neaktivní, protože postranní panel editoru vícenásobný výběr nemá. |
+| INPUT-01 až INPUT-05 | Splněno | Automatické maskování smíšených stránek je P1. |
+| REGION-01 až REGION-05 | Částečně | Chybí rozpoznání jediné oblasti z dialogu a rotace oblasti. |
+| LANG-01 až LANG-13 | Splněno, LANG-08 a LANG-12 částečně | Stav *Incompatible* a kontrola kompatibility při povýšení enginu nejsou implementované. |
+| REC-01 až REC-03 | Částečně | Dialog nevypíná ovládací prvky podle schopností enginu. |
+| IMAGE-01 až IMAGE-07 | Splněno | Detekovaná orientace se použije jen při dostatečné jistotě. |
+| CONF-01 až CONF-05 | Splněno | |
+| EDIT-01 až EDIT-11 | Částečně | Chybí spojení a rozdělení řádků, úprava účaří, hledání frází přes více slov a zobrazení prázdných oblastí. |
+| PDF-01 až PDF-15 | Splněno, PDF-12 částečně | Omezení certifikačního podpisu DocMDP se nevyhodnocuje, zobrazuje se obecné varování. |
+| EXPORT-01 až EXPORT-05 | Splněno, EXPORT-02 částečně | Vynechané stránky se uvádějí fyzickým číslem bez štítku. EXPORT-06 je P1. |
+| JOB-01 až JOB-10 | Částečně | Předletová analýza a otisky běží v hlavním vlákně. Časový limit stránky pokrývá jen samotné rozpoznání. Náhledy nemají mezipaměť. |
+| ARCH-01 až ARCH-09 | Splněno, ARCH-02 částečně | Schopnost `maximumImageSize` se nevynucuje. |
+| DATA-01 až DATA-03 | Částečně | Surový výstup enginu se uchovává jen jako původní text a skóre slova. |
+| GEOM-01 až GEOM-05 | Splněno, GEOM-01 částečně | `UserUnit` se zaznamenává, ale neuplatňuje se na měřítko rastru. |
+| OPS-01 až OPS-06 | Částečně | Viz balení v kapitole 9. |
+| QA-01 až QA-05 | Splněno kromě profilu *Best* | Viz kapitola 7. |
+
+## 6. Akceptační testy
+
+Automatické testy jsou v [UnitTests/tst_ocrtest.cpp](UnitTests/tst_ocrtest.cpp) a [UnitTests/tst_ocrdialogtest.cpp](UnitTests/tst_ocrdialogtest.cpp) a běží v ctest. Testy závislé na Tesseractu nebo na vestavěných modelech se bez nich přeskočí. Přeskočený test ctest ukáže jako úspěšný, proto je třeba u balíků kontrolovat výpis QtTestu.
+
+| Test | Automaticky | Testovací funkce | Zbývá |
+| --- | --- | --- | --- |
+| AT-01 | ano | `pageRangeParsing` | Neplatný rozsah zadaný v dialogu. |
+| AT-02 | částečně | `modelManagerBuiltIn`, `tesseractRecognition`, `workflowWithTesseract` | Důkaz, že nevznikl žádný síťový požadavek. Čistá instalace ručně. |
+| AT-03 | ano | `modelDownload` | Výchozí umístění vedle certifikátů ručně. |
+| AT-04 | částečně | `modelDownload` | Plný disk. Chyba zápisu se hlásí samostatně, ale test ji neumí vyvolat. |
+| AT-05 | částečně | `modelDownload` | Stará sada přežije aktualizaci. Dvě skutečné instance ručně. |
+| AT-06 | ano | `confidenceStatistics` | |
+| AT-07 | ano | `editingOperations`, `lineTextEditing`, `sessionRegressions` | |
+| AT-08 | částečně | `replaceAllAndCandidates`, `sessionRegressions` | Dotaz dialogu před přepsáním oprav. |
+| AT-09 | ano | `textLayerRoundTrip` | Cizí prohlížeče ručně. |
+| AT-10 | ano | `renderPreservation` | Pixelová shoda a bajtová shoda obrazových dat v paměti. |
+| AT-11 | ano | `renderedGeometryRoundTrip`, `preprocessingPipeline`, `textLayerRobustness` | Rotace, CropBox, UserUnit, narovnání, orientace, zbytková transformace cizího obsahu. |
+| AT-12 | ano | `idempotentApplyAndRemove`, `textLayerRobustness` | |
+| AT-13 | částečně | `pageAnalysisAndPolicy` | Přeskakování stránek a zpráva v dialogu. |
+| AT-14 | částečně | `jobCancellation`, `stoppedRerunKeepsResults` | Rušení během analýzy a vykreslování. |
+| AT-15 | ano | `pageErrorAndRetry` | |
+| AT-16 | částečně | `workflowWithTestEngine` | Správce historie editoru je v testu nahrazen přímým nastavením dokumentu. |
+| AT-17 | ano | `projectRoundTrip`, `sessionRegressions` | |
+| AT-18 | částečně | `textExport`, `textLayerRobustness` | Starší inkrementální revize souboru. |
+| AT-19 | částečně | `annotationsAndRedactions` | Vrstvy OCG a ořez. |
+| AT-20 | ne | | Odkazy, formuláře, přílohy a záložky po zápisu. Podpisy ručně. |
+| AT-21 | ano | `genericAdapter` | |
+| AT-22 | částečně | `tesseractRecognition`, `modelDownload` | Cesta s diakritikou, restart se staženými modely. Instalátor a přenosný balík ručně. |
+| AT-23 | ne | | P1, PaddleOCR. |
+| AT-24 | ano | `invalidEngineOutput` | Vnější proces neexistuje, protokol se netestuje. |
+
+Výsledek posledního běhu na referenčním stroji:
+
+| Sada | Výsledek |
+| --- | --- |
+| `UnitTestsOCR` | 26 prošlo, 1 přeskočen (benchmark běží jen na vyžádání) |
+| `UnitTestsOCRDialog` | 5 prošlo |
+| celý `ctest` | 27 z 27 prošlo |
+
+## 7. Kvalita a výkon
+
+### 7.1 Metodika
+
+- Měří testovací funkce `qualityAndPerformanceBenchmark`. Spouští se proměnnou `PDF4QT_OCR_BENCHMARK=1` s nativním platformním pluginem, protože potřebuje systémová písma. Počet stran určuje `PDF4QT_OCR_BENCHMARK_PAGES`, výstupní soubor `PDF4QT_OCR_BENCHMARK_REPORT`. Pro dlouhý běh je nutné zvýšit `QTEST_FUNCTION_TIMEOUT`, jinak QtTest funkci po 300 s ukončí.
+- Korpus: syntetický čistý tisk, 11 pt, písma Times New Roman a Arial, A4, 300 DPI. Deset řádků na jazyk a písmo, český text s diakritikou.
+- CER je Levenshteinova vzdálenost po znacích, WER po slovech oddělených mezerou. Jediná normalizace je sloučení bílých znaků do jedné mezery. Diakritika ani interpunkce se neodstraňují a vynechaný text se počítá jako chyba (QA-01).
+- Benchmark selže, pokud CER přesáhne 2 % nebo WER 5 % (QA-02).
+- Propustnost: dokument s N stranami sdílejícími jeden obraz, 2 pracovní vlákna, rozpočet rastrů 1 GiB. Přírůstek velikosti se měří na prvních deseti stranách.
+
+Referenční stroj: AMD Ryzen 9 7950X, 16 jader a 32 logických procesorů, 63 GB RAM, Windows 11 Pro 10.0.26200, sestavení MSVC Release, Qt 6.11.2, Tesseract 5.5.2, profil *Fast*.
+
+### 7.2 Kvalita
+
+| Sada | CER | WER | Rozsah |
+| --- | --- | --- | --- |
+| čeština (`ces`) | 0,78 % | 3,49 % | 1154 znaků, 172 slov |
+| angličtina (`eng`) | 0,00 % | 0,00 % | 1276 znaků, 212 slov |
+| smíšená (`ces+eng`) | 0,00 % | 0,00 % | 694 znaků, 102 slov |
+
+Cíl QA-02 je splněn pro oba jazyky. Korpus je malý a syntetický. Pro nekvalitní skeny a rukopis tato čísla neplatí.
+
+### 7.3 Výkon a paměť
+
+| Veličina | 4 strany | 1000 stran |
+| --- | --- | --- |
+| Celkový čas | 2,1 s | 490,7 s |
+| Propustnost, 2 vlákna | 116,8 stran/min | 122,3 stran/min |
+| Čas stránky p50 | 998 ms | 904 ms |
+| Čas stránky p95 | 998 ms | 1238 ms |
+| Špička pracovní sady procesu | 300 MB | 455 MB |
+| Přírůstek PDF na stránku | 16 126 bajtů | 15 897 bajtů |
+| Odezva zrušení | 63 ms | 56 ms |
+
+- Jedna stránka včetně studené inicializace enginu trvá asi 570 ms.
+- Úloha 1000 stran A4 při 300 DPI doběhla bez pádu. Paměť s počtem stran neroste, rastry se uvolňují hned po rozpoznání (QA-05).
+- Přírůstek odpovídá textu, fontu a metadatům. Na stránku připadá 318 slov, tedy asi 50 bajtů na slovo po kompresi.
+- Čísla platí pro tento stroj, model a korpus. Nejsou příslibem obecné rychlosti.
+
+## 8. Známé mezery a odchylky
+
+Skutečné mezery vůči P0:
+
+- **Ruční přejímka neproběhla.** Linux a macOS nebyly sestaveny ani vyzkoušeny. Hledání, označování a kopírování textu nebylo ověřeno v Acrobat Readeru, PDFiu ani Poppleru. Neověřeno je i ovládání klávesnicí, škálování displeje a české překlady nových textů.
+- **Profil *Best* nebyl změřen** (QA-04). Benchmark pracuje jen s vestavěnými modely.
+- **Úpravy řádků.** Chybí spojení a rozdělení řádků a přesun řádku do jiného bloku (EDIT-02). Účaří a orientaci nelze v dialogu upravit a zapisovač účaří nepoužívá (EDIT-04).
+- **Oblasti.** Z dialogu nelze znovu rozpoznat jedinou oblast, i když session náhradu oblasti umí (REGION-03). Rotace oblasti se ignoruje a zapíše se do protokolu stránky (REGION-02).
+- **Hledání** pracuje po slovech, frázi přes dvě slova nenajde (EDIT-05).
+- **Surová data.** Zvlášť se uchovává jen původní text a skóre slova. Původní geometrii po spojení, rozdělení nebo úpravě řádku vrátí jen Undo (DATA-02).
+- **Vertikální text** nemá v editačních operacích vlastní větev. Text zprava doleva je ošetřen a testován jen na úrovni geometrie.
+- **Hlavní vlákno.** Spuštění rozpoznání dopočítá analýzu a otisky dosud nezpracovaných stránek synchronně. U dokumentu se stovkami stran, na který uživatel klikne hned po otevření, okno na chvíli zamrzne (JOB-01).
+- **Časový limit stránky** pokrývá jen volání rozpoznání, nikoli vykreslení a detekci orientace (JOB-06).
+- **Chyba vykreslení** stránky znamená chybu rozpoznání stránky, i když by se stránka zobrazila přijatelně.
+- **Nevyvážené `q`/`Q`** v cizím obsahu se neopravuje. Izolace přidává právě jednu úroveň.
+- **Osiřelé objekty.** Po odstranění poslední vrstvy zůstane v dokumentu sdílený font a dva izolační proudy, dohromady asi 1 kB.
+- **Podpisy.** Omezení DocMDP se nevyhodnocuje (PDF-12).
+- **Správce modelů.** Stav *Incompatible* se nikdy nenastaví. Závislosti katalogu se načtou, ale nepoužijí, dnes jsou všechny prázdné. Import nemá limit velikosti. Ruční úklid běhových sad nemá tlačítko, běží jen automaticky.
+- **Testy.** AT-20 nemá automatický test. Přeskočené testy se v ctest tváří jako úspěšné.
+
+Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické maskování smíšených stránek, exporty hOCR, TSV a ALTO, dávky více souborů, příkazová řádka v PdfTool, regulární výrazy a kontrola pravopisu, detekce log a šablony oblastí.
+
+## 9. Sestavení a balení
+
+- Závislosti jsou v [vcpkg.json](vcpkg.json) a [vcpkg_with_qt.json](vcpkg_with_qt.json). Vestavěné modely se kopírují do stromu sestavení a instalují jen při zapnutém OCR. Když modely ve zdrojovém stromu chybějí, CMake vypíše varování.
+- **Windows.** [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) obsahuje adaptér, Tesseract, Leptonicu, jejich závislé knihovny a vestavěné modely. Názvy `tesseract55.dll` a `leptonica-1.87.0.dll` jsou zapsané napevno. Protože vcpkg nemá připnutou základní verzi, povýšení knihoven sestavení instalátoru rozbije, dokud se názvy neupraví. Instalátor nebyl sestaven ani vyzkoušen.
+- **Flatpak.** [Flatpak/io.github.JakubMelka.Pdf4qt.json](Flatpak/io.github.JakubMelka.Pdf4qt.json) má moduly Leptonica 1.87.0 a Tesseract 5.5.2 s kontrolními součty. Tesseract se zde sestavuje bez curl a libarchive, Windows balík je obsahuje. Manifest nebyl sestaven.
+- **macOS a AppImage** nebyly řešeny.
+- **Licence.** Tesseract a modely tessdata mají Apache 2.0, Leptonica BSD-2. Texty jsou ve složce [3rdparty_licenses/](3rdparty_licenses/), která se podle dosavadní praxe projektu neinstaluje. Dialog *About* uvádí verze Tesseractu a Leptonicy zjištěné za běhu a identifikátor vestavěné sady. Přechodné závislosti Windows balíku, tedy libarchive, libcurl, giflib, libtiff, libwebp, liblzma, lz4 a zstd, v dialogu *About* uvedené nejsou.

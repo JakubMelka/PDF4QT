@@ -29,6 +29,7 @@
 #include "pdfcatalog.h"
 #include "pdfstreamfilters.h"
 #include "pdfconstants.h"
+#include "pdfexception.h"
 
 #include <QUuid>
 #include <QRegularExpression>
@@ -518,12 +519,28 @@ QByteArray PDFOCRTextLayerWriter::serializeLayerData(const PDFOCRPageResult& res
         flags |= PDFOCRSerializationFlag::ReviewData;
     }
 
+    // Text, which the user marked as "not text", must not get into the document,
+    // unless the user explicitly asked for the review data (EXPORT-05, AT-18).
+    PDFOCRPageResult filteredResult = result;
+    if (!keepReviewData)
+    {
+        for (PDFOCRBlock& block : filteredResult.blocks)
+        {
+            for (PDFOCRLine& line : block.lines)
+            {
+                std::erase_if(line.words, [](const PDFOCRWord& word) { return word.reviewState == PDFOCRReviewState::Discarded; });
+            }
+            std::erase_if(block.lines, [](const PDFOCRLine& line) { return line.words.empty(); });
+        }
+        std::erase_if(filteredResult.blocks, [](const PDFOCRBlock& block) { return block.lines.empty(); });
+    }
+
     QJsonObject object;
     object[QStringLiteral("format")] = QStringLiteral("pdf4qt-ocr-layer");
     object[QStringLiteral("version")] = LAYER_VERSION;
     object[QStringLiteral("layerId")] = layerId;
     object[QStringLiteral("hasReviewData")] = keepReviewData;
-    object[QStringLiteral("page")] = PDFOCRProjectSerializer::pageResultToJson(result, flags);
+    object[QStringLiteral("page")] = PDFOCRProjectSerializer::pageResultToJson(filteredResult, flags);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
@@ -587,6 +604,140 @@ PDFObjectReference PDFOCRTextLayerWriter::getOwnLayerContentReference(const PDFD
     return loader.readReferenceFromDictionary(privateData, "Contents");
 }
 
+static const PDFDictionary* getOwnLayerPrivateDictionary(const PDFDocument* document, PDFInteger pageIndex)
+{
+    const PDFCatalog* catalog = document->getCatalog();
+    if (pageIndex < 0 || size_t(pageIndex) >= catalog->getPageCount())
+    {
+        return nullptr;
+    }
+
+    const PDFPage* page = catalog->getPage(pageIndex);
+    const PDFDictionary* pieceInfo = document->getDictionaryFromObject(page->getPieceDictionary(&document->getStorage()));
+    if (!pieceInfo || !pieceInfo->hasKey(PDFOCRTextLayerWriter::PIECE_INFO_KEY))
+    {
+        return nullptr;
+    }
+
+    const PDFDictionary* entry = document->getDictionaryFromObject(pieceInfo->get(PDFOCRTextLayerWriter::PIECE_INFO_KEY));
+    return entry ? document->getDictionaryFromObject(entry->get("Private")) : nullptr;
+}
+
+std::vector<PDFObjectReference> PDFOCRTextLayerWriter::getOwnLayerContentReferences(const PDFDocument* document, PDFInteger pageIndex)
+{
+    std::vector<PDFObjectReference> references;
+
+    if (const PDFDictionary* privateData = getOwnLayerPrivateDictionary(document, pageIndex))
+    {
+        PDFDocumentDataLoaderDecorator loader(document);
+        for (const char* key : { "Contents", "IsolationBegin", "IsolationEnd" })
+        {
+            const PDFObjectReference reference = loader.readReferenceFromDictionary(privateData, key);
+            if (reference.isValid())
+            {
+                references.push_back(reference);
+            }
+        }
+    }
+
+    return references;
+}
+
+std::vector<PDFObjectReference> PDFOCRTextLayerWriter::getPageContentReferences(const PDFDocument* document, PDFInteger pageIndex)
+{
+    std::vector<PDFObjectReference> references;
+
+    const PDFCatalog* catalog = document->getCatalog();
+    if (pageIndex < 0 || size_t(pageIndex) >= catalog->getPageCount())
+    {
+        return references;
+    }
+
+    // Contents of PDFPage are already dereferenced, so the reference of a single
+    // content stream must be read from the page dictionary.
+    const PDFDictionary* pageDictionary = document->getDictionaryFromObject(document->getObjectByReference(catalog->getPage(pageIndex)->getPageReference()));
+    if (!pageDictionary)
+    {
+        return references;
+    }
+
+    const PDFObject& contents = pageDictionary->get("Contents");
+    const PDFObject& dereferencedContents = document->getObject(contents);
+    if (dereferencedContents.isArray())
+    {
+        const PDFArray* array = dereferencedContents.getArray();
+        for (size_t i = 0; i < array->getCount(); ++i)
+        {
+            const PDFObject& item = array->getItem(i);
+            if (item.isReference())
+            {
+                references.push_back(item.getReference());
+            }
+        }
+    }
+    else if (contents.isReference() && dereferencedContents.isStream())
+    {
+        references.push_back(contents.getReference());
+    }
+
+    return references;
+}
+
+static QByteArray getDecodedStreamOfReference(const PDFDocument* document, PDFObjectReference reference, bool* isStream)
+{
+    *isStream = false;
+    if (!reference.isValid())
+    {
+        return QByteArray();
+    }
+
+    const PDFObject& object = document->getObjectByReference(reference);
+    if (!object.isStream())
+    {
+        return QByteArray();
+    }
+
+    *isStream = true;
+
+    try
+    {
+        return document->getDecodedStream(object.getStream());
+    }
+    catch (const PDFException&)
+    {
+        *isStream = false;
+        return QByteArray();
+    }
+}
+
+/// Returns true, if the object is the glyphless font written by this writer
+static bool isGlyphlessFont(const PDFDocument* document, PDFObjectReference reference)
+{
+    if (!reference.isValid())
+    {
+        return false;
+    }
+
+    const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(reference));
+    if (!dictionary)
+    {
+        return false;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(document);
+    return loader.readNameFromDictionary(dictionary, "Type") == "Font" &&
+           loader.readNameFromDictionary(dictionary, "Subtype") == "Type0" &&
+           loader.readNameFromDictionary(dictionary, "BaseFont") == "GlyphLessFont";
+}
+
+/// Returns true, if the stream contains only the operator of the isolation of the graphic state
+static bool isIsolationStream(const PDFDocument* document, PDFObjectReference reference, const char* operatorName)
+{
+    bool isStream = false;
+    const QByteArray content = getDecodedStreamOfReference(document, reference, &isStream);
+    return isStream && content.trimmed() == operatorName;
+}
+
 PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFDocument* document, PDFInteger pageIndex)
 {
     LayerInfo info;
@@ -630,6 +781,8 @@ PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFD
     info.contentReference = loader.readReferenceFromDictionary(privateData, "Contents");
     info.fontReference = loader.readReferenceFromDictionary(privateData, "Font");
     info.dataReference = loader.readReferenceFromDictionary(privateData, "Data");
+    info.isolationBeginReference = loader.readReferenceFromDictionary(privateData, "IsolationBegin");
+    info.isolationEndReference = loader.readReferenceFromDictionary(privateData, "IsolationEnd");
     info.fontKey = loader.readNameFromDictionary(privateData, "FontKey");
     info.hasReviewData = loader.readBooleanFromDictionary(privateData, "HasReviewData", false);
     info.wordCount = int(loader.readIntegerFromDictionary(privateData, "WordCount", 0));
@@ -637,28 +790,17 @@ PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFD
 
     // Verify the binding to the current content (PDF-09): the content stream
     // must be present in the page contents and the fingerprint must match.
-    bool contentFound = false;
-    const PDFObject& contents = page->getContents();
-    if (contents.isReference() && contents.getReference() == info.contentReference)
+    const std::vector<PDFObjectReference> pageContents = getPageContentReferences(document, pageIndex);
+    const bool contentFound = info.contentReference.isValid() && std::find(pageContents.begin(), pageContents.end(), info.contentReference) != pageContents.end();
+
+    // Verification of the referenced objects (metadata are an untrusted input)
+    info.isFontOwn = isGlyphlessFont(document, info.fontReference);
+
     {
-        contentFound = true;
-    }
-    else
-    {
-        const PDFObject& dereferencedContents = document->getObject(contents);
-        if (dereferencedContents.isArray())
-        {
-            const PDFArray* array = dereferencedContents.getArray();
-            for (size_t i = 0; i < array->getCount(); ++i)
-            {
-                const PDFObject& item = array->getItem(i);
-                if (item.isReference() && item.getReference() == info.contentReference)
-                {
-                    contentFound = true;
-                    break;
-                }
-            }
-        }
+        bool isStream = false;
+        const QByteArray data = getDecodedStreamOfReference(document, info.dataReference, &isStream);
+        PDFOCRPageResult ignoredResult;
+        info.isDataOwn = isStream && info.dataReference != info.contentReference && deserializeLayerData(data, ignoredResult, nullptr);
     }
 
     if (!contentFound)
@@ -666,6 +808,22 @@ PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFD
         // Metadata are orphaned - layer content is not part of the page anymore
         info.fingerprintMatches = false;
         return info;
+    }
+
+    {
+        bool isStream = false;
+        const QByteArray content = getDecodedStreamOfReference(document, info.contentReference, &isStream);
+        info.isContentOwn = isStream && content.startsWith("q\n") && content.trimmed().endsWith("Q") && !info.fontKey.isEmpty() &&
+                            content.contains("3 Tr") && content.contains("/" + info.fontKey + " ");
+    }
+
+    if (info.isolationBeginReference.isValid() && info.isolationEndReference.isValid() && info.isolationBeginReference != info.isolationEndReference)
+    {
+        const bool hasBegin = std::find(pageContents.begin(), pageContents.end(), info.isolationBeginReference) != pageContents.end();
+        const bool hasEnd = std::find(pageContents.begin(), pageContents.end(), info.isolationEndReference) != pageContents.end();
+        info.isIsolationOwn = hasBegin && hasEnd &&
+                              isIsolationStream(document, info.isolationBeginReference, "q") &&
+                              isIsolationStream(document, info.isolationEndReference, "Q");
     }
 
     const QByteArray currentFingerprint = PDFOCRPagePreparer::computePageFingerprint(document, pageIndex);
@@ -789,17 +947,37 @@ static void removeDictionaryEntry(PDFDictionary& dictionary, const QByteArray& k
     }
 }
 
+/// Returns true, if the content stream is used by another page of the document
+/// (pages duplicated by a tool, which shares the content streams)
+static bool isContentUsedByOtherPage(const PDFDocument* document, PDFInteger pageIndex, PDFObjectReference reference)
+{
+    const PDFCatalog* catalog = document->getCatalog();
+    for (size_t i = 0; i < catalog->getPageCount(); ++i)
+    {
+        if (PDFInteger(i) == pageIndex)
+        {
+            continue;
+        }
+
+        const std::vector<PDFObjectReference> references = PDFOCRTextLayerWriter::getPageContentReferences(document, PDFInteger(i));
+        if (std::find(references.begin(), references.end(), reference) != references.end())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Removes the own layer from the page dictionary. Returns true, if something was removed.
+/// Only the verified objects of the own layer are removed (metadata are an untrusted input).
 static bool removeLayerFromPage(PDFDocumentBuilder* builder,
-                                PDFObjectReference pageReference,
+                                const PDFDocument* originalDocument,
+                                PDFInteger pageIndex,
                                 const PDFOCRTextLayerWriter::LayerInfo& info,
                                 std::vector<PDFObjectReference>& contentReferences,
                                 PDFDictionary& resources,
                                 PDFDictionary& pieceInfo)
 {
-    Q_UNUSED(builder);
-    Q_UNUSED(pageReference);
-
     if (!info.isPresent)
     {
         return false;
@@ -807,9 +985,17 @@ static bool removeLayerFromPage(PDFDocumentBuilder* builder,
 
     bool removed = false;
 
-    // Content stream
+    // Content stream and the isolation of the foreign content
     const size_t oldSize = contentReferences.size();
-    std::erase(contentReferences, info.contentReference);
+    if (info.isContentOwn)
+    {
+        std::erase(contentReferences, info.contentReference);
+    }
+    if (info.isIsolationOwn)
+    {
+        std::erase(contentReferences, info.isolationBeginReference);
+        std::erase(contentReferences, info.isolationEndReference);
+    }
     removed = removed || contentReferences.size() != oldSize;
 
     // Font
@@ -819,7 +1005,7 @@ static bool removeLayerFromPage(PDFDocumentBuilder* builder,
     {
         const QByteArray key = fonts.getKey(i).getString();
         const PDFObject& value = fonts.getValue(i);
-        if (key == info.fontKey || (value.isReference() && value.getReference() == info.fontReference))
+        if (info.isFontOwn && value.isReference() && value.getReference() == info.fontReference)
         {
             keysToRemove.push_back(key);
         }
@@ -841,12 +1027,13 @@ static bool removeLayerFromPage(PDFDocumentBuilder* builder,
         removed = true;
     }
 
-    // Orphaned private objects
-    if (info.dataReference.isValid())
+    // Orphaned private objects. The font and the isolation streams are shared by
+    // the pages of the document, so they are left in the document.
+    if (info.isDataOwn)
     {
         builder->setObject(info.dataReference, PDFObject());
     }
-    if (info.contentReference.isValid())
+    if (info.isContentOwn && !isContentUsedByOtherPage(originalDocument, pageIndex, info.contentReference))
     {
         builder->setObject(info.contentReference, PDFObject());
     }
@@ -860,37 +1047,105 @@ static void writePageUpdate(PDFDocumentBuilder* builder,
                             PDFDictionary resources,
                             PDFDictionary pieceInfo)
 {
-    PDFObjectFactory factory;
-    factory.beginDictionary();
+    // Entries of the page dictionary are replaced, not merged: a recursive merge of
+    // the dictionaries would keep the removed keys (font of the removed layer,
+    // private data next to the data of another application).
+    PDFDictionary pageDictionary = copyDictionary(builder, builder->getObjectByReference(pageReference));
 
-    factory.beginDictionaryItem("Contents");
+    PDFObjectFactory contentsFactory;
     if (contentReferences.size() == 1)
     {
-        factory << contentReferences.front();
+        contentsFactory << contentReferences.front();
     }
     else
     {
-        factory << contentReferences;
+        contentsFactory << contentReferences;
     }
-    factory.endDictionaryItem();
+    pageDictionary.setEntry(PDFInplaceOrMemoryString("Contents"), contentsFactory.takeObject());
 
-    factory.beginDictionaryItem("Resources");
-    factory << std::move(resources);
-    factory.endDictionaryItem();
+    // Empty font dictionary is removed; resources are required, empty dictionary is a valid value
+    if (const PDFDictionary* fonts = builder->getDictionaryFromObject(resources.get("Font")))
+    {
+        if (fonts->isEmpty())
+        {
+            removeDictionaryEntry(resources, "Font");
+        }
+    }
+    pageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resources))));
 
-    factory.beginDictionaryItem("PieceInfo");
     if (pieceInfo.isEmpty())
     {
-        factory << nullptr;
+        removeDictionaryEntry(pageDictionary, "PieceInfo");
     }
     else
     {
-        factory << std::move(pieceInfo);
+        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pieceInfo))));
     }
-    factory.endDictionaryItem();
 
-    factory.endDictionary();
-    builder->mergeTo(pageReference, factory.takeObject());
+    builder->setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+}
+
+/// Objects of the own layers, which are shared by the pages of the document
+struct PDFOCRSharedLayerObjects
+{
+    PDFObjectReference fontReference;
+    PDFObjectReference isolationBeginReference;
+    PDFObjectReference isolationEndReference;
+};
+
+/// Finds the shared objects of the existing own layers, so the repeated writing
+/// does not create new fonts again and again.
+static PDFOCRSharedLayerObjects findSharedLayerObjects(const PDFDocument* document)
+{
+    PDFOCRSharedLayerObjects result;
+    PDFDocumentDataLoaderDecorator loader(document);
+
+    const size_t pageCount = document->getCatalog()->getPageCount();
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const PDFDictionary* privateData = getOwnLayerPrivateDictionary(document, PDFInteger(i));
+        if (!privateData)
+        {
+            continue;
+        }
+
+        if (!result.fontReference.isValid())
+        {
+            const PDFObjectReference reference = loader.readReferenceFromDictionary(privateData, "Font");
+            if (isGlyphlessFont(document, reference))
+            {
+                result.fontReference = reference;
+            }
+        }
+
+        if (!result.isolationBeginReference.isValid())
+        {
+            const PDFObjectReference beginReference = loader.readReferenceFromDictionary(privateData, "IsolationBegin");
+            const PDFObjectReference endReference = loader.readReferenceFromDictionary(privateData, "IsolationEnd");
+            if (beginReference != endReference && isIsolationStream(document, beginReference, "q") && isIsolationStream(document, endReference, "Q"))
+            {
+                result.isolationBeginReference = beginReference;
+                result.isolationEndReference = endReference;
+            }
+        }
+
+        if (result.fontReference.isValid() && result.isolationBeginReference.isValid())
+        {
+            break;
+        }
+    }
+
+    return result;
+}
+
+/// Compares the data of the layers (without the identifier of the layer)
+static bool isLayerDataEqual(const QByteArray& left, const QByteArray& right)
+{
+    const QJsonObject leftObject = QJsonDocument::fromJson(left).object();
+    const QJsonObject rightObject = QJsonDocument::fromJson(right).object();
+    return !leftObject.isEmpty() &&
+           leftObject.value(QStringLiteral("hasReviewData")) == rightObject.value(QStringLiteral("hasReviewData")) &&
+           leftObject.value(QStringLiteral("page")) == rightObject.value(QStringLiteral("page"));
 }
 
 PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* builder,
@@ -901,7 +1156,7 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
     Report report;
 
     const PDFCatalog* catalog = originalDocument->getCatalog();
-    PDFObjectReference fontReference;
+    PDFOCRSharedLayerObjects sharedObjects = findSharedLayerObjects(originalDocument);
 
     for (const PageRequest& request : pages)
     {
@@ -956,47 +1211,87 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
 
         if (wordCount == 0)
         {
+            if (existingLayer.isPresent)
+            {
+                // No text is left on the page (all words were discarded): the obsolete
+                // layer must not stay searchable in the document (AT-18)
+                std::vector<PDFObjectReference> contentReferences = getContentReferences(builder, pageDictionary);
+                PDFDictionary pieceInfo = copyDictionary(builder, pageDictionary->get("PieceInfo"));
+                if (removeLayerFromPage(builder, originalDocument, pageIndex, existingLayer, contentReferences, resources, pieceInfo))
+                {
+                    writePageUpdate(builder, pageReference, contentReferences, std::move(resources), std::move(pieceInfo));
+                    report.removedPages.push_back(pageIndex);
+                    report.messages << PDFTranslationContext::tr("Page %1: no text to write, the existing OCR layer was removed.").arg(pageIndex + 1);
+                    continue;
+                }
+            }
+
             report.skippedPages.push_back(pageIndex);
             report.messages << PDFTranslationContext::tr("Page %1: no text to write.").arg(pageIndex + 1);
             continue;
         }
 
-        // Idempotency (PDF-11): identical layer is not written again
-        if (existingLayer.isPresent && existingLayer.fingerprintMatches && existingLayer.hasReviewData == options.keepReviewData && existingLayer.contentReference.isValid())
+        // Private data
+        const QString layerId = request.layerId.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : request.layerId;
+        const QByteArray layerData = serializeLayerData(result, layerId, options.keepReviewData);
+
+        // Idempotency (PDF-11): identical layer is not written again. The content stream
+        // and also the data of the layer are compared (review states do not change the content).
+        if (existingLayer.isPresent && existingLayer.fingerprintMatches && existingLayer.hasReviewData == options.keepReviewData &&
+            existingLayer.isContentOwn && existingLayer.isDataOwn && existingLayer.isFontOwn)
         {
-            const PDFObject& existingContentObject = originalDocument->getObjectByReference(existingLayer.contentReference);
-            if (existingContentObject.isStream())
+            bool isContentStream = false;
+            bool isDataStream = false;
+            const QByteArray existingContent = getDecodedStreamOfReference(originalDocument, existingLayer.contentReference, &isContentStream);
+            const QByteArray existingData = getDecodedStreamOfReference(originalDocument, existingLayer.dataReference, &isDataStream);
+            if (isContentStream && isDataStream && existingContent == content && isLayerDataEqual(existingData, layerData))
             {
-                const QByteArray existingContent = originalDocument->getDecodedStream(existingContentObject.getStream());
-                if (existingContent == content)
-                {
-                    report.unchangedPages.push_back(pageIndex);
-                    continue;
-                }
+                report.unchangedPages.push_back(pageIndex);
+                continue;
             }
         }
 
         // Remove the existing layer
         std::vector<PDFObjectReference> contentReferences = getContentReferences(builder, pageDictionary);
         PDFDictionary pieceInfo = copyDictionary(builder, pageDictionary->get("PieceInfo"));
-        removeLayerFromPage(builder, pageReference, existingLayer, contentReferences, resources, pieceInfo);
+        removeLayerFromPage(builder, originalDocument, pageIndex, existingLayer, contentReferences, resources, pieceInfo);
         fonts = copyDictionary(builder, resources.get("Font"));
 
-        // Font
-        if (!fontReference.isValid())
+        // Font key can be occupied by a foreign font (forged or damaged metadata)
+        while (fonts.hasKey(fontKey))
         {
-            fontReference = createGlyphlessFont(builder, options.compress);
+            fontKey = QByteArray(FONT_RESOURCE_PREFIX) + "_" + QByteArray::number(suffix++);
         }
+
+        // Font (shared by all pages of the document)
+        if (!sharedObjects.fontReference.isValid())
+        {
+            sharedObjects.fontReference = createGlyphlessFont(builder, options.compress);
+        }
+        const PDFObjectReference fontReference = sharedObjects.fontReference;
         fonts.setEntry(PDFInplaceOrMemoryString(fontKey), PDFObject::createReference(fontReference));
         resources.setEntry(PDFInplaceOrMemoryString("Font"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(fonts))));
+
+        // Isolation of the graphic state (PDF-05): foreign content can leave a changed
+        // transformation matrix, clipping path or text state behind (scanners often
+        // write "w 0 0 h 0 0 cm /Im0 Do" without q/Q), which would deform the text layer.
+        // Foreign content is enclosed between the streams "q" and "Q".
+        const bool useIsolation = !contentReferences.empty();
+        if (useIsolation)
+        {
+            if (!sharedObjects.isolationBeginReference.isValid())
+            {
+                sharedObjects.isolationBeginReference = createStream(builder, PDFDictionary(), QByteArray("q\n"), false);
+                sharedObjects.isolationEndReference = createStream(builder, PDFDictionary(), QByteArray("Q\n"), false);
+            }
+            contentReferences.insert(contentReferences.begin(), sharedObjects.isolationBeginReference);
+            contentReferences.push_back(sharedObjects.isolationEndReference);
+        }
 
         // Content stream object
         const PDFObjectReference contentReference = createStream(builder, PDFDictionary(), content, options.compress);
         contentReferences.push_back(contentReference);
 
-        // Private data
-        const QString layerId = request.layerId.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : request.layerId;
-        const QByteArray layerData = serializeLayerData(result, layerId, options.keepReviewData);
         const PDFObjectReference dataReference = createStream(builder, PDFDictionary(), layerData, options.compress);
         const QByteArray pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(originalDocument, pageIndex);
 
@@ -1043,6 +1338,15 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         privateFactory.beginDictionaryItem("Data");
         privateFactory << dataReference;
         privateFactory.endDictionaryItem();
+        if (useIsolation)
+        {
+            privateFactory.beginDictionaryItem("IsolationBegin");
+            privateFactory << sharedObjects.isolationBeginReference;
+            privateFactory.endDictionaryItem();
+            privateFactory.beginDictionaryItem("IsolationEnd");
+            privateFactory << sharedObjects.isolationEndReference;
+            privateFactory.endDictionaryItem();
+        }
         privateFactory.beginDictionaryItem("HasReviewData");
         privateFactory << options.keepReviewData;
         privateFactory.endDictionaryItem();
@@ -1128,7 +1432,7 @@ bool PDFOCRTextLayerWriter::removeLayer(PDFDocumentBuilder* builder, const PDFDo
     PDFDictionary resources = copyDictionary(builder, page->getResources());
     PDFDictionary pieceInfo = copyDictionary(builder, pageDictionary->get("PieceInfo"));
 
-    if (!removeLayerFromPage(builder, pageReference, info, contentReferences, resources, pieceInfo))
+    if (!removeLayerFromPage(builder, originalDocument, pageIndex, info, contentReferences, resources, pieceInfo))
     {
         return false;
     }

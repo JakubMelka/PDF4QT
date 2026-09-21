@@ -24,6 +24,7 @@
 #include "ui_pdfocrlanguagesdialog.h"
 #include "pdfwidgetutils.h"
 
+#include <QPushButton>
 #include <QDir>
 #include <QUrl>
 #include <QFileDialog>
@@ -51,6 +52,14 @@ PDFOCRLanguagesDialog::PDFOCRLanguagesDialog(pdf::PDFOCRModelManager* manager, Q
     m_manager(manager)
 {
     ui->setupUi(this);
+
+    // No button is the default one: Enter pressed in an edit box (page range, text of a
+    // word, search) must not click an unrelated button of the dialog.
+    for (QPushButton* button : findChildren<QPushButton*>())
+    {
+        button->setAutoDefault(false);
+        button->setDefault(false);
+    }
 
     if (!m_manager)
     {

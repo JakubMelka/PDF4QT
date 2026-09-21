@@ -205,6 +205,12 @@ public:
     void redo();
     void clearHistory();
 
+    /// Removes the undo/redo steps, which contain a snapshot of the page. It is
+    /// used when the page gets a new content outside of the editing history
+    /// (new recognition, cleared result), so the undo cannot bring back an
+    /// obsolete snapshot and throw the recognition away.
+    void clearHistoryOfPage(PDFInteger pageIndex);
+
     // Dirty state --------------------------------------------------------
 
     bool isDirty() const { return m_dirty; }
@@ -235,6 +241,9 @@ private:
         std::vector<std::pair<PDFInteger, PDFOCRPageResult>> before;
         std::vector<std::pair<PDFInteger, PDFOCRPageResult>> after;
     };
+
+    /// Returns true, if no page of the step is being processed
+    bool isStepApplicable(const UndoStep& step) const;
 
     /// Helper for the undo steps: snapshots the pages, runs the edit and
     /// records the step, if the edit returned true.

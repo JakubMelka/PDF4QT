@@ -107,6 +107,7 @@ public:
 
 signals:
     void pageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis);
+    void ownLayerLoaded(int generation, pdf::PDFOCRPageResult result);
     void previewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message);
     void applyFinished(int generation);
 
@@ -225,6 +226,13 @@ private:
     std::vector<pdf::PDFInteger> getFindScopePages() const;
     bool isPageEditable(pdf::PDFInteger pageIndex) const;
 
+    /// Returns true, if the page is processed (or waits for the processing) by the running job,
+    /// so its result will replace the content of the page in the session
+    bool isPageInRunningJob(pdf::PDFInteger pageIndex) const;
+
+    /// Own OCR layer of the document is offered for further corrections without a new recognition (PDF-10)
+    void onOwnLayerLoaded(int generation, pdf::PDFOCRPageResult result);
+
     // Output
     void onApplyClicked();
     void onRemoveLayerClicked();
@@ -271,6 +279,11 @@ private:
     std::set<pdf::PDFInteger> m_reviewOnlyPages;
     std::map<pdf::PDFInteger, pdf::PDFOCRPageResult> m_candidates;
     std::set<pdf::PDFInteger> m_candidatePages;
+
+    /// States of the pages before the running job. A repeated recognition, which was
+    /// stopped or failed, must not destroy the existing result of the page (JOB-05).
+    std::map<pdf::PDFInteger, pdf::PDFOCRPageState> m_previousPageStates;
+    int m_keptResultsCount = 0;
 
     AsyncTask m_pageDataTask;
     AsyncTask m_previewTask;

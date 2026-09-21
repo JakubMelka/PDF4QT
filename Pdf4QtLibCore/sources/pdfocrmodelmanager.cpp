@@ -27,6 +27,9 @@
 #include <QFile>
 #include <QUuid>
 #include <QLockFile>
+#include <QDateTime>
+#include <QFileInfo>
+#include <QDirIterator>
 #include <QSaveFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -571,8 +574,116 @@ void PDFOCRModelManager::saveState() const
     }
 }
 
+bool PDFOCRModelManager::isInsideDirectory(const QString& path, const QString& directory)
+{
+    const QString cleanDirectory = QDir::cleanPath(directory);
+    if (cleanDirectory.isEmpty())
+    {
+        return false;
+    }
+
+    // Separator is part of the prefix, so a sibling directory with the same prefix does not pass
+    const QString prefix = cleanDirectory.endsWith(QChar('/')) ? cleanDirectory : cleanDirectory + QChar('/');
+    const Qt::CaseSensitivity caseSensitivity =
+#ifdef Q_OS_WIN
+            Qt::CaseInsensitive;
+#else
+            Qt::CaseSensitive;
+#endif
+    return QDir::cleanPath(path).startsWith(prefix, caseSensitivity);
+}
+
+void PDFOCRModelManager::performHousekeeping()
+{
+    if (m_housekeepingDone || !QDir(m_userDirectory).exists() || !m_activeDownloads.empty() || !m_downloadQueue.empty())
+    {
+        return;
+    }
+    m_housekeepingDone = true;
+
+    // Another running instance can be in the middle of an installation
+    QLockFile lock(m_userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
+    lock.setStaleLockTime(60 * 1000);
+    if (!lock.tryLock(0))
+    {
+        return;
+    }
+
+    const QDateTime now = QDateTime::currentDateTime();
+    auto isOlderThan = [&now](const QFileInfo& info, qint64 seconds)
+    {
+        return info.lastModified().isValid() && info.lastModified().secsTo(now) > seconds;
+    };
+
+    // 1. Interrupted activation of a model: "<file>.old" without the file is the last
+    // working version and it is returned back; other leftovers are removed.
+    const QString engineDirectory = getEngineUserDirectory(QStringLiteral("tesseract"));
+    for (PDFOCRModelProfile profile : { PDFOCRModelProfile::Fast, PDFOCRModelProfile::Best })
+    {
+        QDirIterator it(engineDirectory + QStringLiteral("/") + getProfileDirectoryName(profile), QStringList() << QStringLiteral("*.old") << QStringLiteral("*.new"), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext())
+        {
+            const QString leftoverPath = it.next();
+            const QString targetPath = leftoverPath.left(leftoverPath.size() - 4);
+            if (leftoverPath.endsWith(QStringLiteral(".old")) && !QFile::exists(targetPath))
+            {
+                QFile::rename(leftoverPath, targetPath);
+            }
+            else
+            {
+                QFile::setPermissions(leftoverPath, QFile::ReadOwner | QFile::WriteOwner);
+                QFile::remove(leftoverPath);
+            }
+        }
+    }
+
+    // 2. Temporary files of the downloads and of the verification left by a crash
+    constexpr qint64 ONE_DAY = 24 * 3600;
+    const QFileInfoList downloads = QDir(m_userDirectory + QStringLiteral("/downloads")).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& info : downloads)
+    {
+        if (!isOlderThan(info, ONE_DAY))
+        {
+            continue;
+        }
+
+        if (info.isDir())
+        {
+            QDir(info.absoluteFilePath()).removeRecursively();
+        }
+        else
+        {
+            QFile::remove(info.absoluteFilePath());
+        }
+    }
+
+    // 3. Runtime sets: unfinished sets left by a crash, and the sets not used for a long time.
+    // Every set is a full copy of the models, so they must not grow without a limit.
+    constexpr qint64 UNUSED_SET_LIFETIME = 30 * ONE_DAY;
+    const QFileInfoList runtimeSets = QDir(getRuntimeDirectory(QStringLiteral("tesseract"))).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& info : runtimeSets)
+    {
+        const bool isTemporary = info.fileName().contains(QStringLiteral(".tmp-"));
+        const QFileInfo completeInfo(info.absoluteFilePath() + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE));
+        const bool remove = isTemporary ? isOlderThan(info, ONE_DAY) : (!completeInfo.exists() ? isOlderThan(info, ONE_DAY) : isOlderThan(completeInfo, UNUSED_SET_LIFETIME));
+        if (!remove)
+        {
+            continue;
+        }
+
+        QDirIterator fileIt(info.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+        while (fileIt.hasNext())
+        {
+            // Models of the runtime sets are read-only
+            QFile::setPermissions(fileIt.next(), QFile::ReadOwner | QFile::WriteOwner);
+        }
+        QDir(info.absoluteFilePath()).removeRecursively();
+    }
+}
+
 void PDFOCRModelManager::refresh()
 {
+    performHousekeeping();
     loadState();
 
     std::vector<InstalledFile> installedFiles;
@@ -842,11 +953,27 @@ void PDFOCRModelManager::setModelHidden(const QString& id, bool hidden)
 
 PDFOCRError PDFOCRModelManager::acquireLock(std::unique_ptr<QLockFile>& lock) const
 {
-    QDir().mkpath(m_userDirectory);
+    auto createNotWritableError = [this]()
+    {
+        return PDFOCRError::create(PDFOCRErrorCode::InsufficientPermissions,
+                                   PDFTranslationContext::tr("OCR data directory '%1' is not writable. Check the permissions of the directory.").arg(m_userDirectory),
+                                   PDFTranslationContext::tr("Model management"));
+    };
+
+    if (!QDir().mkpath(m_userDirectory))
+    {
+        return createNotWritableError();
+    }
+
     lock = std::make_unique<QLockFile>(m_userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
     lock->setStaleLockTime(60 * 1000);
     if (!lock->tryLock(10000))
     {
+        if (lock->error() == QLockFile::PermissionError || lock->error() == QLockFile::UnknownError)
+        {
+            return createNotWritableError();
+        }
+
         return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
                                    PDFTranslationContext::tr("OCR data directory '%1' is locked by another instance of the application.").arg(m_userDirectory),
                                    PDFTranslationContext::tr("Model management"));
@@ -1026,6 +1153,16 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         }
     }
 
+    if (complete)
+    {
+        // Time of the last use (sets not used for a long time are removed by the housekeeping)
+        QFile completeFile(runtimeDirectory + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE));
+        if (completeFile.open(QFile::ReadWrite))
+        {
+            completeFile.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+        }
+    }
+
     if (!complete)
     {
         // Free space check
@@ -1047,11 +1184,27 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         for (const Selected& item : selected)
         {
             const QString targetPath = temporaryDirectory + QStringLiteral("/tessdata/") + item.languageCode + QLatin1String(TRAINEDDATA_SUFFIX);
+
+            // Script models are stored in a subdirectory ("script/Arabic")
+            QDir().mkpath(QFileInfo(targetPath).absolutePath());
             QFile::remove(targetPath);
             if (!QFile::copy(item.path, targetPath))
             {
                 QDir(temporaryDirectory).removeRecursively();
                 return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot copy model '%1' into the runtime set directory '%2'.").arg(item.path, temporaryDirectory));
+            }
+
+            // The copy is verified against the recorded checksum (LANG-02, LANG-06): a damaged
+            // or replaced model is reported by name, not as a generic failure of the engine.
+            if (!item.sha256.isEmpty())
+            {
+                const QString copyHash = computeSha256(targetPath);
+                if (copyHash.compare(item.sha256, Qt::CaseInsensitive) != 0)
+                {
+                    QFile::setPermissions(targetPath, QFile::ReadOwner | QFile::WriteOwner);
+                    QDir(temporaryDirectory).removeRecursively();
+                    return fail(PDFOCRErrorCode::VerificationFailed, PDFTranslationContext::tr("Model file '%1' is damaged, its checksum does not match. Reinstall the application or download the model again.").arg(item.path));
+                }
             }
 
             // Copies must not allow the modification of the original data
@@ -1241,7 +1394,7 @@ void PDFOCRModelManager::startNextDownloads()
 
         // Validate the target path (must be inside the user directory)
         const QString targetPath = getModelTargetPath(*entry);
-        if (!QDir::cleanPath(targetPath).startsWith(QDir::cleanPath(m_userDirectory)) || entry->fileName.contains(QStringLiteral("..")))
+        if (!isInsideDirectory(targetPath, m_userDirectory) || entry->fileName.contains(QStringLiteral("..")) || entry->fileName.contains(QChar(0x5C)))
         {
             updateModelState(modelId, PDFOCRModelState::Error, PDFTranslationContext::tr("Invalid target path."), 0);
             Q_EMIT downloadFinished(modelId, false, PDFTranslationContext::tr("Invalid target path of the model '%1'.").arg(modelId));
@@ -1325,7 +1478,12 @@ void PDFOCRModelManager::onDownloadReadyRead(Download* download)
         return;
     }
 
-    download->file->write(data);
+    if (download->file->write(data) != data.size())
+    {
+        download->writeFailed = true;
+        download->cancelled = true;
+        download->reply->abort();
+    }
 }
 
 void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
@@ -1348,12 +1506,27 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
     {
         const QByteArray data = reply->readAll();
         download->received += data.size();
-        download->file->write(data);
+        if (download->file->write(data) != data.size())
+        {
+            download->writeFailed = true;
+        }
+    }
+
+    if (download->file && !download->file->flush())
+    {
+        download->writeFailed = true;
     }
 
     if (download->file)
     {
         download->file->close();
+    }
+
+    if (download->writeFailed)
+    {
+        const QString directory = QFileInfo(download->temporaryPath).absolutePath();
+        finishDownload(std::move(download), false, PDFTranslationContext::tr("Downloaded data cannot be written into '%1'. Check the free space on the disk.").arg(directory));
+        return;
     }
 
     if (download->cancelled)
@@ -1703,7 +1876,7 @@ PDFOCRError PDFOCRModelManager::removeUserModel(const QString& modelId)
     }
 
     // Path must be inside the user directory
-    if (!QDir::cleanPath(model->path).startsWith(QDir::cleanPath(m_userDirectory)))
+    if (!isInsideDirectory(model->path, m_userDirectory))
     {
         return PDFOCRError::create(PDFOCRErrorCode::InsufficientPermissions, PDFTranslationContext::tr("Model '%1' is not a user model.").arg(model->name), PDFTranslationContext::tr("Model removal"));
     }

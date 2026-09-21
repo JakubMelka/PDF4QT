@@ -36,6 +36,7 @@
 #include "pdfoptionalcontent.h"
 #include "pdfdrawspacecontroller.h"
 
+#include <QPushButton>
 #include <QMenu>
 #include <QLocale>
 #include <QSpinBox>
@@ -132,6 +133,14 @@ PDFOCRDocumentDialog::PDFOCRDocumentDialog(const Context& context, QWidget* pare
     m_optionalContentActivity(nullptr)
 {
     ui->setupUi(this);
+
+    // No button is the default one: Enter pressed in an edit box (page range, text of a
+    // word, search) must not click an unrelated button of the dialog.
+    for (QPushButton* button : findChildren<QPushButton*>())
+    {
+        button->setAutoDefault(false);
+        button->setDefault(false);
+    }
     setWindowFlags(windowFlags() | Qt::WindowMaximizeButtonHint);
     setSizeGripEnabled(true);
 
@@ -261,11 +270,16 @@ void PDFOCRDocumentDialog::initializeUi()
         {
             const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
             const pdf::PDFOCRRegion* region = page ? page->findRegion(regionId) : nullptr;
-            if (region)
+            if (region && !isPageInRunningJob(m_currentPage))
             {
                 pdf::PDFOCRRegion changed = *region;
                 changed.rect = rectangle;
                 m_session->updateRegion(m_currentPage, changed);
+            }
+            else
+            {
+                // The view shows the geometry of the session again
+                onSessionPageChanged(m_currentPage);
             }
         });
         connect(view, &PDFOCRPageView::wordQuadChanged, this, [this](int wordId, pdf::PDFOCRQuad quad)
@@ -280,8 +294,9 @@ void PDFOCRDocumentDialog::initializeUi()
             ui->addRecognizeRegionButton->setChecked(false);
             ui->addExcludeRegionButton->setChecked(false);
             ui->addLineButton->setChecked(false);
-            m_originalView->setMode(ui->editGeometryButton->isChecked() ? PDFOCRPageView::Mode::EditWordGeometry : PDFOCRPageView::Mode::Select);
-            m_workingView->setMode(m_originalView->getMode());
+            ui->editGeometryButton->setChecked(false);
+            m_originalView->setMode(PDFOCRPageView::Mode::Select);
+            m_workingView->setMode(PDFOCRPageView::Mode::Select);
         });
         connect(view, &PDFOCRPageView::zoomChanged, this, [this, view](double zoom)
         {
@@ -403,6 +418,7 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(this, &PDFOCRDocumentDialog::pageDataReady, this, &PDFOCRDocumentDialog::onPageDataReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::previewReady, this, &PDFOCRDocumentDialog::onPreviewReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::applyFinished, this, &PDFOCRDocumentDialog::onApplyFinished, Qt::QueuedConnection);
+    connect(this, &PDFOCRDocumentDialog::ownLayerLoaded, this, &PDFOCRDocumentDialog::onOwnLayerLoaded, Qt::QueuedConnection);
 
     connect(m_jobController, &pdf::PDFOCRJobController::pageStateChanged, this, &PDFOCRDocumentDialog::onJobPageStateChanged, Qt::QueuedConnection);
     connect(m_jobController, &pdf::PDFOCRJobController::pageProgress, this, &PDFOCRDocumentDialog::onJobPageProgress, Qt::QueuedConnection);
@@ -622,10 +638,11 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(ui->saveProjectButton, &QPushButton::clicked, this, [this]() { saveProject(); });
     connect(ui->closeButton, &QPushButton::clicked, this, &QDialog::reject);
 
+    // Shortcuts follow the state of the buttons (no undo while the layer is being written)
     QShortcut* undoShortcut = new QShortcut(QKeySequence::Undo, this);
-    connect(undoShortcut, &QShortcut::activated, m_session, &pdf::PDFOCRSession::undo);
+    connect(undoShortcut, &QShortcut::activated, this, [this]() { if (ui->undoButton->isEnabled()) { m_session->undo(); } });
     QShortcut* redoShortcut = new QShortcut(QKeySequence::Redo, this);
-    connect(redoShortcut, &QShortcut::activated, m_session, &pdf::PDFOCRSession::redo);
+    connect(redoShortcut, &QShortcut::activated, this, [this]() { if (ui->redoButton->isEnabled()) { m_session->redo(); } });
     QShortcut* findShortcut = new QShortcut(QKeySequence::Find, this);
     connect(findShortcut, &QShortcut::activated, this, [this]()
     {
@@ -800,8 +817,58 @@ void PDFOCRDocumentDialog::startPageDataTask()
             }
 
             Q_EMIT pageDataReady(generation, pageIndex, thumbnail, analysis);
+
+            // Own OCR layer written earlier is read back, so the text can be corrected
+            // further without a new recognition (PDF-10)
+            if (analysis.hasOwnOCRLayer)
+            {
+                try
+                {
+                    pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo;
+                    std::optional<pdf::PDFOCRPageResult> layer = pdf::PDFOCRTextLayerWriter::readLayer(document, pageIndex, &layerInfo);
+                    if (layer && layerInfo.fingerprintMatches && pdf::PDFOCRValidator::validate(*layer).isEmpty())
+                    {
+                        layer->analysis = analysis;
+                        Q_EMIT ownLayerLoaded(generation, std::move(*layer));
+                    }
+                }
+                catch (const pdf::PDFException&)
+                {
+                    // Damaged layer data: the page is simply offered for a new recognition
+                }
+            }
         }
     });
+}
+
+void PDFOCRDocumentDialog::onOwnLayerLoaded(int generation, pdf::PDFOCRPageResult result)
+{
+    if (generation != m_pageDataTask.generation)
+    {
+        return;
+    }
+
+    const pdf::PDFInteger pageIndex = result.pageIndex;
+    const pdf::PDFOCRPageResult* existing = m_session->getPage(pageIndex);
+    if ((existing && (existing->hasResult() || !existing->blocks.empty())) || isPageInRunningJob(pageIndex))
+    {
+        // Result of this session (recognition, project) has the priority
+        return;
+    }
+
+    // Loading of the layer is not a change, which should be saved into a project
+    const bool wasDirty = m_session->isDirty();
+    m_fingerprints[pageIndex] = result.pageFingerprint;
+    m_session->setPageResult(std::move(result));
+    m_session->setDirty(wasDirty);
+
+    showReviewPanel(true);
+    updatePageItem(pageIndex);
+    updateUi();
+    if (pageIndex == m_currentPage)
+    {
+        onCurrentPageChanged();
+    }
 }
 
 void PDFOCRDocumentDialog::onPageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis)
@@ -2198,6 +2265,13 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             region.order = 1;
             task.regions.push_back(region);
             task.configuration.layout = runMode == RunMode::Word ? pdf::PDFOCRLayout::SingleWord : pdf::PDFOCRLayout::SingleLine;
+
+            // Orientation cannot be detected from a single line, the orientation detected for the page is used
+            if (task.configuration.preprocessing.autoOrientation && result && result->orientation &&
+                (!result->orientation->confidence || *result->orientation->confidence >= pdf::PDFOCRPagePreparer::MinimumOrientationConfidence))
+            {
+                task.configuration.preprocessing.rotation = result->orientation->rotation;
+            }
             task.configuration.preprocessing.autoOrientation = false;
             task.skipBlankDetection = true;
             description.configuration.workerCount = 1;
@@ -2213,12 +2287,16 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
     m_jobTotalPages = int(description.pages.size());
     m_jobTimer.start();
 
+    m_previousPageStates.clear();
+    m_keptResultsCount = 0;
     if (runMode == RunMode::Pages)
     {
         for (const pdf::PDFOCRPageTask& task : description.pages)
         {
             if (!m_candidatePages.count(task.pageIndex))
             {
+                const pdf::PDFOCRPageResult* existing = m_session->getPage(task.pageIndex);
+                m_previousPageStates[task.pageIndex] = existing ? existing->state : pdf::PDFOCRPageState::Pending;
                 m_session->setPageState(task.pageIndex, pdf::PDFOCRPageState::Pending);
             }
         }
@@ -2226,6 +2304,12 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
 
     if (!m_jobController->start(std::move(description), &m_jobGeneration))
     {
+        // Pages keep their results
+        for (const auto& item : m_previousPageStates)
+        {
+            m_session->setPageState(item.first, item.second);
+        }
+        m_previousPageStates.clear();
         QMessageBox::critical(this, windowTitle(), tr("Recognition cannot be started."));
         return false;
     }
@@ -2291,6 +2375,21 @@ void PDFOCRDocumentDialog::onJobPageFinished(int generation, pdf::PDFOCRPageResu
         return;
     }
 
+    // A stopped or failed repeated recognition keeps the previous result of the page (JOB-05)
+    if (result.state == pdf::PDFOCRPageState::Cancelled || result.state == pdf::PDFOCRPageState::Error)
+    {
+        auto it = m_previousPageStates.find(pageIndex);
+        const bool hadResult = it != m_previousPageStates.end() &&
+                               (it->second == pdf::PDFOCRPageState::Done || it->second == pdf::PDFOCRPageState::NoText || it->second == pdf::PDFOCRPageState::Stale);
+        if (hadResult)
+        {
+            m_session->setPageState(pageIndex, it->second);
+            ++m_keptResultsCount;
+            updatePageItem(pageIndex);
+            return;
+        }
+    }
+
     m_session->setPageResult(std::move(result));
     updatePageItem(pageIndex);
 }
@@ -2325,9 +2424,26 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
     {
         text = tr("Stopped. ") + text;
     }
+    if (m_keptResultsCount > 0)
+    {
+        text += QChar(' ') + tr("Previous results of %n page(s) were kept.", nullptr, m_keptResultsCount);
+    }
     ui->progressLabel->setText(text);
+    m_previousPageStates.clear();
 
     const RunMode runMode = m_runMode;
+
+    if (m_closeRequested)
+    {
+        // The dialog is being closed, the user is not asked about the candidates anymore
+        m_candidates.clear();
+        m_candidatePages.clear();
+        m_closeRequested = false;
+        updateUi();
+        done(QDialog::Rejected);
+        return;
+    }
+
     if (runMode == RunMode::Pages && (summary.donePages > 0 || summary.noTextPages > 0))
     {
         showReviewPanel(true);
@@ -2335,13 +2451,6 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
     processCandidates();
     updateUi();
     onCurrentPageChanged();
-
-    if (m_closeRequested)
-    {
-        m_closeRequested = false;
-        done(QDialog::Rejected);
-        return;
-    }
 
     if (runMode != RunMode::Pages)
     {
@@ -2475,6 +2584,22 @@ void PDFOCRDocumentDialog::onRerecognizeClicked()
 // -------------------------------------------------------------------------
 // Review
 // -------------------------------------------------------------------------
+
+bool PDFOCRDocumentDialog::isPageInRunningJob(pdf::PDFInteger pageIndex) const
+{
+    if (!m_jobController->isRunning() || m_runMode != RunMode::Pages)
+    {
+        return false;
+    }
+
+    if (m_jobController->isPagePending(pageIndex))
+    {
+        return true;
+    }
+
+    const pdf::PDFOCRPageResult* page = m_session->getPage(pageIndex);
+    return page && (page->state == pdf::PDFOCRPageState::Preparing || page->state == pdf::PDFOCRPageState::Recognizing);
+}
 
 bool PDFOCRDocumentDialog::isPageEditable(pdf::PDFInteger pageIndex) const
 {
@@ -3038,13 +3163,20 @@ void PDFOCRDocumentDialog::onFindNext()
         return;
     }
 
-    // Next hit after the current selection
+    // Next hit after the current selection. A word can contain more hits, they are
+    // one item for the navigation (the whole word is selected), so the search
+    // continues with the first hit of the following word.
     size_t index = 0;
     for (size_t i = 0; i < hits.size(); ++i)
     {
         if (hits[i].pageIndex == m_currentPage && hits[i].wordId == m_selectedWordId)
         {
-            index = (i + 1) % hits.size();
+            size_t next = i;
+            while (next < hits.size() && hits[next].pageIndex == m_currentPage && hits[next].wordId == m_selectedWordId)
+            {
+                ++next;
+            }
+            index = next % hits.size();
             break;
         }
     }
@@ -3089,6 +3221,12 @@ void PDFOCRDocumentDialog::onReplaceAll()
     }
 
     // Number of the hits and a preview are shown before the replacement (EDIT-05)
+    std::set<pdf::PDFInteger> hitPages;
+    for (const pdf::PDFOCRSession::FindHit& hit : hits)
+    {
+        hitPages.insert(hit.pageIndex);
+    }
+
     QStringList preview;
     for (size_t i = 0; i < hits.size() && i < 15; ++i)
     {
@@ -3106,7 +3244,7 @@ void PDFOCRDocumentDialog::onReplaceAll()
         preview << tr("... and %1 more").arg(hits.size() - 15);
     }
 
-    QMessageBox messageBox(QMessageBox::Question, windowTitle(), tr("%n occurrence(s) of '%1' will be replaced by '%2' on %3 page(s).", nullptr, int(hits.size())).arg(findText, replaceText).arg(pages.size()),
+    QMessageBox messageBox(QMessageBox::Question, windowTitle(), tr("%n occurrence(s) of '%1' will be replaced by '%2' on %3 page(s).", nullptr, int(hits.size())).arg(findText, replaceText, QString::number(hitPages.size())),
                            QMessageBox::Yes | QMessageBox::Cancel, this);
     messageBox.setInformativeText(tr("The replacement changes only the invisible text, not the scanned image. The whole replacement can be undone in a single step."));
     messageBox.setDetailedText(preview.join(QChar('\n')));
@@ -3123,6 +3261,13 @@ void PDFOCRDocumentDialog::onRectangleDrawn(int mode, QRectF pageRectangle, pdf:
 {
     if (m_currentPage < 0)
     {
+        return;
+    }
+
+    if (isPageInRunningJob(m_currentPage))
+    {
+        // The result of the running recognition would overwrite the change without any notice (UI-06)
+        ui->progressLabel->setText(tr("Page %1 is being recognized, it can be changed after the recognition finishes.").arg(m_currentPage + 1));
         return;
     }
 
@@ -3408,13 +3553,15 @@ void PDFOCRDocumentDialog::onApplyClicked()
         return;
     }
 
+    if (!m_context.canModify)
+    {
+        // A copy with the text layer is a modified document as well (PDF-12)
+        QMessageBox::warning(this, windowTitle(), tr("The permissions of the document do not allow its modification, so the text layer cannot be written into the document nor into its copy. The recognized text can be exported, if the permissions allow copying of the content."));
+        return;
+    }
+
     if (outputMode == OutputMode::ModifyCurrent)
     {
-        if (!m_context.canModify)
-        {
-            QMessageBox::warning(this, windowTitle(), tr("The permissions of the document do not allow its modification. The recognized text can be exported or written into a copy, if it is permitted."));
-            return;
-        }
 
         if (m_hasConformanceDeclaration)
         {
@@ -3453,7 +3600,9 @@ void PDFOCRDocumentDialog::onApplyClicked()
             continue;
         }
 
-        if (!result->hasUsableText())
+        const pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo = pdf::PDFOCRTextLayerWriter::readLayerInfo(m_context.document, pageIndex);
+
+        if (!result->hasUsableText() && !layerInfo.isPresent)
         {
             excluded << tr("Page %1: no text to write.").arg(pageIndex + 1);
             continue;
@@ -3480,7 +3629,6 @@ void PDFOCRDocumentDialog::onApplyClicked()
         unreviewedWords += statistics.unreviewedCount;
         uncertainWords += statistics.reviewRequiredCount;
 
-        const pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo = pdf::PDFOCRTextLayerWriter::readLayerInfo(m_context.document, pageIndex);
         pdf::PDFOCRTextLayerWriter::PageRequest request;
         request.pageIndex = pageIndex;
         request.result = *result;
@@ -3644,6 +3792,18 @@ void PDFOCRDocumentDialog::onApplyClicked()
         catch (const pdf::PDFException& exception)
         {
             result.errorMessage = exception.getMessage();
+            result.document.reset();
+        }
+        catch (const std::exception& exception)
+        {
+            // Without the final signal the dialog would stay busy forever and could not be closed
+            result.errorMessage = QString::fromLocal8Bit(exception.what());
+            result.document.reset();
+        }
+        catch (...)
+        {
+            result.errorMessage = tr("Unexpected error.");
+            result.document.reset();
         }
 
         if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
@@ -3732,6 +3892,18 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
         catch (const pdf::PDFException& exception)
         {
             result.errorMessage = exception.getMessage();
+            result.document.reset();
+        }
+        catch (const std::exception& exception)
+        {
+            // Without the final signal the dialog would stay busy forever and could not be closed
+            result.errorMessage = QString::fromLocal8Bit(exception.what());
+            result.document.reset();
+        }
+        catch (...)
+        {
+            result.errorMessage = tr("Unexpected error.");
+            result.document.reset();
         }
 
         if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
@@ -3782,6 +3954,10 @@ void PDFOCRDocumentDialog::onApplyFinished(int generation)
     if (!result.report.skippedPages.empty())
     {
         messages << tr("Pages without text to write: %1").arg(pdf::PDFOCRPageSelection::describe(result.report.skippedPages));
+    }
+    if (!result.report.removedPages.empty())
+    {
+        messages << tr("Pages without text, whose obsolete OCR layer was removed: %1").arg(pdf::PDFOCRPageSelection::describe(result.report.removedPages));
     }
 
     if (!result.copyFileName.isEmpty())
@@ -4078,7 +4254,6 @@ void PDFOCRDocumentDialog::onOpenProject()
     for (pdf::PDFInteger page : reviewOnly)
     {
         m_reviewOnlyPages.insert(page);
-        m_session->markPagesStale({ });
     }
 
     m_projectFileName = fileName;

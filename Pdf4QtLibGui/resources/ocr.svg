@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   version="1.1"
+   id="svgocr"
+   width="1024"
+   height="1024"
+   viewBox="0 0 1024 1024">
+  <g id="ocr" style="fill:#000000">
+    <!-- corner brackets of the scanned area -->
+    <path d="M 96,96 H 336 V 160 H 160 V 336 H 96 Z" />
+    <path d="M 928,96 V 336 H 864 V 160 H 688 V 96 Z" />
+    <path d="M 96,928 V 688 H 160 V 864 H 336 V 928 Z" />
+    <path d="M 928,928 H 688 V 864 H 864 V 688 H 928 Z" />
+    <!-- recognized text lines -->
+    <rect x="256" y="288" width="512" height="64" />
+    <rect x="256" y="416" width="384" height="64" />
+    <rect x="256" y="672" width="448" height="64" />
+    <!-- scanning line -->
+    <rect x="32" y="544" width="960" height="40" />
+  </g>
+</svg>
