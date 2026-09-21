@@ -279,12 +279,25 @@ const std::vector<PDFOCRLayout>& PDFOCRConfiguration::getLayouts()
     return layouts;
 }
 
+const std::vector<PDFOCRModelProfile>& PDFOCRConfiguration::getProfiles()
+{
+    static const std::vector<PDFOCRModelProfile> profiles =
+    {
+        PDFOCRModelProfile::Fast,
+        PDFOCRModelProfile::Standard,
+        PDFOCRModelProfile::Best
+    };
+    return profiles;
+}
+
 QString PDFOCRConfiguration::getProfileName(PDFOCRModelProfile profile)
 {
     switch (profile)
     {
         case PDFOCRModelProfile::Fast:
             return PDFTranslationContext::tr("Fast");
+        case PDFOCRModelProfile::Standard:
+            return PDFTranslationContext::tr("Standard");
         case PDFOCRModelProfile::Best:
             return PDFTranslationContext::tr("Quality");
     }
@@ -298,6 +311,8 @@ QString PDFOCRConfiguration::getProfileIdentifier(PDFOCRModelProfile profile)
     {
         case PDFOCRModelProfile::Fast:
             return QStringLiteral("fast");
+        case PDFOCRModelProfile::Standard:
+            return QStringLiteral("standard");
         case PDFOCRModelProfile::Best:
             return QStringLiteral("best");
     }
@@ -307,9 +322,12 @@ QString PDFOCRConfiguration::getProfileIdentifier(PDFOCRModelProfile profile)
 
 PDFOCRModelProfile PDFOCRConfiguration::parseProfileIdentifier(const QString& identifier)
 {
-    if (identifier == QStringLiteral("best"))
+    for (const PDFOCRModelProfile profile : getProfiles())
     {
-        return PDFOCRModelProfile::Best;
+        if (identifier == getProfileIdentifier(profile))
+        {
+            return profile;
+        }
     }
 
     return PDFOCRModelProfile::Fast;

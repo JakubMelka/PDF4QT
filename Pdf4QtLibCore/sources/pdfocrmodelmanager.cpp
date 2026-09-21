@@ -354,7 +354,7 @@ void PDFOCRModelManager::scanBuiltIn(std::vector<InstalledFile>& files) const
         return;
     }
 
-    for (const PDFOCRModelProfile profile : { PDFOCRModelProfile::Fast, PDFOCRModelProfile::Best })
+    for (const PDFOCRModelProfile profile : PDFOCRConfiguration::getProfiles())
     {
         const QString profileDirectory = engineDirectory.absolutePath() + QStringLiteral("/") + getProfileDirectoryName(profile);
         const QString tessdataDirectory = profileDirectory + QStringLiteral("/tessdata");
@@ -423,7 +423,7 @@ void PDFOCRModelManager::scanUser(std::vector<InstalledFile>& files) const
     }
 
     // Downloaded models: <profile>/<set-id>/tessdata/*.traineddata
-    for (const PDFOCRModelProfile profile : { PDFOCRModelProfile::Fast, PDFOCRModelProfile::Best })
+    for (const PDFOCRModelProfile profile : PDFOCRConfiguration::getProfiles())
     {
         QDir profileDirectory(engineDirectoryPath + QStringLiteral("/") + getProfileDirectoryName(profile));
         if (!profileDirectory.exists())
@@ -618,7 +618,7 @@ void PDFOCRModelManager::performHousekeeping()
     // 1. Interrupted activation of a model: "<file>.old" without the file is the last
     // working version and it is returned back; other leftovers are removed.
     const QString engineDirectory = getEngineUserDirectory(QStringLiteral("tesseract"));
-    for (PDFOCRModelProfile profile : { PDFOCRModelProfile::Fast, PDFOCRModelProfile::Best })
+    for (const PDFOCRModelProfile profile : PDFOCRConfiguration::getProfiles())
     {
         QDirIterator it(engineDirectory + QStringLiteral("/") + getProfileDirectoryName(profile), QStringList() << QStringLiteral("*.old") << QStringLiteral("*.new"), QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext())

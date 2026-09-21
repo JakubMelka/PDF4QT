@@ -333,7 +333,8 @@ void PDFOCRDocumentDialog::initializeUi()
     }
 
     ui->profileComboBox->addItem(tr("Fast (built-in models)"), int(pdf::PDFOCRModelProfile::Fast));
-    ui->profileComboBox->addItem(tr("Quality (larger models, download needed)"), int(pdf::PDFOCRModelProfile::Best));
+    ui->profileComboBox->addItem(tr("Standard (larger models, download may be needed)"), int(pdf::PDFOCRModelProfile::Standard));
+    ui->profileComboBox->addItem(tr("Quality (largest models, download may be needed)"), int(pdf::PDFOCRModelProfile::Best));
 
     ui->existingTextPolicyComboBox->addItem(tr("Only pages without text"), int(pdf::PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
     ui->existingTextPolicyComboBox->addItem(tr("Add text in the drawn regions"), int(pdf::PDFOCRExistingTextPolicy::AddInRegions));

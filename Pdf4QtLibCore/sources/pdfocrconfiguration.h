@@ -36,10 +36,12 @@
 namespace pdf
 {
 
-/// Model profile (REC-01, LANG-03)
+/// Model profile (REC-01, LANG-03). For Tesseract, the profiles are the model
+/// repositories tessdata_fast, tessdata and tessdata_best.
 enum class PDFOCRModelProfile
 {
     Fast,
+    Standard,
     Best
 };
 
@@ -193,10 +195,13 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
     /// Returns all layouts
     static const std::vector<PDFOCRLayout>& getLayouts();
 
+    /// Returns all profiles, from the fastest one to the most accurate one
+    static const std::vector<PDFOCRModelProfile>& getProfiles();
+
     /// Returns translated name of the profile
     static QString getProfileName(PDFOCRModelProfile profile);
 
-    /// Returns identifier of the profile ("fast", "best")
+    /// Returns identifier of the profile ("fast", "standard", "best")
     static QString getProfileIdentifier(PDFOCRModelProfile profile);
     static PDFOCRModelProfile parseProfileIdentifier(const QString& identifier);
 

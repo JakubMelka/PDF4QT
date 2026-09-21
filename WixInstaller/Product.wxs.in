@@ -320,6 +320,24 @@
       <Component Id="cmpocrmodelosd" Directory="dir_ocr_tesseract_fast_tessdata" Guid="{DBC0A65D-AD23-57F0-8737-E9F0ABFB6B86}">
         <File Id="filocrmodelosd" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\fast\tessdata\osd.traineddata" />
       </Component>
+      <Component Id="cmpocrdatastandardmanifestjson" Directory="dir_ocr_tesseract_standard" Guid="{67DFC247-AC20-5B28-B625-E0C26C1BA101}">
+        <File Id="filocrdatastandardmanifestjson" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\standard\manifest.json" />
+      </Component>
+      <Component Id="cmpocrdatastandardLICENSE" Directory="dir_ocr_tesseract_standard" Guid="{D3A2463E-B38B-5CC0-8577-A97F27BD498D}">
+        <File Id="filocrdatastandardLICENSE" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\standard\LICENSE" />
+      </Component>
+      <Component Id="cmpocrmodelstandardeng" Directory="dir_ocr_tesseract_standard_tessdata" Guid="{75995852-17B4-5944-9CBF-93E552B6DC1D}">
+        <File Id="filocrmodelstandardeng" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\standard\tessdata\eng.traineddata" />
+      </Component>
+      <Component Id="cmpocrdatabestmanifestjson" Directory="dir_ocr_tesseract_best" Guid="{BBDFB5CE-8BC0-547E-A90E-AB7188525ECF}">
+        <File Id="filocrdatabestmanifestjson" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\best\manifest.json" />
+      </Component>
+      <Component Id="cmpocrdatabestLICENSE" Directory="dir_ocr_tesseract_best" Guid="{776CF218-BF61-5450-9D56-FEDDE12DEC20}">
+        <File Id="filocrdatabestLICENSE" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\best\LICENSE" />
+      </Component>
+      <Component Id="cmpocrmodelbesteng" Directory="dir_ocr_tesseract_best_tessdata" Guid="{328D83E1-9BFF-5691-8434-7A607A84E64E}">
+        <File Id="filocrmodelbesteng" KeyPath="yes" Source="$(var.MyInstallDir)\ocr\tesseract\best\tessdata\eng.traineddata" />
+      </Component>
 
     </ComponentGroup>
   </Fragment>
@@ -431,6 +449,12 @@
         <Directory Id="dir_ocr_tesseract" Name="tesseract">
           <Directory Id="dir_ocr_tesseract_fast" Name="fast">
             <Directory Id="dir_ocr_tesseract_fast_tessdata" Name="tessdata" />
+          </Directory>
+          <Directory Id="dir_ocr_tesseract_standard" Name="standard">
+            <Directory Id="dir_ocr_tesseract_standard_tessdata" Name="tessdata" />
+          </Directory>
+          <Directory Id="dir_ocr_tesseract_best" Name="best">
+            <Directory Id="dir_ocr_tesseract_best_tessdata" Name="tessdata" />
           </Directory>
         </Directory>
       </Directory>

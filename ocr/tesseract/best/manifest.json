@@ -1,0 +1,23 @@
+{
+ "format": "pdf4qt-ocr-builtin-manifest",
+ "version": 1,
+ "engine": "tesseract",
+ "profile": "best",
+ "setId": "tessdata_best-e12c65a91594",
+ "license": "Apache-2.0",
+ "licenseFile": "LICENSE",
+ "models": [
+  {
+   "id": "tesseract/best/eng",
+   "language": "eng",
+   "name": "English",
+   "profile": "best",
+   "fileName": "eng.traineddata",
+   "size": 15400601,
+   "sha256": "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba",
+   "version": "e12c65a915945e4c28e237a9b52bc4a8f39a0cec",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_best"
+  }
+ ]
+}
