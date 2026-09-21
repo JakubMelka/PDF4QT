@@ -2604,14 +2604,17 @@ void OCRTest::modelManagerBuiltIn()
     QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("ces"), PDFOCRModelProfile::Best));
     QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("ces"), PDFOCRModelProfile::Standard));
 
-    // English is built-in in every profile, the models of the profiles are different files
+    // Only the profile Fast has built-in models in the distribution. The other profiles are checked,
+    // when a developer has placed their English model (generate_catalog.py --builtin-best eng --update-builtin).
     QStringList englishChecksums;
     for (const PDFOCRModelProfile profile : PDFOCRConfiguration::getProfiles())
     {
         const QString profileId = PDFOCRConfiguration::getProfileIdentifier(profile);
         if (!QFile::exists(builtInDirectory + QStringLiteral("/tesseract/%1/tessdata/eng.traineddata").arg(profileId)))
         {
-            // Model files are not stored in the repository, see ocr/tools/generate_catalog.py
+            QVERIFY(profile != PDFOCRModelProfile::Fast);
+            QVERIFY(!manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("eng"), profile));
+            QCOMPARE(manager.getMissingModels(QStringLiteral("tesseract"), { QStringLiteral("eng") }, profile), QStringList{ QStringLiteral("tesseract/%1/eng").arg(profileId) });
             continue;
         }
 
@@ -3049,15 +3052,15 @@ void OCRTest::tesseractRecognition()
     PDFDocument reopened = read(write(*modified));
     QVERIFY(extractText(reopened, 0).contains(QStringLiteral("Hello")));
 
-    // Built-in English of the profiles Standard and Quality is recognized by the LSTM engine,
-    // the orientation data are taken from the built-in set of the profile Fast
+    // English of the profiles Standard and Quality is recognized by the LSTM engine, the orientation
+    // data are taken from the built-in set of the profile Fast. These models are not distributed,
+    // the check runs when a developer has placed them (generate_catalog.py --builtin-best eng --update-builtin).
     for (const PDFOCRModelProfile profile : { PDFOCRModelProfile::Standard, PDFOCRModelProfile::Best })
     {
         const QString profileId = PDFOCRConfiguration::getProfileIdentifier(profile);
         const QString profileTessdata = builtInDirectory + QStringLiteral("/tesseract/%1/tessdata").arg(profileId);
         if (!QFile::exists(profileTessdata + QStringLiteral("/eng.traineddata")))
         {
-            // Model files are not stored in the repository, see ocr/tools/generate_catalog.py
             continue;
         }
 
@@ -3316,7 +3319,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
     {
         if (!manager.getMissingModels(QStringLiteral("tesseract"), corpus.languages, profile).isEmpty())
         {
-            // Only the built-in models are measured, the profiles standard and best have English only
+            // Only the models of the built-in directory are measured, nothing is downloaded
             report << QStringLiteral("%1: skipped, the models are not built-in in the profile").arg(corpus.name);
             continue;
         }

@@ -76,7 +76,7 @@ Chování u zvláštních dokumentů:
 ### 4.2 Jazyky a modely
 
 - Vestavěná sada profilu *Fast*: čeština, angličtina, slovenština, němčina, španělština, ruština, zjednodušená a tradiční čínština a data orientace `osd`. Manifest [ocr/tesseract/fast/manifest.json](ocr/tesseract/fast/manifest.json) uvádí verzi, SHA-256 a licenci.
-- Angličtina je vestavěná i v profilech *Standard* a *Quality*, takže jde všechny tři kvality vyzkoušet hned po instalaci a bez sítě. Manifesty jsou [ocr/tesseract/standard/manifest.json](ocr/tesseract/standard/manifest.json) a [ocr/tesseract/best/manifest.json](ocr/tesseract/best/manifest.json). Data orientace si tyto profily berou z vestavěné sady *Fast*. Ostatní jazyky, včetně čínštiny, se do profilů *Standard* a *Quality* stahují z katalogu.
+- Profily *Standard* a *Quality* žádné vestavěné modely nemají. Všechny jejich jazyky se stahují z katalogu ve správci jazyků. Důvodem je měření v kapitole 7.4: větší modely jsou výrazně pomalejší a na zkušebním korpusu nejsou přesnější. Data orientace si tyto profily berou z vestavěné sady *Fast*.
 - Modely pocházejí z oficiálních repozitářů `tesseract-ocr/tessdata_fast` a `tesseract-ocr/tessdata_best` na GitHubu. Stahují se z `raw.githubusercontent.com` na připnutých commitech.
 - Uživatelské úložiště je `<AppDataLocation>/ocr`, tedy vedle složky `certificates`. Obsahuje složky `tesseract/fast`, `tesseract/best`, `tesseract/custom`, `tesseract/runtime` a `downloads`.
 - Stažení vyžaduje výslovné potvrzení s výčtem jazyků, velikostí a cílovou složkou. Přijímá se jen https. Kontroluje se velikost, SHA-256, to, že server nevrátil stránku HTML, a nakonec načtení modelu enginem. Neúspěšné stažení se nikdy nedotkne funkční starší verze.
@@ -189,7 +189,7 @@ Cíl QA-02 je splněn pro oba jazyky. Korpus je malý a syntetický. Pro nekvali
 
 ### 7.4 Srovnání profilů
 
-Měřeno vestavěnou angličtinou na stejném stroji, 60 stran, 2 pracovní vlákna. Profil volí proměnná `PDF4QT_OCR_BENCHMARK_PROFILE`.
+Měřeno angličtinou na stejném stroji, 60 stran, 2 pracovní vlákna. Profil volí proměnná `PDF4QT_OCR_BENCHMARK_PROFILE`. Benchmark nic nestahuje. Modely větších profilů je před měřením třeba dočasně uložit do zdrojového stromu příkazem `python ocr/tools/generate_catalog.py --builtin-standard eng --builtin-best eng --update-builtin` a potom stejným příkazem s prázdnými seznamy zase odebrat.
 
 | Veličina | Fast | Standard | Quality |
 | --- | --- | --- | --- |
@@ -206,14 +206,15 @@ Měřeno vestavěnou angličtinou na stejném stroji, 60 stran, 2 pracovní vlá
 - Rozdíl v rychlosti je velký a stálý: *Standard* je asi o čtvrtinu a *Quality* asi o polovinu pomalejší než *Fast*.
 - Rozdíl v přesnosti je na tomto korpusu v řádu jednotlivých slov z 212 a nemá stálý směr. Při 70 DPI vyšel nejlépe profil *Fast*.
 - Při silném šumu, od směrodatné odchylky 20, selhávají všechny tři profily stejně, kolem 50 % CER. Selhává rozbor stránky, nikoli jazykový model, takže volba profilu nepomůže.
-- Korpus je malý a syntetický. Skutečné skeny, malá písma a jazyky s diakritikou mohou dopadnout jinak. Čeština v profilech *Standard* a *Quality* změřena není, protože není vestavěná.
+- Korpus je malý a syntetický. Skutečné skeny, malá písma a jazyky s diakritikou mohou dopadnout jinak. Čeština v profilech *Standard* a *Quality* změřena není.
+- Závěr: distribuce obsahuje jen modely profilu *Fast*, větší modely si uživatel stáhne.
 
 ## 8. Známé mezery a odchylky
 
 Skutečné mezery vůči P0:
 
 - **Ruční přejímka neproběhla.** Linux a macOS nebyly sestaveny ani vyzkoušeny. Hledání, označování a kopírování textu nebylo ověřeno v Acrobat Readeru, PDFiu ani Poppleru. Neověřeno je i ovládání klávesnicí, škálování displeje a české překlady nových textů.
-- **Profily *Standard* a *Quality* jsou změřeny jen pro angličtinu** (QA-04), viz kapitola 7.4. Ostatní jazyky v nich nejsou vestavěné a benchmark modely nestahuje.
+- **Profily *Standard* a *Quality* jsou změřeny jen pro angličtinu** (QA-04), viz kapitola 7.4.
 - **Profil *Standard* je nad rámec zadání.** Zadání zná jen profily Rychlý a Kvalitní. Modely repozitáře `tessdata` obsahují i data původního enginu, režimy OEM 0 a 2 ale zůstávají odmítnuté u všech profilů.
 - **Úpravy řádků.** Chybí spojení a rozdělení řádků a přesun řádku do jiného bloku (EDIT-02). Účaří a orientaci nelze v dialogu upravit a zapisovač účaří nepoužívá (EDIT-04).
 - **Oblasti.** Z dialogu nelze znovu rozpoznat jedinou oblast, i když session náhradu oblasti umí (REGION-03). Rotace oblasti se ignoruje a zapíše se do protokolu stránky (REGION-02).
@@ -234,7 +235,7 @@ Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické ma
 ## 9. Sestavení a balení
 
 - Závislosti jsou v [vcpkg.json](vcpkg.json) a [vcpkg_with_qt.json](vcpkg_with_qt.json). Vestavěné modely se kopírují do stromu sestavení a instalují jen při zapnutém OCR. Když modely ve zdrojovém stromu chybějí, CMake vypíše varování.
-- **Modely.** Soubory `*.traineddata` nejsou v repozitáři. Příkaz `python ocr/tools/generate_catalog.py --update-builtin` je stáhne do složek `ocr/tesseract/<profil>/tessdata` a ověří proti manifestům. Na novější verzi modelů se přechází přepínači `--fast-commit`, `--standard-commit` a `--best-commit`, které přijmou commit, větev nebo značku. Skript přečte seznam souborů commitu z API GitHubu, stáhne všechny modely do mezipaměti, ověří je proti velikosti a git SHA-1 commitu a zapíše jejich SHA-256 do katalogu. Opakovaný běh se stejnými commity soubory repozitáře nezmění. Sadu vestavěných jazyků profilu mění přepínače `--builtin-fast`, `--builtin-standard` a `--builtin-best`. Soubory instalátoru pro Windows jsou vyjmenované v [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) a je třeba je upravit ručně. Model bez složky LSTM, tedy starší data pouze pro původní engine, skript do katalogu nezapíše.
+- **Modely.** Soubory `*.traineddata` nejsou v repozitáři. Příkaz `python ocr/tools/generate_catalog.py --fetch-builtin` stáhne jen vestavěné modely podle manifestu, asi 35 MB, do složky `ocr/tesseract/fast/tessdata` a ověří jejich velikost a SHA-256. Je to krok po čerstvém klonu a v průběžné integraci. Běh bez tohoto přepínače přegeneruje katalog a k tomu stahuje do mezipaměti všechny modely, asi 3 GB. Na novější verzi modelů se přechází přepínači `--fast-commit`, `--standard-commit` a `--best-commit`, které přijmou commit, větev nebo značku. Skript přečte seznam souborů commitu z API GitHubu, stáhne všechny modely do mezipaměti, ověří je proti velikosti a git SHA-1 commitu a zapíše jejich SHA-256 do katalogu. Opakovaný běh se stejnými commity soubory repozitáře nezmění. Sadu vestavěných jazyků profilu mění přepínače `--builtin-fast`, `--builtin-standard` a `--builtin-best`. Soubory instalátoru pro Windows jsou vyjmenované v [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) a je třeba je upravit ručně. Model bez složky LSTM, tedy starší data pouze pro původní engine, skript do katalogu nezapíše.
 - **Windows.** [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) obsahuje adaptér, Tesseract, Leptonicu, jejich závislé knihovny a vestavěné modely. Názvy `tesseract55.dll` a `leptonica-1.87.0.dll` jsou zapsané napevno. Protože vcpkg nemá připnutou základní verzi, povýšení knihoven sestavení instalátoru rozbije, dokud se názvy neupraví. Instalátor nebyl sestaven ani vyzkoušen.
 - **Flatpak.** [Flatpak/io.github.JakubMelka.Pdf4qt.json](Flatpak/io.github.JakubMelka.Pdf4qt.json) má moduly Leptonica 1.87.0 a Tesseract 5.5.2 s kontrolními součty. Tesseract se zde sestavuje bez curl a libarchive, Windows balík je obsahuje. Manifest nebyl sestaven.
 - **macOS a AppImage** nebyly řešeny.
