@@ -2555,6 +2555,8 @@ void OCRTest::invalidEngineOutput()
 // AT-02 / AT-22: built-in models
 // -------------------------------------------------------------------------
 
+/// Directory with the built-in OCR data of the build tree (the language models are
+/// extracted there from the archives of the repository by CMake)
 static QString getSourceOcrDirectory()
 {
     const QByteArray environmentDirectory = qgetenv("PDF4QT_OCR_DATA_DIRECTORY");

@@ -28,6 +28,11 @@ The script produces these files of the repository:
                                              Pdf4QtLibCore by ocr.qrc)
     ocr/tesseract/<profile>/manifest.json    models distributed with the application
     ocr/tesseract/<profile>/LICENSE          license of the model repository
+    ocr/tesseract/<profile>/tessdata/*.tar.xz    the model files themselves
+
+The model files are stored in the repository as xz compressed archives, one model
+per archive, because a traineddata file compresses to about a third of its size.
+CMake extracts them into the build tree, nothing is downloaded during a build.
 
 The profiles are fast (tessdata_fast), standard (tessdata) and best (tessdata_best).
 Every model repository is pinned to a commit. The list of the files of the commit
@@ -48,11 +53,11 @@ a repeated run with the same commits does not modify the repository.
 Usage (Python 3.8+, no third party packages):
 
     python ocr/tools/generate_catalog.py --fetch-builtin
-        Only downloads the built-in models of the present manifests (about 35 MB)
-        into ocr/tesseract/<profile>/tessdata and verifies their size and SHA-256.
-        The model files are not stored in the git repository, so this is the step
-        after a fresh clone and in a continuous integration. Nothing is generated,
-        the GitHub API and the cache directory are not used.
+        Recreates a missing or damaged archive of a built-in model: downloads the
+        model of the present manifests (about 35 MB), verifies its size and SHA-256
+        and writes the archive. Normally it is not needed, because the archives are
+        in the repository. Nothing else is generated, the GitHub API and the cache
+        directory are not used.
 
     python ocr/tools/generate_catalog.py
         Generates the files for the commits of the present catalog.
@@ -63,7 +68,7 @@ Usage (Python 3.8+, no third party packages):
         run UnitTestsOCR and commit the changed files.
 
     python ocr/tools/generate_catalog.py --update-builtin
-        Also copies the built-in models from the cache into
+        Also writes the archives of the built-in models from the cache into
         ocr/tesseract/<profile>/tessdata.
 
     python ocr/tools/generate_catalog.py --builtin-fast ces,eng,slk,osd --builtin-best eng
@@ -81,11 +86,14 @@ import argparse
 import concurrent.futures
 import datetime
 import hashlib
+import io
 import json
+import lzma
 import os
 import shutil
 import struct
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -100,6 +108,7 @@ PROFILES = ['fast', 'standard', 'best']
 REPOSITORIES = {'fast': 'tessdata_fast', 'standard': 'tessdata', 'best': 'tessdata_best'}
 DEFAULT_COMMIT = 'main'
 MODEL_SUFFIX = '.traineddata'
+ARCHIVE_SUFFIX = '.tar.xz'
 MODEL_LICENSE = 'Apache-2.0'
 ENGINE = 'tesseract'
 ENGINE_COMPATIBILITY = 'Tesseract 4.x/5.x LSTM (tessdata_fast, tessdata, tessdata_best)'
@@ -220,6 +229,38 @@ def write_text_file(file_name, text):
 
 def write_json_file(file_name, value):
     return write_text_file(file_name, json.dumps(value, indent=1, ensure_ascii=False))
+
+
+def read_archive_model(file_name):
+    """Returns the SHA-256 of the single model of the archive, or None when it cannot be read."""
+    try:
+        with tarfile.open(file_name, 'r:xz') as archive:
+            members = [member for member in archive.getmembers() if member.isfile()]
+            if len(members) != 1:
+                return None
+            return hashlib.sha256(archive.extractfile(members[0]).read()).hexdigest()
+    except (OSError, tarfile.TarError, lzma.LZMAError, EOFError):
+        return None
+
+
+def write_model_archive(file_name, model_file_name, data):
+    """Writes the model into a deterministic tar.xz archive (the same input gives the same bytes)."""
+    info = tarfile.TarInfo(model_file_name)
+    info.size = len(data)
+    info.mtime = 0
+    info.mode = 0o644
+    info.uid = 0
+    info.gid = 0
+    info.uname = ''
+    info.gname = ''
+
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w', format=tarfile.USTAR_FORMAT) as archive:
+        archive.addfile(info, io.BytesIO(data))
+
+    os.makedirs(os.path.dirname(file_name), exist_ok=True)
+    with open(file_name, 'wb') as file:
+        file.write(lzma.compress(buffer.getvalue(), preset=9 | lzma.PRESET_EXTREME))
 
 
 def compute_hashes(file_name):
@@ -349,55 +390,53 @@ def create_builtin_model(model):
     }
 
 
-def synchronize_builtin_models(profile, builtin_models, cached_files, update):
+def synchronize_builtin_models(profile, builtin_models, cached_files, update, changed_files):
     tessdata_directory = builtin_path(profile, 'tessdata')
     relative_directory = 'ocr/tesseract/{}/tessdata'.format(profile)
     expected_files = set()
     for model in builtin_models:
-        expected_files.add(model['fileName'])
-        file_name = os.path.join(tessdata_directory, model['fileName'])
-        is_valid = os.path.isfile(file_name) and compute_hashes(file_name)[2] == model['sha256']
-        if is_valid:
+        archive_name = model['language'] + ARCHIVE_SUFFIX
+        expected_files.add(archive_name)
+        file_name = os.path.join(tessdata_directory, archive_name)
+        if read_archive_model(file_name) == model['sha256']:
             continue
         if update:
-            os.makedirs(tessdata_directory, exist_ok=True)
-            shutil.copyfile(cached_files[model['id']], file_name)
-            print('Built-in model {}/{} updated.'.format(relative_directory, model['fileName']))
+            with open(cached_files[model['id']], 'rb') as file:
+                write_model_archive(file_name, model['fileName'], file.read())
+            changed_files.append(file_name)
         else:
-            state = 'differs from the manifest' if os.path.isfile(file_name) else 'is missing'
-            warning('built-in model {}/{} {}, run the script with --update-builtin.'.format(relative_directory, model['fileName'], state))
+            state = 'does not hold the model of the manifest' if os.path.isfile(file_name) else 'is missing'
+            warning('archive {}/{} {}, run the script with --fetch-builtin.'.format(relative_directory, archive_name, state))
 
     if os.path.isdir(tessdata_directory):
         for name in sorted(os.listdir(tessdata_directory)):
-            if name.endswith(MODEL_SUFFIX) and name not in expected_files:
-                warning('{}/{} is not a built-in model, remove it.'.format(relative_directory, name))
+            if name.endswith(ARCHIVE_SUFFIX) and name not in expected_files:
+                os.remove(os.path.join(tessdata_directory, name))
+                changed_files.append(os.path.join(tessdata_directory, name))
+            elif name.endswith(MODEL_SUFFIX):
+                # Extracted model in the source tree, the build tree is filled by CMake
+                warning('{}/{} is not stored in the repository, it can be removed.'.format(relative_directory, name))
 
 
-def download_verified_file(url, file_name, size, sha256):
-    """Downloads the file and verifies it against the size and SHA-256 of the manifest."""
-    os.makedirs(os.path.dirname(file_name), exist_ok=True)
-    part_file_name = file_name + '.part'
+def download_verified_model(url, size, sha256):
+    """Downloads the model and verifies it against the size and SHA-256 of the manifest."""
     last_error = None
     for attempt in range(DOWNLOAD_ATTEMPTS):
         try:
-            with open_url(url) as response, open(part_file_name, 'wb') as file:
-                shutil.copyfileobj(response, file, 1 << 20)
-            actual_size, _, actual_sha256 = compute_hashes(part_file_name)
-            if actual_size == size and actual_sha256 == sha256:
-                os.replace(part_file_name, file_name)
-                return
+            with open_url(url) as response:
+                data = response.read()
+            if len(data) == size and hashlib.sha256(data).hexdigest() == sha256:
+                return data
             last_error = 'size or SHA-256 does not match the manifest'
         except (urllib.error.URLError, OSError) as error:
             last_error = str(error)
         time.sleep(2 * (attempt + 1))
 
-    if os.path.isfile(part_file_name):
-        os.remove(part_file_name)
     raise GeneratorError('Download of {} failed: {}'.format(url, last_error))
 
 
 def fetch_builtin_models():
-    """Downloads the built-in models of the present manifests, nothing is generated."""
+    """Recreates the missing archives of the built-in models, nothing else is generated."""
     catalog = read_json_file(CATALOG_FILE)
     if not catalog:
         raise GeneratorError('Catalog {} was not found.'.format(CATALOG_FILE))
@@ -408,18 +447,19 @@ def fetch_builtin_models():
     for profile in PROFILES:
         manifest = read_json_file(builtin_path(profile, 'manifest.json')) or {}
         for model in manifest.get('models', []):
-            file_name = builtin_path(profile, 'tessdata', model['fileName'])
-            relative_name = 'ocr/tesseract/{}/tessdata/{}'.format(profile, model['fileName'])
-            if os.path.isfile(file_name) and compute_hashes(file_name)[2] == model['sha256']:
+            file_name = builtin_path(profile, 'tessdata', model['language'] + ARCHIVE_SUFFIX)
+            relative_name = 'ocr/tesseract/{}/tessdata/{}{}'.format(profile, model['language'], ARCHIVE_SUFFIX)
+            if read_archive_model(file_name) == model['sha256']:
                 valid_count += 1
                 continue
             if model['id'] not in urls:
                 raise GeneratorError('Built-in model {} is not in the catalog.'.format(model['id']))
-            print('Downloading {} ({:.1f} MB)'.format(relative_name, model['size'] / 1e6))
-            download_verified_file(urls[model['id']], file_name, model['size'], model['sha256'])
+            print('Downloading {} ({:.1f} MB)'.format(model['fileName'], model['size'] / 1e6))
+            write_model_archive(file_name, model['fileName'], download_verified_model(urls[model['id']], model['size'], model['sha256']))
+            print('Written {}'.format(relative_name))
             downloaded_count += 1
 
-    print('{} built-in models downloaded, {} already valid.'.format(downloaded_count, valid_count))
+    print('{} archives written, {} already valid.'.format(downloaded_count, valid_count))
     return 0
 
 
@@ -434,7 +474,7 @@ def main():
         parser.add_argument('--builtin-{}'.format(profile), metavar='LANGUAGES',
                             help='comma separated built-in models of the profile {} (default: models of the present manifest)'.format(profile))
     parser.add_argument('--update-builtin', action='store_true',
-                        help='copy the built-in models into ocr/tesseract/<profile>/tessdata')
+                        help='write the archives of the built-in models into ocr/tesseract/<profile>/tessdata')
     parser.add_argument('--cache-dir', metavar='DIRECTORY', default=os.path.join(tempfile.gettempdir(), 'pdf4qt-ocr-catalog'),
                         help='directory of the downloaded models (default: %(default)s)')
     arguments = parser.parse_args()
@@ -523,7 +563,7 @@ def main():
                 if os.path.isfile(builtin_path(profile, name)):
                     os.remove(builtin_path(profile, name))
                     changed_files.append(builtin_path(profile, name))
-            synchronize_builtin_models(profile, [], cached_files, False)
+            synchronize_builtin_models(profile, [], cached_files, True, changed_files)
             continue
 
         builtin_models = []
@@ -557,7 +597,7 @@ def main():
         if write_text_file(builtin_path(profile, 'LICENSE'), license_text):
             changed_files.append(builtin_path(profile, 'LICENSE'))
 
-        synchronize_builtin_models(profile, builtin_models, cached_files, arguments.update_builtin)
+        synchronize_builtin_models(profile, builtin_models, cached_files, arguments.update_builtin, changed_files)
 
     print('{} models, {} downloaded, {} built-in.'.format(len(models), downloaded_count, builtin_count))
     for file_name in changed_files:

@@ -3,3 +3,6 @@
 *.txt.user
 build/*
 jbig2test/
+
+# OCR language models are stored as xz archives, the extracted models belong to the build tree
+ocr/tesseract/*/tessdata/*.traineddata

@@ -203,16 +203,50 @@ if(PDF4QT_ENABLE_OCR)
     add_subdirectory(Pdf4QtOcrTesseract)
 endif()
 
-# Built-in OCR models are copied into the build tree (so the applications can be
-# run from the build directory) and installed with the applications. A build
-# without the OCR engine does not carry the models.
+# Built-in OCR models are stored in the repository as xz compressed archives, one
+# model per archive (ocr/tesseract/<profile>/tessdata/<language>.tar.xz), because
+# a traineddata file compresses to about a third of its size. They are extracted
+# into the build tree (so the applications can be run from the build directory)
+# and installed from there with the applications. Nothing is downloaded during
+# a build. A build without the OCR engine does not carry the models.
 if(PDF4QT_ENABLE_OCR)
-    file(GLOB PDF4QT_OCR_BUILTIN_MODELS ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/fast/tessdata/*.traineddata)
-    if(NOT PDF4QT_OCR_BUILTIN_MODELS)
-        message(WARNING "Built-in OCR language models are missing in ocr/tesseract/fast/tessdata. OCR will work only with downloaded or imported languages, and the OCR tests using Tesseract will be skipped. Run \"python ocr/tools/generate_catalog.py --fetch-builtin\" to download them.")
+    set(PDF4QT_OCR_BUILD_DATA_DIR ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
+    file(GLOB PDF4QT_OCR_BUILTIN_ARCHIVES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ocr
+         ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/*/tessdata/*.tar.xz)
+    if(NOT PDF4QT_OCR_BUILTIN_ARCHIVES)
+        message(WARNING "Built-in OCR language models are missing in ocr/tesseract/fast/tessdata. OCR will work only with downloaded or imported languages, and the OCR tests using Tesseract will be skipped. Run \"python ocr/tools/generate_catalog.py --fetch-builtin\" to restore them.")
     endif()
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
+
+    # The archives themselves are not a part of the distribution
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract DESTINATION ${PDF4QT_OCR_BUILD_DATA_DIR}
+         PATTERN "*.tar.xz" EXCLUDE)
+
+    # A model is extracted again only when its archive has changed. The archives are
+    # written with a fixed time stamp, so the time of the extracted file cannot be used.
+    set(PDF4QT_OCR_STAMP_DIR ${CMAKE_BINARY_DIR}/CMakeFiles/pdf4qt_ocr_models)
+    file(MAKE_DIRECTORY ${PDF4QT_OCR_STAMP_DIR})
+    foreach(PDF4QT_OCR_ARCHIVE IN LISTS PDF4QT_OCR_BUILTIN_ARCHIVES)
+        set(PDF4QT_OCR_ARCHIVE_FILE ${CMAKE_CURRENT_SOURCE_DIR}/ocr/${PDF4QT_OCR_ARCHIVE})
+        string(REPLACE "/" "_" PDF4QT_OCR_STAMP_NAME ${PDF4QT_OCR_ARCHIVE})
+        set(PDF4QT_OCR_STAMP_FILE ${PDF4QT_OCR_STAMP_DIR}/${PDF4QT_OCR_STAMP_NAME}.stamp)
+        string(REPLACE ".tar.xz" ".traineddata" PDF4QT_OCR_MODEL ${PDF4QT_OCR_ARCHIVE})
+        set(PDF4QT_OCR_MODEL_FILE ${PDF4QT_OCR_BUILD_DATA_DIR}/${PDF4QT_OCR_MODEL})
+
+        if(EXISTS ${PDF4QT_OCR_MODEL_FILE} AND EXISTS ${PDF4QT_OCR_STAMP_FILE}
+           AND NOT ${PDF4QT_OCR_ARCHIVE_FILE} IS_NEWER_THAN ${PDF4QT_OCR_STAMP_FILE})
+            continue()
+        endif()
+
+        cmake_path(GET PDF4QT_OCR_MODEL_FILE PARENT_PATH PDF4QT_OCR_MODEL_DIR)
+        file(MAKE_DIRECTORY ${PDF4QT_OCR_MODEL_DIR})
+        file(ARCHIVE_EXTRACT INPUT ${PDF4QT_OCR_ARCHIVE_FILE} DESTINATION ${PDF4QT_OCR_MODEL_DIR})
+        if(NOT EXISTS ${PDF4QT_OCR_MODEL_FILE})
+            message(FATAL_ERROR "Archive ocr/${PDF4QT_OCR_ARCHIVE} does not hold the language model ${PDF4QT_OCR_MODEL}.")
+        endif()
+        file(TOUCH ${PDF4QT_OCR_STAMP_FILE})
+    endforeach()
+
+    install(DIRECTORY ${PDF4QT_OCR_BUILD_DATA_DIR}/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
 endif()
 
 if(PDF4QT_INSTALL_INCLUDE)
