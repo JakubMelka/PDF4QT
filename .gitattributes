@@ -1,2 +1,6 @@
 * text=auto eol=crlf
 *.desktop text eol=lf
+
+# Binary data must not be converted by the text filter
+*.traineddata binary
+*.tar.xz binary
