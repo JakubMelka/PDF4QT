@@ -30,13 +30,47 @@
 
 #include <QImage>
 #include <QMutex>
+#include <QVariant>
 
 #include <memory>
 #include <vector>
+#include <limits>
 #include <functional>
 
 namespace pdf
 {
+
+/// Descriptor of one engine specific parameter (REC-03). The engine declares
+/// a vetted schema of the parameters it accepts; a parameter, which is not
+/// declared, is refused by the validation of the configuration.
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCREngineParameterDescriptor
+{
+    enum class Type
+    {
+        Boolean,
+        Integer,
+        Double,
+        String
+    };
+
+    /// Name of the parameter (as used in PDFOCRConfiguration::engineParameters)
+    QString name;
+
+    Type type = Type::String;
+
+    /// Range of a numeric parameter (inclusive)
+    double minimum = std::numeric_limits<double>::lowest();
+    double maximum = std::numeric_limits<double>::max();
+
+    QVariant defaultValue;
+
+    /// Translated description for the user interface
+    QString description;
+
+    /// Parameter must be set before the initialization of the engine (it
+    /// influences the loading of the models)
+    bool beforeInitialization = false;
+};
 
 /// Capabilities of the engine (ARCH-02). Optional capabilities are really
 /// optional, the engine must not pretend a capability it does not have.
@@ -79,6 +113,15 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCREngineCapabilities
 
     /// Engine can be used only for export (text without exact geometry, ENGINE-01)
     bool isExportOnly = false;
+
+    /// Orientation detection honours the cancellation and the deadline while it runs.
+    /// If false, the call cannot be interrupted, the engine only bounds its cost
+    /// (for example by downscaling the image) and checks the cancellation before it.
+    bool orientationDetectionCancellable = false;
+
+    /// Typed schema of the engine specific parameters (REC-03). Parameters not
+    /// declared here are refused by the engine.
+    std::vector<PDFOCREngineParameterDescriptor> parameters;
 };
 
 /// Resolved set of models for one recognition (LANG-05, LANG-06)
@@ -178,6 +221,12 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRRecognitionInput
 
     /// Identifier of the coordinate space of the image (for diagnostics)
     QString coordinateSpace = QStringLiteral("engine");
+
+    /// Time remaining until the deadline of the page in milliseconds (-1 = unlimited).
+    /// The deadline is shared by all phases of the page (orientation detection,
+    /// preprocessing, every recognized rectangle), so the engine must stop the
+    /// recognition, when it is exceeded, and return a Timeout error (JOB-06).
+    qint64 remainingMilliseconds = -1;
 };
 
 /// Output of the recognition (ARCH-04). Coordinates always belong to
@@ -245,10 +294,16 @@ public:
 
     /// Detects orientation of the image, if supported. Returns empty optional,
     /// if orientation detection is not supported or failed.
+    /// \param image Image
+    /// \param dpi Resolution of the image
+    /// \param operationControl Operation control (cancellation)
+    /// \param error Error (if any)
+    /// \param remainingMilliseconds Time remaining until the deadline of the page (-1 = unlimited)
     virtual std::optional<PDFOCROrientation> detectOrientation(const QImage& image,
                                                                double dpi,
                                                                const PDFOperationControl* operationControl,
-                                                               PDFOCRError* error);
+                                                               PDFOCRError* error,
+                                                               qint64 remainingMilliseconds = -1);
 
     /// Recognizes the image. Function must return promptly after the operation
     /// is cancelled (with cancelled flag set in the output).
@@ -353,10 +408,14 @@ public:
     void setRecognitionDelay(int milliseconds);
     int getRecognitionDelay() const;
 
+    /// Sets the maximal image size declared in the capabilities (empty = unlimited)
+    void setMaximumImageSize(QSize size);
+
 private:
     mutable QMutex m_mutex;
     Handler m_handler;
     int m_recognitionDelay = 0;
+    QSize m_maximumImageSize;
 };
 
 }   // namespace pdf

@@ -67,10 +67,17 @@ public:
     /// \param policy Policy
     /// \param hasInclusiveRegions Page has user defined inclusive regions
     /// \param reason Human readable reason of the decision
+    /// \param regions Regions of the page (optional). An inclusive region overlapping
+    ///        the existing text of the page is a collision, which the user must resolve
+    ///        before the run (chapter 6.2): the decision is NeedsDecision.
     static PolicyDecision evaluateExistingTextPolicy(const PDFOCRPageAnalysis& analysis,
                                                      PDFOCRExistingTextPolicy policy,
                                                      bool hasInclusiveRegions,
-                                                     QString* reason);
+                                                     QString* reason,
+                                                     const std::vector<PDFOCRRegion>* regions = nullptr);
+
+    /// Returns the inclusive regions overlapping the existing text of the page (chapter 6.2)
+    static std::vector<const PDFOCRRegion*> getRegionsCollidingWithText(const PDFOCRPageAnalysis& analysis, const std::vector<PDFOCRRegion>& regions);
 
     /// Analyzes the page content (INPUT-01, INPUT-02, INPUT-03).
     PDFOCRPageAnalysis analyze(PDFInteger pageIndex, const PDFOperationControl* operationControl) const;
@@ -98,9 +105,14 @@ public:
     /// Returns size of the raster of the page (rotated crop box) at given resolution
     static QSize getRasterSize(const PDFPage* page, double dpi);
 
-    /// Returns the resolution limited by the maximal pixel count. If the requested
+    /// Returns the resolution limited by the maximal pixel count and by the maximal
+    /// dimension of the raster (limit of the engine, ARCH-02). If the requested
     /// resolution fits, it is returned unchanged.
-    static double getLimitedDpi(const PDFPage* page, double dpi, qint64 maximumPixels);
+    /// \param page Page
+    /// \param dpi Requested resolution
+    /// \param maximumPixels Maximal pixel count of the raster (0 = unlimited)
+    /// \param maximumDimension Maximal width and height of the raster in pixels (0 = unlimited)
+    static double getLimitedDpi(const PDFPage* page, double dpi, qint64 maximumPixels, int maximumDimension = 0);
 
     /// Estimates memory of the raster in bytes (32 bit pixels)
     static qint64 estimateRasterBytes(const PDFPage* page, double dpi);
@@ -122,11 +134,13 @@ public:
     /// \param maskedRectangles Rectangles to be masked (page space)
     /// \param maximumPixels Maximal pixel count of the raster
     /// \param operationControl Operation control
+    /// \param maximumDimension Maximal width and height of the raster (limit of the engine, 0 = unlimited)
     RasterResult rasterize(PDFInteger pageIndex,
                            double dpi,
                            const std::vector<QRectF>& maskedRectangles,
                            qint64 maximumPixels,
-                           const PDFOperationControl* operationControl) const;
+                           const PDFOperationControl* operationControl,
+                           int maximumDimension = 0) const;
 
     struct PreprocessResult
     {
@@ -180,11 +194,25 @@ public:
     /// \param geometry Page geometry
     /// \param regionId Region identifier of the recognized rectangle (-1 = whole page)
     /// \param excludedRectangles Excluded rectangles (page space)
+    /// \param outputToEngine Transformation from the space of the engine output into the
+    ///        engine image space (identity, if the engine got the whole engine image; a
+    ///        rotated or cropped sub-image of a region has its own transformation, REGION-02)
     static void appendOutput(PDFOCRPageResult& result,
                              const PDFOCRRecognitionOutput& output,
                              const PDFOCRPageGeometry& geometry,
                              int regionId,
-                             const std::vector<QRectF>& excludedRectangles);
+                             const std::vector<QRectF>& excludedRectangles,
+                             const QTransform& outputToEngine = QTransform());
+
+    /// Recomputes the flag "overlapsExcludedRegion" of all words of the result from
+    /// the current excluded regions of the result and from the rectangles of the
+    /// unapplied redactions (REGION-05, PDF-13). Any intersection with a positive area
+    /// counts. Called after every change of the regions or of the geometry.
+    static void updateExcludedRegionFlags(PDFOCRPageResult& result);
+
+    /// Returns true, if the rectangle intersects any of the rectangles with a positive
+    /// area (a shared edge is not an intersection)
+    static bool intersectsAny(const QRectF& rect, const std::vector<QRectF>& rectangles);
 
     /// Converts rectangle in the image space (y grows downwards) to the quad
     /// in the canonical page space.

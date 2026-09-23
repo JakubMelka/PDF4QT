@@ -43,6 +43,7 @@
 #include <QNetworkProxyFactory>
 #include <QNetworkAccessManager>
 
+#include <atomic>
 #include <algorithm>
 
 namespace pdf
@@ -53,6 +54,8 @@ static constexpr const char* RUNTIME_COMPLETE_FILE = "complete.json";
 static constexpr const char* STATE_FILE = "state.json";
 static constexpr const char* IMPORT_FILE = "import.json";
 static constexpr const char* LOCK_FILE = "ocr.lock";
+static constexpr const char* INSTALL_METADATA_SUFFIX = ".meta.json";
+static constexpr const char* LEASE_FILE_PATTERN = "in-use.*.lock";
 
 // -------------------------------------------------------------------------
 // PDFOCRCatalog
@@ -211,12 +214,18 @@ PDFOCRModelManager::PDFOCRModelManager(QObject* parent) :
     m_userDirectory(getDefaultUserDirectory()),
     m_builtInDirectory(getDefaultBuiltInDirectory())
 {
-
+    // Installations are serialized by the lock of the data directory anyway
+    m_verificationPool.setMaxThreadCount(1);
+    m_verificationPool.setExpiryTimeout(30000);
 }
 
 PDFOCRModelManager::~PDFOCRModelManager()
 {
     cancelAllDownloads();
+
+    // The verification worker posts its outcome to this object, so it must
+    // finish before the object is destroyed (the posted event is then discarded)
+    m_verificationPool.waitForDone();
 
     if (m_ownsNetworkAccessManager)
     {
@@ -281,7 +290,10 @@ void PDFOCRModelManager::loadBundledCatalog()
 
 void PDFOCRModelManager::setCatalog(PDFOCRCatalog catalog)
 {
-    m_catalog = std::move(catalog);
+    {
+        QMutexLocker lock(&m_mutex);
+        m_catalog = std::move(catalog);
+    }
     refresh();
 }
 
@@ -477,6 +489,14 @@ void PDFOCRModelManager::scanUser(std::vector<InstalledFile>& files) const
                         file.sha256 = QString::fromLatin1(hashFile.readAll().trimmed()).toLower();
                     }
 
+                    // Installation metadata (engine version of the installation, LANG-12)
+                    QFile metadataFile(getInstallMetadataPath(fileInfo.absoluteFilePath()));
+                    if (metadataFile.open(QFile::ReadOnly))
+                    {
+                        const QJsonObject metadata = QJsonDocument::fromJson(metadataFile.readAll()).object();
+                        file.engineVersion = metadata.value(QStringLiteral("engineVersion")).toString();
+                    }
+
                     if (const PDFOCRCatalogEntry* entry = m_catalog.find(file.id))
                     {
                         file.verified = !file.sha256.isEmpty() && file.sha256 == entry->sha256 && file.size == entry->size;
@@ -532,6 +552,7 @@ void PDFOCRModelManager::scanUser(std::vector<InstalledFile>& files) const
                 file.sha256 = import.value(QStringLiteral("sha256")).toString();
                 file.name = import.value(QStringLiteral("name")).toString();
                 file.license = import.value(QStringLiteral("license")).toString();
+                file.engineVersion = import.value(QStringLiteral("engineVersion")).toString();
                 file.verified = false;
                 files.push_back(std::move(file));
             }
@@ -671,6 +692,12 @@ void PDFOCRModelManager::performHousekeeping()
             continue;
         }
 
+        // A set leased by a running recognition (also of another instance) is kept (LANG-07)
+        if (isRuntimeSetInUse(info.absoluteFilePath()))
+        {
+            continue;
+        }
+
         QDirIterator fileIt(info.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
         while (fileIt.hasNext())
         {
@@ -777,18 +804,30 @@ void PDFOCRModelManager::refresh()
             case PDFOCRModelOrigin::None:
                 break;
         }
+
+        // A user model installed for a different major version of the engine cannot
+        // be expected to load after an upgrade of the application (LANG-12)
+        if ((file.origin == PDFOCRModelOrigin::Downloaded || file.origin == PDFOCRModelOrigin::Imported) && !file.engineVersion.isEmpty())
+        {
+            const QString currentVersion = getEngineVersion(info.engineId);
+            if (!currentVersion.isEmpty() && getMajorVersion(currentVersion) != getMajorVersion(file.engineVersion))
+            {
+                info.state = PDFOCRModelState::Incompatible;
+                info.errorMessage = PDFTranslationContext::tr("Model was installed for the engine version %1, but the current engine version is %2. Download or import the model again.").arg(file.engineVersion, currentVersion);
+            }
+        }
     }
 
     for (PDFOCRModelInfo& info : models)
     {
         info.isHidden = m_hiddenModels.contains(info.id);
 
-        // Errors of the last download attempt are kept until the next attempt
+        // Failures of the last download attempt are kept until the next attempt
         auto errorIt = m_errorStates.find(info.id);
         if (errorIt != m_errorStates.end() && !info.isUsable())
         {
-            info.state = PDFOCRModelState::Error;
-            info.errorMessage = errorIt->second;
+            info.state = errorIt->second.first;
+            info.errorMessage = errorIt->second.second;
         }
     }
 
@@ -801,8 +840,8 @@ void PDFOCRModelManager::refresh()
             {
                 if (download->modelId == info.id)
                 {
-                    info.state = PDFOCRModelState::Downloading;
-                    info.downloadProgress = download->entry.size > 0 ? int(100 * download->received / download->entry.size) : 0;
+                    info.state = download->verifying ? PDFOCRModelState::Verifying : PDFOCRModelState::Downloading;
+                    info.downloadProgress = download->verifying ? 100 : (download->entry.size > 0 ? int(100 * download->received / download->entry.size) : 0);
                 }
             }
             if (std::find(m_downloadQueue.begin(), m_downloadQueue.end(), info.id) != m_downloadQueue.end())
@@ -951,21 +990,21 @@ void PDFOCRModelManager::setModelHidden(const QString& id, bool hidden)
     Q_EMIT modelsChanged();
 }
 
-PDFOCRError PDFOCRModelManager::acquireLock(std::unique_ptr<QLockFile>& lock) const
+PDFOCRError PDFOCRModelManager::acquireLock(const QString& userDirectory, std::unique_ptr<QLockFile>& lock)
 {
-    auto createNotWritableError = [this]()
+    auto createNotWritableError = [&userDirectory]()
     {
         return PDFOCRError::create(PDFOCRErrorCode::InsufficientPermissions,
-                                   PDFTranslationContext::tr("OCR data directory '%1' is not writable. Check the permissions of the directory.").arg(m_userDirectory),
+                                   PDFTranslationContext::tr("OCR data directory '%1' is not writable. Check the permissions of the directory.").arg(userDirectory),
                                    PDFTranslationContext::tr("Model management"));
     };
 
-    if (!QDir().mkpath(m_userDirectory))
+    if (!QDir().mkpath(userDirectory))
     {
         return createNotWritableError();
     }
 
-    lock = std::make_unique<QLockFile>(m_userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
+    lock = std::make_unique<QLockFile>(userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
     lock->setStaleLockTime(60 * 1000);
     if (!lock->tryLock(10000))
     {
@@ -975,10 +1014,81 @@ PDFOCRError PDFOCRModelManager::acquireLock(std::unique_ptr<QLockFile>& lock) co
         }
 
         return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
-                                   PDFTranslationContext::tr("OCR data directory '%1' is locked by another instance of the application.").arg(m_userDirectory),
+                                   PDFTranslationContext::tr("OCR data directory '%1' is locked by another instance of the application.").arg(userDirectory),
                                    PDFTranslationContext::tr("Model management"));
     }
     return PDFOCRError::none();
+}
+
+QString PDFOCRModelManager::getEngineVersion(const QString& engineId)
+{
+    if (std::shared_ptr<PDFOCREngineFactory> factory = PDFOCREngineRegistry::getInstance()->getFactory(engineId))
+    {
+        return factory->getVersion();
+    }
+    return QString();
+}
+
+int PDFOCRModelManager::getMajorVersion(const QString& version)
+{
+    bool ok = false;
+    const int major = version.section(QChar('.'), 0, 0).trimmed().toInt(&ok);
+    return ok ? major : -1;
+}
+
+QString PDFOCRModelManager::getInstallMetadataPath(const QString& modelPath)
+{
+    return modelPath + QLatin1String(INSTALL_METADATA_SUFFIX);
+}
+
+std::unique_ptr<QLockFile> PDFOCRModelManager::acquireRuntimeSetLease(const QString& dataPath)
+{
+    if (dataPath.isEmpty())
+    {
+        return nullptr;
+    }
+
+    QDir setDirectory(dataPath);
+    if (!setDirectory.exists() || !setDirectory.cdUp())
+    {
+        return nullptr;
+    }
+
+    // Only the runtime sets of the manager are leased (built-in data are never removed)
+    if (!QFile::exists(setDirectory.absoluteFilePath(QLatin1String(RUNTIME_COMPLETE_FILE))))
+    {
+        return nullptr;
+    }
+
+    static std::atomic<int> counter = { 0 };
+    const QString fileName = setDirectory.absoluteFilePath(QStringLiteral("in-use.%1.%2.lock").arg(QCoreApplication::applicationPid()).arg(++counter));
+
+    auto lease = std::make_unique<QLockFile>(fileName);
+    lease->setStaleLockTime(0);
+    if (!lease->tryLock(0))
+    {
+        return nullptr;
+    }
+
+    return lease;
+}
+
+bool PDFOCRModelManager::isRuntimeSetInUse(const QString& setDirectory)
+{
+    const QFileInfoList leases = QDir(setDirectory).entryInfoList(QStringList() << QLatin1String(LEASE_FILE_PATTERN), QDir::Files);
+    for (const QFileInfo& info : leases)
+    {
+        // A lease of a living process cannot be taken; the lease of a dead process is
+        // stale (QLockFile checks the process), it is taken and removed by the unlock
+        QLockFile probe(info.absoluteFilePath());
+        probe.setStaleLockTime(0);
+        if (!probe.tryLock(0))
+        {
+            return true;
+        }
+        probe.unlock();
+    }
+    return false;
 }
 
 QString PDFOCRModelManager::getLanguageWithoutImport(const QString& language, QString* importId) const
@@ -1005,9 +1115,23 @@ QStringList PDFOCRModelManager::getMissingModels(const QString& engineId, const 
     QStringList missing;
     for (const QString& language : languages)
     {
+        const QString modelId = QStringLiteral("%1/%2/%3").arg(engineId, PDFOCRConfiguration::getProfileIdentifier(profile), language);
         if (!isLanguageUsable(engineId, language, profile))
         {
-            missing << QStringLiteral("%1/%2/%3").arg(engineId, PDFOCRConfiguration::getProfileIdentifier(profile), language);
+            missing << modelId;
+        }
+
+        // Dependencies of the catalog entry (LANG-06)
+        if (const PDFOCRCatalogEntry* entry = m_catalog.find(modelId))
+        {
+            for (const QString& dependency : entry->dependencies)
+            {
+                std::optional<PDFOCRModelInfo> model = getModel(dependency);
+                if ((!model || !model->isUsable()) && !missing.contains(dependency))
+                {
+                    missing << dependency;
+                }
+            }
         }
     }
     return missing;
@@ -1048,7 +1172,14 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
     };
 
     std::vector<Selected> selected;
+
+    // Snapshot of the shared data (the function can run in a worker thread, R12)
     const std::vector<PDFOCRModelInfo> models = getModels();
+    PDFOCRCatalog catalog;
+    {
+        QMutexLocker lock(&m_mutex);
+        catalog = m_catalog;
+    }
 
     for (const QString& language : languages)
     {
@@ -1086,6 +1217,63 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         selected.push_back(std::move(item));
     }
 
+    // Dependencies of the selected models from the catalog (LANG-06): an installed
+    // dependency becomes a part of the set, a missing one is reported by name.
+    for (size_t index = 0; index < selected.size(); ++index)
+    {
+        const PDFOCRCatalogEntry* entry = catalog.find(selected[index].id);
+        if (!entry)
+        {
+            continue;
+        }
+
+        const QStringList dependencies = entry->dependencies;
+        for (const QString& dependencyId : dependencies)
+        {
+            const bool alreadySelected = std::any_of(selected.begin(), selected.end(), [&dependencyId](const Selected& other) { return other.id == dependencyId; });
+            if (alreadySelected)
+            {
+                continue;
+            }
+
+            const PDFOCRModelInfo* dependency = nullptr;
+            for (const PDFOCRModelInfo& model : models)
+            {
+                if (model.id == dependencyId && model.engineId == engineId && model.isUsable())
+                {
+                    dependency = &model;
+                    break;
+                }
+            }
+
+            if (!dependency)
+            {
+                return fail(PDFOCRErrorCode::MissingModel, PDFTranslationContext::tr("Language model '%1' requires the model '%2', which is not installed.").arg(selected[index].language, dependencyId));
+            }
+
+            Selected item;
+            item.language = dependency->language;
+            item.languageCode = getLanguageWithoutImport(dependency->language, nullptr);
+            item.path = dependency->path;
+            item.sha256 = dependency->installedSha256.isEmpty() ? computeSha256(dependency->path) : dependency->installedSha256;
+            item.id = dependency->id;
+
+            for (const Selected& other : selected)
+            {
+                if (other.languageCode == item.languageCode && other.id != item.id)
+                {
+                    return fail(PDFOCRErrorCode::InvalidConfiguration, PDFTranslationContext::tr("Two different models with the language code '%1' cannot be used together.").arg(item.languageCode));
+                }
+            }
+
+            if (dependency->isOrientationData())
+            {
+                set.hasOrientationData = true;
+            }
+            selected.push_back(std::move(item));
+        }
+    }
+
     // Orientation data (osd) of the profile, or built-in
     const PDFOCRModelInfo* osd = nullptr;
     for (const PDFOCRModelInfo& model : models)
@@ -1099,7 +1287,7 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         }
     }
 
-    if (osd)
+    if (osd && !set.hasOrientationData)
     {
         Selected item;
         item.language = QStringLiteral("osd");
@@ -1312,9 +1500,9 @@ QString PDFOCRModelManager::getModelTargetPath(const PDFOCRCatalogEntry& entry) 
 
 void PDFOCRModelManager::updateModelState(const QString& id, PDFOCRModelState state, const QString& errorMessage, int progress)
 {
-    if (state == PDFOCRModelState::Error)
+    if (state == PDFOCRModelState::Error || state == PDFOCRModelState::Incompatible)
     {
-        m_errorStates[id] = errorMessage;
+        m_errorStates[id] = std::make_pair(state, errorMessage);
     }
     else
     {
@@ -1328,7 +1516,7 @@ void PDFOCRModelManager::updateModelState(const QString& id, PDFOCRModelState st
             if (model.id == id)
             {
                 // A failed update must not make the installed version unusable (LANG-11)
-                const bool keepInstalledState = state == PDFOCRModelState::Error && !model.path.isEmpty() && QFile::exists(model.path);
+                const bool keepInstalledState = (state == PDFOCRModelState::Error || state == PDFOCRModelState::Incompatible) && !model.path.isEmpty() && QFile::exists(model.path);
                 if (!keepInstalledState)
                 {
                     model.state = state;
@@ -1344,7 +1532,38 @@ void PDFOCRModelManager::updateModelState(const QString& id, PDFOCRModelState st
 
 void PDFOCRModelManager::download(const QStringList& modelIds)
 {
+    // Dependencies of the catalog entries, which are not installed yet, are
+    // enqueued before the model itself (LANG-06)
+    QStringList orderedIds;
+    std::function<void(const QString&, int)> collect = [&](const QString& modelId, int depth)
+    {
+        if (depth > 8 || orderedIds.contains(modelId))
+        {
+            return;
+        }
+
+        if (const PDFOCRCatalogEntry* entry = m_catalog.find(modelId))
+        {
+            for (const QString& dependencyId : entry->dependencies)
+            {
+                std::optional<PDFOCRModelInfo> dependency = getModel(dependencyId);
+                if (dependencyId == modelId || (dependency && dependency->isUsable()))
+                {
+                    continue;
+                }
+                collect(dependencyId, depth + 1);
+            }
+        }
+
+        orderedIds << modelId;
+    };
+
     for (const QString& modelId : modelIds)
+    {
+        collect(modelId, 0);
+    }
+
+    for (const QString& modelId : orderedIds)
     {
         const PDFOCRCatalogEntry* entry = m_catalog.find(modelId);
         if (!entry)
@@ -1577,30 +1796,63 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
         }
     }
 
-    // Hash
+    // Hash, loadability by the engine and the installation are slow (the engine loads
+    // the model for the verification, the installation waits for the lock of the data
+    // directory), so they run in the worker thread (R12). The download stays active
+    // until the outcome is delivered back to this thread by a queued call.
     updateModelState(download->modelId, PDFOCRModelState::Verifying, QString(), 100);
-    const QString sha256 = computeSha256(download->temporaryPath);
-    if (sha256.isEmpty() || sha256 != download->entry.sha256)
+    download->verifying = true;
+
+    Download* verifyingDownload = download.get();
+    m_activeDownloads.push_back(std::move(download));
+
+    const QString userDirectory = m_userDirectory;
+    const ModelValidator validator = m_validator;
+    const PDFOCRCatalogEntry entry = verifyingDownload->entry;
+    const QString temporaryPath = verifyingDownload->temporaryPath;
+    const QString targetPath = getModelTargetPath(entry);
+    const QString engineVersion = getEngineVersion(entry.engineId);
+
+    m_verificationPool.start([this, verifyingDownload, userDirectory, validator, entry, temporaryPath, targetPath, engineVersion]()
     {
-        finishDownload(std::move(download), false, PDFTranslationContext::tr("Checksum of the downloaded file does not match the catalog."));
-        return;
+        const VerificationOutcome outcome = verifyAndInstall(userDirectory, validator, entry, temporaryPath, targetPath, engineVersion);
+        QMetaObject::invokeMethod(this, [this, verifyingDownload, outcome]() { completeDownload(verifyingDownload, outcome); }, Qt::QueuedConnection);
+    });
+}
+
+PDFOCRModelManager::VerificationOutcome PDFOCRModelManager::verifyAndInstall(const QString& userDirectory,
+                                                                             const ModelValidator& validator,
+                                                                             const PDFOCRCatalogEntry& entry,
+                                                                             const QString& temporaryPath,
+                                                                             const QString& targetPath,
+                                                                             const QString& engineVersion)
+{
+    VerificationOutcome outcome;
+
+    // Hash
+    const QString sha256 = computeSha256(temporaryPath);
+    if (sha256.isEmpty() || sha256 != entry.sha256)
+    {
+        outcome.message = PDFTranslationContext::tr("Checksum of the downloaded file does not match the catalog.");
+        return outcome;
     }
 
-    // Loadability by the engine
-    const PDFOCRError validationError = validateModelFile(download->entry.engineId, download->temporaryPath, download->entry.language);
+    // Loadability by the engine (LANG-08): a model, which the engine cannot load,
+    // is incompatible and it is not installed
+    const PDFOCRError validationError = validateModelFile(userDirectory, validator, entry.engineId, temporaryPath, entry.language);
     if (validationError)
     {
-        finishDownload(std::move(download), false, validationError.message);
-        return;
+        outcome.message = validationError.message;
+        outcome.failureState = validationError.code == PDFOCRErrorCode::IncompatibleModel ? PDFOCRModelState::Incompatible : PDFOCRModelState::Error;
+        return outcome;
     }
 
     // Atomic activation
-    const QString targetPath = getModelTargetPath(download->entry);
-    const PDFOCRError installError = installModelFile(download->temporaryPath, targetPath);
+    const PDFOCRError installError = installModelFile(userDirectory, temporaryPath, targetPath);
     if (installError)
     {
-        finishDownload(std::move(download), false, installError.message);
-        return;
+        outcome.message = installError.message;
+        return outcome;
     }
 
     // Record the hash next to the file
@@ -1611,26 +1863,63 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
         hashFile.commit();
     }
 
+    // Installation metadata (LANG-12): the engine version is checked after an upgrade
+    {
+        QJsonObject metadata;
+        metadata[QStringLiteral("format")] = QStringLiteral("pdf4qt-ocr-install");
+        metadata[QStringLiteral("version")] = 1;
+        metadata[QStringLiteral("modelId")] = entry.id;
+        metadata[QStringLiteral("engineId")] = entry.engineId;
+        metadata[QStringLiteral("engineVersion")] = engineVersion;
+        metadata[QStringLiteral("modelVersion")] = entry.version;
+        metadata[QStringLiteral("sha256")] = sha256;
+        metadata[QStringLiteral("installed")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
+        QSaveFile metadataFile(getInstallMetadataPath(targetPath));
+        if (metadataFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            metadataFile.write(QJsonDocument(metadata).toJson(QJsonDocument::Indented));
+            metadataFile.commit();
+        }
+    }
+
     // Older downloaded versions of the model are removed. Running recognitions
     // are not affected, because they use their own runtime set (LANG-07).
     {
-        const QString profileDirectoryPath = getEngineUserDirectory(download->entry.engineId) + QStringLiteral("/") + getProfileDirectoryName(download->entry.profile);
+        const QString profileDirectoryPath = userDirectory + QStringLiteral("/") + sanitizeIdentifier(entry.engineId) + QStringLiteral("/") + getProfileDirectoryName(entry.profile);
         const QFileInfoList sets = QDir(profileDirectoryPath).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
         for (const QFileInfo& setInfo : sets)
         {
-            const QString oldPath = setInfo.absoluteFilePath() + QStringLiteral("/tessdata/") + download->entry.fileName;
+            const QString oldPath = setInfo.absoluteFilePath() + QStringLiteral("/tessdata/") + entry.fileName;
             if (QFileInfo(oldPath) != QFileInfo(targetPath) && QFile::exists(oldPath))
             {
                 QFile::remove(oldPath);
                 QFile::remove(oldPath + QStringLiteral(".sha256"));
+                QFile::remove(getInstallMetadataPath(oldPath));
             }
         }
     }
 
-    finishDownload(std::move(download), true, PDFTranslationContext::tr("Model '%1' was installed.").arg(download->entry.name));
+    outcome.success = true;
+    outcome.message = PDFTranslationContext::tr("Model '%1' was installed.").arg(entry.name);
+    return outcome;
 }
 
-void PDFOCRModelManager::finishDownload(std::unique_ptr<Download> download, bool success, const QString& message)
+void PDFOCRModelManager::completeDownload(Download* downloadPointer, const VerificationOutcome& outcome)
+{
+    auto it = std::find_if(m_activeDownloads.begin(), m_activeDownloads.end(), [downloadPointer](const auto& item) { return item.get() == downloadPointer; });
+    if (it == m_activeDownloads.end())
+    {
+        return;
+    }
+
+    std::unique_ptr<Download> download = std::move(*it);
+    m_activeDownloads.erase(it);
+
+    finishDownload(std::move(download), outcome.success, outcome.message, outcome.failureState);
+}
+
+void PDFOCRModelManager::finishDownload(std::unique_ptr<Download> download, bool success, const QString& message, PDFOCRModelState failureState)
 {
     if (download->file)
     {
@@ -1646,7 +1935,7 @@ void PDFOCRModelManager::finishDownload(std::unique_ptr<Download> download, bool
 
     if (!success)
     {
-        updateModelState(modelId, PDFOCRModelState::Error, message, 0);
+        updateModelState(modelId, failureState, message, 0);
     }
 
     Q_EMIT downloadFinished(modelId, success, message);
@@ -1655,12 +1944,12 @@ void PDFOCRModelManager::finishDownload(std::unique_ptr<Download> download, bool
     startNextDownloads();
 }
 
-PDFOCRError PDFOCRModelManager::validateModelFile(const QString& engineId, const QString& filePath, const QString& language) const
+PDFOCRError PDFOCRModelManager::validateModelFile(const QString& userDirectory, const ModelValidator& validator, const QString& engineId, const QString& filePath, const QString& language)
 {
     // The engine loads the model from a directory, so the file is placed
     // into a temporary directory under the expected name.
     const QString languageCode = language.split(QChar('/')).last();
-    const QString temporaryDirectory = m_userDirectory + QStringLiteral("/downloads/verify-") + QUuid::createUuid().toString(QUuid::Id128).left(8);
+    const QString temporaryDirectory = userDirectory + QStringLiteral("/downloads/verify-") + QUuid::createUuid().toString(QUuid::Id128).left(8);
     QDir().mkpath(temporaryDirectory);
     const QString temporaryFile = temporaryDirectory + QStringLiteral("/") + languageCode + QLatin1String(TRAINEDDATA_SUFFIX);
 
@@ -1669,9 +1958,9 @@ PDFOCRError PDFOCRModelManager::validateModelFile(const QString& engineId, const
     {
         result = PDFOCRError::create(PDFOCRErrorCode::VerificationFailed, PDFTranslationContext::tr("Cannot prepare the model for verification."), PDFTranslationContext::tr("Model verification"));
     }
-    else if (m_validator)
+    else if (validator)
     {
-        result = m_validator(engineId, temporaryDirectory, languageCode);
+        result = validator(engineId, temporaryDirectory, languageCode);
     }
     else if (std::shared_ptr<PDFOCREngineFactory> factory = PDFOCREngineRegistry::getInstance()->getFactory(engineId))
     {
@@ -1682,10 +1971,10 @@ PDFOCRError PDFOCRModelManager::validateModelFile(const QString& engineId, const
     return result;
 }
 
-PDFOCRError PDFOCRModelManager::installModelFile(const QString& temporaryPath, const QString& targetPath) const
+PDFOCRError PDFOCRModelManager::installModelFile(const QString& userDirectory, const QString& temporaryPath, const QString& targetPath)
 {
     std::unique_ptr<QLockFile> lock;
-    if (PDFOCRError lockError = acquireLock(lock))
+    if (PDFOCRError lockError = acquireLock(userDirectory, lock))
     {
         return lockError;
     }
@@ -1803,7 +2092,7 @@ PDFOCRError PDFOCRModelManager::importModel(const QString& filePath, const QStri
         return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel, PDFTranslationContext::tr("Invalid language code '%1'.").arg(language), PDFTranslationContext::tr("Model import"));
     }
 
-    const PDFOCRError validationError = validateModelFile(engineId, filePath, language);
+    const PDFOCRError validationError = validateModelFile(m_userDirectory, m_validator, engineId, filePath, language);
     if (validationError)
     {
         return validationError;
@@ -1836,6 +2125,7 @@ PDFOCRError PDFOCRModelManager::importModel(const QString& filePath, const QStri
     import[QStringLiteral("sha256")] = computeSha256(filePath);
     import[QStringLiteral("imported")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     import[QStringLiteral("originVerified")] = false;
+    import[QStringLiteral("engineVersion")] = getEngineVersion(engineId);
 
     QSaveFile importFile(importDirectory + QStringLiteral("/") + QLatin1String(IMPORT_FILE));
     if (!importFile.open(QFile::WriteOnly | QFile::Truncate))
@@ -1904,6 +2194,7 @@ PDFOCRError PDFOCRModelManager::removeUserModel(const QString& modelId)
             return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the model '%1'.").arg(model->path), PDFTranslationContext::tr("Model removal"));
         }
         QFile::remove(model->path + QStringLiteral(".sha256"));
+        QFile::remove(getInstallMetadataPath(model->path));
     }
 
     lock.reset();
@@ -1919,10 +2210,34 @@ PDFOCRError PDFOCRModelManager::cleanRuntimeSets()
         return lockError;
     }
 
+    // Sets leased by a running recognition (of this or of another instance) are kept (LANG-07)
     QDir runtimeDirectory(getRuntimeDirectory(QStringLiteral("tesseract")));
-    if (runtimeDirectory.exists() && !runtimeDirectory.removeRecursively())
+    if (runtimeDirectory.exists())
     {
-        return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the runtime directory '%1'. A model set may be in use.").arg(runtimeDirectory.absolutePath()), PDFTranslationContext::tr("Cache cleanup"));
+        const QFileInfoList sets = runtimeDirectory.entryInfoList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& info : sets)
+        {
+            if (info.isDir() && isRuntimeSetInUse(info.absoluteFilePath()))
+            {
+                continue;
+            }
+
+            if (info.isDir())
+            {
+                QDirIterator fileIt(info.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+                while (fileIt.hasNext())
+                {
+                    // Models of the runtime sets are read-only
+                    QFile::setPermissions(fileIt.next(), QFile::ReadOwner | QFile::WriteOwner);
+                }
+            }
+
+            const bool removed = info.isDir() ? QDir(info.absoluteFilePath()).removeRecursively() : QFile::remove(info.absoluteFilePath());
+            if (!removed)
+            {
+                return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the runtime set '%1'. A model set may be in use.").arg(info.absoluteFilePath()), PDFTranslationContext::tr("Cache cleanup"));
+            }
+        }
     }
 
     QDir downloadDirectory(m_userDirectory + QStringLiteral("/downloads"));

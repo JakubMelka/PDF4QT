@@ -452,6 +452,11 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageAnalysis
     /// Rectangles of unapplied redaction annotations (canonical page space)
     std::vector<QRectF> redactionRectangles;
 
+    /// Rectangles of the existing text of the page, which is not a part of the own
+    /// OCR layer (visible digital text and invisible text of foreign origin),
+    /// canonical page space, roughly one rectangle per line (INPUT-04, chapter 6.2)
+    std::vector<QRectF> textRectangles;
+
     /// Reasons of the ambiguity (human readable)
     QStringList ambiguityReasons;
 
@@ -604,6 +609,18 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageResult
     /// Local modification flag (results were edited after recognition)
     bool isModified = false;
 
+    /// Result was recognized for the review and the export only (page with existing
+    /// text, changed document, ...) and must never be written into the PDF. The flag
+    /// is a property of the result, it survives the project round trip (INPUT-04,
+    /// EXPORT-03, EXPORT-04).
+    bool reviewOnly = false;
+
+    /// Raw result of the recognition as returned by the engine (mapped into the
+    /// canonical space), never modified by the editing. Kept next to the editable
+    /// blocks, so the original tokens, scores and geometry survive the structural
+    /// corrections (DATA-02, CONF-05).
+    std::vector<PDFOCRBlock> originalBlocks;
+
     /// Allocates a new identifier
     int allocateId() { return nextId++; }
 
@@ -620,6 +637,14 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageResult
     /// Finds word by identifier, or nullptr
     const PDFOCRWord* findWord(int id) const;
     PDFOCRWord* findWord(int id);
+
+    /// Finds the word of the raw recognition (originalBlocks) by its identifier,
+    /// or nullptr. Identifiers of the original words are the identifiers at
+    /// the time of the recognition (DATA-02).
+    const PDFOCRWord* findOriginalWord(int id) const;
+
+    /// Returns all words of the raw recognition (originalBlocks) in reading order
+    std::vector<const PDFOCRWord*> getOriginalWords() const;
 
     /// Finds line by identifier, or nullptr
     const PDFOCRLine* findLine(int id) const;
@@ -722,10 +747,19 @@ public:
 class PDF4QTLIBCORESHARED_EXPORT PDFOCRValidator
 {
 public:
+    /// Hard limits of the data model (DATA-03, OPS-05). They are enforced by the
+    /// validation of the results and by the project loader while parsing.
+    static constexpr int MaximumPages = 100000;
+    static constexpr int MaximumWordsPerPage = 200000;
+    static constexpr int MaximumTextLength = 4096;
+    static constexpr int MaximumRegionsPerPage = 10000;
+    static constexpr qint64 MaximumProjectFileSize = qint64(512) * 1024 * 1024;
+
     struct Limits
     {
-        int maximumWordsPerPage = 100000;
-        int maximumTextLength = 4096;
+        int maximumWordsPerPage = MaximumWordsPerPage;
+        int maximumTextLength = MaximumTextLength;
+        int maximumRegionsPerPage = MaximumRegionsPerPage;
         double coordinateLimit = 1.0e6;
     };
 

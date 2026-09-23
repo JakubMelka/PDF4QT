@@ -38,6 +38,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <limits>
 #include <optional>
 
 namespace pdf
@@ -185,6 +186,86 @@ QString takeText(char* text)
     return result;
 }
 
+/// Formats the validated value of a typed parameter for the engine (REC-03).
+/// Numbers are always formatted with the '.' decimal separator.
+QByteArray formatParameterValue(const PDFOCREngineParameterDescriptor& descriptor, const QVariant& value)
+{
+    switch (descriptor.type)
+    {
+        case PDFOCREngineParameterDescriptor::Type::Boolean:
+        {
+            bool boolean = false;
+            if (value.typeId() == QMetaType::QString)
+            {
+                const QString text = value.toString().trimmed().toLower();
+                boolean = text == QStringLiteral("true") || text == QStringLiteral("1");
+            }
+            else
+            {
+                boolean = value.toBool();
+            }
+            return boolean ? QByteArrayLiteral("1") : QByteArrayLiteral("0");
+        }
+
+        case PDFOCREngineParameterDescriptor::Type::Integer:
+            return QByteArray::number(qlonglong(value.toString().trimmed().toDouble()));
+
+        case PDFOCREngineParameterDescriptor::Type::Double:
+            return QByteArray::number(value.toString().trimmed().toDouble(), 'g', 15);
+
+        case PDFOCREngineParameterDescriptor::Type::String:
+            break;
+    }
+
+    return value.toString().toUtf8();
+}
+
+/// Vetted schema of the Tesseract parameters offered to the user (REC-03). Only
+/// these variables are passed to the engine, everything else is refused by the
+/// validation of the configuration. Names are the names of the Tesseract 5 variables.
+const std::vector<PDFOCREngineParameterDescriptor>& getParameterSchema()
+{
+    static const std::vector<PDFOCREngineParameterDescriptor> schema = []()
+    {
+        using Type = PDFOCREngineParameterDescriptor::Type;
+        std::vector<PDFOCREngineParameterDescriptor> result;
+
+        auto add = [&result](const char* name, Type type, QVariant defaultValue, double minimum, double maximum, QString description, bool beforeInitialization)
+        {
+            PDFOCREngineParameterDescriptor descriptor;
+            descriptor.name = QString::fromLatin1(name);
+            descriptor.type = type;
+            descriptor.defaultValue = std::move(defaultValue);
+            descriptor.minimum = minimum;
+            descriptor.maximum = maximum;
+            descriptor.description = std::move(description);
+            descriptor.beforeInitialization = beforeInitialization;
+            result.push_back(std::move(descriptor));
+        };
+
+        constexpr double lowest = std::numeric_limits<double>::lowest();
+        constexpr double highest = std::numeric_limits<double>::max();
+
+        add("preserve_interword_spaces", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Preserve multiple spaces between the words in the text output."), false);
+        add("user_defined_dpi", Type::Integer, 0, 70, 2400, PDFTranslationContext::tr("Resolution assumed by the engine, when the image does not declare it (DPI)."), false);
+        add("textord_min_linesize", Type::Double, 1.25, 0.5, 10.0, PDFTranslationContext::tr("Minimal line size relative to the median text size used by the line finder."), false);
+        add("tessedit_do_invert", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Try also the inverted image (light text on a dark background)."), false);
+        add("lstm_choice_mode", Type::Integer, 0, 0, 2, PDFTranslationContext::tr("Alternative symbol choices of the LSTM recognizer (0 = none, 1 = per symbol, 2 = per timestep)."), false);
+        add("classify_bln_numeric_mode", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Numeric only mode of the classifier."), false);
+        add("textord_tabfind_find_tables", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Detect tables during the layout analysis."), false);
+        add("textord_heavy_nr", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Heavy noise removal during the layout analysis."), false);
+        add("min_characters_to_try", Type::Integer, 50, 1, 10000, PDFTranslationContext::tr("Minimal number of characters required by the orientation and script detection."), false);
+        add("load_system_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the system dictionary of the language."), true);
+        add("load_freq_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the dictionary of the frequent words of the language."), true);
+        add("load_punc_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the punctuation patterns of the language."), true);
+        add("load_number_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the number patterns of the language."), true);
+
+        return result;
+    }();
+
+    return schema;
+}
+
 } // anonymous namespace
 
 /// Tesseract engine instance. One instance must not be used by two jobs
@@ -239,6 +320,15 @@ public:
         if (configuration.layout == PDFOCRLayout::SegmentationOnly)
         {
             return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration, PDFTranslationContext::tr("Layout 'segmentation only' does not recognize any text."), PDFTranslationContext::tr("Configuration"));
+        }
+
+        // Engine parameters must match the declared schema (REC-03): unknown names,
+        // wrong types and values out of range are refused by name.
+        QStringList parameterErrors;
+        PDFOCRConfiguration::validateEngineParameters(configuration.engineParameters, getParameterSchema(), &parameterErrors);
+        if (!parameterErrors.isEmpty())
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration, parameterErrors.front(), PDFTranslationContext::tr("Configuration"), parameterErrors.join(QChar('\n')));
         }
 
         return PDFOCRError::none();
@@ -314,6 +404,30 @@ public:
             return error;
         }
 
+        // Typed parameters of the schema (REC-03), validated by validateConfiguration above.
+        // Parameters influencing the loading of the models are passed to the initialization.
+        std::vector<std::pair<QByteArray, QByteArray>> runtimeParameters;
+        for (const PDFOCREngineParameterDescriptor& descriptor : getParameterSchema())
+        {
+            auto it = configuration.engineParameters.find(descriptor.name);
+            if (it == configuration.engineParameters.end())
+            {
+                continue;
+            }
+
+            const QByteArray name = descriptor.name.toLatin1();
+            const QByteArray value = formatParameterValue(descriptor, it.value());
+            if (descriptor.beforeInitialization)
+            {
+                initNames.emplace_back(name.constData());
+                initValues.emplace_back(value.constData());
+            }
+            else
+            {
+                runtimeParameters.emplace_back(name, value);
+            }
+        }
+
         if (initializeApi(*m_api, models.dataPath, languageString, toEngineMode(configuration.engineMode), initNames, initValues) != 0)
         {
             m_api.reset();
@@ -355,15 +469,10 @@ public:
             setVariable("tessedit_char_blacklist", configuration.characterBlacklist.toUtf8());
         }
 
-        // Engine specific typed parameters (validated names only)
-        for (auto it = configuration.engineParameters.begin(); it != configuration.engineParameters.end(); ++it)
+        // Engine specific typed parameters of the schema (REC-03)
+        for (const auto& parameter : runtimeParameters)
         {
-            const QByteArray name = it.key().toLatin1();
-            if (name.isEmpty() || name.contains(' ') || name.startsWith("debug"))
-            {
-                continue;
-            }
-            setVariable(name.constData(), it.value().toString().toUtf8());
+            setVariable(parameter.first.constData(), parameter.second);
         }
 
         if (!failedParameters.isEmpty())
@@ -378,10 +487,18 @@ public:
         return PDFOCRError::none();
     }
 
-    virtual std::optional<PDFOCROrientation> detectOrientation(const QImage& image,
-                                                               double dpi,
+    /// Orientation detection. Tesseract's DetectOrientationScript has no monitor, so
+    /// it can be neither cancelled nor bounded by a deadline while it runs (the
+    /// capability orientationDetectionCancellable is false). Its cost is bounded
+    /// instead: the cancellation and the deadline are checked before the call and
+    /// the image is downscaled, so that its longer side has at most
+    /// MaximumOrientationDimension pixels - the orientation does not need the full
+    /// resolution. The returned rotation is independent of the scale.
+    virtual std::optional<PDFOCROrientation> detectOrientation(const QImage& sourceImage,
+                                                               double sourceDpi,
                                                                const PDFOperationControl* operationControl,
-                                                               PDFOCRError* error) override
+                                                               PDFOCRError* error,
+                                                               qint64 remainingMilliseconds) override
     {
         if (!m_models.hasOrientationData)
         {
@@ -390,6 +507,35 @@ public:
                 *error = PDFOCRError::create(PDFOCRErrorCode::MissingModel, PDFTranslationContext::tr("Orientation data (osd) are not available."), PDFTranslationContext::tr("Orientation detection"));
             }
             return std::nullopt;
+        }
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            if (error)
+            {
+                *error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."), PDFTranslationContext::tr("Orientation detection"));
+            }
+            return std::nullopt;
+        }
+
+        if (remainingMilliseconds == 0)
+        {
+            if (error)
+            {
+                *error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition exceeded the time limit of the page."), PDFTranslationContext::tr("Orientation detection"));
+            }
+            return std::nullopt;
+        }
+
+        // Bounded cost: the detection runs on a downscaled image (see above)
+        QImage image = sourceImage;
+        double dpi = sourceDpi;
+        const int longerSide = qMax(image.width(), image.height());
+        if (longerSide > MaximumOrientationDimension)
+        {
+            const double scale = double(MaximumOrientationDimension) / double(longerSide);
+            image = image.scaled(qMax(1, qRound(image.width() * scale)), qMax(1, qRound(image.height() * scale)), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            dpi = qMax(70.0, sourceDpi * scale);
         }
 
         if (!m_orientationApi)
@@ -496,6 +642,26 @@ public:
             return output;
         }
 
+        // Shared deadline of the page (JOB-06): nothing is started, when no time remains
+        qint64 deadlineMilliseconds = input.remainingMilliseconds;
+        if (deadlineMilliseconds < 0 && input.configuration.pageTimeoutSeconds > 0)
+        {
+            deadlineMilliseconds = qint64(input.configuration.pageTimeoutSeconds) * 1000;
+        }
+
+        auto createTimeoutError = [&input]()
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::Timeout,
+                                       input.configuration.pageTimeoutSeconds > 0 ? PDFTranslationContext::tr("Recognition exceeded the time limit of %1 s.").arg(input.configuration.pageTimeoutSeconds) : PDFTranslationContext::tr("Recognition exceeded the time limit of the page."),
+                                       PDFTranslationContext::tr("Recognition"));
+        };
+
+        if (deadlineMilliseconds == 0)
+        {
+            output.error = createTimeoutError();
+            return output;
+        }
+
         // Image data are passed in memory (chapter 3): grayscale or RGB
         QImage image = input.image;
         int bytesPerPixel = 1;
@@ -537,9 +703,9 @@ public:
         monitor.cancel = &cancelFunction;
         monitor.cancel_this = &context;
         monitor.progress_callback2 = &progressFunction;
-        if (input.configuration.pageTimeoutSeconds > 0)
+        if (deadlineMilliseconds > 0)
         {
-            monitor.set_deadline_msecs(input.configuration.pageTimeoutSeconds * 1000);
+            monitor.set_deadline_msecs(int(qMin<qint64>(deadlineMilliseconds, std::numeric_limits<int>::max())));
         }
 
         QElapsedTimer timer;
@@ -555,10 +721,10 @@ public:
             return output;
         }
 
-        if (monitor.deadline_exceeded())
+        if (monitor.deadline_exceeded() || (deadlineMilliseconds > 0 && timer.elapsed() >= deadlineMilliseconds))
         {
             m_api->Clear();
-            output.error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition exceeded the time limit of %1 s.").arg(input.configuration.pageTimeoutSeconds), PDFTranslationContext::tr("Recognition"));
+            output.error = createTimeoutError();
             return output;
         }
 
@@ -751,6 +917,9 @@ private:
         std::erase_if(output.blocks, [](const PDFOCRRawBlock& block) { return block.lines.empty(); });
     }
 
+    /// Maximal longer side of the image passed to the orientation detection
+    static constexpr int MaximumOrientationDimension = 2000;
+
     const PDFTesseractOCREngineFactory* m_factory;
     std::unique_ptr<tesseract::TessBaseAPI> m_api;
     std::unique_ptr<tesseract::TessBaseAPI> m_orientationApi;
@@ -822,6 +991,10 @@ PDFOCREngineCapabilities PDFTesseractOCREngineFactory::getCapabilities() const
     capabilities.supportsEngineBinarization = true;
     capabilities.supportsGpu = false;
     capabilities.maximumImageSize = QSize(32767, 32767);
+
+    // DetectOrientationScript has no monitor, see PDFTesseractOCREngine::detectOrientation
+    capabilities.orientationDetectionCancellable = false;
+    capabilities.parameters = getParameterSchema();
     return capabilities;
 }
 

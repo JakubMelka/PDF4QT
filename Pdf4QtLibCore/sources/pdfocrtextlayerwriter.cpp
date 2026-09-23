@@ -30,10 +30,13 @@
 #include "pdfstreamfilters.h"
 #include "pdfconstants.h"
 #include "pdfexception.h"
+#include "pdfparser.h"
 
 #include <QUuid>
 #include <QRegularExpression>
 #include <QJsonDocument>
+#include <QCryptographicHash>
+#include <QDomDocument>
 #include <QtMath>
 
 #include <cmath>
@@ -373,6 +376,7 @@ QByteArray PDFOCRTextLayerWriter::createContentStream(const PDFOCRPageResult& re
     {
         bool blockOpened = false;
         double currentFontSize = -1.0;
+        double currentRise = 0.0;
 
         for (const PDFOCRLine& line : block.lines)
         {
@@ -403,6 +407,18 @@ QByteArray PDFOCRTextLayerWriter::createContentStream(const PDFOCRPageResult& re
             }
 
             const bool rightToLeft = line.direction == PDFOCRTextDirection::RightToLeft;
+
+            if (line.direction == PDFOCRTextDirection::TopToBottom && !words.empty() && warnings)
+            {
+                // Vertical text is written along the writing direction of its quads; a
+                // dedicated vertical writing mode of the font is not used (EDIT-08)
+                *warnings << PDFTranslationContext::tr("Page %1: the vertical line '%2' is written along the direction of its geometry.").arg(result.pageIndex + 1).arg(line.getText().left(20));
+            }
+
+            // Baseline of the line (PDF-08): the text origin lies on the baseline, the glyph
+            // boxes still cover the geometry of the word (the text rise shifts them back)
+            const bool hasBaseline = !line.baseline.isNull() && std::isfinite(line.baseline.x1()) && std::isfinite(line.baseline.y1()) &&
+                                     std::isfinite(line.baseline.x2()) && std::isfinite(line.baseline.y2()) && line.baseline.length() > 0.0;
 
             for (size_t i = 0; i < words.size(); ++i)
             {
@@ -444,8 +460,36 @@ QByteArray PDFOCRTextLayerWriter::createContentStream(const PDFOCRPageResult& re
                     origin = word.quad.points[1];
                 }
 
+                // Distance of the baseline from the bottom edge of the word along the "up"
+                // direction of the quad. The origin is moved onto the baseline and the
+                // glyphs are shifted back by the negative text rise, so the selection
+                // rectangle of the word still covers the geometry of the word.
+                double rise = 0.0;
+                if (hasBaseline)
+                {
+                    const QPointF up(-direction.y(), direction.x());
+                    const QPointF baselineDirection = (line.baseline.p2() - line.baseline.p1()) / line.baseline.length();
+                    const double denominator = up.x() * baselineDirection.y() - up.y() * baselineDirection.x();
+                    if (std::abs(denominator) > 1.0e-9)
+                    {
+                        // Intersection of the line origin + t * up with the baseline
+                        const QPointF delta = line.baseline.p1() - origin;
+                        const double t = (delta.x() * baselineDirection.y() - delta.y() * baselineDirection.x()) / denominator;
+                        if (std::isfinite(t) && t > 0.0 && t < fontSize)
+                        {
+                            rise = t;
+                            origin += up * t;
+                        }
+                    }
+                }
+
                 stream += formatNumber(a) + " " + formatNumber(b) + " " + formatNumber(c) + " " + formatNumber(d) + " " +
                           formatNumber(origin.x()) + " " + formatNumber(origin.y()) + " Tm\n";
+                if (!qFuzzyIsNull(rise) || !qFuzzyIsNull(currentRise))
+                {
+                    stream += formatNumber(-rise) + " Ts\n";
+                    currentRise = rise;
+                }
 
                 if (!qFuzzyCompare(currentFontSize, fontSize))
                 {
@@ -623,6 +667,34 @@ static const PDFDictionary* getOwnLayerPrivateDictionary(const PDFDocument* docu
     return entry ? document->getDictionaryFromObject(entry->get("Private")) : nullptr;
 }
 
+static QByteArray getDecodedStreamOfReference(const PDFDocument* document, PDFObjectReference reference, bool* isStream);
+static bool isIsolationBeginStream(const PDFDocument* document, PDFObjectReference reference);
+static bool isIsolationEndStream(const PDFDocument* document, PDFObjectReference reference);
+
+/// Returns hex SHA-256 of the data (binding of the layer metadata to the streams)
+static QString computeStreamHash(const QByteArray& data)
+{
+    return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+}
+
+/// Returns true, if the content stream referenced by the metadata is bound to them:
+/// its decoded content has the hash stored in the metadata and it consists only of
+/// the operators of the invisible text layer. Metadata are an untrusted input; a stream
+/// changed by another tool is foreign content, whatever the metadata claim (INPUT-05).
+static bool isBoundOwnContentStream(const PDFDocument* document, const PDFDictionary* privateData, PDFObjectReference reference)
+{
+    PDFDocumentDataLoaderDecorator loader(document);
+    const QString storedHash = loader.readTextStringFromDictionary(privateData, "ContentHash", QString()).toLower();
+    if (storedHash.isEmpty())
+    {
+        return false;
+    }
+
+    bool isStream = false;
+    const QByteArray content = getDecodedStreamOfReference(document, reference, &isStream);
+    return isStream && computeStreamHash(content) == storedHash && PDFOCRTextLayerWriter::isInvisibleTextStream(content);
+}
+
 std::vector<PDFObjectReference> PDFOCRTextLayerWriter::getOwnLayerContentReferences(const PDFDocument* document, PDFInteger pageIndex)
 {
     std::vector<PDFObjectReference> references;
@@ -630,13 +702,21 @@ std::vector<PDFObjectReference> PDFOCRTextLayerWriter::getOwnLayerContentReferen
     if (const PDFDictionary* privateData = getOwnLayerPrivateDictionary(document, pageIndex))
     {
         PDFDocumentDataLoaderDecorator loader(document);
-        for (const char* key : { "Contents", "IsolationBegin", "IsolationEnd" })
+
+        // Only the verified streams are the own layer: a stream, which is not bound to the
+        // metadata, is a foreign content and must be part of the page fingerprint.
+        const PDFObjectReference contentReference = loader.readReferenceFromDictionary(privateData, "Contents");
+        if (isBoundOwnContentStream(document, privateData, contentReference))
         {
-            const PDFObjectReference reference = loader.readReferenceFromDictionary(privateData, key);
-            if (reference.isValid())
-            {
-                references.push_back(reference);
-            }
+            references.push_back(contentReference);
+        }
+
+        const PDFObjectReference beginReference = loader.readReferenceFromDictionary(privateData, "IsolationBegin");
+        const PDFObjectReference endReference = loader.readReferenceFromDictionary(privateData, "IsolationEnd");
+        if (beginReference != endReference && isIsolationBeginStream(document, beginReference) && isIsolationEndStream(document, endReference))
+        {
+            references.push_back(beginReference);
+            references.push_back(endReference);
         }
     }
 
@@ -730,12 +810,245 @@ static bool isGlyphlessFont(const PDFDocument* document, PDFObjectReference refe
            loader.readNameFromDictionary(dictionary, "BaseFont") == "GlyphLessFont";
 }
 
-/// Returns true, if the stream contains only the operator of the isolation of the graphic state
-static bool isIsolationStream(const PDFDocument* document, PDFObjectReference reference, const char* operatorName)
+/// Returns true, if the content consists only of the given operators (nothing else,
+/// no operands), and at least one operator is present
+static bool consistsOfOperators(const QByteArray& content, const std::vector<QByteArray>& allowedOperators)
+{
+    if (content.trimmed().isEmpty())
+    {
+        return false;
+    }
+
+    try
+    {
+        PDFLexicalAnalyzer analyzer(content.constBegin(), content.constEnd());
+        while (true)
+        {
+            const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+            if (token.type == PDFLexicalAnalyzer::TokenType::EndOfFile)
+            {
+                return true;
+            }
+            if (token.type != PDFLexicalAnalyzer::TokenType::Command ||
+                std::find(allowedOperators.begin(), allowedOperators.end(), token.data.toByteArray()) == allowedOperators.end())
+            {
+                return false;
+            }
+        }
+    }
+    catch (const PDFException&)
+    {
+        return false;
+    }
+}
+
+/// Returns true, if the stream is the isolation stream opening the graphic state ("q", possibly repeated)
+static bool isIsolationBeginStream(const PDFDocument* document, PDFObjectReference reference)
 {
     bool isStream = false;
     const QByteArray content = getDecodedStreamOfReference(document, reference, &isStream);
-    return isStream && content.trimmed() == operatorName;
+    return isStream && consistsOfOperators(content, { "q" });
+}
+
+/// Returns true, if the stream is the isolation stream closing the foreign content
+/// ("Q", and the closing of the unbalanced text objects and marked content of the foreign content)
+static bool isIsolationEndStream(const PDFDocument* document, PDFObjectReference reference)
+{
+    bool isStream = false;
+    const QByteArray content = getDecodedStreamOfReference(document, reference, &isStream);
+    return isStream && consistsOfOperators(content, { "Q", "ET", "EMC" }) && content.contains("Q");
+}
+
+/// Creates the content of the isolation streams for the foreign content with the given
+/// balance (PDF-05): the foreign content is enclosed between "q" and "Q"; an unbalanced
+/// foreign content gets additional openers / closers, so the text layer always starts
+/// in a clean state and the whole page content is balanced.
+static void createIsolationStreams(const PDFOCRTextLayerWriter::ContentBalance& balance, QByteArray* begin, QByteArray* end)
+{
+    const int beginCount = 1 + qMax(0, -balance.graphicStateDepth);
+    const int endCount = 1 + qMax(0, balance.graphicStateDepth);
+
+    begin->clear();
+    for (int i = 0; i < beginCount; ++i)
+    {
+        begin->append("q\n");
+    }
+
+    end->clear();
+    for (int i = 0; i < qMax(0, balance.textObjectDepth); ++i)
+    {
+        end->append("ET\n");
+    }
+    for (int i = 0; i < qMax(0, balance.markedContentDepth); ++i)
+    {
+        end->append("EMC\n");
+    }
+    for (int i = 0; i < endCount; ++i)
+    {
+        end->append("Q\n");
+    }
+}
+
+PDFOCRTextLayerWriter::ContentBalance PDFOCRTextLayerWriter::computeContentBalance(const QByteArray& content)
+{
+    ContentBalance balance;
+
+    try
+    {
+        PDFLexicalAnalyzer analyzer(content.constBegin(), content.constEnd());
+        while (true)
+        {
+            const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+            if (token.type == PDFLexicalAnalyzer::TokenType::EndOfFile)
+            {
+                break;
+            }
+            if (token.type != PDFLexicalAnalyzer::TokenType::Command)
+            {
+                continue;
+            }
+
+            const QByteArray command = token.data.toByteArray();
+            if (command == "q")
+            {
+                ++balance.graphicStateDepth;
+            }
+            else if (command == "Q")
+            {
+                --balance.graphicStateDepth;
+            }
+            else if (command == "BT")
+            {
+                ++balance.textObjectDepth;
+            }
+            else if (command == "ET")
+            {
+                if (--balance.textObjectDepth < 0)
+                {
+                    balance.hasError = true;
+                    balance.textObjectDepth = 0;
+                }
+            }
+            else if (command == "BMC" || command == "BDC")
+            {
+                ++balance.markedContentDepth;
+            }
+            else if (command == "EMC")
+            {
+                if (--balance.markedContentDepth < 0)
+                {
+                    balance.hasError = true;
+                    balance.markedContentDepth = 0;
+                }
+            }
+            else if (command == "BI")
+            {
+                // Inline image data are not tokens: skip to the end of the image
+                const PDFInteger endPosition = analyzer.findSubstring("EI", analyzer.pos());
+                if (endPosition == -1)
+                {
+                    balance.hasError = true;
+                    break;
+                }
+                analyzer.seek(endPosition + 2);
+            }
+        }
+    }
+    catch (const PDFException&)
+    {
+        balance.hasError = true;
+    }
+
+    return balance;
+}
+
+bool PDFOCRTextLayerWriter::isInvisibleTextStream(const QByteArray& content)
+{
+    // Operators of the text layer: graphic state, text object, marked content (artifact),
+    // text state and positioning, text showing. Nothing else is allowed, the text
+    // rendering mode is always 3 (invisible).
+    static const std::vector<QByteArray> allowedOperators = { "q", "Q", "BT", "ET", "BMC", "BDC", "EMC", "Tf", "Tr", "Tz", "Tm", "Td", "TD", "TL", "Tc", "Tw", "Ts", "Tj", "TJ", "T*", "'", "\"" };
+
+    if (content.trimmed().isEmpty())
+    {
+        return false;
+    }
+
+    try
+    {
+        PDFLexicalAnalyzer analyzer(content.constBegin(), content.constEnd());
+        PDFLexicalAnalyzer::Token previous;
+        bool hasText = false;
+        while (true)
+        {
+            const PDFLexicalAnalyzer::Token token = analyzer.fetch();
+            if (token.type == PDFLexicalAnalyzer::TokenType::EndOfFile)
+            {
+                break;
+            }
+
+            if (token.type == PDFLexicalAnalyzer::TokenType::Command)
+            {
+                const QByteArray command = token.data.toByteArray();
+                if (std::find(allowedOperators.begin(), allowedOperators.end(), command) == allowedOperators.end())
+                {
+                    return false;
+                }
+                if (command == "Tr")
+                {
+                    if (previous.type != PDFLexicalAnalyzer::TokenType::Integer || previous.data.toInt() != 3)
+                    {
+                        return false;
+                    }
+                }
+                if (command == "Tj" || command == "TJ" || command == "'" || command == "\"")
+                {
+                    hasText = true;
+                }
+            }
+            previous = token;
+        }
+
+        return hasText && computeContentBalance(content).isBalanced();
+    }
+    catch (const PDFException&)
+    {
+        return false;
+    }
+}
+
+bool PDFOCRTextLayerWriter::validatePageContent(const PDFDocument* document, PDFInteger pageIndex, QString* errorMessage)
+{
+    QByteArray content;
+    for (const PDFObjectReference& reference : getPageContentReferences(document, pageIndex))
+    {
+        bool isStream = false;
+        const QByteArray streamContent = getDecodedStreamOfReference(document, reference, &isStream);
+        if (!isStream)
+        {
+            if (errorMessage)
+            {
+                *errorMessage = PDFTranslationContext::tr("Content of the page %1 references an object, which is not a stream.").arg(pageIndex + 1);
+            }
+            return false;
+        }
+        content.append(streamContent);
+        content.append('\n');
+    }
+
+    const ContentBalance balance = computeContentBalance(content);
+    if (balance.isBalanced())
+    {
+        return true;
+    }
+
+    if (errorMessage)
+    {
+        *errorMessage = PDFTranslationContext::tr("Content of the page %1 is not balanced (graphic state %2, text objects %3, marked content %4%5).")
+                            .arg(pageIndex + 1).arg(balance.graphicStateDepth).arg(balance.textObjectDepth).arg(balance.markedContentDepth)
+                            .arg(balance.hasError ? PDFTranslationContext::tr(", lexical error") : QString());
+    }
+    return false;
 }
 
 PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFDocument* document, PDFInteger pageIndex)
@@ -793,14 +1106,19 @@ PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFD
     const std::vector<PDFObjectReference> pageContents = getPageContentReferences(document, pageIndex);
     const bool contentFound = info.contentReference.isValid() && std::find(pageContents.begin(), pageContents.end(), info.contentReference) != pageContents.end();
 
-    // Verification of the referenced objects (metadata are an untrusted input)
+    // Verification of the referenced objects (metadata are an untrusted input). The
+    // streams are bound to the metadata by their hashes: a stream changed by another
+    // tool (added graphics, changed text) is not the own layer anymore and it is never
+    // removed or replaced (INPUT-05, PDF-09, PDF-11).
     info.isFontOwn = isGlyphlessFont(document, info.fontReference);
 
     {
         bool isStream = false;
         const QByteArray data = getDecodedStreamOfReference(document, info.dataReference, &isStream);
+        const QString storedHash = loader.readTextStringFromDictionary(privateData, "DataHash", QString()).toLower();
         PDFOCRPageResult ignoredResult;
-        info.isDataOwn = isStream && info.dataReference != info.contentReference && deserializeLayerData(data, ignoredResult, nullptr);
+        info.isDataOwn = isStream && info.dataReference != info.contentReference && !storedHash.isEmpty() &&
+                         computeStreamHash(data) == storedHash && deserializeLayerData(data, ignoredResult, nullptr);
     }
 
     if (!contentFound)
@@ -810,20 +1128,15 @@ PDFOCRTextLayerWriter::LayerInfo PDFOCRTextLayerWriter::readLayerInfo(const PDFD
         return info;
     }
 
-    {
-        bool isStream = false;
-        const QByteArray content = getDecodedStreamOfReference(document, info.contentReference, &isStream);
-        info.isContentOwn = isStream && content.startsWith("q\n") && content.trimmed().endsWith("Q") && !info.fontKey.isEmpty() &&
-                            content.contains("3 Tr") && content.contains("/" + info.fontKey + " ");
-    }
+    info.isContentOwn = !info.fontKey.isEmpty() && isBoundOwnContentStream(document, privateData, info.contentReference);
 
     if (info.isolationBeginReference.isValid() && info.isolationEndReference.isValid() && info.isolationBeginReference != info.isolationEndReference)
     {
         const bool hasBegin = std::find(pageContents.begin(), pageContents.end(), info.isolationBeginReference) != pageContents.end();
         const bool hasEnd = std::find(pageContents.begin(), pageContents.end(), info.isolationEndReference) != pageContents.end();
         info.isIsolationOwn = hasBegin && hasEnd &&
-                              isIsolationStream(document, info.isolationBeginReference, "q") &&
-                              isIsolationStream(document, info.isolationEndReference, "Q");
+                              isIsolationBeginStream(document, info.isolationBeginReference) &&
+                              isIsolationEndStream(document, info.isolationEndReference);
     }
 
     const QByteArray currentFingerprint = PDFOCRPagePreparer::computePageFingerprint(document, pageIndex);
@@ -839,7 +1152,9 @@ std::optional<PDFOCRPageResult> PDFOCRTextLayerWriter::readLayer(const PDFDocume
         *infoOut = info;
     }
 
-    if (!info.isPresent || !info.dataReference.isValid())
+    // Data of a layer, whose content was changed by another tool, are not current:
+    // the text of the page is the changed stream, not the stored corrections (PDF-10)
+    if (!info.isPresent || !info.dataReference.isValid() || !info.isContentOwn || !info.isDataOwn)
     {
         return std::nullopt;
     }
@@ -998,14 +1313,15 @@ static bool removeLayerFromPage(PDFDocumentBuilder* builder,
     }
     removed = removed || contentReferences.size() != oldSize;
 
-    // Font
+    // Font. The font resource is removed only together with the own content stream:
+    // a stream changed by another tool is a foreign content, which still uses the font.
     PDFDictionary fonts = copyDictionary(builder, resources.get("Font"));
     std::vector<QByteArray> keysToRemove;
     for (size_t i = 0; i < fonts.getCount(); ++i)
     {
         const QByteArray key = fonts.getKey(i).getString();
         const PDFObject& value = fonts.getValue(i);
-        if (info.isFontOwn && value.isReference() && value.getReference() == info.fontReference)
+        if (info.isFontOwn && info.isContentOwn && value.isReference() && value.getReference() == info.fontReference)
         {
             keysToRemove.push_back(key);
         }
@@ -1027,11 +1343,24 @@ static bool removeLayerFromPage(PDFDocumentBuilder* builder,
         removed = true;
     }
 
-    // Orphaned private objects. The font and the isolation streams are shared by
-    // the pages of the document, so they are left in the document.
+    // Orphaned private objects. The font and the simple isolation streams are shared by
+    // the pages of the document, so they are left in the document; a page specific
+    // isolation stream (closing an unbalanced foreign content) is removed with the layer.
     if (info.isDataOwn)
     {
         builder->setObject(info.dataReference, PDFObject());
+    }
+    if (info.isIsolationOwn)
+    {
+        for (const PDFObjectReference reference : { info.isolationBeginReference, info.isolationEndReference })
+        {
+            bool isStream = false;
+            const QByteArray content = getDecodedStreamOfReference(originalDocument, reference, &isStream).trimmed();
+            if (isStream && content != "q" && content != "Q" && !isContentUsedByOtherPage(originalDocument, pageIndex, reference))
+            {
+                builder->setObject(reference, PDFObject());
+            }
+        }
     }
     if (info.isContentOwn && !isContentUsedByOtherPage(originalDocument, pageIndex, info.contentReference))
     {
@@ -1122,10 +1451,18 @@ static PDFOCRSharedLayerObjects findSharedLayerObjects(const PDFDocument* docume
         {
             const PDFObjectReference beginReference = loader.readReferenceFromDictionary(privateData, "IsolationBegin");
             const PDFObjectReference endReference = loader.readReferenceFromDictionary(privateData, "IsolationEnd");
-            if (beginReference != endReference && isIsolationStream(document, beginReference, "q") && isIsolationStream(document, endReference, "Q"))
+            // Only the simple isolation streams are shared; a page with an unbalanced
+            // foreign content has its own closing stream
+            if (beginReference != endReference && isIsolationBeginStream(document, beginReference) && isIsolationEndStream(document, endReference))
             {
-                result.isolationBeginReference = beginReference;
-                result.isolationEndReference = endReference;
+                bool isBeginStream = false;
+                bool isEndStream = false;
+                if (getDecodedStreamOfReference(document, beginReference, &isBeginStream).trimmed() == "q" &&
+                    getDecodedStreamOfReference(document, endReference, &isEndStream).trimmed() == "Q")
+                {
+                    result.isolationBeginReference = beginReference;
+                    result.isolationEndReference = endReference;
+                }
             }
         }
 
@@ -1167,7 +1504,10 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
             return report;
         }
 
-        const PDFOCRPageResult& result = request.result;
+        // The flags of the excluded regions are recomputed from the current regions
+        // and masks, the stored flags can be obsolete (REGION-05, PDF-13)
+        PDFOCRPageResult result = request.result;
+        PDFOCRPagePreparer::updateExcludedRegionFlags(result);
 
         // Validation (DATA-03)
         const QStringList validationErrors = PDFOCRValidator::validate(result);
@@ -1178,6 +1518,35 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
                                                PDFTranslationContext::tr("Writing text layer"),
                                                validationErrors.join(QChar('\n')));
             return report;
+        }
+
+        // A result recognized for the review only is never written (INPUT-04, EXPORT-04)
+        if (result.reviewOnly)
+        {
+            report.error = PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Result of the page %1 was recognized for the review and the export only.").arg(pageIndex + 1), PDFTranslationContext::tr("Writing text layer"));
+            return report;
+        }
+
+        // Collision with the existing text of the page (chapter 6.2): a word of the layer
+        // must not be written over a digital or a foreign invisible text. The user resolves
+        // the collision by the regions or by masking the existing text.
+        for (const PDFOCRWord* word : result.getWords())
+        {
+            if (!word->isUsable())
+            {
+                continue;
+            }
+
+            QRectF wordRect = word->quad.boundingRect();
+            const double inset = qMin(wordRect.width(), wordRect.height()) * 0.1;
+            wordRect.adjust(inset, inset, -inset, -inset);
+            if (PDFOCRPagePreparer::intersectsAny(wordRect, result.analysis.textRectangles))
+            {
+                report.error = PDFOCRError::create(PDFOCRErrorCode::WriteFailed,
+                                                   PDFTranslationContext::tr("Page %1: the word '%2' overlaps the existing text of the page. Change the regions, or recognize the page with the existing text masked.").arg(pageIndex + 1).arg(word->text),
+                                                   PDFTranslationContext::tr("Writing text layer"));
+                return report;
+            }
         }
 
         const PDFPage* page = catalog->getPage(pageIndex);
@@ -1275,17 +1644,48 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         // Isolation of the graphic state (PDF-05): foreign content can leave a changed
         // transformation matrix, clipping path or text state behind (scanners often
         // write "w 0 0 h 0 0 cm /Im0 Do" without q/Q), which would deform the text layer.
-        // Foreign content is enclosed between the streams "q" and "Q".
+        // Foreign content is enclosed between the streams "q" and "Q". The balance of the
+        // foreign content is checked by the parser: an unbalanced content (unclosed q, BT
+        // or marked content, or more Q than q) gets a page specific pair of the streams,
+        // so the whole page content is balanced and the layer starts in a clean state.
         const bool useIsolation = !contentReferences.empty();
+        PDFObjectReference isolationBeginReference;
+        PDFObjectReference isolationEndReference;
         if (useIsolation)
         {
-            if (!sharedObjects.isolationBeginReference.isValid())
+            QByteArray foreignContent;
+            for (const PDFObjectReference& reference : contentReferences)
             {
-                sharedObjects.isolationBeginReference = createStream(builder, PDFDictionary(), QByteArray("q\n"), false);
-                sharedObjects.isolationEndReference = createStream(builder, PDFDictionary(), QByteArray("Q\n"), false);
+                bool isStream = false;
+                foreignContent.append(getDecodedStreamOfReference(originalDocument, reference, &isStream));
+                foreignContent.append('\n');
             }
-            contentReferences.insert(contentReferences.begin(), sharedObjects.isolationBeginReference);
-            contentReferences.push_back(sharedObjects.isolationEndReference);
+
+            const ContentBalance balance = computeContentBalance(foreignContent);
+            QByteArray beginContent;
+            QByteArray endContent;
+            createIsolationStreams(balance, &beginContent, &endContent);
+
+            if (beginContent == "q\n" && endContent == "Q\n")
+            {
+                if (!sharedObjects.isolationBeginReference.isValid())
+                {
+                    sharedObjects.isolationBeginReference = createStream(builder, PDFDictionary(), beginContent, false);
+                    sharedObjects.isolationEndReference = createStream(builder, PDFDictionary(), endContent, false);
+                }
+                isolationBeginReference = sharedObjects.isolationBeginReference;
+                isolationEndReference = sharedObjects.isolationEndReference;
+            }
+            else
+            {
+                isolationBeginReference = createStream(builder, PDFDictionary(), beginContent, false);
+                isolationEndReference = createStream(builder, PDFDictionary(), endContent, false);
+                report.messages << PDFTranslationContext::tr("Page %1: the original content is not balanced (graphic state %2, text objects %3, marked content %4), it was enclosed into a balanced isolation.")
+                                       .arg(pageIndex + 1).arg(balance.graphicStateDepth).arg(balance.textObjectDepth).arg(balance.markedContentDepth);
+            }
+
+            contentReferences.insert(contentReferences.begin(), isolationBeginReference);
+            contentReferences.push_back(isolationEndReference);
         }
 
         // Content stream object
@@ -1338,13 +1738,19 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         privateFactory.beginDictionaryItem("Data");
         privateFactory << dataReference;
         privateFactory.endDictionaryItem();
+        privateFactory.beginDictionaryItem("ContentHash");
+        privateFactory << computeStreamHash(content);
+        privateFactory.endDictionaryItem();
+        privateFactory.beginDictionaryItem("DataHash");
+        privateFactory << computeStreamHash(layerData);
+        privateFactory.endDictionaryItem();
         if (useIsolation)
         {
             privateFactory.beginDictionaryItem("IsolationBegin");
-            privateFactory << sharedObjects.isolationBeginReference;
+            privateFactory << isolationBeginReference;
             privateFactory.endDictionaryItem();
             privateFactory.beginDictionaryItem("IsolationEnd");
-            privateFactory << sharedObjects.isolationEndReference;
+            privateFactory << isolationEndReference;
             privateFactory.endDictionaryItem();
         }
         privateFactory.beginDictionaryItem("HasReviewData");
@@ -1379,30 +1785,150 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
     return report;
 }
 
+static const char* PDFA_NAMESPACE = "http://www.aiim.org/pdfa/ns/id/";
+static const char* PDFUA_NAMESPACE = "http://www.aiim.org/pdfua/ns/id/";
+
+/// Removes the elements and attributes of the conformance namespaces from the subtree.
+/// Returns true, if something was found.
+static bool removeConformanceNodes(QDomNode node, QStringList* declarations, bool remove)
+{
+    bool found = false;
+
+    auto registerDeclaration = [declarations](const QString& namespaceUri)
+    {
+        if (!declarations)
+        {
+            return;
+        }
+        const QString name = namespaceUri == QLatin1String(PDFA_NAMESPACE) ? QStringLiteral("PDF/A") : QStringLiteral("PDF/UA");
+        if (!declarations->contains(name))
+        {
+            *declarations << name;
+        }
+    };
+
+    auto isConformanceNamespace = [](const QString& namespaceUri)
+    {
+        return namespaceUri == QLatin1String(PDFA_NAMESPACE) || namespaceUri == QLatin1String(PDFUA_NAMESPACE);
+    };
+
+    QDomNode child = node.firstChild();
+    while (!child.isNull())
+    {
+        QDomNode next = child.nextSibling();
+        if (child.isElement())
+        {
+            QDomElement element = child.toElement();
+            if (isConformanceNamespace(element.namespaceURI()))
+            {
+                found = true;
+                registerDeclaration(element.namespaceURI());
+                if (remove)
+                {
+                    node.removeChild(child);
+                }
+                child = next;
+                continue;
+            }
+
+            // Attribute form of the properties
+            QDomNamedNodeMap attributes = element.attributes();
+            QStringList attributesToRemove;
+            for (int i = 0; i < attributes.count(); ++i)
+            {
+                QDomAttr attribute = attributes.item(i).toAttr();
+                if (isConformanceNamespace(attribute.namespaceURI()))
+                {
+                    found = true;
+                    registerDeclaration(attribute.namespaceURI());
+                    attributesToRemove << attribute.name();
+                }
+            }
+            if (remove)
+            {
+                for (const QString& name : attributesToRemove)
+                {
+                    element.removeAttribute(name);
+                }
+            }
+
+            found = removeConformanceNodes(element, declarations, remove) || found;
+        }
+        child = next;
+    }
+
+    return found;
+}
+
+bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations)
+{
+    if (withoutDeclarations)
+    {
+        withoutDeclarations->clear();
+    }
+
+    // The packet can have leading/trailing bytes outside of the XML (xpacket padding is
+    // inside, but some producers add garbage); the XML itself is parsed with namespaces.
+    QDomDocument dom;
+    if (!dom.setContent(metadata, QDomDocument::ParseOption::UseNamespaceProcessing))
+    {
+        // Unparseable metadata: the declaration is searched textually and cannot be removed
+        const bool hasPdfA = metadata.contains(PDFA_NAMESPACE);
+        const bool hasPdfUA = metadata.contains(PDFUA_NAMESPACE);
+        if (declarations)
+        {
+            if (hasPdfA)
+            {
+                *declarations << QStringLiteral("PDF/A");
+            }
+            if (hasPdfUA)
+            {
+                *declarations << QStringLiteral("PDF/UA");
+            }
+        }
+        return hasPdfA || hasPdfUA;
+    }
+
+    const bool found = removeConformanceNodes(dom, declarations, withoutDeclarations != nullptr);
+    if (withoutDeclarations && found)
+    {
+        *withoutDeclarations = dom.toByteArray(1);
+
+        // The removal is verified: the result must not declare the conformance anymore
+        QDomDocument verification;
+        if (!verification.setContent(*withoutDeclarations, QDomDocument::ParseOption::UseNamespaceProcessing) || removeConformanceNodes(verification, nullptr, false))
+        {
+            withoutDeclarations->clear();
+        }
+    }
+
+    return found;
+}
+
 bool PDFOCRTextLayerWriter::removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document)
 {
     const PDFCatalog* catalog = document->getCatalog();
     const PDFObject& metadataObject = document->getObject(catalog->getMetadata());
     if (!metadataObject.isStream())
     {
-        return false;
+        return true;
     }
 
-    QString metadata = QString::fromUtf8(document->getDecodedStream(metadataObject.getStream()));
-    const QString original = metadata;
-
-    // Element and attribute forms of the pdfaid and pdfuaid properties
-    static const QRegularExpression elementExpression(QStringLiteral("<(pdfaid|pdfuaid):(part|conformance|amd|rev|corr)>[^<]*</\\1:\\2>\\s*"));
-    static const QRegularExpression attributeExpression(QStringLiteral("\\s(pdfaid|pdfuaid):(part|conformance|amd|rev|corr)\\s*=\\s*(\"[^\"]*\"|'[^']*')"));
-    metadata.remove(elementExpression);
-    metadata.remove(attributeExpression);
-
-    if (metadata == original)
+    const QByteArray metadata = document->getDecodedStream(metadataObject.getStream());
+    QByteArray withoutDeclarations;
+    if (!findConformanceDeclarations(metadata, nullptr, &withoutDeclarations))
     {
+        // Nothing to remove
+        return true;
+    }
+
+    if (withoutDeclarations.isEmpty())
+    {
+        // The declaration could not be removed (unparseable XMP, or an unexpected form)
         return false;
     }
 
-    builder->setCatalogMetadata(metadata.toUtf8());
+    builder->setCatalogMetadata(withoutDeclarations);
     return true;
 }
 

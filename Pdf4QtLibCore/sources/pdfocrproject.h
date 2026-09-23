@@ -138,15 +138,25 @@ public:
     static QJsonObject pageResultToJson(const PDFOCRPageResult& result, PDFOCRSerializationFlags flags);
     static PDFOCRPageResult pageResultFromJson(const QJsonObject& object);
 
+    /// Loads the page result and enforces the limits of the data model while
+    /// parsing (DATA-03, OPS-05): at most PDFOCRValidator::MaximumWordsPerPage words,
+    /// PDFOCRValidator::MaximumTextLength characters of a word text and
+    /// PDFOCRValidator::MaximumRegionsPerPage regions. Returns false, if a limit
+    /// is exceeded; the error message names the limit.
+    static bool pageResultFromJson(const QJsonObject& object, PDFOCRPageResult& result, QString* errorMessage);
+
     static QJsonObject projectToJson(const PDFOCRProject& project);
 
-    /// Loads project from JSON. Returns false, if the format is invalid.
+    /// Loads project from JSON. Returns false, if the format is invalid or
+    /// a limit of the data model is exceeded (at most PDFOCRValidator::MaximumPages
+    /// pages, see pageResultFromJson for the limits of a page).
     static bool projectFromJson(const QJsonObject& object, PDFOCRProject& project, QString* errorMessage);
 
     /// Saves project to file. Returns false on error.
     static bool save(const PDFOCRProject& project, const QString& fileName, QString* errorMessage);
 
-    /// Loads project from file. Returns false on error.
+    /// Loads project from file. Returns false on error. A file larger than
+    /// PDFOCRValidator::MaximumProjectFileSize is refused before it is read (OPS-05).
     static bool load(const QString& fileName, PDFOCRProject& project, QString* errorMessage);
 
     static QByteArray toBytes(const PDFOCRProject& project);
@@ -202,6 +212,15 @@ public:
         /// Human readable descriptions of pages (physical number and label)
         QStringList pageDescriptions;
 
+        /// Human readable descriptions of the skipped pages with the reason
+        /// ("page <physical number> (<label>): <reason>"), one item per item
+        /// of skippedPages (EXPORT-02)
+        QStringList skippedDescriptions;
+
+        /// Human readable descriptions of the exported pages without text
+        /// (state NoText), with the reason (EXPORT-02)
+        QStringList noTextDescriptions;
+
         /// Region order per page (human readable)
         QStringList regionOrders;
 
@@ -211,6 +230,10 @@ public:
 
     /// Returns text of the page (current corrected text, reading order)
     static QString getPageText(const PDFOCRPageResult& result, const Options& options);
+
+    /// Returns human readable description of the state of the page with its
+    /// reason (skip reason, error message), for the export report (EXPORT-02)
+    static QString getPageStateDescription(const PDFOCRPageResult& result);
 
     /// Exports text of the pages
     static QString exportText(const std::vector<const PDFOCRPageResult*>& pages, const Options& options, Report* report);

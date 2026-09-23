@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfocrjobcontroller.h"
+#include "pdfocrmodelmanager.h"
 #include "pdfdocument.h"
 #include "pdfcatalog.h"
 #include "pdfpage.h"
@@ -29,6 +30,9 @@
 
 #include <QRunnable>
 #include <QDateTime>
+#include <QLockFile>
+#include <QDirIterator>
+#include <QRegularExpression>
 
 namespace pdf
 {
@@ -88,14 +92,45 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
 
     // Every worker owns an engine instance with loaded models (JOB-09), so no more
     // workers than pages are started.
-    const int workerCount = qBound(1, qMin(job->description.configuration.workerCount, int(qMin<size_t>(job->description.pages.size(), 64))), 64);
+    const int requestedWorkerCount = qBound(1, qMin(job->description.configuration.workerCount, int(qMin<size_t>(job->description.pages.size(), 64))), 64);
+    int workerCount = requestedWorkerCount;
+
+    // Memory of the models (JOB-10, R13): every worker loads its own copy of the model
+    // set, so the model memory is reserved from the budget for the lifetime of the job
+    // and the number of workers is reduced, when the models of all workers do not fit.
+    // When even a single worker does not fit, the job fails with a critical error.
+    const qint64 memoryBudget = qMax<qint64>(job->description.configuration.memoryBudget, qint64(64) << 20);
+    const qint64 modelBytes = estimateModelBytes(job->description.models.dataPath);
+    while (workerCount > 1 && modelBytes * workerCount > memoryBudget)
+    {
+        --workerCount;
+    }
+
+    if (modelBytes > memoryBudget)
+    {
+        job->criticalErrorReported = true;
+        job->summary.criticalError = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory,
+                                                         PDFTranslationContext::tr("Language models need approximately %1 MB of memory, but the memory budget is %2 MB. Increase the memory budget or select fewer languages.").arg(modelBytes / (1024 * 1024) + 1).arg(memoryBudget / (1024 * 1024)),
+                                                         PDFTranslationContext::tr("Initialization"));
+        job->cancelToken->cancel();
+        workerCount = 1;
+    }
+
+    job->summary.requestedWorkerCount = requestedWorkerCount;
+    job->summary.workerCount = workerCount;
+    job->summary.modelMemoryBytes = modelBytes;
     job->activeWorkers = workerCount;
+
+    // A running job keeps its runtime model set alive (LANG-07): the housekeeping and
+    // the cache cleanup of the model manager skip the sets in use.
+    job->runtimeSetLease = PDFOCRModelManager::acquireRuntimeSetLease(job->description.models.dataPath);
 
     {
         QMutexLocker lock(&m_mutex);
         m_job = job;
-        m_memoryBudget = qMax<qint64>(job->description.configuration.memoryBudget, qint64(64) << 20);
-        m_memoryUsed = 0;
+        m_memoryBudget = memoryBudget;
+        m_memoryReserved = job->criticalErrorReported ? 0 : modelBytes * workerCount;
+        m_memoryUsed = m_memoryReserved;
     }
 
     m_stopping.store(false, std::memory_order_release);
@@ -166,15 +201,51 @@ bool PDFOCRJobController::isPagePending(PDFInteger pageIndex) const
     return std::find(pending.begin(), pending.end(), pageIndex) != pending.end();
 }
 
-bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl)
+qint64 PDFOCRJobController::estimateModelBytes(const QString& dataPath)
+{
+    if (dataPath.isEmpty() || !QDir(dataPath).exists())
+    {
+        return 0;
+    }
+
+    qint64 bytes = 0;
+    QDirIterator it(dataPath, QStringList() << QStringLiteral("*.traineddata"), QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext())
+    {
+        it.next();
+        bytes += qMax<qint64>(0, it.fileInfo().size());
+    }
+    return bytes;
+}
+
+bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, PDFOCRError* error)
 {
     Q_UNUSED(job);
 
     QMutexLocker lock(&m_mutex);
-    while (m_memoryUsed > 0 && m_memoryUsed + bytes > m_memoryBudget)
+
+    // A single request larger than the budget left for the rasters is refused: the
+    // budget is a hard limit, it is never bypassed and it is pointless to wait (R13).
+    const qint64 availableForRasters = m_memoryBudget - m_memoryReserved;
+    if (bytes > availableForRasters)
+    {
+        if (error)
+        {
+            *error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory,
+                                         PDFTranslationContext::tr("Page needs approximately %1 MB of memory for the rasters, but only %2 MB of the memory budget of %3 MB are available. Use a lower resolution, recognize a smaller region of the page, or increase the memory budget.").arg(bytes / (1024 * 1024) + 1).arg(qMax<qint64>(0, availableForRasters) / (1024 * 1024)).arg(m_memoryBudget / (1024 * 1024)),
+                                         PDFTranslationContext::tr("Rendering"));
+        }
+        return false;
+    }
+
+    while (m_memoryUsed + bytes > m_memoryBudget)
     {
         if (PDFOperationControl::isOperationCancelled(operationControl))
         {
+            if (error)
+            {
+                *error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was stopped."), PDFTranslationContext::tr("Rendering"));
+            }
             return false;
         }
         m_memoryCondition.wait(&m_mutex, 100);
@@ -187,7 +258,7 @@ bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperati
 void PDFOCRJobController::releaseMemory(qint64 bytes)
 {
     QMutexLocker lock(&m_mutex);
-    m_memoryUsed = qMax<qint64>(0, m_memoryUsed - bytes);
+    m_memoryUsed = qMax<qint64>(m_memoryReserved, m_memoryUsed - bytes);
     m_memoryCondition.wakeAll();
 }
 
@@ -254,7 +325,15 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
         engine.reset();
     };
 
-    PDFOCRError criticalError = createEngine();
+    bool alreadyFailed = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        alreadyFailed = job->criticalErrorReported;
+    }
+
+    // The engine is not created, when the job already failed at its start (models
+    // do not fit into the memory budget); the pages are finished with the error below.
+    PDFOCRError criticalError = alreadyFailed ? PDFOCRError::none() : createEngine();
 
     if (criticalError)
     {
@@ -423,6 +502,10 @@ void PDFOCRJobController::finishJob(Job& job)
         job.summary.cancelled = job.cancelToken->isOperationCancelled() && !job.summary.criticalError;
         summary = job.summary;
         m_memoryUsed = 0;
+        m_memoryReserved = 0;
+
+        // The runtime set can be removed by the housekeeping from now on (LANG-07)
+        job.runtimeSetLease.reset();
     }
 
     m_running.store(false, std::memory_order_release);
@@ -465,6 +548,30 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         return PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was stopped."), step);
     };
 
+    // One shared deadline of the page for all phases (JOB-06, R12): orientation
+    // detection, preprocessing and every recognized rectangle consume the same budget.
+    const qint64 pageTimeoutMilliseconds = configuration.pageTimeoutSeconds > 0 ? qint64(configuration.pageTimeoutSeconds) * 1000 : -1;
+    auto getRemainingMilliseconds = [&]() -> qint64
+    {
+        if (pageTimeoutMilliseconds < 0)
+        {
+            return -1;
+        }
+        return qMax<qint64>(0, pageTimeoutMilliseconds - timer.elapsed());
+    };
+
+    auto timeoutError = [&](const QString& step)
+    {
+        return PDFOCRError::create(PDFOCRErrorCode::Timeout,
+                                   PDFTranslationContext::tr("Recognition of the page exceeded the time limit of %1 s.").arg(configuration.pageTimeoutSeconds),
+                                   step);
+    };
+
+    auto isDeadlineExceeded = [&]()
+    {
+        return pageTimeoutMilliseconds >= 0 && timer.elapsed() >= pageTimeoutMilliseconds;
+    };
+
     if (!engine)
     {
         return finishWithError(PDFOCRError::create(PDFOCRErrorCode::InitializationFailed, PDFTranslationContext::tr("OCR engine is not available."), PDFTranslationContext::tr("Initialization")));
@@ -474,6 +581,12 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     {
         return finishWithError(cancelledError(PDFTranslationContext::tr("Scheduling")));
     }
+
+    const PDFOCREngineCapabilities capabilities = engine->getCapabilities();
+
+    // Dimension limit of the engine (ARCH-02, R13): a long narrow page can pass the
+    // pixel count limit and still exceed the maximal width or height of the engine.
+    const int maximumDimension = capabilities.maximumImageSize.isEmpty() ? 0 : qMin(capabilities.maximumImageSize.width(), capabilities.maximumImageSize.height());
 
     // 1. Preparing: rasterization
     Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Rendering"));
@@ -485,12 +598,13 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     }
 
     const PDFPage* page = catalog->getPage(task.pageIndex);
-    const double limitedDpi = PDFOCRPagePreparer::getLimitedDpi(page, configuration.dpi, job.description.maximumRasterPixels);
+    const double limitedDpi = PDFOCRPagePreparer::getLimitedDpi(page, configuration.dpi, job.description.maximumRasterPixels, maximumDimension);
     const qint64 rasterBytes = PDFOCRPagePreparer::estimateRasterBytes(page, limitedDpi) * 3;
 
-    if (!acquireMemory(job, rasterBytes, operationControl))
+    PDFOCRError memoryError;
+    if (!acquireMemory(job, rasterBytes, operationControl, &memoryError))
     {
-        return finishWithError(cancelledError(PDFTranslationContext::tr("Rendering")));
+        return finishWithError(memoryError ? memoryError : cancelledError(PDFTranslationContext::tr("Rendering")));
     }
 
     auto memoryGuard = qScopeGuard([this, rasterBytes]() { releaseMemory(rasterBytes); });
@@ -507,7 +621,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         }
     }
 
-    PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(task.pageIndex, configuration.dpi, task.maskedRectangles, job.description.maximumRasterPixels, operationControl);
+    PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(task.pageIndex, configuration.dpi, task.maskedRectangles, job.description.maximumRasterPixels, operationControl, maximumDimension);
     if (raster.error)
     {
         return finishWithError(raster.error);
@@ -516,6 +630,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     if (!qFuzzyCompare(raster.geometry.dpi, raster.geometry.requestedDpi))
     {
         raster.geometry.pipeline << QStringLiteral("dpi-limited(requested=%1,used=%2)").arg(raster.geometry.requestedDpi).arg(raster.geometry.dpi);
+    }
+
+    if (job.summary.workerCount > 0 && job.summary.workerCount < job.summary.requestedWorkerCount)
+    {
+        raster.geometry.pipeline << QStringLiteral("workers-limited(requested=%1,used=%2,model-memory=%3MB)").arg(job.summary.requestedWorkerCount).arg(job.summary.workerCount).arg(job.summary.modelMemoryBytes / (1024 * 1024) + 1);
     }
 
     // 2. Blank page detection (IMAGE-07)
@@ -543,19 +662,28 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         return finishWithError(cancelledError(PDFTranslationContext::tr("Rendering")));
     }
 
+    if (isDeadlineExceeded())
+    {
+        return finishWithError(timeoutError(PDFTranslationContext::tr("Rendering")));
+    }
+
     // 3. Orientation detection
     std::optional<PDFOCROrientation> orientation;
     if (configuration.preprocessing.autoOrientation || configuration.preprocessing.deskew)
     {
-        if (engine->getCapabilities().supportsOrientationDetection && job.description.models.hasOrientationData)
+        if (capabilities.supportsOrientationDetection && job.description.models.hasOrientationData)
         {
             Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Orientation detection"));
             PDFOCRError orientationError;
-            orientation = engine->detectOrientation(raster.image, raster.geometry.dpi, operationControl, &orientationError);
+            orientation = engine->detectOrientation(raster.image, raster.geometry.dpi, operationControl, &orientationError, getRemainingMilliseconds());
             if (orientation)
             {
                 result.orientation = orientation;
                 raster.geometry.pipeline << QStringLiteral("orientation(rotation=%1,confidence=%2)").arg(orientation->rotation).arg(orientation->confidence.value_or(-1.0), 0, 'f', 1);
+            }
+            else if (orientationError.code == PDFOCRErrorCode::Timeout)
+            {
+                return finishWithError(orientationError);
             }
             else
             {
@@ -573,6 +701,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         return finishWithError(cancelledError(PDFTranslationContext::tr("Orientation detection")));
     }
 
+    if (isDeadlineExceeded())
+    {
+        return finishWithError(timeoutError(PDFTranslationContext::tr("Orientation detection")));
+    }
+
     // 4. Preprocessing
     Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Preprocessing"));
     PDFOCRPagePreparer::PreprocessResult preprocessed = PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, configuration.preprocessing, orientation, operationControl);
@@ -587,6 +720,26 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     if (!result.geometry.isInvertible())
     {
         return finishWithError(PDFOCRError::create(PDFOCRErrorCode::IrreversibleTransformation, PDFTranslationContext::tr("Transformation of the page raster is not invertible."), PDFTranslationContext::tr("Preprocessing")));
+    }
+
+    if (isDeadlineExceeded())
+    {
+        return finishWithError(timeoutError(PDFTranslationContext::tr("Preprocessing")));
+    }
+
+    // Rotation applied to the whole page by the preprocessing (manual or detected),
+    // needed for the rotation override of the regions (REGION-02)
+    int appliedPageRotation = 0;
+    {
+        static const QRegularExpression rotateExpression(QStringLiteral("^rotate\\((\\d+)\\)$"));
+        for (const QString& step : result.geometry.pipeline)
+        {
+            const QRegularExpressionMatch match = rotateExpression.match(step);
+            if (match.hasMatch())
+            {
+                appliedPageRotation = match.captured(1).toInt();
+            }
+        }
     }
 
     // 5. Region masks
@@ -637,8 +790,17 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
             return finishWithError(cancelledError(PDFTranslationContext::tr("Recognition")));
         }
 
+        if (isDeadlineExceeded())
+        {
+            return finishWithError(timeoutError(PDFTranslationContext::tr("Recognition")));
+        }
+
         // Effective configuration of the region (PAGE-06)
         PDFOCRConfiguration effectiveConfiguration = configuration;
+        QImage inputImage = engineImage;
+        QRect inputRegion = rect;
+        QTransform outputToEngine;
+
         if (const PDFOCRRegion* region = result.findRegion(regionId))
         {
             effectiveConfiguration = PDFOCRConfigurationResolver::resolve(configuration, nullptr, &region->configuration);
@@ -660,9 +822,40 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
                 result.geometry.pipeline << QStringLiteral("region(%1,languages-not-resolved)").arg(regionId);
             }
 
-            if (region->configuration.rotation >= 0 && region->configuration.rotation != configuration.preprocessing.rotation)
+            // Rotation override of the region (REGION-02): the region is cut out of the
+            // engine image, rotated by the difference to the rotation of the page and
+            // recognized as an own image; the output is mapped back through outputToEngine.
+            if (region->configuration.rotation >= 0)
             {
-                result.geometry.pipeline << QStringLiteral("region(%1,rotation-override-ignored)").arg(regionId);
+                const int overrideRotation = ((region->configuration.rotation % 360) + 360) % 360;
+                const int delta = ((overrideRotation - appliedPageRotation) % 360 + 360) % 360;
+
+                if (delta % 90 != 0)
+                {
+                    result.geometry.pipeline << QStringLiteral("region(%1,rotation-override-invalid=%2)").arg(regionId).arg(region->configuration.rotation);
+                }
+                else if (delta != 0)
+                {
+                    const QRect cropRect = rect.intersected(engineImage.rect());
+                    const QImage crop = engineImage.copy(cropRect);
+
+                    QTransform rotation;
+                    rotation.rotate(delta);
+
+                    // QImage::transformed uses the true matrix (the rotation followed by the
+                    // translation of the bounding rectangle into the origin), so the inverse
+                    // of the true matrix maps the rotated crop back into the crop, and the
+                    // translation by the crop origin maps the crop into the engine image.
+                    const QTransform trueMatrix = QImage::trueMatrix(rotation, crop.width(), crop.height());
+                    inputImage = crop.transformed(rotation, Qt::FastTransformation);
+                    inputRegion = inputImage.rect();
+                    outputToEngine = trueMatrix.inverted() * QTransform::fromTranslate(cropRect.left(), cropRect.top());
+                    result.geometry.pipeline << QStringLiteral("region(%1,rotation=%2,applied=%3)").arg(regionId).arg(overrideRotation).arg(delta);
+                }
+                else
+                {
+                    result.geometry.pipeline << QStringLiteral("region(%1,rotation=%2)").arg(regionId).arg(overrideRotation);
+                }
             }
         }
 
@@ -679,11 +872,12 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         }
 
         PDFOCRRecognitionInput input;
-        input.image = engineImage;
+        input.image = inputImage;
         input.dpi = result.geometry.dpi;
-        input.region = rect;
+        input.region = inputRegion;
         input.configuration = effectiveConfiguration;
         input.models = job.description.models;
+        input.remainingMilliseconds = getRemainingMilliseconds();
 
         const size_t currentRectangle = rectangleIndex;
         const size_t rectangleCount = rectangles.size();
@@ -709,19 +903,40 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
             return finishWithError(output.error);
         }
 
+        // The deadline of the page is a hard limit also for an engine, which does not
+        // honour it itself (JOB-06)
+        if (isDeadlineExceeded())
+        {
+            return finishWithError(timeoutError(PDFTranslationContext::tr("Recognition")));
+        }
+
         // Output must belong to the input image (ARCH-04)
-        if (!output.imageSize.isEmpty() && output.imageSize != engineImage.size())
+        if (!output.imageSize.isEmpty() && output.imageSize != inputImage.size())
         {
             return finishWithError(PDFOCRError::create(PDFOCRErrorCode::InvalidEngineOutput,
-                                                       PDFTranslationContext::tr("Engine returned coordinates of a different image (%1 x %2 instead of %3 x %4).").arg(output.imageSize.width()).arg(output.imageSize.height()).arg(engineImage.width()).arg(engineImage.height()),
+                                                       PDFTranslationContext::tr("Engine returned coordinates of a different image (%1 x %2 instead of %3 x %4).").arg(output.imageSize.width()).arg(output.imageSize.height()).arg(inputImage.width()).arg(inputImage.height()),
                                                        PDFTranslationContext::tr("Recognition")));
         }
 
-        // Validate the output (OPS-05, AT-24)
+        // Validate the output (OPS-05, AT-24): hard limits of the element counts and of the geometry
+        constexpr size_t MaximumBlocksPerPage = 10000;
+        constexpr size_t MaximumWordsPerPage = 100000;
+        if (output.blocks.size() > MaximumBlocksPerPage)
+        {
+            return finishWithError(PDFOCRError::create(PDFOCRErrorCode::InvalidEngineOutput, PDFTranslationContext::tr("Engine returned too many blocks (%1, at most %2 are allowed).").arg(output.blocks.size()).arg(MaximumBlocksPerPage), PDFTranslationContext::tr("Recognition")));
+        }
+
+        size_t wordCount = 0;
         for (const PDFOCRRawBlock& block : output.blocks)
         {
             for (const PDFOCRRawLine& line : block.lines)
             {
+                wordCount += line.words.empty() ? 1 : line.words.size();
+                if (wordCount > MaximumWordsPerPage)
+                {
+                    return finishWithError(PDFOCRError::create(PDFOCRErrorCode::InvalidEngineOutput, PDFTranslationContext::tr("Engine returned too many words (more than %1).").arg(MaximumWordsPerPage), PDFTranslationContext::tr("Recognition")));
+                }
+
                 for (const PDFOCRRawWord& word : line.words)
                 {
                     const qreal values[] = { word.rect.left(), word.rect.top(), word.rect.width(), word.rect.height() };
@@ -746,7 +961,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
             result.orientation = output.orientation;
         }
 
-        PDFOCRPagePreparer::appendOutput(result, output, result.geometry, regionId, excludedRectangles);
+        PDFOCRPagePreparer::appendOutput(result, output, result.geometry, regionId, excludedRectangles, outputToEngine);
         ++rectangleIndex;
     }
 
@@ -761,6 +976,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     {
         result.skipReason = PDFTranslationContext::tr("No text was found on the page.");
     }
+
+    // The raw recognition is kept next to the editable blocks (DATA-02)
+    result.originalBlocks = result.blocks;
     result.elapsedMilliseconds = timer.elapsed();
     return result;
 }

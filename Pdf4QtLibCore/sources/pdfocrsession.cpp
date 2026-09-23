@@ -167,15 +167,47 @@ void PDFOCRSession::setPageResult(PDFOCRPageResult result)
     result.blankDetectionOverridden = page.blankDetectionOverridden;
     result.assignIdentifiers();
 
+    // Masks are checked against the current regions (REGION-05)
+    PDFOCRPagePreparer::updateExcludedRegionFlags(result);
     for (PDFOCRWord* word : result.getWords())
     {
         updateWordFlags(*word);
+    }
+
+    // Raw recognition is kept next to the editable blocks (DATA-02). Identifiers
+    // of the original words are the identifiers at the time of the recognition.
+    if (result.originalBlocks.empty() && !result.blocks.empty())
+    {
+        result.originalBlocks = result.blocks;
     }
 
     page = std::move(result);
     clearHistoryOfPage(pageIndex);
     setDirty(true);
     Q_EMIT pageChanged(pageIndex);
+}
+
+void PDFOCRSession::setPageReviewOnly(PDFInteger pageIndex, bool reviewOnly)
+{
+    PDFOCRPageResult& page = getOrCreatePage(pageIndex);
+    if (page.reviewOnly != reviewOnly)
+    {
+        page.reviewOnly = reviewOnly;
+        setDirty(true);
+        Q_EMIT pageChanged(pageIndex);
+    }
+}
+
+const PDFOCRWord* PDFOCRSession::findOriginalWord(PDFInteger pageIndex, int wordId) const
+{
+    const PDFOCRPageResult* page = getPage(pageIndex);
+    return page ? page->findOriginalWord(wordId) : nullptr;
+}
+
+std::vector<const PDFOCRWord*> PDFOCRSession::getOriginalWords(PDFInteger pageIndex) const
+{
+    const PDFOCRPageResult* page = getPage(pageIndex);
+    return page ? page->getOriginalWords() : std::vector<const PDFOCRWord*>();
 }
 
 void PDFOCRSession::setPageState(PDFInteger pageIndex, PDFOCRPageState state)
@@ -278,6 +310,10 @@ bool PDFOCRSession::edit(const std::vector<PDFInteger>& pages, const QString& te
     {
         PDFOCRPageResult& page = getOrCreatePage(pageIndex);
         page.isModified = true;
+
+        // Any change of the regions or of the geometry of the words can change the
+        // conflicts with the masks, so the flags are recomputed after every step (REGION-05)
+        PDFOCRPagePreparer::updateExcludedRegionFlags(page);
         step.after.emplace_back(pageIndex, page);
     }
 
@@ -303,11 +339,13 @@ void PDFOCRSession::applyStep(const std::vector<std::pair<PDFInteger, PDFOCRPage
     {
         // Properties, which are not part of the editing history, are kept
         std::optional<bool> blankDetectionOverridden;
+        std::optional<bool> reviewOnly;
         bool isStale = false;
         auto it = m_pages.find(item.first);
         if (it != m_pages.end())
         {
             blankDetectionOverridden = it->second.blankDetectionOverridden;
+            reviewOnly = it->second.reviewOnly;
             isStale = it->second.state == PDFOCRPageState::Stale;
         }
 
@@ -317,6 +355,10 @@ void PDFOCRSession::applyStep(const std::vector<std::pair<PDFInteger, PDFOCRPage
         if (blankDetectionOverridden)
         {
             page.blankDetectionOverridden = *blankDetectionOverridden;
+        }
+        if (reviewOnly)
+        {
+            page.reviewOnly = *reviewOnly;
         }
         if (isStale && page.hasResult())
         {
@@ -420,6 +462,34 @@ void PDFOCRSession::setDirty(bool dirty)
 void PDFOCRSession::updateWordFlags(PDFOCRWord& word) const
 {
     word.hasExtremeScaling = word.isUsable() && PDFOCRTextLayerWriter::isExtremeScaling(PDFOCRTextLayerWriter::computeHorizontalScaling(word));
+}
+
+QString PDFOCRSession::getRestorableText(const PDFOCRPageResult& page, const PDFOCRWord& word)
+{
+    if (!word.originalText.trimmed().isEmpty())
+    {
+        return word.originalText;
+    }
+
+    // Word without a historical text of its own (result of a merge, of a line
+    // edit, ...): the original texts of its predecessors in the raw recognition
+    // are concatenated (DATA-02). All predecessors must be available.
+    if (word.predecessorIds.empty())
+    {
+        return QString();
+    }
+
+    QStringList texts;
+    for (const int predecessorId : word.predecessorIds)
+    {
+        const PDFOCRWord* original = page.findOriginalWord(predecessorId);
+        if (!original || original->originalText.trimmed().isEmpty())
+        {
+            return QString();
+        }
+        texts << original->originalText;
+    }
+    return texts.join(QChar(' '));
 }
 
 // -------------------------------------------------------------------------
@@ -572,7 +642,6 @@ bool PDFOCRSession::setWordQuad(PDFInteger pageIndex, int wordId, const PDFOCRQu
         word->geometryOrigin = PDFOCRGeometryOrigin::Manual;
         word->reviewState = PDFOCRReviewState::Modified;
         word->reviewTime = QDateTime::currentDateTime();
-        word->overlapsExcludedRegion = false;
         updateWordFlags(*word);
 
         if (PDFOCRLine* line = page->findLineOfWord(wordId))
@@ -623,18 +692,25 @@ bool PDFOCRSession::restoreOriginalText(PDFInteger pageIndex, int wordId)
     {
         PDFOCRPageResult* page = getEditablePage(pageIndex);
         PDFOCRWord* word = page ? page->findWord(wordId) : nullptr;
-        if (!word || (word->text == word->originalText && word->reviewState == PDFOCRReviewState::Unreviewed))
+        if (!word)
         {
             return false;
         }
 
-        if (word->originalText.trimmed().isEmpty())
+        const QString originalText = getRestorableText(*page, *word);
+        if (originalText.trimmed().isEmpty())
         {
-            // Word has no original recognition (inserted word, result of a line edit)
+            // Word has no original recognition (inserted word, result of a line edit
+            // without a raw recognition of its predecessors)
             return false;
         }
 
-        word->text = word->originalText;
+        if (word->text == originalText && word->reviewState == PDFOCRReviewState::Unreviewed)
+        {
+            return false;
+        }
+
+        word->text = originalText;
         word->reviewState = PDFOCRReviewState::Unreviewed;
         word->reviewTime.reset();
         updateWordFlags(*word);
@@ -1063,255 +1139,260 @@ bool PDFOCRSession::setLineText(PDFInteger pageIndex, int lineId, const QString&
     {
         PDFOCRPageResult* page = getEditablePage(pageIndex);
         PDFOCRLine* line = page ? page->findLine(lineId) : nullptr;
-        if (!line || !PDFOCRValidator::isValidText(text))
+        return applyLineText(page, line, text);
+    });
+}
+
+bool PDFOCRSession::applyLineText(PDFOCRPageResult* page, PDFOCRLine* line, const QString& text)
+{
+    if (!page || !line || !PDFOCRValidator::isValidText(text))
+    {
+        return false;
+    }
+
+    const QStringList newTokens = text.simplified().split(QChar(' '), Qt::SkipEmptyParts);
+
+    // Old tokens: non-discarded words in order
+    std::vector<PDFOCRWord> oldWords;
+    for (const PDFOCRWord& word : line->words)
+    {
+        if (word.reviewState != PDFOCRReviewState::Discarded)
         {
-            return false;
+            oldWords.push_back(word);
         }
+    }
 
-        const QStringList newTokens = text.simplified().split(QChar(' '), Qt::SkipEmptyParts);
+    if (newTokens.isEmpty())
+    {
+        return false;
+    }
 
-        // Old tokens: non-discarded words in order
-        std::vector<PDFOCRWord> oldWords;
-        for (const PDFOCRWord& word : line->words)
+    // Alignment of the tokens by the longest common subsequence (EDIT-03):
+    // unchanged tokens keep their geometry and identity.
+    const int n = int(oldWords.size());
+    const int m = newTokens.size();
+    std::vector<std::vector<int>> lcs(size_t(n + 1), std::vector<int>(size_t(m + 1), 0));
+    for (int i = n - 1; i >= 0; --i)
+    {
+        for (int j = m - 1; j >= 0; --j)
         {
-            if (word.reviewState != PDFOCRReviewState::Discarded)
+            if (oldWords[size_t(i)].text == newTokens[j])
             {
-                oldWords.push_back(word);
-            }
-        }
-
-        if (newTokens.isEmpty())
-        {
-            return false;
-        }
-
-        // Alignment of the tokens by the longest common subsequence (EDIT-03):
-        // unchanged tokens keep their geometry and identity.
-        const int n = int(oldWords.size());
-        const int m = newTokens.size();
-        std::vector<std::vector<int>> lcs(size_t(n + 1), std::vector<int>(size_t(m + 1), 0));
-        for (int i = n - 1; i >= 0; --i)
-        {
-            for (int j = m - 1; j >= 0; --j)
-            {
-                if (oldWords[size_t(i)].text == newTokens[j])
-                {
-                    lcs[size_t(i)][size_t(j)] = lcs[size_t(i + 1)][size_t(j + 1)] + 1;
-                }
-                else
-                {
-                    lcs[size_t(i)][size_t(j)] = qMax(lcs[size_t(i + 1)][size_t(j)], lcs[size_t(i)][size_t(j + 1)]);
-                }
-            }
-        }
-
-        std::vector<PDFOCRWord> result;
-
-        // Writing direction: line quad, or the first word, if the line quad is not usable
-        QPointF direction = line->quad.direction();
-        if (!line->quad.isValid() && !oldWords.empty())
-        {
-            direction = oldWords.front().quad.direction();
-        }
-        const QPointF normal(-direction.y(), direction.x());
-
-        // Quads are oriented visually and the words are stored in the logical order,
-        // so the words of a right-to-left line flow against the writing direction of
-        // the quad (EDIT-08). Layout works with the flow direction.
-        const bool rightToLeft = line->direction == PDFOCRTextDirection::RightToLeft;
-        const QPointF flow = rightToLeft ? -direction : direction;
-        auto flowStart = [rightToLeft](const PDFOCRQuad& quad) { return rightToLeft ? quad.points[1] : quad.points[0]; };
-        auto flowEnd = [rightToLeft](const PDFOCRQuad& quad) { return rightToLeft ? quad.points[0] : quad.points[1]; };
-        auto createFlowQuad = [&](const QPointF& start, double width, double quadHeight)
-        {
-            const QPointF end = start + flow * width;
-            const QPointF left = rightToLeft ? end : start;
-            const QPointF right = rightToLeft ? start : end;
-
-            PDFOCRQuad quad;
-            quad.points[0] = left;
-            quad.points[1] = right;
-            quad.points[2] = right + normal * quadHeight;
-            quad.points[3] = left + normal * quadHeight;
-            return quad;
-        };
-
-        auto createEstimated = [&](int oldBegin, int oldEnd, int newBegin, int newEnd)
-        {
-            // Span of the changed run in the writing direction
-            QPointF spanStart;
-            QPointF spanEnd;
-            double height = line->quad.height();
-
-            if (oldEnd > oldBegin)
-            {
-                spanStart = flowStart(oldWords[size_t(oldBegin)].quad);
-                spanEnd = flowEnd(oldWords[size_t(oldEnd - 1)].quad);
-                height = oldWords[size_t(oldBegin)].quad.height();
+                lcs[size_t(i)][size_t(j)] = lcs[size_t(i + 1)][size_t(j + 1)] + 1;
             }
             else
             {
-                // Insertion: place between the neighbours
-                const bool hasPrevious = oldBegin > 0;
-                const bool hasNext = oldBegin < n;
-                const PDFOCRWord* reference = hasPrevious ? &oldWords[size_t(oldBegin - 1)] : (hasNext ? &oldWords[size_t(oldBegin)] : nullptr);
-                if (reference)
-                {
-                    height = reference->quad.height();
-                }
+                lcs[size_t(i)][size_t(j)] = qMax(lcs[size_t(i + 1)][size_t(j)], lcs[size_t(i)][size_t(j + 1)]);
+            }
+        }
+    }
 
-                int characters = 0;
-                for (int j = newBegin; j < newEnd; ++j)
-                {
-                    characters += newTokens[j].size();
-                }
-                const double characterWidth = (reference && !reference->text.isEmpty()) ? reference->quad.width() / reference->text.size() : height * 0.5;
-                const double width = characterWidth * (characters + (newEnd - newBegin - 1));
+    std::vector<PDFOCRWord> result;
 
-                if (hasPrevious && hasNext)
-                {
-                    spanStart = flowEnd(oldWords[size_t(oldBegin - 1)].quad) + flow * (height * 0.2);
-                    spanEnd = flowStart(oldWords[size_t(oldBegin)].quad) - flow * (height * 0.2);
-                    if (QPointF::dotProduct(spanEnd - spanStart, flow) < width * 0.5 && !result.empty() && result.back().id == oldWords[size_t(oldBegin - 1)].id)
-                    {
-                        // No room between the neighbours: the previous word is laid out again
-                        // together with the inserted tokens over the available span (EDIT-03)
-                        PDFOCRWord& previous = result.back();
-                        spanStart = flowStart(previous.quad);
-                        const double availableLength = QPointF::dotProduct(spanEnd - spanStart, flow);
-                        const int totalCharacters = previous.text.size() + characters + (newEnd - newBegin);
-                        const double unitLength = totalCharacters > 0 ? availableLength / double(totalCharacters) : 0.0;
-                        const double previousWidth = unitLength * previous.text.size();
-                        previous.quad = createFlowQuad(spanStart, previousWidth, height);
-                        previous.geometryOrigin = PDFOCRGeometryOrigin::Estimated;
-                        previous.reviewState = PDFOCRReviewState::Modified;
-                        previous.reviewTime = QDateTime::currentDateTime();
-                        updateWordFlags(previous);
-                        spanStart = spanStart + flow * (previousWidth + unitLength);
-                    }
-                }
-                else if (hasPrevious)
-                {
-                    spanStart = flowEnd(oldWords[size_t(oldBegin - 1)].quad) + flow * (height * 0.25);
-                    spanEnd = spanStart + flow * width;
-                }
-                else if (hasNext)
-                {
-                    spanEnd = flowStart(oldWords[size_t(oldBegin)].quad) - flow * (height * 0.25);
-                    spanStart = spanEnd - flow * width;
-                }
-                else
-                {
-                    spanStart = flowStart(line->quad);
-                    spanEnd = flowEnd(line->quad);
-                }
+    // Writing direction: line quad, or the first word, if the line quad is not usable
+    QPointF direction = line->quad.direction();
+    if (!line->quad.isValid() && !oldWords.empty())
+    {
+        direction = oldWords.front().quad.direction();
+    }
+    const QPointF normal(-direction.y(), direction.x());
+
+    // Quads are oriented visually and the words are stored in the logical order,
+    // so the words of a right-to-left line flow against the writing direction of
+    // the quad (EDIT-08). Layout works with the flow direction.
+    const bool rightToLeft = line->direction == PDFOCRTextDirection::RightToLeft;
+    const QPointF flow = rightToLeft ? -direction : direction;
+    auto flowStart = [rightToLeft](const PDFOCRQuad& quad) { return rightToLeft ? quad.points[1] : quad.points[0]; };
+    auto flowEnd = [rightToLeft](const PDFOCRQuad& quad) { return rightToLeft ? quad.points[0] : quad.points[1]; };
+    auto createFlowQuad = [&](const QPointF& start, double width, double quadHeight)
+    {
+        const QPointF end = start + flow * width;
+        const QPointF left = rightToLeft ? end : start;
+        const QPointF right = rightToLeft ? start : end;
+
+        PDFOCRQuad quad;
+        quad.points[0] = left;
+        quad.points[1] = right;
+        quad.points[2] = right + normal * quadHeight;
+        quad.points[3] = left + normal * quadHeight;
+        return quad;
+    };
+
+    auto createEstimated = [&](int oldBegin, int oldEnd, int newBegin, int newEnd)
+    {
+        // Span of the changed run in the writing direction
+        QPointF spanStart;
+        QPointF spanEnd;
+        double height = line->quad.height();
+
+        if (oldEnd > oldBegin)
+        {
+            spanStart = flowStart(oldWords[size_t(oldBegin)].quad);
+            spanEnd = flowEnd(oldWords[size_t(oldEnd - 1)].quad);
+            height = oldWords[size_t(oldBegin)].quad.height();
+        }
+        else
+        {
+            // Insertion: place between the neighbours
+            const bool hasPrevious = oldBegin > 0;
+            const bool hasNext = oldBegin < n;
+            const PDFOCRWord* reference = hasPrevious ? &oldWords[size_t(oldBegin - 1)] : (hasNext ? &oldWords[size_t(oldBegin)] : nullptr);
+            if (reference)
+            {
+                height = reference->quad.height();
             }
 
-            const double spanLength = QPointF::dotProduct(spanEnd - spanStart, flow);
             int characters = 0;
             for (int j = newBegin; j < newEnd; ++j)
             {
                 characters += newTokens[j].size();
             }
-            const int gaps = newEnd - newBegin - 1;
-            const double unit = characters + gaps > 0 ? spanLength / double(characters + gaps) : 0.0;
+            const double characterWidth = (reference && !reference->text.isEmpty()) ? reference->quad.width() / reference->text.size() : height * 0.5;
+            const double width = characterWidth * (characters + (newEnd - newBegin - 1));
 
-            std::vector<int> predecessors;
-            for (int i = oldBegin; i < oldEnd; ++i)
+            if (hasPrevious && hasNext)
             {
-                predecessors.push_back(oldWords[size_t(i)].id);
-            }
-
-            double offset = 0.0;
-            for (int j = newBegin; j < newEnd; ++j)
-            {
-                PDFOCRWord word;
-                word.id = page->allocateId();
-                word.text = newTokens[j];
-                word.originalText = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].originalText : QString();
-                word.textOrigin = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].textOrigin : PDFOCRTextOrigin::Manual;
-                word.language = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].language : QString();
-                word.confidence = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].confidence : PDFOCRConfidence::unknown();
-                word.geometryOrigin = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].geometryOrigin : PDFOCRGeometryOrigin::Estimated;
-                word.reviewState = PDFOCRReviewState::Modified;
-                word.reviewTime = QDateTime::currentDateTime();
-                word.predecessorIds = predecessors;
-
-                if (oldEnd - oldBegin == 1 && newEnd - newBegin == 1)
+                spanStart = flowEnd(oldWords[size_t(oldBegin - 1)].quad) + flow * (height * 0.2);
+                spanEnd = flowStart(oldWords[size_t(oldBegin)].quad) - flow * (height * 0.2);
+                if (QPointF::dotProduct(spanEnd - spanStart, flow) < width * 0.5 && !result.empty() && result.back().id == oldWords[size_t(oldBegin - 1)].id)
                 {
-                    // Single word replaced by a single word: keep the geometry and identity
-                    word.id = oldWords[size_t(oldBegin)].id;
-                    word.predecessorIds = oldWords[size_t(oldBegin)].predecessorIds;
-                    word.quad = oldWords[size_t(oldBegin)].quad;
+                    // No room between the neighbours: the previous word is laid out again
+                    // together with the inserted tokens over the available span (EDIT-03)
+                    PDFOCRWord& previous = result.back();
+                    spanStart = flowStart(previous.quad);
+                    const double availableLength = QPointF::dotProduct(spanEnd - spanStart, flow);
+                    const int totalCharacters = previous.text.size() + characters + (newEnd - newBegin);
+                    const double unitLength = totalCharacters > 0 ? availableLength / double(totalCharacters) : 0.0;
+                    const double previousWidth = unitLength * previous.text.size();
+                    previous.quad = createFlowQuad(spanStart, previousWidth, height);
+                    previous.geometryOrigin = PDFOCRGeometryOrigin::Estimated;
+                    previous.reviewState = PDFOCRReviewState::Modified;
+                    previous.reviewTime = QDateTime::currentDateTime();
+                    updateWordFlags(previous);
+                    spanStart = spanStart + flow * (previousWidth + unitLength);
                 }
-                else
-                {
-                    const double width = unit * newTokens[j].size();
-                    word.quad = createFlowQuad(spanStart + flow * offset, width, height);
-                    offset += width + unit;
-                }
-
-                updateWordFlags(word);
-                result.push_back(std::move(word));
             }
-        };
-
-        int i = 0;
-        int j = 0;
-        int changedOldBegin = 0;
-        int changedNewBegin = 0;
-        bool changed = false;
-
-        while (i < n || j < m)
-        {
-            const bool match = i < n && j < m && oldWords[size_t(i)].text == newTokens[j] && lcs[size_t(i)][size_t(j)] == lcs[size_t(i + 1)][size_t(j + 1)] + 1;
-            if (match)
+            else if (hasPrevious)
             {
-                if (i > changedOldBegin || j > changedNewBegin)
-                {
-                    createEstimated(changedOldBegin, i, changedNewBegin, j);
-                    changed = true;
-                }
-                result.push_back(oldWords[size_t(i)]);
-                ++i;
-                ++j;
-                changedOldBegin = i;
-                changedNewBegin = j;
+                spanStart = flowEnd(oldWords[size_t(oldBegin - 1)].quad) + flow * (height * 0.25);
+                spanEnd = spanStart + flow * width;
             }
-            else if (i < n && (j >= m || lcs[size_t(i + 1)][size_t(j)] >= lcs[size_t(i)][size_t(j + 1)]))
+            else if (hasNext)
             {
-                ++i;
+                spanEnd = flowStart(oldWords[size_t(oldBegin)].quad) - flow * (height * 0.25);
+                spanStart = spanEnd - flow * width;
             }
             else
             {
-                ++j;
+                spanStart = flowStart(line->quad);
+                spanEnd = flowEnd(line->quad);
             }
         }
 
-        if (i > changedOldBegin || j > changedNewBegin)
+        const double spanLength = QPointF::dotProduct(spanEnd - spanStart, flow);
+        int characters = 0;
+        for (int j = newBegin; j < newEnd; ++j)
         {
-            createEstimated(changedOldBegin, i, changedNewBegin, j);
-            changed = true;
+            characters += newTokens[j].size();
+        }
+        const int gaps = newEnd - newBegin - 1;
+        const double unit = characters + gaps > 0 ? spanLength / double(characters + gaps) : 0.0;
+
+        std::vector<int> predecessors;
+        for (int i = oldBegin; i < oldEnd; ++i)
+        {
+            predecessors.push_back(oldWords[size_t(i)].id);
         }
 
-        if (!changed)
+        double offset = 0.0;
+        for (int j = newBegin; j < newEnd; ++j)
         {
-            return false;
-        }
+            PDFOCRWord word;
+            word.id = page->allocateId();
+            word.text = newTokens[j];
+            word.originalText = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].originalText : QString();
+            word.textOrigin = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].textOrigin : PDFOCRTextOrigin::Manual;
+            word.language = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].language : QString();
+            word.confidence = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].confidence : PDFOCRConfidence::unknown();
+            word.geometryOrigin = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].geometryOrigin : PDFOCRGeometryOrigin::Estimated;
+            word.reviewState = PDFOCRReviewState::Modified;
+            word.reviewTime = QDateTime::currentDateTime();
+            word.predecessorIds = predecessors;
 
-        // Discarded words are kept at the end (they are not written anyway)
-        for (const PDFOCRWord& word : line->words)
-        {
-            if (word.reviewState == PDFOCRReviewState::Discarded)
+            if (oldEnd - oldBegin == 1 && newEnd - newBegin == 1)
             {
-                result.push_back(word);
+                // Single word replaced by a single word: keep the geometry and identity
+                word.id = oldWords[size_t(oldBegin)].id;
+                word.predecessorIds = oldWords[size_t(oldBegin)].predecessorIds;
+                word.quad = oldWords[size_t(oldBegin)].quad;
             }
-        }
+            else
+            {
+                const double width = unit * newTokens[j].size();
+                word.quad = createFlowQuad(spanStart + flow * offset, width, height);
+                offset += width + unit;
+            }
 
-        line->words = std::move(result);
-        line->updateGeometryFromWords();
-        return true;
-    });
+            updateWordFlags(word);
+            result.push_back(std::move(word));
+        }
+    };
+
+    int i = 0;
+    int j = 0;
+    int changedOldBegin = 0;
+    int changedNewBegin = 0;
+    bool changed = false;
+
+    while (i < n || j < m)
+    {
+        const bool match = i < n && j < m && oldWords[size_t(i)].text == newTokens[j] && lcs[size_t(i)][size_t(j)] == lcs[size_t(i + 1)][size_t(j + 1)] + 1;
+        if (match)
+        {
+            if (i > changedOldBegin || j > changedNewBegin)
+            {
+                createEstimated(changedOldBegin, i, changedNewBegin, j);
+                changed = true;
+            }
+            result.push_back(oldWords[size_t(i)]);
+            ++i;
+            ++j;
+            changedOldBegin = i;
+            changedNewBegin = j;
+        }
+        else if (i < n && (j >= m || lcs[size_t(i + 1)][size_t(j)] >= lcs[size_t(i)][size_t(j + 1)]))
+        {
+            ++i;
+        }
+        else
+        {
+            ++j;
+        }
+    }
+
+    if (i > changedOldBegin || j > changedNewBegin)
+    {
+        createEstimated(changedOldBegin, i, changedNewBegin, j);
+        changed = true;
+    }
+
+    if (!changed)
+    {
+        return false;
+    }
+
+    // Discarded words are kept at the end (they are not written anyway)
+    for (const PDFOCRWord& word : line->words)
+    {
+        if (word.reviewState == PDFOCRReviewState::Discarded)
+        {
+            result.push_back(word);
+        }
+    }
+
+    line->words = std::move(result);
+    line->updateGeometryFromWords();
+    return true;
 }
 
 bool PDFOCRSession::moveBlock(PDFInteger pageIndex, int blockId, int newIndex)
@@ -1386,6 +1467,163 @@ bool PDFOCRSession::setLineBaseline(PDFInteger pageIndex, int lineId, const QLin
     });
 }
 
+bool PDFOCRSession::mergeLines(PDFInteger pageIndex, int firstLineId, int secondLineId, int* newLineId)
+{
+    return edit({ pageIndex }, PDFTranslationContext::tr("Merge lines"), [&]()
+    {
+        PDFOCRPageResult* page = getEditablePage(pageIndex);
+        PDFOCRBlock* block = page ? page->findBlockOfLine(firstLineId) : nullptr;
+        if (!block || firstLineId == secondLineId || block != page->findBlockOfLine(secondLineId))
+        {
+            // Lines must be different lines of the same block
+            return false;
+        }
+
+        auto firstIt = std::find_if(block->lines.begin(), block->lines.end(), [firstLineId](const PDFOCRLine& line) { return line.id == firstLineId; });
+        auto secondIt = std::find_if(block->lines.begin(), block->lines.end(), [secondLineId](const PDFOCRLine& line) { return line.id == secondLineId; });
+        if (firstIt == block->lines.end() || secondIt == block->lines.end() || firstIt->direction != secondIt->direction)
+        {
+            return false;
+        }
+
+        // The words of the second line are appended after the words of the first line
+        // in the logical order and keep their identifiers. Quads are oriented visually,
+        // so the oriented union in the writing direction is valid for the left-to-right
+        // and also for the right-to-left text (EDIT-08).
+        PDFOCRLine merged;
+        merged.id = page->allocateId();
+        merged.direction = firstIt->direction;
+        merged.confidence = firstIt->confidence;
+        merged.words = firstIt->words;
+        merged.words.insert(merged.words.end(), secondIt->words.begin(), secondIt->words.end());
+
+        const QPointF direction = firstIt->quad.isValid() ? firstIt->quad.direction() : secondIt->quad.direction();
+        merged.quad = PDFOCRQuad::fromOrientedBounds(direction, { firstIt->quad, secondIt->quad });
+        merged.baseline = QLineF(firstIt->baseline.p1(), secondIt->baseline.p2());
+
+        if (!merged.quad.isValid() || merged.baseline.isNull())
+        {
+            merged.updateGeometryFromWords();
+        }
+
+        if (newLineId)
+        {
+            *newLineId = merged.id;
+        }
+
+        // The merged line takes the place of the first line
+        const size_t firstIndex = size_t(std::distance(block->lines.begin(), firstIt));
+        block->lines.erase(secondIt);
+        block->lines[firstIndex] = std::move(merged);
+        block->updateGeometryFromLines();
+        return true;
+    });
+}
+
+bool PDFOCRSession::splitLine(PDFInteger pageIndex, int lineId, int afterWordId, int* newLineId)
+{
+    return edit({ pageIndex }, PDFTranslationContext::tr("Split line"), [&]()
+    {
+        PDFOCRPageResult* page = getEditablePage(pageIndex);
+        PDFOCRBlock* block = page ? page->findBlockOfLine(lineId) : nullptr;
+        if (!block)
+        {
+            return false;
+        }
+
+        auto lineIt = std::find_if(block->lines.begin(), block->lines.end(), [lineId](const PDFOCRLine& line) { return line.id == lineId; });
+        if (lineIt == block->lines.end())
+        {
+            return false;
+        }
+
+        auto wordIt = std::find_if(lineIt->words.begin(), lineIt->words.end(), [afterWordId](const PDFOCRWord& word) { return word.id == afterWordId; });
+        if (wordIt == lineIt->words.end() || std::next(wordIt) == lineIt->words.end())
+        {
+            // Word must be in the line and must not be the last word (both lines need words)
+            return false;
+        }
+
+        // The new line inherits the orientation, the direction and the line level
+        // score; its geometry is recomputed from its words (in the logical order,
+        // the visual layout is decided by the direction, EDIT-08)
+        PDFOCRLine newLine;
+        newLine.id = page->allocateId();
+        newLine.direction = lineIt->direction;
+        newLine.confidence = lineIt->confidence;
+        newLine.quad = lineIt->quad;
+        newLine.words.assign(std::next(wordIt), lineIt->words.end());
+        lineIt->words.erase(std::next(wordIt), lineIt->words.end());
+
+        newLine.updateGeometryFromWords();
+        lineIt->updateGeometryFromWords();
+
+        if (newLineId)
+        {
+            *newLineId = newLine.id;
+        }
+
+        block->lines.insert(std::next(lineIt), std::move(newLine));
+        block->updateGeometryFromLines();
+        return true;
+    });
+}
+
+bool PDFOCRSession::moveLineToBlock(PDFInteger pageIndex, int lineId, int targetBlockId, int newIndex)
+{
+    return edit({ pageIndex }, PDFTranslationContext::tr("Move line to block"), [&]()
+    {
+        PDFOCRPageResult* page = getEditablePage(pageIndex);
+        PDFOCRBlock* sourceBlock = page ? page->findBlockOfLine(lineId) : nullptr;
+        PDFOCRBlock* targetBlock = page ? page->findBlock(targetBlockId) : nullptr;
+        if (!sourceBlock || !targetBlock)
+        {
+            return false;
+        }
+
+        auto lineIt = std::find_if(sourceBlock->lines.begin(), sourceBlock->lines.end(), [lineId](const PDFOCRLine& line) { return line.id == lineId; });
+        if (lineIt == sourceBlock->lines.end())
+        {
+            return false;
+        }
+
+        if (sourceBlock == targetBlock)
+        {
+            // Reorder inside the block
+            const int oldIndex = int(std::distance(sourceBlock->lines.begin(), lineIt));
+            const int target = qBound(0, newIndex, int(sourceBlock->lines.size()) - 1);
+            if (oldIndex == target)
+            {
+                return false;
+            }
+
+            PDFOCRLine line = std::move(*lineIt);
+            sourceBlock->lines.erase(lineIt);
+            sourceBlock->lines.insert(sourceBlock->lines.begin() + target, std::move(line));
+            return true;
+        }
+
+        PDFOCRLine line = std::move(*lineIt);
+        sourceBlock->lines.erase(lineIt);
+
+        const int target = qBound(0, newIndex, int(targetBlock->lines.size()));
+        targetBlock->lines.insert(targetBlock->lines.begin() + target, std::move(line));
+        targetBlock->updateGeometryFromLines();
+
+        if (sourceBlock->lines.empty())
+        {
+            // Empty source block is removed
+            const int sourceBlockId = sourceBlock->id;
+            std::erase_if(page->blocks, [sourceBlockId](const PDFOCRBlock& block) { return block.id == sourceBlockId; });
+        }
+        else
+        {
+            sourceBlock->updateGeometryFromLines();
+        }
+        return true;
+    });
+}
+
 // -------------------------------------------------------------------------
 // Candidates
 // -------------------------------------------------------------------------
@@ -1437,11 +1675,18 @@ bool PDFOCRSession::applyCandidate(PDFInteger pageIndex, const PDFOCRPageResult&
             PDFOCRPageResult result = candidate;
             result.regions = page.regions;
             result.blankDetectionOverridden = page.blankDetectionOverridden;
+            result.reviewOnly = page.reviewOnly;
             result.nextId = qMax(result.nextId, page.nextId);
             result.assignIdentifiers();
             for (PDFOCRWord* word : result.getWords())
             {
                 updateWordFlags(*word);
+            }
+
+            // Raw recognition of the candidate replaces the raw recognition of the page (DATA-02)
+            if (result.originalBlocks.empty())
+            {
+                result.originalBlocks = result.blocks;
             }
             page = std::move(result);
             return true;
@@ -1476,12 +1721,21 @@ bool PDFOCRSession::applyCandidate(PDFInteger pageIndex, const PDFOCRPageResult&
                 newBlocks.push_back(std::move(newBlock));
             }
         }
-        page.blocks.insert(std::next(page.blocks.begin(), std::ptrdiff_t(insertPosition)), newBlocks.begin(), newBlocks.end());
+        const auto insertIt = page.blocks.insert(std::next(page.blocks.begin(), std::ptrdiff_t(insertPosition)), newBlocks.begin(), newBlocks.end());
         page.assignIdentifiers();
         for (PDFOCRWord* word : page.getWords())
         {
             updateWordFlags(*word);
         }
+
+        // Raw recognition of the region is replaced by the new blocks of the region
+        // (with their final identifiers), raw recognition of the other regions is kept (DATA-02)
+        const auto firstOriginalIt = std::find_if(page.originalBlocks.begin(), page.originalBlocks.end(), isRegionBlock);
+        size_t originalInsertPosition = size_t(std::distance(page.originalBlocks.begin(), firstOriginalIt));
+        std::erase_if(page.originalBlocks, isRegionBlock);
+        originalInsertPosition = qMin(originalInsertPosition, page.originalBlocks.size());
+        page.originalBlocks.insert(std::next(page.originalBlocks.begin(), std::ptrdiff_t(originalInsertPosition)), insertIt, std::next(insertIt, std::ptrdiff_t(newBlocks.size())));
+
         if (page.state == PDFOCRPageState::NoText && page.hasUsableText())
         {
             page.state = PDFOCRPageState::Done;
@@ -1575,6 +1829,81 @@ static QRegularExpression createFindExpression(const QString& text, const PDFOCR
     return QRegularExpression(pattern, patternOptions);
 }
 
+std::vector<PDFOCRSession::FindHit> PDFOCRSession::findInLine(const PDFOCRLine& line, const QRegularExpression& expression)
+{
+    // The search runs over the text of the line (the words joined by a single space,
+    // discarded words skipped, exactly as PDFOCRLine::getText), so a phrase spanning
+    // the word boundaries is found too (EDIT-05).
+    struct Span
+    {
+        int wordId = 0;
+        int start = 0;
+        int end = 0;
+    };
+
+    std::vector<Span> spans;
+    QString text;
+    for (const PDFOCRWord& word : line.words)
+    {
+        if (word.reviewState == PDFOCRReviewState::Discarded)
+        {
+            continue;
+        }
+
+        if (!spans.empty())
+        {
+            text += QChar(' ');
+        }
+
+        Span span;
+        span.wordId = word.id;
+        span.start = int(text.size());
+        span.end = span.start + int(word.text.size());
+        spans.push_back(span);
+        text += word.text;
+    }
+
+    std::vector<FindHit> hits;
+    if (spans.empty())
+    {
+        return hits;
+    }
+
+    QRegularExpressionMatchIterator it = expression.globalMatch(text);
+    while (it.hasNext())
+    {
+        const QRegularExpressionMatch match = it.next();
+        const int start = int(match.capturedStart());
+        const int length = int(match.capturedLength());
+        const int end = start + length;
+
+        FindHit hit;
+        hit.lineId = line.id;
+        hit.length = length;
+        for (const Span& span : spans)
+        {
+            if (span.end > start && span.start < end)
+            {
+                hit.wordIds.push_back(span.wordId);
+            }
+        }
+
+        if (hit.wordIds.empty())
+        {
+            // Only the separating space was matched
+            continue;
+        }
+
+        hit.wordId = hit.wordIds.front();
+        const auto spanIt = std::find_if(spans.begin(), spans.end(), [&hit](const Span& span) { return span.wordId == hit.wordId; });
+        hit.singleWord = hit.wordIds.size() == 1 && start >= spanIt->start && end <= spanIt->end;
+        hit.position = hit.singleWord ? start - spanIt->start : start;
+        hits.push_back(std::move(hit));
+    }
+
+    return hits;
+}
+
 std::vector<PDFOCRSession::FindHit> PDFOCRSession::find(const std::vector<PDFInteger>& pages, const QString& text, const FindOptions& options) const
 {
     std::vector<FindHit> hits;
@@ -1593,23 +1922,15 @@ std::vector<PDFOCRSession::FindHit> PDFOCRSession::find(const std::vector<PDFInt
             continue;
         }
 
-        for (const PDFOCRWord* word : page->getWords())
+        for (const PDFOCRBlock& block : page->blocks)
         {
-            if (word->reviewState == PDFOCRReviewState::Discarded)
+            for (const PDFOCRLine& line : block.lines)
             {
-                continue;
-            }
-
-            QRegularExpressionMatchIterator it = expression.globalMatch(word->text);
-            while (it.hasNext())
-            {
-                const QRegularExpressionMatch match = it.next();
-                FindHit hit;
-                hit.pageIndex = pageIndex;
-                hit.wordId = word->id;
-                hit.position = int(match.capturedStart());
-                hit.length = int(match.capturedLength());
-                hits.push_back(hit);
+                for (FindHit& hit : findInLine(line, expression))
+                {
+                    hit.pageIndex = pageIndex;
+                    hits.push_back(std::move(hit));
+                }
             }
         }
     }
@@ -1637,11 +1958,22 @@ int PDFOCRSession::replaceAll(const std::vector<PDFInteger>& pages, const QStrin
             continue;
         }
 
-        const std::vector<PDFOCRWord*> words = page->getWords();
-        const bool hasHit = std::any_of(words.begin(), words.end(), [&expression](const PDFOCRWord* word)
+        bool hasHit = false;
+        for (const PDFOCRBlock& block : page->blocks)
         {
-            return word->reviewState != PDFOCRReviewState::Discarded && word->text.contains(expression);
-        });
+            for (const PDFOCRLine& line : block.lines)
+            {
+                if (!findInLine(line, expression).empty())
+                {
+                    hasHit = true;
+                    break;
+                }
+            }
+            if (hasHit)
+            {
+                break;
+            }
+        }
 
         if (hasHit)
         {
@@ -1659,34 +1991,74 @@ int PDFOCRSession::replaceAll(const std::vector<PDFInteger>& pages, const QStrin
         for (PDFInteger pageIndex : editablePages)
         {
             PDFOCRPageResult* page = getEditablePage(pageIndex);
-            for (PDFOCRWord* word : page->getWords())
+            for (PDFOCRBlock& block : page->blocks)
             {
-                if (word->reviewState == PDFOCRReviewState::Discarded)
+                for (PDFOCRLine& line : block.lines)
                 {
-                    continue;
-                }
+                    const std::vector<FindHit> hits = findInLine(line, expression);
+                    if (hits.empty())
+                    {
+                        continue;
+                    }
 
-                QString newText = word->text;
-                const int replaced = int(newText.count(expression));
-                if (replaced == 0)
-                {
-                    continue;
-                }
+                    const bool spansWords = std::any_of(hits.begin(), hits.end(), [](const FindHit& hit) { return !hit.singleWord; });
+                    if (!spansWords)
+                    {
+                        // All hits lie inside single words: the texts of the words are changed
+                        for (PDFOCRWord& word : line.words)
+                        {
+                            if (word.reviewState == PDFOCRReviewState::Discarded)
+                            {
+                                continue;
+                            }
 
-                newText.replace(expression, replacement);
-                if (newText.trimmed().isEmpty())
-                {
-                    // Replacing by an empty text discards the word
-                    word->reviewState = PDFOCRReviewState::Discarded;
+                            QString newText = word.text;
+                            const int replaced = int(newText.count(expression));
+                            if (replaced == 0)
+                            {
+                                continue;
+                            }
+
+                            newText.replace(expression, replacement);
+                            if (newText.trimmed().isEmpty())
+                            {
+                                // Replacing by an empty text discards the word
+                                word.reviewState = PDFOCRReviewState::Discarded;
+                            }
+                            else
+                            {
+                                word.text = newText;
+                                word.reviewState = PDFOCRReviewState::Modified;
+                            }
+                            word.reviewTime = QDateTime::currentDateTime();
+                            updateWordFlags(word);
+                            count += replaced;
+                        }
+                        continue;
+                    }
+
+                    // A hit spans the words: the substring of the line text is replaced and
+                    // the line is tokenized again, unchanged words keep their identity (EDIT-05)
+                    QString newText = line.getText();
+                    newText.replace(expression, replacement);
+                    count += int(hits.size());
+
+                    if (newText.simplified().isEmpty())
+                    {
+                        // Replacing the whole line by an empty text discards its words
+                        for (PDFOCRWord& word : line.words)
+                        {
+                            if (word.reviewState != PDFOCRReviewState::Discarded)
+                            {
+                                word.reviewState = PDFOCRReviewState::Discarded;
+                                word.reviewTime = QDateTime::currentDateTime();
+                            }
+                        }
+                        continue;
+                    }
+
+                    applyLineText(page, &line, newText);
                 }
-                else
-                {
-                    word->text = newText;
-                    word->reviewState = PDFOCRReviewState::Modified;
-                }
-                word->reviewTime = QDateTime::currentDateTime();
-                updateWordFlags(*word);
-                count += replaced;
             }
         }
         return count > 0;
@@ -1815,7 +2187,12 @@ PDFOCRProject PDFOCRSession::createProject(const std::vector<PDFInteger>& select
 
     for (const auto& item : m_pages)
     {
-        if (item.second.hasResult() || item.second.state == PDFOCRPageState::Stale || item.second.state == PDFOCRPageState::Error || !item.second.regions.empty())
+        // Pages with a result, and also the pages with a recorded outcome (skipped,
+        // cancelled, failed) with their reasons are part of the project (EXPORT-02, EXPORT-03)
+        const PDFOCRPageState state = item.second.state;
+        const bool hasOutcome = state == PDFOCRPageState::Stale || state == PDFOCRPageState::Error ||
+                                state == PDFOCRPageState::Skipped || state == PDFOCRPageState::Cancelled;
+        if (item.second.hasResult() || hasOutcome || !item.second.regions.empty())
         {
             PDFOCRPageResult result = item.second;
             if (result.state == PDFOCRPageState::Preparing || result.state == PDFOCRPageState::Recognizing)
@@ -1855,6 +2232,7 @@ void PDFOCRSession::loadProject(const PDFOCRProject& project, const std::vector<
             result.pageLabel = PDFOCRPagePreparer::getPageLabel(m_document, pageIndex);
         }
         result.assignIdentifiers();
+        PDFOCRPagePreparer::updateExcludedRegionFlags(result);
         for (PDFOCRWord* word : result.getWords())
         {
             updateWordFlags(*word);

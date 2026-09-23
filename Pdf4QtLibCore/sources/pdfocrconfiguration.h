@@ -32,9 +32,11 @@
 #include <QVariantMap>
 
 #include <optional>
+#include <vector>
 
 namespace pdf
 {
+struct PDFOCREngineParameterDescriptor;
 
 /// Model profile (REC-01, LANG-03). For Tesseract, the profiles are the model
 /// repositories tessdata_fast, tessdata and tessdata_best.
@@ -182,6 +184,19 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
 
     /// Validates the configuration (engine independent part). Returns list of errors.
     QStringList validate() const;
+
+    /// Returns true, if the language identifier is acceptable: "ces", "script/Latin",
+    /// optionally with the import suffix "ces@<import>". Path separators other than
+    /// the "script/" prefix, backslashes and ".." are refused (R11).
+    static bool isValidLanguageIdentifier(const QString& language);
+
+    /// Validates the engine parameters against the typed schema declared by the
+    /// engine (REC-03). Every parameter must be declared, convertible to the declared
+    /// type and inside the declared range. Returns the names of the accepted parameters,
+    /// the errors (translated, one per rejected parameter) are filled, if requested.
+    static QStringList validateEngineParameters(const QVariantMap& parameters,
+                                                const std::vector<PDFOCREngineParameterDescriptor>& descriptors,
+                                                QStringList* errors);
 
     /// Returns true, if the layout is one of the basic layouts (offered without expert knowledge)
     static bool isBasicLayout(PDFOCRLayout layout);
