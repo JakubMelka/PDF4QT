@@ -27,6 +27,7 @@
 #include <QToolTip>
 #include <QScrollBar>
 #include <QHelpEvent>
+#include <QContextMenuEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
 
@@ -787,6 +788,22 @@ void PDFOCRPageView::keyPressEvent(QKeyEvent* event)
     }
 
     BaseClass::keyPressEvent(event);
+}
+
+void PDFOCRPageView::contextMenuEvent(QContextMenuEvent* event)
+{
+    const pdf::PDFOCRRegion* region = (m_mode == Mode::Select && !m_image.isNull()) ? getRegionAt(event->pos()) : nullptr;
+    if (!region)
+    {
+        BaseClass::contextMenuEvent(event);
+        return;
+    }
+
+    m_selectedRegionId = region->id;
+    Q_EMIT regionClicked(m_selectedRegionId);
+    viewport()->update();
+    Q_EMIT regionContextMenuRequested(m_selectedRegionId, event->globalPos());
+    event->accept();
 }
 
 bool PDFOCRPageView::viewportEvent(QEvent* event)

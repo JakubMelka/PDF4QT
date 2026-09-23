@@ -90,7 +90,11 @@ signals:
     void zoomChanged(double zoom);
     void modeFinished();
 
+    /// Context menu was requested over the region (the region is selected first)
+    void regionContextMenuRequested(int regionId, QPoint globalPosition);
+
 protected:
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
     virtual void mousePressEvent(QMouseEvent* event) override;

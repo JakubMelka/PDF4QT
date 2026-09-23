@@ -1667,6 +1667,7 @@ void PDFProgramController::onActionRecognizeTextTriggered()
     context.canCopyContent = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent);
     context.hasSignatures = !m_signatures.empty();
     context.isEncrypted = securityHandler->getMode() != pdf::EncryptionMode::None;
+    context.certificationPermissions = PDFOCRDocumentDialog::getCertificationPermissions(m_pdfDocument.data());
 
     PDFOCRDocumentDialog dialog(context, m_mainWindow);
     if (dialog.exec() == QDialog::Accepted && dialog.hasModifiedDocument())

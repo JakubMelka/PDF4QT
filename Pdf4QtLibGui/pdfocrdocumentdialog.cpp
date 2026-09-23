@@ -51,6 +51,8 @@
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QDialogButtonBox>
+#include <QEventLoop>
+#include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrent>
 
 namespace pdfviewer
@@ -69,6 +71,7 @@ static constexpr int TEMPORARY_REGION_ID = 1000000;
 static constexpr int PREVIEW_DELAY_MSECS = 150;
 static constexpr double PREVIEW_DPI = 200.0;
 static constexpr qint64 PREVIEW_MAXIMUM_PIXELS = qint64(16) * 1000 * 1000;
+static constexpr pdf::PDFInteger MAXIMUM_DOCUMENT_FINGERPRINT_PAGES = 200;
 
 enum ReviewFilter
 {
@@ -166,6 +169,7 @@ PDFOCRDocumentDialog::PDFOCRDocumentDialog(const Context& context, QWidget* pare
     m_modelManager->loadBundledCatalog();
     m_modelManager->refresh();
 
+    m_documentFingerprintReady = m_pageCount > MAXIMUM_DOCUMENT_FINGERPRINT_PAGES;
     m_session->setDocument(m_context.document, createIdentity());
     m_jobController->setEnvironment(m_context.document, m_context.proxy->getFontCache(), m_context.cms, m_optionalContentActivity, &m_meshQualitySettings, m_context.proxy->getRendererEngine());
 
@@ -211,6 +215,7 @@ PDFOCRDocumentDialog::~PDFOCRDocumentDialog()
     cancelTask(m_pageDataTask);
     cancelTask(m_previewTask);
     cancelTask(m_applyTask);
+    cancelTask(m_prepareTask);
 
     disconnect(m_jobController, nullptr, this, nullptr);
     m_jobController->waitForFinished();
@@ -233,9 +238,45 @@ pdf::PDFOCRDocumentIdentity PDFOCRDocumentDialog::createIdentity() const
     identity.pageCount = m_pageCount;
     identity.isEncrypted = m_context.isEncrypted;
 
-    // The fingerprint of a large document is expensive, pages are verified individually
-    identity.fingerprint = m_pageCount <= 200 ? pdf::PDFOCRPagePreparer::computeDocumentFingerprint(m_context.document) : QByteArray();
+    // The fingerprint of the document is computed by the background page data task (R12);
+    // the fingerprint of a large document is expensive, its pages are verified individually
     return identity;
+}
+
+int PDFOCRDocumentDialog::getCertificationPermissions(const pdf::PDFDocument* document)
+{
+    if (!document)
+    {
+        return 0;
+    }
+
+    const pdf::PDFDictionary* trailer = document->getTrailerDictionary();
+    const pdf::PDFDictionary* catalog = trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr;
+    const pdf::PDFDictionary* permissions = catalog ? document->getDictionaryFromObject(catalog->get("Perms")) : nullptr;
+    if (!permissions || !permissions->hasKey("DocMDP") || document->getObject(permissions->get("DocMDP")).isNull())
+    {
+        return 0;
+    }
+
+    // The permissions are in the transform parameters of the DocMDP signature reference;
+    // the default value of /P is 2 (ISO 32000-2, 12.8.2.2)
+    pdf::PDFInteger value = 2;
+    pdf::PDFDocumentDataLoaderDecorator loader(document);
+    if (const pdf::PDFDictionary* signature = document->getDictionaryFromObject(permissions->get("DocMDP")))
+    {
+        const pdf::PDFObject& referencesObject = document->getObject(signature->get("Reference"));
+        if (referencesObject.isArray() && referencesObject.getArray()->getCount() > 0)
+        {
+            const pdf::PDFDictionary* reference = document->getDictionaryFromObject(referencesObject.getArray()->getItem(0));
+            const pdf::PDFDictionary* transformParameters = reference ? document->getDictionaryFromObject(reference->get("TransformParams")) : nullptr;
+            if (transformParameters)
+            {
+                value = loader.readIntegerFromDictionary(transformParameters, "P", 2);
+            }
+        }
+    }
+
+    return int(std::clamp(value, pdf::PDFInteger(1), pdf::PDFInteger(3)));
 }
 
 // -------------------------------------------------------------------------
@@ -266,6 +307,7 @@ void PDFOCRDocumentDialog::initializeUi()
             updateUi();
         });
         connect(view, &PDFOCRPageView::rectangleDrawn, this, &PDFOCRDocumentDialog::onRectangleDrawn);
+        connect(view, &PDFOCRPageView::regionContextMenuRequested, this, &PDFOCRDocumentDialog::showRegionContextMenu);
         connect(view, &PDFOCRPageView::regionGeometryChanged, this, [this](int regionId, QRectF rectangle)
         {
             const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
@@ -420,6 +462,8 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(this, &PDFOCRDocumentDialog::previewReady, this, &PDFOCRDocumentDialog::onPreviewReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::applyFinished, this, &PDFOCRDocumentDialog::onApplyFinished, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::ownLayerLoaded, this, &PDFOCRDocumentDialog::onOwnLayerLoaded, Qt::QueuedConnection);
+    connect(this, &PDFOCRDocumentDialog::documentFingerprintReady, this, &PDFOCRDocumentDialog::onDocumentFingerprintReady, Qt::QueuedConnection);
+    connect(this, &PDFOCRDocumentDialog::recognitionPrepared, this, &PDFOCRDocumentDialog::onRecognitionPrepared, Qt::QueuedConnection);
 
     connect(m_jobController, &pdf::PDFOCRJobController::pageStateChanged, this, &PDFOCRDocumentDialog::onJobPageStateChanged, Qt::QueuedConnection);
     connect(m_jobController, &pdf::PDFOCRJobController::pageProgress, this, &PDFOCRDocumentDialog::onJobPageProgress, Qt::QueuedConnection);
@@ -788,7 +832,9 @@ void PDFOCRDocumentDialog::startPageDataTask()
     const pdf::PDFInteger first = m_context.visiblePages.empty() ? 0 : m_context.visiblePages.front();
     std::stable_sort(order.begin(), order.end(), [first](pdf::PDFInteger left, pdf::PDFInteger right) { return qAbs(left - first) < qAbs(right - first); });
 
-    startTask(m_pageDataTask, [this, document, fontCache, cms, activity, meshQualitySettings, rendererEngine, order, thumbnailSize](int generation, const pdf::PDFOperationControl* operationControl)
+    const bool computeDocumentFingerprint = !m_documentFingerprintReady;
+
+    startTask(m_pageDataTask, [this, document, fontCache, cms, activity, meshQualitySettings, rendererEngine, order, thumbnailSize, computeDocumentFingerprint](int generation, const pdf::PDFOperationControl* operationControl)
     {
         pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, *meshQualitySettings, rendererEngine);
 
@@ -800,6 +846,16 @@ void PDFOCRDocumentDialog::startPageDataTask()
             }
 
             pdf::PDFOCRPageAnalysis analysis = preparer.analyze(pageIndex, operationControl);
+            QByteArray fingerprint;
+            try
+            {
+                // Fingerprints are needed by the recognition, by the project and by the application (R12)
+                fingerprint = pdf::PDFOCRPagePreparer::computePageFingerprint(document, pageIndex);
+            }
+            catch (const pdf::PDFException&)
+            {
+                // The fingerprint is computed again, when it is needed
+            }
 
             QImage thumbnail;
             const pdf::PDFPage* page = document->getCatalog()->getPage(size_t(pageIndex));
@@ -817,7 +873,7 @@ void PDFOCRDocumentDialog::startPageDataTask()
                 return;
             }
 
-            Q_EMIT pageDataReady(generation, pageIndex, thumbnail, analysis);
+            Q_EMIT pageDataReady(generation, pageIndex, thumbnail, analysis, fingerprint);
 
             // Own OCR layer written earlier is read back, so the text can be corrected
             // further without a new recognition (PDF-10)
@@ -839,7 +895,124 @@ void PDFOCRDocumentDialog::startPageDataTask()
                 }
             }
         }
+
+        // The fingerprint of the document is not computed in the constructor (R12)
+        if (computeDocumentFingerprint && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            try
+            {
+                QByteArray fingerprint = pdf::PDFOCRPagePreparer::computeDocumentFingerprint(document);
+                Q_EMIT documentFingerprintReady(generation, std::move(fingerprint));
+            }
+            catch (const pdf::PDFException&)
+            {
+                // The fingerprint is computed again, when it is needed
+            }
+        }
     });
+}
+
+void PDFOCRDocumentDialog::onDocumentFingerprintReady(int generation, QByteArray fingerprint)
+{
+    if (generation != m_pageDataTask.generation || m_documentFingerprintReady)
+    {
+        return;
+    }
+
+    pdf::PDFOCRDocumentIdentity identity = m_session->getDocumentIdentity();
+    identity.fingerprint = std::move(fingerprint);
+    m_session->setDocument(m_context.document, std::move(identity));
+    m_documentFingerprintReady = true;
+}
+
+void PDFOCRDocumentDialog::runBlockingTask(const QString& text, const std::function<void(const pdf::PDFOperationControl*)>& worker)
+{
+    std::shared_ptr<pdf::PDFOCRCancelToken> token = std::make_shared<pdf::PDFOCRCancelToken>();
+    QFuture<void> future = QtConcurrent::run([&worker, token]()
+    {
+        try
+        {
+            worker(token.get());
+        }
+        catch (...)
+        {
+            // No exception is allowed to escape into the future
+        }
+    });
+
+    if (!future.isFinished())
+    {
+        // The GUI is repainted and the background results are delivered, but the user
+        // cannot start another action, until the worker finishes
+        const bool wasBlocking = m_blockingTaskInProgress;
+        m_blockingTaskInProgress = true;
+        const QString previousText = ui->progressLabel->text();
+        ui->progressLabel->setText(text);
+        QApplication::setOverrideCursor(Qt::BusyCursor);
+
+        QEventLoop loop;
+        QFutureWatcher<void> watcher;
+        connect(&watcher, &QFutureWatcher<void>::finished, &loop, &QEventLoop::quit);
+        watcher.setFuture(future);
+        if (!future.isFinished())
+        {
+            loop.exec(QEventLoop::ExcludeUserInputEvents);
+        }
+
+        QApplication::restoreOverrideCursor();
+        ui->progressLabel->setText(previousText);
+        m_blockingTaskInProgress = wasBlocking;
+    }
+
+    future.waitForFinished();
+}
+
+void PDFOCRDocumentDialog::ensureFingerprints(const std::vector<pdf::PDFInteger>& pages, bool documentFingerprint)
+{
+    std::vector<pdf::PDFInteger> missingPages;
+    for (pdf::PDFInteger page : pages)
+    {
+        if (page >= 0 && page < m_pageCount && !m_fingerprints.count(page))
+        {
+            missingPages.push_back(page);
+        }
+    }
+
+    const bool computeDocumentFingerprint = documentFingerprint && !m_documentFingerprintReady;
+    if (missingPages.empty() && !computeDocumentFingerprint)
+    {
+        return;
+    }
+
+    const pdf::PDFDocument* document = m_context.document;
+    std::map<pdf::PDFInteger, QByteArray> fingerprints;
+    QByteArray fingerprint;
+    bool fingerprintComputed = false;
+    runBlockingTask(tr("Computing the fingerprints of the pages..."), [&](const pdf::PDFOperationControl*)
+    {
+        for (pdf::PDFInteger page : missingPages)
+        {
+            fingerprints[page] = pdf::PDFOCRPagePreparer::computePageFingerprint(document, page);
+        }
+        if (computeDocumentFingerprint)
+        {
+            fingerprint = pdf::PDFOCRPagePreparer::computeDocumentFingerprint(document);
+            fingerprintComputed = true;
+        }
+    });
+
+    for (const auto& item : fingerprints)
+    {
+        m_fingerprints.emplace(item.first, item.second);
+    }
+
+    if (fingerprintComputed && !m_documentFingerprintReady)
+    {
+        pdf::PDFOCRDocumentIdentity identity = m_session->getDocumentIdentity();
+        identity.fingerprint = std::move(fingerprint);
+        m_session->setDocument(m_context.document, std::move(identity));
+        m_documentFingerprintReady = true;
+    }
 }
 
 void PDFOCRDocumentDialog::onOwnLayerLoaded(int generation, pdf::PDFOCRPageResult result)
@@ -872,7 +1045,7 @@ void PDFOCRDocumentDialog::onOwnLayerLoaded(int generation, pdf::PDFOCRPageResul
     }
 }
 
-void PDFOCRDocumentDialog::onPageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis)
+void PDFOCRDocumentDialog::onPageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis, QByteArray fingerprint)
 {
     if (generation != m_pageDataTask.generation)
     {
@@ -880,6 +1053,10 @@ void PDFOCRDocumentDialog::onPageDataReady(int generation, qint64 pageIndex, QIm
     }
 
     m_analysis[pageIndex] = std::move(analysis);
+    if (!fingerprint.isEmpty())
+    {
+        m_fingerprints.emplace(pageIndex, std::move(fingerprint));
+    }
 
     if (QListWidgetItem* item = ui->pagesListWidget->item(int(pageIndex)))
     {
@@ -922,12 +1099,30 @@ void PDFOCRDocumentDialog::startPreviewTask()
     const pdf::RendererEngine rendererEngine = m_context.proxy->getRendererEngine();
     const pdf::PDFInteger pageIndex = m_currentPage;
     const ViewMode viewMode = ViewMode(ui->viewModeComboBox->currentData().toInt());
-    const pdf::PDFOCRConfiguration configuration = m_session->getEffectiveConfiguration(pageIndex);
+    pdf::PDFOCRConfiguration configuration = m_session->getEffectiveConfiguration(pageIndex);
 
+    // The working image of a recognized page reproduces the orientation and the resolution
+    // of its last recognition, so the review shows the image, on which the engine decided;
+    // a page without a result shows the preview of the current settings (R10, UI-04)
     std::vector<pdf::PDFOCRRegion> regions;
+    std::optional<pdf::PDFOCROrientation> orientation;
+    bool isLastRecognition = false;
     if (const pdf::PDFOCRPageResult* page = m_session->getPage(pageIndex))
     {
         regions = page->regions;
+        if (page->hasResult() && page->geometry.dpi > 0.0)
+        {
+            isLastRecognition = true;
+            orientation = page->orientation;
+            if (orientation)
+            {
+                configuration.preprocessing.autoOrientation = true;
+            }
+            if (page->geometry.requestedDpi > 0.0)
+            {
+                configuration.dpi = page->geometry.requestedDpi;
+            }
+        }
     }
 
     std::vector<QRectF> maskedRectangles;
@@ -970,7 +1165,7 @@ void PDFOCRDocumentDialog::startPreviewTask()
             }
             else
             {
-                pdf::PDFOCRPagePreparer::PreprocessResult preprocessed = pdf::PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, configuration.preprocessing, std::nullopt, operationControl);
+                pdf::PDFOCRPagePreparer::PreprocessResult preprocessed = pdf::PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, configuration.preprocessing, orientation, operationControl);
                 if (!preprocessed.error)
                 {
                     pageToWorking = preprocessed.geometry.getPageToEngine();
@@ -984,11 +1179,11 @@ void PDFOCRDocumentDialog::startPreviewTask()
             return;
         }
 
-        Q_EMIT previewReady(generation, pageIndex, original, pageToOriginal, working, pageToWorking, message);
+        Q_EMIT previewReady(generation, pageIndex, original, pageToOriginal, working, pageToWorking, message, isLastRecognition);
     });
 }
 
-void PDFOCRDocumentDialog::onPreviewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message)
+void PDFOCRDocumentDialog::onPreviewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message, bool isLastRecognition)
 {
     if (generation != m_previewTask.generation || pageIndex != m_currentPage)
     {
@@ -1007,10 +1202,18 @@ void PDFOCRDocumentDialog::onPreviewReady(int generation, qint64 pageIndex, QIma
 
     if (!working.isNull())
     {
-        QString caption = tr("Working image, %1 x %2 pixels").arg(working.width()).arg(working.height());
-        if (m_session->getEffectiveConfiguration(pageIndex).preprocessing.autoOrientation)
+        QString caption;
+        if (isLastRecognition)
         {
-            caption += tr(" (orientation is detected during the recognition)");
+            caption = tr("Working image of the last recognition, %1 x %2 pixels").arg(working.width()).arg(working.height());
+        }
+        else
+        {
+            caption = tr("Preview of the current settings, %1 x %2 pixels").arg(working.width()).arg(working.height());
+            if (m_session->getEffectiveConfiguration(pageIndex).preprocessing.autoOrientation)
+            {
+                caption += tr(" (orientation is detected during the recognition)");
+            }
         }
         m_workingView->setImage(working, pageToWorking, caption);
     }
@@ -1110,6 +1313,7 @@ void PDFOCRDocumentDialog::setConfigurationToUi(const pdf::PDFOCRConfiguration& 
 
     m_updatingUi = false;
 
+    updateEngineCapabilities();
     updateLanguageList(configuration.languages);
     updateMemoryEstimate();
     updatePolicySummary();
@@ -1151,6 +1355,7 @@ void PDFOCRDocumentDialog::onConfigurationChanged()
     m_originalView->setReviewThreshold(configuration.reviewThreshold);
     m_workingView->setReviewThreshold(configuration.reviewThreshold);
 
+    updateEngineCapabilities();
     updateMemoryEstimate();
     updatePolicySummary();
 
@@ -1312,7 +1517,7 @@ void PDFOCRDocumentDialog::updateMemoryEstimate()
 
     const pdf::PDFPage* page = m_context.document->getCatalog()->getPage(size_t(m_currentPage));
     const double requestedDpi = m_session->getEffectiveConfiguration(m_currentPage).dpi;
-    const double usedDpi = pdf::PDFOCRPagePreparer::getLimitedDpi(page, requestedDpi, pdf::PDFOCRPagePreparer::DefaultMaximumPixels);
+    const double usedDpi = pdf::PDFOCRPagePreparer::getLimitedDpi(page, requestedDpi, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, getMaximumImageDimension(m_engineCapabilities));
     const QSize size = pdf::PDFOCRPagePreparer::getRasterSize(page, usedDpi);
     const double megabytes = double(pdf::PDFOCRPagePreparer::estimateRasterBytes(page, usedDpi)) / (1024.0 * 1024.0);
 
@@ -1322,6 +1527,26 @@ void PDFOCRDocumentDialog::updateMemoryEstimate()
         text += QChar(' ') + tr("The page is too large for %1 DPI; %2 DPI would be used. Select a lower resolution or recognize smaller regions.").arg(qRound(requestedDpi)).arg(qRound(usedDpi));
     }
     ui->memoryEstimateLabel->setText(text);
+}
+
+void PDFOCRDocumentDialog::updateEngineCapabilities()
+{
+    m_engineCapabilities = pdf::PDFOCREngineCapabilities();
+    if (std::shared_ptr<pdf::PDFOCREngineFactory> factory = pdf::PDFOCREngineRegistry::getInstance()->getFactory(ui->engineComboBox->currentData().toString()))
+    {
+        m_engineCapabilities = factory->getCapabilities();
+    }
+}
+
+int PDFOCRDocumentDialog::getMaximumImageDimension(const pdf::PDFOCREngineCapabilities& capabilities)
+{
+    return capabilities.maximumImageSize.isEmpty() ? 0 : qMin(capabilities.maximumImageSize.width(), capabilities.maximumImageSize.height());
+}
+
+bool PDFOCRDocumentDialog::isExportOnlyEngine(const QString& engineId)
+{
+    std::shared_ptr<pdf::PDFOCREngineFactory> factory = engineId.isEmpty() ? nullptr : pdf::PDFOCREngineRegistry::getInstance()->getFactory(engineId);
+    return factory && factory->getCapabilities().isExportOnly;
 }
 
 void PDFOCRDocumentDialog::updatePolicySummary()
@@ -1802,9 +2027,13 @@ void PDFOCRDocumentDialog::updatePageItem(pdf::PDFInteger pageIndex)
     {
         lines << tr("Different settings *");
     }
-    if (m_reviewOnlyPages.count(pageIndex))
+    if (result && result->reviewOnly)
     {
         lines << tr("Review/export only");
+    }
+    if (m_maskedTextPages.count(pageIndex))
+    {
+        toolTip << tr("Existing text masked: the digital text of the page was not recognized again and is kept.");
     }
     if (result && !result->regions.empty())
     {
@@ -1914,6 +2143,13 @@ void PDFOCRDocumentDialog::onRecognizeClicked()
 
 void PDFOCRDocumentDialog::onStopClicked()
 {
+    if (m_pendingRecognition)
+    {
+        // The job was not started yet, only its preparation is cancelled
+        cancelRecognitionPreparation();
+        return;
+    }
+
     if (m_jobController->isRunning())
     {
         // The state is displayed immediately, the workers finish cooperatively (JOB-06)
@@ -1925,7 +2161,7 @@ void PDFOCRDocumentDialog::onStopClicked()
 
 bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& pages, RunMode runMode)
 {
-    if (m_jobController->isRunning() || pages.empty())
+    if (m_jobController->isRunning() || m_pendingRecognition || pages.empty())
     {
         return false;
     }
@@ -1937,9 +2173,18 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
     QStringList errors = configuration.validate();
     std::shared_ptr<pdf::PDFOCREngineFactory> factory = pdf::PDFOCREngineRegistry::getInstance()->getFactory(configuration.engineId);
     QString reason;
+    pdf::PDFOCREngineCapabilities capabilities;
     if (!factory || !factory->isAvailable(&reason))
     {
         errors << tr("OCR engine is not available. %1").arg(reason);
+    }
+    else
+    {
+        // Engine parameters are checked against the typed schema of the engine (REC-03, ARCH-02)
+        capabilities = factory->getCapabilities();
+        QStringList parameterErrors;
+        pdf::PDFOCRConfiguration::validateEngineParameters(configuration.engineParameters, capabilities.parameters, &parameterErrors);
+        errors << parameterErrors;
     }
 
     if (!errors.isEmpty())
@@ -1974,54 +2219,48 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
         }
     }
 
-    pdf::PDFOCRError modelError;
-    pdf::PDFOCRResolvedModelSet models;
-    if (factory->usesManagedModels())
-    {
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        models = m_modelManager->resolveModelSet(configuration.engineId, languages, configuration.profile, &modelError);
-        QApplication::restoreOverrideCursor();
-    }
-    else
-    {
-        models.dataPath = QStringLiteral("-");
-        models.languages = languages;
-        models.profile = configuration.profile;
-    }
-
-    if (modelError)
-    {
-        if (modelError.code == pdf::PDFOCRErrorCode::MissingModel)
-        {
-            if (QMessageBox::question(this, windowTitle(), tr("%1\n\nDo you want to open the language manager?").arg(modelError.message)) == QMessageBox::Yes)
-            {
-                onManageLanguages();
-            }
-        }
-        else
-        {
-            QMessageBox::critical(this, windowTitle(), modelError.message);
-        }
-        return false;
-    }
-
     // Policy of the existing text, evaluated for every page (INPUT-04)
     std::vector<pdf::PDFInteger> pagesToRecognize;
-    std::vector<pdf::PDFInteger> pagesToDecide;
+    std::vector<std::pair<pdf::PDFInteger, QString>> pagesToDecide;
     std::vector<std::pair<pdf::PDFInteger, QString>> pagesToSkip;
     QStringList regionConflicts;
+    std::set<pdf::PDFInteger> reviewOnlyPages;
+    std::set<pdf::PDFInteger> maskedPages;
 
     if (runMode == RunMode::Pages)
     {
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        pdf::PDFOCRPagePreparer preparer(m_context.document, m_context.proxy->getFontCache(), m_context.cms, m_optionalContentActivity, m_meshQualitySettings, m_context.proxy->getRendererEngine());
+        // Pages not analyzed by the background task yet are analyzed outside of the GUI thread (R12)
+        std::vector<pdf::PDFInteger> pagesToAnalyze;
+        std::copy_if(pages.begin(), pages.end(), std::back_inserter(pagesToAnalyze), [this](pdf::PDFInteger page) { return !m_analysis.count(page); });
+        if (!pagesToAnalyze.empty())
+        {
+            std::map<pdf::PDFInteger, pdf::PDFOCRPageAnalysis> analyses;
+            const pdf::PDFDocument* document = m_context.document;
+            const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+            const pdf::PDFCMS* cms = m_context.cms;
+            const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
+            const pdf::PDFMeshQualitySettings& meshQualitySettings = m_meshQualitySettings;
+            const pdf::RendererEngine rendererEngine = m_context.proxy->getRendererEngine();
+            runBlockingTask(tr("Analyzing the pages..."), [&](const pdf::PDFOperationControl* operationControl)
+            {
+                pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, meshQualitySettings, rendererEngine);
+                for (pdf::PDFInteger page : pagesToAnalyze)
+                {
+                    analyses[page] = preparer.analyze(page, operationControl);
+                }
+            });
+
+            for (auto& item : analyses)
+            {
+                if (!m_analysis.count(item.first))
+                {
+                    m_analysis[item.first] = std::move(item.second);
+                }
+            }
+        }
+
         for (pdf::PDFInteger page : pages)
         {
-            if (!m_analysis.count(page))
-            {
-                m_analysis[page] = preparer.analyze(page, nullptr);
-            }
-
             const pdf::PDFOCRPageResult* result = m_session->getPage(page);
             bool hasInclusiveRegions = false;
             if (result)
@@ -2043,8 +2282,10 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
                 }
             }
 
+            // Inclusive regions over the existing text are collisions, which the user must
+            // resolve before the run (chapter 6.2, R05)
             QString skipReason;
-            switch (pdf::PDFOCRPagePreparer::evaluateExistingTextPolicy(m_analysis[page], configuration.existingTextPolicy, hasInclusiveRegions, &skipReason))
+            switch (pdf::PDFOCRPagePreparer::evaluateExistingTextPolicy(m_analysis[page], configuration.existingTextPolicy, hasInclusiveRegions, &skipReason, result ? &result->regions : nullptr))
             {
                 case pdf::PDFOCRPagePreparer::PolicyDecision::Recognize:
                     pagesToRecognize.push_back(page);
@@ -2053,11 +2294,10 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
                     pagesToSkip.emplace_back(page, skipReason);
                     break;
                 case pdf::PDFOCRPagePreparer::PolicyDecision::NeedsDecision:
-                    pagesToDecide.push_back(page);
+                    pagesToDecide.emplace_back(page, skipReason);
                     break;
             }
         }
-        QApplication::restoreOverrideCursor();
 
         if (!regionConflicts.isEmpty())
         {
@@ -2067,10 +2307,27 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
 
         if (!pagesToSkip.empty() || !pagesToDecide.empty())
         {
-            std::vector<pdf::PDFInteger> skipped;
-            for (const auto& item : pagesToSkip)
+            // A scan with a small existing text (page number, stamp) can be recognized with
+            // the existing text masked, so the text layer is never written over it (R04).
+            // Pages with a region over the existing text are not offered (R05).
+            std::vector<pdf::PDFInteger> decidePages;
+            std::vector<pdf::PDFInteger> maskablePages;
+            QStringList collisionDetails;
+            for (const auto& item : pagesToDecide)
             {
-                skipped.push_back(item.first);
+                const pdf::PDFInteger page = item.first;
+                const pdf::PDFOCRPageAnalysis& analysis = m_analysis[page];
+                const pdf::PDFOCRPageResult* result = m_session->getPage(page);
+                decidePages.push_back(page);
+
+                if (result && !pdf::PDFOCRPagePreparer::getRegionsCollidingWithText(analysis, result->regions).empty())
+                {
+                    collisionDetails << tr("Page %1: %2").arg(page + 1).arg(item.second);
+                }
+                else if (analysis.contentClass == pdf::PDFOCRPageContentClass::Mixed && !analysis.hasVisibleText && !analysis.textRectangles.empty())
+                {
+                    maskablePages.push_back(page);
+                }
             }
 
             QMessageBox messageBox(QMessageBox::Question, windowTitle(), tr("Pages to recognize: %1\nPages to skip because of the existing text: %2\nPages requiring your decision: %3")
@@ -2080,56 +2337,94 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             {
                 details << tr("Page %1: %2").arg(item.first + 1).arg(item.second);
             }
-            if (!pagesToDecide.empty())
+            for (const auto& item : pagesToDecide)
             {
-                details << tr("Pages requiring decision: %1").arg(pdf::PDFOCRPageSelection::describe(pagesToDecide));
+                details << tr("Page %1 requires a decision: %2").arg(item.first + 1).arg(item.second);
+            }
+            if (!collisionDetails.isEmpty())
+            {
+                details << tr("Pages with a region over the existing text are recognized only for the review; otherwise move the regions:") << collisionDetails;
+            }
+            if (!maskablePages.empty())
+            {
+                details << tr("Pages with a small existing text, which can be masked: %1").arg(pdf::PDFOCRPageSelection::describe(maskablePages));
             }
             messageBox.setDetailedText(details.join(QChar('\n')));
-            messageBox.setInformativeText(pagesToDecide.empty() ? tr("Skipped pages are not recognized. Use the mode 'Recognize for review/export only' to recognize them without writing into the PDF.")
-                                                                : tr("Pages requiring a decision contain both text and images, or their content is ambiguous. They can be recognized for review and export only; their results will not be written into the PDF. To add text to such pages, draw the regions and use the mode 'Add text in the drawn regions'."));
+
+            QString informativeText;
+            if (pagesToDecide.empty())
+            {
+                informativeText = tr("Skipped pages are not recognized. Use the mode 'Recognize for review/export only' to recognize them without writing into the PDF.");
+            }
+            else
+            {
+                informativeText = tr("Pages requiring a decision contain both text and images, their content is ambiguous, or a region covers the existing text. They can be recognized for review and export only; their results will not be written into the PDF. To add text to such pages, draw the regions outside of the existing text and use the mode 'Add text in the drawn regions'.");
+                if (!maskablePages.empty())
+                {
+                    informativeText += QStringLiteral("\n\n") + tr("Scanned pages with a small existing text (for example a page number) can be recognized with the existing text masked; the text layer is written, the existing text is kept and is not recognized again.");
+                }
+            }
+            messageBox.setInformativeText(informativeText);
+
             QPushButton* continueButton = messageBox.addButton(tr("Continue"), QMessageBox::AcceptRole);
             QPushButton* reviewButton = pagesToDecide.empty() ? nullptr : messageBox.addButton(tr("Recognize Them for Review Only"), QMessageBox::ActionRole);
+            QPushButton* maskButton = maskablePages.empty() ? nullptr : messageBox.addButton(tr("Recognize with Existing Text Masked"), QMessageBox::ActionRole);
             messageBox.addButton(QMessageBox::Cancel);
             messageBox.exec();
 
             if (messageBox.clickedButton() == reviewButton && reviewButton)
             {
-                for (pdf::PDFInteger page : pagesToDecide)
+                for (pdf::PDFInteger page : decidePages)
                 {
                     pagesToRecognize.push_back(page);
-                    m_reviewOnlyPages.insert(page);
+                    reviewOnlyPages.insert(page);
                 }
-                pagesToDecide.clear();
+                decidePages.clear();
+            }
+            else if (messageBox.clickedButton() == maskButton && maskButton)
+            {
+                for (pdf::PDFInteger page : maskablePages)
+                {
+                    pagesToRecognize.push_back(page);
+                    maskedPages.insert(page);
+                    std::erase(decidePages, page);
+                }
             }
             else if (messageBox.clickedButton() != continueButton)
             {
                 return false;
             }
 
-            for (pdf::PDFInteger page : pagesToDecide)
+            for (const auto& item : pagesToDecide)
             {
-                pagesToSkip.emplace_back(page, tr("Page requires a manual decision (existing text)."));
+                if (std::count(decidePages.begin(), decidePages.end(), item.first))
+                {
+                    pagesToSkip.emplace_back(item.first, tr("Page requires a manual decision (existing text). %1").arg(item.second));
+                }
             }
+            std::sort(pagesToRecognize.begin(), pagesToRecognize.end());
         }
 
         if (configuration.existingTextPolicy == pdf::PDFOCRExistingTextPolicy::ReviewOnly)
         {
-            m_reviewOnlyPages.insert(pagesToRecognize.begin(), pagesToRecognize.end());
+            reviewOnlyPages.insert(pagesToRecognize.begin(), pagesToRecognize.end());
         }
         else
         {
             for (pdf::PDFInteger page : pagesToRecognize)
             {
-                if (!std::count(pages.begin(), pages.end(), page) || !m_reviewOnlyPages.count(page))
+                const pdf::PDFOCRPageResult* existing = m_session->getPage(page);
+                if (!existing || !existing->reviewOnly || reviewOnlyPages.count(page) || maskedPages.count(page))
                 {
                     continue;
                 }
 
-                // A page recognized under a writing policy is no more review only
-                if (pdf::PDFOCRPagePreparer::evaluateExistingTextPolicy(m_analysis[page], configuration.existingTextPolicy, true, nullptr) == pdf::PDFOCRPagePreparer::PolicyDecision::Recognize &&
-                    !m_analysis[page].hasUsableVisibleText())
+                // A page recognized under a writing policy is no more review only,
+                // otherwise the flag of the previous result is inherited
+                if (pdf::PDFOCRPagePreparer::evaluateExistingTextPolicy(m_analysis[page], configuration.existingTextPolicy, true, nullptr) != pdf::PDFOCRPagePreparer::PolicyDecision::Recognize ||
+                    m_analysis[page].hasUsableVisibleText())
                 {
-                    m_reviewOnlyPages.erase(page);
+                    reviewOnlyPages.insert(page);
                 }
             }
         }
@@ -2170,22 +2465,6 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
                 return false;
             }
         }
-
-        for (const auto& item : pagesToSkip)
-        {
-            if (m_session->getPage(item.first) && m_session->getPage(item.first)->hasResult())
-            {
-                // Existing results are not destroyed by skipping
-                continue;
-            }
-            pdf::PDFOCRPageResult skippedResult;
-            skippedResult.pageIndex = item.first;
-            skippedResult.state = pdf::PDFOCRPageState::Skipped;
-            skippedResult.skipReason = item.second;
-            skippedResult.error = pdf::PDFOCRError::create(pdf::PDFOCRErrorCode::None, item.second, tr("Existing text policy"));
-            skippedResult.analysis = m_analysis[item.first];
-            m_session->setPageResult(skippedResult);
-        }
     }
     else
     {
@@ -2194,29 +2473,219 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
 
     if (pagesToRecognize.empty())
     {
+        // Nothing to recognize, the skipped pages are marked immediately
+        applySkippedPages(pagesToSkip);
         updateUi();
         return false;
     }
+
+    // The resolution of a page too large for the memory limit or for the image size limit
+    // of the engine is reduced only with an explicit consent of the user (IMAGE-01, ARCH-02)
+    {
+        const int maximumDimension = getMaximumImageDimension(capabilities);
+        QStringList limitedPages;
+        for (pdf::PDFInteger page : pagesToRecognize)
+        {
+            const double requestedDpi = m_session->getEffectiveConfiguration(page).dpi;
+            const double limitedDpi = pdf::PDFOCRPagePreparer::getLimitedDpi(m_context.document->getCatalog()->getPage(size_t(page)), requestedDpi, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, maximumDimension);
+            if (limitedDpi + 0.5 < requestedDpi)
+            {
+                limitedPages << tr("Page %1: %2 DPI instead of %3 DPI").arg(page + 1).arg(qRound(limitedDpi)).arg(qRound(requestedDpi));
+            }
+        }
+
+        if (!limitedPages.isEmpty())
+        {
+            QMessageBox messageBox(QMessageBox::Question, windowTitle(), tr("%n page(s) are too large for the requested resolution.", nullptr, int(limitedPages.size())), QMessageBox::NoButton, this);
+            messageBox.setInformativeText(tr("The raster would exceed the memory limit or the maximal image size of the engine, so the resolution of these pages would be reduced. Continue with the reduced resolution, or cancel and select a lower resolution or smaller regions."));
+            messageBox.setDetailedText(limitedPages.join(QChar('\n')));
+            QPushButton* continueButton = messageBox.addButton(tr("Continue with Reduced Resolution"), QMessageBox::AcceptRole);
+            messageBox.addButton(QMessageBox::Cancel);
+            messageBox.exec();
+
+            if (messageBox.clickedButton() != continueButton)
+            {
+                updateUi();
+                return false;
+            }
+        }
+    }
+
+    // All decisions of the user are made. The language models are resolved and the missing
+    // fingerprints of the pages are computed outside of the GUI thread (R12); the job is
+    // built by the queued continuation onRecognitionPrepared.
+    PendingRecognition pending;
+    pending.runMode = runMode;
+    pending.configuration = configuration;
+    pending.pagesToRecognize = std::move(pagesToRecognize);
+    pending.pagesToSkip = std::move(pagesToSkip);
+    pending.reviewOnlyPages = std::move(reviewOnlyPages);
+    pending.maskedPages = std::move(maskedPages);
+
+    std::vector<pdf::PDFInteger> missingFingerprints;
+    std::copy_if(pending.pagesToRecognize.begin(), pending.pagesToRecognize.end(), std::back_inserter(missingFingerprints), [this](pdf::PDFInteger page) { return !m_fingerprints.count(page); });
+
+    const bool usesManagedModels = factory->usesManagedModels();
+    const pdf::PDFDocument* document = m_context.document;
+    pdf::PDFOCRModelManager* modelManager = m_modelManager;
+    const QString engineId = configuration.engineId;
+    const pdf::PDFOCRModelProfile profile = configuration.profile;
+
+    m_pendingRecognition = std::move(pending);
+    ui->progressBar->setRange(0, 0);
+    ui->progressLabel->setText(tr("Preparing the recognition (language models, fingerprints of the pages)..."));
+
+    startTask(m_prepareTask, [this, document, modelManager, engineId, languages, profile, usesManagedModels, missingFingerprints](int generation, const pdf::PDFOperationControl* operationControl)
+    {
+        PreparedRecognition prepared;
+
+        try
+        {
+            if (usesManagedModels)
+            {
+                // The model manager is safe to be used from a worker thread
+                prepared.models = modelManager->resolveModelSet(engineId, languages, profile, &prepared.error);
+            }
+            else
+            {
+                prepared.models.dataPath = QStringLiteral("-");
+                prepared.models.languages = languages;
+                prepared.models.profile = profile;
+            }
+
+            for (pdf::PDFInteger page : missingFingerprints)
+            {
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    return;
+                }
+                prepared.fingerprints[page] = pdf::PDFOCRPagePreparer::computePageFingerprint(document, page);
+            }
+        }
+        catch (const pdf::PDFException& exception)
+        {
+            prepared.error = pdf::PDFOCRError::create(pdf::PDFOCRErrorCode::Unknown, exception.getMessage());
+        }
+        catch (...)
+        {
+            // Without the final signal the dialog would stay in the preparation forever
+            prepared.error = pdf::PDFOCRError::create(pdf::PDFOCRErrorCode::Unknown, tr("Unexpected error."));
+        }
+
+        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        {
+            QMutexLocker lock(&m_prepareMutex);
+            m_preparedRecognition = std::move(prepared);
+        }
+        Q_EMIT recognitionPrepared(generation);
+    });
+
+    updateUi();
+    return true;
+}
+
+void PDFOCRDocumentDialog::applySkippedPages(const std::vector<std::pair<pdf::PDFInteger, QString>>& pages)
+{
+    for (const auto& item : pages)
+    {
+        if (m_session->getPage(item.first) && m_session->getPage(item.first)->hasResult())
+        {
+            // Existing results are not destroyed by skipping
+            continue;
+        }
+        pdf::PDFOCRPageResult skippedResult;
+        skippedResult.pageIndex = item.first;
+        skippedResult.state = pdf::PDFOCRPageState::Skipped;
+        skippedResult.skipReason = item.second;
+        skippedResult.error = pdf::PDFOCRError::create(pdf::PDFOCRErrorCode::None, item.second, tr("Existing text policy"));
+        skippedResult.analysis = m_analysis[item.first];
+        m_session->setPageResult(skippedResult);
+    }
+}
+
+void PDFOCRDocumentDialog::cancelRecognitionPreparation()
+{
+    if (!m_pendingRecognition)
+    {
+        return;
+    }
+
+    cancelTask(m_prepareTask);
+    m_pendingRecognition.reset();
+    m_candidatePages.clear();
+    ui->progressBar->setRange(0, 1);
+    ui->progressBar->setValue(0);
+    ui->progressLabel->setText(tr("The recognition was not started."));
+    updateUi();
+}
+
+void PDFOCRDocumentDialog::onRecognitionPrepared(int generation)
+{
+    if (generation != m_prepareTask.generation || !m_pendingRecognition)
+    {
+        // Late result of a cancelled preparation
+        return;
+    }
+
+    PendingRecognition pending = std::move(*m_pendingRecognition);
+    m_pendingRecognition.reset();
+
+    PreparedRecognition prepared;
+    {
+        QMutexLocker lock(&m_prepareMutex);
+        prepared = std::move(m_preparedRecognition);
+        m_preparedRecognition = PreparedRecognition();
+    }
+
+    ui->progressBar->setRange(0, 1);
+    ui->progressBar->setValue(0);
+    ui->progressLabel->clear();
+
+    for (const auto& item : prepared.fingerprints)
+    {
+        m_fingerprints.emplace(item.first, item.second);
+    }
+
+    if (prepared.error)
+    {
+        m_candidatePages.clear();
+        updateUi();
+
+        if (prepared.error.code == pdf::PDFOCRErrorCode::MissingModel)
+        {
+            if (QMessageBox::question(this, windowTitle(), tr("%1\n\nDo you want to open the language manager?").arg(prepared.error.message)) == QMessageBox::Yes)
+            {
+                onManageLanguages();
+            }
+        }
+        else
+        {
+            QMessageBox::critical(this, windowTitle(), prepared.error.message);
+        }
+        return;
+    }
+
+    applySkippedPages(pending.pagesToSkip);
+
+    const RunMode runMode = pending.runMode;
 
     // Job description
     pdf::PDFOCRJobDescription description;
     description.jobId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     description.documentFingerprint = m_session->getDocumentIdentity().fingerprint;
-    description.configuration = configuration;
-    description.models = models;
+    description.configuration = pending.configuration;
+    description.models = prepared.models;
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-    for (pdf::PDFInteger page : pagesToRecognize)
+    for (pdf::PDFInteger page : pending.pagesToRecognize)
     {
         pdf::PDFOCRPageTask task;
         task.pageIndex = page;
         task.configuration = m_session->getEffectiveConfiguration(page);
         task.pageLabel = pdf::PDFOCRPagePreparer::getPageLabel(m_context.document, page);
-
-        if (!m_fingerprints.count(page))
-        {
-            m_fingerprints[page] = pdf::PDFOCRPagePreparer::computePageFingerprint(m_context.document, page);
-        }
         task.pageFingerprint = m_fingerprints[page];
 
         if (m_analysis.count(page))
@@ -2224,6 +2693,12 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             task.analysis = m_analysis[page];
             task.maskedRectangles = task.analysis.annotationRectangles;
             task.maskedRectangles.insert(task.maskedRectangles.end(), task.analysis.redactionRectangles.begin(), task.analysis.redactionRectangles.end());
+
+            if (pending.maskedPages.count(page))
+            {
+                // The existing text is not recognized again (R04)
+                task.maskedRectangles.insert(task.maskedRectangles.end(), task.analysis.textRectangles.begin(), task.analysis.textRectangles.end());
+            }
         }
 
         const pdf::PDFOCRPageResult* result = m_session->getPage(page);
@@ -2238,34 +2713,45 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             task.generation = 1;
         }
 
-        if (m_reviewOnlyPages.count(page))
-        {
-            task.configuration.engineParameters.remove(QStringLiteral("reviewOnly"));
-        }
-
         if (runMode != RunMode::Pages)
         {
-            // Repeated recognition of a line or a word (REGION-03): temporary inclusive region
-            const pdf::PDFOCRLine* line = result ? result->findLine(m_rerecognizeLineId) : nullptr;
-            const pdf::PDFOCRWord* word = result ? result->findWord(m_rerecognizeWordId) : nullptr;
-            QRectF rect = runMode == RunMode::Word && word ? word->quad.boundingRect() : (line ? line->quad.boundingRect() : QRectF());
-            if (rect.isEmpty())
+            // Repeated recognition of a line, a word or a region (REGION-03): temporary inclusive region
+            pdf::PDFOCRRegion region;
+            if (runMode == RunMode::Region)
             {
-                QApplication::restoreOverrideCursor();
-                return false;
+                // The region keeps its identifier and its configuration exception, so the
+                // blocks of the candidate belong to the region (CandidateMode::ReplaceRegion)
+                const pdf::PDFOCRRegion* sourceRegion = result ? result->findRegion(m_rerecognizeRegionId) : nullptr;
+                if (!sourceRegion || sourceRegion->type != pdf::PDFOCRRegionType::Recognize || sourceRegion->rect.isEmpty())
+                {
+                    updateUi();
+                    return;
+                }
+                region = *sourceRegion;
+            }
+            else
+            {
+                const pdf::PDFOCRLine* line = result ? result->findLine(m_rerecognizeLineId) : nullptr;
+                const pdf::PDFOCRWord* word = result ? result->findWord(m_rerecognizeWordId) : nullptr;
+                QRectF rect = runMode == RunMode::Word && word ? word->quad.boundingRect() : (line ? line->quad.boundingRect() : QRectF());
+                if (rect.isEmpty())
+                {
+                    updateUi();
+                    return;
+                }
+
+                const double margin = rect.height() * 0.25;
+                rect.adjust(-margin, -margin, margin, margin);
+
+                region.id = TEMPORARY_REGION_ID;
+                region.type = pdf::PDFOCRRegionType::Recognize;
+                region.rect = rect;
+                region.order = 1;
+                task.configuration.layout = runMode == RunMode::Word ? pdf::PDFOCRLayout::SingleWord : pdf::PDFOCRLayout::SingleLine;
             }
 
-            const double margin = rect.height() * 0.25;
-            rect.adjust(-margin, -margin, margin, margin);
-
-            std::erase_if(task.regions, [](const pdf::PDFOCRRegion& region) { return region.type == pdf::PDFOCRRegionType::Recognize; });
-            pdf::PDFOCRRegion region;
-            region.id = TEMPORARY_REGION_ID;
-            region.type = pdf::PDFOCRRegionType::Recognize;
-            region.rect = rect;
-            region.order = 1;
+            std::erase_if(task.regions, [](const pdf::PDFOCRRegion& item) { return item.type == pdf::PDFOCRRegionType::Recognize; });
             task.regions.push_back(region);
-            task.configuration.layout = runMode == RunMode::Word ? pdf::PDFOCRLayout::SingleWord : pdf::PDFOCRLayout::SingleLine;
 
             // Orientation cannot be detected from a single line, the orientation detected for the page is used
             if (task.configuration.preprocessing.autoOrientation && result && result->orientation &&
@@ -2280,9 +2766,9 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
 
         description.pages.push_back(std::move(task));
     }
-    QApplication::restoreOverrideCursor();
 
     m_runMode = runMode;
+    m_jobReviewOnlyPages = std::move(pending.reviewOnlyPages);
     m_candidates.clear();
     m_jobFinishedPages = 0;
     m_jobTotalPages = int(description.pages.size());
@@ -2294,6 +2780,15 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
     {
         for (const pdf::PDFOCRPageTask& task : description.pages)
         {
+            if (pending.maskedPages.count(task.pageIndex))
+            {
+                m_maskedTextPages.insert(task.pageIndex);
+            }
+            else
+            {
+                m_maskedTextPages.erase(task.pageIndex);
+            }
+
             if (!m_candidatePages.count(task.pageIndex))
             {
                 const pdf::PDFOCRPageResult* existing = m_session->getPage(task.pageIndex);
@@ -2311,15 +2806,15 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             m_session->setPageState(item.first, item.second);
         }
         m_previousPageStates.clear();
+        updateUi();
         QMessageBox::critical(this, windowTitle(), tr("Recognition cannot be started."));
-        return false;
+        return;
     }
 
     ui->progressBar->setRange(0, m_jobTotalPages);
     ui->progressBar->setValue(0);
     ui->progressLabel->setText(tr("Recognition started (%n page(s)).", nullptr, m_jobTotalPages));
     updateUi();
-    return true;
 }
 
 void PDFOCRDocumentDialog::onJobPageStateChanged(int generation, qint64 pageIndex, int state, QString phase)
@@ -2368,6 +2863,13 @@ void PDFOCRDocumentDialog::onJobPageFinished(int generation, pdf::PDFOCRPageResu
     }
 
     const pdf::PDFInteger pageIndex = result.pageIndex;
+
+    if (m_runMode == RunMode::Pages)
+    {
+        // Permission to write the result into the PDF is a serialized property of
+        // the result, independent of the settings of the next run (INPUT-04, R03)
+        result.reviewOnly = m_jobReviewOnlyPages.count(pageIndex) > 0;
+    }
 
     if (m_runMode != RunMode::Pages || m_candidatePages.count(pageIndex))
     {
@@ -2504,7 +3006,49 @@ void PDFOCRDocumentDialog::processCandidates()
 
             if (messageBox.clickedButton() == replaceButton)
             {
-                m_session->applyCandidate(pageIndex, candidate, pdf::PDFOCRSession::CandidateMode::Replace, -1);
+                if (m_session->applyCandidate(pageIndex, candidate, pdf::PDFOCRSession::CandidateMode::Replace, -1))
+                {
+                    m_session->setPageReviewOnly(pageIndex, candidate.reviewOnly);
+                }
+            }
+            continue;
+        }
+
+        if (m_runMode == RunMode::Region)
+        {
+            // Only the blocks of the region are replaced, the rest of the page is kept (REGION-03)
+            const int regionId = m_rerecognizeRegionId;
+            QStringList newTexts;
+            for (const pdf::PDFOCRBlock& block : candidate.blocks)
+            {
+                if (block.regionId == regionId && !block.getText().trimmed().isEmpty())
+                {
+                    newTexts << block.getText();
+                }
+            }
+
+            if (newTexts.isEmpty())
+            {
+                QMessageBox::information(this, windowTitle(), tr("No text was found in the region. The previous result is kept."));
+                continue;
+            }
+
+            QStringList oldTexts;
+            if (const pdf::PDFOCRPageResult* current = m_session->getPage(pageIndex))
+            {
+                for (const pdf::PDFOCRBlock& block : current->blocks)
+                {
+                    if (block.regionId == regionId)
+                    {
+                        oldTexts << block.getText();
+                    }
+                }
+            }
+
+            if (QMessageBox::question(this, windowTitle(), tr("Current text of the region:\n%1\n\nNew recognition:\n%2\n\nDo you want to replace the text of the region?")
+                                      .arg(oldTexts.join(QChar('\n')), newTexts.join(QChar('\n')))) == QMessageBox::Yes)
+            {
+                m_session->applyCandidate(pageIndex, candidate, pdf::PDFOCRSession::CandidateMode::ReplaceRegion, regionId);
             }
             continue;
         }
@@ -2834,7 +3378,42 @@ void PDFOCRDocumentDialog::updateStatistics()
     parts << tr("to review: %1").arg(statistics.reviewRequiredCount);
     parts << tr("%n line(s) in %1 block(s)", nullptr, int(std::accumulate(page->blocks.begin(), page->blocks.end(), size_t(0), [](size_t count, const pdf::PDFOCRBlock& block) { return count + block.lines.size(); }))).arg(page->blocks.size());
 
-    ui->statisticsLabel->setText(parts.join(QStringLiteral("; ")) + QChar('.'));
+    QString text = parts.join(QStringLiteral("; ")) + QChar('.');
+
+    // Inclusive regions, in which no text was recognized, are listed, so a missing text
+    // is not hidden by the high scores of the recognized words (EDIT-11)
+    QStringList emptyRegions;
+    int inclusiveRegionCount = 0;
+    for (const pdf::PDFOCRRegion& region : page->regions)
+    {
+        if (region.type != pdf::PDFOCRRegionType::Recognize)
+        {
+            continue;
+        }
+
+        ++inclusiveRegionCount;
+        const bool hasText = std::any_of(page->blocks.begin(), page->blocks.end(), [&region](const pdf::PDFOCRBlock& block)
+        {
+            return block.regionId == region.id && std::any_of(block.lines.begin(), block.lines.end(), [](const pdf::PDFOCRLine& line)
+            {
+                return std::any_of(line.words.begin(), line.words.end(), [](const pdf::PDFOCRWord& word) { return word.reviewState != pdf::PDFOCRReviewState::Discarded && !word.text.trimmed().isEmpty(); });
+            });
+        });
+
+        if (!hasText)
+        {
+            emptyRegions << (region.name.isEmpty() ? tr("region %1").arg(region.order) : region.name);
+        }
+    }
+
+    if (inclusiveRegionCount > 0)
+    {
+        text += QChar('\n');
+        text += emptyRegions.isEmpty() ? tr("Regions without recognized text: 0 of %1.").arg(inclusiveRegionCount)
+                                       : tr("Regions without recognized text: %1 (%2).").arg(emptyRegions.size()).arg(emptyRegions.join(QStringLiteral(", ")));
+    }
+
+    ui->statisticsLabel->setText(text);
     ui->statisticsLabel->setToolTip(tr("High scores do not prove that the transcript of the page is complete; check the areas without any detected text in the page view."));
 }
 
@@ -3194,7 +3773,16 @@ void PDFOCRDocumentDialog::onFindNext()
     selectWord(hit.wordId, false);
     m_originalView->setSelectedWord(hit.wordId, true);
     m_workingView->setSelectedWord(hit.wordId, true);
-    ui->wordTextEdit->setSelection(hit.position, hit.length);
+    if (hit.singleWord)
+    {
+        ui->wordTextEdit->setSelection(hit.position, hit.length);
+    }
+    else
+    {
+        // A phrase over several words: the position is an offset in the text of the line (EDIT-05)
+        ui->wordTextEdit->selectAll();
+        ui->lineTextEdit->setSelection(hit.position, hit.length);
+    }
 }
 
 void PDFOCRDocumentDialog::onReplaceAll()
@@ -3232,6 +3820,19 @@ void PDFOCRDocumentDialog::onReplaceAll()
     for (size_t i = 0; i < hits.size() && i < 15; ++i)
     {
         const pdf::PDFOCRPageResult* page = m_session->getPage(hits[i].pageIndex);
+        if (!hits[i].singleWord)
+        {
+            // The hit spans more words, the position is an offset in the text of the line
+            if (const pdf::PDFOCRLine* line = page ? page->findLine(hits[i].lineId) : nullptr)
+            {
+                const QString text = line->getText();
+                QString replaced = text;
+                replaced.replace(hits[i].position, hits[i].length, replaceText);
+                preview << tr("Page %1: %2 -> %3").arg(hits[i].pageIndex + 1).arg(text, replaced);
+            }
+            continue;
+        }
+
         const pdf::PDFOCRWord* word = page ? page->findWord(hits[i].wordId) : nullptr;
         if (word)
         {
@@ -3300,13 +3901,10 @@ void PDFOCRDocumentDialog::onRectangleDrawn(int mode, QRectF pageRectangle, pdf:
             const QString text = QInputDialog::getText(this, tr("Add Text Line"), tr("Text of the line:"), QLineEdit::Normal, QString(), &ok);
             if (ok && !text.trimmed().isEmpty())
             {
+                ensureFingerprints({ m_currentPage }, false);
                 pdf::PDFOCRPageResult& page = m_session->getOrCreatePage(m_currentPage);
                 if (!page.hasResult())
                 {
-                    if (!m_fingerprints.count(m_currentPage))
-                    {
-                        m_fingerprints[m_currentPage] = pdf::PDFOCRPagePreparer::computePageFingerprint(m_context.document, m_currentPage);
-                    }
                     page.pageFingerprint = m_fingerprints[m_currentPage];
                     page.state = pdf::PDFOCRPageState::NoText;
                     page.provenance.engineId = QStringLiteral("manual");
@@ -3492,23 +4090,65 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
         return;
     }
 
+    const bool editable = isPageEditable(m_currentPage) && !isBusy();
+    const pdf::PDFOCRLine* line = m_selectedWordId ? page->findLineOfWord(m_selectedWordId) : page->findLine(m_selectedLineId);
+    const int regionId = getRegionIdOfSelection();
+
+    // Structure of the lines (EDIT-02): the next line of the same block, the word after
+    // which the line can be split, and the other blocks, into which the line can be moved
+    const pdf::PDFOCRLine* nextLine = nullptr;
+    const pdf::PDFOCRBlock* lineBlock = nullptr;
+    if (line)
+    {
+        for (const pdf::PDFOCRBlock& block : page->blocks)
+        {
+            for (size_t i = 0; i < block.lines.size(); ++i)
+            {
+                if (block.lines[i].id == line->id)
+                {
+                    lineBlock = &block;
+                    nextLine = i + 1 < block.lines.size() ? &block.lines[i + 1] : nullptr;
+                }
+            }
+        }
+    }
+    const bool canSplitLine = line && m_selectedWordId && !line->words.empty() && line->words.back().id != m_selectedWordId;
+
     QMenu menu(this);
     QAction* copyPageAction = menu.addAction(tr("Copy Text of the Page"));
     QAction* copyItemAction = menu.addAction(tr("Copy Text of the Selected Item"));
     menu.addSeparator();
     QAction* recognizeAction = menu.addAction(tr("Recognize Again..."));
+    QAction* recognizeRegionAction = menu.addAction(tr("Re-recognize Region"));
     QAction* confirmAction = menu.addAction(tr("Confirm"));
     QAction* notTextAction = menu.addAction(tr("Not Text"));
     QAction* restoreAction = menu.addAction(tr("Restore Original Recognition"));
+    menu.addSeparator();
+    QAction* mergeLinesAction = menu.addAction(tr("Merge with Next Line"));
+    QAction* splitLineAction = menu.addAction(tr("Split Line After Word"));
+    QAction* moveLineAction = menu.addAction(tr("Move Line to Block..."));
 
     copyPageAction->setEnabled(m_context.canCopyContent);
     copyItemAction->setEnabled(m_context.canCopyContent && ui->resultsTreeWidget->currentItem());
     recognizeAction->setEnabled(!m_jobController->isRunning() && (m_selectedWordId || m_selectedLineId));
+    recognizeRegionAction->setEnabled(regionId != -1 && canRerecognizeRegion(regionId));
     confirmAction->setEnabled(m_selectedWordId != 0);
     notTextAction->setEnabled(m_selectedWordId != 0);
     restoreAction->setEnabled(m_selectedWordId != 0);
+    mergeLinesAction->setEnabled(editable && nextLine && nextLine->direction == line->direction);
+    splitLineAction->setEnabled(editable && canSplitLine);
+    moveLineAction->setEnabled(editable && line && lineBlock && page->blocks.size() > 1);
 
     QAction* action = menu.exec(ui->resultsTreeWidget->viewport()->mapToGlobal(point));
+
+    // The menu has its own event loop, the page could be changed meanwhile
+    page = m_session->getPage(m_currentPage);
+    line = page ? (m_selectedWordId ? page->findLineOfWord(m_selectedWordId) : page->findLine(m_selectedLineId)) : nullptr;
+    if (!page)
+    {
+        return;
+    }
+
     if (action == copyPageAction)
     {
         pdf::PDFOCRTextExporter::Options options;
@@ -3522,6 +4162,95 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
     {
         onRerecognizeClicked();
     }
+    else if (action == recognizeRegionAction)
+    {
+        rerecognizeRegion(regionId);
+    }
+    else if (action == mergeLinesAction && line && isPageEditable(m_currentPage))
+    {
+        const pdf::PDFOCRBlock* block = nullptr;
+        for (const pdf::PDFOCRBlock& currentBlock : page->blocks)
+        {
+            if (std::any_of(currentBlock.lines.begin(), currentBlock.lines.end(), [line](const pdf::PDFOCRLine& item) { return item.id == line->id; }))
+            {
+                block = &currentBlock;
+            }
+        }
+
+        auto it = block ? std::find_if(block->lines.begin(), block->lines.end(), [line](const pdf::PDFOCRLine& item) { return item.id == line->id; }) : std::vector<pdf::PDFOCRLine>::const_iterator();
+        if (block && it != block->lines.end() && std::next(it) != block->lines.end())
+        {
+            int newLineId = 0;
+            if (m_session->mergeLines(m_currentPage, line->id, std::next(it)->id, &newLineId))
+            {
+                m_selectedWordId = 0;
+                m_selectedBlockId = 0;
+                m_selectedLineId = newLineId;
+                updateResultsTree();
+                updateViews();
+            }
+            else
+            {
+                QMessageBox::information(this, windowTitle(), tr("The lines cannot be merged. Only the lines of the same block with the same text direction can be merged."));
+            }
+        }
+    }
+    else if (action == splitLineAction && line && m_selectedWordId && isPageEditable(m_currentPage))
+    {
+        int newLineId = 0;
+        if (!m_session->splitLine(m_currentPage, line->id, m_selectedWordId, &newLineId))
+        {
+            QMessageBox::information(this, windowTitle(), tr("The line cannot be split after the selected word."));
+        }
+    }
+    else if (action == moveLineAction && line && isPageEditable(m_currentPage))
+    {
+        // Blocks are offered by their order and their first words
+        QStringList items;
+        std::vector<int> blockIds;
+        int blockNumber = 0;
+        for (const pdf::PDFOCRBlock& block : page->blocks)
+        {
+            ++blockNumber;
+            if (std::any_of(block.lines.begin(), block.lines.end(), [line](const pdf::PDFOCRLine& item) { return item.id == line->id; }))
+            {
+                continue;
+            }
+
+            QStringList firstWords;
+            for (const pdf::PDFOCRLine& blockLine : block.lines)
+            {
+                for (const pdf::PDFOCRWord& word : blockLine.words)
+                {
+                    if (firstWords.size() < 5 && word.reviewState != pdf::PDFOCRReviewState::Discarded)
+                    {
+                        firstWords << word.text;
+                    }
+                }
+            }
+            items << tr("Block %1: %2").arg(blockNumber).arg(firstWords.isEmpty() ? tr("(empty)") : firstWords.join(QChar(' ')));
+            blockIds.push_back(block.id);
+        }
+
+        bool ok = false;
+        const int lineId = line->id;
+        const QString item = QInputDialog::getItem(this, tr("Move Line to Block"), tr("Target block of the line '%1':").arg(line->getText()), items, 0, false, &ok);
+        const qsizetype index = items.indexOf(item);
+        const pdf::PDFOCRPageResult* currentPage = m_session->getPage(m_currentPage);
+        if (ok && index >= 0 && currentPage && isPageEditable(m_currentPage))
+        {
+            // The line is appended at the end of the target block
+            const pdf::PDFOCRBlock* targetBlock = currentPage->findBlock(blockIds[size_t(index)]);
+            if (targetBlock && m_session->moveLineToBlock(m_currentPage, lineId, targetBlock->id, int(targetBlock->lines.size())))
+            {
+                m_selectedWordId = 0;
+                m_selectedBlockId = 0;
+                m_selectedLineId = lineId;
+                updateResultsTree();
+                updateViews();
+            }
+        }
+    }
     else if (action == confirmAction && isPageEditable(m_currentPage))
     {
         m_session->setWordReviewState(m_currentPage, m_selectedWordId, pdf::PDFOCRReviewState::Confirmed);
@@ -3534,6 +4263,88 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
     {
         m_session->restoreOriginalText(m_currentPage, m_selectedWordId);
     }
+}
+
+void PDFOCRDocumentDialog::showRegionContextMenu(int regionId, QPoint globalPosition)
+{
+    m_originalView->setSelectedRegion(regionId);
+    m_workingView->setSelectedRegion(regionId);
+    updateUi();
+
+    const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
+    if (!page || !page->findRegion(regionId))
+    {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction* propertiesAction = menu.addAction(tr("Region Properties..."));
+    QAction* removeAction = menu.addAction(tr("Remove Region"));
+    menu.addSeparator();
+    QAction* recognizeRegionAction = menu.addAction(tr("Re-recognize Region"));
+
+    const bool running = m_jobController->isRunning();
+    propertiesAction->setEnabled(!running);
+    removeAction->setEnabled(!running);
+    recognizeRegionAction->setEnabled(canRerecognizeRegion(regionId));
+
+    QAction* action = menu.exec(globalPosition);
+    if (action == propertiesAction)
+    {
+        onRegionProperties();
+    }
+    else if (action == removeAction)
+    {
+        onRemoveRegion();
+    }
+    else if (action == recognizeRegionAction)
+    {
+        rerecognizeRegion(regionId);
+    }
+}
+
+int PDFOCRDocumentDialog::getRegionIdOfSelection() const
+{
+    const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
+    if (!page)
+    {
+        return -1;
+    }
+
+    const pdf::PDFOCRLine* line = m_selectedWordId ? page->findLineOfWord(m_selectedWordId) : page->findLine(m_selectedLineId);
+    for (const pdf::PDFOCRBlock& block : page->blocks)
+    {
+        const bool isSelected = line ? std::any_of(block.lines.begin(), block.lines.end(), [line](const pdf::PDFOCRLine& item) { return item.id == line->id; })
+                                     : (m_selectedBlockId != 0 && block.id == m_selectedBlockId);
+        if (isSelected)
+        {
+            return block.regionId;
+        }
+    }
+    return -1;
+}
+
+bool PDFOCRDocumentDialog::canRerecognizeRegion(int regionId) const
+{
+    const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
+    const pdf::PDFOCRRegion* region = page ? page->findRegion(regionId) : nullptr;
+    return region && region->type == pdf::PDFOCRRegionType::Recognize && page->hasResult() && isPageEditable(m_currentPage) &&
+           !isBusy() && ui->engineComboBox->count() > 0;
+}
+
+void PDFOCRDocumentDialog::rerecognizeRegion(int regionId)
+{
+    if (!canRerecognizeRegion(regionId))
+    {
+        return;
+    }
+
+    // Temporary inclusive region equal to the region with its configuration exception (REGION-03)
+    m_rerecognizePage = m_currentPage;
+    m_rerecognizeRegionId = regionId;
+    m_rerecognizeLineId = 0;
+    m_rerecognizeWordId = 0;
+    startRecognition({ m_currentPage }, RunMode::Region);
 }
 
 // -------------------------------------------------------------------------
@@ -3554,6 +4365,12 @@ void PDFOCRDocumentDialog::onApplyClicked()
         return;
     }
 
+    if (m_engineCapabilities.isExportOnly)
+    {
+        QMessageBox::information(this, windowTitle(), tr("The selected engine provides the text without exact geometry; its results can only be exported."));
+        return;
+    }
+
     if (!m_context.canModify)
     {
         // A copy with the text layer is a modified document as well (PDF-12)
@@ -3561,8 +4378,21 @@ void PDFOCRDocumentDialog::onApplyClicked()
         return;
     }
 
+    // The certification signature (DocMDP) is enforced, not only reported (PDF-12)
+    if (m_context.certificationPermissions == 1)
+    {
+        QMessageBox::warning(this, windowTitle(), tr("The document is certified and its certification does not allow any change. The text layer cannot be written into the document nor into its copy; the recognized text can only be exported."));
+        return;
+    }
+
     if (outputMode == OutputMode::ModifyCurrent)
     {
+        if (m_context.certificationPermissions > 0)
+        {
+            QMessageBox::warning(this, windowTitle(), tr("The document is certified and its certification allows only filling of forms, signing and annotating. Writing the text layer would invalidate the certification, so the current document cannot be modified. "
+                                                        "Use the output mode 'Create a copy of the document with OCR'; the certification of the copy will not be valid."));
+            return;
+        }
 
         if (m_hasConformanceDeclaration)
         {
@@ -3590,31 +4420,37 @@ void PDFOCRDocumentDialog::onApplyClicked()
     int uncertainWords = 0;
     int replacedLayers = 0;
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
+    // Only the cached analysis and fingerprints are used here; the layer information and
+    // the missing fingerprints are read by the apply worker, outside of the GUI thread (R12)
     for (pdf::PDFInteger pageIndex : candidates)
     {
         const pdf::PDFOCRPageResult* result = m_session->getPage(pageIndex);
 
-        if (m_reviewOnlyPages.count(pageIndex))
+        if (result->reviewOnly)
         {
             excluded << tr("Page %1: recognized for review/export only.").arg(pageIndex + 1);
             continue;
         }
 
-        const pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo = pdf::PDFOCRTextLayerWriter::readLayerInfo(m_context.document, pageIndex);
+        if (isExportOnlyEngine(result->provenance.engineId))
+        {
+            excluded << tr("Page %1: recognized by an engine, whose results can only be exported.").arg(pageIndex + 1);
+            continue;
+        }
 
-        if (!result->hasUsableText() && !layerInfo.isPresent)
+        auto analysisIt = m_analysis.find(pageIndex);
+        const pdf::PDFOCRPageAnalysis* analysis = analysisIt != m_analysis.end() ? &analysisIt->second : nullptr;
+
+        // An unknown page (not analyzed yet) is decided by the writer: an obsolete own layer is removed
+        if (!result->hasUsableText() && analysis && !analysis->hasOwnOCRLayer)
         {
             excluded << tr("Page %1: no text to write.").arg(pageIndex + 1);
             continue;
         }
 
         // The revision of the document is verified again (JOB-02, EXPORT-04)
-        if (!m_fingerprints.count(pageIndex))
-        {
-            m_fingerprints[pageIndex] = pdf::PDFOCRPagePreparer::computePageFingerprint(m_context.document, pageIndex);
-        }
-        if (result->pageFingerprint != m_fingerprints[pageIndex])
+        auto fingerprintIt = m_fingerprints.find(pageIndex);
+        if (fingerprintIt != m_fingerprints.end() && result->pageFingerprint != fingerprintIt->second)
         {
             excluded << tr("Page %1: the page content differs from the content, which was recognized.").arg(pageIndex + 1);
             continue;
@@ -3633,14 +4469,19 @@ void PDFOCRDocumentDialog::onApplyClicked()
         pdf::PDFOCRTextLayerWriter::PageRequest request;
         request.pageIndex = pageIndex;
         request.result = *result;
-        if (layerInfo.isPresent)
+
+        // The writer checks the collisions with the existing text of the current
+        // document, not of the document of the recognition (PDF-02)
+        if (analysis)
         {
-            ++replacedLayers;
-            request.layerId = layerInfo.layerId;
+            request.result.analysis = *analysis;
+            if (analysis->hasOwnOCRLayer)
+            {
+                ++replacedLayers;
+            }
         }
         requests.push_back(std::move(request));
     }
-    QApplication::restoreOverrideCursor();
 
     if (requests.empty())
     {
@@ -3658,7 +4499,12 @@ void PDFOCRDocumentDialog::onApplyClicked()
         {
             return;
         }
-        if (QFileInfo(copyFileName) == QFileInfo(m_context.fileName))
+        // Canonical paths of files, which do not exist, are empty and would compare equal
+        const QFileInfo copyInfo(copyFileName);
+        const QFileInfo sourceInfo(m_context.fileName);
+        const bool isSameFile = (copyInfo.exists() && sourceInfo.exists()) ? copyInfo == sourceInfo
+                                                                          : QDir::cleanPath(copyInfo.absoluteFilePath()) == QDir::cleanPath(sourceInfo.absoluteFilePath());
+        if (isSameFile)
         {
             QMessageBox::warning(this, windowTitle(), tr("The copy cannot overwrite the opened document."));
             return;
@@ -3687,10 +4533,14 @@ void PDFOCRDocumentDialog::onApplyClicked()
     {
         warnings << tr("Uncertain words are written as well; the uncertainty is an information for the review, not a filter of the text.");
     }
-    if (m_context.hasSignatures)
+    if (outputMode == OutputMode::CreateCopy && m_context.certificationPermissions > 0)
+    {
+        warnings << tr("The document is certified. The certification of the copy is not valid, because the copy contains the added text layer.");
+    }
+    else if (m_context.hasSignatures)
     {
         // No claim, that the signatures stay valid (PDF-12)
-        warnings << tr("The document is signed. Writing the text layer changes the content of the document; the state of the signatures or of the certification may stop to be valid, depending on the signature type and on the way of saving. Consider creating a copy.");
+        warnings <<tr("The document is signed. Writing the text layer changes the content of the document; the state of the signatures or of the certification may stop to be valid, depending on the signature type and on the way of saving. Consider creating a copy.");
     }
     if (m_isTagged)
     {
@@ -3724,32 +4574,74 @@ void PDFOCRDocumentDialog::onApplyClicked()
     const pdf::PDFDocument* document = m_context.document;
     const bool removeConformance = outputMode == OutputMode::CreateCopy && m_hasConformanceDeclaration;
 
+    std::map<pdf::PDFInteger, QByteArray> knownFingerprints;
+    for (const pdf::PDFOCRTextLayerWriter::PageRequest& request : requests)
+    {
+        auto it = m_fingerprints.find(request.pageIndex);
+        if (it != m_fingerprints.end())
+        {
+            knownFingerprints[request.pageIndex] = it->second;
+        }
+    }
+
     m_applyInProgress = true;
     ui->progressBar->setRange(0, 0);
     ui->progressLabel->setText(tr("Writing the text layer..."));
     updateUi();
 
     // The change is prepared above an immutable snapshot and attached only after a successful validation (PDF-03)
-    startTask(m_applyTask, [this, document, requests, options, copyFileName, removeConformance](int generation, const pdf::PDFOperationControl* operationControl)
+    startTask(m_applyTask, [this, document, requests, options, copyFileName, removeConformance, knownFingerprints](int generation, const pdf::PDFOperationControl* operationControl)
     {
         ApplyResult result;
         result.copyFileName = copyFileName;
 
         try
         {
-            pdf::PDFDocumentModifier modifier(document);
-            result.report = pdf::PDFOCRTextLayerWriter::apply(modifier.getBuilder(), document, requests, options);
+            // The missing fingerprints are computed and the own layers are read here,
+            // outside of the GUI thread (R12, JOB-02, EXPORT-04)
+            std::vector<pdf::PDFOCRTextLayerWriter::PageRequest> pageRequests;
+            QStringList changedPages;
+            for (pdf::PDFOCRTextLayerWriter::PageRequest request : requests)
+            {
+                auto it = knownFingerprints.find(request.pageIndex);
+                const QByteArray fingerprint = it != knownFingerprints.end() ? it->second : pdf::PDFOCRPagePreparer::computePageFingerprint(document, request.pageIndex);
+                if (request.result.pageFingerprint != fingerprint)
+                {
+                    changedPages << tr("Page %1: the page content differs from the content, which was recognized.").arg(request.pageIndex + 1);
+                    continue;
+                }
 
-            if (result.report.error)
+                const pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo = pdf::PDFOCRTextLayerWriter::readLayerInfo(document, request.pageIndex);
+                if (layerInfo.isPresent)
+                {
+                    request.layerId = layerInfo.layerId;
+                }
+                pageRequests.push_back(std::move(request));
+            }
+
+            pdf::PDFDocumentModifier modifier(document);
+            if (!pageRequests.empty())
+            {
+                result.report = pdf::PDFOCRTextLayerWriter::apply(modifier.getBuilder(), document, pageRequests, options);
+            }
+            result.report.messages << changedPages;
+
+            if (pageRequests.empty())
+            {
+                result.errorMessage = changedPages.join(QChar('\n'));
+            }
+            else if (result.report.error)
             {
                 result.errorMessage = result.report.error.message;
             }
+            else if (removeConformance && !pdf::PDFOCRTextLayerWriter::removeConformanceDeclaration(modifier.getBuilder(), document))
+            {
+                // An unverified declaration of conformance must not stay in the copy (PDF-15, R07)
+                result.errorMessage = tr("The conformance declaration could not be removed from the metadata, the copy was not written.");
+            }
             else if (!pdf::PDFOperationControl::isOperationCancelled(operationControl))
             {
-                if (removeConformance)
-                {
-                    result.conformanceRemoved = pdf::PDFOCRTextLayerWriter::removeConformanceDeclaration(modifier.getBuilder(), document);
-                }
+                result.conformanceRemoved = removeConformance;
 
                 if (result.report.isModified() || result.conformanceRemoved || !copyFileName.isEmpty())
                 {
@@ -3773,6 +4665,15 @@ void PDFOCRDocumentDialog::onApplyClicked()
                         if (!info.isPresent || !info.fingerprintMatches)
                         {
                             result.errorMessage = tr("Validation of the text layer of the page %1 failed.").arg(pageIndex + 1);
+                            result.document.reset();
+                            break;
+                        }
+
+                        // Nesting of the whole content of the page is validated by the parser (PDF-05)
+                        QString validationError;
+                        if (!pdf::PDFOCRTextLayerWriter::validatePageContent(result.document.data(), pageIndex, &validationError))
+                        {
+                            result.errorMessage = tr("The content of the page %1 is not valid after writing the text layer: %2").arg(pageIndex + 1).arg(validationError);
                             result.document.reset();
                             break;
                         }
@@ -3833,16 +4734,23 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
         return;
     }
 
+    if (m_context.certificationPermissions > 0)
+    {
+        // The removal changes the content of the certified document (PDF-12)
+        QMessageBox::warning(this, windowTitle(), tr("The document is certified; removing the text layer would invalidate the certification."));
+        return;
+    }
+
+    // The cached analysis is used (R12); a page, which is not analyzed yet, is checked by the worker
     std::vector<pdf::PDFInteger> pages;
-    QApplication::setOverrideCursor(Qt::WaitCursor);
     for (pdf::PDFInteger page : getCheckedPages())
     {
-        if (pdf::PDFOCRTextLayerWriter::readLayerInfo(m_context.document, page).isPresent)
+        auto it = m_analysis.find(page);
+        if (it == m_analysis.end() || it->second.hasOwnOCRLayer)
         {
             pages.push_back(page);
         }
     }
-    QApplication::restoreOverrideCursor();
 
     if (pages.empty())
     {
@@ -3971,6 +4879,14 @@ void PDFOCRDocumentDialog::onApplyFinished(int generation)
         return;
     }
 
+    if (!result.document && result.isRemoval)
+    {
+        ui->progressLabel->setText(tr("Nothing was removed."));
+        updateUi();
+        QMessageBox::information(this, windowTitle(), tr("No checked page contains an OCR layer created by PDF4QT."));
+        return;
+    }
+
     if (!result.document)
     {
         // Idempotent operation: no new history step is created (PDF-11)
@@ -4051,7 +4967,8 @@ void PDFOCRDocumentDialog::onExportClicked()
     }
     else
     {
-        pages = m_session->getPagesWithResults();
+        // All records, so the skipped pages and the pages with errors are reported too (EXPORT-02)
+        pages = m_session->getPages();
     }
 
     // Pages without a record are reported as missing (EXPORT-02)
@@ -4108,7 +5025,14 @@ void PDFOCRDocumentDialog::onExportClicked()
     details << tr("Exported pages: %1").arg(report.pageDescriptions.join(QStringLiteral(", ")));
     if (!report.skippedPages.empty())
     {
+        // Every missing page is listed with its state and reason (EXPORT-02)
         details << tr("Pages without a result (missing in the export): %1").arg(pdf::PDFOCRPageSelection::describe(report.skippedPages));
+        details << report.skippedDescriptions;
+    }
+    if (!report.noTextDescriptions.isEmpty())
+    {
+        details << tr("Exported pages without text:");
+        details << report.noTextDescriptions;
     }
     details << report.regionOrders;
 
@@ -4141,7 +5065,8 @@ bool PDFOCRDocumentDialog::saveProject()
         return false;
     }
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
+    // The fingerprints, which are not computed yet, are computed outside of the GUI thread (R12)
+    ensureFingerprints(m_session->getPages(), true);
     pdf::PDFOCRProject project = m_session->createProject(getCheckedPages());
 
     // Results are bound to the fingerprints of the pages, not only to the file name (EXPORT-04)
@@ -4149,14 +5074,13 @@ bool PDFOCRDocumentDialog::saveProject()
     {
         if (item.second.pageFingerprint.isEmpty())
         {
-            if (!m_fingerprints.count(item.first))
+            auto it = m_fingerprints.find(item.first);
+            if (it != m_fingerprints.end())
             {
-                m_fingerprints[item.first] = pdf::PDFOCRPagePreparer::computePageFingerprint(m_context.document, item.first);
+                item.second.pageFingerprint = it->second;
             }
-            item.second.pageFingerprint = m_fingerprints[item.first];
         }
     }
-    QApplication::restoreOverrideCursor();
 
     QString errorMessage;
     if (!pdf::PDFOCRProjectSerializer::save(project, fileName, &errorMessage))
@@ -4202,16 +5126,19 @@ void PDFOCRDocumentDialog::onOpenProject()
         return;
     }
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
+    // The fingerprints, which are not computed yet, are computed outside of the GUI thread (R12)
+    std::vector<pdf::PDFInteger> projectPages;
+    for (const auto& item : project.pages)
+    {
+        projectPages.push_back(item.first);
+    }
+    ensureFingerprints(projectPages, true);
+
     const pdf::PDFOCRProjectSerializer::MatchResult match = pdf::PDFOCRProjectSerializer::match(project, m_session->getDocumentIdentity(), [this](pdf::PDFInteger page)
     {
-        if (!m_fingerprints.count(page))
-        {
-            m_fingerprints[page] = pdf::PDFOCRPagePreparer::computePageFingerprint(m_context.document, page);
-        }
-        return m_fingerprints[page];
+        auto it = m_fingerprints.find(page);
+        return it != m_fingerprints.end() ? it->second : QByteArray();
     });
-    QApplication::restoreOverrideCursor();
 
     std::vector<pdf::PDFInteger> pagesToLoad = match.matchingPages;
     std::vector<pdf::PDFInteger> reviewOnly;
@@ -4250,12 +5177,16 @@ void PDFOCRDocumentDialog::onOpenProject()
         project.configuration = configuration;
     }
 
-    m_reviewOnlyPages.clear();
     m_session->loadProject(project, pagesToLoad);
+
+    // Results of the changed pages must never be written into this document; the flag of
+    // the other pages is loaded from the project and is not recomputed (R03, EXPORT-04)
+    const bool wasDirty = m_session->isDirty();
     for (pdf::PDFInteger page : reviewOnly)
     {
-        m_reviewOnlyPages.insert(page);
+        m_session->setPageReviewOnly(page, true);
     }
+    m_session->setDirty(wasDirty);
 
     m_projectFileName = fileName;
     showReviewPanel(true);
@@ -4294,7 +5225,7 @@ void PDFOCRDocumentDialog::showReviewPanel(bool show)
 
 bool PDFOCRDocumentDialog::isBusy() const
 {
-    return m_jobController->isRunning() || m_applyInProgress;
+    return m_jobController->isRunning() || m_applyInProgress || m_pendingRecognition.has_value() || m_blockingTaskInProgress;
 }
 
 void PDFOCRDocumentDialog::updateWorkflowLabel()
@@ -4344,14 +5275,21 @@ void PDFOCRDocumentDialog::updateUi()
     }
 
     // The labels distinguish the settings of the running job and of the next run (UI-06)
-    ui->recognizeButton->setText(running ? tr("Recognizing...") : tr("Recogni&ze Checked"));
+    const bool preparing = m_pendingRecognition.has_value();
+    ui->recognizeButton->setText((running || preparing) ? tr("Recognizing...") : tr("Recogni&ze Checked"));
     ui->recognizeButton->setEnabled(!busy && hasEngine && hasChecked);
     ui->recognizeButton->setToolTip(running ? tr("A recognition is running. Changes of the settings apply to the next run only.") : tr("Recognize the checked pages. The document is not modified."));
-    ui->stopButton->setEnabled(running && !m_jobController->isStopping());
+    ui->stopButton->setEnabled((running && !m_jobController->isStopping()) || preparing);
+    ui->manageLanguagesButton->setEnabled(!preparing);
     ui->settingsTabWidget->setToolTip(running ? tr("The running recognition uses the settings from its start. Changes apply to the next run.") : QString());
 
-    ui->applyButton->setEnabled(!busy && hasResults);
-    ui->removeLayerButton->setEnabled(!busy && hasChecked && m_context.canModify);
+    // An engine without exact geometry is offered for the export only (ARCH-02, ENGINE-01)
+    const bool exportOnly = m_engineCapabilities.isExportOnly;
+    const QString exportOnlyToolTip = tr("The selected engine provides the text without exact geometry; its results can only be exported.");
+    ui->applyButton->setEnabled(!busy && hasResults && !exportOnly);
+    ui->applyButton->setToolTip(exportOnly ? exportOnlyToolTip : tr("Write the invisible text layer into the document"));
+    ui->removeLayerButton->setEnabled(!busy && hasChecked && m_context.canModify && m_context.certificationPermissions == 0 && !exportOnly);
+    ui->removeLayerButton->setToolTip(exportOnly ? exportOnlyToolTip : tr("Removes the OCR text layer created by PDF4QT including its private data. Other content is never removed."));
     ui->exportButton->setEnabled(hasResults && !m_applyInProgress);
     ui->saveProjectButton->setEnabled(!m_applyInProgress && (hasResults || m_session->isDirty()));
     ui->openProjectButton->setEnabled(!busy);
@@ -4401,7 +5339,15 @@ void PDFOCRDocumentDialog::updateUi()
     {
         outputInfo << tr("The document declares %1: only an export or an ordinary PDF copy without the declaration is possible.").arg(m_conformanceDeclarations.join(QStringLiteral(", ")));
     }
-    if (m_context.hasSignatures)
+    if (m_context.certificationPermissions == 1)
+    {
+        outputInfo << tr("The document is certified without permitted changes: the recognized text can only be exported.");
+    }
+    else if (m_context.certificationPermissions > 0)
+    {
+        outputInfo << tr("The document is certified: it cannot be modified, only a copy with OCR can be created, whose certification is not valid.");
+    }
+    else if (m_context.hasSignatures)
     {
         outputInfo << tr("The document is signed; writing into it may invalidate the state of the signatures.");
     }
@@ -4422,6 +5368,8 @@ void PDFOCRDocumentDialog::done(int result)
         // The commit cannot be interrupted in the middle
         return;
     }
+
+    cancelRecognitionPreparation();
 
     if (m_jobController->isRunning())
     {
