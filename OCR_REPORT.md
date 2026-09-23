@@ -93,19 +93,19 @@ Stav po opravách z interního auditu. *Splněno* znamená implementováno a kry
 | --- | --- | --- |
 | UI-01 až UI-07 | Splněno, UI-05 částečně | Pamatuje se geometrie a hlavní dělič. Barvy překryvu jsou pevné. |
 | PAGE-01 až PAGE-06 | Splněno | Výběr z editoru je neaktivní, protože postranní panel editoru vícenásobný výběr nemá. |
-| INPUT-01 až INPUT-05 | Splněno | Automatické maskování smíšených stránek je P1. |
-| REGION-01 až REGION-05 | Částečně | Chybí rozpoznání jediné oblasti z dialogu a rotace oblasti. |
-| LANG-01 až LANG-13 | Splněno, LANG-08 a LANG-12 částečně | Stav *Incompatible* a kontrola kompatibility při povýšení enginu nejsou implementované. |
-| REC-01 až REC-03 | Částečně | Dialog nevypíná ovládací prvky podle schopností enginu. |
-| IMAGE-01 až IMAGE-07 | Splněno | Detekovaná orientace se použije jen při dostatečné jistotě. |
+| INPUT-01 až INPUT-05 | Splněno | Sken s krátkým digitálním nebo cizím neviditelným textem je smíšená stránka a vyžaduje rozhodnutí. Vlastní vrstva se pozná podle vazby na obsah přes SHA-256, vrstvu změněnou jiným nástrojem program nikdy neodstraní. Automatické maskování smíšených stránek je P1. |
+| REGION-01 až REGION-05 | Splněno | Překrývající se oblasti se shodným nastavením se sjednotí, rotace oblasti se uplatní. Příznaky vyloučených oblastí se přepočítají po každé změně a znovu při zápisu. |
+| LANG-01 až LANG-13 | Splněno | Závislosti modelů se stahují a skládají do běhové sady, nenačitatelný model a model pro jinou hlavní verzi enginu mají stav *Incompatible*. Běžící úloha drží zámek své běhové sady. |
+| REC-01 až REC-03 | Splněno | Parametry enginu mají typové schéma s rozsahy, nepovolený parametr se odmítne. |
+| IMAGE-01 až IMAGE-07 | Splněno | Rastr respektuje `/UserUnit` a rozměrový limit enginu. Detekovaná orientace se použije jen při dostatečné jistotě. |
 | CONF-01 až CONF-05 | Splněno | |
-| EDIT-01 až EDIT-11 | Částečně | Chybí spojení a rozdělení řádků, úprava účaří, hledání frází přes více slov a zobrazení prázdných oblastí. |
-| PDF-01 až PDF-15 | Splněno, PDF-12 částečně | Omezení certifikačního podpisu DocMDP se nevyhodnocuje, zobrazuje se obecné varování. |
+| EDIT-01 až EDIT-11 | Částečně | Řádky lze v dialogu spojit, rozdělit a přesunout do jiného bloku, hledání najde frázi přes více slov, statistika ukazuje oblasti bez rozpoznaného textu. Úprava účaří v dialogu chybí, zapisovač ale účaří používá. |
+| PDF-01 až PDF-15 | Splněno | Vnoření obsahu stránky ověřuje lexer i po zápisu, nevyvážený cizí obsah dostane vlastní izolaci. Deklarace PDF/A a PDF/UA se hledá a odstraňuje podle jmenného prostoru, kopie se nezapíše, když odstranění selže. Certifikační podpis DocMDP s oprávněním 1 zakáže zápis, s oprávněním 2 a 3 dovolí jen kopii. |
 | EXPORT-01 až EXPORT-05 | Splněno, EXPORT-02 částečně | Vynechané stránky se uvádějí fyzickým číslem bez štítku. EXPORT-06 je P1. |
-| JOB-01 až JOB-10 | Částečně | Předletová analýza a otisky běží v hlavním vlákně. Časový limit stránky pokrývá jen samotné rozpoznání. Náhledy nemají mezipaměť. |
-| ARCH-01 až ARCH-09 | Splněno, ARCH-02 částečně | Schopnost `maximumImageSize` se nevynucuje. |
-| DATA-01 až DATA-03 | Částečně | Surový výstup enginu se uchovává jen jako původní text a skóre slova. |
-| GEOM-01 až GEOM-05 | Splněno, GEOM-01 částečně | `UserUnit` se zaznamenává, ale neuplatňuje se na měřítko rastru. |
+| JOB-01 až JOB-10 | Částečně | Otisky, analýza, sestavení běhové sady modelů i ověření staženého modelu běží mimo hlavní vlákno. Časový limit stránky je společný pro všechny fáze. Rozpočet paměti je tvrdá mez a zahrnuje paměť modelů. Náhledy nemají mezipaměť. |
+| ARCH-01 až ARCH-09 | Splněno | Schopnost `maximumImageSize` se vynucuje při rasterizaci. |
+| DATA-01 až DATA-03 | Splněno | Surový výsledek rozpoznání se ukládá vedle upravené verze i do projektu. Projekt má limity velikosti a počtů. |
+| GEOM-01 až GEOM-05 | Splněno | |
 | OPS-01 až OPS-06 | Částečně | Viz balení v kapitole 9. |
 | QA-01 až QA-05 | Splněno kromě profilu *Best* | Viz kapitola 7. |
 
@@ -216,18 +216,12 @@ Skutečné mezery vůči P0:
 - **Ruční přejímka neproběhla.** Linux a macOS nebyly sestaveny ani vyzkoušeny. Hledání, označování a kopírování textu nebylo ověřeno v Acrobat Readeru, PDFiu ani Poppleru. Neověřeno je i ovládání klávesnicí, škálování displeje a české překlady nových textů.
 - **Profily *Standard* a *Quality* jsou změřeny jen pro angličtinu** (QA-04), viz kapitola 7.4.
 - **Profil *Standard* je nad rámec zadání.** Zadání zná jen profily Rychlý a Kvalitní. Modely repozitáře `tessdata` obsahují i data původního enginu, režimy OEM 0 a 2 ale zůstávají odmítnuté u všech profilů.
-- **Úpravy řádků.** Chybí spojení a rozdělení řádků a přesun řádku do jiného bloku (EDIT-02). Účaří a orientaci nelze v dialogu upravit a zapisovač účaří nepoužívá (EDIT-04).
-- **Oblasti.** Z dialogu nelze znovu rozpoznat jedinou oblast, i když session náhradu oblasti umí (REGION-03). Rotace oblasti se ignoruje a zapíše se do protokolu stránky (REGION-02).
-- **Hledání** pracuje po slovech, frázi přes dvě slova nenajde (EDIT-05).
-- **Surová data.** Zvlášť se uchovává jen původní text a skóre slova. Původní geometrii po spojení, rozdělení nebo úpravě řádku vrátí jen Undo (DATA-02).
-- **Vertikální text** nemá v editačních operacích vlastní větev. Text zprava doleva je ošetřen a testován jen na úrovni geometrie.
-- **Hlavní vlákno.** Spuštění rozpoznání dopočítá analýzu a otisky dosud nezpracovaných stránek synchronně. U dokumentu se stovkami stran, na který uživatel klikne hned po otevření, okno na chvíli zamrzne (JOB-01).
-- **Časový limit stránky** pokrývá jen volání rozpoznání, nikoli vykreslení a detekci orientace (JOB-06).
+- **Úpravy účaří a orientace** nejsou v dialogu (EDIT-04). Zapisovač účaří řádku používá.
+- **Vertikální text** nemá vlastní režim zápisu, píše se ve směru své geometrie s varováním. Text zprava doleva je ošetřen a testován na úrovni geometrie.
+- **Detekce orientace** Tesseractu nejde přerušit. Obraz se před ní zmenší na delší stranu 2000 pixelů a termín stránky se kontroluje před ní i po ní (JOB-06).
 - **Chyba vykreslení** stránky znamená chybu rozpoznání stránky, i když by se stránka zobrazila přijatelně.
-- **Nevyvážené `q`/`Q`** v cizím obsahu se neopravuje. Izolace přidává právě jednu úroveň.
 - **Osiřelé objekty.** Po odstranění poslední vrstvy zůstane v dokumentu sdílený font a dva izolační proudy, dohromady asi 1 kB.
-- **Podpisy.** Omezení DocMDP se nevyhodnocuje (PDF-12).
-- **Správce modelů.** Stav *Incompatible* se nikdy nenastaví. Závislosti katalogu se načtou, ale nepoužijí, dnes jsou všechny prázdné. Import nemá limit velikosti. Ruční úklid běhových sad nemá tlačítko, běží jen automaticky.
+- **Pád nativní knihovny** Tesseractu není izolován v samostatném procesu. Zachytí se jen výjimky C++ (OPS-05).
 - **Testy.** AT-20 nemá automatický test. Přeskočené testy se v ctest tváří jako úspěšné.
 
 Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické maskování smíšených stránek, exporty hOCR, TSV a ALTO, dávky více souborů, příkazová řádka v PdfTool, regulární výrazy a kontrola pravopisu, detekce log a šablony oblastí.
@@ -236,7 +230,7 @@ Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické ma
 
 - Závislosti jsou v [vcpkg.json](vcpkg.json) a [vcpkg_with_qt.json](vcpkg_with_qt.json). Vestavěné modely se kopírují do stromu sestavení a instalují jen při zapnutém OCR. Když modely ve zdrojovém stromu chybějí, CMake vypíše varování.
 - **Modely.** Vestavěné modely jsou v repozitáři jako archivy xz, jeden model na archiv, v `ocr/tesseract/fast/tessdata/<jazyk>.tar.xz`. Zabírají 13 MB místo 35 MB, protože se soubor `traineddata` komprimuje zhruba na třetinu. CMake je při konfiguraci rozbalí do stromu sestavení, odkud se také instalují. Sestavení tedy nic nestahuje a funguje bez sítě, což je podmínka pro Flatpak a pro sestavení ze zdrojového archivu. Model se rozbalí znovu jen po změně svého archivu. Chybějící nebo poškozený archiv obnoví `python ocr/tools/generate_catalog.py --fetch-builtin`, které stáhne model podle manifestu a ověří jeho velikost a SHA-256. Běh bez tohoto přepínače přegeneruje katalog a k tomu stahuje do mezipaměti všechny modely, asi 3 GB. Na novější verzi modelů se přechází přepínači `--fast-commit`, `--standard-commit` a `--best-commit`, které přijmou commit, větev nebo značku. Skript přečte seznam souborů commitu z API GitHubu, stáhne všechny modely do mezipaměti, ověří je proti velikosti a git SHA-1 commitu a zapíše jejich SHA-256 do katalogu. Opakovaný běh se stejnými commity soubory repozitáře nezmění. Sadu vestavěných jazyků profilu mění přepínače `--builtin-fast`, `--builtin-standard` a `--builtin-best`, po nich je třeba spustit `--update-builtin`, aby se přepsaly archivy. Soubory instalátoru pro Windows jsou vyjmenované v [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) a je třeba je upravit ručně. Model bez složky LSTM, tedy starší data pouze pro původní engine, skript do katalogu nezapíše.
-- **Windows.** [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) obsahuje adaptér, Tesseract, Leptonicu, jejich závislé knihovny a vestavěné modely. Názvy `tesseract55.dll` a `leptonica-1.87.0.dll` jsou zapsané napevno. Protože vcpkg nemá připnutou základní verzi, povýšení knihoven sestavení instalátoru rozbije, dokud se názvy neupraví. Instalátor nebyl sestaven ani vyzkoušen.
+- **Windows.** Komponenty OCR v [WixInstaller/Product.wxs.in](WixInstaller/Product.wxs.in) generuje CMake ze skutečného stromu sestavení: adaptér, knihovny Tesseractu a Leptonicy s jejich závislostmi, vestavěné modely, manifesty a licenční texty. Při vypnutém OCR se do instalátoru nedostanou. Tesseract 5.5.2 a Leptonica 1.87.0 jsou v manifestech vcpkg připnuté přes `builtin-baseline` a `overrides`. Volba `PDF4QT_OCR_REQUIRED` změní chybějící Tesseract nebo archiv modelu z varování na chybu konfigurace, je určená pro vydání. Instalátor nebyl sestaven ani vyzkoušen.
 - **Flatpak.** [Flatpak/io.github.JakubMelka.Pdf4qt.json](Flatpak/io.github.JakubMelka.Pdf4qt.json) má moduly Leptonica 1.87.0 a Tesseract 5.5.2 s kontrolními součty. Tesseract se zde sestavuje bez curl a libarchive, Windows balík je obsahuje. Manifest nebyl sestaven.
 - **macOS a AppImage** nebyly řešeny.
 - **Licence.** Tesseract a modely tessdata mají Apache 2.0, Leptonica BSD-2. Texty jsou ve složce [3rdparty_licenses/](3rdparty_licenses/), která se podle dosavadní praxe projektu neinstaluje. Dialog *About* uvádí verze Tesseractu a Leptonicy zjištěné za běhu a identifikátor vestavěné sady. Přechodné závislosti Windows balíku, tedy libarchive, libcurl, giflib, libtiff, libwebp, liblzma, lz4 a zstd, v dialogu *About* uvedené nejsou.
