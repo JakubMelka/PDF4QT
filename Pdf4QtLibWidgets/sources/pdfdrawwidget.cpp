@@ -551,7 +551,20 @@ void PDFDrawWidget::dragMoveEvent(QDragMoveEvent* event)
         const Qt::DropAction action = event->modifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
         event->setDropAction(action);
         event->accept();
+
+        // Snapping is disabled by Shift (Ctrl copies the annotations)
+        annotationManager->updateAnnotationDropFeedback(event->mimeData(), event->position().toPoint(), !event->modifiers().testFlag(Qt::ShiftModifier));
     }
+}
+
+void PDFDrawWidget::dragLeaveEvent(QDragLeaveEvent* event)
+{
+    if (PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager())
+    {
+        annotationManager->clearAnnotationDropFeedback();
+    }
+
+    event->accept();
 }
 
 void PDFDrawWidget::dropEvent(QDropEvent* event)
@@ -562,7 +575,7 @@ void PDFDrawWidget::dropEvent(QDropEvent* event)
     if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
     {
         const Qt::DropAction action = event->modifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
-        if (annotationManager->handleAnnotationDrop(event->mimeData(), event->position().toPoint(), action))
+        if (annotationManager->handleAnnotationDrop(event->mimeData(), event->position().toPoint(), action, !event->modifiers().testFlag(Qt::ShiftModifier)))
         {
             event->setDropAction(action);
             event->accept();

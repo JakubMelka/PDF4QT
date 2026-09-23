@@ -23,6 +23,7 @@
 #ifndef PDFBOOKMARKMANAGER_H
 #define PDFBOOKMARKMANAGER_H
 
+#include "pdfviewerglobal.h"
 #include "pdfdocument.h"
 
 #include <QObject>
@@ -30,7 +31,7 @@
 namespace pdfviewer
 {
 
-class PDFBookmarkManager : public QObject
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFBookmarkManager : public QObject
 {
     Q_OBJECT
 

@@ -64,6 +64,8 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfpagegeometrydialog.cpp
     sources/pdfwidgetannotation.h
     sources/pdfwidgetannotation.cpp
+    sources/pdfannotationgeometrydialog.h
+    sources/pdfannotationgeometrydialog.cpp
     sources/pdfpagecontentelements.cpp
     sources/pdfpagecontentelements.h
     sources/pdfitemmodels.cpp

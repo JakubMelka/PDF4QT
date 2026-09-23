@@ -1170,10 +1170,15 @@ public:
 
     const QPainterPath& getInkPath() const { return m_inkPath; }
 
+    /// Returns true, if the ink is defined by the entry Path (PDF 2.0),
+    /// which has precedence over the ink list (and which can contain curves)
+    bool isDefinedByPath() const { return m_isDefinedByPath; }
+
 private:
     friend PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
 
     QPainterPath m_inkPath;
+    bool m_isDefinedByPath = false;
 };
 
 /// Popup annotation. Displays text in popup window for markup annotations.
