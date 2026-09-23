@@ -528,6 +528,40 @@ PDFOCRWord* PDFOCRPageResult::findWord(int id)
     return const_cast<PDFOCRWord*>(std::as_const(*this).findWord(id));
 }
 
+const PDFOCRWord* PDFOCRPageResult::findOriginalWord(int id) const
+{
+    for (const PDFOCRBlock& block : originalBlocks)
+    {
+        for (const PDFOCRLine& line : block.lines)
+        {
+            for (const PDFOCRWord& word : line.words)
+            {
+                if (word.id == id)
+                {
+                    return &word;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+std::vector<const PDFOCRWord*> PDFOCRPageResult::getOriginalWords() const
+{
+    std::vector<const PDFOCRWord*> words;
+    for (const PDFOCRBlock& block : originalBlocks)
+    {
+        for (const PDFOCRLine& line : block.lines)
+        {
+            for (const PDFOCRWord& word : line.words)
+            {
+                words.push_back(&word);
+            }
+        }
+    }
+    return words;
+}
+
 const PDFOCRLine* PDFOCRPageResult::findLine(int id) const
 {
     for (const PDFOCRBlock& block : blocks)
@@ -877,6 +911,11 @@ QStringList PDFOCRValidator::validate(const PDFOCRPageResult& page, const Limits
         }
     }
 
+    if (int(page.regions.size()) > limits.maximumRegionsPerPage)
+    {
+        errors << QStringLiteral("Too many regions on the page (%1, at most %2 are allowed)").arg(page.regions.size()).arg(limits.maximumRegionsPerPage);
+    }
+
     int wordCount = 0;
     for (const PDFOCRBlock& block : page.blocks)
     {
@@ -907,7 +946,7 @@ QStringList PDFOCRValidator::validate(const PDFOCRPageResult& page, const Limits
 
                 if (word.text.length() > limits.maximumTextLength)
                 {
-                    errors << QStringLiteral("Word %1: text too long").arg(word.id);
+                    errors << QStringLiteral("Word %1: text too long (%2 characters, at most %3 are allowed)").arg(word.id).arg(word.text.length()).arg(limits.maximumTextLength);
                 }
 
                 if (!word.text.trimmed().isEmpty())
@@ -924,7 +963,7 @@ QStringList PDFOCRValidator::validate(const PDFOCRPageResult& page, const Limits
 
     if (wordCount > limits.maximumWordsPerPage)
     {
-        errors << QStringLiteral("Too many words on the page (%1)").arg(wordCount);
+        errors << QStringLiteral("Too many words on the page (%1, at most %2 are allowed)").arg(wordCount).arg(limits.maximumWordsPerPage);
     }
 
     return errors;

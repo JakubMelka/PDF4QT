@@ -79,6 +79,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <widget class="QTableWidget" name="tableWidget"/>
    </item>
    <item>
+    <widget class="QLabel" name="licenseHintLabel">
+     <property name="text">
+      <string>Double-click a library to open its license text distributed with the application, or its web page.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>

@@ -50,6 +50,7 @@ option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
 option(PDF4QT_ENABLE_OCR "Build the OCR support with the Tesseract engine (requires Tesseract and Leptonica)" ON)
+option(PDF4QT_OCR_REQUIRED "Release gate of the OCR support: fail the configuration instead of disabling OCR silently when the Tesseract engine is not found, when a built-in language model declared by a manifest (ocr/tesseract/<profile>/manifest.json) has no archive or is not extracted, or when a runtime library of the engine is missing in the installer. Turn it on for the distributed builds, which must ship the OCR engine and the declared built-in model set (OPS-01, LANG-01, LANG-02)" OFF)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
 
@@ -88,9 +89,21 @@ find_package(Clipper2 CONFIG REQUIRED)
 if(PDF4QT_ENABLE_OCR)
     find_package(Tesseract CONFIG)
     if(NOT Tesseract_FOUND)
+        if(PDF4QT_OCR_REQUIRED)
+            message(FATAL_ERROR "Tesseract was not found, but PDF4QT_OCR_REQUIRED is ON: the OCR support must be built. Install the tesseract package (vcpkg, the versions are pinned in vcpkg.json) or set PDF4QT_OCR_REQUIRED=OFF.")
+        endif()
         message(WARNING "Tesseract was not found, OCR support is disabled. Install the tesseract package (vcpkg) or set PDF4QT_ENABLE_OCR=OFF.")
         set(PDF4QT_ENABLE_OCR OFF)
     endif()
+elseif(PDF4QT_OCR_REQUIRED)
+    message(FATAL_ERROR "PDF4QT_OCR_REQUIRED is ON, but the OCR support is turned off by PDF4QT_ENABLE_OCR=OFF.")
+endif()
+
+# Severity of a problem of the distributed OCR data: a release build must not ship an incomplete OCR
+if(PDF4QT_OCR_REQUIRED)
+    set(PDF4QT_OCR_PROBLEM_SEVERITY FATAL_ERROR)
+else()
+    set(PDF4QT_OCR_PROBLEM_SEVERITY WARNING)
 endif()
 
 if(VCPKG_TOOLCHAIN)
@@ -204,17 +217,81 @@ if(PDF4QT_ENABLE_OCR)
 endif()
 
 # Built-in OCR models are stored in the repository as xz compressed archives, one
-# model per archive (ocr/tesseract/<profile>/tessdata/<language>.tar.xz), because
-# a traineddata file compresses to about a third of its size. They are extracted
-# into the build tree (so the applications can be run from the build directory)
-# and installed from there with the applications. Nothing is downloaded during
-# a build. A build without the OCR engine does not carry the models.
+# model per archive (ocr/tesseract/<profile>/tessdata/<language>.tar.xz, script models
+# in tessdata/script/<Name>.tar.xz), because a traineddata file compresses to about
+# a third of its size. They are extracted into the build tree (so the applications can
+# be run from the build directory) and installed from there with the applications.
+# Nothing is downloaded during a build. A build without the OCR engine does not carry
+# the models.
+#
+# The manifest ocr/tesseract/<profile>/manifest.json declares the built-in model set
+# of the profile. Every model of a manifest must be distributed (LANG-02), so the
+# archives are verified against the manifests and the extracted models are verified
+# after the extraction. With PDF4QT_OCR_REQUIRED a problem fails the configuration.
+# PDF4QT_OCR_DISTRIBUTED_FILES lists every distributed OCR data file relative to the
+# OCR data directory (manifests, license texts, models); the installer is generated
+# from it.
 if(PDF4QT_ENABLE_OCR)
     set(PDF4QT_OCR_BUILD_DATA_DIR ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_OCR_DIR})
+    set(PDF4QT_OCR_DISTRIBUTED_FILES "")
+    set(PDF4QT_OCR_MISSING_ARCHIVES "")
+    set(PDF4QT_OCR_MODELS_WITHOUT_ARCHIVE "")
+
+    file(GLOB PDF4QT_OCR_MANIFESTS ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/*/manifest.json)
+    list(SORT PDF4QT_OCR_MANIFESTS)
+    if(NOT PDF4QT_OCR_MANIFESTS)
+        message(${PDF4QT_OCR_PROBLEM_SEVERITY} "No manifest of a built-in OCR model set was found in ocr/tesseract/<profile>/manifest.json. OCR will work only with downloaded or imported languages.")
+    endif()
+
+    foreach(PDF4QT_OCR_MANIFEST IN LISTS PDF4QT_OCR_MANIFESTS)
+        cmake_path(GET PDF4QT_OCR_MANIFEST PARENT_PATH PDF4QT_OCR_PROFILE_DIR)
+        cmake_path(GET PDF4QT_OCR_PROFILE_DIR FILENAME PDF4QT_OCR_PROFILE)
+        file(READ ${PDF4QT_OCR_MANIFEST} PDF4QT_OCR_MANIFEST_JSON)
+        list(APPEND PDF4QT_OCR_DISTRIBUTED_FILES tesseract/${PDF4QT_OCR_PROFILE}/manifest.json)
+
+        # License of the model set (the license of the models is not the license of the engine)
+        string(JSON PDF4QT_OCR_LICENSE_FILE ERROR_VARIABLE PDF4QT_OCR_JSON_ERROR GET "${PDF4QT_OCR_MANIFEST_JSON}" licenseFile)
+        if(PDF4QT_OCR_JSON_ERROR OR NOT EXISTS ${PDF4QT_OCR_PROFILE_DIR}/${PDF4QT_OCR_LICENSE_FILE})
+            message(${PDF4QT_OCR_PROBLEM_SEVERITY} "The manifest ocr/tesseract/${PDF4QT_OCR_PROFILE}/manifest.json does not declare an existing license file of the built-in models (licenseFile).")
+        else()
+            list(APPEND PDF4QT_OCR_DISTRIBUTED_FILES tesseract/${PDF4QT_OCR_PROFILE}/${PDF4QT_OCR_LICENSE_FILE})
+        endif()
+
+        string(JSON PDF4QT_OCR_MODEL_COUNT ERROR_VARIABLE PDF4QT_OCR_JSON_ERROR LENGTH "${PDF4QT_OCR_MANIFEST_JSON}" models)
+        if(PDF4QT_OCR_JSON_ERROR)
+            message(FATAL_ERROR "The manifest ocr/tesseract/${PDF4QT_OCR_PROFILE}/manifest.json has no list of models: ${PDF4QT_OCR_JSON_ERROR}")
+        endif()
+        if(PDF4QT_OCR_MODEL_COUNT GREATER 0)
+            math(EXPR PDF4QT_OCR_LAST_MODEL_INDEX "${PDF4QT_OCR_MODEL_COUNT} - 1")
+            foreach(PDF4QT_OCR_MODEL_INDEX RANGE ${PDF4QT_OCR_LAST_MODEL_INDEX})
+                string(JSON PDF4QT_OCR_LANGUAGE GET "${PDF4QT_OCR_MANIFEST_JSON}" models ${PDF4QT_OCR_MODEL_INDEX} language)
+                string(JSON PDF4QT_OCR_MODEL_FILE_NAME ERROR_VARIABLE PDF4QT_OCR_JSON_ERROR GET "${PDF4QT_OCR_MANIFEST_JSON}" models ${PDF4QT_OCR_MODEL_INDEX} fileName)
+                if(PDF4QT_OCR_JSON_ERROR)
+                    set(PDF4QT_OCR_MODEL_FILE_NAME ${PDF4QT_OCR_LANGUAGE}.traineddata)
+                endif()
+
+                # Language "ces" -> tessdata/ces.tar.xz, language "script/Latin" -> tessdata/script/Latin.tar.xz
+                set(PDF4QT_OCR_MODEL tesseract/${PDF4QT_OCR_PROFILE}/tessdata/${PDF4QT_OCR_MODEL_FILE_NAME})
+                set(PDF4QT_OCR_ARCHIVE tesseract/${PDF4QT_OCR_PROFILE}/tessdata/${PDF4QT_OCR_LANGUAGE}.tar.xz)
+                list(APPEND PDF4QT_OCR_DISTRIBUTED_FILES ${PDF4QT_OCR_MODEL})
+                if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ocr/${PDF4QT_OCR_ARCHIVE})
+                    list(APPEND PDF4QT_OCR_MISSING_ARCHIVES ocr/${PDF4QT_OCR_ARCHIVE})
+                    list(APPEND PDF4QT_OCR_MODELS_WITHOUT_ARCHIVE ${PDF4QT_OCR_MODEL})
+                endif()
+            endforeach()
+        endif()
+    endforeach()
+
+    if(PDF4QT_OCR_MISSING_ARCHIVES)
+        list(JOIN PDF4QT_OCR_MISSING_ARCHIVES "\n  " PDF4QT_OCR_MISSING_ARCHIVES_TEXT)
+        message(${PDF4QT_OCR_PROBLEM_SEVERITY} "Archives of built-in OCR language models declared by the manifests are missing:\n  ${PDF4QT_OCR_MISSING_ARCHIVES_TEXT}\nThe distributed built-in model set would be incomplete. Run \"python ocr/tools/generate_catalog.py --fetch-builtin\" to restore them.")
+    endif()
+
     file(GLOB PDF4QT_OCR_BUILTIN_ARCHIVES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/ocr
-         ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/*/tessdata/*.tar.xz)
+         ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/*/tessdata/*.tar.xz
+         ${CMAKE_CURRENT_SOURCE_DIR}/ocr/tesseract/*/tessdata/script/*.tar.xz)
     if(NOT PDF4QT_OCR_BUILTIN_ARCHIVES)
-        message(WARNING "Built-in OCR language models are missing in ocr/tesseract/fast/tessdata. OCR will work only with downloaded or imported languages, and the OCR tests using Tesseract will be skipped. Run \"python ocr/tools/generate_catalog.py --fetch-builtin\" to restore them.")
+        message(${PDF4QT_OCR_PROBLEM_SEVERITY} "Built-in OCR language models are missing in ocr/tesseract/fast/tessdata. OCR will work only with downloaded or imported languages, and the OCR tests using Tesseract will be skipped. Run \"python ocr/tools/generate_catalog.py --fetch-builtin\" to restore them.")
     endif()
 
     # The archives themselves are not a part of the distribution
@@ -246,7 +323,28 @@ if(PDF4QT_ENABLE_OCR)
         file(TOUCH ${PDF4QT_OCR_STAMP_FILE})
     endforeach()
 
+    # License texts of the distributed OCR components (OPS-02). They are installed with
+    # the OCR data, the About dialog points to them.
+    set(PDF4QT_OCR_LICENSE_FILES Tesseract_LICENSE.txt Leptonica_license.txt tessdata_LICENSE.txt)
+    foreach(PDF4QT_OCR_LICENSE IN LISTS PDF4QT_OCR_LICENSE_FILES)
+        file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty_licenses/${PDF4QT_OCR_LICENSE} DESTINATION ${PDF4QT_OCR_BUILD_DATA_DIR}/licenses)
+        list(APPEND PDF4QT_OCR_DISTRIBUTED_FILES licenses/${PDF4QT_OCR_LICENSE})
+    endforeach()
+
+    # Every declared file must exist in the build tree, from where it is installed
+    set(PDF4QT_OCR_MISSING_FILES "")
+    foreach(PDF4QT_OCR_FILE IN LISTS PDF4QT_OCR_DISTRIBUTED_FILES)
+        if(NOT EXISTS ${PDF4QT_OCR_BUILD_DATA_DIR}/${PDF4QT_OCR_FILE} AND NOT PDF4QT_OCR_FILE IN_LIST PDF4QT_OCR_MODELS_WITHOUT_ARCHIVE)
+            list(APPEND PDF4QT_OCR_MISSING_FILES ${PDF4QT_OCR_FILE})
+        endif()
+    endforeach()
+    if(PDF4QT_OCR_MISSING_FILES)
+        list(JOIN PDF4QT_OCR_MISSING_FILES "\n  " PDF4QT_OCR_MISSING_FILES_TEXT)
+        message(${PDF4QT_OCR_PROBLEM_SEVERITY} "Distributed OCR data files declared by the manifests are missing in ${PDF4QT_OCR_BUILD_DATA_DIR}:\n  ${PDF4QT_OCR_MISSING_FILES_TEXT}")
+    endif()
+
     install(DIRECTORY ${PDF4QT_OCR_BUILD_DATA_DIR}/tesseract DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
+    install(DIRECTORY ${PDF4QT_OCR_BUILD_DATA_DIR}/licenses DESTINATION ${PDF4QT_INSTALL_OCR_DIR})
 endif()
 
 if(PDF4QT_INSTALL_INCLUDE)

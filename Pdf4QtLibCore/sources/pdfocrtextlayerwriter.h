@@ -174,8 +174,42 @@ public:
                                           bool markAsArtifact = false);
 
     /// Removes the PDF/A and PDF/UA conformance declaration from the XMP metadata
-    /// of the document (PDF-15). Returns true, if a declaration was removed.
+    /// of the document (PDF-15). Returns true, if the metadata are without the
+    /// declaration afterwards (also when there was nothing to remove); false, if the
+    /// declaration could not be removed and the copy must not be written.
     static bool removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document);
+
+    /// Balance of the operators of a content stream (PDF-05)
+    struct ContentBalance
+    {
+        int graphicStateDepth = 0;      ///< Unclosed "q" operators (negative = more "Q" than "q")
+        int textObjectDepth = 0;        ///< Unclosed "BT" operators
+        int markedContentDepth = 0;     ///< Unclosed "BMC" / "BDC" operators
+        bool hasError = false;          ///< Lexical error, or "Q" / "ET" / "EMC" without the opening operator
+
+        bool isBalanced() const { return graphicStateDepth == 0 && textObjectDepth == 0 && markedContentDepth == 0 && !hasError; }
+    };
+
+    /// Computes the balance of the nesting operators of the (decoded) content
+    static ContentBalance computeContentBalance(const QByteArray& content);
+
+    /// Returns true, if the content consists only of the operators of the invisible
+    /// text layer (graphic state, text object, text state, text showing, marked
+    /// content) with the text rendering mode 3, and is balanced. Anything else
+    /// (paths, images, other rendering modes) makes the stream a foreign content.
+    static bool isInvisibleTextStream(const QByteArray& content);
+
+    /// Finds the PDF/A and PDF/UA conformance declarations in the XMP metadata (PDF-15).
+    /// The properties are identified by their namespace, not by the prefix.
+    /// \param metadata XMP packet
+    /// \param declarations Human readable names of the found declarations
+    /// \param withoutDeclarations The packet with the declarations removed (optional)
+    static bool findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations);
+
+    /// Validates the nesting of the whole content of the page by the parser (PDF-05):
+    /// q / Q, BT / ET and marked content must be balanced over all content streams.
+    /// Returns true, if the content is valid; the error message describes the problem.
+    static bool validatePageContent(const PDFDocument* document, PDFInteger pageIndex, QString* errorMessage);
 
     /// Creates the glyphless font in the document (PDF-07)
     static PDFObjectReference createGlyphlessFont(PDFDocumentBuilder* builder, bool compress);

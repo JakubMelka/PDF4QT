@@ -544,6 +544,13 @@ QJsonObject PDFOCRProjectSerializer::analysisToJson(const PDFOCRPageAnalysis& an
         redactionRectangles.append(rectToJson(rect));
     }
     object[QStringLiteral("redactionRectangles")] = redactionRectangles;
+
+    QJsonArray textRectangles;
+    for (const QRectF& rect : analysis.textRectangles)
+    {
+        textRectangles.append(rectToJson(rect));
+    }
+    object[QStringLiteral("textRectangles")] = textRectangles;
     return object;
 }
 
@@ -573,6 +580,10 @@ PDFOCRPageAnalysis PDFOCRProjectSerializer::analysisFromJson(const QJsonObject& 
     for (const QJsonValue& value : object.value(QStringLiteral("redactionRectangles")).toArray())
     {
         analysis.redactionRectangles.push_back(rectFromJson(value));
+    }
+    for (const QJsonValue& value : object.value(QStringLiteral("textRectangles")).toArray())
+    {
+        analysis.textRectangles.push_back(rectFromJson(value));
     }
     return analysis;
 }
@@ -646,6 +657,7 @@ QJsonObject PDFOCRProjectSerializer::pageResultToJson(const PDFOCRPageResult& re
     object[QStringLiteral("elapsedMilliseconds")] = qint64(result.elapsedMilliseconds);
     object[QStringLiteral("blankDetectionOverridden")] = result.blankDetectionOverridden;
     object[QStringLiteral("isModified")] = result.isModified;
+    object[QStringLiteral("reviewOnly")] = result.reviewOnly;
 
     if (flags.testFlag(PDFOCRSerializationFlag::Analysis))
     {
@@ -678,12 +690,30 @@ QJsonObject PDFOCRProjectSerializer::pageResultToJson(const PDFOCRPageResult& re
         blocks.append(blockToJson(block, flags));
     }
     object[QStringLiteral("blocks")] = blocks;
+
+    // Raw recognition (DATA-02) is stored only together with the review data
+    if (flags.testFlag(PDFOCRSerializationFlag::ReviewData) && !result.originalBlocks.empty())
+    {
+        QJsonArray originalBlocks;
+        for (const PDFOCRBlock& block : result.originalBlocks)
+        {
+            originalBlocks.append(blockToJson(block, flags));
+        }
+        object[QStringLiteral("originalBlocks")] = originalBlocks;
+    }
     return object;
 }
 
 PDFOCRPageResult PDFOCRProjectSerializer::pageResultFromJson(const QJsonObject& object)
 {
     PDFOCRPageResult result;
+    pageResultFromJson(object, result, nullptr);
+    return result;
+}
+
+bool PDFOCRProjectSerializer::pageResultFromJson(const QJsonObject& object, PDFOCRPageResult& result, QString* errorMessage)
+{
+    result = PDFOCRPageResult();
     result.pageIndex = PDFInteger(object.value(QStringLiteral("pageIndex")).toDouble(-1));
     result.pageLabel = object.value(QStringLiteral("pageLabel")).toString();
     result.pageFingerprint = QByteArray::fromHex(object.value(QStringLiteral("pageFingerprint")).toString().toLatin1());
@@ -696,6 +726,7 @@ PDFOCRPageResult PDFOCRProjectSerializer::pageResultFromJson(const QJsonObject& 
     result.elapsedMilliseconds = qint64(object.value(QStringLiteral("elapsedMilliseconds")).toDouble());
     result.blankDetectionOverridden = object.value(QStringLiteral("blankDetectionOverridden")).toBool();
     result.isModified = object.value(QStringLiteral("isModified")).toBool();
+    result.reviewOnly = object.value(QStringLiteral("reviewOnly")).toBool();
 
     if (object.contains(QStringLiteral("analysis")))
     {
@@ -713,17 +744,78 @@ PDFOCRPageResult PDFOCRProjectSerializer::pageResultFromJson(const QJsonObject& 
     {
         result.orientation = orientationFromJson(object.value(QStringLiteral("orientation")).toObject());
     }
-    for (const QJsonValue& value : object.value(QStringLiteral("regions")).toArray())
+
+    // Limits of the data model are enforced while parsing (DATA-03, OPS-05), so a
+    // hostile or damaged file cannot build an unbounded object tree.
+    const QJsonArray regions = object.value(QStringLiteral("regions")).toArray();
+    if (regions.size() > PDFOCRValidator::MaximumRegionsPerPage)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = PDFTranslationContext::tr("Page %1 has %2 regions, at most %3 regions per page are allowed.").arg(result.pageIndex + 1).arg(regions.size()).arg(PDFOCRValidator::MaximumRegionsPerPage);
+        }
+        return false;
+    }
+    for (const QJsonValue& value : regions)
     {
         result.regions.push_back(regionFromJson(value.toObject()));
     }
-    for (const QJsonValue& value : object.value(QStringLiteral("blocks")).toArray())
+
+    // Words are counted over the blocks before they are converted
+    auto checkBlocks = [&](const QJsonArray& blocks, const char* what) -> bool
+    {
+        qint64 wordCount = 0;
+        for (const QJsonValue& blockValue : blocks)
+        {
+            const QJsonArray lines = blockValue.toObject().value(QStringLiteral("lines")).toArray();
+            for (const QJsonValue& lineValue : lines)
+            {
+                const QJsonArray words = lineValue.toObject().value(QStringLiteral("words")).toArray();
+                wordCount += words.size();
+                if (wordCount > PDFOCRValidator::MaximumWordsPerPage)
+                {
+                    if (errorMessage)
+                    {
+                        *errorMessage = PDFTranslationContext::tr("Page %1 has too many words (%2), at most %3 words per page are allowed.").arg(result.pageIndex + 1).arg(QLatin1String(what)).arg(PDFOCRValidator::MaximumWordsPerPage);
+                    }
+                    return false;
+                }
+
+                for (const QJsonValue& wordValue : words)
+                {
+                    const QJsonValue text = wordValue.toObject().value(QStringLiteral("text"));
+                    if (text.toString().length() > PDFOCRValidator::MaximumTextLength)
+                    {
+                        if (errorMessage)
+                        {
+                            *errorMessage = PDFTranslationContext::tr("Page %1 (%2) contains a word text of %3 characters, at most %4 characters are allowed.").arg(result.pageIndex + 1).arg(QLatin1String(what)).arg(text.toString().length()).arg(PDFOCRValidator::MaximumTextLength);
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    };
+
+    const QJsonArray originalBlocks = object.value(QStringLiteral("originalBlocks")).toArray();
+    const QJsonArray blocks = object.value(QStringLiteral("blocks")).toArray();
+    if (!checkBlocks(originalBlocks, "original recognition") || !checkBlocks(blocks, "blocks"))
+    {
+        return false;
+    }
+
+    for (const QJsonValue& value : originalBlocks)
+    {
+        result.originalBlocks.push_back(blockFromJson(value.toObject()));
+    }
+    for (const QJsonValue& value : blocks)
     {
         result.blocks.push_back(blockFromJson(value.toObject()));
     }
 
     result.assignIdentifiers();
-    return result;
+    return true;
 }
 
 QJsonObject PDFOCRProjectSerializer::projectToJson(const PDFOCRProject& project)
@@ -798,9 +890,25 @@ bool PDFOCRProjectSerializer::projectFromJson(const QJsonObject& object, PDFOCRP
         }
     }
 
-    for (const QJsonValue& value : object.value(QStringLiteral("pages")).toArray())
+    const QJsonArray pages = object.value(QStringLiteral("pages")).toArray();
+    if (pages.size() > PDFOCRValidator::MaximumPages)
     {
-        PDFOCRPageResult result = pageResultFromJson(value.toObject());
+        if (errorMessage)
+        {
+            *errorMessage = PDFTranslationContext::tr("Project has %1 pages, at most %2 pages are allowed.").arg(pages.size()).arg(PDFOCRValidator::MaximumPages);
+        }
+        project = PDFOCRProject();
+        return false;
+    }
+
+    for (const QJsonValue& value : pages)
+    {
+        PDFOCRPageResult result;
+        if (!pageResultFromJson(value.toObject(), result, errorMessage))
+        {
+            project = PDFOCRProject();
+            return false;
+        }
         if (result.pageIndex >= 0)
         {
             project.pages[result.pageIndex] = std::move(result);
@@ -848,6 +956,16 @@ bool PDFOCRProjectSerializer::load(const QString& fileName, PDFOCRProject& proje
         return false;
     }
 
+    // Size of the input is limited before anything is read (OPS-05)
+    if (file.size() > PDFOCRValidator::MaximumProjectFileSize)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = PDFTranslationContext::tr("Project file '%1' is too large (%2 MB), at most %3 MB are allowed.").arg(fileName).arg(file.size() / (1024 * 1024)).arg(PDFOCRValidator::MaximumProjectFileSize / (1024 * 1024));
+        }
+        return false;
+    }
+
     return fromBytes(file.readAll(), project, errorMessage);
 }
 
@@ -858,6 +976,15 @@ QByteArray PDFOCRProjectSerializer::toBytes(const PDFOCRProject& project)
 
 bool PDFOCRProjectSerializer::fromBytes(const QByteArray& data, PDFOCRProject& project, QString* errorMessage)
 {
+    if (qint64(data.size()) > PDFOCRValidator::MaximumProjectFileSize)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = PDFTranslationContext::tr("Project data are too large (%1 MB), at most %2 MB are allowed.").arg(qint64(data.size()) / (1024 * 1024)).arg(PDFOCRValidator::MaximumProjectFileSize / (1024 * 1024));
+        }
+        return false;
+    }
+
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     if (document.isNull() || !document.isObject())
@@ -905,6 +1032,39 @@ PDFOCRProjectSerializer::MatchResult PDFOCRProjectSerializer::match(const PDFOCR
 // -------------------------------------------------------------------------
 // PDFOCRTextExporter
 // -------------------------------------------------------------------------
+
+QString PDFOCRTextExporter::getPageStateDescription(const PDFOCRPageResult& result)
+{
+    switch (result.state)
+    {
+        case PDFOCRPageState::Pending:
+            return PDFTranslationContext::tr("not recognized");
+
+        case PDFOCRPageState::Preparing:
+        case PDFOCRPageState::Recognizing:
+            return PDFTranslationContext::tr("recognition in progress");
+
+        case PDFOCRPageState::Done:
+            return PDFTranslationContext::tr("recognized");
+
+        case PDFOCRPageState::NoText:
+            return result.skipReason.isEmpty() ? PDFTranslationContext::tr("no text was recognized") : result.skipReason;
+
+        case PDFOCRPageState::Skipped:
+            return result.skipReason.isEmpty() ? PDFTranslationContext::tr("skipped") : PDFTranslationContext::tr("skipped, %1").arg(result.skipReason);
+
+        case PDFOCRPageState::Error:
+            return result.error.message.isEmpty() ? PDFTranslationContext::tr("recognition failed") : PDFTranslationContext::tr("recognition failed, %1").arg(result.error.message);
+
+        case PDFOCRPageState::Cancelled:
+            return PDFTranslationContext::tr("recognition was cancelled");
+
+        case PDFOCRPageState::Stale:
+            return PDFTranslationContext::tr("result is stale (settings changed)");
+    }
+
+    return QString();
+}
 
 QString PDFOCRTextExporter::getPageText(const PDFOCRPageResult& result, const Options& options)
 {
@@ -974,21 +1134,28 @@ QString PDFOCRTextExporter::exportText(const std::vector<const PDFOCRPageResult*
             continue;
         }
 
-        if (!page->hasResult())
-        {
-            if (report)
-            {
-                report->skippedPages.push_back(page->pageIndex);
-            }
-            continue;
-        }
-
-        QString pageText = getPageText(*page, options);
         QString description = PDFTranslationContext::tr("Page %1").arg(page->pageIndex + 1);
         if (!page->pageLabel.isEmpty() && page->pageLabel != QString::number(page->pageIndex + 1))
         {
             description += QStringLiteral(" (%1)").arg(page->pageLabel);
         }
+
+        if (!page->hasResult())
+        {
+            if (report)
+            {
+                report->skippedPages.push_back(page->pageIndex);
+                report->skippedDescriptions << QStringLiteral("%1: %2").arg(description, getPageStateDescription(*page));
+            }
+            continue;
+        }
+
+        if (page->state == PDFOCRPageState::NoText && report)
+        {
+            report->noTextDescriptions << QStringLiteral("%1: %2").arg(description, getPageStateDescription(*page));
+        }
+
+        QString pageText = getPageText(*page, options);
 
         switch (options.pageSeparator)
         {

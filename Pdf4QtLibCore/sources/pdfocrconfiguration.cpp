@@ -21,12 +21,14 @@
 // SOFTWARE.
 
 #include "pdfocrconfiguration.h"
+#include "pdfocrengine.h"
 #include "pdfutils.h"
 
 #include <QJsonArray>
 #include <QRegularExpression>
 
 #include <set>
+#include <algorithm>
 
 #include <cmath>
 
@@ -117,7 +119,7 @@ QStringList PDFOCRConfiguration::validate() const
 
     for (const QString& language : languages)
     {
-        if (language.isEmpty() || language.contains(QChar('/')) || language.contains(QChar('\\')) || language.contains(QStringLiteral("..")))
+        if (!isValidLanguageIdentifier(language))
         {
             errors << PDFTranslationContext::tr("Invalid language identifier '%1'.").arg(language);
         }
@@ -165,6 +167,131 @@ QStringList PDFOCRConfiguration::validate() const
     }
 
     return errors;
+}
+
+bool PDFOCRConfiguration::isValidLanguageIdentifier(const QString& language)
+{
+    // Language of the engine ("ces"), script model of the catalog ("script/Latin"),
+    // optionally with the import suffix ("ces@3f2a1b"). Any other slash, a backslash
+    // and ".." are refused, because the identifier becomes a part of a path (R11).
+    static const QRegularExpression expression(QStringLiteral("^(script/)?[A-Za-z][A-Za-z0-9_]*(@[A-Za-z0-9_.-]+)?$"));
+    return !language.isEmpty() &&
+           !language.contains(QStringLiteral("..")) &&
+           !language.contains(QChar('\\')) &&
+           expression.match(language).hasMatch();
+}
+
+QStringList PDFOCRConfiguration::validateEngineParameters(const QVariantMap& parameters,
+                                                          const std::vector<PDFOCREngineParameterDescriptor>& descriptors,
+                                                          QStringList* errors)
+{
+    QStringList localErrors;
+    QStringList accepted;
+
+    for (auto it = parameters.begin(); it != parameters.end(); ++it)
+    {
+        const QString& name = it.key();
+        const QVariant& value = it.value();
+
+        auto descriptorIt = std::find_if(descriptors.begin(), descriptors.end(), [&name](const PDFOCREngineParameterDescriptor& descriptor) { return descriptor.name == name; });
+        if (descriptorIt == descriptors.end())
+        {
+            localErrors << PDFTranslationContext::tr("Engine parameter '%1' is not supported.").arg(name);
+            continue;
+        }
+
+        const PDFOCREngineParameterDescriptor& descriptor = *descriptorIt;
+        bool convertible = false;
+        double numericValue = 0.0;
+
+        switch (descriptor.type)
+        {
+            case PDFOCREngineParameterDescriptor::Type::Boolean:
+            {
+                if (value.typeId() == QMetaType::Bool)
+                {
+                    convertible = true;
+                }
+                else if (value.typeId() == QMetaType::Int || value.typeId() == QMetaType::LongLong || value.typeId() == QMetaType::UInt || value.typeId() == QMetaType::ULongLong)
+                {
+                    const qlonglong integer = value.toLongLong();
+                    convertible = integer == 0 || integer == 1;
+                }
+                else if (value.typeId() == QMetaType::Double)
+                {
+                    convertible = value.toDouble() == 0.0 || value.toDouble() == 1.0;
+                }
+                else if (value.typeId() == QMetaType::QString)
+                {
+                    const QString text = value.toString().trimmed().toLower();
+                    convertible = text == QStringLiteral("true") || text == QStringLiteral("false") || text == QStringLiteral("1") || text == QStringLiteral("0");
+                }
+                break;
+            }
+
+            case PDFOCREngineParameterDescriptor::Type::Integer:
+            {
+                if (value.typeId() == QMetaType::Bool)
+                {
+                    convertible = false;
+                }
+                else if (value.typeId() == QMetaType::Double)
+                {
+                    const double doubleValue = value.toDouble();
+                    convertible = std::isfinite(doubleValue) && doubleValue == std::floor(doubleValue);
+                    numericValue = doubleValue;
+                }
+                else
+                {
+                    const qlonglong integer = value.toString().trimmed().toLongLong(&convertible);
+                    numericValue = double(integer);
+                }
+                break;
+            }
+
+            case PDFOCREngineParameterDescriptor::Type::Double:
+            {
+                if (value.typeId() == QMetaType::Bool)
+                {
+                    convertible = false;
+                }
+                else
+                {
+                    numericValue = value.toString().trimmed().toDouble(&convertible);
+                    convertible = convertible && std::isfinite(numericValue);
+                }
+                break;
+            }
+
+            case PDFOCREngineParameterDescriptor::Type::String:
+            {
+                convertible = value.canConvert<QString>() && !value.toString().contains(QChar('\n'));
+                break;
+            }
+        }
+
+        if (!convertible)
+        {
+            localErrors << PDFTranslationContext::tr("Value of the engine parameter '%1' has a wrong type.").arg(name);
+            continue;
+        }
+
+        const bool isNumeric = descriptor.type == PDFOCREngineParameterDescriptor::Type::Integer || descriptor.type == PDFOCREngineParameterDescriptor::Type::Double;
+        if (isNumeric && (numericValue < descriptor.minimum || numericValue > descriptor.maximum))
+        {
+            localErrors << PDFTranslationContext::tr("Value of the engine parameter '%1' must be in range %2-%3.").arg(name).arg(descriptor.minimum).arg(descriptor.maximum);
+            continue;
+        }
+
+        accepted << name;
+    }
+
+    if (errors)
+    {
+        *errors = localErrors;
+    }
+
+    return accepted;
 }
 
 bool PDFOCRConfiguration::isBasicLayout(PDFOCRLayout layout)

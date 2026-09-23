@@ -29,9 +29,11 @@
 #include "pdfocrconfiguration.h"
 
 #include <QObject>
+#include <QRegularExpression>
 
 #include <map>
 #include <optional>
+#include <functional>
 
 namespace pdf
 {
@@ -86,8 +88,24 @@ public:
     std::vector<PDFInteger> getPagesWithResults() const;
 
     /// Sets the result of the page (from the job). Regions of the existing
-    /// record are preserved, if the result has none. Not an undo step.
+    /// record are preserved, if the result has none. The review-only flag of
+    /// the result is kept as is. If the result has no raw recognition
+    /// (originalBlocks), its blocks become the raw recognition (DATA-02).
+    /// Not an undo step.
     void setPageResult(PDFOCRPageResult result);
+
+    /// Marks the result of the page as recognized for the review and the export
+    /// only (it must never be written into the PDF). The flag is a property of
+    /// the result, not an undo step; it survives the editing, undo/redo and the
+    /// project round trip (INPUT-04, EXPORT-03).
+    void setPageReviewOnly(PDFInteger pageIndex, bool reviewOnly);
+
+    /// Finds the word of the raw recognition of the page by its identifier
+    /// (the identifier at the time of the recognition), or nullptr (DATA-02)
+    const PDFOCRWord* findOriginalWord(PDFInteger pageIndex, int wordId) const;
+
+    /// Returns the words of the raw recognition of the page in reading order
+    std::vector<const PDFOCRWord*> getOriginalWords(PDFInteger pageIndex) const;
 
     /// Sets the transient state of the page (Preparing, Recognizing). Not an undo step.
     void setPageState(PDFInteger pageIndex, PDFOCRPageState state);
@@ -129,6 +147,23 @@ public:
     bool moveLine(PDFInteger pageIndex, int lineId, int newIndex);
     bool setLineBaseline(PDFInteger pageIndex, int lineId, const QLineF& baseline);
 
+    /// Merges two lines of the same block (EDIT-02): the words of the second line
+    /// are appended after the words of the first line and keep their identifiers,
+    /// the merged line gets a new identifier, its geometry is the oriented union
+    /// of both lines and its baseline runs from the start of the first line to the
+    /// end of the second line. Both lines must have the same text direction.
+    bool mergeLines(PDFInteger pageIndex, int firstLineId, int secondLineId, int* newLineId);
+
+    /// Splits the line after the given word (EDIT-02): the words after it are
+    /// moved into a new line, which is inserted right after the original line.
+    /// Geometries of both lines are recomputed from their words.
+    bool splitLine(PDFInteger pageIndex, int lineId, int afterWordId, int* newLineId);
+
+    /// Moves the line into another block at the given index (EDIT-02). An empty
+    /// source block is removed, geometries of the blocks are recomputed from their
+    /// lines. If the target block is the block of the line, the line is reordered.
+    bool moveLineToBlock(PDFInteger pageIndex, int lineId, int targetBlockId, int newIndex);
+
     // Candidates (EDIT-07) -----------------------------------------------
 
     enum class CandidateMode
@@ -160,18 +195,40 @@ public:
         bool wholeWords = false;
     };
 
+    /// Hit of the search. The search runs over the text of the line (words joined
+    /// by a single space, discarded words skipped), so a phrase spanning several
+    /// words is found too. For a hit inside a single word, position and length
+    /// are relative to the text of the word; for a hit touching several words
+    /// (or reaching beyond the text of its single word), position is the offset
+    /// in the text of the line.
     struct FindHit
     {
         PDFInteger pageIndex = -1;
+
+        /// First word of the hit
         int wordId = 0;
+
+        /// Line of the hit
+        int lineId = 0;
+
+        /// All words the hit touches, in reading order (at least one)
+        std::vector<int> wordIds;
+
         int position = 0;
         int length = 0;
+
+        /// True, if the hit lies inside the text of a single word (position and
+        /// length are then relative to the text of the word)
+        bool singleWord = false;
     };
 
     std::vector<FindHit> find(const std::vector<PDFInteger>& pages, const QString& text, const FindOptions& options) const;
 
     /// Replaces all occurrences in the pages. Returns number of replaced occurrences.
-    /// The whole replacement is a single undo step.
+    /// The whole replacement is a single undo step. A hit inside a single word
+    /// changes the text of the word; a hit spanning several words replaces the
+    /// substring of the line text, and the line is tokenized again (as by
+    /// setLineText, unchanged words keep their identity and geometry).
     int replaceAll(const std::vector<PDFInteger>& pages, const QString& text, const QString& replacement, const FindOptions& options);
 
     // Review navigation ----------------------------------------------------
@@ -251,6 +308,18 @@ private:
     void applyStep(const std::vector<std::pair<PDFInteger, PDFOCRPageResult>>& snapshot);
     void updateWordFlags(PDFOCRWord& word) const;
     PDFOCRPageResult* getEditablePage(PDFInteger pageIndex);
+
+    /// Replaces the words of the line by the tokens of the text, unchanged tokens
+    /// keep their geometry and identity (EDIT-03). Not an undo step by itself.
+    bool applyLineText(PDFOCRPageResult* page, PDFOCRLine* line, const QString& text);
+
+    /// Finds the hits of the expression in the text of the line (page index is not set)
+    static std::vector<FindHit> findInLine(const PDFOCRLine& line, const QRegularExpression& expression);
+
+    /// Returns the original text of the word for the restoration: the historical
+    /// text of the word, or the concatenation of the original texts of its
+    /// predecessors in the raw recognition. Empty, if not available.
+    static QString getRestorableText(const PDFOCRPageResult& page, const PDFOCRWord& word);
 
     const PDFDocument* m_document = nullptr;
     PDFOCRDocumentIdentity m_identity;

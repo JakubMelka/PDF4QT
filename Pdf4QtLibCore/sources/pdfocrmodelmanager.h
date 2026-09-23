@@ -30,6 +30,7 @@
 
 #include <QObject>
 #include <QMutex>
+#include <QThreadPool>
 #include <QJsonObject>
 
 #include <map>
@@ -209,8 +210,14 @@ public:
     void setModelHidden(const QString& id, bool hidden);
 
     /// Resolves the model set for the recognition (LANG-05, LANG-06). Builds
-    /// an immutable unified runtime set from the built-in and user models.
-    /// Never falls back to a different model silently.
+    /// an immutable unified runtime set from the built-in and user models,
+    /// including the installed dependencies of the selected models (from the
+    /// catalog). Never falls back to a different model silently.
+    ///
+    /// The function can be called from a worker thread (R12): it works on a
+    /// snapshot of the model list and of the catalog taken under the mutex and
+    /// touches only the file system. The directories of the manager must not be
+    /// changed while it runs.
     PDFOCRResolvedModelSet resolveModelSet(const QString& engineId,
                                            const QStringList& languages,
                                            PDFOCRModelProfile profile,
@@ -243,8 +250,21 @@ public:
     /// Removes the user model (downloaded or imported), never a built-in model (LANG-12)
     PDFOCRError removeUserModel(const QString& modelId);
 
-    /// Removes all runtime sets (cache); models are preserved (OPS-06)
+    /// Removes all runtime sets (cache); models are preserved (OPS-06). Sets leased
+    /// by a running recognition are kept (LANG-07).
     PDFOCRError cleanRuntimeSets();
+
+    /// Acquires the lease of the runtime set (LANG-07): a running recognition holds
+    /// the lease for its lifetime, so the housekeeping and the cache cleanup (also of
+    /// another instance of the application) do not remove the set. The lease is the
+    /// lock file "<set directory>/in-use.<pid>.<counter>.lock", the set directory is
+    /// the parent of the data path ("tessdata"). Returns nullptr, if the data path is
+    /// not a runtime set of the manager (for example the data of a test engine).
+    static std::unique_ptr<QLockFile> acquireRuntimeSetLease(const QString& dataPath);
+
+    /// Returns true, if any lease of the runtime set is held by a living process.
+    /// Stale leases of dead processes are removed.
+    static bool isRuntimeSetInUse(const QString& setDirectory);
 
     /// Returns the runtime directory
     QString getRuntimeDirectory(const QString& engineId) const;
@@ -288,6 +308,15 @@ private:
         qint64 received = 0;
         bool cancelled = false;
         bool writeFailed = false;   ///< Data cannot be written (full disk), reported as such and not as a wrong checksum
+        bool verifying = false;     ///< Hash, verification and installation run in the worker thread
+    };
+
+    /// Outcome of the verification and the installation of the downloaded file
+    struct VerificationOutcome
+    {
+        bool success = false;
+        PDFOCRModelState failureState = PDFOCRModelState::Error;
+        QString message;
     };
 
     struct InstalledFile
@@ -303,6 +332,9 @@ private:
         QString license;
         qint64 size = 0;
         bool verified = false;
+
+        /// Version of the engine, for which the model was installed (LANG-12)
+        QString engineVersion;
     };
 
     void scanBuiltIn(std::vector<InstalledFile>& files) const;
@@ -312,16 +344,37 @@ private:
     void startNextDownloads();
     void onDownloadReadyRead(Download* download);
     void onDownloadFinished(Download* download);
-    void finishDownload(std::unique_ptr<Download> download, bool success, const QString& message);
-    PDFOCRError validateModelFile(const QString& engineId, const QString& filePath, const QString& language) const;
-    PDFOCRError installModelFile(const QString& temporaryPath, const QString& targetPath) const;
+    void completeDownload(Download* download, const VerificationOutcome& outcome);
+    void finishDownload(std::unique_ptr<Download> download, bool success, const QString& message, PDFOCRModelState failureState = PDFOCRModelState::Error);
+
+    /// Verifies the hash and the loadability of the downloaded file and installs it
+    /// (runs in the worker thread, R12). All inputs are copies, the manager is not touched.
+    static VerificationOutcome verifyAndInstall(const QString& userDirectory,
+                                                const ModelValidator& validator,
+                                                const PDFOCRCatalogEntry& entry,
+                                                const QString& temporaryPath,
+                                                const QString& targetPath,
+                                                const QString& engineVersion);
+
+    static PDFOCRError validateModelFile(const QString& userDirectory, const ModelValidator& validator, const QString& engineId, const QString& filePath, const QString& language);
+    static PDFOCRError installModelFile(const QString& userDirectory, const QString& temporaryPath, const QString& targetPath);
     QString getModelTargetPath(const PDFOCRCatalogEntry& entry) const;
     void updateModelState(const QString& id, PDFOCRModelState state, const QString& errorMessage, int progress);
     static QString sanitizeIdentifier(const QString& identifier);
     static QString computeSha256(const QString& filePath);
     static bool isValidLanguageCode(const QString& language);
     static QString getProfileDirectoryName(PDFOCRModelProfile profile);
-    PDFOCRError acquireLock(std::unique_ptr<QLockFile>& lock) const;
+    static PDFOCRError acquireLock(const QString& userDirectory, std::unique_ptr<QLockFile>& lock);
+    PDFOCRError acquireLock(std::unique_ptr<QLockFile>& lock) const { return acquireLock(m_userDirectory, lock); }
+
+    /// Returns the version of the engine registered in the registry (empty, if the engine is not registered)
+    static QString getEngineVersion(const QString& engineId);
+
+    /// Returns the major version of the version string ("5.3.1" -> 5), or -1
+    static int getMajorVersion(const QString& version);
+
+    /// Returns the path of the installation metadata of the downloaded model
+    static QString getInstallMetadataPath(const QString& modelPath);
 
     /// Returns true, if the path lies inside of the directory
     static bool isInsideDirectory(const QString& path, const QString& directory);
@@ -338,7 +391,9 @@ private:
     PDFOCRCatalog m_catalog;
     std::vector<PDFOCRModelInfo> m_models;
     QStringList m_hiddenModels;
-    std::map<QString, QString> m_errorStates;
+
+    /// Failure states of the last download attempts (Error or Incompatible) with the message
+    std::map<QString, std::pair<PDFOCRModelState, QString>> m_errorStates;
     QNetworkAccessManager* m_networkAccessManager = nullptr;
     bool m_ownsNetworkAccessManager = false;
     bool m_housekeepingDone = false;
@@ -347,6 +402,9 @@ private:
     int m_maximumParallelDownloads = 2;
     bool m_allowInsecureLoopback = false;
     ModelValidator m_validator;
+
+    /// Worker of the verification and installation of the downloads (R12)
+    QThreadPool m_verificationPool;
 };
 
 }   // namespace pdf

@@ -43,6 +43,8 @@
 
 #include <QElapsedTimer>
 
+class QLockFile;
+
 namespace pdf
 {
 class PDFCMS;
@@ -119,6 +121,16 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRJobSummary
     /// Critical error, which stopped the job (initialization, models, ...)
     PDFOCRError criticalError;
 
+    /// Number of workers requested by the configuration (limited by the page count)
+    int requestedWorkerCount = 0;
+
+    /// Number of workers actually used. Lower than requested, when the models of all
+    /// workers do not fit into the memory budget (JOB-09, JOB-10, R13).
+    int workerCount = 0;
+
+    /// Estimated memory of the model set of one worker in bytes
+    qint64 modelMemoryBytes = 0;
+
     bool isPartial() const { return errorPages > 0 || cancelledPages > 0; }
 };
 
@@ -165,6 +177,10 @@ public:
     /// Returns true, if page is queued or being processed
     bool isPagePending(PDFInteger pageIndex) const;
 
+    /// Estimates the memory of the model set (sum of the sizes of the model files
+    /// of the data path, recursively). Returns 0 for an unknown or empty path.
+    static qint64 estimateModelBytes(const QString& dataPath);
+
 signals:
     /// Page entered a new state (Preparing, Recognizing)
     void pageStateChanged(int generation, qint64 pageIndex, int state, QString phase);
@@ -194,13 +210,21 @@ private:
         int activeWorkers = 0;
         QElapsedTimer timer;
         bool criticalErrorReported = false;
+
+        /// Lease of the runtime model set, held for the lifetime of the job (LANG-07)
+        std::unique_ptr<QLockFile> runtimeSetLease;
     };
 
     void workerMain(std::shared_ptr<Job> job);
     PDFOCRPageResult processPage(Job& job, const PDFOCRPageTask& task, PDFOCREngine* engine, const PDFOperationControl* operationControl);
     void finishPage(Job& job, PDFOCRPageResult result);
     void finishJob(Job& job);
-    bool acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl);
+
+    /// Acquires the memory for the page rasters. A request larger than the budget
+    /// available for the rasters is refused with an OutOfMemory error (never waited
+    /// for, never let through, R13), otherwise the function waits until the memory
+    /// is released by other workers.
+    bool acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, PDFOCRError* error);
     void releaseMemory(qint64 bytes);
 
     const PDFDocument* m_document = nullptr;
@@ -219,6 +243,9 @@ private:
     int m_generation = 0;
     qint64 m_memoryUsed = 0;
     qint64 m_memoryBudget = qint64(1) << 30;
+
+    /// Memory reserved for the models of the workers (part of m_memoryUsed)
+    qint64 m_memoryReserved = 0;
 };
 
 }   // namespace pdf

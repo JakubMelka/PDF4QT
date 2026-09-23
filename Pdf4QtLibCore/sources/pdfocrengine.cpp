@@ -35,11 +35,13 @@ namespace pdf
 std::optional<PDFOCROrientation> PDFOCREngine::detectOrientation(const QImage& image,
                                                                  double dpi,
                                                                  const PDFOperationControl* operationControl,
-                                                                 PDFOCRError* error)
+                                                                 PDFOCRError* error,
+                                                                 qint64 remainingMilliseconds)
 {
     Q_UNUSED(image);
     Q_UNUSED(dpi);
     Q_UNUSED(operationControl);
+    Q_UNUSED(remainingMilliseconds);
 
     if (error)
     {
@@ -197,6 +199,12 @@ public:
             return output;
         }
 
+        if (input.remainingMilliseconds == 0)
+        {
+            output.error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition exceeded the time limit of the page."), PDFTranslationContext::tr("Recognition"));
+            return output;
+        }
+
         const int delay = m_factory->getRecognitionDelay();
         if (delay > 0)
         {
@@ -208,6 +216,13 @@ public:
                 {
                     output.cancelled = true;
                     output.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."));
+                    return output;
+                }
+
+                // The deadline of the page is honoured by the simulated recognition (JOB-06)
+                if (input.remainingMilliseconds > 0 && timer.elapsed() >= input.remainingMilliseconds)
+                {
+                    output.error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition exceeded the time limit of the page."), PDFTranslationContext::tr("Recognition"));
                     return output;
                 }
 
@@ -274,6 +289,12 @@ PDFOCREngineCapabilities PDFOCRTestEngineFactory::getCapabilities() const
     capabilities.supportsCancellation = true;
     capabilities.supportsProgress = true;
     capabilities.supportsMultipleLanguages = true;
+
+    // No parameter schema: the test engine accepts any engine parameter, the tests
+    // pass their data (page index, flags) through the parameters to the handler.
+
+    QMutexLocker lock(&m_mutex);
+    capabilities.maximumImageSize = m_maximumImageSize;
     return capabilities;
 }
 
@@ -311,6 +332,12 @@ int PDFOCRTestEngineFactory::getRecognitionDelay() const
 {
     QMutexLocker lock(&m_mutex);
     return m_recognitionDelay;
+}
+
+void PDFOCRTestEngineFactory::setMaximumImageSize(QSize size)
+{
+    QMutexLocker lock(&m_mutex);
+    m_maximumImageSize = size;
 }
 
 }   // namespace pdf

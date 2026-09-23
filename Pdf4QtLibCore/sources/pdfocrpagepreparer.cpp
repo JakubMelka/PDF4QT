@@ -101,6 +101,7 @@ protected:
         if (mode == TextRenderingMode::Invisible || mode == TextRenderingMode::Clip)
         {
             ++invisibleCharacterCount;
+            m_invisibleCharacterRects.push_back(getCharacterRect(info));
             return;
         }
 
@@ -113,16 +114,39 @@ protected:
             return;
         }
 
+        VisibleCharacter character;
+        character.rect = getCharacterRect(info);
+        m_visibleCharacters.push_back(character);
+        ++visibleCharacterCount;
+    }
+
+public:
+    /// Returns rectangles of the visible characters (canonical page space)
+    std::vector<QRectF> getVisibleCharacterRects() const
+    {
+        std::vector<QRectF> rects;
+        rects.reserve(m_visibleCharacters.size());
+        for (const VisibleCharacter& character : m_visibleCharacters)
+        {
+            rects.push_back(character.rect);
+        }
+        return rects;
+    }
+
+    /// Returns rectangles of the invisible characters (canonical page space)
+    const std::vector<QRectF>& getInvisibleCharacterRects() const { return m_invisibleCharacterRects; }
+
+protected:
+    /// Rectangle of the character in the canonical page space. A glyphless font
+    /// (invisible OCR text) has no outline, the advance and the font size are used.
+    static QRectF getCharacterRect(const PDFTextCharacterInfo& info)
+    {
         QRectF boundingRect = info.outline.boundingRect();
         if (boundingRect.isEmpty())
         {
             boundingRect = QRectF(0.0, 0.0, info.advance, info.fontSize);
         }
-
-        VisibleCharacter character;
-        character.rect = info.matrix.mapRect(boundingRect);
-        m_visibleCharacters.push_back(character);
-        ++visibleCharacterCount;
+        return info.matrix.mapRect(boundingRect);
     }
 
     virtual void performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order) override
@@ -208,7 +232,41 @@ private:
 
     QRectF m_cropBox;
     std::vector<VisibleCharacter> m_visibleCharacters;
+    std::vector<QRectF> m_invisibleCharacterRects;
 };
+
+/// Merges the rectangles of the characters into the rectangles of the lines: characters
+/// with an overlapping vertical extent and a small horizontal gap form one rectangle.
+static std::vector<QRectF> clusterTextRectangles(std::vector<QRectF> characters)
+{
+    std::erase_if(characters, [](const QRectF& rect) { return !rect.isValid() || rect.isEmpty() || !std::isfinite(rect.left()) || !std::isfinite(rect.top()) || !std::isfinite(rect.width()) || !std::isfinite(rect.height()); });
+    std::sort(characters.begin(), characters.end(), [](const QRectF& left, const QRectF& right) { return left.left() < right.left(); });
+
+    std::vector<QRectF> lines;
+    for (const QRectF& character : characters)
+    {
+        bool merged = false;
+        for (QRectF& line : lines)
+        {
+            const double verticalOverlap = qMin(line.bottom(), character.bottom()) - qMax(line.top(), character.top());
+            const double minimumHeight = qMin(line.height(), character.height());
+            const double horizontalGap = qMax(line.left(), character.left()) - qMin(line.right(), character.right());
+            if (verticalOverlap > 0.5 * minimumHeight && horizontalGap < 2.0 * character.height())
+            {
+                line = line.united(character);
+                merged = true;
+                break;
+            }
+        }
+
+        if (!merged)
+        {
+            lines.push_back(character);
+        }
+    }
+
+    return lines;
+}
 
 // -------------------------------------------------------------------------
 // PDFOCRPagePreparer
@@ -230,10 +288,24 @@ PDFOCRPagePreparer::PDFOCRPagePreparer(const PDFDocument* document,
 
 }
 
+std::vector<const PDFOCRRegion*> PDFOCRPagePreparer::getRegionsCollidingWithText(const PDFOCRPageAnalysis& analysis, const std::vector<PDFOCRRegion>& regions)
+{
+    std::vector<const PDFOCRRegion*> colliding;
+    for (const PDFOCRRegion& region : regions)
+    {
+        if (region.type == PDFOCRRegionType::Recognize && intersectsAny(region.rect, analysis.textRectangles))
+        {
+            colliding.push_back(&region);
+        }
+    }
+    return colliding;
+}
+
 PDFOCRPagePreparer::PolicyDecision PDFOCRPagePreparer::evaluateExistingTextPolicy(const PDFOCRPageAnalysis& analysis,
                                                                                  PDFOCRExistingTextPolicy policy,
                                                                                  bool hasInclusiveRegions,
-                                                                                 QString* reason)
+                                                                                 QString* reason,
+                                                                                 const std::vector<PDFOCRRegion>* regions)
 {
     auto decide = [reason](PolicyDecision decision, const QString& text)
     {
@@ -243,6 +315,22 @@ PDFOCRPagePreparer::PolicyDecision PDFOCRPagePreparer::evaluateExistingTextPolic
         }
         return decision;
     };
+
+    // An inclusive region over the existing text is a collision (chapter 6.2): the
+    // recognized words would be written over a digital or a foreign text
+    if (regions && policy != PDFOCRExistingTextPolicy::ReviewOnly)
+    {
+        const std::vector<const PDFOCRRegion*> colliding = getRegionsCollidingWithText(analysis, *regions);
+        if (!colliding.empty())
+        {
+            QStringList names;
+            for (const PDFOCRRegion* region : colliding)
+            {
+                names << (region->name.isEmpty() ? QString::number(region->id) : region->name);
+            }
+            return decide(PolicyDecision::NeedsDecision, PDFTranslationContext::tr("Region(s) %1 overlap the existing text of the page. Move the regions, or recognize the page for the review only.").arg(names.join(QStringLiteral(", "))));
+        }
+    }
 
     switch (policy)
     {
@@ -389,8 +477,11 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
         }
     }
 
-    // Own OCR layer
-    PDFOCRTextLayerWriter::LayerInfo layerInfo = PDFOCRTextLayerWriter::readLayerInfo(m_document, pageIndex);
+    // Own OCR layer. Only a layer bound to its content is the own layer; a layer
+    // changed by another tool is a foreign invisible text (INPUT-05).
+    std::vector<QRectF> ownLayerWordRects;
+    PDFOCRTextLayerWriter::LayerInfo layerInfo;
+    const std::optional<PDFOCRPageResult> ownLayer = PDFOCRTextLayerWriter::readLayer(m_document, pageIndex, &layerInfo);
     if (layerInfo.isPresent)
     {
         analysis.hasOwnOCRLayer = true;
@@ -400,7 +491,42 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
         {
             analysis.notes << PDFTranslationContext::tr("Own OCR layer metadata do not match the current page content (page was modified by another tool).");
         }
+        if (!layerInfo.isContentOwn)
+        {
+            analysis.notes << PDFTranslationContext::tr("The text layer of the own OCR was changed by another tool; it is treated as a foreign text.");
+        }
+
+        if (ownLayer)
+        {
+            for (const PDFOCRWord* word : ownLayer->getWords())
+            {
+                ownLayerWordRects.push_back(word->quad.boundingRect());
+            }
+        }
     }
+
+    // Rectangles of the existing text (INPUT-04, chapter 6.2): visible digital text and
+    // invisible text of foreign origin; the text of the own layer is not a collision.
+    std::vector<QRectF> characterRects = analyzer.getVisibleCharacterRects();
+    int foreignInvisibleCharacterCount = 0;
+    for (const QRectF& rect : analyzer.getInvisibleCharacterRects())
+    {
+        bool isOwn = false;
+        for (const QRectF& ownRect : ownLayerWordRects)
+        {
+            if (ownRect.adjusted(-0.5, -0.5, 0.5, 0.5).contains(rect.center()))
+            {
+                isOwn = true;
+                break;
+            }
+        }
+        if (!isOwn)
+        {
+            ++foreignInvisibleCharacterCount;
+            characterRects.push_back(rect);
+        }
+    }
+    analysis.textRectangles = clusterTextRectangles(std::move(characterRects));
 
     analysis.isTagged = isTaggedDocument(m_document);
 
@@ -408,6 +534,7 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
     constexpr int UsableTextThreshold = 40;
     const bool usableVisibleText = analyzer.visibleCharacterCount - analyzer.coveredCharacterCount >= UsableTextThreshold;
     const bool hasContent = analyzer.visibleCharacterCount > 0 || analyzer.invisibleCharacterCount > 0 || analyzer.imageCount > 0 || analyzer.pathCount > 0;
+    const bool hasAnyForeignText = analyzer.visibleCharacterCount > 0 || foreignInvisibleCharacterCount > 0;
 
     analysis.hasVisibleText = usableVisibleText;
 
@@ -423,9 +550,16 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
     {
         analysis.contentClass = PDFOCRPageContentClass::VisibleText;
     }
-    else if (analyzer.invisibleCharacterCount >= UsableTextThreshold)
+    else if (foreignInvisibleCharacterCount >= UsableTextThreshold)
     {
         analysis.contentClass = PDFOCRPageContentClass::InvisibleText;
+    }
+    else if (analyzer.imageCount > 0 && hasAnyForeignText)
+    {
+        // A scan with a small digital text (page number, stamp) or a short foreign
+        // invisible text is a mixed page: it must not be accepted automatically as
+        // a page without text, the OCR could write over the existing text (INPUT-02)
+        analysis.contentClass = PDFOCRPageContentClass::Mixed;
     }
     else if (analyzer.imageCount > 0)
     {
@@ -466,12 +600,12 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
 
     if (analyzer.visibleCharacterCount > 0 && !usableVisibleText && analyzer.imageCount > 0)
     {
-        analysis.notes << PDFTranslationContext::tr("Page contains a small amount of digital text (%n character(s)), for example a page number.", nullptr, analyzer.visibleCharacterCount);
+        analysis.notes << PDFTranslationContext::tr("Page contains a small amount of digital text (%n character(s)), for example a page number. Decide, whether the page is recognized with the existing text masked.", nullptr, analyzer.visibleCharacterCount);
     }
 
-    if (analyzer.invisibleCharacterCount > 0 && !analysis.hasOwnOCRLayer)
+    if (foreignInvisibleCharacterCount > 0)
     {
-        analysis.notes << PDFTranslationContext::tr("Page contains invisible text of foreign origin (%n character(s)).", nullptr, analyzer.invisibleCharacterCount);
+        analysis.notes << PDFTranslationContext::tr("Page contains invisible text of foreign origin (%n character(s)).", nullptr, foreignInvisibleCharacterCount);
     }
 
     if (analysis.hasUnappliedRedactions)
@@ -497,28 +631,9 @@ bool PDFOCRPagePreparer::hasConformanceDeclaration(const PDFDocument* document, 
         return false;
     }
 
+    // The properties are identified by their namespace, whatever prefix the producer used (PDF-15)
     const QByteArray metadata = document->getDecodedStream(metadataObject.getStream());
-    bool result = false;
-
-    if (metadata.contains("http://www.aiim.org/pdfa/ns/id/") || metadata.contains("pdfaid:part"))
-    {
-        result = true;
-        if (declarations)
-        {
-            *declarations << QStringLiteral("PDF/A");
-        }
-    }
-
-    if (metadata.contains("http://www.aiim.org/pdfua/ns/id/") || metadata.contains("pdfuaid:part"))
-    {
-        result = true;
-        if (declarations)
-        {
-            *declarations << QStringLiteral("PDF/UA");
-        }
-    }
-
-    return result;
+    return PDFOCRTextLayerWriter::findConformanceDeclarations(metadata, declarations, nullptr);
 }
 
 static QString toRoman(PDFInteger number, bool uppercase)
@@ -651,19 +766,30 @@ static QByteArray digestObject(const PDFObject& object,
 
     if ((object.isStream() || object.isDictionary() || object.isArray()) && depth <= 0)
     {
-        // Depth of the nesting is limited
-        return QByteArrayLiteral("X");
+        // Depth of the nesting is limited (protection against a pathological structure);
+        // the object is digested in its serialized form, so different objects at the
+        // limit have different digests (no common constant).
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        hash.addData(QByteArrayLiteral("X"));
+        hash.addData(PDFDocumentWriter::getSerializedObject(object.isStream() ? PDFObject::createDictionary(std::make_shared<PDFDictionary>(*object.getStream()->getDictionary())) : object));
+        if (object.isStream())
+        {
+            hash.addData(*object.getStream()->getContent());
+        }
+        return hash.result();
     }
 
     if (object.isStream())
     {
+        // The whole (raw) content of the stream: a changed image or a changed appearance
+        // must change the fingerprint (EXPORT-04, INPUT-05)
         const PDFStream* stream = object.getStream();
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(QByteArrayLiteral("S"));
         hash.addData(digestObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())), storage, depth, visited, skipKey));
         const QByteArray* content = stream->getContent();
         hash.addData(QByteArray::number(content->size()));
-        hash.addData(content->left(4096));
+        hash.addData(*content);
         return hash.result();
     }
 
@@ -738,7 +864,7 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     const PDFObjectStorage* storage = &document->getStorage();
 
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData(QByteArrayLiteral("PDF4QT-OCR-PAGE-FINGERPRINT-1"));
+    hash.addData(QByteArrayLiteral("PDF4QT-OCR-PAGE-FINGERPRINT-2"));
 
     auto addRect = [&hash](const QRectF& rect)
     {
@@ -783,13 +909,34 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
         hash.addData(data);
     }
 
-    // Resources (own font is excluded)
+    // Resources (own font is excluded). The back references to the page tree and to
+    // the page are skipped, cycles are detected by the path from the root.
     std::set<PDFObjectReference> visited;
     auto skipKey = [](const QByteArray& key)
     {
-        return key.startsWith(PDFOCRTextLayerWriter::FONT_RESOURCE_PREFIX);
+        return key.startsWith(PDFOCRTextLayerWriter::FONT_RESOURCE_PREFIX) || key == "Parent" || key == "P";
     };
-    hash.addData(digestObject(page->getResources(), storage, 4, visited, skipKey));
+    constexpr int MaximumDepth = 64;
+    hash.addData(QByteArrayLiteral("RES"));
+    hash.addData(digestObject(page->getResources(), storage, MaximumDepth, visited, skipKey));
+
+    // Annotations: their rectangles, flags and appearances cover the page content and
+    // an unapplied redaction blocks the recognition (IMAGE-03, PDF-13)
+    hash.addData(QByteArrayLiteral("ANNOTS"));
+    for (const PDFObjectReference& annotationReference : page->getAnnotations())
+    {
+        hash.addData(digestObject(PDFObject::createReference(annotationReference), storage, MaximumDepth, visited, skipKey));
+    }
+
+    // Default configuration of the optional content (visibility of the layers, JOB-10)
+    hash.addData(QByteArrayLiteral("OC"));
+    if (const PDFDictionary* catalogDictionary = document->getDictionaryFromObject(document->getTrailerDictionary()->get("Root")))
+    {
+        if (const PDFDictionary* properties = document->getDictionaryFromObject(catalogDictionary->get("OCProperties")))
+        {
+            hash.addData(digestObject(properties->get("D"), storage, MaximumDepth, visited, skipKey));
+        }
+    }
 
     return hash.result();
 }
@@ -816,8 +963,10 @@ PDFRenderer::Features PDFOCRPagePreparer::getRasterizationFeatures()
 
 QSize PDFOCRPagePreparer::getRasterSize(const PDFPage* page, double dpi)
 {
+    // The user unit scales the user space, so the raster has the requested physical resolution (IMAGE-01)
+    const double userUnit = page->getUserUnit() > 0.0 && std::isfinite(page->getUserUnit()) ? page->getUserUnit() : 1.0;
     const QSizeF sizeInPoints = page->getRotatedCropBox().size();
-    const double scale = dpi * PDF_POINT_TO_INCH;
+    const double scale = dpi * PDF_POINT_TO_INCH * userUnit;
     const double width = sizeInPoints.width() * scale;
     const double height = sizeInPoints.height() * scale;
 
@@ -830,32 +979,46 @@ QSize PDFOCRPagePreparer::getRasterSize(const PDFPage* page, double dpi)
     return QSize(qMax(1, qRound(width)), qMax(1, qRound(height)));
 }
 
-double PDFOCRPagePreparer::getLimitedDpi(const PDFPage* page, double dpi, qint64 maximumPixels)
+double PDFOCRPagePreparer::getLimitedDpi(const PDFPage* page, double dpi, qint64 maximumPixels, int maximumDimension)
 {
-    const QSizeF sizeInPoints = page->getRotatedCropBox().size();
-    const double areaInInches = sizeInPoints.width() * sizeInPoints.height() * PDF_POINT_TO_INCH * PDF_POINT_TO_INCH;
+    // Physical size of the page: the user unit scales the user space (IMAGE-01, GEOM-01)
+    const double userUnit = page->getUserUnit() > 0.0 && std::isfinite(page->getUserUnit()) ? page->getUserUnit() : 1.0;
+    const QSizeF sizeInInches = page->getRotatedCropBox().size() * (PDF_POINT_TO_INCH * userUnit);
+    const double areaInInches = sizeInInches.width() * sizeInInches.height();
 
-    if (!std::isfinite(areaInInches) || areaInInches <= 0.0 || maximumPixels <= 0)
+    if (!std::isfinite(areaInInches) || areaInInches <= 0.0)
     {
         return dpi;
     }
 
-    const double pixels = areaInInches * dpi * dpi;
-    if (pixels <= double(maximumPixels))
+    double limitedDpi = dpi;
+    if (maximumPixels > 0 && areaInInches * dpi * dpi > double(maximumPixels))
+    {
+        limitedDpi = std::floor(std::sqrt(double(maximumPixels) / areaInInches));
+    }
+
+    const double longerSide = qMax(sizeInInches.width(), sizeInInches.height());
+    if (maximumDimension > 0 && longerSide * limitedDpi > double(maximumDimension))
+    {
+        limitedDpi = std::min(limitedDpi, std::floor(double(maximumDimension) / longerSide));
+    }
+
+    if (limitedDpi >= dpi)
     {
         return dpi;
     }
 
-    double limitedDpi = std::floor(std::sqrt(double(maximumPixels) / areaInInches));
+    auto fits = [&](double candidate)
+    {
+        const QSize size = getRasterSize(page, candidate);
+        return size.isValid() &&
+               (maximumPixels <= 0 || qint64(size.width()) * qint64(size.height()) <= maximumPixels) &&
+               (maximumDimension <= 0 || (size.width() <= maximumDimension && size.height() <= maximumDimension));
+    };
 
     // Size of the raster is rounded, so the limit can still be exceeded by a few pixels
-    for (int i = 0; i < 8 && limitedDpi > 1.0; ++i)
+    for (int i = 0; i < 8 && limitedDpi > 1.0 && !fits(limitedDpi); ++i)
     {
-        const QSize size = getRasterSize(page, limitedDpi);
-        if (size.isValid() && qint64(size.width()) * qint64(size.height()) <= maximumPixels)
-        {
-            break;
-        }
         limitedDpi -= 1.0;
     }
 
@@ -884,7 +1047,8 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
                                                                double dpi,
                                                                const std::vector<QRectF>& maskedRectangles,
                                                                qint64 maximumPixels,
-                                                               const PDFOperationControl* operationControl) const
+                                                               const PDFOperationControl* operationControl,
+                                                               int maximumDimension) const
 {
     RasterResult result;
 
@@ -903,7 +1067,7 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
     geometry.rotation = int(page->getPageRotation()) * 90;
     geometry.userUnit = page->getUserUnit();
     geometry.requestedDpi = dpi;
-    geometry.dpi = getLimitedDpi(page, dpi, maximumPixels);
+    geometry.dpi = getLimitedDpi(page, dpi, maximumPixels, maximumDimension);
 
     if (geometry.dpi < 1.0)
     {
@@ -918,7 +1082,8 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
         return result;
     }
 
-    if (qint64(size.width()) * qint64(size.height()) > maximumPixels && maximumPixels > 0)
+    if ((qint64(size.width()) * qint64(size.height()) > maximumPixels && maximumPixels > 0) ||
+        (maximumDimension > 0 && (size.width() > maximumDimension || size.height() > maximumDimension)))
     {
         result.error = PDFOCRError::create(PDFOCRErrorCode::ImageTooLarge, PDFTranslationContext::tr("Raster of the page %1 (%2 x %3 pixels) exceeds the limit. Select a lower resolution or a smaller region.").arg(pageIndex + 1).arg(size.width()).arg(size.height()), PDFTranslationContext::tr("Rasterization"));
         return result;
@@ -1242,7 +1407,36 @@ std::vector<std::pair<int, QRect>> PDFOCRPagePreparer::getRecognitionRectangles(
         {
             continue;
         }
-        result.emplace_back(region->id, rect);
+
+        // Overlapping inclusive regions with the same configuration are united, so no
+        // point of the page is recognized twice because of the overlap (REGION-01,
+        // REGION-02). Regions with a different configuration are recognized separately;
+        // the user resolves such overlaps before the run.
+        bool united = false;
+        for (auto& item : result)
+        {
+            const PDFOCRRegion* existing = nullptr;
+            for (const PDFOCRRegion* candidate : inclusiveRegions)
+            {
+                if (candidate->id == item.first)
+                {
+                    existing = candidate;
+                    break;
+                }
+            }
+
+            if (existing && item.second.intersects(rect) && existing->configuration == region->configuration)
+            {
+                item.second = item.second.united(rect);
+                united = true;
+                break;
+            }
+        }
+
+        if (!united)
+        {
+            result.emplace_back(region->id, rect);
+        }
     }
 
     if (result.empty() && inclusiveRegions.empty())
@@ -1456,30 +1650,44 @@ static double getIntersectionOverUnion(const QRectF& first, const QRectF& second
     return unionArea > 0.0 ? intersectionArea / unionArea : 0.0;
 }
 
-static double getOverlapRatio(const QRectF& first, const QRectF& second)
+bool PDFOCRPagePreparer::intersectsAny(const QRectF& rect, const std::vector<QRectF>& rectangles)
 {
-    const QRectF intersection = first.intersected(second);
-    if (intersection.isEmpty())
+    for (const QRectF& other : rectangles)
     {
-        return 0.0;
+        const QRectF intersection = rect.intersected(other);
+        if (intersection.width() > 0.0 && intersection.height() > 0.0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFOCRPagePreparer::updateExcludedRegionFlags(PDFOCRPageResult& result)
+{
+    std::vector<QRectF> excludedRectangles = result.analysis.redactionRectangles;
+    for (const PDFOCRRegion& region : result.regions)
+    {
+        if (region.type == PDFOCRRegionType::Exclude)
+        {
+            excludedRectangles.push_back(region.rect);
+        }
     }
 
-    const double smaller = qMin(first.width() * first.height(), second.width() * second.height());
-    if (smaller <= 0.0)
+    for (PDFOCRWord* word : result.getWords())
     {
-        return 0.0;
+        word->overlapsExcludedRegion = intersectsAny(word->quad.boundingRect(), excludedRectangles);
     }
-
-    return intersection.width() * intersection.height() / smaller;
 }
 
 void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                                       const PDFOCRRecognitionOutput& output,
                                       const PDFOCRPageGeometry& geometry,
                                       int regionId,
-                                      const std::vector<QRectF>& excludedRectangles)
+                                      const std::vector<QRectF>& excludedRectangles,
+                                      const QTransform& outputToEngine)
 {
-    const QTransform imageToPage = geometry.getEngineToPage();
+    const QTransform imageToPage = outputToEngine * geometry.getEngineToPage();
 
     // Existing words (for the deduplication, REGION-05). Only the words of the
     // previous recognitions (other regions) are compared, words of this output
@@ -1577,15 +1785,8 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                     continue;
                 }
 
-                // Excluded regions (REGION-05)
-                for (const QRectF& excluded : excludedRectangles)
-                {
-                    if (getOverlapRatio(excluded, wordRect) > 0.05)
-                    {
-                        word.overlapsExcludedRegion = true;
-                        break;
-                    }
-                }
+                // Excluded regions (REGION-05): any overlap with a positive area
+                word.overlapsExcludedRegion = intersectsAny(wordRect, excludedRectangles);
 
                 line.words.push_back(std::move(word));
             }
