@@ -31,6 +31,7 @@
 #include "pdfocrtextlayerwriter.h"
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfoutline.h"
 #include "pdfdocumentwriter.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttextflow.h"
@@ -72,6 +73,15 @@
 #include <stdexcept>
 
 using namespace pdf;
+
+// A release build (PDF4QT_OCR_REQUIRED) must test the real engine and the built-in
+// models: a missing prerequisite is a failure there, not a skip, so a green ctest
+// is a release gate of the OCR package
+#ifdef PDF4QT_OCR_TESTS_REQUIRED
+#define PDF4QT_OCR_SKIP(message) QFAIL(message)
+#else
+#define PDF4QT_OCR_SKIP(message) QSKIP(message)
+#endif
 
 namespace
 {
@@ -215,6 +225,7 @@ private slots:
     void layerBindingAndFingerprint();
     void conformanceAndUserUnit();
     void contentBalanceAndBaseline();
+    void documentObjectsPreserved();
     // [tests: session and project]
     void excludedRegionFlagsFollowGeometry();
     void reviewOnlyFlagRoundTrip();
@@ -2629,7 +2640,7 @@ void OCRTest::modelManagerBuiltIn()
     const QString builtInDirectory = getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     QTemporaryDir userDirectory;
@@ -3004,12 +3015,12 @@ void OCRTest::modelDownload()
 void OCRTest::tesseractRecognition()
 {
 #ifndef PDF4QT_OCR_TESSERACT
-    QSKIP("Tesseract engine is not compiled in.");
+    PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
     const QString builtInDirectory = getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     // User directory with diacritics and a space (AT-22): the runtime model set lives
@@ -3196,7 +3207,7 @@ qint64 getPeakMemory()
 void OCRTest::qualityAndPerformanceBenchmark()
 {
 #ifndef PDF4QT_OCR_TESSERACT
-    QSKIP("Tesseract engine is not compiled in.");
+    PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
     if (qEnvironmentVariableIsEmpty("PDF4QT_OCR_BENCHMARK"))
     {
@@ -3206,7 +3217,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
     const QString builtInDirectory = getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     QTemporaryDir userDirectory;
@@ -3799,6 +3810,169 @@ void OCRTest::conformanceAndUserUnit()
         QVERIFY(limited.image.width() <= 200 && limited.image.height() <= 200);
         QVERIFY(limited.geometry.dpi < 300.0);
     }
+}
+
+// -------------------------------------------------------------------------
+// AT-20, PDF-06: links, forms, attachments, bookmarks, boxes, rotation and metadata
+// are preserved. Every object of the original document stays byte-identical, only
+// the dictionary of the written page changes (contents, font resource, private data).
+// -------------------------------------------------------------------------
+
+void OCRTest::documentObjectsPreserved()
+{
+    PageSpec spec;
+    spec.withImage = true;
+    spec.withHelvetica = true;
+    spec.size = QSizeF(300, 400);
+    spec.cropBox = QRectF(10, 20, 280, 360);
+    spec.rotation = PageRotation::Rotate90;
+    spec.content = "BT /F1 1 Tf 0 0 Td ET";
+    PDFDocument base = createDocument({ spec, PageSpec() });
+
+    PDFDocumentBuilder builder(&base);
+    const PDFObjectReference pageReference = base.getCatalog()->getPage(0)->getPageReference();
+
+    // Link annotation
+    builder.createAnnotationLink(pageReference, QRectF(20, 30, 50, 10), QStringLiteral("https://example.com/"), LinkHighlightMode::Invert);
+
+    // Text form field with its widget
+    PDFObjectFactory fieldFactory;
+    fieldFactory.beginDictionary();
+    fieldFactory.beginDictionaryItem("FT");
+    fieldFactory << WrapName("Tx");
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("T");
+    fieldFactory << QStringLiteral("Name");
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("V");
+    fieldFactory << QStringLiteral("Value of the field");
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("Type");
+    fieldFactory << WrapName("Annot");
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("Subtype");
+    fieldFactory << WrapName("Widget");
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("Rect");
+    fieldFactory << QRectF(20, 300, 100, 20);
+    fieldFactory.endDictionaryItem();
+    fieldFactory.beginDictionaryItem("P");
+    fieldFactory << pageReference;
+    fieldFactory.endDictionaryItem();
+    fieldFactory.endDictionary();
+    const PDFObjectReference fieldReference = builder.addObject(fieldFactory.takeObject());
+    builder.appendTo(pageReference, [&]() { PDFObjectFactory factory; factory.beginDictionary(); factory.beginDictionaryItem("Annots"); factory.beginArray(); factory << fieldReference; factory.endArray(); factory.endDictionaryItem(); factory.endDictionary(); return factory.takeObject(); }());
+    builder.createAcroForm({ fieldReference });
+
+    // Embedded file, bookmark and document information
+    QByteArray attachment("Attached data");
+    PDFDictionary attachmentDictionary;
+    attachmentDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("EmbeddedFile"));
+    attachmentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(attachment.size()));
+    const PDFObjectReference attachmentReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(attachmentDictionary), std::move(attachment))));
+
+    PDFObjectFactory catalogFactory;
+    catalogFactory.beginDictionary();
+    catalogFactory.beginDictionaryItem("Names");
+    catalogFactory.beginDictionary();
+    catalogFactory.beginDictionaryItem("EmbeddedFiles");
+    catalogFactory.beginDictionary();
+    catalogFactory.beginDictionaryItem("Names");
+    catalogFactory.beginArray();
+    catalogFactory << QStringLiteral("data.txt");
+    catalogFactory.beginDictionary();
+    catalogFactory.beginDictionaryItem("Type");
+    catalogFactory << WrapName("Filespec");
+    catalogFactory.endDictionaryItem();
+    catalogFactory.beginDictionaryItem("F");
+    catalogFactory << QStringLiteral("data.txt");
+    catalogFactory.endDictionaryItem();
+    catalogFactory.beginDictionaryItem("EF");
+    catalogFactory.beginDictionary();
+    catalogFactory.beginDictionaryItem("F");
+    catalogFactory << attachmentReference;
+    catalogFactory.endDictionaryItem();
+    catalogFactory.endDictionary();
+    catalogFactory.endDictionaryItem();
+    catalogFactory.endDictionary();
+    catalogFactory.endArray();
+    catalogFactory.endDictionaryItem();
+    catalogFactory.endDictionary();
+    catalogFactory.endDictionaryItem();
+    catalogFactory.endDictionary();
+    catalogFactory.endDictionaryItem();
+    catalogFactory.endDictionary();
+    builder.mergeTo(builder.getCatalogReference(), catalogFactory.takeObject());
+
+    PDFOutlineItem root;
+    QSharedPointer<PDFOutlineItem> bookmark = QSharedPointer<PDFOutlineItem>::create();
+    bookmark->setTitle(QStringLiteral("Chapter"));
+    root.addChild(bookmark);
+    builder.setOutline(&root);
+    builder.setDocumentTitle(QStringLiteral("Preserved title"));
+
+    PDFDocument document = builder.build();
+    const QString fieldValueBefore = extractText(document, 0);
+
+    PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Preserved"), QRectF(40, 150, 80, 14) } });
+    result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, 0);
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer applied = applyResults(document, { result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(applied, qPrintable(report.error.message));
+
+    // Round trip through the file, as the user saves it
+    PDFDocument saved = read(write(*applied));
+    PDFDocument savedOriginal = read(write(document));
+
+    // Every object of the original is unchanged, except the dictionary of the written page
+    const PDFObjectStorage::PDFObjects& originalObjects = document.getStorage().getObjects();
+    int changed = 0;
+    for (size_t i = 0; i < originalObjects.size(); ++i)
+    {
+        const PDFObjectReference reference(PDFInteger(i), originalObjects[i].generation);
+        if (originalObjects[i].object.isNull() || reference == pageReference)
+        {
+            continue;
+        }
+        if (!(applied->getObjectByReference(reference) == originalObjects[i].object))
+        {
+            ++changed;
+            qWarning() << "changed object" << reference.objectNumber;
+        }
+    }
+    QCOMPARE(changed, 0);
+
+    // The written page keeps every entry except the ones of the text layer
+    const PDFDictionary* before = document.getDictionaryFromObject(document.getObjectByReference(pageReference));
+    const PDFDictionary* after = applied->getDictionaryFromObject(applied->getObjectByReference(pageReference));
+    QVERIFY(before && after);
+    for (size_t i = 0; i < before->getCount(); ++i)
+    {
+        const QByteArray key = before->getKey(i).getString();
+        if (key == "Contents" || key == "Resources")
+        {
+            continue;
+        }
+        QVERIFY2(after->get(key) == before->getValue(i), key.constData());
+    }
+
+    // The saved documents keep the structures
+    for (const PDFDocument* checked : { &savedOriginal, &saved })
+    {
+        const PDFCatalog* catalog = checked->getCatalog();
+        const PDFPage* page = catalog->getPage(0);
+        QCOMPARE(page->getCropBox(), QRectF(10, 20, 280, 360));
+        QCOMPARE(page->getPageRotation(), PageRotation::Rotate90);
+        QCOMPARE(page->getAnnotations().size(), size_t(2));
+        QCOMPARE(catalog->getEmbeddedFiles().size(), size_t(1));
+        QVERIFY(checked->getInfo()->title == QStringLiteral("Preserved title"));
+
+        const PDFDictionary* catalogDictionary = checked->getDictionaryFromObject(checked->getTrailerDictionary()->get("Root"));
+        QVERIFY(catalogDictionary && catalogDictionary->hasKey("Outlines") && catalogDictionary->hasKey("AcroForm"));
+    }
+
+    QVERIFY(extractText(saved, 0).contains(QStringLiteral("Preserved")));
+    QCOMPARE(fieldValueBefore, extractText(savedOriginal, 0));
 }
 
 // -------------------------------------------------------------------------
@@ -4914,7 +5088,7 @@ void OCRTest::scriptModelIdentifiers()
     const QString englishModel = builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata");
     if (builtInDirectory.isEmpty() || !QFile::exists(englishModel))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     QTemporaryDir setDirectory;
@@ -5033,12 +5207,12 @@ void OCRTest::engineParameterSchema()
     QVERIFY(errors.join(QChar('\n')).contains(QStringLiteral("count")));
 
 #ifndef PDF4QT_OCR_TESSERACT
-    QSKIP("Tesseract engine is not compiled in.");
+    PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
     const QString builtInDirectory = getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     std::shared_ptr<PDFOCREngineFactory> factory = PDFOCREngineRegistry::getInstance()->getFactory(QStringLiteral("tesseract"));

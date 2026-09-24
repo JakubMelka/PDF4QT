@@ -31,6 +31,10 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QDesktopServices>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
+#include <QEventLoop>
+#include <QApplication>
 
 namespace pdfviewer
 {
@@ -423,8 +427,32 @@ void PDFOCRLanguagesDialog::onImportClicked()
 
     const pdf::PDFOCRModelProfile profile = pdf::PDFOCRConfiguration::getProfiles()[size_t(qMax(0, int(profiles.indexOf(profileName))))];
 
+    // Validation by the engine, lock, copy and hash run on a worker thread (JOB-01);
+    // the dialog stays painted, but accepts no input until the import finishes
     QString modelId;
-    const pdf::PDFOCRError error = m_manager->importModel(fileName, QStringLiteral("tesseract"), profile, &modelId);
+    pdf::PDFOCRModelManager::ImportTask task = m_manager->createImportTask(fileName, QStringLiteral("tesseract"), profile);
+    QFuture<pdf::PDFOCRError> future = QtConcurrent::run([task, &modelId]() { return task(&modelId); });
+    if (!future.isFinished())
+    {
+        setEnabled(false);
+        QApplication::setOverrideCursor(Qt::BusyCursor);
+        QEventLoop loop;
+        QFutureWatcher<pdf::PDFOCRError> watcher;
+        connect(&watcher, &QFutureWatcher<pdf::PDFOCRError>::finished, &loop, &QEventLoop::quit);
+        watcher.setFuture(future);
+        if (!future.isFinished())
+        {
+            loop.exec(QEventLoop::ExcludeUserInputEvents);
+        }
+        QApplication::restoreOverrideCursor();
+        setEnabled(true);
+    }
+
+    const pdf::PDFOCRError error = future.result();
+    if (!error)
+    {
+        m_manager->refresh();
+    }
     if (error)
     {
         QMessageBox::critical(this, tr("Import OCR Language Model"), error.message);

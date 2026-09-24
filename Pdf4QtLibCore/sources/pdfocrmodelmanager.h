@@ -247,6 +247,13 @@ public:
     /// Imports the model file (LANG-13). The model is copied into the custom directory.
     PDFOCRError importModel(const QString& filePath, const QString& engineId, PDFOCRModelProfile profile, QString* modelId);
 
+    /// Task of the import, which can run on a worker thread (JOB-01): it validates the
+    /// model by the engine, takes the lock of the data directory, copies and hashes the
+    /// file. It does not touch the state of the manager; call refresh() on the thread
+    /// of the manager after a successful import.
+    using ImportTask = std::function<PDFOCRError(QString* modelId)>;
+    ImportTask createImportTask(const QString& filePath, const QString& engineId, PDFOCRModelProfile profile) const;
+
     /// Removes the user model (downloaded or imported), never a built-in model (LANG-12)
     PDFOCRError removeUserModel(const QString& modelId);
 

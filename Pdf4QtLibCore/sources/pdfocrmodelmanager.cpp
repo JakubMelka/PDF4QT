@@ -2075,76 +2075,94 @@ QStringList PDFOCRModelManager::getDownloadQueue() const
 
 PDFOCRError PDFOCRModelManager::importModel(const QString& filePath, const QString& engineId, PDFOCRModelProfile profile, QString* modelId)
 {
-    const QFileInfo fileInfo(filePath);
-    if (!fileInfo.exists() || !fileInfo.isFile())
+    const PDFOCRError error = createImportTask(filePath, engineId, profile)(modelId);
+    if (!error)
     {
-        return PDFOCRError::create(PDFOCRErrorCode::MissingModel, PDFTranslationContext::tr("File '%1' does not exist.").arg(filePath), PDFTranslationContext::tr("Model import"));
+        refresh();
     }
+    return error;
+}
 
-    if (fileInfo.suffix().toLower() != QStringLiteral("traineddata"))
+PDFOCRModelManager::ImportTask PDFOCRModelManager::createImportTask(const QString& filePath, const QString& engineId, PDFOCRModelProfile profile) const
+{
+    // Everything the task needs is captured by value, the task does not access the manager
+    const QString userDirectory = m_userDirectory;
+    const ModelValidator validator = m_validator;
+    const QString engineUserDirectory = getEngineUserDirectory(engineId);
+    const QString languageName = getLanguageName(engineId, QFileInfo(filePath).completeBaseName());
+
+    return [filePath, engineId, profile, userDirectory, validator, engineUserDirectory, languageName](QString* modelId) -> PDFOCRError
     {
-        return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel, PDFTranslationContext::tr("File '%1' is not a Tesseract model (.traineddata).").arg(filePath), PDFTranslationContext::tr("Model import"));
-    }
+        const QFileInfo fileInfo(filePath);
+        if (!fileInfo.exists() || !fileInfo.isFile())
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::MissingModel, PDFTranslationContext::tr("File '%1' does not exist.").arg(filePath), PDFTranslationContext::tr("Model import"));
+        }
 
-    const QString language = fileInfo.completeBaseName();
-    if (!isValidLanguageCode(language))
-    {
-        return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel, PDFTranslationContext::tr("Invalid language code '%1'.").arg(language), PDFTranslationContext::tr("Model import"));
-    }
+        if (fileInfo.suffix().toLower() != QStringLiteral("traineddata"))
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel, PDFTranslationContext::tr("File '%1' is not a Tesseract model (.traineddata).").arg(filePath), PDFTranslationContext::tr("Model import"));
+        }
 
-    const PDFOCRError validationError = validateModelFile(m_userDirectory, m_validator, engineId, filePath, language);
-    if (validationError)
-    {
-        return validationError;
-    }
+        const QString language = fileInfo.completeBaseName();
+        if (!isValidLanguageCode(language))
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel, PDFTranslationContext::tr("Invalid language code '%1'.").arg(language), PDFTranslationContext::tr("Model import"));
+        }
 
-    std::unique_ptr<QLockFile> lock;
-    if (PDFOCRError lockError = acquireLock(lock))
-    {
-        return lockError;
-    }
+        const PDFOCRError validationError = validateModelFile(userDirectory, validator, engineId, filePath, language);
+        if (validationError)
+        {
+            return validationError;
+        }
 
-    const QString importId = QUuid::createUuid().toString(QUuid::Id128).left(12);
-    const QString importDirectory = getEngineUserDirectory(engineId) + QStringLiteral("/custom/") + importId;
-    QDir().mkpath(importDirectory + QStringLiteral("/tessdata"));
+        std::unique_ptr<QLockFile> lock;
+        if (PDFOCRError lockError = acquireLock(userDirectory, lock))
+        {
+            return lockError;
+        }
 
-    const QString targetPath = importDirectory + QStringLiteral("/tessdata/") + language + QLatin1String(TRAINEDDATA_SUFFIX);
-    if (!QFile::copy(filePath, targetPath))
-    {
-        QDir(importDirectory).removeRecursively();
-        return PDFOCRError::create(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot copy the model into '%1'.").arg(importDirectory), PDFTranslationContext::tr("Model import"));
-    }
+        const QString importId = QUuid::createUuid().toString(QUuid::Id128).left(12);
+        const QString importDirectory = engineUserDirectory + QStringLiteral("/custom/") + importId;
+        QDir().mkpath(importDirectory + QStringLiteral("/tessdata"));
 
-    QJsonObject import;
-    import[QStringLiteral("format")] = QStringLiteral("pdf4qt-ocr-import");
-    import[QStringLiteral("version")] = 1;
-    import[QStringLiteral("profile")] = PDFOCRConfiguration::getProfileIdentifier(profile);
-    import[QStringLiteral("language")] = language;
-    import[QStringLiteral("name")] = PDFTranslationContext::tr("%1 (imported)").arg(getLanguageName(engineId, language));
-    import[QStringLiteral("sourceFile")] = fileInfo.fileName();
-    import[QStringLiteral("sha256")] = computeSha256(filePath);
-    import[QStringLiteral("imported")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    import[QStringLiteral("originVerified")] = false;
-    import[QStringLiteral("engineVersion")] = getEngineVersion(engineId);
+        const QString targetPath = importDirectory + QStringLiteral("/tessdata/") + language + QLatin1String(TRAINEDDATA_SUFFIX);
+        if (!QFile::copy(filePath, targetPath))
+        {
+            QDir(importDirectory).removeRecursively();
+            return PDFOCRError::create(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot copy the model into '%1'.").arg(importDirectory), PDFTranslationContext::tr("Model import"));
+        }
 
-    QSaveFile importFile(importDirectory + QStringLiteral("/") + QLatin1String(IMPORT_FILE));
-    if (!importFile.open(QFile::WriteOnly | QFile::Truncate))
-    {
-        QDir(importDirectory).removeRecursively();
-        return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot write into '%1'.").arg(importDirectory), PDFTranslationContext::tr("Model import"));
-    }
-    importFile.write(QJsonDocument(import).toJson(QJsonDocument::Indented));
-    importFile.commit();
+        QJsonObject import;
+        import[QStringLiteral("format")] = QStringLiteral("pdf4qt-ocr-import");
+        import[QStringLiteral("version")] = 1;
+        import[QStringLiteral("profile")] = PDFOCRConfiguration::getProfileIdentifier(profile);
+        import[QStringLiteral("language")] = language;
+        import[QStringLiteral("name")] = PDFTranslationContext::tr("%1 (imported)").arg(languageName);
+        import[QStringLiteral("sourceFile")] = fileInfo.fileName();
+        import[QStringLiteral("sha256")] = computeSha256(filePath);
+        import[QStringLiteral("imported")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        import[QStringLiteral("originVerified")] = false;
+        import[QStringLiteral("engineVersion")] = getEngineVersion(engineId);
 
-    lock.reset();
-    refresh();
+        QSaveFile importFile(importDirectory + QStringLiteral("/") + QLatin1String(IMPORT_FILE));
+        if (!importFile.open(QFile::WriteOnly | QFile::Truncate))
+        {
+            QDir(importDirectory).removeRecursively();
+            return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot write into '%1'.").arg(importDirectory), PDFTranslationContext::tr("Model import"));
+        }
+        importFile.write(QJsonDocument(import).toJson(QJsonDocument::Indented));
+        importFile.commit();
 
-    if (modelId)
-    {
-        *modelId = QStringLiteral("%1/custom/%2/%3").arg(engineId, importId, language);
-    }
+        lock.reset();
 
-    return PDFOCRError::none();
+        if (modelId)
+        {
+            *modelId = QStringLiteral("%1/custom/%2/%3").arg(engineId, importId, language);
+        }
+
+        return PDFOCRError::none();
+    };
 }
 
 PDFOCRError PDFOCRModelManager::removeUserModel(const QString& modelId)

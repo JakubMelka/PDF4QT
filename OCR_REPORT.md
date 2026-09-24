@@ -134,7 +134,7 @@ Automatické testy jsou v [UnitTests/tst_ocrtest.cpp](UnitTests/tst_ocrtest.cpp)
 | AT-17 | ano | `projectRoundTrip`, `sessionRegressions` | |
 | AT-18 | částečně | `textExport`, `textLayerRobustness` | Starší inkrementální revize souboru. |
 | AT-19 | částečně | `annotationsAndRedactions` | Vrstvy OCG a ořez. |
-| AT-20 | ne | | Odkazy, formuláře, přílohy a záložky po zápisu. Podpisy ručně. |
+| AT-20 | ano | `documentObjectsPreserved`, `certifiedDocument` | Odkazy, formulář, příloha, záložky, boxy, rotace a informace o dokumentu zůstanou po zápisu i uložení; všechny původní objekty kromě slovníku stránky jsou beze změny. DocMDP vynucuje dialog. Skutečné podpisy ručně. |
 | AT-21 | ano | `genericAdapter` | |
 | AT-22 | částečně | `tesseractRecognition`, `modelDownload` | Cesta s diakritikou, restart se staženými modely. Instalátor a přenosný balík ručně. |
 | AT-23 | ne | | P1, PaddleOCR. |
@@ -222,7 +222,7 @@ Skutečné mezery vůči P0:
 - **Chyba vykreslení** stránky znamená chybu rozpoznání stránky, i když by se stránka zobrazila přijatelně.
 - **Osiřelé objekty.** Po odstranění poslední vrstvy zůstane v dokumentu sdílený font a dva izolační proudy, dohromady asi 1 kB.
 - **Pád nativní knihovny** Tesseractu není izolován v samostatném procesu. Zachytí se jen výjimky C++ (OPS-05).
-- **Testy.** AT-20 nemá automatický test. Přeskočené testy se v ctest tváří jako úspěšné.
+- **Testy.** Bez `PDF4QT_OCR_REQUIRED` se testy s Tesseractem při chybějícím enginu nebo modelech přeskočí a ctest je hlásí jako úspěšné. Se zapnutou volbou se z přeskočení stane chyba, takže zelený ctest sestavení pro vydání dokládá funkční OCR.
 
 Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické maskování smíšených stránek, exporty hOCR, TSV a ALTO, dávky více souborů, příkazová řádka v PdfTool, regulární výrazy a kontrola pravopisu, detekce log a šablony oblastí.
 
