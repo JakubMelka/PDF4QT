@@ -12645,9 +12645,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="710"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="768"/>
         <location filename="../Pdf4QtLibCore/sources/pdfocrproject.cpp" line="1137"/>
-        <location filename="../UnitTests/tst_ocrtest.cpp" line="4658"/>
-        <location filename="../UnitTests/tst_ocrtest.cpp" line="4660"/>
-        <location filename="../UnitTests/tst_ocrtest.cpp" line="4663"/>
+        <location filename="../UnitTests/tst_ocrtest.cpp" line="4832"/>
+        <location filename="../UnitTests/tst_ocrtest.cpp" line="4834"/>
+        <location filename="../UnitTests/tst_ocrtest.cpp" line="4837"/>
         <source>Page %1</source>
         <translation>Sayfa %1</translation>
     </message>
@@ -16357,7 +16357,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrproject.cpp" line="1060"/>
-        <location filename="../UnitTests/tst_ocrtest.cpp" line="4665"/>
+        <location filename="../UnitTests/tst_ocrtest.cpp" line="4839"/>
         <source>recognition was cancelled</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16713,87 +16713,87 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2081"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2099"/>
         <source>File &apos;%1&apos; does not exist.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2081"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2086"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2092"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2115"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2134"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2099"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2104"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2110"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2133"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2152"/>
         <source>Model import</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2086"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2104"/>
         <source>File &apos;%1&apos; is not a Tesseract model (.traineddata).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2092"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2110"/>
         <source>Invalid language code &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2115"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2133"/>
         <source>Cannot copy the model into &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2123"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2141"/>
         <source>%1 (imported)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2134"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2152"/>
         <source>Cannot write into &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2155"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2173"/>
         <source>Model &apos;%1&apos; was not found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2155"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2160"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2165"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2171"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2187"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2173"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2178"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2183"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2205"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2212"/>
         <source>Model removal</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2160"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2178"/>
         <source>Built-in model &apos;%1&apos; cannot be removed. It can be hidden in the language selection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2165"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2183"/>
         <source>Model &apos;%1&apos; is being downloaded.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2171"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2189"/>
         <source>Model &apos;%1&apos; is not a user model.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2187"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2205"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2212"/>
         <source>Cannot remove the model &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2238"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2256"/>
         <source>Cannot remove the runtime set &apos;%1&apos;. A model set may be in use.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2238"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfocrmodelmanager.cpp" line="2256"/>
         <source>Cache cleanup</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17052,7 +17052,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfocrsession.cpp" line="1472"/>
-        <location filename="../UnitTests/tst_ocrtest.cpp" line="4333"/>
+        <location filename="../UnitTests/tst_ocrtest.cpp" line="4507"/>
         <source>Merge lines</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23206,91 +23206,91 @@ Pages with a different content can be loaded for review and export only; they ca
 <context>
     <name>pdfviewer::PDFOCRLanguagesDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="71"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="75"/>
         <source>All profiles</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="77"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="81"/>
         <source>All states</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="78"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="82"/>
         <source>Installed and built-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="111"/>
         <source>Built-in models are part of the application and work without an internet connection. Other models are downloaded from the official Tesseract repositories (tessdata_fast, tessdata_best) according to the catalog shipped with the application; every file is verified by its size and SHA-256 checksum. Documents and recognized text are never sent to any server. User models are stored in: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="130"/>
         <source>Manage OCR Languages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="130"/>
         <source>Downloads are in progress. Do you want to cancel them and close the dialog?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="142"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="146"/>
         <source>%1 MB</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="177"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="181"/>
         <source>%1 (not a document language)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="181"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="185"/>
         <source>%1 [hidden]</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="187"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="191"/>
         <source>%1 (%2 %)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="191"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="195"/>
         <source>%1 - %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="305"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="309"/>
         <source>License: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="309"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="313"/>
         <source>File: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="313"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="317"/>
         <source>The origin of the imported model is not verified by the catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="323"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="327"/>
         <source>%n model(s) selected, %1</source>
         <translation type="unfinished">
             <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="354"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="358"/>
         <source>Downloading %n model(s)...</source>
         <translation type="unfinished">
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="382"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="386"/>
         <source>The following models will be downloaded from the internet:
 
 %1
@@ -23302,41 +23302,41 @@ Do you want to continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="384"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="388"/>
         <source>Download OCR Languages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="405"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="418"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="430"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="434"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="409"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="422"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="458"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="462"/>
         <source>Import OCR Language Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="405"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="409"/>
         <source>Tesseract models (*.traineddata)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="418"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="422"/>
         <source>Profile, in which the model will be offered:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="434"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="462"/>
         <source>The model was imported. Its origin is not verified by the catalog; it is offered as a separate language and never replaces a built-in model.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="455"/>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="465"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="483"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="493"/>
         <source>Remove User Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="455"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="483"/>
         <source>Do you want to remove the following user models?
 
 %1
@@ -23345,12 +23345,12 @@ If a built-in version of the language exists, it will be used again. OCR project
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="489"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="517"/>
         <source>%1: installed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="489"/>
+        <location filename="../Pdf4QtLibGui/pdfocrlanguagesdialog.cpp" line="517"/>
         <source>%1: %2</source>
         <translation type="unfinished"></translation>
     </message>

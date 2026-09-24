@@ -60,6 +60,15 @@
 
 using namespace pdf;
 
+// A release build (PDF4QT_OCR_REQUIRED) must test the real engine and the built-in
+// models: a missing prerequisite is a failure there, not a skip, so a green ctest
+// is a release gate of the OCR package
+#ifdef PDF4QT_OCR_TESTS_REQUIRED
+#define PDF4QT_OCR_SKIP(message) QFAIL(message)
+#else
+#define PDF4QT_OCR_SKIP(message) QSKIP(message)
+#endif
+
 namespace
 {
 
@@ -792,11 +801,11 @@ void OCRDialogTest::stoppedRerunKeepsResults()
 void OCRDialogTest::workflowWithTesseract()
 {
 #ifndef PDF4QT_OCR_TESSERACT
-    QSKIP("Tesseract engine is not compiled in.");
+    PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
     if (!QFile::exists(PDFOCRModelManager::getDefaultBuiltInDirectory() + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
-        QSKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
     }
 
     runWorkflow(QStringLiteral("tesseract"), QStringLiteral("Hello"));
