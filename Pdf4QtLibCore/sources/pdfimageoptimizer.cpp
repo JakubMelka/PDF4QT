@@ -1044,11 +1044,11 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
             if (encoded.existingMaskReference)
             {
                 maskReference = *encoded.existingMaskReference;
-                storage.setObject(maskReference, PDFObject::createStream(std::make_shared<PDFStream>(*encoded.maskStream)));
+                storage.setObject(maskReference, PDFObject::createStream(PDFStream(*encoded.maskStream)));
             }
             else
             {
-                maskReference = storage.addObject(PDFObject::createStream(std::make_shared<PDFStream>(*encoded.maskStream)));
+                maskReference = storage.addObject(PDFObject::createStream(PDFStream(*encoded.maskStream)));
             }
 
             PDFDictionary updatedDictionary = *stream.getDictionary();
@@ -1056,7 +1056,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
             stream = PDFStream(std::move(updatedDictionary), QByteArray(*stream.getContent()));
         }
 
-        storage.setObject(encoded.reference, PDFObject::createStream(std::make_shared<PDFStream>(std::move(stream))));
+        storage.setObject(encoded.reference, PDFObject::createStream(PDFStream(std::move(stream))));
 
         if (results)
         {

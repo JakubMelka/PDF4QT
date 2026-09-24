@@ -55,6 +55,10 @@ private slots:
     void test_bool();
     void test_ad();
     void test_command();
+    void test_names_and_commands_reference_input();
+    void test_parser_objects();
+    void test_parser_scratch_stacks();
+    void test_dictionary_lookup();
     void test_invalid_input();
     void test_header_regexp();
     void test_flat_map();
@@ -221,6 +225,193 @@ void LexicalAnalyzerTest::test_command()
 
     testTokens("command", { Token(Type::Command, QByteArray("command")) });
     testTokens("command1 command2", { Token(Type::Command, QByteArray("command1")), Token(Type::Command, QByteArray("command2")) });
+    testTokens("command/Name", { Token(Type::Command, QByteArray("command")), Token(Type::Name, QByteArray("Name")) });
+}
+
+void LexicalAnalyzerTest::test_names_and_commands_reference_input()
+{
+    using Type = pdf::PDFLexicalAnalyzer::TokenType;
+
+    const char* stream = "/ /Name /AB#41 /VeryLongNameOfTheObject R true null";
+    pdf::PDFLexicalAnalyzer analyzer(stream, stream + strlen(stream));
+    analyzer.setNamesAndCommandsReferenceInput();
+
+    auto checkToken = [&analyzer](Type type, const QByteArray& data)
+    {
+        pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+        QCOMPARE(token.type, type);
+        QCOMPARE(token.data.toByteArray(), data);
+    };
+
+    checkToken(Type::Name, QByteArray(""));
+    checkToken(Type::Name, QByteArray("Name"));
+    checkToken(Type::Name, QByteArray("ABA"));
+    checkToken(Type::Name, QByteArray("VeryLongNameOfTheObject"));
+    checkToken(Type::Command, QByteArray("R"));
+
+    pdf::PDFLexicalAnalyzer::Token trueToken = analyzer.fetch();
+    QCOMPARE(trueToken.type, Type::Boolean);
+    QCOMPARE(trueToken.data.toBool(), true);
+
+    QCOMPARE(analyzer.fetch().type, Type::Null);
+    QCOMPARE(analyzer.fetch().type, Type::EndOfFile);
+}
+
+void LexicalAnalyzerTest::test_parser_objects()
+{
+    pdf::PDFObject object;
+
+    {
+        // Names longer than inplace strings must not refer to the parsed data,
+        // so the data are overwritten, when the object is parsed.
+        QByteArray data("<< /Type /Page /VeryLongKeyOfTheDictionary /VeryLongValueOfTheName /Esc#20aped /N#41me "
+                        "/Kids [1 0 R 2 0 R [3 [4.5]] << /A true >> (text) null] /Empty [] /EmptyDictionary << >> / 7 >>");
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        object = parser.getObject();
+        data.fill('X');
+    }
+
+    QVERIFY(object.isDictionary());
+    const pdf::PDFDictionary* dictionary = object.getDictionary();
+    QCOMPARE(dictionary->getCount(), size_t(7));
+    QCOMPARE(dictionary->getCapacity(), size_t(7));
+    QCOMPARE(dictionary->get("Type").getString(), QByteArray("Page"));
+    QCOMPARE(dictionary->get("VeryLongKeyOfTheDictionary").getString(), QByteArray("VeryLongValueOfTheName"));
+    QVERIFY(!dictionary->getKey(1).isInplace());
+    QCOMPARE(dictionary->get("Esc aped").getString(), QByteArray("NAme"));
+    QCOMPARE(dictionary->get("").getInteger(), pdf::PDFInteger(7));
+
+    const pdf::PDFObject& kidsObject = dictionary->get("Kids");
+    QVERIFY(kidsObject.isArray());
+    const pdf::PDFArray* kids = kidsObject.getArray();
+    QCOMPARE(kids->getCount(), size_t(6));
+    QCOMPARE(kids->getCapacity(), size_t(6));
+    QCOMPARE(kids->getItem(0).getReference(), pdf::PDFObjectReference(1, 0));
+    QCOMPARE(kids->getItem(1).getReference(), pdf::PDFObjectReference(2, 0));
+
+    const pdf::PDFArray* nested = kids->getItem(2).getArray();
+    QCOMPARE(nested->getCount(), size_t(2));
+    QCOMPARE(nested->getItem(0).getInteger(), pdf::PDFInteger(3));
+    QCOMPARE(nested->getItem(1).getArray()->getCount(), size_t(1));
+    QCOMPARE(nested->getItem(1).getArray()->getItem(0).getReal(), 4.5);
+
+    QCOMPARE(kids->getItem(3).getDictionary()->get("A").getBool(), true);
+    QCOMPARE(kids->getItem(4).getString(), QByteArray("text"));
+    QVERIFY(kids->getItem(5).isNull());
+
+    QCOMPARE(dictionary->get("Empty").getArray()->getCount(), size_t(0));
+    QVERIFY(dictionary->get("EmptyDictionary").getDictionary()->isEmpty());
+}
+
+void LexicalAnalyzerTest::test_parser_scratch_stacks()
+{
+    auto parse = [](const QByteArray& data, pdf::PDFParsingContext* context)
+    {
+        pdf::PDFParser parser(data, context, pdf::PDFParser::AllowStreams);
+        return parser.getObject();
+    };
+
+    // Unfinished array and dictionary - items, which were collected before the
+    // exception, must be removed from the scratch stacks.
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, parse("[1 2 [3 4", nullptr));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, parse("<< /A [1 2] /B << /C 3", nullptr));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, parse("[1 << /A 2 3 >>]", nullptr));
+
+    pdf::PDFObject array = parse("[5 6]", nullptr);
+    QCOMPARE(array.getArray()->getCount(), size_t(2));
+    QCOMPARE(array.getArray()->getItem(0).getInteger(), pdf::PDFInteger(5));
+
+    pdf::PDFObject dictionary = parse("<< /A 1 >>", nullptr);
+    QCOMPARE(dictionary.getDictionary()->getCount(), size_t(1));
+
+    // Large array exceeds the retained capacity of the scratch stack
+    QByteArray largeArrayData("[");
+    for (int i = 0; i < 5000; ++i)
+    {
+        largeArrayData += QByteArray::number(i) + ' ';
+    }
+    largeArrayData += "]";
+
+    pdf::PDFObject largeArray = parse(largeArrayData, nullptr);
+    QCOMPARE(largeArray.getArray()->getCount(), size_t(5000));
+    QCOMPARE(largeArray.getArray()->getItem(4999).getInteger(), pdf::PDFInteger(4999));
+
+    // Nested parser (length of the stream is an indirect object) uses the scratch
+    // stacks, while the outer array has its items on the stack.
+    pdf::PDFParsingContext context([&parse](pdf::PDFParsingContext*, pdf::PDFObjectReference reference)
+    {
+        // If nested array is wrong, stream length is zero and the test fails
+        pdf::PDFObject nestedArray = parse("[9 9 [9] << /Nested 9 >>]", nullptr);
+        const bool isNestedArrayValid = nestedArray.getArray()->getCount() == 4 && nestedArray.getArray()->getItem(3).getDictionary()->get("Nested").getInteger() == 9;
+        return pdf::PDFObject::createInteger(isNestedArrayValid ? reference.objectNumber : 0);
+    });
+
+    pdf::PDFObject arrayWithStream = parse("[1 << /Key 2 >> << /Length 3 0 R >>\nstream\nabc\nendstream 4]", &context);
+    const pdf::PDFArray* items = arrayWithStream.getArray();
+    QCOMPARE(items->getCount(), size_t(4));
+    QCOMPARE(items->getItem(0).getInteger(), pdf::PDFInteger(1));
+    QCOMPARE(items->getItem(1).getDictionary()->get("Key").getInteger(), pdf::PDFInteger(2));
+    QVERIFY(items->getItem(2).isStream());
+    QCOMPARE(*items->getItem(2).getStream()->getContent(), QByteArray("abc"));
+    QCOMPARE(items->getItem(3).getInteger(), pdf::PDFInteger(4));
+}
+
+void LexicalAnalyzerTest::test_dictionary_lookup()
+{
+    pdf::PDFDictionary dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Page"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Typ"), pdf::PDFObject::createInteger(1));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Types"), pdf::PDFObject::createInteger(2));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("FourteenCharsK"), pdf::PDFObject::createInteger(15));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("FifteenCharsKey"), pdf::PDFObject::createInteger(16));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString(""), pdf::PDFObject::createInteger(0));
+
+    QVERIFY(dictionary.getKey(3).isInplace());
+    QVERIFY(!dictionary.getKey(4).isInplace());
+
+    QCOMPARE(dictionary.get("Type").getString(), QByteArray("Page"));
+    QCOMPARE(dictionary.get("Typ").getInteger(), pdf::PDFInteger(1));
+    QCOMPARE(dictionary.get("Types").getInteger(), pdf::PDFInteger(2));
+    QCOMPARE(dictionary.get("FourteenCharsK").getInteger(), pdf::PDFInteger(15));
+    QCOMPARE(dictionary.get("FifteenCharsKey").getInteger(), pdf::PDFInteger(16));
+    QCOMPARE(dictionary.get("").getInteger(), pdf::PDFInteger(0));
+    QCOMPARE(dictionary.get(QByteArray("Types")).getInteger(), pdf::PDFInteger(2));
+    QCOMPARE(dictionary.get(QByteArray("FifteenCharsKey")).getInteger(), pdf::PDFInteger(16));
+    QCOMPARE(dictionary.get(pdf::PDFInplaceOrMemoryString("Typ")).getInteger(), pdf::PDFInteger(1));
+    QCOMPARE(dictionary.get(pdf::PDFInplaceOrMemoryString("FifteenCharsKey")).getInteger(), pdf::PDFInteger(16));
+
+    QVERIFY(dictionary.get("Ty").isNull());
+    QVERIFY(dictionary.get("FourteenCharsX").isNull());
+    QVERIFY(dictionary.get("FifteenCharsKeY").isNull());
+    QVERIFY(dictionary.get(QByteArray("Missing")).isNull());
+    QVERIFY(dictionary.hasKey("Typ"));
+    QVERIFY(!dictionary.hasKey("T"));
+    QVERIFY(dictionary.hasKey(QByteArray("FifteenCharsKey")));
+
+    dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Typ"), pdf::PDFObject::createInteger(3));
+    dictionary.setEntry(pdf::PDFInplaceOrMemoryString("FifteenCharsKey"), pdf::PDFObject::createInteger(17));
+    dictionary.setEntry(pdf::PDFInplaceOrMemoryString("New"), pdf::PDFObject::createInteger(4));
+    QCOMPARE(dictionary.getCount(), size_t(7));
+    QCOMPARE(dictionary.get("Typ").getInteger(), pdf::PDFInteger(3));
+    QCOMPARE(dictionary.get("FifteenCharsKey").getInteger(), pdf::PDFInteger(17));
+    QCOMPARE(dictionary.get("New").getInteger(), pdf::PDFInteger(4));
+
+    dictionary.removeEntry("Type");
+    dictionary.removeEntry("FifteenCharsKey");
+    dictionary.removeEntry("Missing");
+    QCOMPARE(dictionary.getCount(), size_t(5));
+    QVERIFY(!dictionary.hasKey("Type"));
+    QVERIFY(!dictionary.hasKey("FifteenCharsKey"));
+    QCOMPARE(dictionary.get("Types").getInteger(), pdf::PDFInteger(2));
+
+    // Comparison of inplace strings
+    QVERIFY(pdf::PDFObject::createName("Abc") == pdf::PDFObject::createName(QByteArray("Abc")));
+    QVERIFY(pdf::PDFObject::createName("Abc") != pdf::PDFObject::createName("Abd"));
+    QVERIFY(pdf::PDFObject::createName("Abc") != pdf::PDFObject::createName("Ab"));
+    QVERIFY(pdf::PDFObject::createName("Abc") != pdf::PDFObject::createString("Abc"));
+    QVERIFY(pdf::PDFObject::createName("") == pdf::PDFObject::createName(QByteArray()));
+    QVERIFY(pdf::PDFObject::createString("FifteenCharsKey") == pdf::PDFObject::createString("FifteenCharsKey"));
+    QVERIFY(pdf::PDFObject::createString("FifteenCharsKey") != pdf::PDFObject::createString("FifteenCharsKeY"));
 }
 
 void LexicalAnalyzerTest::test_invalid_input()

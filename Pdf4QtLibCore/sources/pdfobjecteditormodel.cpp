@@ -302,7 +302,7 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
         }
 
         array.setItem(qMove(value), arrayIndex);
-        factory << PDFObject::createArray(std::make_shared<PDFArray>(qMove(array)));
+        factory << PDFObject::createArray(PDFArray(qMove(array)));
     }
     else
     {

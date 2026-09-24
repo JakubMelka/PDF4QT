@@ -326,31 +326,31 @@ PDFObject PDFEditorFallbackFontManager::buildFontDictionaryObject(const Fallback
         PDFDictionary charProcStreamDictionary;
         charProcStreamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(charProcContent.size()));
         charProcsDictionary.setEntry(PDFInplaceOrMemoryString(glyph.glyphName),
-                                     PDFObject::createStream(std::make_shared<PDFStream>(qMove(charProcStreamDictionary), qMove(charProcContent))));
+                                     PDFObject::createStream(PDFStream(qMove(charProcStreamDictionary), qMove(charProcContent))));
     }
 
     PDFDictionary encodingDictionary;
     encodingDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Encoding"));
-    encodingDictionary.setEntry(PDFInplaceOrMemoryString("Differences"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(differencesArray))));
+    encodingDictionary.setEntry(PDFInplaceOrMemoryString("Differences"), PDFObject::createArray(PDFArray(qMove(differencesArray))));
 
     QByteArray toUnicodeData = buildToUnicodeStreamData(font);
     PDFDictionary toUnicodeStreamDictionary;
     toUnicodeStreamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(toUnicodeData.size()));
-    PDFObject toUnicodeObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(toUnicodeStreamDictionary), qMove(toUnicodeData)));
+    PDFObject toUnicodeObject = PDFObject::createStream(PDFStream(qMove(toUnicodeStreamDictionary), qMove(toUnicodeData)));
 
     PDFDictionary fontDictionaryObject;
     fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Font"));
     fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Type3"));
-    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("FontBBox"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(fontBBoxArray))));
-    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("FontMatrix"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(fontMatrixArray))));
+    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("FontBBox"), PDFObject::createArray(PDFArray(qMove(fontBBoxArray))));
+    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("FontMatrix"), PDFObject::createArray(PDFArray(qMove(fontMatrixArray))));
     fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("FirstChar"), PDFObject::createInteger(firstChar));
     fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("LastChar"), PDFObject::createInteger(lastChar));
-    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Widths"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(widthsArray))));
-    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Encoding"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(encodingDictionary))));
-    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("CharProcs"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(charProcsDictionary))));
+    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Widths"), PDFObject::createArray(PDFArray(qMove(widthsArray))));
+    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("Encoding"), PDFObject::createDictionary(PDFDictionary(qMove(encodingDictionary))));
+    fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("CharProcs"), PDFObject::createDictionary(PDFDictionary(qMove(charProcsDictionary))));
     fontDictionaryObject.setEntry(PDFInplaceOrMemoryString("ToUnicode"), std::move(toUnicodeObject));
 
-    return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(fontDictionaryObject)));
+    return PDFObject::createDictionary(PDFDictionary(qMove(fontDictionaryObject)));
 }
 
 QByteArray PDFEditorFallbackFontManager::buildToUnicodeStreamData(const FallbackFont& font) const

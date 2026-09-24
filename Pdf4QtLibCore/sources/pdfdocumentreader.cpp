@@ -251,7 +251,7 @@ PDFObject PDFDocumentReader::getObjectFromXrefTable(PDFXRefTable* xrefTable, PDF
 
 PDFObject PDFDocumentReader::readDamagedTrailerDictionary() const
 {
-    PDFObject object = PDFObject::createDictionary(std::make_shared<PDFDictionary>(PDFDictionary()));
+    PDFObject object = PDFObject::createDictionary(PDFDictionary(PDFDictionary()));
     PDFParsingContext context([](PDFParsingContext*, PDFObjectReference){ return PDFObject(); });
 
     int offset = 0;
@@ -441,8 +441,19 @@ void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectS
         objectStreams.insert(entry.objectStream);
     }
 
+    // Pairs (object number, object stream) of the objects stored in object
+    // streams, sorted, so we can quickly check, if object in the object
+    // stream is referenced by the reference table.
+    std::vector<std::pair<PDFInteger, PDFObjectReference>> objectsInObjectStreams;
+    objectsInObjectStreams.reserve(objectStreamEntries.size());
+    for (const PDFXRefTable::Entry& entry : objectStreamEntries)
+    {
+        objectsInObjectStreams.emplace_back(entry.reference.objectNumber, entry.objectStream);
+    }
+    std::sort(objectsInObjectStreams.begin(), objectsInObjectStreams.end());
+
     auto objectFetcher = [this, xrefTable](PDFParsingContext* context, PDFObjectReference reference) { return getObjectFromXrefTable(xrefTable, context, reference); };
-    auto processObjectStream = [this, &objectFetcher, &objects, &objectStreamEntries] (const PDFObjectReference& objectStreamReference)
+    auto processObjectStream = [this, &objectFetcher, &objects, &objectsInObjectStreams] (const PDFObjectReference& objectStreamReference)
     {
         if (m_result != Result::OK)
         {
@@ -512,8 +523,7 @@ void PDFDocumentReader::processObjectStreams(PDFXRefTable* xrefTable, PDFObjectS
                 parser.seek(offset);
 
                 PDFObject currentObject = parser.getObject();
-                auto predicate = [objectNumber, objectStreamReference](const PDFXRefTable::Entry& entry) -> bool { return entry.reference.objectNumber == objectNumber && entry.objectStream == objectStreamReference; };
-                if (std::find_if(objectStreamEntries.cbegin(), objectStreamEntries.cend(), predicate) != objectStreamEntries.cend())
+                if (std::binary_search(objectsInObjectStreams.cbegin(), objectsInObjectStreams.cend(), std::make_pair(objectNumber, objectStreamReference)))
                 {
                     QMutexLocker lock(&m_mutex);
                     objects[objectNumber].object = qMove(currentObject);

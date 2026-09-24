@@ -285,7 +285,7 @@ void PDFAnnotationManipulator::reverseArray(PDFDictionary& dictionary, const PDF
         reversedArray.appendItem(array->getItem(i - 1));
     }
 
-    dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createArray(std::make_shared<PDFArray>(std::move(reversedArray))));
+    dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createArray(PDFArray(std::move(reversedArray))));
 }
 
 void PDFAnnotationManipulator::scaleNumber(PDFDictionary& dictionary,
@@ -470,7 +470,7 @@ PDFObject PDFAnnotationManipulator::transformAppearanceStream(PDFDocumentBuilder
     newStreamDictionary.setEntry(PDFInplaceOrMemoryString("Matrix"), createNumberArray({ newMatrix.m11(), newMatrix.m12(), newMatrix.m21(), newMatrix.m22(), newMatrix.dx(), newMatrix.dy() }));
 
     QByteArray content = *stream->getContent();
-    const PDFObjectReference newStream = builder->addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(newStreamDictionary), std::move(content))));
+    const PDFObjectReference newStream = builder->addObject(PDFObject::createStream(PDFStream(std::move(newStreamDictionary), std::move(content))));
     return PDFObject::createReference(newStream);
 }
 
@@ -684,7 +684,7 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
     translatePopup(builder, dictionary, newRectangle.center() - rectangle.center());
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
 
     // Measured value follows the geometry, and it is a part of the appearance
     if (!isTranslation && updateMeasurement(builder, annotation, parsedAnnotation.data()))
@@ -1195,7 +1195,7 @@ bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PD
     }
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
     updateMeasurement(builder, annotation, parsedAnnotation.data());
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
@@ -1856,7 +1856,7 @@ bool PDFAnnotationManipulator::setFileAttachment(PDFDocumentBuilder* builder, PD
     streamFactory.endDictionary();
 
     PDFDictionary streamDictionary = *streamFactory.takeObject().getDictionary();
-    const PDFObjectReference embeddedFile = builder->addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(streamDictionary), QByteArray(data))));
+    const PDFObjectReference embeddedFile = builder->addObject(PDFObject::createStream(PDFStream(std::move(streamDictionary), QByteArray(data))));
 
     // File specification
     PDFObjectFactory specificationFactory;
@@ -2140,7 +2140,7 @@ bool PDFAnnotationManipulator::setParts(PDFDocumentBuilder* builder, PDFObjectRe
     const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
     const PDFReal margin = std::max(1.0, parsedAnnotation->getBorder().getWidth());
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(boundingRectangle.adjusted(-margin, -margin, margin, margin)));
-    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
@@ -2207,7 +2207,7 @@ bool PDFAnnotationManipulator::setFreeTextRectangle(PDFDocumentBuilder* builder,
 
     translatePopup(builder, dictionary, newRectangle.center() - rectangle.center());
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
@@ -2254,7 +2254,7 @@ bool PDFAnnotationManipulator::setFreeTextCalloutLine(PDFDocumentBuilder* builde
     }
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
@@ -2557,11 +2557,11 @@ PDFObjectReference PDFAnnotationManipulator::copyAnnotation(PDFDocumentBuilder* 
             inReplyTo = copies.at(sourceDictionary.get("IRT").getReference());
         }
 
-        const PDFObjectReference copiedAnnotation = builder->addObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(prepareAnnotationForCopy(sourceDictionary, false, isReply))));
+        const PDFObjectReference copiedAnnotation = builder->addObject(PDFObject::createDictionary(PDFDictionary(prepareAnnotationForCopy(sourceDictionary, false, isReply))));
         PDFObjectReference copiedPopup;
         if (hasPopup)
         {
-            copiedPopup = builder->addObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(popupDictionary))));
+            copiedPopup = builder->addObject(PDFObject::createDictionary(PDFDictionary(std::move(popupDictionary))));
         }
 
         linkAnnotation(builder, copiedAnnotation, copiedPopup, targetPage, sourceDictionary.hasKey("NM"), inReplyTo);
@@ -2677,12 +2677,12 @@ std::vector<PDFObjectReference> PDFAnnotationManipulator::importAnnotations(PDFD
 
             ImportedAnnotation importedAnnotation;
             importedAnnotation.annotationIndex = objects.size();
-            objects.emplace_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(prepareAnnotationForCopy(*sourceDictionary, removeOptionalContent, isReply))));
+            objects.emplace_back(PDFObject::createDictionary(PDFDictionary(prepareAnnotationForCopy(*sourceDictionary, removeOptionalContent, isReply))));
 
             if (const PDFDictionary* popupDictionary = getPopupDictionary(&storage, sourceDictionary))
             {
                 importedAnnotation.popupIndex = objects.size();
-                objects.emplace_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(preparePopupForCopy(*popupDictionary))));
+                objects.emplace_back(PDFObject::createDictionary(PDFDictionary(preparePopupForCopy(*popupDictionary))));
             }
 
             if (isReply)

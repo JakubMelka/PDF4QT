@@ -192,8 +192,8 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
                     { "CMYK", "DeviceCMYK" }
                 };
 
-                std::shared_ptr<PDFDictionary> dictionarySharedPointer = std::make_shared<PDFDictionary>();
-                PDFDictionary* dictionary = dictionarySharedPointer.get();
+                PDFDictionary inlineImageDictionary;
+                PDFDictionary* dictionary = &inlineImageDictionary;
 
                 while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
                 {
@@ -346,10 +346,10 @@ PDFObject PDFInvisibleTextSanitizerHelper::createCompressedContentStream(const P
 
     QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedContent);
     dictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(filters))));
+    dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filters))));
 
     Q_UNUSED(originalStream);
-    return PDFObject::createStream(std::make_shared<PDFStream>(qMove(dictionary), qMove(compressedData)));
+    return PDFObject::createStream(PDFStream(qMove(dictionary), qMove(compressedData)));
 }
 
 bool PDFInvisibleTextSanitizerHelper::isFormXObject(const PDFObject& object, PDFDocumentBuilder& builder)
@@ -483,8 +483,8 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
     }
 
     updatedResourcesDictionary.setEntry(PDFInplaceOrMemoryString("XObject"),
-                                        PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(updatedXObjectDictionary))));
-    return { PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(updatedResourcesDictionary))), true };
+                                        PDFObject::createDictionary(PDFDictionary(qMove(updatedXObjectDictionary))));
+    return { PDFObject::createDictionary(PDFDictionary(qMove(updatedResourcesDictionary))), true };
 }
 
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PDFDocumentBuilder& builder,
@@ -523,7 +523,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
             }
         }
 
-        return { changed ? PDFObject::createArray(std::make_shared<PDFArray>(qMove(updatedArray))) : contentsObject, changed };
+        return { changed ? PDFObject::createArray(PDFArray(qMove(updatedArray))) : contentsObject, changed };
     }
 
     if (!contentsObject.isStream())
@@ -583,7 +583,7 @@ void PDFRemoveMetadataVisitor::visitDictionary(const PDFDictionary* dictionary)
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
 }
 
 PDFDocumentSanitizer::PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent) :
@@ -732,7 +732,7 @@ void PDFDocumentSanitizer::performSanitizeFileAttachments()
         {
             PDFDictionary dictionaryCopy = *namesDictionary;
             dictionaryCopy.setEntry(PDFInplaceOrMemoryString("EmbeddedFiles"), PDFObject());
-            namesObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionaryCopy)));
+            namesObject = PDFObject::createDictionary(PDFDictionary(qMove(dictionaryCopy)));
 
             PDFObjectFactory factory;
             factory.beginDictionary();
@@ -764,7 +764,7 @@ void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()
         {
             PDFDictionary dictionaryCopy = *pieceInfoDictionary;
             dictionaryCopy.setEntry(PDFInplaceOrMemoryString("SearchIndex"), PDFObject());
-            pieceInfoObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionaryCopy)));
+            pieceInfoObject = PDFObject::createDictionary(PDFDictionary(qMove(dictionaryCopy)));
 
             PDFObjectFactory factory;
             factory.beginDictionary();
@@ -888,7 +888,7 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
 
         if (pageChanged)
         {
-            builder.setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(updatedPageDictionary))));
+            builder.setObject(pageReference, PDFObject::createDictionary(PDFDictionary(qMove(updatedPageDictionary))));
             changed = true;
         }
     }

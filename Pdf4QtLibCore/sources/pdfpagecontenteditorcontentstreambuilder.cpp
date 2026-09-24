@@ -95,9 +95,9 @@ PDFObject createSoftMaskObject(const QImage& alphaImage)
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceGray"));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(filter))));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filter))));
 
-    return PDFObject::createStream(std::make_shared<PDFStream>(qMove(softMaskDictionary), qMove(compressedData)));
+    return PDFObject::createStream(PDFStream(qMove(softMaskDictionary), qMove(compressedData)));
 }
 
 }   // namespace pagecontenteditorcontentstreambuilder
@@ -907,11 +907,11 @@ void PDFPageContentEditorContentStreamBuilder::endTransparencyGroup()
     PDFDictionary formDictionary;
     formDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
     formDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Form"));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("BBox"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(boundingBoxArray))));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("Group"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(groupDictionary))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("BBox"), PDFObject::createArray(PDFArray(qMove(boundingBoxArray))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Group"), PDFObject::createDictionary(PDFDictionary(qMove(groupDictionary))));
     formDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(filter))));
-    PDFObject formObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(formDictionary), qMove(compressedData)));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filter))));
+    PDFObject formObject = PDFObject::createStream(PDFStream(qMove(formDictionary), qMove(compressedData)));
 
     QByteArray key;
     for (int i = 1; key.isEmpty() || m_xobjectDictionary.hasKey(key); ++i)
@@ -1595,14 +1595,14 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             imageDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceRGB"));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-            imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(array))));
 
             if (!softMaskImage.isNull())
             {
                 imageDictionary.setEntry(PDFInplaceOrMemoryString("SMask"), createSoftMaskObject(softMaskImage));
             }
 
-            PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(imageDictionary), qMove(compressedData)));
+            PDFObject imageObject = PDFObject::createStream(PDFStream(qMove(imageDictionary), qMove(compressedData)));
 
             m_xobjectDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), std::move(imageObject));
             key = currentKey;

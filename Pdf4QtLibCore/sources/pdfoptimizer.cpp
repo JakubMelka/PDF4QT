@@ -110,7 +110,7 @@ void PDFRemoveNullDictionaryEntriesVisitor::visitDictionary(const PDFDictionary*
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
 }
 
 PDFOptimizer::PDFOptimizer(OptimizationFlags flags, QObject* parent) :
@@ -454,7 +454,7 @@ bool PDFOptimizer::performRecompressFlateStreams()
                     bytesSaved += currentBytesSaved;
                     PDFDictionary updatedDictionary = *dictionary;
                     updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(recompressedData.size()));
-                    entry.object = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(recompressedData)));
+                    entry.object = PDFObject::createStream(PDFStream(qMove(updatedDictionary), qMove(recompressedData)));
                 }
             }
         }

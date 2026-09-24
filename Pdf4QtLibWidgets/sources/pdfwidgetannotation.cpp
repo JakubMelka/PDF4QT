@@ -4997,7 +4997,7 @@ void PDFWidgetAnnotationManager::onEditAnnotation()
             {
                 PDFDictionary dictionary = *editedDictionary;
                 dictionary.setEntry(PDFInplaceOrMemoryString("Rect"), PDFObject(originalDictionary->get("Rect")));
-                object = PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(dictionary)));
+                object = PDFObject::createDictionary(PDFDictionary(std::move(dictionary)));
             }
 
             PDFDocumentModifier modifier(m_document);

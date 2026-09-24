@@ -64,11 +64,9 @@ constexpr const char CHAR_PERCENT               = '%';
 constexpr const char CHAR_BACKSLASH             = '\\';
 constexpr const char CHAR_MARK                  = '#';
 
-// These constants reserves memory while reading string or name
+// This constant reserves memory while reading string
 
 constexpr const int STRING_BUFFER_RESERVE = 32;
-constexpr const int NAME_BUFFER_RESERVE = 16;
-constexpr const int COMMAND_BUFFER_RESERVE = 16;
 
 // Special objects - bool, null object
 
@@ -159,6 +157,12 @@ public:
     /// Switch parser mode for tokenizing PostScript function
     void setTokenizingPostScriptFunction() { m_tokenizingPostScriptFunction = true; }
 
+    /// Names (without #XX sequences) and commands are not copied, token data refers
+    /// directly to the input data (see QByteArray::fromRawData). Token data are then
+    /// valid only as long as the input data. Used by the parser, which copies the data,
+    /// if they are stored in a created object.
+    void setNamesAndCommandsReferenceInput() { m_namesAndCommandsReferenceInput = true; }
+
     /// Returns true, if character is a whitespace character according to the PDF 1.7 specification
     /// \param character Character to be tested
     static constexpr bool isWhitespace(char character);
@@ -198,6 +202,12 @@ private:
     /// or letter A-F, or small letter a-f.
     static constexpr bool isHexCharacter(const char character);
 
+    /// Creates byte array from the part of the input data. The data are copied,
+    /// unless names and commands refer to the input data.
+    /// \param begin Begin of the data
+    /// \param end End of the data
+    QByteArray createByteArray(const char* begin, const char* end) const;
+
     /// Throws an error exception
     void error(const QString& message) const;
 
@@ -205,6 +215,7 @@ private:
     const char* m_current;
     const char* m_end;
     bool m_tokenizingPostScriptFunction;
+    bool m_namesAndCommandsReferenceInput;
 };
 
 /// Parsing context. Used for example to detect cyclic reference errors.
@@ -332,6 +343,10 @@ private:
     void shift();
 
     PDFLexicalAnalyzer::Token fetch();
+
+    /// Returns data of the current name token. Own lexical analyzer doesn't copy
+    /// names, so names, which are too long to be stored inplace, are copied here.
+    QByteArray getNameData() const;
 
     /// Functor for fetching tokens
     std::function<PDFLexicalAnalyzer::Token(void)> m_tokenFetcher;

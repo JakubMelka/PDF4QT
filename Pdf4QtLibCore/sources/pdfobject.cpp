@@ -22,96 +22,65 @@
 
 #include "pdfobject.h"
 #include "pdfvisitor.h"
+#include "pdfexception.h"
 #include "pdfdbgheap.h"
+
+#include <set>
 
 namespace pdf
 {
 
-QByteArray PDFObject::getString() const
-{
-    PDFStringRef stringRef = getStringObject();
-    Q_ASSERT(stringRef.inplaceString || stringRef.memoryString);
-
-    return stringRef.inplaceString ? stringRef.inplaceString->getString() : stringRef.memoryString->getString();
-}
-
-const PDFDictionary* PDFObject::getDictionary() const
-{
-    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
-
-    Q_ASSERT(dynamic_cast<const PDFDictionary*>(objectContent.get()));
-    return static_cast<const PDFDictionary*>(objectContent.get());
-}
-
-PDFStringRef PDFObject::getStringObject() const
-{
-    if (std::holds_alternative<PDFInplaceString>(m_data))
-    {
-        return { &std::get<PDFInplaceString>(m_data) , nullptr };
-    }
-    else
-    {
-        const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
-
-        Q_ASSERT(dynamic_cast<const PDFString*>(objectContent.get()));
-        return { nullptr, static_cast<const PDFString*>(objectContent.get()) };
-    }
-}
-
-const PDFStream* PDFObject::getStream() const
-{
-    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
-
-    Q_ASSERT(dynamic_cast<const PDFStream*>(objectContent.get()));
-    return static_cast<const PDFStream*>(objectContent.get());
-}
-
-const PDFArray* PDFObject::getArray() const
-{
-    const PDFObjectContentPointer& objectContent = std::get<PDFObjectContentPointer>(m_data);
-
-    Q_ASSERT(dynamic_cast<const PDFArray*>(objectContent.get()));
-    return static_cast<const PDFArray*>(objectContent.get());
-}
-
 bool PDFObject::operator==(const PDFObject& other) const
 {
-    if (m_type == other.m_type)
+    const Type type = getType();
+    if (type != other.getType())
     {
-        if (m_type == Type::String || m_type == Type::Name)
+        return false;
+    }
+
+    switch (type)
+    {
+        case Type::Null:
+            return true;
+
+        case Type::Bool:
+            return getBool() == other.getBool();
+
+        case Type::Int:
+            return getInteger() == other.getInteger();
+
+        case Type::Real:
+            // NaN is not equal to anything, including itself
+            return getReal() == other.getReal();
+
+        case Type::String:
+        case Type::Name:
         {
-            PDFStringRef leftString = getStringObject();
-            PDFStringRef rightString = other.getStringObject();
-
-            if (leftString.inplaceString && rightString.inplaceString)
+            if (isInplaceString() && other.isInplaceString())
             {
-                return *leftString.inplaceString == *rightString.inplaceString;
-            }
-            else if (leftString.memoryString && rightString.memoryString)
-            {
-                return leftString.memoryString->equals(rightString.memoryString);
+                // Tag (with type) and the whole inplace string are compared
+                // at once, unused characters are always zero.
+                return std::memcmp(&m_storage.string, &other.m_storage.string, sizeof(InplaceStringStorage)) == 0;
             }
 
-            // We have inplace string in one object and memory string in the other.
-            // So they are not equal, because memory strings have always greater
-            // size, than inplace strings.
-            return false;
+            return getStringView() == other.getStringView();
         }
 
-        Q_ASSERT(std::holds_alternative<PDFObjectContentPointer>(m_data) == std::holds_alternative<PDFObjectContentPointer>(other.m_data));
+        case Type::Array:
+            return *getArray() == *other.getArray();
 
-        // If we have content object defined, then use its equal operator,
-        // otherwise use default compare operator. The only problem with
-        // default compare operator can occur, when we have a double
-        // with NaN value. Then operator == can return false, even if
-        // values are "equal" (NaN == NaN returns false)
-        if (std::holds_alternative<PDFObjectContentPointer>(m_data))
-        {
-            Q_ASSERT(std::get<PDFObjectContentPointer>(m_data));
-            return std::get<PDFObjectContentPointer>(m_data)->equals(std::get<PDFObjectContentPointer>(other.m_data).get());
-        }
+        case Type::Dictionary:
+            return *getDictionary() == *other.getDictionary();
 
-        return m_data == other.m_data;
+        case Type::Stream:
+            return *getStream() == *other.getStream();
+
+        case Type::Reference:
+            return getReference() == other.getReference();
+
+        default:
+            Q_ASSERT(false);
+            break;
     }
 
     return false;
@@ -119,7 +88,7 @@ bool PDFObject::operator==(const PDFObject& other) const
 
 void PDFObject::accept(PDFAbstractVisitor* visitor) const
 {
-    switch (m_type)
+    switch (getType())
     {
         case Type::Null:
             visitor->visitNull();
@@ -166,59 +135,176 @@ void PDFObject::accept(PDFAbstractVisitor* visitor) const
     }
 }
 
+PDFObject PDFObject::createArray(PDFArray array)
+{
+    array.optimize();
+    return createWithContent(Type::Array, new PDFArray(std::move(array)));
+}
+
+PDFObject PDFObject::createDictionary(PDFDictionary dictionary)
+{
+    dictionary.optimize();
+    return createWithContent(Type::Dictionary, new PDFDictionary(std::move(dictionary)));
+}
+
+PDFObject PDFObject::createStream(PDFStream stream)
+{
+    stream.optimize();
+    return createWithContent(Type::Stream, new PDFStream(std::move(stream)));
+}
+
 PDFObject PDFObject::createName(QByteArray name)
 {
-    if (name.size() > PDFInplaceString::MAX_STRING_SIZE)
-    {
-        return PDFObject(Type::Name, std::make_shared<PDFString>(qMove(name)));
-    }
-    else
-    {
-        return PDFObject(Type::Name, PDFInplaceString(qMove(name)));
-    }
+    return createStringObject(Type::Name, std::move(name));
 }
 
 PDFObject PDFObject::createString(QByteArray name)
 {
-    if (name.size() > PDFInplaceString::MAX_STRING_SIZE)
-    {
-        return PDFObject(Type::String, std::make_shared<PDFString>(qMove(name)));
-    }
-    else
-    {
-        return PDFObject(Type::String, PDFInplaceString(qMove(name)));
-    }
+    return createStringObject(Type::String, std::move(name));
 }
 
 PDFObject PDFObject::createName(PDFStringRef name)
 {
-    if (name.memoryString)
-    {
-        return PDFObject(Type::Name, std::make_shared<PDFString>(name.getString()));
-    }
-    else
-    {
-        return PDFObject(Type::Name, *name.inplaceString);
-    }
+    return createStringObject(Type::Name, name);
 }
 
 PDFObject PDFObject::createString(PDFStringRef name)
 {
-    if (name.memoryString)
+    return createStringObject(Type::String, name);
+}
+
+PDFObject PDFObject::createWithContent(Type type, PDFObjectContent* content) noexcept
+{
+    Q_ASSERT(content && content->getReferenceCount() == 0);
+    content->addReference();
+
+    ValueStorage storage;
+    storage.tag = makeTag(type, true);
+    storage.content = content;
+    return PDFObject(Storage(storage));
+}
+
+PDFObject PDFObject::createStringObject(Type type, QByteArray string)
+{
+    Q_ASSERT(type == Type::String || type == Type::Name);
+
+    if (string.size() <= PDFInplaceString::MAX_STRING_SIZE)
     {
-        return PDFObject(Type::String, std::make_shared<PDFString>(name.getString()));
+        InplaceStringStorage storage;
+        storage.tag = makeTag(type);
+        storage.string = PDFInplaceString(string.constData(), static_cast<int>(string.size()));
+        return PDFObject(Storage(storage));
     }
-    else
+
+    PDFString* content = new PDFString(std::move(string));
+    content->optimize();
+    return createWithContent(type, content);
+}
+
+PDFObject PDFObject::createStringObject(Type type, PDFStringRef string)
+{
+    Q_ASSERT(type == Type::String || type == Type::Name);
+
+    if (string.inplaceString)
     {
-        return PDFObject(Type::String, *name.inplaceString);
+        // Size is checked, members of the inplace string are public. Inplace string is
+        // constructed again, so characters behind the end of the string are zero.
+        const int size = qMin(static_cast<int>(string.inplaceString->size), PDFInplaceString::MAX_STRING_SIZE);
+
+        InplaceStringStorage storage;
+        storage.tag = makeTag(type);
+        storage.string = PDFInplaceString(string.inplaceString->string.data(), size);
+        return PDFObject(Storage(storage));
+    }
+
+    // Byte array is shared with the memory string, no data are copied (shared
+    // byte array is not shrinked)
+    return createStringObject(type, string.getString());
+}
+
+PDFObject PDFObject::createReferenceWithContent(const PDFObjectReference& reference)
+{
+    return createWithContent(Type::Reference, new PDFReferenceContent(reference));
+}
+
+void PDFObject::destroyContent(uint8_t tag, PDFObjectContent* content) noexcept
+{
+    Q_ASSERT(tag & CONTENT_FLAG);
+
+    switch (static_cast<Type>(tag & TYPE_MASK))
+    {
+        case Type::String:
+        case Type::Name:
+            delete static_cast<PDFString*>(content);
+            break;
+
+        case Type::Array:
+            delete static_cast<PDFArray*>(content);
+            break;
+
+        case Type::Dictionary:
+            delete static_cast<PDFDictionary*>(content);
+            break;
+
+        case Type::Stream:
+            delete static_cast<PDFStream*>(content);
+            break;
+
+        case Type::Reference:
+            delete static_cast<PDFReferenceContent*>(content);
+            break;
+
+        default:
+            // Other types never have content
+            Q_ASSERT(false);
+            break;
     }
 }
 
-bool PDFString::equals(const PDFObjectContent* other) const
+void PDFObject::throwInvalidType(Type expectedType)
 {
-    Q_ASSERT(dynamic_cast<const PDFString*>(other));
-    const PDFString* otherString = static_cast<const PDFString*>(other);
-    return m_string == otherString->m_string;
+    QString typeName;
+    switch (expectedType)
+    {
+        case Type::Bool:
+            typeName = PDFTranslationContext::tr("boolean");
+            break;
+
+        case Type::Int:
+            typeName = PDFTranslationContext::tr("integer");
+            break;
+
+        case Type::Real:
+            typeName = PDFTranslationContext::tr("real number");
+            break;
+
+        case Type::String:
+        case Type::Name:
+            typeName = PDFTranslationContext::tr("string");
+            break;
+
+        case Type::Array:
+            typeName = PDFTranslationContext::tr("array");
+            break;
+
+        case Type::Dictionary:
+            typeName = PDFTranslationContext::tr("dictionary");
+            break;
+
+        case Type::Stream:
+            typeName = PDFTranslationContext::tr("stream");
+            break;
+
+        case Type::Reference:
+            typeName = PDFTranslationContext::tr("reference");
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    throw PDFException(PDFTranslationContext::tr("Invalid type of the object, %1 was expected.").arg(typeName));
 }
 
 void PDFString::setString(const QByteArray& string)
@@ -228,14 +314,11 @@ void PDFString::setString(const QByteArray& string)
 
 void PDFString::optimize()
 {
-    m_string.shrink_to_fit();
-}
-
-bool PDFArray::equals(const PDFObjectContent* other) const
-{
-    Q_ASSERT(dynamic_cast<const PDFArray*>(other));
-    const PDFArray* otherArray = static_cast<const PDFArray*>(other);
-    return m_objects == otherArray->m_objects;
+    // Shared data would be copied, so they are not shrinked
+    if (m_string.isDetached())
+    {
+        m_string.shrink_to_fit();
+    }
 }
 
 void PDFArray::appendItem(PDFObject object)
@@ -248,58 +331,29 @@ void PDFArray::optimize()
     m_objects.shrink_to_fit();
 }
 
-bool PDFDictionary::equals(const PDFObjectContent* other) const
-{
-    Q_ASSERT(dynamic_cast<const PDFDictionary*>(other));
-    const PDFDictionary* otherDictionary = static_cast<const PDFDictionary*>(other);
-    return m_dictionary == otherDictionary->m_dictionary;
-}
-
 bool PDFDictionary::operator==(const PDFDictionary& other) const
 {
     return m_dictionary == other.m_dictionary;
 }
 
+constinit const PDFObject PDFDictionary::s_nullObject;
+
 const PDFObject& PDFDictionary::get(const QByteArray& key) const
 {
     auto it = find(key);
-    if (it != m_dictionary.cend())
-    {
-        return it->second;
-    }
-    else
-    {
-        static PDFObject dummy;
-        return dummy;
-    }
+    return (it != m_dictionary.cend()) ? it->second : s_nullObject;
 }
 
 const PDFObject& PDFDictionary::get(const char* key) const
 {
     auto it = find(key);
-    if (it != m_dictionary.cend())
-    {
-        return it->second;
-    }
-    else
-    {
-        static PDFObject dummy;
-        return dummy;
-    }
+    return (it != m_dictionary.cend()) ? it->second : s_nullObject;
 }
 
 const PDFObject& PDFDictionary::get(const PDFInplaceOrMemoryString& key) const
 {
     auto it = find(key);
-    if (it != m_dictionary.cend())
-    {
-        return it->second;
-    }
-    else
-    {
-        static PDFObject dummy;
-        return dummy;
-    }
+    return (it != m_dictionary.cend()) ? it->second : s_nullObject;
 }
 
 void PDFDictionary::removeEntry(const char* key)
@@ -337,17 +391,22 @@ void PDFDictionary::optimize()
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const QByteArray& key) const
 {
-    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+    return find(key.constData(), static_cast<size_t>(key.size()));
 }
 
 std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const QByteArray& key)
 {
-    return std::find_if(m_dictionary.begin(), m_dictionary.end(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
+    return find(key.constData(), static_cast<size_t>(key.size()));
 }
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const char* key) const
 {
-    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [key](const DictionaryEntry& entry) { return entry.first == key; });
+    return find(key, std::strlen(key));
+}
+
+std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const char* key)
+{
+    return find(key, std::strlen(key));
 }
 
 std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const PDFInplaceOrMemoryString& key) const
@@ -360,16 +419,25 @@ std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const 
     return std::find_if(m_dictionary.begin(), m_dictionary.end(), [&key](const DictionaryEntry& entry) { return entry.first == key; });
 }
 
-std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const char* key)
+std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(const char* key, size_t length) const
 {
-    return std::find_if(m_dictionary.begin(), m_dictionary.end(), [key](const DictionaryEntry& entry) { return entry.first == key; });
+    if (length <= static_cast<size_t>(PDFInplaceString::MAX_STRING_SIZE))
+    {
+        // Keys of this length are always stored inplace, so we convert the key
+        // to the inplace string once (no allocation) and then compare whole
+        // storage of the key (16 bytes) at once.
+        const PDFInplaceOrMemoryString::RawStorage inplaceKey = PDFInplaceOrMemoryString::createInplaceRawStorage(key, length);
+        return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&inplaceKey](const DictionaryEntry& entry) { return PDFInplaceOrMemoryString::isRawEqual(entry.first.getRawStorage(), inplaceKey); });
+    }
+
+    // Keys of other sizes are rejected without access to the string in the heap
+    return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [key, length](const DictionaryEntry& entry) { return !entry.first.isInplace() && entry.first.canHaveSize(length) && entry.first.equals(key, length); });
 }
 
-bool PDFStream::equals(const PDFObjectContent* other) const
+std::vector<PDFDictionary::DictionaryEntry>::iterator PDFDictionary::find(const char* key, size_t length)
 {
-    Q_ASSERT(dynamic_cast<const PDFStream*>(other));
-    const PDFStream* otherStream = static_cast<const PDFStream*>(other);
-    return m_dictionary.equals(&otherStream->m_dictionary) && m_content == otherStream->m_content;
+    auto it = std::as_const(*this).find(key, length);
+    return std::next(m_dictionary.begin(), std::distance(m_dictionary.cbegin(), it));
 }
 
 PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlags flags)
@@ -402,7 +470,7 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
             targetDictionary.removeNullObjects();
         }
 
-        return PDFObject::createStream(std::make_shared<PDFStream>(qMove(targetDictionary), QByteArray(rightStream ? *rightStream->getContent() : *leftStream->getContent())));
+        return PDFObject::createStream(PDFStream(qMove(targetDictionary), QByteArray(rightStream ? *rightStream->getContent() : *leftStream->getContent())));
     }
     if (left.isDictionary())
     {
@@ -423,9 +491,9 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
             targetDictionary.removeNullObjects();
         }
 
-        return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(targetDictionary)));
+        return PDFObject::createDictionary(qMove(targetDictionary));
     }
-    else if (left.isArray() && flags.testFlag(ConcatenateArrays))
+    else if (left.isArray() && right.isArray() && flags.testFlag(ConcatenateArrays))
     {
         // Concatenate arrays
         const PDFArray* leftArray = left.getArray();
@@ -441,7 +509,7 @@ PDFObject PDFObjectManipulator::merge(PDFObject left, PDFObject right, MergeFlag
         {
             objects.emplace_back(rightArray->getItem(i));
         }
-        return PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
+        return PDFObject::createArray(qMove(objects));
     }
 
     return right;
@@ -466,7 +534,7 @@ PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject objec
                 dictionary.setEntry(dictionary.getKey(i), removeDuplicitReferencesInArrays(dictionary.getValue(i)));
             }
 
-            return PDFObject::createStream(std::make_shared<PDFStream>(qMove(dictionary), QByteArray(*stream->getContent())));
+            return PDFObject::createStream(PDFStream(qMove(dictionary), QByteArray(*stream->getContent())));
         }
 
         case PDFObject::Type::Dictionary:
@@ -478,7 +546,7 @@ PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject objec
                 dictionary.setEntry(dictionary.getKey(i), removeDuplicitReferencesInArrays(dictionary.getValue(i)));
             }
 
-            return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionary)));
+            return PDFObject::createDictionary(qMove(dictionary));
         }
 
         case PDFObject::Type::Array:
@@ -503,7 +571,7 @@ PDFObject PDFObjectManipulator::removeDuplicitReferencesInArrays(PDFObject objec
                 }
             }
 
-            return PDFObject::createArray(std::make_shared<PDFArray>(qMove(array)));
+            return PDFObject::createArray(qMove(array));
         }
 
         default:
@@ -515,7 +583,9 @@ QByteArray PDFStringRef::getString() const
 {
     if (inplaceString)
     {
-        return inplaceString->getString();
+        // Size is checked, members of the inplace string are public
+        const int size = qMin(static_cast<int>(inplaceString->size), PDFInplaceString::MAX_STRING_SIZE);
+        return QByteArray(inplaceString->string.data(), size);
     }
     if (memoryString)
     {
@@ -524,67 +594,42 @@ QByteArray PDFStringRef::getString() const
     return QByteArray();
 }
 
-PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string)
+PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string) :
+    PDFInplaceOrMemoryString(string, std::strlen(string))
 {
-    const int size = static_cast<int>(qMin(std::strlen(string), size_t(std::numeric_limits<int>::max())));
-    if (size > PDFInplaceString::MAX_STRING_SIZE)
-    {
-        m_value = QByteArray(string, size);
-    }
-    else
-    {
-        m_value = PDFInplaceString(string, size);
-    }
+
 }
 
 PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(QByteArray string)
 {
-    const int size = string.size();
-    if (size > PDFInplaceString::MAX_STRING_SIZE)
+    if (string.size() <= PDFInplaceString::MAX_STRING_SIZE)
     {
-        m_value = qMove(string);
+        InplaceStorage storage;
+        storage.string = PDFInplaceString(string.constData(), static_cast<int>(string.size()));
+        m_storage = Storage(storage);
     }
     else
     {
-        m_value = PDFInplaceString(qMove(string));
+        MemoryStorage storage;
+        storage.size = getStoredSize(static_cast<size_t>(string.size()));
+        storage.string = createMemoryString(std::move(string));
+        m_storage = Storage(storage);
     }
 }
 
-bool PDFInplaceOrMemoryString::equals(const char* value, size_t length) const
+PDFString* PDFInplaceOrMemoryString::createMemoryString(QByteArray string)
 {
-    if (std::holds_alternative<PDFInplaceString>(m_value))
-    {
-        const PDFInplaceString& string = std::get<PDFInplaceString>(m_value);
-        return std::equal(string.string.data(), string.string.data() + string.size, value, value + length);
-    }
+    Q_ASSERT(string.size() > PDFInplaceString::MAX_STRING_SIZE);
 
-    if (std::holds_alternative<QByteArray>(m_value))
-    {
-        const QByteArray& string = std::get<QByteArray>(m_value);
-        return std::equal(string.constData(), string.constData() + string.size(), value, value + length);
-    }
-
-    return length == 0;
+    PDFString* memoryString = new PDFString(std::move(string));
+    memoryString->optimize();
+    memoryString->addReference();
+    return memoryString;
 }
 
-bool PDFInplaceOrMemoryString::isInplace() const
+void PDFInplaceOrMemoryString::destroyMemoryString(PDFString* string) noexcept
 {
-    return std::holds_alternative<PDFInplaceString>(m_value);
-}
-
-QByteArray PDFInplaceOrMemoryString::getString() const
-{
-    if (std::holds_alternative<PDFInplaceString>(m_value))
-    {
-        return std::get<PDFInplaceString>(m_value).getString();
-    }
-
-    if (std::holds_alternative<QByteArray>(m_value))
-    {
-        return std::get<QByteArray>(m_value);
-    }
-
-    return QByteArray();
+    delete string;
 }
 
 }   // namespace pdf

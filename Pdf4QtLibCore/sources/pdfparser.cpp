@@ -40,7 +40,8 @@ PDFLexicalAnalyzer::PDFLexicalAnalyzer(const char* begin, const char* end) :
     m_begin(begin),
     m_current(begin),
     m_end(end),
-    m_tokenizingPostScriptFunction(false)
+    m_tokenizingPostScriptFunction(false),
+    m_namesAndCommandsReferenceInput(false)
 {
 
 }
@@ -316,8 +317,19 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
 
             fetchChar();
 
-            QByteArray name;
-            name.reserve(NAME_BUFFER_RESERVE);
+            // Fast path - name without #XX sequences is a continuous part of the input
+            const char* nameBegin = m_current;
+            while (!isAtEnd() && isRegular(lookChar()) && lookChar() != CHAR_MARK)
+            {
+                ++m_current;
+            }
+
+            if (isAtEnd() || lookChar() != CHAR_MARK)
+            {
+                return Token(TokenType::Name, createByteArray(nameBegin, m_current));
+            }
+
+            QByteArray name(nameBegin, std::distance(nameBegin, m_current));
 
             while (!isAtEnd())
             {
@@ -448,14 +460,13 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
             if (isRegular(lookChar()))
             {
                 // It should be sequence of regular characters - command, true, false, null...
-                QByteArray command;
-                command.reserve(COMMAND_BUFFER_RESERVE);
-
+                const char* commandBegin = m_current;
                 while (!isAtEnd() && isRegular(lookChar()))
                 {
-                    command += fetchChar();
+                    ++m_current;
                 }
 
+                const QByteArrayView command(commandBegin, m_current);
                 if (command == BOOL_OBJECT_TRUE_STRING)
                 {
                     return Token(TokenType::Boolean, true);
@@ -470,7 +481,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                 }
                 else
                 {
-                    return Token(TokenType::Command, std::move(command));
+                    return Token(TokenType::Command, createByteArray(commandBegin, m_current));
                 }
             }
             else if (m_tokenizingPostScriptFunction)
@@ -653,10 +664,99 @@ constexpr bool PDFLexicalAnalyzer::isHexCharacter(const char character)
     return (character >= '0' && character <= '9') || (character >= 'A' && character <= 'F') || (character >= 'a' && character <= 'f');
 }
 
+QByteArray PDFLexicalAnalyzer::createByteArray(const char* begin, const char* end) const
+{
+    const qsizetype size = std::distance(begin, end);
+    return m_namesAndCommandsReferenceInput ? QByteArray::fromRawData(begin, size) : QByteArray(begin, size);
+}
+
 void PDFLexicalAnalyzer::error(const QString& message) const
 {
     std::size_t distance = std::distance(m_begin, m_current);
     throw PDFException(tr("Error near position %1. %2").arg(distance).arg(message));
+}
+
+/// Scratch stacks of the parser. Items of arrays and entries of dictionaries are
+/// collected here and when an array (dictionary) is complete, they are moved to
+/// a vector of the exact size, so this vector is allocated only once. The stacks
+/// are thread local and shared by all parsers of the thread; nested arrays,
+/// dictionaries and parsers (for example, when length of the stream is fetched
+/// from another object) use the part of the stack above the outer ones.
+class PDFParserScratchStacks
+{
+public:
+    PDFParserScratchStacks() = delete;
+
+    /// Returns stack of the array items of the current thread
+    static std::vector<PDFObject>& getArrayItems();
+
+    /// Returns stack of the dictionary entries of the current thread
+    static std::vector<PDFDictionary::DictionaryEntry>& getDictionaryEntries();
+};
+
+/// Part of the scratch stack used by one array or dictionary. Items, which
+/// were not taken (an exception was thrown), are removed in the destructor.
+template<typename T>
+class PDFParserScratchFrame
+{
+public:
+    explicit inline PDFParserScratchFrame(std::vector<T>& stack) :
+        m_stack(stack),
+        m_begin(stack.size())
+    {
+
+    }
+
+    inline ~PDFParserScratchFrame()
+    {
+        Q_ASSERT(m_stack.size() >= m_begin);
+        m_stack.erase(std::next(m_stack.begin(), m_begin), m_stack.end());
+
+        // Do not keep memory of large arrays (dictionaries) forever
+        if (m_begin == 0 && m_stack.capacity() > MAX_RETAINED_CAPACITY)
+        {
+            m_stack.shrink_to_fit();
+        }
+    }
+
+    PDFParserScratchFrame(const PDFParserScratchFrame&) = delete;
+    PDFParserScratchFrame(PDFParserScratchFrame&&) = delete;
+    PDFParserScratchFrame& operator=(const PDFParserScratchFrame&) = delete;
+    PDFParserScratchFrame& operator=(PDFParserScratchFrame&&) = delete;
+
+    /// Adds new item at the end of the frame
+    template<typename... Arguments>
+    inline void emplace(Arguments&&... arguments)
+    {
+        m_stack.emplace_back(std::forward<Arguments>(arguments)...);
+    }
+
+    /// Moves items of the frame to a vector of the exact size and removes them from the stack
+    inline std::vector<T> take()
+    {
+        auto begin = std::next(m_stack.begin(), m_begin);
+        std::vector<T> result(std::make_move_iterator(begin), std::make_move_iterator(m_stack.end()));
+        m_stack.erase(begin, m_stack.end());
+        return result;
+    }
+
+private:
+    static constexpr size_t MAX_RETAINED_CAPACITY = 1024;
+
+    std::vector<T>& m_stack;
+    size_t m_begin;
+};
+
+std::vector<PDFObject>& PDFParserScratchStacks::getArrayItems()
+{
+    thread_local std::vector<PDFObject> arrayItems;
+    return arrayItems;
+}
+
+std::vector<PDFDictionary::DictionaryEntry>& PDFParserScratchStacks::getDictionaryEntries()
+{
+    thread_local std::vector<PDFDictionary::DictionaryEntry> dictionaryEntries;
+    return dictionaryEntries;
 }
 
 PDFObject PDFParsingContext::getObject(const PDFObject& object)
@@ -693,6 +793,7 @@ PDFParser::PDFParser(const QByteArray& data, PDFParsingContext* context, Feature
     m_features(features),
     m_lexicalAnalyzer(data.constData(), data.constData() + data.size())
 {
+    m_lexicalAnalyzer.setNamesAndCommandsReferenceInput();
     m_lookAhead1 = fetch();
     m_lookAhead2 = fetch();
 }
@@ -702,6 +803,7 @@ PDFParser::PDFParser(const char* begin, const char* end, PDFParsingContext* cont
     m_features(features),
     m_lexicalAnalyzer(begin, end)
 {
+    m_lexicalAnalyzer.setNamesAndCommandsReferenceInput();
     m_lookAhead1 = fetch();
     m_lookAhead2 = fetch();
 }
@@ -773,25 +875,23 @@ PDFObject PDFParser::getObject()
         case PDFLexicalAnalyzer::TokenType::Name:
         {
             Q_ASSERT(m_lookAhead1.data.typeId() == QMetaType::QByteArray);
-            QByteArray array = m_lookAhead1.data.toByteArray();
-            array.shrink_to_fit();
+            QByteArray name = getNameData();
             shift();
-            return PDFObject::createName(std::move(array));
+            return PDFObject::createName(std::move(name));
         }
 
         case PDFLexicalAnalyzer::TokenType::ArrayStart:
         {
             shift();
 
-            // Create shared pointer to the array (if the exception is thrown, array
-            // will be properly destroyed by the shared array destructor)
-            std::shared_ptr<PDFObjectContent> arraySharedPointer = std::make_shared<PDFArray>();
-            PDFArray* array = static_cast<PDFArray*>(arraySharedPointer.get());
+            // Collect items on the scratch stack (if the exception is thrown, items
+            // will be properly destroyed by the frame destructor)
+            PDFParserScratchFrame<PDFObject> items(PDFParserScratchStacks::getArrayItems());
 
             while (m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::EndOfFile &&
                    m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::ArrayEnd)
             {
-                array->appendItem(getObject());
+                items.emplace(getObject());
             }
 
             // Now, we have either end of file, or array end. If former appears, then
@@ -803,7 +903,7 @@ PDFObject PDFParser::getObject()
             else
             {
                 shift();
-                return PDFObject::createArray(std::move(arraySharedPointer));
+                return PDFObject::createArray(PDFArray(items.take()));
             }
             return PDFObject::createNull();
         }
@@ -812,9 +912,10 @@ PDFObject PDFParser::getObject()
             shift();
 
             // Start reading the dictionary. BEWARE! It can also be a stream. In this case,
-            // we must load also the stream content.
-            std::shared_ptr<PDFDictionary> dictionarySharedPointer = std::make_shared<PDFDictionary>();
-            PDFDictionary* dictionary = dictionarySharedPointer.get();
+            // we must load also the stream content. Entries are collected on the scratch
+            // stack (if the exception is thrown, entries will be properly destroyed by
+            // the frame destructor).
+            PDFParserScratchFrame<PDFDictionary::DictionaryEntry> entries(PDFParserScratchStacks::getDictionaryEntries());
 
             // Now, scan key/value pairs
             while (m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::EndOfFile &&
@@ -826,13 +927,13 @@ PDFObject PDFParser::getObject()
                     error(tr("Dictionary key must be a name."));
                 }
 
-                QByteArray key = m_lookAhead1.data.toByteArray();
+                QByteArray key = getNameData();
                 shift();
 
                 // Second value should be a value
                 PDFObject object = getObject();
 
-                dictionary->addEntry(PDFInplaceOrMemoryString(std::move(key)), std::move(object));
+                entries.emplace(PDFInplaceOrMemoryString(std::move(key)), std::move(object));
             }
 
             // Now, we should reach dictionary end. If it is not the case, then end of stream occured.
@@ -840,6 +941,9 @@ PDFObject PDFParser::getObject()
             {
                 error(tr("End of stream inside dictionary reached."));
             }
+
+            PDFDictionary parsedDictionary(entries.take());
+            PDFDictionary* dictionary = &parsedDictionary;
 
             // Is it a content stream?
             if (m_lookAhead2.type == PDFLexicalAnalyzer::TokenType::Command &&
@@ -908,7 +1012,7 @@ PDFObject PDFParser::getObject()
                 {
                     // Everything OK, just advance and return stream object
                     shift();
-                    return PDFObject::createStream(std::make_shared<PDFStream>(std::move(*dictionary), std::move(buffer)));
+                    return PDFObject::createStream(PDFStream(std::move(*dictionary), std::move(buffer)));
                 }
                 else
                 {
@@ -919,7 +1023,7 @@ PDFObject PDFParser::getObject()
             {
                 // Just shift (eat dictionary end) and return dictionary
                 shift();
-                return PDFObject::createDictionary(std::move(dictionarySharedPointer));
+                return PDFObject::createDictionary(std::move(parsedDictionary));
             }
             return PDFObject::createNull();
         }
@@ -991,6 +1095,19 @@ void PDFParser::shift()
 PDFLexicalAnalyzer::Token PDFParser::fetch()
 {
     return m_tokenFetcher ? m_tokenFetcher() : m_lexicalAnalyzer.fetch();
+}
+
+QByteArray PDFParser::getNameData() const
+{
+    QByteArray name = m_lookAhead1.data.toByteArray();
+
+    // Short names are copied to the inplace string, when object is created
+    if (!m_tokenFetcher && name.size() > PDFInplaceString::MAX_STRING_SIZE)
+    {
+        name = QByteArray(name.constData(), name.size());
+    }
+
+    return name;
 }
 
 }   // namespace pdf

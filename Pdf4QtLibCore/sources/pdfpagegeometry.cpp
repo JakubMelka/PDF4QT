@@ -122,7 +122,7 @@ public:
 
         PDFDictionary dictionary;
         dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(content.size()));
-        PDFObject streamObject = PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), QByteArray(content)));
+        PDFObject streamObject = PDFObject::createStream(PDFStream(std::move(dictionary), QByteArray(content)));
         return builder->addObject(std::move(streamObject));
     }
 

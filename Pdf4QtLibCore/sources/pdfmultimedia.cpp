@@ -1147,7 +1147,7 @@ PDF3DBackground PDF3DBackground::parse(const PDFObjectStorage* storage, PDFObjec
         {
             array.appendItem(PDFObject::createReal(colorComponent));
         }
-        PDFObject colorObject = PDFObject::createArray(std::make_shared<PDFArray>(qMove(array)));
+        PDFObject colorObject = PDFObject::createArray(PDFArray(qMove(array)));
 
         result.m_color = PDF3DAuxiliaryParser::parseColor(storage, colorObject, Qt::white);
         result.m_entireAnnotation = loader.readBooleanFromDictionary(dictionary, "EA", false);

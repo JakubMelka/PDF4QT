@@ -414,8 +414,8 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
     pdf::PDFDictionary contentDictionary;
     contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
-    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
-    pdf::PDFObject contentObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(contentDictionary), qMove(compressedData)));
+    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(pdf::PDFArray(qMove(array))));
+    pdf::PDFObject contentObject = pdf::PDFObject::createStream(pdf::PDFStream(qMove(contentDictionary), qMove(compressedData)));
 
     pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
 
@@ -436,7 +436,7 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
         if (!dictionary.isEmpty())
         {
             resourcesDictionary.setEntry(pdf::PDFInplaceOrMemoryString(key),
-                                         pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(dictionary)));
+                                         pdf::PDFObject::createDictionary(pdf::PDFDictionary(dictionary)));
         }
     };
 

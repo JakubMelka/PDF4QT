@@ -164,7 +164,7 @@ PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& param
         {
             PDFDictionary timestampDictionary(*dictionary);
             timestampDictionary.removeEntry("M");
-            builder.setObject(signatureDictionary, PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(timestampDictionary))));
+            builder.setObject(signatureDictionary, PDFObject::createDictionary(PDFDictionary(qMove(timestampDictionary))));
         }
     }
     const PDFObjectReference signatureField = parameters.createSignatureFieldFunction(builder, signatureDictionary);

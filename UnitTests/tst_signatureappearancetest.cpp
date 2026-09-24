@@ -269,27 +269,27 @@ void SignatureAppearanceTest::fallback()
     const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
     const auto field = builder.createSignatureField("Signature", signature, page, appearance, QRectF(20, 30, 80, 40));
     // Exercise existing PDFs with missing, malformed, direct or indirect appearances.
-    auto widget = std::make_shared<PDFDictionary>(*builder.getStorage()->getObjectByReference(field).getDictionary());
+    PDFDictionary widget(*builder.getStorage()->getObjectByReference(field).getDictionary());
     if (emptyRect)
     {
         PDFObjectFactory factory;
         factory << QRectF();
-        widget->setEntry(PDFInplaceOrMemoryString("Rect"), factory.takeObject());
+        widget.setEntry(PDFInplaceOrMemoryString("Rect"), factory.takeObject());
     }
     if (appearanceKind == 0)
     {
-        widget->setEntry(PDFInplaceOrMemoryString("AP"), PDFObject());
+        widget.setEntry(PDFInplaceOrMemoryString("AP"), PDFObject());
     }
     else if (appearanceKind == 1)
     {
-        auto ap = std::make_shared<PDFDictionary>();
-        ap->setEntry(PDFInplaceOrMemoryString("N"), PDFObject::createInteger(7));
-        widget->setEntry(PDFInplaceOrMemoryString("AP"), PDFObject::createDictionary(std::move(ap)));
+        PDFDictionary ap;
+        ap.setEntry(PDFInplaceOrMemoryString("N"), PDFObject::createInteger(7));
+        widget.setEntry(PDFInplaceOrMemoryString("AP"), PDFObject::createDictionary(std::move(ap)));
     }
     else if (appearanceKind == 3)
     {
-        const auto ap = builder.addObject(widget->get("AP"));
-        widget->setEntry(PDFInplaceOrMemoryString("AP"), PDFObject::createReference(ap));
+        const auto ap = builder.addObject(widget.get("AP"));
+        widget.setEntry(PDFInplaceOrMemoryString("AP"), PDFObject::createReference(ap));
     }
     builder.setObject(field, PDFObject::createDictionary(std::move(widget)));
     Fixture fixture(builder.build(), verified, false);

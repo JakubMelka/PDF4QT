@@ -1588,7 +1588,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         }
 
         dictionary.addEntry(PDFInplaceOrMemoryString("Decode"),
-                            PDFObject::createArray(std::make_shared<PDFArray>(std::move(decodeArray))));
+                            PDFObject::createArray(PDFArray(std::move(decodeArray))));
     }
 
     if (compression == ImageCompression::CCITTGroup4)
@@ -1602,7 +1602,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         decodeParams.addEntry(PDFInplaceOrMemoryString("Rows"), PDFObject::createInteger(prepared.height));
 
         dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_DECODE_PARMS),
-                            PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(decodeParams))));
+                            PDFObject::createDictionary(PDFDictionary(std::move(decodeParams))));
     }
 
     if (compression == ImageCompression::Flate && options.enablePngPredictor)
@@ -1614,7 +1614,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         decodeParams.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(prepared.bitsPerComponent));
 
         dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_DECODE_PARMS),
-                            PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(decodeParams))));
+                            PDFObject::createDictionary(PDFDictionary(std::move(decodeParams))));
     }
 
     dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(encodedData.size()));

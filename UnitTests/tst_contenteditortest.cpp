@@ -321,7 +321,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
 
             pdf::PDFStream maskStream = pdf::PDFImage::createStreamFromImage(maskImage, maskOptions);
             pdf::PDFObjectReference maskRef = builder.addObject(
-                pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(maskStream)));
+                pdf::PDFObject::createStream(pdf::PDFStream(maskStream)));
 
             pdf::PDFDictionary dict = *imageStream.getDictionary();
             dict.setEntry(pdf::PDFInplaceOrMemoryString("SMask"), pdf::PDFObject::createReference(maskRef));
@@ -330,7 +330,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             imageStream = pdf::PDFStream(std::move(dict), std::move(contentDereferenced));
         }
 
-        return builder.addObject(pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(imageStream)));
+        return builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(imageStream)));
     };
 
     switch (variant)
@@ -398,7 +398,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("OPM"), pdf::PDFObject::createInteger(1));
 
             graphicState.addEntry(pdf::PDFInplaceOrMemoryString("GS0"),
-                                  pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(transparencyDictionary))));
+                                  pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(transparencyDictionary))));
 
             pageContent = "q /GS0 gs /AbsoluteColorimetric ri 80 0 0 40 10 30 cm /Im1 Do Q";
             break;
@@ -428,7 +428,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             maskDictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(maskData.size()));
 
             pdf::PDFObjectReference imageRef = builder.addObject(pdf::PDFObject::createStream(
-                std::make_shared<pdf::PDFStream>(std::move(maskDictionary), std::move(maskData))));
+                pdf::PDFStream(std::move(maskDictionary), std::move(maskData))));
             xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
             pageContent = "q 0 0 0 rg 80 0 0 40 10 30 cm /Im1 Do Q";
             break;
@@ -443,7 +443,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
 
             pdf::PDFDictionary formResources;
             formResources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
-                                   pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(formXObject))));
+                                   pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(formXObject))));
 
             QByteArray formContent = "q 80 0 0 40 0 0 cm /Im1 Do Q";
 
@@ -464,14 +464,14 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             pdf::PDFDictionary formDictionary;
             formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XObject"));
             formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Form"));
-            formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BBox"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(bbox))));
-            formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Matrix"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(matrix))));
+            formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BBox"), pdf::PDFObject::createArray(pdf::PDFArray(std::move(bbox))));
+            formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Matrix"), pdf::PDFObject::createArray(pdf::PDFArray(std::move(matrix))));
             formDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Resources"),
-                                    pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(formResources))));
+                                    pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(formResources))));
             formDictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(formContent.size()));
 
             pdf::PDFObjectReference formRef = builder.addObject(pdf::PDFObject::createStream(
-                std::make_shared<pdf::PDFStream>(std::move(formDictionary), std::move(formContent))));
+                pdf::PDFStream(std::move(formDictionary), std::move(formContent))));
 
             xObject.addEntry(pdf::PDFInplaceOrMemoryString("Fx1"), pdf::PDFObject::createReference(formRef));
             pageContent = "q /Fx1 Do Q";
@@ -493,7 +493,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
 
             pdf::PDFDictionary patternResources;
             patternResources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
-                                      pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(patternXObject))));
+                                      pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(patternXObject))));
 
             QByteArray patternContent = "q 80 0 0 40 0 0 cm /Im1 Do Q";
 
@@ -521,16 +521,16 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("PatternType"), pdf::PDFObject::createInteger(1));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("PaintType"), pdf::PDFObject::createInteger(1));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("TilingType"), pdf::PDFObject::createInteger(1));
-            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BBox"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(bbox))));
-            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Matrix"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(matrix))));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BBox"), pdf::PDFObject::createArray(pdf::PDFArray(std::move(bbox))));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Matrix"), pdf::PDFObject::createArray(pdf::PDFArray(std::move(matrix))));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("XStep"), pdf::PDFObject::createReal(xStep));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("YStep"), pdf::PDFObject::createReal(yStep));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Resources"),
-                                       pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(patternResources))));
+                                       pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(patternResources))));
             patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(patternContent.size()));
 
             pdf::PDFObjectReference patternRef = builder.addObject(pdf::PDFObject::createStream(
-                std::make_shared<pdf::PDFStream>(std::move(patternDictionary), std::move(patternContent))));
+                pdf::PDFStream(std::move(patternDictionary), std::move(patternContent))));
 
             pattern.addEntry(pdf::PDFInplaceOrMemoryString("P1"), pdf::PDFObject::createReference(patternRef));
             pageContent = "q /Pattern cs /P1 scn 10 30 80 40 re f Q";
@@ -563,25 +563,25 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
                          pdf::PDFObject::createInteger(pageContent.size()));
     pdf::PDFStream contentStream(std::move(contentDict), std::move(pageContent));
     pdf::PDFObjectReference contentRef = builder.addObject(
-        pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(contentStream)));
+        pdf::PDFObject::createStream(pdf::PDFStream(contentStream)));
 
     pdf::PDFDictionary resources;
     if (!xObject.isEmpty())
     {
         resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
-                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(xObject))));
+                           pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(xObject))));
     }
 
     if (!pattern.isEmpty())
     {
         resources.addEntry(pdf::PDFInplaceOrMemoryString("Pattern"),
-                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pattern))));
+                           pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pattern))));
     }
 
     if (!graphicState.isEmpty())
     {
         resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"),
-                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(graphicState))));
+                           pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(graphicState))));
     }
 
     if (variant == Variant::IndirectResources)
@@ -590,10 +590,10 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
         pdf::PDFDictionary colorSpaces;
         colorSpaces.addEntry(pdf::PDFInplaceOrMemoryString("CS0"), pdf::PDFObject::createName("DeviceRGB"));
         resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"),
-                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(colorSpaces))));
+                           pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(colorSpaces))));
     }
 
-    pdf::PDFObject resourcesObject = pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resources)));
+    pdf::PDFObject resourcesObject = pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(resources)));
 
     if (variant == Variant::IndirectResources)
     {
@@ -605,7 +605,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), std::move(resourcesObject));
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentRef));
 
-    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageUpdate))));
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
 
     return builder.build();
 }
@@ -689,8 +689,8 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
     QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
     pdf::PDFDictionary contentDictionary;
     contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
-    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
-    pdf::PDFObject contentObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(contentDictionary), qMove(compressedData)));
+    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(pdf::PDFArray(qMove(array))));
+    pdf::PDFObject contentObject = pdf::PDFObject::createStream(pdf::PDFStream(qMove(contentDictionary), qMove(compressedData)));
 
     pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
 
@@ -705,7 +705,7 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
         if (!dictionary.isEmpty())
         {
             resourcesDictionary.setEntry(pdf::PDFInplaceOrMemoryString(key),
-                                         pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(dictionary)));
+                                         pdf::PDFObject::createDictionary(pdf::PDFDictionary(dictionary)));
         }
     };
 
@@ -1269,7 +1269,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithText(QByteArray pageConten
                          pdf::PDFObject::createInteger(pageContent.size()));
     pdf::PDFStream contentStream(std::move(contentDict), std::move(pageContent));
     pdf::PDFObjectReference contentRef = builder.addObject(
-        pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(contentStream)));
+        pdf::PDFObject::createStream(pdf::PDFStream(contentStream)));
 
     pdf::PDFDictionary font;
     font.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Font"));
@@ -1277,21 +1277,21 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithText(QByteArray pageConten
     font.addEntry(pdf::PDFInplaceOrMemoryString("BaseFont"), pdf::PDFObject::createName("Helvetica"));
     font.addEntry(pdf::PDFInplaceOrMemoryString("Encoding"), pdf::PDFObject::createName("WinAnsiEncoding"));
     pdf::PDFObjectReference fontRef = builder.addObject(
-        pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(font))));
+        pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(font))));
 
     pdf::PDFDictionary fonts;
     fonts.addEntry(pdf::PDFInplaceOrMemoryString("F1"), pdf::PDFObject::createReference(fontRef));
 
     pdf::PDFDictionary resources;
     resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"),
-                       pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(fonts))));
+                       pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(fonts))));
 
     pdf::PDFDictionary pageUpdate;
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"),
-                        pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resources))));
+                        pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(resources))));
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentRef));
 
-    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageUpdate))));
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
 
     return builder.build();
 }
@@ -1551,10 +1551,10 @@ pdf::PDFDocument ContentEditorTest::createDocument(QByteArray pageContent, const
     pdf::PDFDictionary resources = createResources(&builder);
 
     pdf::PDFDictionary pageUpdate;
-    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resources))));
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(resources))));
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), std::move(contentObject));
 
-    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageUpdate))));
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
 
     return builder.build();
 }
@@ -1567,7 +1567,7 @@ pdf::PDFObject ContentEditorTest::createDictionaryObject(DictionaryEntries entri
         dictionary.addEntry(pdf::PDFInplaceOrMemoryString(entry.first), std::move(entry.second));
     }
 
-    return pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(dictionary)));
+    return pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(dictionary)));
 }
 
 pdf::PDFObject ContentEditorTest::createNumberArrayObject(std::vector<pdf::PDFReal> numbers)
@@ -1578,7 +1578,7 @@ pdf::PDFObject ContentEditorTest::createNumberArrayObject(std::vector<pdf::PDFRe
         array.appendItem(pdf::PDFObject::createReal(number));
     }
 
-    return pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(array)));
+    return pdf::PDFObject::createArray(pdf::PDFArray(std::move(array)));
 }
 
 pdf::PDFObject ContentEditorTest::addStreamObject(pdf::PDFDocumentBuilder* builder, DictionaryEntries entries, QByteArray content)
@@ -1590,7 +1590,7 @@ pdf::PDFObject ContentEditorTest::addStreamObject(pdf::PDFDocumentBuilder* build
     }
     dictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(content.size()));
 
-    pdf::PDFObject streamObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(dictionary), std::move(content)));
+    pdf::PDFObject streamObject = pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), std::move(content)));
     return pdf::PDFObject::createReference(builder->addObject(std::move(streamObject)));
 }
 
@@ -1726,7 +1726,7 @@ void ContentEditorTest::test_shading_is_preserved()
                                         { "ColorSpace", pdf::PDFObject::createName("DeviceRGB") },
                                         { "Coords", createNumberArrayObject(std::move(coords)) },
                                         { "Function", function },
-                                        { "Extend", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(extend))) } });
+                                        { "Extend", pdf::PDFObject::createArray(pdf::PDFArray(std::move(extend))) } });
     };
 
     pdf::PDFDocument document = createDocument(pageContent, [&](pdf::PDFDocumentBuilder* builder)
@@ -2138,7 +2138,7 @@ void ContentEditorTest::test_shading_composite_color_space_from_form_resources_i
                 colorantNames.appendItem(pdf::PDFObject::createName("Spot"));
 
                 colorSpace.appendItem(pdf::PDFObject::createName("DeviceN"));
-                colorSpace.appendItem(pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorantNames))));
+                colorSpace.appendItem(pdf::PDFObject::createArray(pdf::PDFArray(std::move(colorantNames))));
             }
             else
             {
@@ -2149,7 +2149,7 @@ void ContentEditorTest::test_shading_composite_color_space_from_form_resources_i
             colorSpace.appendItem(tintTransform);
 
             pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
-                                                              { "ColorSpace", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorSpace))) },
+                                                              { "ColorSpace", pdf::PDFObject::createArray(pdf::PDFArray(std::move(colorSpace))) },
                                                               { "Coords", createNumberArrayObject({ 20, 0, 180, 0 }) },
                                                               { "Function", function } });
 
@@ -2277,7 +2277,7 @@ void ContentEditorTest::test_shading_icc_alternate_color_space_from_form_resourc
         colorSpace.appendItem(profileObject);
 
         pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
-                                                          { "ColorSpace", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorSpace))) },
+                                                          { "ColorSpace", pdf::PDFObject::createArray(pdf::PDFArray(std::move(colorSpace))) },
                                                           { "Coords", createNumberArrayObject({ 20, 0, 180, 0 }) },
                                                           { "Function", function } });
 

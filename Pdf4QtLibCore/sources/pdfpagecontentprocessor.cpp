@@ -620,8 +620,8 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                             { "CMYK", "DeviceCMYK" }
                         };
 
-                        std::shared_ptr<PDFDictionary> dictionarySharedPointer = std::make_shared<PDFDictionary>();
-                        PDFDictionary* dictionary = dictionarySharedPointer.get();
+                        PDFDictionary inlineImageDictionary;
+                        PDFDictionary* dictionary = &inlineImageDictionary;
 
                         while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
                         {

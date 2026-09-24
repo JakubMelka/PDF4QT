@@ -260,7 +260,7 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
 {
     BaseClass::performOriginalImagePainting(image, stream, reference);
 
-    PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
+    PDFObject imageObject = PDFObject::createStream(PDFStream(*stream));
     m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
     if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
     {
@@ -589,7 +589,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
                 {
                     PDFDictionary resolvedProfileDictionary = *profileDictionary;
                     resolvedProfileDictionary.setEntry(PDFInplaceOrMemoryString("Alternate"), std::move(alternate));
-                    resolvedArray.setItem(PDFObject::createStream(std::make_shared<PDFStream>(std::move(resolvedProfileDictionary), QByteArray(*profileStream->getContent()))), 1);
+                    resolvedArray.setItem(PDFObject::createStream(PDFStream(std::move(resolvedProfileDictionary), QByteArray(*profileStream->getContent()))), 1);
                     isArrayChanged = true;
                 }
             }
@@ -625,7 +625,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
 
                 if (isColorantsChanged)
                 {
-                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Colorants"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedColorants))));
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Colorants"), PDFObject::createDictionary(PDFDictionary(std::move(resolvedColorants))));
                     isAttributesChanged = true;
                 }
             }
@@ -639,14 +639,14 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
                 {
                     PDFDictionary resolvedProcess = *process;
                     resolvedProcess.setEntry(PDFInplaceOrMemoryString("ColorSpace"), std::move(processColorSpace));
-                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Process"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedProcess))));
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Process"), PDFObject::createDictionary(PDFDictionary(std::move(resolvedProcess))));
                     isAttributesChanged = true;
                 }
             }
 
             if (isAttributesChanged)
             {
-                resolvedArray.setItem(PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedAttributes))), 4);
+                resolvedArray.setItem(PDFObject::createDictionary(PDFDictionary(std::move(resolvedAttributes))), 4);
                 isArrayChanged = true;
             }
         }
@@ -658,7 +658,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
     }
 
     *isChanged = true;
-    return PDFObject::createArray(std::make_shared<PDFArray>(std::move(resolvedArray)));
+    return PDFObject::createArray(PDFArray(std::move(resolvedArray)));
 }
 
 PDFEditedPageContentTransparencyGroupPointer PDFPageContentEditorProcessor::getCurrentTransparencyGroup() const
@@ -695,10 +695,10 @@ PDFObject PDFPageContentEditorProcessor::getShadingObjectWithResolvedColorSpace(
 
     if (shadingStream)
     {
-        return PDFObject::createStream(std::make_shared<PDFStream>(std::move(resolvedShadingDictionary), QByteArray(*shadingStream->getContent())));
+        return PDFObject::createStream(PDFStream(std::move(resolvedShadingDictionary), QByteArray(*shadingStream->getContent())));
     }
 
-    return PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedShadingDictionary)));
+    return PDFObject::createDictionary(PDFDictionary(std::move(resolvedShadingDictionary)));
 }
 
 void PDFPageContentEditorProcessor::registerFontResources(PDFEditedPageContentElementText* textElement) const

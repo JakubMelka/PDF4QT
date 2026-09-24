@@ -164,7 +164,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitArray(const PDFArray* array)
 
     auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
     std::vector<PDFObject> objects(it, m_objectStack.cend());
-    PDFObject object = PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
+    PDFObject object = PDFObject::createArray(PDFArray(qMove(objects)));
     m_objectStack.erase(it, m_objectStack.cend());
     m_objectStack.push_back(object);
 }
@@ -199,7 +199,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dict
         }
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
 }
 
 void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
@@ -212,7 +212,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 
     if (isMetadata && !m_securityHandler->isMetadataEncrypted())
     {
-        m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*dictionary), QByteArray(*stream->getContent()))));
+        m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionary(*dictionary), QByteArray(*stream->getContent()))));
         return;
     }
 
@@ -273,7 +273,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 
     }
 
-    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(processedDictionary), qMove(processedData))));
+    m_objectStack.push_back(PDFObject::createStream(PDFStream(qMove(processedDictionary), qMove(processedData))));
 }
 
 void PDFDecryptOrEncryptObjectVisitor::visitReference(const PDFObjectReference reference)
