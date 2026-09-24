@@ -115,8 +115,7 @@ void PDFStatisticsCollector::visitArray(const PDFArray* array)
 
     // We process elements of the array, together with memory consumption,
     // in the call of acceptArray function. No need to calculate memory consumption here.
-    // Just calculate the overhead.
-    statistics.memoryOverheadEstimate += (array->getCapacity() - array->getCount()) * sizeof(PDFObject);
+    // Array is stored in the memory of the exact size, so there is no overhead.
 
     acceptArray(array);
 }
@@ -155,11 +154,13 @@ void PDFStatisticsCollector::collectStatisticsOfDictionary(Statistics& statistic
     statistics.count += 1;
     statistics.memoryConsumptionEstimate += sizeof(PDFObject) + sizeof(PDFDictionary);
 
-    constexpr uint64_t sizeOfItem = sizeof(std::pair<QByteArray, PDFObject>);
+    constexpr uint64_t sizeOfItem = sizeof(PDFDictionary::DictionaryEntry);
     constexpr uint64_t sizeOfItemWithoutObject = sizeOfItem - sizeof(PDFObject);
 
+    // Dictionary is stored in the memory of the exact size, overhead is only
+    // in the keys stored in the heap
     uint64_t consumptionEstimate = sizeOfItemWithoutObject * dictionary->getCount();
-    uint64_t overheadEstimate = sizeOfItem * (dictionary->getCapacity() - dictionary->getCount());
+    uint64_t overheadEstimate = 0;
 
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
@@ -233,29 +234,33 @@ void PDFUpdateObjectVisitor::visitArray(const PDFArray* array)
     // We have all objects on the stack
     Q_ASSERT(array->getCount() <= m_objectStack.size());
 
-    auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
-    std::vector<PDFObject> objects(it, m_objectStack.cend());
-    PDFObject object = PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
-    m_objectStack.erase(it, m_objectStack.cend());
-    m_objectStack.push_back(object);
+    auto it = std::next(m_objectStack.begin(), m_objectStack.size() - array->getCount());
+    PDFArrayBuilder objects;
+    objects.setFixedSize(array->getCount());
+    for (auto itemIt = it; itemIt != m_objectStack.end(); ++itemIt)
+    {
+        objects.appendItem(qMove(*itemIt));
+    }
+    m_objectStack.erase(it, m_objectStack.end());
+    m_objectStack.push_back(PDFObject::createArray(qMove(objects)));
 }
 
 void PDFUpdateObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
 {
     Q_ASSERT(dictionary);
 
-    std::vector<PDFDictionary::DictionaryEntry> entries;
-    entries.reserve(dictionary->getCount());
+    PDFDictionaryBuilder entries;
+    entries.setFixedSize(dictionary->getCount());
 
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
         dictionary->getValue(i).accept(this);
         Q_ASSERT(!m_objectStack.empty());
-        entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
+        entries.addEntry(dictionary->getKey(i), qMove(m_objectStack.back()));
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
 void PDFUpdateObjectVisitor::visitStream(const PDFStream* stream)
@@ -268,8 +273,8 @@ void PDFUpdateObjectVisitor::visitStream(const PDFStream* stream)
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
 
-    PDFDictionary newDictionary(*dictionaryObject.getDictionary());
-    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(newDictionary), QByteArray(*stream->getContent()))));
+    PDFDictionaryBuilder newDictionary(*dictionaryObject.getDictionary());
+    m_objectStack.push_back(PDFObject::createStream(PDFStream(qMove(newDictionary), QByteArray(*stream->getContent()))));
 }
 
 void PDFUpdateObjectVisitor::visitReference(const PDFObjectReference reference)

@@ -65,7 +65,7 @@ public:
     /// \param errorCallback Callback for error reporting
     std::vector<Run> encode(const std::u32string& codePoints,
                             const PDFFontPointer& similarToFont,
-                            PDFDictionary& fontDictionary,
+                            PDFDictionaryBuilder& fontDictionary,
                             const std::function<void(const QString&)>& errorCallback);
 
 private:
@@ -107,11 +107,11 @@ private:
     /// outline from the substitute fonts. Returns (font index, character code).
     std::pair<size_t, int> assignCode(SourceFontFallback& fallback,
                                       char32_t codePoint,
-                                      PDFDictionary& fontDictionary,
+                                      PDFDictionaryBuilder& fontDictionary,
                                       const std::function<void(const QString&)>& errorCallback);
 
     /// Creates a new fallback font with a unique resource key
-    FallbackFont& createFallbackFont(SourceFontFallback& fallback, PDFDictionary& fontDictionary);
+    FallbackFont& createFallbackFont(SourceFontFallback& fallback, PDFDictionaryBuilder& fontDictionary);
 
     /// Extracts the glyph outline and advance for the code point from the
     /// substitute font, or from the cascade of generic fallback fonts.

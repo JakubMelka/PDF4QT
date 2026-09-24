@@ -84,17 +84,17 @@ PDFObjectReference PDFDocumentBuilder::createSignatureField(QString fieldName,
     const PDFDictionary* catalog = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(getCatalogReference()));
     const PDFObject acroFormObject = catalog->get("AcroForm");
     const PDFDictionary* existingForm = m_storage.getDictionaryFromObject(acroFormObject);
-    auto form = existingForm ? std::make_shared<PDFDictionary>(*existingForm) : std::make_shared<PDFDictionary>();
-    const PDFObject fieldsObject = m_storage.getObject(form->get("Fields"));
-    auto fields = fieldsObject.isArray() ? std::make_shared<PDFArray>(*fieldsObject.getArray()) : std::make_shared<PDFArray>();
-    fields->appendItem(PDFObject::createReference(field));
-    form->setEntry(PDFInplaceOrMemoryString("Fields"), PDFObject::createArray(std::move(fields)));
+    PDFDictionaryBuilder form = existingForm ? PDFDictionaryBuilder(*existingForm) : PDFDictionaryBuilder();
+    const PDFObject fieldsObject = m_storage.getObject(form.get("Fields"));
+    PDFArrayBuilder fields = fieldsObject.isArray() ? PDFArrayBuilder(*fieldsObject.getArray()) : PDFArrayBuilder();
+    fields.appendItem(PDFObject::createReference(field));
+    form.setEntry(PDFInplaceOrMemoryString("Fields"), PDFObject::createArray(std::move(fields)));
 
-    const PDFObject flags = m_storage.getObject(form->get("SigFlags"));
-    form->setEntry(PDFInplaceOrMemoryString("SigFlags"), PDFObject::createInteger((flags.isInt() ? flags.getInteger() : 0) | 3));
+    const PDFObject flags = m_storage.getObject(form.get("SigFlags"));
+    form.setEntry(PDFInplaceOrMemoryString("SigFlags"), PDFObject::createInteger((flags.isInt() ? flags.getInteger() : 0) | 3));
     if (!existingForm)
     {
-        form->setEntry(PDFInplaceOrMemoryString("NeedAppearances"), PDFObject::createBool(false));
+        form.setEntry(PDFInplaceOrMemoryString("NeedAppearances"), PDFObject::createBool(false));
     }
 
     PDFObject updatedForm = PDFObject::createDictionary(std::move(form));
@@ -412,7 +412,7 @@ PDFObject PDFDocumentBuilder::createPDFColor(const QColor& color)
 
 void PDFObjectFactory::beginArray()
 {
-    m_items.emplace_back(ItemType::Array, PDFArray());
+    m_items.emplace_back(ItemType::Array, PDFArrayBuilder());
 }
 
 void PDFObjectFactory::endArray()
@@ -420,12 +420,12 @@ void PDFObjectFactory::endArray()
     Item topItem = qMove(m_items.back());
     Q_ASSERT(topItem.type == ItemType::Array);
     m_items.pop_back();
-    addObject(PDFObject::createArray(std::make_shared<PDFArray>(qMove(std::get<PDFArray>(topItem.object)))));
+    addObject(PDFObject::createArray(qMove(std::get<PDFArrayBuilder>(topItem.object))));
 }
 
 void PDFObjectFactory::beginDictionary()
 {
-    m_items.emplace_back(ItemType::Dictionary, PDFDictionary());
+    m_items.emplace_back(ItemType::Dictionary, PDFDictionaryBuilder());
 }
 
 void PDFObjectFactory::endDictionary()
@@ -433,7 +433,7 @@ void PDFObjectFactory::endDictionary()
     Item topItem = qMove(m_items.back());
     Q_ASSERT(topItem.type == ItemType::Dictionary);
     m_items.pop_back();
-    addObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(std::get<PDFDictionary>(topItem.object)))));
+    addObject(PDFObject::createDictionary(qMove(std::get<PDFDictionaryBuilder>(topItem.object))));
 }
 
 void PDFObjectFactory::beginDictionaryItem(const QByteArray& name)
@@ -449,7 +449,7 @@ void PDFObjectFactory::endDictionaryItem()
 
     Item& dictionaryItem = m_items.back();
     Q_ASSERT(dictionaryItem.type == ItemType::Dictionary);
-    std::get<PDFDictionary>(dictionaryItem.object).addEntry(PDFInplaceOrMemoryString(qMove(topItem.itemName)), qMove(std::get<PDFObject>(topItem.object)));
+    std::get<PDFDictionaryBuilder>(dictionaryItem.object).addEntry(PDFInplaceOrMemoryString(qMove(topItem.itemName)), qMove(std::get<PDFObject>(topItem.object)));
 }
 
 PDFObjectFactory& PDFObjectFactory::operator<<(const PDFDestination& destination)
@@ -709,9 +709,9 @@ PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
     return *this;
 }
 
-PDFObjectFactory& PDFObjectFactory::operator<<(PDFDictionary dictionary)
+PDFObjectFactory& PDFObjectFactory::operator<<(PDFDictionaryBuilder dictionary)
 {
-    *this << PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(dictionary)));
+    *this << PDFObject::createDictionary(std::move(dictionary));
     return *this;
 }
 
@@ -1048,7 +1048,7 @@ void PDFObjectFactory::addObject(PDFObject object)
             break;
 
         case ItemType::Array:
-            std::get<PDFArray>(topItem.object).appendItem(qMove(object));
+            std::get<PDFArrayBuilder>(topItem.object).appendItem(qMove(object));
             break;
 
         default:
@@ -1138,7 +1138,7 @@ PDFDocument PDFDocumentBuilder::build()
     return PDFDocument(PDFObjectStorage(m_storage), m_version, QByteArray());
 }
 
-void PDFDocumentBuilder::replaceObjectsByReferences(PDFDictionary& dictionary)
+void PDFDocumentBuilder::replaceObjectsByReferences(PDFDictionaryBuilder& dictionary)
 {
     for (size_t i = 0; i < dictionary.getCount(); ++i)
     {
@@ -1179,7 +1179,7 @@ PDFObject PDFDocumentBuilder::replaceNestedStreamsByReferences(const PDFObject& 
             {
                 entries.emplace_back(dictionary->getKey(i), processChild(dictionary->getValue(i)));
             }
-            return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries)));
+            return PDFObject::createDictionary(qMove(entries));
         }
 
         case PDFObject::Type::Array:
@@ -1191,15 +1191,15 @@ PDFObject PDFDocumentBuilder::replaceNestedStreamsByReferences(const PDFObject& 
             {
                 items.emplace_back(processChild(array->getItem(i)));
             }
-            return PDFObject::createArray(std::make_shared<PDFArray>(qMove(items)));
+            return PDFObject::createArray(qMove(items));
         }
 
         case PDFObject::Type::Stream:
         {
             const PDFStream* stream = object.getStream();
-            PDFObject processedDictionary = replaceNestedStreamsByReferences(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())));
+            PDFObject processedDictionary = replaceNestedStreamsByReferences(PDFObject::createDictionary(PDFDictionaryBuilder(*stream->getDictionary())));
             Q_ASSERT(processedDictionary.isDictionary());
-            return PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*processedDictionary.getDictionary()), QByteArray(*stream->getContent())));
+            return PDFObject::createStream(PDFStream(PDFDictionaryBuilder(*processedDictionary.getDictionary()), QByteArray(*stream->getContent())));
         }
 
         default:
@@ -1523,15 +1523,15 @@ void PDFPageContentStreamBuilder::replaceResources(PDFObjectReference contentStr
             }
         }
 
-        PDFArray array;
+        PDFArrayBuilder array;
         array.appendItem(PDFObject::createName("FlateDecode"));
 
         // Compress the content stream
         QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
-        PDFDictionary updatedDictionary = *contentStreamObject.getStream()->getDictionary();
+        PDFDictionaryBuilder updatedDictionary(*contentStreamObject.getStream()->getDictionary());
         updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
-        PDFObject newContentStream = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(compressedData)));
+        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(qMove(array)));
+        PDFObject newContentStream = PDFObject::createStream(PDFStream(qMove(updatedDictionary), qMove(compressedData)));
         m_documentBuilder->setObject(contentStreamReference, std::move(newContentStream));
     }
 }
@@ -1824,7 +1824,7 @@ bool PDFDocumentBuilder::updateHighlightAnnotationAppearanceStream(PDFObjectRefe
         return false;
     }
 
-    PDFObject formObject = PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*formDictionary), qMove(content)));
+    PDFObject formObject = PDFObject::createStream(PDFStream(PDFDictionaryBuilder(*formDictionary), qMove(content)));
     const PDFObjectReference formReference = addObject(qMove(formObject));
 
     PDFObjectFactory annotationFactory;
@@ -1933,17 +1933,17 @@ void PDFDocumentBuilder::mergeNames(PDFObjectReference a, PDFObjectReference b)
     const PDFDictionary* aDict = getDictionaryFromObject(aObject);
     const PDFDictionary* bDict = getDictionaryFromObject(bObject);
 
-    PDFDictionary aDictDummy;
-    PDFDictionary bDictDummy;
+    PDFDictionaryBuilder aDictDummy;
+    PDFDictionaryBuilder bDictDummy;
 
     if (!aDict)
     {
-        aDict = &aDictDummy;
+        aDict = aDictDummy.getDictionary();
     }
 
     if (!bDict)
     {
-        bDict = &bDictDummy;
+        bDict = bDictDummy.getDictionary();
     }
 
     // Store keys
@@ -2284,12 +2284,12 @@ void PDFDocumentBuilder::setCatalogMetadata(QByteArray metadataXML)
         }
     }
 
-    PDFDictionary metadataDictionary;
+    PDFDictionaryBuilder metadataDictionary;
     metadataDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Metadata"));
     metadataDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("XML"));
     metadataDictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(metadataLength));
 
-    PDFObject metadataStream = PDFObject::createStream(std::make_shared<PDFStream>(qMove(metadataDictionary), qMove(metadataXML)));
+    PDFObject metadataStream = PDFObject::createStream(PDFStream(qMove(metadataDictionary), qMove(metadataXML)));
     if (metadataReference.isValid())
     {
         setObject(metadataReference, qMove(metadataStream));

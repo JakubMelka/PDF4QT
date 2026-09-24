@@ -34,6 +34,7 @@ class DocumentWriterTest : public QObject
     Q_OBJECT
 
 private slots:
+    void objectStreamValidation();
     void incrementalUpdateOfClassicTable();
     void incrementalUpdateOfCrossReferenceStream();
     void incrementalUpdateRejectsUnreadableOriginal();
@@ -110,6 +111,61 @@ QByteArray DocumentWriterTest::createCrossReferenceStreamDocument()
     data.append("\nendstream\nendobj\n");
     data.append("startxref\n" + QByteArray::number(xrefOffset) + "\n%%EOF\n");
     return data;
+}
+
+
+void DocumentWriterTest::objectStreamValidation()
+{
+    auto makeDocument = [](PDFInteger count, PDFInteger first, PDFInteger relativeOffset)
+    {
+        QByteArray data("%PDF-1.5\n");
+        std::array<qsizetype, 7> offsets{};
+        auto addObject = [&](int number, const QByteArray& body)
+        {
+            offsets[number] = data.size();
+            data += QByteArray::number(number) + " 0 obj\n" + body + "\nendobj\n";
+        };
+        addObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        addObject(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        addObject(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] >>");
+        const QByteArray content = "4 " + QByteArray::number(relativeOffset) + " /VeryLongCompressedObjectName";
+        addObject(5, "<< /Type /ObjStm /N " + QByteArray::number(count) + " /First " + QByteArray::number(first) +
+                     " /Length " + QByteArray::number(content.size()) + " >>\nstream\n" + content + "\nendstream");
+        offsets[6] = data.size();
+        QByteArray entries;
+        for (int i = 0; i < int(offsets.size()); ++i)
+        {
+            const quint32 offset = i == 4 ? 5 : quint32(offsets[i]);
+            entries.append(char(i == 0 ? 0 : i == 4 ? 2 : 1));
+            for (int shift : { 24, 16, 8, 0 })
+            {
+                entries.append(char((offset >> shift) & 0xFF));
+            }
+            entries.append(char(i == 0 ? 0xFF : 0));
+            entries.append(char(i == 0 ? 0xFF : 0));
+        }
+        addObject(6, "<< /Type /XRef /Size 7 /W [1 4 2] /Root 1 0 R /Length " + QByteArray::number(entries.size()) +
+                     " >>\nstream\n" + entries + "\nendstream");
+        data += "startxref\n" + QByteArray::number(offsets[6]) + "\n%%EOF\n";
+        return data;
+    };
+
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    const PDFDocument valid = reader.readFromBuffer(makeDocument(1, 4, 0));
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QCOMPARE(valid.getObjectByReference(PDFObjectReference(4, 0)).getString(), QByteArray("VeryLongCompressedObjectName"));
+
+    const std::array<std::array<PDFInteger, 3>, 7> invalidHeaders = {{
+        { -1, 4, 0 }, { PDF_INTEGER_MAX, 4, 0 }, { 1, -1, 0 },
+        { 1, PDF_INTEGER_MAX, 0 }, { 1, 4, -1 }, { 1, 4, PDF_INTEGER_MAX }, { 2, 4, 0 }
+    }};
+    for (const auto& header : invalidHeaders)
+    {
+        PDFDocumentReader invalidReader(nullptr, nullptr, false, false);
+        invalidReader.readFromBuffer(makeDocument(header[0], header[1], header[2]));
+        QCOMPARE(invalidReader.getReadingResult(), PDFDocumentReader::Result::Failed);
+        QVERIFY(!invalidReader.getErrorMessage().isEmpty());
+    }
 }
 
 void DocumentWriterTest::incrementalUpdateOfClassicTable()

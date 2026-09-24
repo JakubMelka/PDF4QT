@@ -340,24 +340,24 @@ public:
 
     PDFEditedPageContentElement* getBackElement() const;
 
-    PDFDictionary getFontDictionary() const;
+    PDFDictionaryBuilder getFontDictionary() const;
     void setFontDictionary(const PDFDictionary& newFontDictionary);
 
-    PDFDictionary getXObjectDictionary() const;
+    PDFDictionaryBuilder getXObjectDictionary() const;
     void setXObjectDictionary(const PDFDictionary& newXobjectDictionary);
 
-    PDFDictionary getGraphicStateDictionary() const;
+    PDFDictionaryBuilder getGraphicStateDictionary() const;
     void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
 
-    PDFDictionary getShadingDictionary() const;
+    PDFDictionaryBuilder getShadingDictionary() const;
     void setShadingDictionary(const PDFDictionary& newShadingDictionary);
 
 private:
     std::vector<std::unique_ptr<PDFEditedPageContentElement>> m_contentElements;
-    PDFDictionary m_fontDictionary;
-    PDFDictionary m_xobjectDictionary;
-    PDFDictionary m_graphicStateDictionary;
-    PDFDictionary m_shadingDictionary;
+    PDFDictionaryBuilder m_fontDictionary;
+    PDFDictionaryBuilder m_xobjectDictionary;
+    PDFDictionaryBuilder m_graphicStateDictionary;
+    PDFDictionaryBuilder m_shadingDictionary;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor

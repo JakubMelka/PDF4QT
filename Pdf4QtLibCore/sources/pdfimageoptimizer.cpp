@@ -482,11 +482,11 @@ QImage simulateJpegCompression(const QImage& image, int quality)
     return decoded.isNull() ? image : decoded;
 }
 
-PDFDictionary mergeDictionaries(const PDFDictionary& base,
+PDFDictionaryBuilder mergeDictionaries(const PDFDictionary& base,
                                 const PDFDictionary& original,
                                 const std::unordered_set<QByteArray>& blockedKeys)
 {
-    PDFDictionary merged = base;
+    PDFDictionaryBuilder merged(base);
     for (size_t i = 0; i < original.getCount(); ++i)
     {
         const PDFInplaceOrMemoryString& key = original.getKey(i);
@@ -988,7 +988,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                         "Mask", "SMask", "ImageMask", "SMaskInData"
                     };
 
-                    PDFDictionary merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
+                    PDFDictionaryBuilder merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
                     if (originalDict->hasKey("SMask"))
                     {
                         const PDFObject& maskObject = originalDict->get("SMask");
@@ -1044,19 +1044,19 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
             if (encoded.existingMaskReference)
             {
                 maskReference = *encoded.existingMaskReference;
-                storage.setObject(maskReference, PDFObject::createStream(std::make_shared<PDFStream>(*encoded.maskStream)));
+                storage.setObject(maskReference, PDFObject::createStream(PDFStream(*encoded.maskStream)));
             }
             else
             {
-                maskReference = storage.addObject(PDFObject::createStream(std::make_shared<PDFStream>(*encoded.maskStream)));
+                maskReference = storage.addObject(PDFObject::createStream(PDFStream(*encoded.maskStream)));
             }
 
-            PDFDictionary updatedDictionary = *stream.getDictionary();
+            PDFDictionaryBuilder updatedDictionary(*stream.getDictionary());
             updatedDictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(maskReference));
             stream = PDFStream(std::move(updatedDictionary), QByteArray(*stream.getContent()));
         }
 
-        storage.setObject(encoded.reference, PDFObject::createStream(std::make_shared<PDFStream>(std::move(stream))));
+        storage.setObject(encoded.reference, PDFObject::createStream(PDFStream(std::move(stream))));
 
         if (results)
         {

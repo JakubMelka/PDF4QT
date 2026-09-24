@@ -347,8 +347,8 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     }
 
     // Jakub Melka: Adjust trailer dictionary, to be really dictionary, not a stream
-    PDFDictionary trailerDictionary = *document->getTrailerDictionary();
-    PDFDictionary newTrailerDictionary;
+    PDFDictionaryBuilder trailerDictionary(*document->getTrailerDictionary());
+    PDFDictionaryBuilder newTrailerDictionary;
 
     for (const char* entry : { "Size", "Root", "Encrypt", "Info", "ID"})
     {
@@ -359,7 +359,7 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
         }
     }
 
-    PDFObject trailerDictionaryObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(newTrailerDictionary)));
+    PDFObject trailerDictionaryObject = PDFObject::createDictionary(qMove(newTrailerDictionary));
 
     device->write("trailer");
     writeCRLF(device);
@@ -517,7 +517,7 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
     // the last cross-reference section of the original document. Mixing the
     // formats is not allowed by the specification.
     PDFInteger size = qMax<PDFInteger>(PDFInteger(objects.size()), PDFInteger(originalObjects.size()));
-    PDFDictionary trailerDictionary;
+    PDFDictionaryBuilder trailerDictionary;
     auto addTrailerEntries = [&]()
     {
         for (const char* entry : { "Root", "Encrypt", "Info", "ID" })
@@ -577,7 +577,7 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
         device->write("trailer");
         writeCRLF(device);
         PDFWriteObjectVisitor trailerVisitor(device);
-        PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(trailerDictionary))).accept(&trailerVisitor);
+        PDFObject::createDictionary(qMove(trailerDictionary)).accept(&trailerVisitor);
         writeCRLF(device);
     }
     else
@@ -590,12 +590,12 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
         entries.push_back(xrefStreamObjectNumber);
         offsets[xrefStreamObjectNumber] = xrefOffset;
 
-        auto indexArray = std::make_shared<PDFArray>();
+        PDFArrayBuilder indexArray;
         QByteArray data;
         for (const auto& [firstObjectNumber, count] : getSubsections(entries))
         {
-            indexArray->appendItem(PDFObject::createInteger(PDFInteger(firstObjectNumber)));
-            indexArray->appendItem(PDFObject::createInteger(PDFInteger(count)));
+            indexArray.appendItem(PDFObject::createInteger(PDFInteger(firstObjectNumber)));
+            indexArray.appendItem(PDFObject::createInteger(PDFInteger(count)));
 
             for (size_t i = firstObjectNumber; i < firstObjectNumber + count; ++i)
             {
@@ -611,10 +611,10 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
             }
         }
 
-        auto widthArray = std::make_shared<PDFArray>();
-        widthArray->appendItem(PDFObject::createInteger(1));
-        widthArray->appendItem(PDFObject::createInteger(8));
-        widthArray->appendItem(PDFObject::createInteger(2));
+        PDFArrayBuilder widthArray;
+        widthArray.appendItem(PDFObject::createInteger(1));
+        widthArray.appendItem(PDFObject::createInteger(8));
+        widthArray.appendItem(PDFObject::createInteger(2));
 
         trailerDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XRef"));
         trailerDictionary.addEntry(PDFInplaceOrMemoryString("Size"), PDFObject::createInteger(size));
@@ -625,7 +625,7 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
 
         PDFWriteObjectVisitor visitor(device);
         writeObjectHeader(device, PDFObjectReference(PDFInteger(xrefStreamObjectNumber), 0));
-        PDFObject::createStream(std::make_shared<PDFStream>(qMove(trailerDictionary), qMove(data))).accept(&visitor);
+        PDFObject::createStream(PDFStream(qMove(trailerDictionary), qMove(data))).accept(&visitor);
         writeObjectFooter(device);
     }
 
