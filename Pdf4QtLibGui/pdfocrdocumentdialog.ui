@@ -1186,6 +1186,78 @@
               </widget>
              </item>
              <item>
+              <widget class="QGroupBox" name="perspectiveGroupBox">
+               <property name="title">
+                <string>Perspective correction</string>
+               </property>
+               <layout class="QGridLayout" name="perspectiveLayout">
+                <item row="0" column="0" colspan="2">
+                 <widget class="QCheckBox" name="perspectiveCheckBox">
+                  <property name="text">
+                   <string>Correct the perspective of this page (photographed page)</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>The four corners of the document on the photo are mapped onto a rectangle. Only the working image of the recognition is corrected; the text layer is placed onto the photo.</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Correct the perspective of this page</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QPushButton" name="perspectiveEditButton">
+                  <property name="text">
+                   <string>Set Corners...</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Drag the four corners of the document in the original view; Enter confirms, Escape cancels</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QPushButton" name="perspectiveResetButton">
+                  <property name="text">
+                   <string>Reset Corners</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Place the corners onto the corners of the page</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QPushButton" name="perspectiveCopyButton">
+                  <property name="text">
+                   <string>Use for Checked Pages</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Use the corners for the checked pages of the same size (a camera on a stand distorts all pages the same way)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QCheckBox" name="perspectivePreviewCheckBox">
+                  <property name="text">
+                   <string>Show the corrected image</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Show only the working image with the corrected perspective; the overlay of the words is hidden</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0" colspan="2">
+                 <widget class="QLabel" name="perspectiveInfoLabel">
+                  <property name="text">
+                   <string/>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
               <widget class="QLabel" name="imageNoteLabel">
                <property name="text">
                 <string>These operations change only the working image of the recognition, never the appearance of the PDF document. Annotations and form fields are not part of the working image.</string>
@@ -1314,29 +1386,388 @@
               </widget>
              </item>
              <item>
-              <widget class="QGroupBox" name="exportGroupBox">
+              <widget class="QGroupBox" name="compressionGroupBox">
                <property name="title">
-                <string>Text export</string>
+                <string>Compress scanned images</string>
                </property>
-               <layout class="QVBoxLayout" name="exportLayout">
-                <item>
-                 <widget class="QCheckBox" name="preserveLinesCheckBox">
+               <layout class="QGridLayout" name="compressionLayout">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="compressionModeLabel">
                   <property name="text">
-                   <string>Preserve lines</string>
+                   <string>Mode:</string>
                   </property>
-                  <property name="accessibleName">
-                   <string>Preserve lines</string>
+                  <property name="buddy">
+                   <cstring>compressionModeComboBox</cstring>
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <widget class="QCheckBox" name="joinHyphenatedCheckBox">
+                <item row="0" column="1" colspan="2">
+                 <widget class="QComboBox" name="compressionModeComboBox">
+                  <property name="accessibleName">
+                   <string>Compression mode</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0" colspan="3">
+                 <widget class="QLabel" name="compressionDescriptionLabel">
                   <property name="text">
-                   <string>Join words hyphenated at the line end</string>
+                   <string/>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="bitonalAlgorithmLabel">
+                  <property name="text">
+                   <string>Black and white:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>bitonalAlgorithmComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1" colspan="2">
+                 <widget class="QComboBox" name="bitonalAlgorithmComboBox">
+                  <property name="accessibleName">
+                   <string>Encoding of black and white images</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>JBIG2 is used only with a single generic region, so it is lossless: characters are never substituted.</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLabel" name="bitonalThresholdLabel">
+                  <property name="text">
+                   <string>Threshold:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>bitonalThresholdComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QComboBox" name="bitonalThresholdComboBox">
+                  <property name="accessibleName">
+                   <string>Method of the conversion to black and white</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="2">
+                 <widget class="QSpinBox" name="bitonalThresholdSpinBox">
+                  <property name="accessibleName">
+                   <string>Manual threshold</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Pixels darker than the threshold become black.</string>
+                  </property>
+                  <property name="minimum">
+                   <number>0</number>
+                  </property>
+                  <property name="maximum">
+                   <number>255</number>
+                  </property>
+                  <property name="value">
+                   <number>128</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0" colspan="2">
+                 <widget class="QCheckBox" name="downsampleCheckBox">
+                  <property name="text">
+                   <string>Downsample images above</string>
                   </property>
                   <property name="accessibleName">
-                   <string>Join words hyphenated at the line end</string>
+                   <string>Downsample images</string>
                   </property>
+                 </widget>
+                </item>
+                <item row="4" column="2">
+                 <widget class="QSpinBox" name="downsampleDpiSpinBox">
+                  <property name="accessibleName">
+                   <string>Resolution of the downsampling</string>
+                  </property>
+                  <property name="suffix">
+                   <string> DPI</string>
+                  </property>
+                  <property name="minimum">
+                   <number>72</number>
+                  </property>
+                  <property name="maximum">
+                   <number>2400</number>
+                  </property>
+                  <property name="value">
+                   <number>300</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="0" colspan="2">
+                 <widget class="QLabel" name="jpegQualityLabel">
+                  <property name="text">
+                   <string>JPEG quality:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>jpegQualitySpinBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="2">
+                 <widget class="QSpinBox" name="jpegQualitySpinBox">
+                  <property name="accessibleName">
+                   <string>JPEG quality</string>
+                  </property>
+                  <property name="minimum">
+                   <number>1</number>
+                  </property>
+                  <property name="maximum">
+                   <number>100</number>
+                  </property>
+                  <property name="value">
+                   <number>85</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="0" colspan="3">
+                 <widget class="QCheckBox" name="compressSharedImagesCheckBox">
+                  <property name="text">
+                   <string>Compress also images shared with pages, which are not written</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Compress also images shared with pages, which are not written</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="7" column="0">
+                 <widget class="QPushButton" name="compressionPreviewButton">
+                  <property name="text">
+                   <string>Pre&amp;view...</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Compare the original and the compressed images of the pages, adjust the threshold and exclude images</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Preview of the compression</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="7" column="1" colspan="2">
+                 <widget class="QLabel" name="compressionEstimateLabel">
+                  <property name="text">
+                   <string/>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="exportGroupBox">
+               <property name="title">
+                <string>Export</string>
+               </property>
+               <layout class="QVBoxLayout" name="exportLayout">
+                <item>
+                 <layout class="QHBoxLayout" name="exportFormatLayout" stretch="0,1">
+                  <item>
+                   <widget class="QLabel" name="exportFormatLabel">
+                    <property name="text">
+                     <string>Format:</string>
+                    </property>
+                    <property name="buddy">
+                     <cstring>exportFormatComboBox</cstring>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="exportFormatComboBox">
+                    <property name="accessibleName">
+                     <string>Export format</string>
+                    </property>
+                    <property name="toolTip">
+                     <string>Plain text, or a structured format with the geometry of the words (hOCR, ALTO, TSV) for the archives and further processing.</string>
+                    </property>
+                    <property name="sizeAdjustPolicy">
+                     <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                    </property>
+                    <property name="minimumContentsLength">
+                     <number>8</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QStackedWidget" name="exportOptionsStack">
+                  <widget class="QWidget" name="exportTextOptionsPage">
+                   <layout class="QVBoxLayout" name="exportTextOptionsLayout">
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QCheckBox" name="preserveLinesCheckBox">
+                      <property name="text">
+                       <string>Preserve lines</string>
+                      </property>
+                      <property name="accessibleName">
+                       <string>Preserve lines</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="joinHyphenatedCheckBox">
+                      <property name="text">
+                       <string>Join words hyphenated at the line end</string>
+                      </property>
+                      <property name="accessibleName">
+                       <string>Join words hyphenated at the line end</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="pageSeparatorLayout" stretch="0,1">
+                      <item>
+                       <widget class="QLabel" name="pageSeparatorLabel">
+                        <property name="text">
+                         <string>Page separator:</string>
+                        </property>
+                        <property name="buddy">
+                         <cstring>pageSeparatorComboBox</cstring>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QComboBox" name="pageSeparatorComboBox">
+                        <property name="accessibleName">
+                         <string>Page separator</string>
+                        </property>
+                        <property name="sizeAdjustPolicy">
+                         <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                        </property>
+                        <property name="minimumContentsLength">
+                         <number>8</number>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </widget>
+                  <widget class="QWidget" name="exportStructuredOptionsPage">
+                   <layout class="QVBoxLayout" name="exportStructuredOptionsLayout">
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <layout class="QHBoxLayout" name="exportDpiLayout" stretch="0,1">
+                      <item>
+                       <widget class="QLabel" name="exportDpiLabel">
+                        <property name="text">
+                         <string>Coordinates:</string>
+                        </property>
+                        <property name="buddy">
+                         <cstring>exportDpiSpinBox</cstring>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QSpinBox" name="exportDpiSpinBox">
+                        <property name="accessibleName">
+                         <string>Resolution of the coordinates</string>
+                        </property>
+                        <property name="toolTip">
+                         <string>The coordinates are pixels of the visible page rendered at this resolution (origin in the top-left corner). At the same resolution they match the pages exported as images.</string>
+                        </property>
+                        <property name="specialValueText">
+                         <string>Resolution of the recognition</string>
+                        </property>
+                        <property name="suffix">
+                         <string> DPI</string>
+                        </property>
+                        <property name="minimum">
+                         <number>71</number>
+                        </property>
+                        <property name="maximum">
+                         <number>1200</number>
+                        </property>
+                        <property name="value">
+                         <number>71</number>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="exportConfidenceCheckBox">
+                      <property name="text">
+                       <string>Include the scores of the engine</string>
+                      </property>
+                      <property name="toolTip">
+                       <string>Scores are exported only where the engine provided them; an unknown score is omitted, never written as zero.</string>
+                      </property>
+                      <property name="accessibleName">
+                       <string>Include the scores of the engine</string>
+                      </property>
+                      <property name="checked">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="exportPerPageCheckBox">
+                      <property name="text">
+                       <string>One file per page</string>
+                      </property>
+                      <property name="toolTip">
+                       <string>Each page is written into its own file; the physical page number is appended to the selected file name.</string>
+                      </property>
+                      <property name="accessibleName">
+                       <string>One file per page</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
                  </widget>
                 </item>
                 <item>
@@ -1348,33 +1779,6 @@
                    <string>Normalize the text (NFC)</string>
                   </property>
                  </widget>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="pageSeparatorLayout" stretch="0,1">
-                  <item>
-                   <widget class="QLabel" name="pageSeparatorLabel">
-                    <property name="text">
-                     <string>Page separator:</string>
-                    </property>
-                    <property name="buddy">
-                     <cstring>pageSeparatorComboBox</cstring>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QComboBox" name="pageSeparatorComboBox">
-                    <property name="accessibleName">
-                     <string>Page separator</string>
-                    </property>
-                    <property name="sizeAdjustPolicy">
-                     <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
-                    </property>
-                    <property name="minimumContentsLength">
-                     <number>8</number>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
                 </item>
                </layout>
               </widget>
@@ -1609,6 +2013,22 @@
               </layout>
              </item>
              <item>
+              <widget class="QCheckBox" name="reviewDictionaryCheckBox">
+               <property name="text">
+                <string>Review words not found in the dictionary</string>
+               </property>
+               <property name="toolTip">
+                <string>Words, which were not found in the dictionary of the language model (and are not user words), require a review. The dictionary is the word list of the language model, not a spelling checker. The setting does not require a new recognition.</string>
+               </property>
+               <property name="accessibleName">
+                <string>Review words not found in the dictionary</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QCheckBox" name="advancedLayoutsCheckBox">
                <property name="text">
                 <string>Offer all page layouts (with the segmentation mode number)</string>
@@ -1754,6 +2174,14 @@
            <column>
             <property name="text">
              <string>State</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>Dictionary</string>
+            </property>
+            <property name="toolTip">
+             <string>Whether the recognized word was found in the dictionary of the language model. It is not a spelling checker.</string>
             </property>
            </column>
           </widget>

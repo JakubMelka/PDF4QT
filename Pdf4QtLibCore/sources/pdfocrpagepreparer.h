@@ -31,6 +31,8 @@
 
 #include <QImage>
 
+#include <set>
+
 namespace pdf
 {
 class PDFCMS;
@@ -95,6 +97,11 @@ public:
     /// so it is stable when own layer is added, replaced or removed.
     static QByteArray computePageFingerprint(const PDFDocument* document, PDFInteger pageIndex);
 
+    /// Computes the fingerprint of the page, in which the objects are replaced by
+    /// placeholders (their content does not matter). Two revisions of a page with
+    /// equal fingerprints of this kind differ at most in the neutral objects.
+    static QByteArray computePageFingerprint(const PDFDocument* document, PDFInteger pageIndex, const std::set<PDFObjectReference>& neutralObjects);
+
     /// Computes the fingerprint of the document (from all page fingerprints)
     static QByteArray computeDocumentFingerprint(const PDFDocument* document);
 
@@ -104,6 +111,12 @@ public:
 
     /// Returns size of the raster of the page (rotated crop box) at given resolution
     static QSize getRasterSize(const PDFPage* page, double dpi);
+
+    /// Returns the transformation from the canonical page space to the raster of
+    /// the visible page (rotated crop box) of the given size, i.e. the matrix R of
+    /// PDFOCRPageGeometry::pageToRaster. The raster has its origin in the top-left
+    /// corner of the visible page and its y axis grows downwards.
+    static QTransform getPageToRasterMatrix(const PDFPage* page, QSize rasterSize);
 
     /// Returns the resolution limited by the maximal pixel count and by the maximal
     /// dimension of the raster (limit of the engine, ARCH-02). If the requested
@@ -179,11 +192,26 @@ public:
     /// Minimal confidence (0-100) of the detected orientation, which is applied (IMAGE-04)
     static constexpr double MinimumOrientationConfidence = 10.0;
 
+    /// Validates the corners of the perspective correction (PDFOCRPreprocessing::perspective):
+    /// finite points, a convex quadrilateral with the angles in 20-160 degrees, whose area
+    /// is at least 20 % of the page. Returns the translated reason, or an empty string.
+    /// \param quad Corners in the canonical page space
+    /// \param pageRect Crop box of the page (canonical page space)
+    static QString validatePerspective(const PDFOCRQuad& quad, const QRectF& pageRect);
+
+    /// Converts a quadrilateral into the parallelogram with the same bottom edge (the
+    /// baseline) and the mean height of the other two corners. Words mapped back
+    /// through the perspective correction are general quadrilaterals; the text layer
+    /// needs parallelograms.
+    static PDFOCRQuad toParallelogram(const PDFOCRQuad& quad);
+
     /// Estimates the skew of the text in degrees with confidence 0-100. Positive
     /// angle means content rotated clockwise in the image (the sense of
     /// QTransform::rotate), the content is straightened by the rotation by the
-    /// opposite angle. Only small angles (up to +-5 degrees) are estimated.
-    static double estimateSkewAngle(const QImage& image, double* confidence, const PDFOperationControl* operationControl);
+    /// opposite angle. Only small angles (up to +-maximumAngle degrees) are estimated,
+    /// with the step of 0.25 degree; the refinement estimates the angle with the step
+    /// of 0.05 degree around the best coarse angle.
+    static double estimateSkewAngle(const QImage& image, double* confidence, const PDFOperationControl* operationControl, double maximumAngle = 5.0, bool refine = false);
 
     /// Converts the raw output of the engine into the page result, transforming
     /// the geometry into the canonical page space (GEOM-02). Words overlapping

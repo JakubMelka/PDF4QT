@@ -42,6 +42,7 @@
 
 #include <set>
 #include <cmath>
+#include <numbers>
 #include <array>
 #include <algorithm>
 
@@ -744,8 +745,19 @@ static QByteArray digestObject(const PDFObject& object,
                                const PDFObjectStorage* storage,
                                int depth,
                                std::set<PDFObjectReference>& visited,
-                               const std::function<bool(const QByteArray&)>& skipKey)
+                               const std::function<bool(const QByteArray&)>& skipKey,
+                               const std::set<PDFObjectReference>* neutralObjects = nullptr)
 {
+    if (object.isReference() && neutralObjects && neutralObjects->count(object.getReference()))
+    {
+        // The object is replaced by a placeholder, its content does not matter
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        hash.addData(QByteArrayLiteral("N"));
+        hash.addData(QByteArray::number(object.getReference().objectNumber));
+        hash.addData(QByteArray::number(object.getReference().generation));
+        return hash.result();
+    }
+
     if (object.isReference())
     {
         // References are transparent: the digest must not depend on the fact, whether
@@ -759,7 +771,7 @@ static QByteArray digestObject(const PDFObject& object,
             return QByteArrayLiteral("R");
         }
         visited.insert(reference);
-        QByteArray digest = digestObject(storage->getObjectByReference(reference), storage, depth, visited, skipKey);
+        QByteArray digest = digestObject(storage->getObjectByReference(reference), storage, depth, visited, skipKey, neutralObjects);
         visited.erase(reference);
         return digest;
     }
@@ -786,7 +798,7 @@ static QByteArray digestObject(const PDFObject& object,
         const PDFStream* stream = object.getStream();
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(QByteArrayLiteral("S"));
-        hash.addData(digestObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())), storage, depth, visited, skipKey));
+        hash.addData(digestObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())), storage, depth, visited, skipKey, neutralObjects));
         const QByteArray* content = stream->getContent();
         hash.addData(QByteArray::number(content->size()));
         hash.addData(*content);
@@ -805,7 +817,7 @@ static QByteArray digestObject(const PDFObject& object,
                 continue;
             }
 
-            const QByteArray digest = digestObject(dictionary->getValue(i), storage, depth - 1, visited, skipKey);
+            const QByteArray digest = digestObject(dictionary->getValue(i), storage, depth - 1, visited, skipKey, neutralObjects);
             if (digest == EMPTY_DICTIONARY_DIGEST)
             {
                 continue;
@@ -837,7 +849,7 @@ static QByteArray digestObject(const PDFObject& object,
         hash.addData(QByteArrayLiteral("A"));
         for (size_t i = 0; i < array->getCount(); ++i)
         {
-            hash.addData(digestObject(array->getItem(i), storage, depth - 1, visited, skipKey));
+            hash.addData(digestObject(array->getItem(i), storage, depth - 1, visited, skipKey, neutralObjects));
         }
         return hash.result();
     }
@@ -853,6 +865,11 @@ static QByteArray digestObject(const PDFObject& object,
 }
 
 QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* document, PDFInteger pageIndex)
+{
+    return computePageFingerprint(document, pageIndex, std::set<PDFObjectReference>());
+}
+
+QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* document, PDFInteger pageIndex, const std::set<PDFObjectReference>& neutralObjects)
 {
     const PDFCatalog* catalog = document->getCatalog();
     if (pageIndex < 0 || size_t(pageIndex) >= catalog->getPageCount())
@@ -918,14 +935,15 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     };
     constexpr int MaximumDepth = 64;
     hash.addData(QByteArrayLiteral("RES"));
-    hash.addData(digestObject(page->getResources(), storage, MaximumDepth, visited, skipKey));
+    const std::set<PDFObjectReference>* neutral = neutralObjects.empty() ? nullptr : &neutralObjects;
+    hash.addData(digestObject(page->getResources(), storage, MaximumDepth, visited, skipKey, neutral));
 
     // Annotations: their rectangles, flags and appearances cover the page content and
     // an unapplied redaction blocks the recognition (IMAGE-03, PDF-13)
     hash.addData(QByteArrayLiteral("ANNOTS"));
     for (const PDFObjectReference& annotationReference : page->getAnnotations())
     {
-        hash.addData(digestObject(PDFObject::createReference(annotationReference), storage, MaximumDepth, visited, skipKey));
+        hash.addData(digestObject(PDFObject::createReference(annotationReference), storage, MaximumDepth, visited, skipKey, neutral));
     }
 
     // Default configuration of the optional content (visibility of the layers, JOB-10)
@@ -934,7 +952,7 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     {
         if (const PDFDictionary* properties = document->getDictionaryFromObject(catalogDictionary->get("OCProperties")))
         {
-            hash.addData(digestObject(properties->get("D"), storage, MaximumDepth, visited, skipKey));
+            hash.addData(digestObject(properties->get("D"), storage, MaximumDepth, visited, skipKey, neutral));
         }
     }
 
@@ -959,6 +977,13 @@ QByteArray PDFOCRPagePreparer::computeDocumentFingerprint(const PDFDocument* doc
 PDFRenderer::Features PDFOCRPagePreparer::getRasterizationFeatures()
 {
     return PDFRenderer::Features(PDFRenderer::Antialiasing | PDFRenderer::TextAntialiasing | PDFRenderer::SmoothImages | PDFRenderer::ClipToCropBox);
+}
+
+QTransform PDFOCRPagePreparer::getPageToRasterMatrix(const PDFPage* page, QSize rasterSize)
+{
+    const PageRotation rotation = page->getPageRotation();
+    const QRectF rotatedCropBox = page->getRotatedBox(page->getCropBox(), rotation);
+    return PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedCropBox, QRectF(QPointF(0, 0), QSizeF(rasterSize)), rotation);
 }
 
 QSize PDFOCRPagePreparer::getRasterSize(const PDFPage* page, double dpi)
@@ -1093,9 +1118,7 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
 
     // Transformation from the canonical page space to the raster (R). The rotated
     // crop box is mapped onto the image rectangle.
-    const PageRotation rotation = page->getPageRotation();
-    const QRectF rotatedCropBox = page->getRotatedBox(page->getCropBox(), rotation);
-    geometry.pageToRaster = PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedCropBox, QRectF(QPointF(0, 0), QSizeF(size)), rotation);
+    geometry.pageToRaster = getPageToRasterMatrix(page, size);
     geometry.rasterToEngine = QTransform();
     geometry.engineImageSize = size;
     geometry.pipeline << QStringLiteral("render(dpi=%1,size=%2x%3,rotation=%4)").arg(geometry.dpi).arg(size.width()).arg(size.height()).arg(geometry.rotation);
@@ -1237,8 +1260,91 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         return result;
     }
 
-    // 2. Deskew
-    if (preprocessing.deskew)
+    // 1b. Perspective correction of a photographed page: the quadrilateral of the
+    // document is mapped onto a rectangle (the working raster only)
+    if (preprocessing.perspective)
+    {
+        const QString error = validatePerspective(*preprocessing.perspective, geometry.cropBox.isValid() ? geometry.cropBox : geometry.pageToRaster.inverted().mapRect(QRectF(QPointF(0, 0), QSizeF(raster.size()))));
+        if (!error.isEmpty())
+        {
+            result.error = PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration, error, PDFTranslationContext::tr("Preprocessing"));
+            return result;
+        }
+
+        const QTransform pageToImage = geometry.pageToRaster * rasterToEngine;
+        QPolygonF source;
+        for (const QPointF& point : preprocessing.perspective->points)
+        {
+            source << pageToImage.map(point);
+        }
+
+        // Corners in the clockwise order on the image (y grows downwards), starting
+        // at the top-left one; the target rectangle keeps the orientation of the image
+        double area = 0.0;
+        for (int i = 0; i < 4; ++i)
+        {
+            area += source[i].x() * source[(i + 1) % 4].y() - source[(i + 1) % 4].x() * source[i].y();
+        }
+        if (area < 0.0)
+        {
+            std::reverse(source.begin(), source.end());
+        }
+        int start = 0;
+        for (int i = 1; i < 4; ++i)
+        {
+            if (source[i].x() + source[i].y() < source[start].x() + source[start].y())
+            {
+                start = i;
+            }
+        }
+        const QPointF topLeft = source[start];
+        const QPointF topRight = source[(start + 1) % 4];
+        const QPointF bottomRight = source[(start + 2) % 4];
+        const QPointF bottomLeft = source[(start + 3) % 4];
+
+        const double width = qMax(QLineF(topLeft, topRight).length(), QLineF(bottomLeft, bottomRight).length());
+        const double height = qMax(QLineF(topLeft, bottomLeft).length(), QLineF(topRight, bottomRight).length());
+        const QSize size(qMax(1, qRound(width)), qMax(1, qRound(height)));
+
+        QTransform perspective;
+        const QPolygonF target = QPolygonF() << QPointF(0, 0) << QPointF(size.width(), 0) << QPointF(size.width(), size.height()) << QPointF(0, size.height());
+        if (!QTransform::quadToQuad(QPolygonF() << topLeft << topRight << bottomRight << bottomLeft, target, perspective))
+        {
+            result.error = PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration, PDFTranslationContext::tr("The perspective correction cannot be computed for the corners of the page."), PDFTranslationContext::tr("Preprocessing"));
+            return result;
+        }
+
+        QImage corrected(size, QImage::Format_RGB32);
+        if (corrected.isNull())
+        {
+            result.error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory, PDFTranslationContext::tr("Not enough memory for the image with the corrected perspective."), PDFTranslationContext::tr("Preprocessing"));
+            return result;
+        }
+        corrected.fill(Qt::white);
+        {
+            QPainter painter(&corrected);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter.setTransform(perspective);
+            painter.drawImage(QPointF(0, 0), image);
+        }
+        corrected.setDotsPerMeterX(image.dotsPerMeterX());
+        corrected.setDotsPerMeterY(image.dotsPerMeterY());
+        image = std::move(corrected);
+        rasterToEngine = rasterToEngine * perspective;
+        geometry.pipeline << QStringLiteral("perspective(size=%1x%2)").arg(size.width()).arg(size.height());
+    }
+
+    if (checkCancelled())
+    {
+        return result;
+    }
+
+    // 2. Deskew (the perspective correction straightens the page itself)
+    if (preprocessing.deskew && preprocessing.perspective)
+    {
+        geometry.pipeline << QStringLiteral("deskew(skipped,perspective)");
+    }
+    else if (preprocessing.deskew)
     {
         double angle = 0.0;
         double confidence = 0.0;
@@ -1488,7 +1594,7 @@ bool PDFOCRPagePreparer::isBlankImage(const QImage& image, double* inkRatio, con
     return ratio < 0.0005;
 }
 
-double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confidence, const PDFOperationControl* operationControl)
+double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confidence, const PDFOperationControl* operationControl, double maximumAngle, bool refine)
 {
     if (confidence)
     {
@@ -1539,19 +1645,13 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
     double bestAngle = 0.0;
     double bestScore = -1.0;
     double zeroScore = 0.0;
-    std::vector<double> scores;
 
     const double centerX = width * 0.5;
     const double centerY = height * 0.5;
     std::vector<int> histogram(size_t(height * 2), 0);
 
-    for (double angle = -5.0; angle <= 5.0 + 1e-9; angle += 0.25)
+    auto computeScore = [&](double angle)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
-        {
-            return 0.0;
-        }
-
         std::fill(histogram.begin(), histogram.end(), 0);
         const double radians = qDegreesToRadians(angle);
         const double sinA = std::sin(radians);
@@ -1577,18 +1677,49 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
 
         const double n = double(histogram.size());
         const double mean = sum / n;
-        const double variance = sumSquares / n - mean * mean;
-        scores.push_back(variance);
+        return sumSquares / n - mean * mean;
+    };
 
+    auto evaluate = [&](double angle)
+    {
+        const double variance = computeScore(angle);
         if (qFuzzyIsNull(angle))
         {
             zeroScore = variance;
         }
-
         if (variance > bestScore)
         {
             bestScore = variance;
             bestAngle = angle;
+        }
+    };
+
+    const int steps = qMax(1, qRound(maximumAngle / 0.25));
+    for (int step = -steps; step <= steps; ++step)
+    {
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return 0.0;
+        }
+
+        evaluate(step * 0.25);
+    }
+
+    // Refinement around the best coarse angle with the step of 0.05 degree
+    if (refine)
+    {
+        const double coarseAngle = bestAngle;
+        for (int step = -4; step <= 4; ++step)
+        {
+            if (PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                return 0.0;
+            }
+
+            if (step != 0)
+            {
+                evaluate(coarseAngle + step * 0.05);
+            }
         }
     }
 
@@ -1609,6 +1740,85 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
     // bestAngle makes the lines horizontal. The skew of the content is the opposite
     // angle (positive clockwise in the image, see PDFOCROrientation::deskewAngle).
     return -bestAngle;
+}
+
+QString PDFOCRPagePreparer::validatePerspective(const PDFOCRQuad& quad, const QRectF& pageRect)
+{
+    for (const QPointF& point : quad.points)
+    {
+        if (!std::isfinite(point.x()) || !std::isfinite(point.y()))
+        {
+            return PDFTranslationContext::tr("The corners of the perspective correction are not valid numbers.");
+        }
+    }
+
+    // Convex quadrilateral: all the turns have the same direction
+    int positive = 0;
+    int negative = 0;
+    double area = 0.0;
+    for (int i = 0; i < 4; ++i)
+    {
+        const QPointF& a = quad.points[size_t(i)];
+        const QPointF& b = quad.points[size_t((i + 1) % 4)];
+        const QPointF& c = quad.points[size_t((i + 2) % 4)];
+        const double cross = (b.x() - a.x()) * (c.y() - b.y()) - (b.y() - a.y()) * (c.x() - b.x());
+        positive += cross > 1e-9 ? 1 : 0;
+        negative += cross < -1e-9 ? 1 : 0;
+        area += a.x() * b.y() - b.x() * a.y();
+
+        // The angle at the corner b
+        const QPointF first = a - b;
+        const QPointF second = c - b;
+        const double lengths = std::hypot(first.x(), first.y()) * std::hypot(second.x(), second.y());
+        if (lengths <= 0.0)
+        {
+            return PDFTranslationContext::tr("Two corners of the perspective correction coincide.");
+        }
+        const double angle = std::acos(qBound(-1.0, QPointF::dotProduct(first, second) / lengths, 1.0)) * 180.0 / std::numbers::pi;
+        if (angle < 20.0 || angle > 160.0)
+        {
+            return PDFTranslationContext::tr("The corners of the perspective correction form a too sharp angle (%1 degrees).").arg(angle, 0, 'f', 0);
+        }
+    }
+
+    if (positive != 4 && negative != 4)
+    {
+        return PDFTranslationContext::tr("The corners of the perspective correction do not form a convex quadrilateral.");
+    }
+
+    const double pageArea = pageRect.width() * pageRect.height();
+    if (pageArea > 0.0 && std::abs(area) * 0.5 < 0.2 * pageArea)
+    {
+        return PDFTranslationContext::tr("The document outlined by the perspective correction covers less than 20 % of the page.");
+    }
+
+    return QString();
+}
+
+PDFOCRQuad PDFOCRPagePreparer::toParallelogram(const PDFOCRQuad& quad)
+{
+    const QPointF bottomLeft = quad.points[0];
+    const QPointF bottomRight = quad.points[1];
+    const QPointF edge = bottomRight - bottomLeft;
+    const double length = std::hypot(edge.x(), edge.y());
+    if (length <= 0.0)
+    {
+        return quad;
+    }
+
+    QPointF normal(-edge.y() / length, edge.x() / length);
+    if (QPointF::dotProduct(normal, quad.points[3] - bottomLeft) < 0.0)
+    {
+        normal = -normal;
+    }
+
+    const double height = 0.5 * (QPointF::dotProduct(quad.points[3] - bottomLeft, normal) + QPointF::dotProduct(quad.points[2] - bottomRight, normal));
+    PDFOCRQuad result;
+    result.points[0] = bottomLeft;
+    result.points[1] = bottomRight;
+    result.points[2] = bottomRight + normal * height;
+    result.points[3] = bottomLeft + normal * height;
+    return result;
 }
 
 PDFOCRQuad PDFOCRPagePreparer::imageRectToPageQuad(const QRectF& rect, const QTransform& imageToPage)
@@ -1712,6 +1922,10 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
             line.id = result.allocateId();
             line.direction = rawLine.direction;
             line.quad = rawLine.polygon.size() >= 4 ? imagePolygonToPageQuad(rawLine.polygon, imageToPage) : imageRectToPageQuad(rawLine.rect, imageToPage);
+            if (!imageToPage.isAffine())
+            {
+                line.quad = toParallelogram(line.quad);
+            }
 
             if (!rawLine.baseline.isNull())
             {
@@ -1754,6 +1968,7 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                 word.geometryOrigin = PDFOCRGeometryOrigin::Engine;
                 word.textOrigin = PDFOCRTextOrigin::OCR;
                 word.language = rawWord.language;
+                word.inDictionary = rawWord.isDictionaryWord;
 
                 if (rawWord.rawConfidence && (output.confidenceLevel == PDFOCRConfidenceLevel::Word || output.confidenceLevel == PDFOCRConfidenceLevel::Symbol))
                 {
@@ -1783,6 +1998,13 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                 if (duplicate)
                 {
                     continue;
+                }
+
+                // The perspective correction maps the words to general quadrilaterals;
+                // the text layer writes parallelograms (baseline and mean height)
+                if (!imageToPage.isAffine())
+                {
+                    word.quad = toParallelogram(word.quad);
                 }
 
                 // Excluded regions (REGION-05): any overlap with a positive area

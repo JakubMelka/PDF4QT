@@ -30,6 +30,8 @@
 #include "pdfocrjobcontroller.h"
 #include "pdfocrmodelmanager.h"
 #include "pdfocrtextlayerwriter.h"
+#include "pdfocrexport.h"
+#include "pdfocrapplyprocessor.h"
 #include "pdfmeshqualitysettings.h"
 
 #include <QTimer>
@@ -123,6 +125,7 @@ signals:
     void ownLayerLoaded(int generation, pdf::PDFOCRPageResult result);
     void previewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message, bool isLastRecognition);
     void applyFinished(int generation);
+    void compressionEstimateReady(int generation, QString text);
 
 private:
     enum class OutputMode
@@ -181,6 +184,8 @@ private:
         QString copyFileName;
         bool isRemoval = false;
         bool conformanceRemoved = false;
+        pdf::PDFOCRCompressionReport compressionReport;
+        std::map<pdf::PDFInteger, QByteArray> fingerprints;
     };
 
     // Initialization
@@ -279,6 +284,46 @@ private:
     void onConfirmAll();
     void onSessionPageChanged(qint64 pageIndex);
     void showTreeContextMenu(const QPoint& point);
+    /// Adds the selected word into the user words (accepted by the dictionary review,
+    /// passed to the engine in the next recognition) and confirms it
+    void addSelectedWordToUserWords();
+
+    /// Returns the corners of the visible page in the canonical page space (the corners
+    /// of the perspective correction, which do not change anything)
+    pdf::PDFOCRQuad getPageCorners(pdf::PDFInteger pageIndex) const;
+
+    /// Sets the perspective correction of the page (empty = none); the other settings
+    /// of the page override are kept
+    void setPagePerspective(pdf::PDFInteger pageIndex, const std::optional<pdf::PDFOCRQuad>& perspective);
+
+    /// Starts the editing of the corners in the original view
+    void startPerspectiveEditing();
+
+    /// Returns the context of the writing of the text layer (permissions, certification,
+    /// tagged document, conformance declarations of the document)
+    pdf::PDFOCRApplyProcessor::Context getApplyContext() const;
+
+    /// Returns the settings of the compression from the user interface (including the
+    /// images excluded in the preview)
+    pdf::PDFOCRCompressionSettings getCompressionSettings() const;
+
+    /// Returns true, if the preview of the current (lossy) compression settings was confirmed
+    bool isCompressionPreviewConfirmed() const;
+
+    /// Returns the pages, which are written by the button Apply (checked pages with a
+    /// result, or all pages with a result, if no checked page has one; not review only)
+    std::vector<pdf::PDFInteger> getPagesToWrite() const;
+
+    void updateCompressionUi();
+    void onCompressionSettingsChanged();
+    void onCompressionPreviewClicked();
+    void scheduleCompressionEstimate();
+    void startCompressionEstimate();
+    void onCompressionEstimateReady(int generation, QString text);
+
+    /// Exports the results into a structured format (hOCR, ALTO, TSV), into a single
+    /// file or into a file per page, and reports the missing pages (EXPORT-02)
+    void exportStructured(pdf::PDFOCRStructuredExporter::Format format, const std::vector<const pdf::PDFOCRPageResult*>& results, const QString& title);
     void showRegionContextMenu(int regionId, QPoint globalPosition);
 
     /// Returns the region of the block of the selected item in the results tree, or -1
@@ -363,6 +408,7 @@ private:
     AsyncTask m_pageDataTask;
     AsyncTask m_previewTask;
     AsyncTask m_applyTask;
+    AsyncTask m_compressionEstimateTask;
     AsyncTask m_prepareTask;
     std::optional<PendingRecognition> m_pendingRecognition;
     QMutex m_prepareMutex;
@@ -373,6 +419,12 @@ private:
     bool m_documentFingerprintReady = false;
     std::vector<QFuture<void>> m_futures;
     QTimer m_previewTimer;
+    QTimer m_compressionEstimateTimer;
+
+    /// Compression settings, whose preview was confirmed by the user (a lossy compression
+    /// is applied only with confirmed settings), and the images excluded in the preview
+    std::optional<pdf::PDFOCRCompressionSettings> m_confirmedCompression;
+    std::vector<pdf::PDFObjectReference> m_compressionExcludedImages;
 
     int m_jobGeneration = 0;
     RunMode m_runMode = RunMode::Pages;

@@ -160,7 +160,11 @@ public:
     explicit PDFOCRModelManager(QObject* parent);
     virtual ~PDFOCRModelManager() override;
 
-    /// Returns the application data root (same as used for the certificates)
+    /// Returns the application data root (same as used for the certificates of
+    /// the editor). The root is shared by all PDF4QT applications - the editor and
+    /// the command line tool see the same downloaded models - so for the applications
+    /// of PDF4QT (organization "MelkaJ") the application name in the standard data
+    /// location is replaced by the name of the editor.
     static QString getApplicationDataRoot();
 
     /// Returns the OCR data directory of the user (<AppDataLocation>/ocr)

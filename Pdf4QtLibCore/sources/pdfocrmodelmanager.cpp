@@ -240,7 +240,24 @@ QString PDFOCRModelManager::getApplicationDataRoot()
     {
         return QDir::homePath() + QStringLiteral("/.pdf4qt");
     }
-    return locations.front();
+
+    QString location = QDir::fromNativeSeparators(locations.front());
+
+    // All PDF4QT applications share the OCR data of the editor (the models downloaded
+    // in the editor are available in the command line tool and vice versa). Other
+    // hosts (for example the unit tests) keep their own application directory.
+    static const QString SharedApplicationName = QStringLiteral("PDF4QT Editor");
+    const QString applicationName = QCoreApplication::applicationName();
+    if (QCoreApplication::organizationName() == QLatin1String("MelkaJ") &&
+        !applicationName.isEmpty() &&
+        applicationName != SharedApplicationName &&
+        location.endsWith(QChar('/') + applicationName))
+    {
+        location.chop(applicationName.size());
+        location += SharedApplicationName;
+    }
+
+    return location;
 }
 
 QString PDFOCRModelManager::getDefaultUserDirectory()

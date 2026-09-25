@@ -202,6 +202,8 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::CreateBitonalDocument, ui->actionCreateBitonalDocument);
     m_actionManager->setAction(PDFActionManager::RecognizeText, ui->actionRecognizeText);
     m_actionManager->setAction(PDFActionManager::ManageOCRLanguages, ui->actionManageOCRLanguages);
+    m_actionManager->setAction(PDFActionManager::PrepareScannedPages, ui->actionPrepareScannedPages);
+    m_actionManager->setAction(PDFActionManager::BatchRecognizeText, ui->actionBatchRecognizeText);
     m_actionManager->setAction(PDFActionManager::Encryption, ui->actionEncryption);
     m_actionManager->setAction(PDFActionManager::FitPage, ui->actionFitPage);
     m_actionManager->setAction(PDFActionManager::FitWidth, ui->actionFitWidth);

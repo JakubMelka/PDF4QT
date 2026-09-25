@@ -25,6 +25,7 @@
 
 #include "pdfglobal.h"
 #include "pdfocrmodel.h"
+#include "pdfocrcompression.h"
 
 #include <QString>
 #include <QStringList>
@@ -109,6 +110,12 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPreprocessing
     /// Invert light text on dark background
     bool invert = false;
 
+    /// Perspective correction of a photographed page (only the working raster, the
+    /// visible page is not changed): the four corners of the document on the photo in
+    /// the canonical page space. The corrected raster is the rectangle of the document.
+    /// Deskew is not applied with the perspective correction.
+    std::optional<PDFOCRQuad> perspective;
+
     QJsonObject toJson() const;
     static PDFOCRPreprocessing fromJson(const QJsonObject& object);
 
@@ -155,6 +162,10 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
     /// Review threshold, words with normalized score below this value require review (CONF-03)
     double reviewThreshold = 80.0;
 
+    /// Words not found in the dictionary of the language model require review.
+    /// Property of the review, it does not influence the recognition.
+    bool reviewOutsideDictionary = true;
+
     /// Blank page detection
     bool detectBlankPages = true;
 
@@ -162,6 +173,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
 
     /// Store detailed review data (original text, scores) into the document (PDF-10)
     bool keepReviewDataInDocument = false;
+
+    /// Compression of the scanned images of the pages, where the text layer is written
+    PDFOCRCompressionSettings compression;
 
     /// Number of OCR workers (JOB-09)
     int workerCount = 2;
@@ -241,6 +255,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageOverride
     std::optional<double> dpi;
     std::optional<bool> autoOrientation;
     std::optional<bool> deskew;
+
+    /// Perspective correction of the page (see PDFOCRPreprocessing::perspective)
+    std::optional<PDFOCRQuad> perspective;
 
     bool isEmpty() const;
 

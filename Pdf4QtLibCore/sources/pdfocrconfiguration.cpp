@@ -49,6 +49,33 @@ static QJsonArray stringListToJson(const QStringList& list)
     return array;
 }
 
+static QJsonArray quadToJsonArray(const PDFOCRQuad& quad)
+{
+    QJsonArray array;
+    for (const QPointF& point : quad.points)
+    {
+        array.append(point.x());
+        array.append(point.y());
+    }
+    return array;
+}
+
+static std::optional<PDFOCRQuad> quadFromJsonArray(const QJsonValue& value)
+{
+    const QJsonArray array = value.toArray();
+    if (array.size() != 8)
+    {
+        return std::nullopt;
+    }
+
+    PDFOCRQuad quad;
+    for (int i = 0; i < 4; ++i)
+    {
+        quad.points[size_t(i)] = QPointF(array.at(2 * i).toDouble(), array.at(2 * i + 1).toDouble());
+    }
+    return quad;
+}
+
 static QStringList stringListFromJson(const QJsonValue& value)
 {
     QStringList list;
@@ -73,6 +100,10 @@ QJsonObject PDFOCRPreprocessing::toJson() const
     object[QStringLiteral("binarization")] = static_cast<int>(binarization);
     object[QStringLiteral("denoise")] = denoise;
     object[QStringLiteral("invert")] = invert;
+    if (perspective)
+    {
+        object[QStringLiteral("perspective")] = quadToJsonArray(*perspective);
+    }
     return object;
 }
 
@@ -90,6 +121,7 @@ PDFOCRPreprocessing PDFOCRPreprocessing::fromJson(const QJsonObject& object)
     }
     result.denoise = object.value(QStringLiteral("denoise")).toBool(result.denoise);
     result.invert = object.value(QStringLiteral("invert")).toBool(result.invert);
+    result.perspective = quadFromJsonArray(object.value(QStringLiteral("perspective")));
     return result;
 }
 
@@ -150,6 +182,8 @@ QStringList PDFOCRConfiguration::validate() const
     {
         errors << PDFTranslationContext::tr("Review threshold must be in range 0-100.");
     }
+
+    errors << compression.validate();
 
     if (workerCount < 1 || workerCount > 64)
     {
@@ -476,9 +510,11 @@ QJsonObject PDFOCRConfiguration::toJson() const
     object[QStringLiteral("characterWhitelist")] = characterWhitelist;
     object[QStringLiteral("characterBlacklist")] = characterBlacklist;
     object[QStringLiteral("reviewThreshold")] = reviewThreshold;
+    object[QStringLiteral("reviewOutsideDictionary")] = reviewOutsideDictionary;
     object[QStringLiteral("detectBlankPages")] = detectBlankPages;
     object[QStringLiteral("existingTextPolicy")] = static_cast<int>(existingTextPolicy);
     object[QStringLiteral("keepReviewDataInDocument")] = keepReviewDataInDocument;
+    object[QStringLiteral("compression")] = compression.toJson();
     object[QStringLiteral("workerCount")] = workerCount;
     object[QStringLiteral("memoryBudget")] = QString::number(memoryBudget);
     object[QStringLiteral("pageTimeoutSeconds")] = pageTimeoutSeconds;
@@ -508,6 +544,7 @@ PDFOCRConfiguration PDFOCRConfiguration::fromJson(const QJsonObject& object)
     result.characterWhitelist = object.value(QStringLiteral("characterWhitelist")).toString();
     result.characterBlacklist = object.value(QStringLiteral("characterBlacklist")).toString();
     result.reviewThreshold = object.value(QStringLiteral("reviewThreshold")).toDouble(result.reviewThreshold);
+    result.reviewOutsideDictionary = object.value(QStringLiteral("reviewOutsideDictionary")).toBool(result.reviewOutsideDictionary);
     result.detectBlankPages = object.value(QStringLiteral("detectBlankPages")).toBool(result.detectBlankPages);
 
     const int policy = object.value(QStringLiteral("existingTextPolicy")).toInt(static_cast<int>(result.existingTextPolicy));
@@ -517,6 +554,7 @@ PDFOCRConfiguration PDFOCRConfiguration::fromJson(const QJsonObject& object)
     }
 
     result.keepReviewDataInDocument = object.value(QStringLiteral("keepReviewDataInDocument")).toBool(result.keepReviewDataInDocument);
+    result.compression = PDFOCRCompressionSettings::fromJson(object.value(QStringLiteral("compression")).toObject());
     result.workerCount = object.value(QStringLiteral("workerCount")).toInt(result.workerCount);
 
     bool ok = false;
@@ -542,7 +580,7 @@ QVariantMap PDFOCRConfiguration::toParameterMap() const
 
 bool PDFOCRPageOverride::isEmpty() const
 {
-    return !languages && !layout && !rotation && !dpi && !autoOrientation && !deskew;
+    return !languages && !layout && !rotation && !dpi && !autoOrientation && !deskew && !perspective;
 }
 
 PDFOCRConfiguration PDFOCRPageOverride::apply(PDFOCRConfiguration configuration) const
@@ -570,6 +608,10 @@ PDFOCRConfiguration PDFOCRPageOverride::apply(PDFOCRConfiguration configuration)
     if (deskew)
     {
         configuration.preprocessing.deskew = *deskew;
+    }
+    if (perspective)
+    {
+        configuration.preprocessing.perspective = *perspective;
     }
     return configuration;
 }
@@ -600,6 +642,10 @@ QJsonObject PDFOCRPageOverride::toJson() const
     if (deskew)
     {
         object[QStringLiteral("deskew")] = *deskew;
+    }
+    if (perspective)
+    {
+        object[QStringLiteral("perspective")] = quadToJsonArray(*perspective);
     }
     return object;
 }
@@ -635,6 +681,7 @@ PDFOCRPageOverride PDFOCRPageOverride::fromJson(const QJsonObject& object)
     {
         result.deskew = object.value(QStringLiteral("deskew")).toBool();
     }
+    result.perspective = quadFromJsonArray(object.value(QStringLiteral("perspective")));
     return result;
 }
 

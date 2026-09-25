@@ -29,6 +29,7 @@
 
 #include <QDateTime>
 
+#include <set>
 #include <optional>
 
 namespace pdf
@@ -159,6 +160,29 @@ public:
     /// Removes the own OCR layer of the page including the private data (PDF-11).
     /// Returns true, if the layer was removed.
     static bool removeLayer(PDFDocumentBuilder* builder, const PDFDocument* originalDocument, PDFInteger pageIndex);
+
+    /// Binds the own OCR layers to the revision of the document, in which only the
+    /// replaced objects (the streams of the images, which were compressed or optimized
+    /// by a tool of PDF4QT) were changed. A layer is rebound only if it was bound to
+    /// its page in the original document and if the page differs only in the replaced
+    /// objects - any other change of the page keeps the layer unbound (a foreign
+    /// change must not be hidden). The builder must be created from the modified
+    /// document. Returns the pages, whose layer was rebound.
+    /// \param builder Builder of the modified document
+    /// \param originalDocument Document before the replacement of the objects
+    /// \param modifiedDocument Document with the replaced objects
+    /// \param replacedObjects Objects, which were replaced
+    static std::vector<PDFInteger> rebindFingerprints(PDFDocumentBuilder* builder,
+                                                      const PDFDocument* originalDocument,
+                                                      const PDFDocument* modifiedDocument,
+                                                      const std::set<PDFObjectReference>& replacedObjects);
+
+    /// Rebinds the own OCR layers of the optimized document (see rebindFingerprints)
+    /// and returns the new document, or the optimized document, if nothing was rebound
+    static PDFDocument rebindOptimizedDocument(const PDFDocument* originalDocument,
+                                               PDFDocument optimizedDocument,
+                                               const std::set<PDFObjectReference>& replacedObjects,
+                                               std::vector<PDFInteger>* reboundPages);
 
     /// Creates the content stream of the text layer (PDF-04, PDF-07, PDF-08)
     /// \param result Page result

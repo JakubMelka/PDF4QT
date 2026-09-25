@@ -41,7 +41,9 @@
 #include "pdfsanitizedocumentdialog.h"
 #include "pdfcreatebitonaldocumentdialog.h"
 #include "pdfocrdocumentdialog.h"
+#include "pdfscanpreparationdialog.h"
 #include "pdfocrlanguagesdialog.h"
+#include "pdfocrbatchdialog.h"
 
 #ifdef PDF4QT_OCR_TESSERACT
 #include "pdftesseractocrengine.h"
@@ -581,6 +583,14 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::ManageOCRLanguages))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionManageOCRLanguagesTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::PrepareScannedPages))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionPrepareScannedPagesTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BatchRecognizeText))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBatchRecognizeTextTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Encryption))
     {
@@ -1679,6 +1689,42 @@ void PDFProgramController::onActionRecognizeTextTriggered()
     }
 }
 
+void PDFProgramController::onActionPrepareScannedPagesTriggered()
+{
+    if (!m_pdfDocument || m_pdfDocument->getCatalog()->getPageCount() == 0)
+    {
+        return;
+    }
+
+    auto cms = m_CMSManager->getCurrentCMS();
+    const std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+
+    PDFScanPreparationDialog::Context context;
+    context.document = m_pdfDocument.data();
+    context.proxy = m_pdfWidget->getDrawWidgetProxy();
+    context.cms = cms.data();
+    context.hasSignatures = !m_signatures.empty();
+    context.currentPage = currentPages.empty() ? 0 : currentPages.front();
+
+    PDFScanPreparationDialog dialog(context, m_mainWindow);
+    if (dialog.exec() == QDialog::Accepted && dialog.hasResultDocument())
+    {
+        // The number of the pages can change, the whole document is reset (single undo step)
+        pdf::PDFModifiedDocument document(dialog.takeResultDocument(), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveUndoRedo));
+        onDocumentModified(qMove(document));
+    }
+}
+
+void PDFProgramController::onActionBatchRecognizeTextTriggered()
+{
+    // The files are recognized into copies, the current document is not changed
+    PDFOCRBatchDialog dialog(m_mainWindow);
+    if (dialog.exec() == QDialog::Accepted && !dialog.getDocumentToOpen().isEmpty() && askForSaveDocumentBeforeClose())
+    {
+        openDocument(dialog.getDocumentToOpen());
+    }
+}
+
 void PDFProgramController::onActionManageOCRLanguagesTriggered()
 {
     PDFOCRLanguagesDialog dialog(nullptr, m_mainWindow);
@@ -2050,6 +2096,10 @@ void PDFProgramController::updateActionsAvailability()
     // evaluated in the dialog separately for the recognition/export and for the writing.
     m_actionManager->setEnabled(PDFActionManager::RecognizeText, hasValidDocument && m_pdfDocument->getCatalog()->getPageCount() > 0);
     m_actionManager->setEnabled(PDFActionManager::ManageOCRLanguages, !isBusy);
+    m_actionManager->setEnabled(PDFActionManager::BatchRecognizeText, !isBusy);
+
+    // Preparation of the scanned pages changes the pages (crop, split, deskew)
+    m_actionManager->setEnabled(PDFActionManager::PrepareScannedPages, hasValidDocument && canModify && m_pdfDocument->getCatalog()->getPageCount() > 0);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);

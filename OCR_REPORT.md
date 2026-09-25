@@ -11,6 +11,7 @@ Stav k 21. 9. 2026: implementace P0 je hotová a automaticky otestovaná na Wind
 - Rozpoznání, korektury a zápis do PDF jsou tři oddělené kroky. Dokument se mění až po potvrzení souhrnu, vždy jako jeden krok historie editoru.
 - Výsledkem je neviditelná textová vrstva se standardním režimem vykreslení textu 3 a vloženým fontem bez glyfů. Původní obsah stránky se nepřekresluje ani nepřekomprimovává.
 - S aplikací se dodává devět modelů `tessdata_fast`. Další jazyky se stahují do uživatelských dat programu vedle certifikátů.
+- Rozšíření podle [OCR_PLAN.md](OCR_PLAN.md) (25. 9. 2026) přidalo kontrolu slov mimo slovník, exporty hOCR, ALTO a TSV, kompresi skenu při zápisu, přípravu skenu (ořez, rozdělení dvoustran, trvalé narovnání), korekci perspektivy, příkaz `pdftool ocr` s dávkami a dávkový dialog editoru. Popis je v kapitole 10.
 
 ## 2. Technická rozhodnutí
 
@@ -48,8 +49,13 @@ Další rozhodnutí přijatá během implementace:
 | `PDFOCRTextLayerWriter` | Zápis, čtení a odstranění vlastní vrstvy (PDF-03 až PDF-11, PDF-14, PDF-15). |
 | `PDFOCRModelManager` | Katalog, vestavěné, stažené a importované modely, stahování přes https, atomické běhové sady, úklid. |
 | `PDFOCRProject` | Projekt OCR a export prostého textu. |
+| `PDFOCRStructuredExporter` | Export hOCR 1.2, ALTO 4.4 a TSV Tesseractu v souřadnicích viditelné stránky. |
+| `PDFOCRApplyProcessor` | Transakce zápisu bez uživatelského rozhraní: oprávnění, DocMDP, plán, souhrn, komprese, zápis vrstvy, odstranění deklarace shody, kontrola výsledku. Používá ho dialog i příkazová řádka. |
+| `PDFOCRImageCompressor` | Komprese obrázků zapisovaných stránek (bezeztrátově, černobíle, podle optimalizátoru), proudové zpracování s rozpočtem paměti. |
+| `PDFScanPreparation` | Analýza a bezeztrátová úprava viditelných stránek: ořez, rozdělení dvoustran, narovnání. |
+| `PDFOCRDocumentRunner` | Rozpoznání celého dokumentu bez rozhraní a zpracování jednoho souboru (čtení, rozpoznání, kopie, exporty, projekt). Základ příkazové řádky i dávkového dialogu. |
 
-Dialogy `PDFOCRDocumentDialog`, `PDFOCRLanguagesDialog` a pohled `PDFOCRPageView` jsou v `Pdf4QtLibGui`. Napojení na editor je v `PDFProgramController`: změna dokumentu jde přes `PDFModifiedDocument` s příznakem `PageContents`.
+Dialogy `PDFOCRDocumentDialog`, `PDFOCRLanguagesDialog`, `PDFOCRCompressionPreviewDialog`, `PDFScanPreparationDialog`, `PDFOCRBatchDialog` a pohled `PDFOCRPageView` jsou v `Pdf4QtLibGui`. Napojení na editor je v `PDFProgramController`: změna dokumentu jde přes `PDFModifiedDocument` s příznakem `PageContents`.
 
 ## 4. Uživatelská dokumentace
 
@@ -78,7 +84,7 @@ Chování u zvláštních dokumentů:
 - Vestavěná sada profilu *Fast*: čeština, angličtina, slovenština, němčina, španělština, ruština, zjednodušená a tradiční čínština a data orientace `osd`. Manifest [ocr/tesseract/fast/manifest.json](ocr/tesseract/fast/manifest.json) uvádí verzi, SHA-256 a licenci.
 - Profily *Standard* a *Quality* žádné vestavěné modely nemají. Všechny jejich jazyky se stahují z katalogu ve správci jazyků. Důvodem je měření v kapitole 7.4: větší modely jsou výrazně pomalejší a na zkušebním korpusu nejsou přesnější. Data orientace si tyto profily berou z vestavěné sady *Fast*.
 - Modely pocházejí z oficiálních repozitářů `tesseract-ocr/tessdata_fast` a `tesseract-ocr/tessdata_best` na GitHubu. Stahují se z `raw.githubusercontent.com` na připnutých commitech.
-- Uživatelské úložiště je `<AppDataLocation>/ocr`, tedy vedle složky `certificates`. Obsahuje složky `tesseract/fast`, `tesseract/best`, `tesseract/custom`, `tesseract/runtime` a `downloads`.
+- Uživatelské úložiště je `<AppDataLocation>/ocr` editoru, tedy vedle složky `certificates`. Sdílí ho všechny aplikace PDF4QT (organizace `MelkaJ`): příkazová řádka `PdfTool` i prohlížeč vidí modely stažené v editoru. Obsahuje složky `tesseract/fast`, `tesseract/best`, `tesseract/custom`, `tesseract/runtime` a `downloads`.
 - Stažení vyžaduje výslovné potvrzení s výčtem jazyků, velikostí a cílovou složkou. Přijímá se jen https. Kontroluje se velikost, SHA-256, to, že server nevrátil stránku HTML, a nakonec načtení modelu enginem. Neúspěšné stažení se nikdy nedotkne funkční starší verze.
 - Vlastní model lze importovat ze souboru. Dostane příponu `@id importu` a označení, že jeho původ není ověřen.
 - Engine nikdy nečte přímo z úložiště. Pro každou kombinaci jazyků se připraví běhová sada, tedy kopie jen pro čtení, která se zveřejní atomicky až po ověření kontrolních součtů. Běžící rozpoznání tak není ovlivněno stahováním ani odstraněním modelu.
@@ -140,13 +146,15 @@ Automatické testy jsou v [UnitTests/tst_ocrtest.cpp](UnitTests/tst_ocrtest.cpp)
 | AT-23 | ne | | P1, PaddleOCR. |
 | AT-24 | ano | `invalidEngineOutput` | Vnější proces neexistuje, protokol se netestuje. |
 
-Výsledek posledního běhu na referenčním stroji:
+Výsledek posledního běhu na referenčním stroji (25. 9. 2026, včetně rozšíření z kapitoly 10):
 
 | Sada | Výsledek |
 | --- | --- |
-| `UnitTestsOCR` | 26 prošlo, 1 přeskočen (benchmark běží jen na vyžádání) |
-| `UnitTestsOCRDialog` | 5 prošlo |
-| celý `ctest` | 27 z 27 prošlo |
+| `UnitTestsOCR` | 58 prošlo, 1 přeskočen (benchmark běží jen na vyžádání) |
+| `UnitTestsOCRDialog` | 16 prošlo |
+| `UnitTestsScanPreparation` | 12 prošlo |
+| `PdfToolOcrSmoke` | prošel s Tesseractem a vestavěnými modely |
+| celý `ctest` | 29 z 29 prošlo |
 
 ## 7. Kvalita a výkon
 
@@ -224,7 +232,7 @@ Skutečné mezery vůči P0:
 - **Pád nativní knihovny** Tesseractu není izolován v samostatném procesu. Zachytí se jen výjimky C++ (OPS-05).
 - **Testy.** Bez `PDF4QT_OCR_REQUIRED` se testy s Tesseractem při chybějícím enginu nebo modelech přeskočí a ctest je hlásí jako úspěšné. Se zapnutou volbou se z přeskočení stane chyba, takže zelený ctest sestavení pro vydání dokládá funkční OCR.
 
-Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické maskování smíšených stránek, exporty hOCR, TSV a ALTO, dávky více souborů, příkazová řádka v PdfTool, regulární výrazy a kontrola pravopisu, detekce log a šablony oblastí.
+Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické maskování smíšených stránek bez rozhodnutí uživatele, regulární výrazy a kontrola pravopisu, detekce log a šablony oblastí, sledovaná složka. Exporty hOCR, TSV a ALTO, dávky a příkazová řádka jsou hotové, viz kapitola 10.
 
 ## 9. Sestavení a balení
 
@@ -234,3 +242,121 @@ Vědomě odloženo na P1 a P2 podle zadání: PaddleOCR a AT-23, automatické ma
 - **Flatpak.** [Flatpak/io.github.JakubMelka.Pdf4qt.json](Flatpak/io.github.JakubMelka.Pdf4qt.json) má moduly Leptonica 1.87.0 a Tesseract 5.5.2 s kontrolními součty. Tesseract se zde sestavuje bez curl a libarchive, Windows balík je obsahuje. Manifest nebyl sestaven.
 - **macOS a AppImage** nebyly řešeny.
 - **Licence.** Tesseract a modely tessdata mají Apache 2.0, Leptonica BSD-2. Texty jsou ve složce [3rdparty_licenses/](3rdparty_licenses/), která se podle dosavadní praxe projektu neinstaluje. Dialog *About* uvádí verze Tesseractu a Leptonicy zjištěné za běhu a identifikátor vestavěné sady. Přechodné závislosti Windows balíku, tedy libarchive, libcurl, giflib, libtiff, libwebp, liblzma, lz4 a zstd, v dialogu *About* uvedené nejsou.
+
+## 10. Rozšíření podle OCR_PLAN.md
+
+Rozšíření pokrývá sedm mezer z [OCR_FEATURES.md](OCR_FEATURES.md) podle plánu [OCR_PLAN.md](OCR_PLAN.md) a jeho rozhodnutí z 25. 9. 2026. Všechny fáze 0 až 7b jsou implementované a automaticky otestované na Windows. Ručně vyzkoušené nejsou.
+
+### 10.1 Transakce zápisu v core (fáze 0)
+
+- `PDFOCRApplyProcessor` převzal z dialogu celou logiku zápisu: kontext dokumentu (oprávnění, podpisy, šifrování, tagování, DocMDP, deklarace PDF/A a PDF/UA), plán se zapisovanými a vyloučenými stránkami a jejich důvody, souhrn a varování pro potvrzení a samotné provedení.
+- Provedení nad neměnným dokumentem: ověření otisků stránek → komprese obrázků → zápis vrstvy → odstranění deklarace shody u kopie → kontrola zapsaných vrstev → zápis kopie do souboru. Chyba kdekoli znamená, že se dokument nezmění.
+- Dialog se chová jako dřív. Testy `applyProcessorPlanAndPermissions` a `applyProcessorExecute` pokrývají DocMDP 1, 2 a 3, dokument bez oprávnění, kopii s PDF/A a kopii přes zdrojový soubor.
+
+### 10.2 Slova mimo slovník (fáze 1)
+
+- Tesseract vrací u každého slova `WordIsFromDictionary()`. Hodnoty jsou smysluplné i u modelů LSTM (`tessdata_fast`), ověřuje to test `tesseractDictionaryInformation`. Čísla se nehlásí. Bez načteného slovníku modelu je hodnota neznámá. Žádná další knihovna ani slovník se nepoužívá.
+- `PDFOCRWord::inDictionary` se ukládá do projektu a do revizních dat vrstvy. `PDFOCRReviewCriteria` spojuje práh jistoty a kritérium slovníku. Slovo mimo slovník vyžaduje kontrolu, jen když je nezkontrolované, obsahuje písmeno, má aspoň dva znaky a není mezi uživatelskými slovy.
+- Kritérium je ve výchozím stavu zapnuté (`reviewOutsideDictionary`) a mění jen značení, výsledky zůstávají.
+- Dialog: pole *Review words not found in the dictionary*, sloupec *Dictionary* ve stromu slov, filtr stromu (*All*, *Needs review*, *Low confidence*, *Outside dictionary*), vlnité podtržení slova na stránce a položka *Add to User Words* v kontextové nabídce.
+
+### 10.3 Export hOCR, ALTO a TSV (fáze 2)
+
+- `PDFOCRStructuredExporter` exportuje hOCR 1.2, ALTO 4.4 a TSV se sloupci Tesseractu.
+- Souřadnice se vztahují k viditelné stránce, tedy k CropBox otočenému podle `/Rotate` a zvětšenému podle `/UserUnit`, v pixelech zvoleného rozlišení s počátkem vlevo nahoře. Výchozí rozlišení je rozlišení rozpoznání, u vrstvy bez geometrie 300 DPI. Export tak sedí na obrázky stránek vykreslené ve stejném rozlišení.
+- Neznámá jistota se nevypíše (hOCR `x_wconf`, ALTO `WC`), v TSV má hodnotu −1. Vyřazená slova se neexportují. Řádek zprava doleva má `dir="rtl"`, otočené slovo v ALTO dostane `Shape/Polygon`, slovo rozdělené na konci řádku `HYP`.
+- Dialog: formát na kartě *Output*, rozlišení souřadnic, vložení jistoty a soubor pro každou stránku zvlášť.
+
+### 10.4 Komprese skenu při zápisu (fáze 3)
+
+- Komprese běží uvnitř transakce zápisu, takže vrstva se váže už na zkomprimovanou stránku a jde dál otevírat k opravám. Session se po zápisu převáže na nové otisky (`rebindPageFingerprints`).
+- Režimy: *Off* (výchozí), *Lossless*, *Black and white text scans* a *Custom*.
+  - *Lossless*: jednobitové obrázky se zakódují jako JBIG2, jen **generic region** bez slovníku symbolů, nebo CCITT G4, případně Flate, podle toho, co je nejmenší. Šedé a barevné obrázky dostanou Flate. Výsledek je pixelově shodný (`compressionLossless`).
+  - *Black and white text scans*: šedé a barevné skeny textu se převedou na černobílé (automatický, adaptivní nebo ruční práh). Je to ztrátové, a proto jen na výslovnou volbu a s povinným náhledem `PDFOCRCompressionPreviewDialog`. Náhled porovná původní a nový obraz s posuvnou dělicí čarou a umí obrázek z komprese vyloučit.
+  - *Custom*: nastavení optimalizátoru obrázků včetně převzorkování a kvality JPEG.
+- Vždy platí, že větší výsledek se zahodí a zůstane originál. Obrázek sdílený se stránkou, která se nezapisuje, se ve výchozím stavu přeskočí.
+- Obrázky se dekódují postupně s rozpočtem paměti z konfigurace, paměť neroste s počtem stránek (`compressionStreaming`).
+- Samostatné *Optimize Images* (dialog i `pdftool optimize`) přepíše otisk vlastní vrstvy, pokud se na stránce změnilo jen kódování obrázků. Vrstva tak zůstane vázaná (`optimizeImagesKeepsLayer`).
+
+### 10.5 Příprava skenu (fáze 4 a 5)
+
+- Nový nástroj *Tools › Prepare Scanned Pages…* se spouští před OCR a mění viditelné stránky. Nic se znovu nekóduje.
+- `PDFScanPreparation` analyzuje stránku při 100 DPI: úhel sklonu do ±10° s jistotou, obdélník obsahu bez okrajů skeneru a stínu hřbetu, kandidát hřbetu dvoustrany a vlastnosti stránky.
+- **Ořez** je nový `/CropBox`, MediaBox zůstává.
+- **Rozdělení dvoustrany** vytvoří klon slovníku stránky se stejnými odkazy na obsah a zdroje, obrázek je v souboru jednou. Anotace se rozdělí podle středu, přečíslují se `/PageLabels`. Pořadí čtení zleva, nebo zprava. Tagovanou stránku rozdělit nejde.
+- **Narovnání** obalí obsah stránky vlastními proudy `q … cm` a uzavíracími operátory, takže funguje i u nevyváženého obsahu skenerů bez `q`/`Q`. Otáčí se kolem středu výstupní oblasti. Stránka s nevyváženým `ET` nebo `EMC` se odmítne.
+- O stránkách s vlastní vrstvou OCR rozhoduje uživatel při *Apply*: přeskočit (výchozí), odstranit vrstvu, nebo zrušit.
+- Dialog má seznam stránek s odznaky a filtrem, pohled s úchyty ořezu, tažnou dělicí čarou a živým otočením, pomocnou mřížku, přepnutí na skutečný výsledek, tabulkový pohled s řazením podle sklonu a hromadné kopírování nastavení na zaškrtnuté stránky. Výsledek je jeden krok historie editoru.
+- OCR dialog u šikmé stránky upozorní, že narovnání v OCR nemění viditelnou stránku, a odkáže na tento nástroj.
+
+### 10.6 Korekce perspektivy (fáze 6)
+
+- Výjimka stránky `perspective` obsahuje čtyři rohy dokumentu na fotografii v kanonickém prostoru stránky a ukládá se do projektu.
+- Pracovní rastr se přemapuje projektivní transformací na obdélník dokumentu, narovnání se přitom přeskočí. Viditelná stránka se nemění, textová vrstva se mapuje zpět na zkreslený obraz, takže hledání a označení sedí na fotografii.
+- Zpětně mapované slovo je obecný čtyřúhelník. Před zápisem se převede na rovnoběžník (spodní hrana je účaří).
+- Rohy se kontrolují: konvexní čtyřúhelník, plocha aspoň 20 % stránky, rozumné úhly. Jinak je to chyba stránky s vysvětlením.
+- Dialog: skupina *Perspective correction* na kartě *Image and regions*, editace rohů v pohledu na stránku s lupou 4×, *Enter* potvrdí, *Esc* zruší, kopírování rohů na zaškrtnuté stránky stejné velikosti a náhled opraveného rastru.
+
+### 10.7 Příkazová řádka a dávky (fáze 7)
+
+`PDFOCRDocumentRunner` provede totéž co dialog, jen rozhodnutí uživatele dostane předem: analýzu a pravidla pro existující text, převzetí výsledků projektu pro stránky se stejným otiskem, vyřešení modelů (nikdy je nestahuje), rozpoznání přes `PDFOCRJobController` s vlastní smyčkou událostí a zápis přes `PDFOCRApplyProcessor`. `processFile` k tomu přidá čtení dokumentu, kontrolu oprávnění ještě před rozpoznáním, exporty a uložení projektu. Stránka příliš velká pro rozlišení je bez výslovného souhlasu chybou stránky (IMAGE-01).
+
+Příkaz `pdftool ocr`:
+
+```
+pdftool ocr scan.pdf -o scan_ocr.pdf --languages ces+eng --deskew --export-txt scan.txt --export-alto scan.xml
+pdftool ocr --batch scans --output-dir out --languages ces --batch-export txt,hocr --skip-existing --continue-on-error
+pdftool ocr-models list --profile fast
+pdftool ocr-models install deu --profile best --accept-download
+```
+
+| Skupina | Volby |
+| --- | --- |
+| Výstup | `-o/--output` (zdroj se nikdy nepřepíše), `--export-only` |
+| Rozpoznání | `--engine`, `--languages`, `--profile fast\|standard\|best`, `--layout` (0–13 nebo jméno), `--dpi`, `--allow-reduced-dpi`, `--engine-parameter name=value` |
+| Předzpracování | `--deskew`, `--denoise`, `--auto-orientation`, `--rotation`, `--binarization auto\|otsu\|adaptive-otsu\|sauvola`, `--invert`, `--no-blank-detection` |
+| Existující text | `--existing-text skip\|replace-own\|review-only\|regions`, `--mixed-pages skip\|mask\|review-only` (výchozí je `skip`, nic se nerozhoduje potichu) |
+| Omezení a kontrola | `--whitelist`, `--blacklist`, `--user-words <soubor>`, `--user-patterns <soubor>`, `--review-threshold`, `--no-dictionary-review` |
+| Komprese | `--compression off\|lossless\|bitonal`, `--compression-encoding smallest\|jbig2\|ccittg4\|flate`, `--bitonal-algorithm automatic\|adaptive\|manual`, `--threshold`, `--compress-shared-images` |
+| Exporty | `--export-txt`, `--export-hocr`, `--export-alto`, `--export-tsv`, `--export-dpi`, `--only-reviewed` |
+| Projekt | `--project <soubor>` (jeho konfigurace se použije a volby ji mění; výsledky a opravy stránek se shodným otiskem se převezmou bez nového rozpoznání), `--save-project <soubor>` |
+| Provoz | `--keep-review-data`, `--workers`, `--memory-budget` (MB), `--page-timeout` (s), `--ocr-data-dir`, `--allow-page-errors`, `--quiet` |
+| Dávka | `--batch <složka nebo maska>`, `--output-dir`, `--suffix` (výchozí `_ocr`), `--batch-export txt,hocr,alto,tsv`, `--skip-existing`, `--continue-on-error` |
+
+- Výstupem je tabulka stránek (stav, zdroj výsledku, počet slov, průměrná jistota, slova ke kontrole, slova mimo slovník, čas, poznámka) a souhrn, ve formátu podle `--console-format` (text, xml, html). Průběh jde na standardní chybový výstup.
+- Bez `--allow-page-errors` znamená chyba kterékoli stránky návratový kód `ExitFailure` a nezapíše se nic, ani exporty. Dokument bez rozpoznaného textu vrátí `ErrorNoText` a také nic nezapíše. Dokument bez oprávnění k úpravám vrátí `ErrorPermissions`.
+- Dávka zpracuje soubory postupně a stránky každého souboru paralelně. Na konci vypíše tabulku souborů. Návratový kód je chyba, když selže kterýkoli soubor, i s `--continue-on-error`. Soubor bez oprávnění nebo bez textu k zápisu se přeskočí s důvodem.
+- **Modely se z příkazu `ocr` nikdy nestahují.** Chybějící jazyk je chyba s návodem. `ocr-models install` stáhne modely jen s výslovným `--accept-download`, přes https a s kontrolou SHA-256 stejně jako správce jazyků. Bez souhlasu vypíše, co by stáhl a kolik to je.
+- PdfTool linkuje `Pdf4QtOcrTesseract` jen se zapnutým `PDF4QT_ENABLE_OCR` a registruje engine při startu.
+
+### 10.8 Dávkový dialog editoru (fáze 7b)
+
+*Tools › Batch Recognize Text…* (`PDFOCRBatchDialog`) používá stejné `processFile` na pracovním vlákně.
+
+- Seznam souborů s přidáním souborů, složky a přetažením. U každého souboru stav, počet stránek, rozpoznané a chybné stránky, slova, slova ke kontrole, čas a zpráva.
+- Nastavení se berou z dialogu *Recognize Text*: jeho poslední nastavení, nebo pojmenovaný profil. Jazyky, profil modelů, pravidlo pro existující text a pro stránky s textem i obrázky lze změnit.
+- Výstup vedle originálu, nebo do složky, s příponou. PDF s vrstvou a exporty TXT, hOCR, ALTO a TSV. Existující výstupy se přeskočí, nebo přepíšou po potvrzení.
+- Komprese nabízí jen *Off* a *Lossless*. Ztrátový převod na černobílé potřebuje náhled, a ten je jen v dialogu *Recognize Text*.
+- *Stop* zastaví rozpracovaný soubor (nic z něj se nezapíše) a další soubory nespustí. *Open Result* zavře dialog a otevře výsledek v editoru.
+
+### 10.9 Testy rozšíření
+
+| Oblast | Testy |
+| --- | --- |
+| Slovník | `dictionaryInformation`, `tesseractDictionaryInformation`, `dictionaryReviewAndExport` (dialog) |
+| Exporty | `structuredExport` |
+| Transakce zápisu | `applyProcessorPlanAndPermissions`, `applyProcessorExecute` |
+| Komprese | `compressionLossless`, `compressionBitonalAndShared`, `compressionStreaming`, `compressionWithTextLayer`, `optimizeImagesKeepsLayer`, `compressionInDialog` (dialog) |
+| Příprava skenu | `UnitTestsScanPreparation` (`deskewSignAndCenter`, `deskewUnbalancedContent`, `splitSharesContent`, `splitReadingOrderAndLabels`, `splitWithDeskewAndCrop`, `taggedPageIsNotSplit`, `ocrLayerDecision`, `imageAnalysis`, `pageAnalysis`, `planValidation`), `tesseractAfterDeskew`, `scanPreparationDialog` (dialog) |
+| Perspektiva | `perspectiveCorrection`, `perspectiveInDialog` (dialog) |
+| Příkazová řádka a dávky | `documentRunner` (test engine: pravidla pro existující text, maskování, režim kontroly, chyby stránek, projekt, rozlišení, zápis kopie, zrušení, `processFile`), ctest `PdfToolOcrSmoke` (Tesseract s vestavěnými modely: vrstva, všechny exporty, projekt, opakovaný běh nad vlastní vrstvou, komprese, dávka s chybným souborem, `ocr-models`), `batchDialog` (dialog) |
+
+Smoke test je skript CMake [UnitTests/pdftoolocrsmoke.cmake](UnitTests/pdftoolocrsmoke.cmake). Bez Tesseractu nebo modelů se přeskočí, s `PDF4QT_OCR_REQUIRED` selže.
+
+### 10.10 Omezení rozšíření
+
+- Rohy perspektivy se hledají ručně, automatické hledání okrajů dokumentu na fotografii není.
+- Příprava skenu neotáčí anotace a nerozděluje tagované stránky.
+- Dávkový dialog nenabízí ztrátovou kompresi a nemá sledovanou složku.
+- Příkazová řádka nemá interaktivní rozhodování. Stránky, které by v dialogu vyžadovaly rozhodnutí, se bez `--mixed-pages` přeskočí.
+- Projekt uložený příkazem `--save-project` popisuje zdrojový dokument. Po kompresi obrázků se na výstupní dokument nenačte, protože se změnily otisky stránek.

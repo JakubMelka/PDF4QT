@@ -108,6 +108,10 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCREngineCapabilities
     bool supportsEngineBinarization = false;
     bool supportsGpu = false;
 
+    /// Engine reports, whether a recognized word was found in the dictionary of its
+    /// language model (the words of the model, of the frequent words and the user words)
+    bool providesDictionaryInformation = false;
+
     /// Maximal image size (empty = unlimited)
     QSize maximumImageSize;
 
@@ -172,6 +176,11 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRRawWord
     std::optional<double> rawConfidence;
     QString language;
     std::vector<PDFOCRRawSymbol> symbols;
+
+    /// True, if the word was found in the dictionary of the language model, false,
+    /// if it was not found, empty, if the engine does not know (no dictionary is
+    /// loaded, the word is a number, or the engine does not provide the information)
+    std::optional<bool> isDictionaryWord;
 };
 
 /// Raw line returned by the engine

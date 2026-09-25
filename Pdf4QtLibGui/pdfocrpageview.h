@@ -23,6 +23,7 @@
 #ifndef PDFOCRPAGEVIEW_H
 #define PDFOCRPAGEVIEW_H
 
+#include "pdfviewerglobal.h"
 #include "pdfocrmodel.h"
 
 #include <QImage>
@@ -37,7 +38,7 @@ namespace pdfviewer
 /// the regions (UI-04, REGION-01, EDIT-04). The view works with an image and
 /// a transformation from the canonical page space to the image space, so the
 /// same geometry mapping is used as in the text layer writer (GEOM-03).
-class PDFOCRPageView : public QAbstractScrollArea
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFOCRPageView : public QAbstractScrollArea
 {
     Q_OBJECT
 
@@ -53,7 +54,8 @@ public:
         DrawRecognizeRegion,
         DrawExcludeRegion,
         DrawLine,
-        EditWordGeometry
+        EditWordGeometry,
+        EditPerspective     ///< Four corners of the document on a photographed page
     };
 
     /// Sets the image and the transformation from the page space to the image space
@@ -64,12 +66,18 @@ public:
     /// Sets the page result (copied); nullptr clears the overlay
     void setPageResult(const pdf::PDFOCRPageResult* result);
 
-    void setReviewThreshold(double threshold);
+    /// Sets the criteria of the review (score threshold, dictionary criterion)
+    void setReviewCriteria(const pdf::PDFOCRReviewCriteria& criteria);
     void setOverlayVisible(bool visible);
     void setRegionsVisible(bool visible);
     void setSelectedWord(int wordId, bool ensureVisible);
     void setSelectedLine(int lineId);
     void setSelectedRegion(int regionId);
+
+    /// Sets the corners of the perspective correction (canonical page space), they are
+    /// shown as an outline and edited in the mode EditPerspective; empty = none
+    void setPerspective(const std::optional<pdf::PDFOCRQuad>& perspective);
+    const std::optional<pdf::PDFOCRQuad>& getPerspective() const { return m_perspective; }
     int getSelectedRegion() const { return m_selectedRegionId; }
 
     void setMode(Mode mode);
@@ -89,6 +97,9 @@ signals:
     void wordQuadChanged(int wordId, pdf::PDFOCRQuad quad);
     void zoomChanged(double zoom);
     void modeFinished();
+
+    /// The corners of the perspective correction were confirmed (Enter) in the mode EditPerspective
+    void perspectiveEdited(pdf::PDFOCRQuad perspective);
 
     /// Context menu was requested over the region (the region is selected first)
     void regionContextMenuRequested(int regionId, QPoint globalPosition);
@@ -125,13 +136,22 @@ private:
     const pdf::PDFOCRRegion* getRegionAt(const QPointF& viewPoint) const;
     QRectF applyHandle(const QRectF& rectangle, Handle handle, const QPointF& delta) const;
     void drawWord(QPainter& painter, const pdf::PDFOCRWord& word, const QTransform& pageToView, bool selected) const;
+    void drawPerspective(QPainter& painter) const;
+    int getPerspectiveHandleAt(const QPointF& viewPoint) const;
+
+    /// Default corners: the corners of the image
+    pdf::PDFOCRQuad getImageCorners() const;
 
     QImage m_image;
     QTransform m_pageToImage;
     QString m_caption;
     QString m_message;
     std::optional<pdf::PDFOCRPageResult> m_result;
-    double m_threshold = 80.0;
+    pdf::PDFOCRReviewCriteria m_criteria;
+    std::optional<pdf::PDFOCRQuad> m_perspective;
+    std::optional<pdf::PDFOCRQuad> m_perspectiveBeforeEdit;
+    int m_perspectiveHandle = -1;
+    QPointF m_mousePosition;
     double m_zoom = 1.0;
     bool m_fitMode = true;
     bool m_overlayVisible = true;

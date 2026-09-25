@@ -172,7 +172,9 @@
     <addaction name="actionPageGeometry"/>
     <addaction name="actionCreateBitonalDocument"/>
     <addaction name="separator"/>
+    <addaction name="actionPrepareScannedPages"/>
     <addaction name="actionRecognizeText"/>
+    <addaction name="actionBatchRecognizeText"/>
     <addaction name="actionManageOCRLanguages"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
@@ -1270,6 +1272,28 @@
    </property>
    <property name="statusTip">
     <string>Recognize the text of scanned pages, review it and insert an invisible searchable text layer.</string>
+   </property>
+  </action>
+  <action name="actionPrepareScannedPages">
+   <property name="text">
+    <string>&amp;Prepare Scanned Pages...</string>
+   </property>
+   <property name="toolTip">
+    <string>Prepare Scanned Pages</string>
+   </property>
+   <property name="statusTip">
+    <string>Crop the scanned pages, split the spreads of a book and straighten the skewed pages before the recognition. The images are not re-encoded.</string>
+   </property>
+  </action>
+  <action name="actionBatchRecognizeText">
+   <property name="text">
+    <string>&amp;Batch Recognize Text...</string>
+   </property>
+   <property name="toolTip">
+    <string>Batch Recognize Text</string>
+   </property>
+   <property name="statusTip">
+    <string>Recognize the text of several PDF files and write the copies with a searchable text layer and the exports.</string>
    </property>
   </action>
   <action name="actionManageOCRLanguages">
