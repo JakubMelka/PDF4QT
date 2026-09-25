@@ -197,6 +197,16 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfocrpagepreparer.cpp
     sources/pdfocrproject.h
     sources/pdfocrproject.cpp
+    sources/pdfocrexport.h
+    sources/pdfocrexport.cpp
+    sources/pdfocrcompression.h
+    sources/pdfocrcompression.cpp
+    sources/pdfocrapplyprocessor.h
+    sources/pdfocrapplyprocessor.cpp
+    sources/pdfocrdocumentrunner.h
+    sources/pdfocrdocumentrunner.cpp
+    sources/pdfscanpreparation.h
+    sources/pdfscanpreparation.cpp
     sources/pdfocrtextlayerwriter.h
     sources/pdfocrtextlayerwriter.cpp
     sources/pdfocrmodelmanager.h

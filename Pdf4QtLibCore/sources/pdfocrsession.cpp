@@ -198,6 +198,22 @@ void PDFOCRSession::setPageReviewOnly(PDFInteger pageIndex, bool reviewOnly)
     }
 }
 
+void PDFOCRSession::rebindPageFingerprints(const std::map<PDFInteger, QByteArray>& fingerprints)
+{
+    for (const auto& [pageIndex, fingerprint] : fingerprints)
+    {
+        auto it = m_pages.find(pageIndex);
+        if (it == m_pages.end() || !it->second.hasResult() || it->second.pageFingerprint == fingerprint)
+        {
+            continue;
+        }
+
+        it->second.pageFingerprint = fingerprint;
+        setDirty(true);
+        Q_EMIT pageChanged(pageIndex);
+    }
+}
+
 const PDFOCRWord* PDFOCRSession::findOriginalWord(PDFInteger pageIndex, int wordId) const
 {
     const PDFOCRPageResult* page = getPage(pageIndex);
@@ -1314,6 +1330,7 @@ bool PDFOCRSession::applyLineText(PDFOCRPageResult* page, PDFOCRLine* line, cons
             word.textOrigin = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].textOrigin : PDFOCRTextOrigin::Manual;
             word.language = (oldEnd > oldBegin) ? oldWords[size_t(oldBegin)].language : QString();
             word.confidence = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].confidence : PDFOCRConfidence::unknown();
+            word.inDictionary = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].inDictionary : std::nullopt;
             word.geometryOrigin = (oldEnd - oldBegin == 1 && newEnd - newBegin == 1) ? oldWords[size_t(oldBegin)].geometryOrigin : PDFOCRGeometryOrigin::Estimated;
             word.reviewState = PDFOCRReviewState::Modified;
             word.reviewTime = QDateTime::currentDateTime();
@@ -2102,12 +2119,12 @@ std::optional<PDFOCRSession::WordReference> PDFOCRSession::findReviewItem(const 
         return std::nullopt;
     }
 
-    const double threshold = getReviewThreshold();
+    const PDFOCRReviewCriteria criteria = getReviewCriteria();
     auto requiresReview = [&](const WordReference& reference)
     {
         const PDFOCRPageResult* page = getPage(reference.pageIndex);
         const PDFOCRWord* word = page ? page->findWord(reference.wordId) : nullptr;
-        return word && PDFOCRReview::requiresReview(*word, threshold);
+        return word && PDFOCRReview::requiresReview(*word, criteria);
     };
 
     const size_t count = items.size();
@@ -2133,10 +2150,10 @@ std::vector<int> PDFOCRSession::getReviewWords(PDFInteger pageIndex) const
         return result;
     }
 
-    const double threshold = getReviewThreshold();
+    const PDFOCRReviewCriteria criteria = getReviewCriteria();
     for (const PDFOCRWord* word : page->getWords())
     {
-        if (PDFOCRReview::requiresReview(*word, threshold))
+        if (PDFOCRReview::requiresReview(*word, criteria))
         {
             result.push_back(word->id);
         }
@@ -2148,6 +2165,11 @@ std::vector<int> PDFOCRSession::getReviewWords(PDFInteger pageIndex) const
 // Statistics
 // -------------------------------------------------------------------------
 
+PDFOCRReviewCriteria PDFOCRSession::getReviewCriteria() const
+{
+    return PDFOCRReviewCriteria::create(m_configuration.reviewThreshold, m_configuration.reviewOutsideDictionary, m_configuration.userWords);
+}
+
 PDFOCRConfidenceStatistics PDFOCRSession::getStatistics(PDFInteger pageIndex) const
 {
     const PDFOCRPageResult* page = getPage(pageIndex);
@@ -2155,7 +2177,7 @@ PDFOCRConfidenceStatistics PDFOCRSession::getStatistics(PDFInteger pageIndex) co
     {
         return PDFOCRConfidenceStatistics();
     }
-    return PDFOCRConfidenceStatistics::compute(*page, getReviewThreshold());
+    return PDFOCRConfidenceStatistics::compute(*page, getReviewCriteria());
 }
 
 PDFOCRConfidenceStatistics PDFOCRSession::getStatistics(const std::vector<PDFInteger>& pages) const

@@ -724,11 +724,62 @@ bool PDFOCRPageResult::hasUsableText() const
 }
 
 // -------------------------------------------------------------------------
+// PDFOCRReviewCriteria
+// -------------------------------------------------------------------------
+
+PDFOCRReviewCriteria PDFOCRReviewCriteria::create(double threshold, bool outsideDictionary, const QStringList& acceptedWords)
+{
+    PDFOCRReviewCriteria criteria;
+    criteria.threshold = threshold;
+    criteria.outsideDictionary = outsideDictionary;
+
+    for (const QString& word : acceptedWords)
+    {
+        QString normalized = normalizeWord(word);
+        if (!normalized.isEmpty())
+        {
+            criteria.acceptedWords.insert(std::move(normalized));
+        }
+    }
+
+    return criteria;
+}
+
+bool PDFOCRReviewCriteria::isAcceptedWord(const QString& text) const
+{
+    return !acceptedWords.isEmpty() && acceptedWords.contains(normalizeWord(text));
+}
+
+QString PDFOCRReviewCriteria::normalizeWord(const QString& text)
+{
+    // Punctuation surrounding the word (quotes, brackets, commas, full stops) is
+    // not a part of the dictionary word, the case is ignored.
+    qsizetype start = 0;
+    qsizetype end = text.size();
+    while (start < end && !text.at(start).isLetterOrNumber())
+    {
+        ++start;
+    }
+    while (end > start && !text.at(end - 1).isLetterOrNumber())
+    {
+        --end;
+    }
+
+    return text.mid(start, end - start).normalized(QString::NormalizationForm_C).toCaseFolded();
+}
+
+// -------------------------------------------------------------------------
 // PDFOCRConfidenceStatistics
 // -------------------------------------------------------------------------
 
 PDFOCRConfidenceStatistics PDFOCRConfidenceStatistics::compute(const PDFOCRPageResult& page, double threshold)
 {
+    return compute(page, PDFOCRReviewCriteria::create(threshold, false, QStringList()));
+}
+
+PDFOCRConfidenceStatistics PDFOCRConfidenceStatistics::compute(const PDFOCRPageResult& page, const PDFOCRReviewCriteria& criteria)
+{
+    const double threshold = criteria.threshold;
     PDFOCRConfidenceStatistics statistics;
 
     for (const PDFOCRWord* word : page.getWords())
@@ -776,7 +827,17 @@ PDFOCRConfidenceStatistics PDFOCRConfidenceStatistics::compute(const PDFOCRPageR
             ++statistics.unknownWordCount;
         }
 
-        if (PDFOCRReview::requiresReview(*word, threshold))
+        if (word->inDictionary.has_value())
+        {
+            ++statistics.dictionaryCheckedCount;
+        }
+
+        if (PDFOCRReview::isOutsideDictionary(*word, criteria))
+        {
+            ++statistics.outsideDictionaryCount;
+        }
+
+        if (PDFOCRReview::requiresReview(*word, criteria))
         {
             ++statistics.reviewRequiredCount;
         }
@@ -802,6 +863,8 @@ void PDFOCRConfidenceStatistics::merge(const PDFOCRConfidenceStatistics& other)
     confirmedCount += other.confirmedCount;
     discardedCount += other.discardedCount;
     reviewRequiredCount += other.reviewRequiredCount;
+    outsideDictionaryCount += other.outsideDictionaryCount;
+    dictionaryCheckedCount += other.dictionaryCheckedCount;
     m_scoreSum += other.m_scoreSum;
 
     if (level == PDFOCRConfidenceLevel::Unknown)
@@ -825,6 +888,48 @@ void PDFOCRConfidenceStatistics::merge(const PDFOCRConfidenceStatistics& other)
 
 bool PDFOCRReview::requiresReview(const PDFOCRWord& word, double threshold)
 {
+    return requiresReview(word, PDFOCRReviewCriteria::create(threshold, false, QStringList()));
+}
+
+bool PDFOCRReview::isOutsideDictionary(const PDFOCRWord& word, const PDFOCRReviewCriteria& criteria)
+{
+    // Only the unreviewed recognized text is judged; the dictionary information
+    // belongs to the original text, an edited or confirmed word was decided by the user.
+    if (word.reviewState != PDFOCRReviewState::Unreviewed ||
+        word.textOrigin != PDFOCRTextOrigin::OCR ||
+        !word.inDictionary.has_value() ||
+        *word.inDictionary ||
+        word.isTextModified())
+    {
+        return false;
+    }
+
+    int letterCount = 0;
+    int characterCount = 0;
+    for (const QChar character : word.text)
+    {
+        if (character.isLetterOrNumber())
+        {
+            ++characterCount;
+        }
+        if (character.isLetter())
+        {
+            ++letterCount;
+        }
+    }
+
+    if (letterCount == 0 || characterCount < 2)
+    {
+        return false;
+    }
+
+    return !criteria.isAcceptedWord(word.text);
+}
+
+bool PDFOCRReview::requiresReview(const PDFOCRWord& word, const PDFOCRReviewCriteria& criteria)
+{
+    const double threshold = criteria.threshold;
+
     switch (word.reviewState)
     {
         case PDFOCRReviewState::Confirmed:
@@ -850,6 +955,11 @@ bool PDFOCRReview::requiresReview(const PDFOCRWord& word, double threshold)
     }
 
     if (!word.confidence.isAvailable())
+    {
+        return true;
+    }
+
+    if (criteria.outsideDictionary && isOutsideDictionary(word, criteria))
     {
         return true;
     }

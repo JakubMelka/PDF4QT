@@ -484,6 +484,18 @@ public:
 
         m_configuration = configuration;
         m_models = models;
+
+        // The dictionary information is meaningful only with the word dictionary loaded
+        m_isDictionaryLoaded = true;
+        for (const PDFOCREngineParameterDescriptor& descriptor : getParameterSchema())
+        {
+            auto it = configuration.engineParameters.find(descriptor.name);
+            if (descriptor.name == QLatin1String("load_system_dawg") && it != configuration.engineParameters.end())
+            {
+                m_isDictionaryLoaded = formatParameterValue(descriptor, it.value()) != "0";
+            }
+        }
+
         return PDFOCRError::none();
     }
 
@@ -879,6 +891,14 @@ private:
                     word.language = QString::fromUtf8(language);
                 }
 
+                // Dictionary information: the LSTM beam search marks the words matched
+                // by the word, frequent word or user word dictionary of the model. Numbers
+                // are matched by the number patterns, they are neither words nor errors.
+                if (m_isDictionaryLoaded && !iterator->WordIsNumeric())
+                {
+                    word.isDictionaryWord = iterator->WordIsFromDictionary();
+                }
+
                 // Symbols (optional, ARCH-02)
                 tesseract::ResultIterator symbolIterator(*iterator);
                 do
@@ -927,6 +947,10 @@ private:
     PDFOCRResolvedModelSet m_models;
     QString m_userWordsFile;
     QString m_userPatternsFile;
+
+    /// The word dictionary of the language model is loaded (load_system_dawg),
+    /// so the dictionary information of the words is meaningful
+    bool m_isDictionaryLoaded = false;
 };
 
 // -------------------------------------------------------------------------
@@ -990,6 +1014,7 @@ PDFOCREngineCapabilities PDFTesseractOCREngineFactory::getCapabilities() const
     capabilities.supportsMultipleLanguages = true;
     capabilities.supportsEngineBinarization = true;
     capabilities.supportsGpu = false;
+    capabilities.providesDictionaryInformation = true;
     capabilities.maximumImageSize = QSize(32767, 32767);
 
     // DetectOrientationScript has no monitor, see PDFTesseractOCREngine::detectOrientation

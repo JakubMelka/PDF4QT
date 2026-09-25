@@ -32,6 +32,7 @@
 #include <QWheelEvent>
 
 #include <cmath>
+#include <numbers>
 
 namespace pdfviewer
 {
@@ -94,9 +95,9 @@ void PDFOCRPageView::setPageResult(const pdf::PDFOCRPageResult* result)
     viewport()->update();
 }
 
-void PDFOCRPageView::setReviewThreshold(double threshold)
+void PDFOCRPageView::setReviewCriteria(const pdf::PDFOCRReviewCriteria& criteria)
 {
-    m_threshold = threshold;
+    m_criteria = criteria;
     viewport()->update();
 }
 
@@ -147,11 +148,31 @@ void PDFOCRPageView::setSelectedRegion(int regionId)
     viewport()->update();
 }
 
+void PDFOCRPageView::setPerspective(const std::optional<pdf::PDFOCRQuad>& perspective)
+{
+    m_perspective = perspective;
+    viewport()->update();
+}
+
+pdf::PDFOCRQuad PDFOCRPageView::getImageCorners() const
+{
+    // Bottom-left, bottom-right, top-right, top-left of the image (y grows downwards)
+    const QTransform imageToPage = m_pageToImage.inverted();
+    const QSizeF size = m_image.size();
+    pdf::PDFOCRQuad quad;
+    quad.points[0] = imageToPage.map(QPointF(0, size.height()));
+    quad.points[1] = imageToPage.map(QPointF(size.width(), size.height()));
+    quad.points[2] = imageToPage.map(QPointF(size.width(), 0));
+    quad.points[3] = imageToPage.map(QPointF(0, 0));
+    return quad;
+}
+
 void PDFOCRPageView::setMode(Mode mode)
 {
     m_mode = mode;
     m_dragging = false;
     m_activeHandle = Handle::None;
+    m_perspectiveHandle = -1;
 
     switch (mode)
     {
@@ -160,6 +181,15 @@ void PDFOCRPageView::setMode(Mode mode)
             break;
         case Mode::EditWordGeometry:
             viewport()->setCursor(Qt::SizeAllCursor);
+            break;
+        case Mode::EditPerspective:
+            // Editing starts from the current corners, or from the corners of the image
+            m_perspectiveBeforeEdit = m_perspective;
+            if (!m_perspective && !m_image.isNull())
+            {
+                m_perspective = getImageCorners();
+            }
+            viewport()->setCursor(Qt::ArrowCursor);
             break;
         default:
             viewport()->setCursor(Qt::CrossCursor);
@@ -290,7 +320,7 @@ void PDFOCRPageView::drawWord(QPainter& painter, const pdf::PDFOCRWord& word, co
                 color = QColor(170, 0, 170);
                 penStyle = Qt::DotLine;
             }
-            else if (pdf::PDFOCRReview::requiresReview(word, m_threshold))
+            else if (pdf::PDFOCRReview::requiresReview(word, m_criteria))
             {
                 color = QColor(225, 110, 0);
                 penStyle = Qt::DashLine;
@@ -327,6 +357,45 @@ void PDFOCRPageView::drawWord(QPainter& painter, const pdf::PDFOCRWord& word, co
             const QPointF bottom = origin + toBottom / QLineF(QPointF(), toBottom).length() * size;
             painter.setBrush(color);
             painter.drawPolygon(QPolygonF() << origin << right << bottom);
+        }
+    }
+
+    if (pdf::PDFOCRReview::isOutsideDictionary(word, m_criteria))
+    {
+        // Wavy underline along the baseline side of the word: the word was not found
+        // in the dictionary of the language model (like a spelling mark of a text editor).
+        // It is drawn also when the dictionary criterion of the review is disabled,
+        // then it is only an information and it is drawn fainter.
+        const QPointF start = polygon[0];
+        const QPointF end = polygon[1];
+        const QPointF edge = end - start;
+        const double length = QLineF(start, end).length();
+        if (length > 4.0)
+        {
+            const QPointF direction = edge / length;
+            QPointF normal(-direction.y(), direction.x());
+
+            // The underline lies outside of the box, i.e. on the side opposite to the top edge
+            const QPointF towardsTop = polygon[3] - polygon[0];
+            if (QPointF::dotProduct(normal, towardsTop) > 0.0)
+            {
+                normal = -normal;
+            }
+
+            const double amplitude = 1.5;
+            const double wavelength = 5.0;
+            QPolygonF wave;
+            for (double position = 0.0; position <= length; position += wavelength * 0.25)
+            {
+                const double phase = position / wavelength * 2.0 * std::numbers::pi;
+                wave << start + direction * position + normal * (2.5 + amplitude * std::sin(phase));
+            }
+
+            QColor waveColor(220, 0, 0);
+            waveColor.setAlpha(m_criteria.outsideDictionary ? 255 : 110);
+            painter.setPen(QPen(waveColor, 1.2));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPolyline(wave);
         }
     }
 
@@ -550,6 +619,8 @@ void PDFOCRPageView::paintEvent(QPaintEvent* event)
         }
     }
 
+    drawPerspective(painter);
+
     // Edited rectangle with the handles
     QRectF edited = getEditedRectangleInView();
     if (m_dragging && m_activeHandle != Handle::None)
@@ -593,6 +664,80 @@ void PDFOCRPageView::paintEvent(QPaintEvent* event)
     }
 }
 
+void PDFOCRPageView::drawPerspective(QPainter& painter) const
+{
+    if (!m_perspective)
+    {
+        return;
+    }
+
+    const QTransform pageToView = getPageToView();
+    const QPolygonF polygon = pageToView.map(m_perspective->toPolygon());
+    const bool editing = m_mode == Mode::EditPerspective;
+
+    painter.save();
+    painter.setPen(QPen(QColor(230, 120, 0), editing ? 2.0 : 1.2, editing ? Qt::SolidLine : Qt::DashLine));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolygon(polygon);
+
+    if (editing)
+    {
+        // Handles of the corners
+        painter.setBrush(QColor(230, 120, 0, 160));
+        for (const QPointF& point : polygon)
+        {
+            painter.drawEllipse(point, 6.0, 6.0);
+        }
+
+        // Magnifier (4x) at the dragged corner for a precise placement
+        if (m_perspectiveHandle >= 0 && !m_image.isNull())
+        {
+            const QPointF corner = polygon[m_perspectiveHandle];
+            const QPointF imagePoint = getImageToView().inverted().map(corner);
+            constexpr int loupeSize = 140;
+            constexpr double loupeZoom = 4.0;
+            const double sourceSize = loupeSize / (loupeZoom * qMax(m_zoom, 0.01));
+            const QRectF source(imagePoint - QPointF(sourceSize * 0.5, sourceSize * 0.5), QSizeF(sourceSize, sourceSize));
+            const QRectF target(viewport()->width() - loupeSize - 10, 10, loupeSize, loupeSize);
+            painter.setPen(QPen(Qt::black, 1.0));
+            painter.setBrush(Qt::white);
+            painter.drawRect(target);
+            painter.drawImage(target, m_image, source);
+            painter.setPen(QPen(QColor(230, 120, 0), 1.0));
+            painter.drawLine(QPointF(target.center().x(), target.top()), QPointF(target.center().x(), target.bottom()));
+            painter.drawLine(QPointF(target.left(), target.center().y()), QPointF(target.right(), target.center().y()));
+        }
+
+        const QString help = tr("Drag the corners of the document. Enter confirms, Escape cancels.");
+        const QFontMetrics metrics(font());
+        const QRect helpRect(4, viewport()->height() - metrics.height() - 10, metrics.horizontalAdvance(help) + 12, metrics.height() + 6);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 150));
+        painter.drawRoundedRect(helpRect, 3, 3);
+        painter.setPen(Qt::white);
+        painter.drawText(helpRect, Qt::AlignCenter, help);
+    }
+    painter.restore();
+}
+
+int PDFOCRPageView::getPerspectiveHandleAt(const QPointF& viewPoint) const
+{
+    if (!m_perspective)
+    {
+        return -1;
+    }
+
+    const QPolygonF polygon = getPageToView().map(m_perspective->toPolygon());
+    for (int i = 0; i < 4; ++i)
+    {
+        if (QLineF(polygon[i], viewPoint).length() <= 10.0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void PDFOCRPageView::resizeEvent(QResizeEvent* event)
 {
     BaseClass::resizeEvent(event);
@@ -619,6 +764,13 @@ void PDFOCRPageView::mousePressEvent(QMouseEvent* event)
     const QPointF point = event->position();
     m_dragStart = point;
     m_dragCurrent = point;
+
+    if (m_mode == Mode::EditPerspective)
+    {
+        m_perspectiveHandle = getPerspectiveHandleAt(point);
+        viewport()->update();
+        return;
+    }
 
     if (m_mode == Mode::Select || m_mode == Mode::EditWordGeometry)
     {
@@ -656,6 +808,24 @@ void PDFOCRPageView::mousePressEvent(QMouseEvent* event)
 
 void PDFOCRPageView::mouseMoveEvent(QMouseEvent* event)
 {
+    m_mousePosition = event->position();
+    if (m_mode == Mode::EditPerspective)
+    {
+        if (m_perspectiveHandle >= 0 && m_perspective && !m_image.isNull())
+        {
+            // The corner stays inside of the image
+            const QPointF imagePoint = getImageToView().inverted().map(event->position());
+            const QPointF bounded(qBound(0.0, imagePoint.x(), double(m_image.width())), qBound(0.0, imagePoint.y(), double(m_image.height())));
+            m_perspective->points[size_t(m_perspectiveHandle)] = m_pageToImage.inverted().map(bounded);
+            viewport()->update();
+        }
+        else
+        {
+            viewport()->setCursor(getPerspectiveHandleAt(event->position()) >= 0 ? Qt::SizeAllCursor : Qt::ArrowCursor);
+        }
+        return;
+    }
+
     if (m_dragging)
     {
         m_dragCurrent = event->position();
@@ -689,6 +859,13 @@ void PDFOCRPageView::mouseMoveEvent(QMouseEvent* event)
 
 void PDFOCRPageView::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (m_mode == Mode::EditPerspective)
+    {
+        m_perspectiveHandle = -1;
+        viewport()->update();
+        return;
+    }
+
     if (!m_dragging || event->button() != Qt::LeftButton)
     {
         BaseClass::mouseReleaseEvent(event);
@@ -773,7 +950,25 @@ void PDFOCRPageView::keyPressEvent(QKeyEvent* event)
             event->accept();
             return;
 
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+            if (m_mode == Mode::EditPerspective && m_perspective)
+            {
+                const pdf::PDFOCRQuad perspective = *m_perspective;
+                setMode(Mode::Select);
+                Q_EMIT perspectiveEdited(perspective);
+                Q_EMIT modeFinished();
+                event->accept();
+                return;
+            }
+            break;
+
         case Qt::Key_Escape:
+            if (m_mode == Mode::EditPerspective)
+            {
+                // The corners before the editing are restored
+                m_perspective = m_perspectiveBeforeEdit;
+            }
             if (m_mode != Mode::Select)
             {
                 setMode(Mode::Select);
@@ -818,7 +1013,12 @@ bool PDFOCRPageView::viewportEvent(QEvent* event)
             {
                 confidence = tr("confidence %1/100").arg(qRound(word->confidence.normalized.value()));
             }
-            QToolTip::showText(helpEvent->globalPos(), QStringLiteral("%1\n%2").arg(word->text, confidence), viewport());
+            QString text = QStringLiteral("%1\n%2").arg(word->text, confidence);
+            if (pdf::PDFOCRReview::isOutsideDictionary(*word, m_criteria))
+            {
+                text += QChar('\n') + tr("not found in the dictionary of the language model");
+            }
+            QToolTip::showText(helpEvent->globalPos(), text, viewport());
         }
         else
         {

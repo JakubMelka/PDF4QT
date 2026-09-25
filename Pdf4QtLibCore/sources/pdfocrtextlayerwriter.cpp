@@ -1785,6 +1785,90 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
     return report;
 }
 
+std::vector<PDFInteger> PDFOCRTextLayerWriter::rebindFingerprints(PDFDocumentBuilder* builder,
+                                                                  const PDFDocument* originalDocument,
+                                                                  const PDFDocument* modifiedDocument,
+                                                                  const std::set<PDFObjectReference>& replacedObjects)
+{
+    std::vector<PDFInteger> reboundPages;
+    if (!builder || !originalDocument || !modifiedDocument || replacedObjects.empty())
+    {
+        return reboundPages;
+    }
+
+    const PDFCatalog* originalCatalog = originalDocument->getCatalog();
+    const PDFCatalog* modifiedCatalog = modifiedDocument->getCatalog();
+    const size_t pageCount = qMin(originalCatalog->getPageCount(), modifiedCatalog->getPageCount());
+
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const PDFInteger pageIndex = PDFInteger(i);
+
+        // Only a layer bound to its page is rebound; an unbound layer stays unbound
+        const LayerInfo originalInfo = readLayerInfo(originalDocument, pageIndex);
+        if (!originalInfo.isPresent || !originalInfo.fingerprintMatches || !originalInfo.isContentOwn)
+        {
+            continue;
+        }
+
+        // The page must differ only in the replaced objects
+        const QByteArray originalNeutral = PDFOCRPagePreparer::computePageFingerprint(originalDocument, pageIndex, replacedObjects);
+        const QByteArray modifiedNeutral = PDFOCRPagePreparer::computePageFingerprint(modifiedDocument, pageIndex, replacedObjects);
+        if (originalNeutral.isEmpty() || originalNeutral != modifiedNeutral)
+        {
+            continue;
+        }
+
+        const QByteArray newFingerprint = PDFOCRPagePreparer::computePageFingerprint(modifiedDocument, pageIndex);
+        if (newFingerprint == originalInfo.pageFingerprint)
+        {
+            continue;
+        }
+
+        // The private data of the layer are updated (/PieceInfo /PDF4QT_OCR /Private /PageFingerprint)
+        const PDFObjectReference pageReference = modifiedCatalog->getPage(i)->getPageReference();
+        PDFDictionary pageDictionary = copyDictionary(builder, builder->getObjectByReference(pageReference));
+        PDFDictionary pieceInfo = copyDictionary(builder, pageDictionary.get("PieceInfo"));
+        PDFDictionary entry = copyDictionary(builder, pieceInfo.get(PIECE_INFO_KEY));
+        PDFDictionary privateData = copyDictionary(builder, entry.get("Private"));
+        if (!privateData.hasKey("PageFingerprint"))
+        {
+            continue;
+        }
+
+        PDFObjectFactory fingerprintFactory;
+        fingerprintFactory << QString::fromLatin1(newFingerprint.toHex());
+        privateData.setEntry(PDFInplaceOrMemoryString("PageFingerprint"), fingerprintFactory.takeObject());
+        entry.setEntry(PDFInplaceOrMemoryString("Private"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(privateData))));
+        pieceInfo.setEntry(PDFInplaceOrMemoryString(PIECE_INFO_KEY), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(entry))));
+        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pieceInfo))));
+        builder->setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+        reboundPages.push_back(pageIndex);
+    }
+
+    return reboundPages;
+}
+
+PDFDocument PDFOCRTextLayerWriter::rebindOptimizedDocument(const PDFDocument* originalDocument,
+                                                           PDFDocument optimizedDocument,
+                                                           const std::set<PDFObjectReference>& replacedObjects,
+                                                           std::vector<PDFInteger>* reboundPages)
+{
+    PDFDocumentBuilder builder(&optimizedDocument);
+    std::vector<PDFInteger> pages = rebindFingerprints(&builder, originalDocument, &optimizedDocument, replacedObjects);
+    if (reboundPages)
+    {
+        *reboundPages = pages;
+    }
+
+    if (pages.empty())
+    {
+        return optimizedDocument;
+    }
+
+    return builder.build();
+}
+
 static const char* PDFA_NAMESPACE = "http://www.aiim.org/pdfa/ns/id/";
 static const char* PDFUA_NAMESPACE = "http://www.aiim.org/pdfua/ns/id/";
 

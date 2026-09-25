@@ -24,6 +24,9 @@
 #include "ui_pdfocrdocumentdialog.h"
 #include "pdfocrpageview.h"
 #include "pdfocrlanguagesdialog.h"
+#include "pdfocrexport.h"
+#include "pdfocrapplyprocessor.h"
+#include "pdfocrcompressionpreviewdialog.h"
 
 #include "pdfcms.h"
 #include "pdffont.h"
@@ -73,6 +76,12 @@ static constexpr double PREVIEW_DPI = 200.0;
 static constexpr qint64 PREVIEW_MAXIMUM_PIXELS = qint64(16) * 1000 * 1000;
 static constexpr pdf::PDFInteger MAXIMUM_DOCUMENT_FINGERPRINT_PAGES = 200;
 
+/// Format of the export: plain text, or a structured format (value of PDFOCRStructuredExporter::Format)
+static constexpr int EXPORT_FORMAT_TEXT = -1;
+
+/// Value of the resolution of the export, which means the resolution of the recognition
+static constexpr int EXPORT_DPI_OF_RECOGNITION = 71;
+
 enum ReviewFilter
 {
     FilterAll,
@@ -81,7 +90,8 @@ enum ReviewFilter
     FilterUnknownConfidence,
     FilterModified,
     FilterConfirmed,
-    FilterDiscarded
+    FilterDiscarded,
+    FilterOutsideDictionary
 };
 
 enum HelperSelection
@@ -216,6 +226,7 @@ PDFOCRDocumentDialog::~PDFOCRDocumentDialog()
     cancelTask(m_previewTask);
     cancelTask(m_applyTask);
     cancelTask(m_prepareTask);
+    cancelTask(m_compressionEstimateTask);
 
     disconnect(m_jobController, nullptr, this, nullptr);
     m_jobController->waitForFinished();
@@ -245,38 +256,22 @@ pdf::PDFOCRDocumentIdentity PDFOCRDocumentDialog::createIdentity() const
 
 int PDFOCRDocumentDialog::getCertificationPermissions(const pdf::PDFDocument* document)
 {
-    if (!document)
-    {
-        return 0;
-    }
+    return pdf::PDFOCRApplyProcessor::getCertificationPermissions(document);
+}
 
-    const pdf::PDFDictionary* trailer = document->getTrailerDictionary();
-    const pdf::PDFDictionary* catalog = trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr;
-    const pdf::PDFDictionary* permissions = catalog ? document->getDictionaryFromObject(catalog->get("Perms")) : nullptr;
-    if (!permissions || !permissions->hasKey("DocMDP") || document->getObject(permissions->get("DocMDP")).isNull())
-    {
-        return 0;
-    }
-
-    // The permissions are in the transform parameters of the DocMDP signature reference;
-    // the default value of /P is 2 (ISO 32000-2, 12.8.2.2)
-    pdf::PDFInteger value = 2;
-    pdf::PDFDocumentDataLoaderDecorator loader(document);
-    if (const pdf::PDFDictionary* signature = document->getDictionaryFromObject(permissions->get("DocMDP")))
-    {
-        const pdf::PDFObject& referencesObject = document->getObject(signature->get("Reference"));
-        if (referencesObject.isArray() && referencesObject.getArray()->getCount() > 0)
-        {
-            const pdf::PDFDictionary* reference = document->getDictionaryFromObject(referencesObject.getArray()->getItem(0));
-            const pdf::PDFDictionary* transformParameters = reference ? document->getDictionaryFromObject(reference->get("TransformParams")) : nullptr;
-            if (transformParameters)
-            {
-                value = loader.readIntegerFromDictionary(transformParameters, "P", 2);
-            }
-        }
-    }
-
-    return int(std::clamp(value, pdf::PDFInteger(1), pdf::PDFInteger(3)));
+pdf::PDFOCRApplyProcessor::Context PDFOCRDocumentDialog::getApplyContext() const
+{
+    pdf::PDFOCRApplyProcessor::Context context;
+    context.document = m_context.document;
+    context.fileName = m_context.fileName;
+    context.canModify = m_context.canModify;
+    context.canCopyContent = m_context.canCopyContent;
+    context.hasSignatures = m_context.hasSignatures;
+    context.isEncrypted = m_context.isEncrypted;
+    context.certificationPermissions = m_context.certificationPermissions;
+    context.isTagged = m_isTagged;
+    context.conformanceDeclarations = m_hasConformanceDeclaration ? m_conformanceDeclarations : QStringList();
+    return context;
 }
 
 // -------------------------------------------------------------------------
@@ -414,12 +409,32 @@ void PDFOCRDocumentDialog::initializeUi()
     ui->pageSeparatorComboBox->addItem(tr("Form feed"), int(pdf::PDFOCRTextExporter::PageSeparator::FormFeed));
     ui->pageSeparatorComboBox->addItem(tr("None"), int(pdf::PDFOCRTextExporter::PageSeparator::None));
 
+    for (pdf::PDFOCRCompressionMode mode : { pdf::PDFOCRCompressionMode::Off, pdf::PDFOCRCompressionMode::Lossless, pdf::PDFOCRCompressionMode::BitonalTextScans, pdf::PDFOCRCompressionMode::Custom })
+    {
+        ui->compressionModeComboBox->addItem(pdf::PDFOCRCompressionSettings::getModeName(mode), int(mode));
+    }
+    for (pdf::PDFOCRBitonalEncoding encoding : { pdf::PDFOCRBitonalEncoding::Smallest, pdf::PDFOCRBitonalEncoding::JBIG2, pdf::PDFOCRBitonalEncoding::CCITTGroup4, pdf::PDFOCRBitonalEncoding::Flate })
+    {
+        ui->bitonalAlgorithmComboBox->addItem(pdf::PDFOCRCompressionSettings::getBitonalEncodingName(encoding), int(encoding));
+    }
+    for (pdf::PDFOCRThresholdMethod method : { pdf::PDFOCRThresholdMethod::Automatic, pdf::PDFOCRThresholdMethod::Adaptive, pdf::PDFOCRThresholdMethod::Manual })
+    {
+        ui->bitonalThresholdComboBox->addItem(pdf::PDFOCRCompressionSettings::getThresholdMethodName(method), int(method));
+    }
+
+    ui->exportFormatComboBox->addItem(tr("Plain text (TXT)"), EXPORT_FORMAT_TEXT);
+    for (pdf::PDFOCRStructuredExporter::Format format : { pdf::PDFOCRStructuredExporter::Format::Hocr, pdf::PDFOCRStructuredExporter::Format::Alto, pdf::PDFOCRStructuredExporter::Format::Tsv })
+    {
+        ui->exportFormatComboBox->addItem(pdf::PDFOCRStructuredExporter::getFormatName(format), int(format));
+    }
+
     ui->engineModeComboBox->addItem(tr("1 - LSTM neural network"), 1);
     ui->engineModeComboBox->addItem(tr("3 - Default of the available models"), 3);
 
     ui->reviewFilterComboBox->addItem(tr("All words"), FilterAll);
     ui->reviewFilterComboBox->addItem(tr("Words requiring review"), FilterRequiresReview);
     ui->reviewFilterComboBox->addItem(tr("Words below the confidence threshold"), FilterBelowThreshold);
+    ui->reviewFilterComboBox->addItem(tr("Words not found in the dictionary"), FilterOutsideDictionary);
     ui->reviewFilterComboBox->addItem(tr("Words with unknown confidence"), FilterUnknownConfidence);
     ui->reviewFilterComboBox->addItem(tr("Corrected words"), FilterModified);
     ui->reviewFilterComboBox->addItem(tr("Confirmed words"), FilterConfirmed);
@@ -461,6 +476,33 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(this, &PDFOCRDocumentDialog::pageDataReady, this, &PDFOCRDocumentDialog::onPageDataReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::previewReady, this, &PDFOCRDocumentDialog::onPreviewReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::applyFinished, this, &PDFOCRDocumentDialog::onApplyFinished, Qt::QueuedConnection);
+    connect(this, &PDFOCRDocumentDialog::compressionEstimateReady, this, &PDFOCRDocumentDialog::onCompressionEstimateReady, Qt::QueuedConnection);
+
+    // Compression of the scanned images (phase 3 of OCR_PLAN.md)
+    m_compressionEstimateTimer.setSingleShot(true);
+    m_compressionEstimateTimer.setInterval(500);
+    connect(&m_compressionEstimateTimer, &QTimer::timeout, this, &PDFOCRDocumentDialog::startCompressionEstimate);
+    for (QComboBox* comboBox : { ui->compressionModeComboBox, ui->bitonalAlgorithmComboBox, ui->bitonalThresholdComboBox })
+    {
+        connect(comboBox, &QComboBox::currentIndexChanged, this, &PDFOCRDocumentDialog::onCompressionSettingsChanged);
+    }
+    for (QSpinBox* spinBox : { ui->bitonalThresholdSpinBox, ui->downsampleDpiSpinBox, ui->jpegQualitySpinBox })
+    {
+        connect(spinBox, &QSpinBox::valueChanged, this, &PDFOCRDocumentDialog::onCompressionSettingsChanged);
+    }
+    for (QCheckBox* checkBox : { ui->downsampleCheckBox, ui->compressSharedImagesCheckBox })
+    {
+        connect(checkBox, &QCheckBox::toggled, this, &PDFOCRDocumentDialog::onCompressionSettingsChanged);
+    }
+    connect(ui->compressionModeComboBox, &QComboBox::activated, this, [this]()
+    {
+        // The lossy modes are chosen by the user only after a look at their result
+        if (getCompressionSettings().isLossy() && !isCompressionPreviewConfirmed())
+        {
+            QTimer::singleShot(0, this, &PDFOCRDocumentDialog::onCompressionPreviewClicked);
+        }
+    });
+    connect(ui->compressionPreviewButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onCompressionPreviewClicked);
     connect(this, &PDFOCRDocumentDialog::ownLayerLoaded, this, &PDFOCRDocumentDialog::onOwnLayerLoaded, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::documentFingerprintReady, this, &PDFOCRDocumentDialog::onDocumentFingerprintReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::recognitionPrepared, this, &PDFOCRDocumentDialog::onRecognitionPrepared, Qt::QueuedConnection);
@@ -485,7 +527,7 @@ void PDFOCRDocumentDialog::initializeUi()
 
     // Pages
     connect(ui->pagesListWidget, &QListWidget::currentRowChanged, this, &PDFOCRDocumentDialog::onCurrentPageChanged);
-    connect(ui->pagesListWidget, &QListWidget::itemChanged, this, [this]() { if (!m_updatingUi) { updateSelectionInfo(); updateUi(); } });
+    connect(ui->pagesListWidget, &QListWidget::itemChanged, this, [this]() { if (!m_updatingUi) { updateSelectionInfo(); updateUi(); scheduleCompressionEstimate(); } });
     connect(ui->selectAllPagesButton, &QPushButton::clicked, this, [this]()
     {
         std::vector<pdf::PDFInteger> pages(size_t(m_pageCount), 0);
@@ -559,7 +601,7 @@ void PDFOCRDocumentDialog::initializeUi()
         connect(comboBox, &QComboBox::currentIndexChanged, this, &PDFOCRDocumentDialog::onConfigurationChanged);
     }
     for (QCheckBox* checkBox : { ui->autoOrientationCheckBox, ui->deskewCheckBox, ui->grayscaleCheckBox, ui->denoiseCheckBox, ui->invertCheckBox, ui->detectBlankPagesCheckBox,
-                                 ui->onlyReviewedCheckBox, ui->keepReviewDataCheckBox })
+                                 ui->onlyReviewedCheckBox, ui->keepReviewDataCheckBox, ui->reviewDictionaryCheckBox })
     {
         connect(checkBox, &QCheckBox::toggled, this, &PDFOCRDocumentDialog::onConfigurationChanged);
     }
@@ -569,6 +611,9 @@ void PDFOCRDocumentDialog::initializeUi()
     }
     connect(ui->whitelistEdit, &QLineEdit::editingFinished, this, &PDFOCRDocumentDialog::onConfigurationChanged);
     connect(ui->blacklistEdit, &QLineEdit::editingFinished, this, &PDFOCRDocumentDialog::onConfigurationChanged);
+    // User words are accepted words of the dictionary review, the marks follow them immediately
+    connect(ui->userWordsEdit, &QPlainTextEdit::textChanged, this, &PDFOCRDocumentDialog::onConfigurationChanged);
+    connect(ui->userPatternsEdit, &QPlainTextEdit::textChanged, this, &PDFOCRDocumentDialog::onConfigurationChanged);
     connect(ui->languagesListWidget, &QListWidget::itemChanged, this, [this]() { if (!m_updatingUi) { onConfigurationChanged(); } });
     connect(ui->advancedLayoutsCheckBox, &QCheckBox::toggled, this, &PDFOCRDocumentDialog::updateLayoutCombos);
     connect(ui->languageUpButton, &QPushButton::clicked, this, [this]()
@@ -603,6 +648,92 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(ui->overrideLanguagesEdit, &QLineEdit::editingFinished, this, &PDFOCRDocumentDialog::onPageOverrideChanged);
     connect(ui->overrideLayoutComboBox, &QComboBox::currentIndexChanged, this, &PDFOCRDocumentDialog::onPageOverrideChanged);
     connect(ui->overrideRotationComboBox, &QComboBox::currentIndexChanged, this, &PDFOCRDocumentDialog::onPageOverrideChanged);
+
+    // Perspective correction of a photographed page (phase 6 of OCR_PLAN.md)
+    connect(ui->perspectiveCheckBox, &QCheckBox::toggled, this, [this](bool checked)
+    {
+        if (m_updatingUi || m_currentPage < 0)
+        {
+            return;
+        }
+
+        std::optional<pdf::PDFOCRQuad> perspective;
+        if (checked)
+        {
+            perspective = m_originalView->getPerspective() ? *m_originalView->getPerspective() : getPageCorners(m_currentPage);
+        }
+        setPagePerspective(m_currentPage, perspective);
+        if (checked)
+        {
+            startPerspectiveEditing();
+        }
+    });
+    connect(ui->perspectiveEditButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::startPerspectiveEditing);
+    connect(ui->perspectiveResetButton, &QPushButton::clicked, this, [this]()
+    {
+        if (m_currentPage >= 0)
+        {
+            setPagePerspective(m_currentPage, getPageCorners(m_currentPage));
+        }
+    });
+    connect(ui->perspectiveCopyButton, &QPushButton::clicked, this, [this]()
+    {
+        const std::optional<pdf::PDFOCRPageOverride> current = m_currentPage >= 0 ? m_session->getPageOverride(m_currentPage) : std::nullopt;
+        if (!current || !current->perspective)
+        {
+            return;
+        }
+
+        // Only the pages of the same size can share the corners (page space coordinates)
+        const pdf::PDFPage* currentPage = m_context.document->getCatalog()->getPage(m_currentPage);
+        int copied = 0;
+        int skipped = 0;
+        for (pdf::PDFInteger page : getCheckedPages())
+        {
+            if (page == m_currentPage)
+            {
+                continue;
+            }
+
+            const pdf::PDFPage* otherPage = m_context.document->getCatalog()->getPage(page);
+            if (otherPage->getCropBox() != currentPage->getCropBox() || otherPage->getPageRotation() != currentPage->getPageRotation())
+            {
+                ++skipped;
+                continue;
+            }
+            setPagePerspective(page, current->perspective);
+            ++copied;
+        }
+
+        QString message = tr("The corners were used for %n page(s).", nullptr, copied);
+        if (skipped > 0)
+        {
+            message += QChar(' ') + tr("%n page(s) of a different size were skipped.", nullptr, skipped);
+        }
+        ui->perspectiveInfoLabel->setText(message);
+    });
+    connect(ui->perspectivePreviewCheckBox, &QCheckBox::toggled, this, [this](bool checked)
+    {
+        // The corrected working image without the overlay of the words
+        m_workingView->setOverlayVisible(!checked && ui->showOverlayCheckBox->isChecked());
+        setViewMode(checked ? ViewMode::Working : ViewMode::SideBySide);
+    });
+    connect(m_originalView, &PDFOCRPageView::perspectiveEdited, this, [this](pdf::PDFOCRQuad perspective)
+    {
+        if (m_currentPage < 0)
+        {
+            return;
+        }
+
+        const QString error = pdf::PDFOCRPagePreparer::validatePerspective(perspective, m_context.document->getCatalog()->getPage(m_currentPage)->getCropBox());
+        if (!error.isEmpty())
+        {
+            QMessageBox::warning(this, windowTitle(), tr("The corners are not used: %1").arg(error));
+            updatePageOverrideUi();
+            return;
+        }
+        setPagePerspective(m_currentPage, perspective);
+    });
     connect(ui->clearPageOverrideButton, &QPushButton::clicked, this, [this]()
     {
         m_session->clearPageOverride(m_currentPage);
@@ -679,6 +810,10 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(ui->applyButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onApplyClicked);
     connect(ui->removeLayerButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onRemoveLayerClicked);
     connect(ui->exportButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onExportClicked);
+    connect(ui->exportFormatComboBox, &QComboBox::currentIndexChanged, this, [this]()
+    {
+        ui->exportOptionsStack->setCurrentIndex(ui->exportFormatComboBox->currentData().toInt() == EXPORT_FORMAT_TEXT ? 0 : 1);
+    });
     connect(ui->openProjectButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onOpenProject);
     connect(ui->saveProjectButton, &QPushButton::clicked, this, [this]() { saveProject(); });
     connect(ui->closeButton, &QPushButton::clicked, this, &QDialog::reject);
@@ -754,6 +889,11 @@ void PDFOCRDocumentDialog::loadSettings()
     ui->joinHyphenatedCheckBox->setChecked(settings.value(QStringLiteral("exportJoinHyphenated"), false).toBool());
     ui->normalizeNfcCheckBox->setChecked(settings.value(QStringLiteral("exportNormalizeNfc"), false).toBool());
     ui->pageSeparatorComboBox->setCurrentIndex(qMax(0, ui->pageSeparatorComboBox->findData(settings.value(QStringLiteral("exportPageSeparator"), int(pdf::PDFOCRTextExporter::PageSeparator::Label)))));
+    ui->exportFormatComboBox->setCurrentIndex(qMax(0, ui->exportFormatComboBox->findData(settings.value(QStringLiteral("exportFormat"), EXPORT_FORMAT_TEXT))));
+    ui->exportOptionsStack->setCurrentIndex(ui->exportFormatComboBox->currentData().toInt() == EXPORT_FORMAT_TEXT ? 0 : 1);
+    ui->exportDpiSpinBox->setValue(settings.value(QStringLiteral("exportDpi"), EXPORT_DPI_OF_RECOGNITION).toInt());
+    ui->exportConfidenceCheckBox->setChecked(settings.value(QStringLiteral("exportConfidence"), true).toBool());
+    ui->exportPerPageCheckBox->setChecked(settings.value(QStringLiteral("exportPerPage"), false).toBool());
     settings.endGroup();
 
     m_session->setConfiguration(configuration);
@@ -775,6 +915,10 @@ void PDFOCRDocumentDialog::saveSettings() const
     settings.setValue(QStringLiteral("exportJoinHyphenated"), ui->joinHyphenatedCheckBox->isChecked());
     settings.setValue(QStringLiteral("exportNormalizeNfc"), ui->normalizeNfcCheckBox->isChecked());
     settings.setValue(QStringLiteral("exportPageSeparator"), ui->pageSeparatorComboBox->currentData());
+    settings.setValue(QStringLiteral("exportFormat"), ui->exportFormatComboBox->currentData());
+    settings.setValue(QStringLiteral("exportDpi"), ui->exportDpiSpinBox->value());
+    settings.setValue(QStringLiteral("exportConfidence"), ui->exportConfidenceCheckBox->isChecked());
+    settings.setValue(QStringLiteral("exportPerPage"), ui->exportPerPageCheckBox->isChecked());
     settings.endGroup();
 }
 
@@ -1254,6 +1398,16 @@ pdf::PDFOCRConfiguration PDFOCRDocumentDialog::getConfigurationFromUi() const
     configuration.detectBlankPages = ui->detectBlankPagesCheckBox->isChecked();
     configuration.keepReviewDataInDocument = ui->keepReviewDataCheckBox->isChecked();
     configuration.reviewThreshold = ui->reviewThresholdSpinBox->value();
+    configuration.reviewOutsideDictionary = ui->reviewDictionaryCheckBox->isChecked();
+    configuration.compression.mode = pdf::PDFOCRCompressionMode(ui->compressionModeComboBox->currentData().toInt());
+    configuration.compression.bitonalEncoding = pdf::PDFOCRBitonalEncoding(ui->bitonalAlgorithmComboBox->currentData().toInt());
+    configuration.compression.thresholdMethod = pdf::PDFOCRThresholdMethod(ui->bitonalThresholdComboBox->currentData().toInt());
+    configuration.compression.manualThreshold = ui->bitonalThresholdSpinBox->value();
+    configuration.compression.downsample = ui->downsampleCheckBox->isChecked();
+    configuration.compression.downsampleDpi = ui->downsampleDpiSpinBox->value();
+    configuration.compression.jpegQuality = ui->jpegQualitySpinBox->value();
+    configuration.compression.compressSharedImages = ui->compressSharedImagesCheckBox->isChecked();
+    configuration.compression.excludedImages.clear();
     configuration.workerCount = ui->workerCountSpinBox->value();
     configuration.memoryBudget = qint64(ui->memoryBudgetSpinBox->value()) << 20;
     configuration.pageTimeoutSeconds = ui->pageTimeoutSpinBox->value();
@@ -1303,6 +1457,15 @@ void PDFOCRDocumentDialog::setConfigurationToUi(const pdf::PDFOCRConfiguration& 
     ui->detectBlankPagesCheckBox->setChecked(configuration.detectBlankPages);
     ui->keepReviewDataCheckBox->setChecked(configuration.keepReviewDataInDocument);
     ui->reviewThresholdSpinBox->setValue(qRound(configuration.reviewThreshold));
+    ui->reviewDictionaryCheckBox->setChecked(configuration.reviewOutsideDictionary);
+    select(ui->compressionModeComboBox, int(configuration.compression.mode));
+    select(ui->bitonalAlgorithmComboBox, int(configuration.compression.bitonalEncoding));
+    select(ui->bitonalThresholdComboBox, int(configuration.compression.thresholdMethod));
+    ui->bitonalThresholdSpinBox->setValue(configuration.compression.manualThreshold);
+    ui->downsampleCheckBox->setChecked(configuration.compression.downsample);
+    ui->downsampleDpiSpinBox->setValue(configuration.compression.downsampleDpi);
+    ui->jpegQualitySpinBox->setValue(configuration.compression.jpegQuality);
+    ui->compressSharedImagesCheckBox->setChecked(configuration.compression.compressSharedImages);
     ui->workerCountSpinBox->setValue(configuration.workerCount);
     ui->memoryBudgetSpinBox->setValue(int(configuration.memoryBudget >> 20));
     ui->pageTimeoutSpinBox->setValue(configuration.pageTimeoutSeconds);
@@ -1317,6 +1480,7 @@ void PDFOCRDocumentDialog::setConfigurationToUi(const pdf::PDFOCRConfiguration& 
     updateLanguageList(configuration.languages);
     updateMemoryEstimate();
     updatePolicySummary();
+    updateCompressionUi();
     updateUi();
 }
 
@@ -1352,16 +1516,19 @@ void PDFOCRDocumentDialog::onConfigurationChanged()
     }
 
     ui->customDpiSpinBox->setEnabled(ui->dpiComboBox->currentData().toInt() == 0);
-    m_originalView->setReviewThreshold(configuration.reviewThreshold);
-    m_workingView->setReviewThreshold(configuration.reviewThreshold);
+    m_originalView->setReviewCriteria(m_session->getReviewCriteria());
+    m_workingView->setReviewCriteria(m_session->getReviewCriteria());
 
     updateEngineCapabilities();
     updateMemoryEstimate();
     updatePolicySummary();
 
-    if (!qFuzzyCompare(oldConfiguration.reviewThreshold, configuration.reviewThreshold))
+    if (!qFuzzyCompare(oldConfiguration.reviewThreshold, configuration.reviewThreshold) ||
+        oldConfiguration.reviewOutsideDictionary != configuration.reviewOutsideDictionary ||
+        oldConfiguration.userWords != configuration.userWords)
     {
-        // Change of the threshold does not require a new recognition (JOB-10)
+        // Change of the review criteria (threshold, dictionary, accepted user words)
+        // does not require a new recognition (JOB-10)
         updateResultsTree();
         for (pdf::PDFInteger page : m_session->getPagesWithResults())
         {
@@ -1714,13 +1881,19 @@ void PDFOCRDocumentDialog::onPageOverrideChanged()
         return;
     }
 
+    const std::optional<pdf::PDFOCRPageOverride> previousOverride = m_session->getPageOverride(m_currentPage);
+    const std::optional<pdf::PDFOCRQuad> perspective = previousOverride ? previousOverride->perspective : std::nullopt;
+
     if (!ui->pageOverrideGroupBox->isChecked())
     {
-        m_session->clearPageOverride(m_currentPage);
+        pdf::PDFOCRPageOverride pageOverride;
+        pageOverride.perspective = perspective;
+        m_session->setPageOverride(m_currentPage, pageOverride);
     }
     else
     {
         pdf::PDFOCRPageOverride pageOverride;
+        pageOverride.perspective = perspective;
         const QStringList languages = ui->overrideLanguagesEdit->text().split(QChar('+'), Qt::SkipEmptyParts);
         if (!languages.isEmpty())
         {
@@ -1741,13 +1914,83 @@ void PDFOCRDocumentDialog::onPageOverrideChanged()
     schedulePreview();
 }
 
+pdf::PDFOCRQuad PDFOCRDocumentDialog::getPageCorners(pdf::PDFInteger pageIndex) const
+{
+    // Corners of the visible page (bottom-left, bottom-right, top-right, top-left as seen)
+    const pdf::PDFPage* page = m_context.document->getCatalog()->getPage(pageIndex);
+    const QSizeF size = page->getRotatedCropBox().size();
+    const QTransform rasterToPage = pdf::PDFOCRPagePreparer::getPageToRasterMatrix(page, QSize(qMax(1, qRound(size.width())), qMax(1, qRound(size.height())))).inverted();
+    pdf::PDFOCRQuad quad;
+    quad.points[0] = rasterToPage.map(QPointF(0, qRound(size.height())));
+    quad.points[1] = rasterToPage.map(QPointF(qRound(size.width()), qRound(size.height())));
+    quad.points[2] = rasterToPage.map(QPointF(qRound(size.width()), 0));
+    quad.points[3] = rasterToPage.map(QPointF(0, 0));
+    return quad;
+}
+
+void PDFOCRDocumentDialog::setPagePerspective(pdf::PDFInteger pageIndex, const std::optional<pdf::PDFOCRQuad>& perspective)
+{
+    std::optional<pdf::PDFOCRPageOverride> pageOverride = m_session->getPageOverride(pageIndex);
+    pdf::PDFOCRPageOverride newOverride = pageOverride.value_or(pdf::PDFOCRPageOverride());
+    newOverride.perspective = perspective;
+    if (newOverride.isEmpty())
+    {
+        m_session->clearPageOverride(pageIndex);
+    }
+    else
+    {
+        m_session->setPageOverride(pageIndex, newOverride);
+    }
+
+    updatePageItem(pageIndex);
+    if (pageIndex == m_currentPage)
+    {
+        updatePageOverrideUi();
+        schedulePreview();
+    }
+}
+
+void PDFOCRDocumentDialog::startPerspectiveEditing()
+{
+    if (m_currentPage < 0 || !m_originalView->hasImage())
+    {
+        return;
+    }
+
+    // The corners are placed in the original view (the photo as it is)
+    if (ui->perspectivePreviewCheckBox->isChecked())
+    {
+        ui->perspectivePreviewCheckBox->setChecked(false);
+    }
+    setViewMode(ViewMode::SideBySide);
+    m_originalView->setMode(PDFOCRPageView::Mode::EditPerspective);
+    m_originalView->setFocus();
+}
+
 void PDFOCRDocumentDialog::updatePageOverrideUi()
 {
     const bool wasUpdating = m_updatingUi;
     m_updatingUi = true;
 
     const std::optional<pdf::PDFOCRPageOverride> pageOverride = m_currentPage >= 0 ? m_session->getPageOverride(m_currentPage) : std::nullopt;
-    ui->pageOverrideGroupBox->setChecked(pageOverride.has_value());
+    ui->pageOverrideGroupBox->setChecked(pageOverride.has_value() && (pageOverride->languages || pageOverride->layout || pageOverride->rotation || pageOverride->dpi || pageOverride->autoOrientation || pageOverride->deskew));
+
+    // Perspective correction of the page
+    const bool hasPerspective = pageOverride && pageOverride->perspective;
+    ui->perspectiveCheckBox->setChecked(hasPerspective);
+    ui->perspectiveEditButton->setEnabled(m_currentPage >= 0);
+    ui->perspectiveResetButton->setEnabled(hasPerspective);
+    ui->perspectiveCopyButton->setEnabled(hasPerspective);
+    m_originalView->setPerspective(hasPerspective ? pageOverride->perspective : std::nullopt);
+    if (hasPerspective)
+    {
+        const QString error = pdf::PDFOCRPagePreparer::validatePerspective(*pageOverride->perspective, m_context.document->getCatalog()->getPage(m_currentPage)->getCropBox());
+        ui->perspectiveInfoLabel->setText(error.isEmpty() ? tr("The working image is corrected to the rectangle of the document; deskew is not applied.") : error);
+    }
+    else
+    {
+        ui->perspectiveInfoLabel->clear();
+    }
     ui->overrideLanguagesEdit->setText(pageOverride && pageOverride->languages ? pageOverride->languages->join(QChar('+')) : QString());
     ui->overrideLayoutComboBox->setCurrentIndex(qMax(0, ui->overrideLayoutComboBox->findData(pageOverride && pageOverride->layout ? int(*pageOverride->layout) : -1)));
     ui->overrideRotationComboBox->setCurrentIndex(qMax(0, ui->overrideRotationComboBox->findData(pageOverride && pageOverride->rotation ? *pageOverride->rotation : -1)));
@@ -2023,9 +2266,16 @@ void PDFOCRDocumentDialog::updatePageItem(pdf::PDFInteger pageIndex)
         }
     }
 
-    if (m_session->getPageOverride(pageIndex))
+    if (const std::optional<pdf::PDFOCRPageOverride> pageOverride = m_session->getPageOverride(pageIndex))
     {
-        lines << tr("Different settings *");
+        if (pageOverride->perspective)
+        {
+            lines << tr("Perspective corrected ⬚");
+        }
+        if (pageOverride->languages || pageOverride->layout || pageOverride->rotation || pageOverride->dpi || pageOverride->autoOrientation || pageOverride->deskew)
+        {
+            lines << tr("Different settings *");
+        }
     }
     if (result && result->reviewOnly)
     {
@@ -2127,6 +2377,27 @@ void PDFOCRDocumentDialog::onCurrentPageChanged()
         if (result->hasResult() && result->geometry.dpi > 0.0)
         {
             info << tr("Recognized at %1 DPI in %2 s.").arg(qRound(result->geometry.dpi)).arg(double(result->elapsedMilliseconds) / 1000.0, 0, 'f', 1);
+        }
+
+        // A skewed page is straightened only for the recognition; the visible page is
+        // straightened by the preparation of the scanned pages (phase 4 of OCR_PLAN.md)
+        std::optional<double> skew;
+        static const QRegularExpression deskewExpression(QStringLiteral("^deskew\\((?:skipped,)?angle=(-?[0-9.]+)"));
+        for (const QString& step : result->geometry.pipeline)
+        {
+            const QRegularExpressionMatch match = deskewExpression.match(step);
+            if (match.hasMatch())
+            {
+                skew = match.captured(1).toDouble();
+            }
+        }
+        if (!skew && result->orientation && !qFuzzyIsNull(result->orientation->deskewAngle))
+        {
+            skew = result->orientation->deskewAngle;
+        }
+        if (skew && std::abs(*skew) >= 0.5)
+        {
+            info << tr("The page is skewed by %1°. Straightening in OCR does not change the visible page; use Tools > Prepare Scanned Pages before the recognition to straighten it permanently.").arg(*skew, 0, 'f', 1);
         }
     }
     ui->pageInfoLabel->setText(info.join(QChar(' ')));
@@ -3175,7 +3446,7 @@ void PDFOCRDocumentDialog::updateViews()
     for (PDFOCRPageView* view : { m_originalView, m_workingView })
     {
         view->setPageResult(page);
-        view->setReviewThreshold(m_session->getReviewThreshold());
+        view->setReviewCriteria(m_session->getReviewCriteria());
         view->setSelectedWord(m_selectedWordId, false);
         view->setSelectedLine(m_selectedLineId);
     }
@@ -3196,7 +3467,8 @@ void PDFOCRDocumentDialog::updateResultsTree()
     ui->resultsTreeWidget->clear();
     const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
     const int filter = ui->reviewFilterComboBox->currentData().toInt();
-    const double threshold = m_session->getReviewThreshold();
+    const pdf::PDFOCRReviewCriteria criteria = m_session->getReviewCriteria();
+    const double threshold = criteria.threshold;
     QTreeWidgetItem* selectedItem = nullptr;
 
     if (page)
@@ -3227,7 +3499,7 @@ void PDFOCRDocumentDialog::updateResultsTree()
                     switch (filter)
                     {
                         case FilterRequiresReview:
-                            visible = pdf::PDFOCRReview::requiresReview(word, threshold);
+                            visible = pdf::PDFOCRReview::requiresReview(word, criteria);
                             break;
                         case FilterBelowThreshold:
                             visible = pdf::PDFOCRReview::isBelowThreshold(word.confidence, threshold);
@@ -3243,6 +3515,9 @@ void PDFOCRDocumentDialog::updateResultsTree()
                             break;
                         case FilterDiscarded:
                             visible = word.reviewState == pdf::PDFOCRReviewState::Discarded;
+                            break;
+                        case FilterOutsideDictionary:
+                            visible = pdf::PDFOCRReview::isOutsideDictionary(word, criteria);
                             break;
                         default:
                             break;
@@ -3267,7 +3542,7 @@ void PDFOCRDocumentDialog::updateResultsTree()
                     switch (word.reviewState)
                     {
                         case pdf::PDFOCRReviewState::Unreviewed:
-                            state = pdf::PDFOCRReview::requiresReview(word, threshold) ? tr("To review") : tr("Unreviewed");
+                            state = pdf::PDFOCRReview::requiresReview(word, criteria) ? tr("To review") : tr("Unreviewed");
                             break;
                         case pdf::PDFOCRReviewState::Confirmed:
                             state = tr("Confirmed");
@@ -3288,7 +3563,18 @@ void PDFOCRDocumentDialog::updateResultsTree()
                         state += tr(", extreme scaling");
                     }
 
-                    QTreeWidgetItem* wordItem = new QTreeWidgetItem(QStringList{ word.text, confidence, state });
+                    // Dictionary information of the original recognition (historical, like the score)
+                    QString dictionary = tr("n/a");
+                    if (word.inDictionary.has_value())
+                    {
+                        dictionary = *word.inDictionary ? tr("yes") : tr("no");
+                    }
+                    if (pdf::PDFOCRReview::isOutsideDictionary(word, criteria))
+                    {
+                        state += tr(", not in dictionary");
+                    }
+
+                    QTreeWidgetItem* wordItem = new QTreeWidgetItem(QStringList{ word.text, confidence, state, dictionary });
                     wordItem->setData(0, ROLE_ITEM_TYPE, ITEM_WORD);
                     wordItem->setData(0, ROLE_ITEM_ID, word.id);
                     if (word.reviewState == pdf::PDFOCRReviewState::Discarded)
@@ -3297,7 +3583,7 @@ void PDFOCRDocumentDialog::updateResultsTree()
                         font.setStrikeOut(true);
                         wordItem->setFont(0, font);
                     }
-                    else if (pdf::PDFOCRReview::requiresReview(word, threshold))
+                    else if (pdf::PDFOCRReview::requiresReview(word, criteria))
                     {
                         QFont font = wordItem->font(0);
                         font.setBold(true);
@@ -3375,6 +3661,10 @@ void PDFOCRDocumentDialog::updateStatistics()
     }
     parts << tr("unknown confidence: %1").arg(statistics.unknownWordCount);
     parts << tr("manually added: %1").arg(statistics.manualWordCount);
+    if (statistics.dictionaryCheckedCount > 0)
+    {
+        parts << tr("not in dictionary: %1").arg(statistics.outsideDictionaryCount);
+    }
     parts << tr("to review: %1").arg(statistics.reviewRequiredCount);
     parts << tr("%n line(s) in %1 block(s)", nullptr, int(std::accumulate(page->blocks.begin(), page->blocks.end(), size_t(0), [](size_t count, const pdf::PDFOCRBlock& block) { return count + block.lines.size(); }))).arg(page->blocks.size());
 
@@ -3451,6 +3741,10 @@ void PDFOCRDocumentDialog::updateInspector()
             {
                 confidence = lineLevel ? tr("%1/100 (score of the whole line, not of the word)").arg(score) : tr("%1/100 (engine score, not a probability of correctness)").arg(score);
             }
+        }
+        if (word->inDictionary.has_value() && !word->isTextModified())
+        {
+            confidence += QStringLiteral("; ") + (*word->inDictionary ? tr("found in the dictionary of the language model") : tr("not found in the dictionary of the language model"));
         }
         ui->confidenceLabel->setText(confidence);
 
@@ -4123,6 +4417,7 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
     QAction* confirmAction = menu.addAction(tr("Confirm"));
     QAction* notTextAction = menu.addAction(tr("Not Text"));
     QAction* restoreAction = menu.addAction(tr("Restore Original Recognition"));
+    QAction* addUserWordAction = menu.addAction(tr("Add to User Words"));
     menu.addSeparator();
     QAction* mergeLinesAction = menu.addAction(tr("Merge with Next Line"));
     QAction* splitLineAction = menu.addAction(tr("Split Line After Word"));
@@ -4135,6 +4430,9 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
     confirmAction->setEnabled(m_selectedWordId != 0);
     notTextAction->setEnabled(m_selectedWordId != 0);
     restoreAction->setEnabled(m_selectedWordId != 0);
+    const pdf::PDFOCRWord* selectedWord = m_selectedWordId ? page->findWord(m_selectedWordId) : nullptr;
+    addUserWordAction->setEnabled(selectedWord && !pdf::PDFOCRReviewCriteria::normalizeWord(selectedWord->text).isEmpty());
+    addUserWordAction->setToolTip(tr("The word is accepted by the dictionary review and it is passed to the engine as a user word in the next recognition"));
     mergeLinesAction->setEnabled(editable && nextLine && nextLine->direction == line->direction);
     splitLineAction->setEnabled(editable && canSplitLine);
     moveLineAction->setEnabled(editable && line && lineBlock && page->blocks.size() > 1);
@@ -4263,6 +4561,268 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
     {
         m_session->restoreOriginalText(m_currentPage, m_selectedWordId);
     }
+    else if (action == addUserWordAction)
+    {
+        addSelectedWordToUserWords();
+    }
+}
+
+pdf::PDFOCRCompressionSettings PDFOCRDocumentDialog::getCompressionSettings() const
+{
+    pdf::PDFOCRCompressionSettings settings = getConfigurationFromUi().compression;
+    settings.excludedImages = m_compressionExcludedImages;
+    return settings;
+}
+
+bool PDFOCRDocumentDialog::isCompressionPreviewConfirmed() const
+{
+    return m_confirmedCompression.has_value() && *m_confirmedCompression == getCompressionSettings();
+}
+
+std::vector<pdf::PDFInteger> PDFOCRDocumentDialog::getPagesToWrite() const
+{
+    // The same selection as the writing of the layer: checked pages with a result,
+    // or all pages with a result, if no checked page has one
+    std::vector<pdf::PDFInteger> pages = getCheckedPages();
+    std::erase_if(pages, [this](pdf::PDFInteger page)
+    {
+        const pdf::PDFOCRPageResult* result = m_session->getPage(page);
+        return !result || !result->hasResult() || result->reviewOnly;
+    });
+    if (pages.empty())
+    {
+        pages = m_session->getPagesWithResults();
+        std::erase_if(pages, [this](pdf::PDFInteger page) { return m_session->getPage(page)->reviewOnly; });
+    }
+    return pages;
+}
+
+void PDFOCRDocumentDialog::updateCompressionUi()
+{
+    const pdf::PDFOCRCompressionMode mode = pdf::PDFOCRCompressionMode(ui->compressionModeComboBox->currentData().toInt());
+    const bool enabled = mode != pdf::PDFOCRCompressionMode::Off;
+    const bool converts = mode == pdf::PDFOCRCompressionMode::BitonalTextScans;
+    const bool custom = mode == pdf::PDFOCRCompressionMode::Custom;
+
+    ui->compressionDescriptionLabel->setText(pdf::PDFOCRCompressionSettings::getModeDescription(mode));
+    ui->bitonalAlgorithmLabel->setEnabled(enabled);
+    ui->bitonalAlgorithmComboBox->setEnabled(enabled);
+    for (QWidget* widget : std::initializer_list<QWidget*>{ ui->bitonalThresholdLabel, ui->bitonalThresholdComboBox, ui->bitonalThresholdSpinBox })
+    {
+        widget->setVisible(converts);
+    }
+    ui->bitonalThresholdSpinBox->setEnabled(pdf::PDFOCRThresholdMethod(ui->bitonalThresholdComboBox->currentData().toInt()) == pdf::PDFOCRThresholdMethod::Manual);
+    for (QWidget* widget : std::initializer_list<QWidget*>{ ui->downsampleCheckBox, ui->downsampleDpiSpinBox, ui->jpegQualityLabel, ui->jpegQualitySpinBox })
+    {
+        widget->setVisible(custom);
+    }
+    ui->downsampleDpiSpinBox->setEnabled(ui->downsampleCheckBox->isChecked());
+    ui->compressSharedImagesCheckBox->setEnabled(enabled);
+
+    if (!enabled)
+    {
+        ui->compressionEstimateLabel->clear();
+    }
+    else if (getCompressionSettings().isLossy())
+    {
+        ui->compressionEstimateLabel->setText(isCompressionPreviewConfirmed() ? tr("The preview was confirmed.") : tr("The lossy compression must be confirmed in the preview."));
+    }
+}
+
+void PDFOCRDocumentDialog::onCompressionSettingsChanged()
+{
+    if (m_updatingUi)
+    {
+        return;
+    }
+
+    onConfigurationChanged();
+    updateCompressionUi();
+    scheduleCompressionEstimate();
+    updateUi();
+}
+
+void PDFOCRDocumentDialog::onCompressionPreviewClicked()
+{
+    const std::vector<pdf::PDFInteger> pages = getPagesToWrite();
+    if (pages.empty())
+    {
+        QMessageBox::information(this, tr("Preview of the Compression"), tr("There is no recognized page, whose images could be compressed."));
+        return;
+    }
+
+    PDFOCRCompressionPreviewDialog dialog(m_context.document, pages, m_currentPage, getCompressionSettings(), this);
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return;
+    }
+
+    // The threshold and the excluded images of the preview are taken over and confirmed
+    const pdf::PDFOCRCompressionSettings& settings = dialog.getSettings();
+    m_compressionExcludedImages = settings.excludedImages;
+    m_updatingUi = true;
+    ui->bitonalThresholdComboBox->setCurrentIndex(qMax(0, ui->bitonalThresholdComboBox->findData(int(settings.thresholdMethod))));
+    ui->bitonalThresholdSpinBox->setValue(settings.manualThreshold);
+    m_updatingUi = false;
+    onConfigurationChanged();
+
+    m_confirmedCompression = getCompressionSettings();
+    updateCompressionUi();
+    scheduleCompressionEstimate();
+    updateUi();
+}
+
+void PDFOCRDocumentDialog::scheduleCompressionEstimate()
+{
+    if (!getCompressionSettings().isEnabled())
+    {
+        cancelTask(m_compressionEstimateTask);
+        ui->compressionEstimateLabel->clear();
+        return;
+    }
+    m_compressionEstimateTimer.start();
+}
+
+void PDFOCRDocumentDialog::startCompressionEstimate()
+{
+    const pdf::PDFOCRCompressionSettings settings = getCompressionSettings();
+    const std::vector<pdf::PDFInteger> pages = getPagesToWrite();
+    if (!settings.isEnabled() || pages.empty())
+    {
+        cancelTask(m_compressionEstimateTask);
+        ui->compressionEstimateLabel->clear();
+        return;
+    }
+
+    const pdf::PDFDocument* document = m_context.document;
+    const bool lossyNotConfirmed = settings.isLossy() && !isCompressionPreviewConfirmed();
+    ui->compressionEstimateLabel->setText(tr("Estimating the size..."));
+
+    startTask(m_compressionEstimateTask, [this, document, pages, settings, lossyNotConfirmed](int generation, const pdf::PDFOperationControl* operationControl)
+    {
+        // Size of all images of the pages (without decoding) and a sample of up to three pages,
+        // whose images are really compressed; the result is an extrapolation of the sample
+        const std::map<pdf::PDFObjectReference, std::vector<pdf::PDFInteger>> usage = pdf::PDFOCRImageCompressor::getImageUsage(document);
+        const std::set<pdf::PDFInteger> pageSet(pages.begin(), pages.end());
+        qint64 totalBytes = 0;
+        for (const auto& [reference, imagePages] : usage)
+        {
+            if (std::any_of(imagePages.begin(), imagePages.end(), [&pageSet](pdf::PDFInteger page) { return pageSet.count(page) > 0; }))
+            {
+                const pdf::PDFObject& object = document->getObjectByReference(reference);
+                if (object.isStream() && object.getStream()->getContent())
+                {
+                    totalBytes += object.getStream()->getContent()->size();
+                }
+            }
+        }
+
+        std::vector<pdf::PDFInteger> sample;
+        const size_t sampleCount = qMin<size_t>(3, pages.size());
+        for (size_t i = 0; i < sampleCount; ++i)
+        {
+            sample.push_back(pages[i * pages.size() / sampleCount]);
+        }
+
+        qint64 sampleOriginal = 0;
+        qint64 sampleNew = 0;
+        std::set<pdf::PDFObjectReference> counted;
+        for (pdf::PDFInteger page : sample)
+        {
+            if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                return;
+            }
+
+            for (const pdf::PDFOCRImageCompressor::Preview& preview : pdf::PDFOCRImageCompressor::createPreview(document, page, pages, settings, operationControl))
+            {
+                if (counted.insert(preview.result.reference).second)
+                {
+                    sampleOriginal += preview.result.originalBytes;
+                    sampleNew += preview.result.action == pdf::PDFOCRCompressionImageResult::Action::Compressed ? preview.result.newBytes : preview.result.originalBytes;
+                }
+            }
+        }
+
+        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        QString text;
+        if (totalBytes == 0 || sampleOriginal == 0)
+        {
+            text = tr("The pages to write have no image, which could be compressed.");
+        }
+        else
+        {
+            const qint64 estimate = qint64(double(totalBytes) * double(sampleNew) / double(sampleOriginal));
+            text = tr("Images of %n page(s) to write: %1 -> about %2 (estimated from %3 page(s)).", nullptr, int(pages.size()))
+                       .arg(pdf::PDFOCRCompressionReport::formatBytes(totalBytes), pdf::PDFOCRCompressionReport::formatBytes(estimate)).arg(sample.size());
+        }
+        if (lossyNotConfirmed)
+        {
+            text += QChar(' ') + tr("The lossy compression must be confirmed in the preview.");
+        }
+
+        Q_EMIT compressionEstimateReady(generation, text);
+    });
+}
+
+void PDFOCRDocumentDialog::onCompressionEstimateReady(int generation, QString text)
+{
+    if (generation == m_compressionEstimateTask.generation)
+    {
+        ui->compressionEstimateLabel->setText(text);
+    }
+}
+
+void PDFOCRDocumentDialog::addSelectedWordToUserWords()
+{
+    const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
+    const pdf::PDFOCRWord* word = page ? page->findWord(m_selectedWordId) : nullptr;
+    if (!word)
+    {
+        return;
+    }
+
+    // The user word is the text without the surrounding punctuation, the case is kept
+    QString text = word->text;
+    while (!text.isEmpty() && !text.front().isLetterOrNumber())
+    {
+        text.remove(0, 1);
+    }
+    while (!text.isEmpty() && !text.back().isLetterOrNumber())
+    {
+        text.chop(1);
+    }
+    if (text.isEmpty())
+    {
+        return;
+    }
+
+    const int wordId = word->id;
+    const pdf::PDFOCRReviewCriteria criteria = m_session->getReviewCriteria();
+    if (!criteria.isAcceptedWord(text))
+    {
+        QString words = ui->userWordsEdit->toPlainText();
+        if (!words.isEmpty() && !words.endsWith(QChar('\n')))
+        {
+            words += QChar('\n');
+        }
+        words += text;
+        ui->userWordsEdit->setPlainText(words);
+    }
+
+    if (isPageEditable(m_currentPage))
+    {
+        const pdf::PDFOCRPageResult* currentPage = m_session->getPage(m_currentPage);
+        const pdf::PDFOCRWord* currentWord = currentPage ? currentPage->findWord(wordId) : nullptr;
+        if (currentWord && currentWord->reviewState == pdf::PDFOCRReviewState::Unreviewed)
+        {
+            m_session->setWordReviewState(m_currentPage, wordId, pdf::PDFOCRReviewState::Confirmed);
+        }
+    }
 }
 
 void PDFOCRDocumentDialog::showRegionContextMenu(int regionId, QPoint globalPosition)
@@ -4371,37 +4931,24 @@ void PDFOCRDocumentDialog::onApplyClicked()
         return;
     }
 
-    if (!m_context.canModify)
+    const pdf::PDFOCRApplyProcessor::OutputMode processorMode = outputMode == OutputMode::CreateCopy ? pdf::PDFOCRApplyProcessor::OutputMode::CreateCopy
+                                                                                                      : pdf::PDFOCRApplyProcessor::OutputMode::ModifyDocument;
+    const pdf::PDFOCRApplyProcessor::Context applyContext = getApplyContext();
+
+    // Permissions of the document and the certification (PDF-12), conformance declaration (PDF-15)
+    const QString permissionError = pdf::PDFOCRApplyProcessor::checkPermissions(applyContext, processorMode);
+    if (!permissionError.isEmpty())
     {
-        // A copy with the text layer is a modified document as well (PDF-12)
-        QMessageBox::warning(this, windowTitle(), tr("The permissions of the document do not allow its modification, so the text layer cannot be written into the document nor into its copy. The recognized text can be exported, if the permissions allow copying of the content."));
+        QMessageBox::warning(this, windowTitle(), permissionError);
         return;
     }
 
-    // The certification signature (DocMDP) is enforced, not only reported (PDF-12)
-    if (m_context.certificationPermissions == 1)
+    // The lossy compression is applied only after the preview was confirmed
+    const pdf::PDFOCRCompressionSettings compression = getCompressionSettings();
+    if (compression.isLossy() && !isCompressionPreviewConfirmed())
     {
-        QMessageBox::warning(this, windowTitle(), tr("The document is certified and its certification does not allow any change. The text layer cannot be written into the document nor into its copy; the recognized text can only be exported."));
+        QMessageBox::information(this, windowTitle(), tr("The compression of the scanned images is lossy. Check its result in the preview and confirm it before the text layer is written."));
         return;
-    }
-
-    if (outputMode == OutputMode::ModifyCurrent)
-    {
-        if (m_context.certificationPermissions > 0)
-        {
-            QMessageBox::warning(this, windowTitle(), tr("The document is certified and its certification allows only filling of forms, signing and annotating. Writing the text layer would invalidate the certification, so the current document cannot be modified. "
-                                                        "Use the output mode 'Create a copy of the document with OCR'; the certification of the copy will not be valid."));
-            return;
-        }
-
-        if (m_hasConformanceDeclaration)
-        {
-            // A false conformance declaration must not be kept (PDF-15)
-            QMessageBox::warning(this, windowTitle(), tr("The document declares the conformance with %1. The conformance of the result cannot be validated, so the text layer cannot be written into this document. "
-                                                        "Use the output mode 'Create a copy of the document with OCR'; the copy will be an ordinary PDF without the unverified conformance declaration.")
-                                                     .arg(m_conformanceDeclarations.join(QStringLiteral(", "))));
-            return;
-        }
     }
 
     // Pages with a valid result (PAGE-05, PDF-02)
@@ -4414,149 +4961,64 @@ void PDFOCRDocumentDialog::onApplyClicked()
         usedAllResults = true;
     }
 
-    std::vector<pdf::PDFOCRTextLayerWriter::PageRequest> requests;
-    QStringList excluded;
-    int unreviewedWords = 0;
-    int uncertainWords = 0;
-    int replacedLayers = 0;
-
     // Only the cached analysis and fingerprints are used here; the layer information and
     // the missing fingerprints are read by the apply worker, outside of the GUI thread (R12)
+    pdf::PDFOCRApplyProcessor::Request request;
+    request.outputMode = processorMode;
+    request.usedAllResults = usedAllResults;
+    request.reviewCriteria = m_session->getReviewCriteria();
+    request.writerOptions.keepReviewData = ui->keepReviewDataCheckBox->isChecked();
+    request.writerOptions.onlyReviewed = ui->onlyReviewedCheckBox->isChecked();
+    request.compression = compression;
+    request.memoryBudget = m_session->getConfiguration().memoryBudget;
     for (pdf::PDFInteger pageIndex : candidates)
     {
-        const pdf::PDFOCRPageResult* result = m_session->getPage(pageIndex);
-
-        if (result->reviewOnly)
-        {
-            excluded << tr("Page %1: recognized for review/export only.").arg(pageIndex + 1);
-            continue;
-        }
-
-        if (isExportOnlyEngine(result->provenance.engineId))
-        {
-            excluded << tr("Page %1: recognized by an engine, whose results can only be exported.").arg(pageIndex + 1);
-            continue;
-        }
+        request.results.push_back(*m_session->getPage(pageIndex));
 
         auto analysisIt = m_analysis.find(pageIndex);
-        const pdf::PDFOCRPageAnalysis* analysis = analysisIt != m_analysis.end() ? &analysisIt->second : nullptr;
-
-        // An unknown page (not analyzed yet) is decided by the writer: an obsolete own layer is removed
-        if (!result->hasUsableText() && analysis && !analysis->hasOwnOCRLayer)
+        if (analysisIt != m_analysis.end())
         {
-            excluded << tr("Page %1: no text to write.").arg(pageIndex + 1);
-            continue;
+            request.analysis[pageIndex] = analysisIt->second;
         }
 
-        // The revision of the document is verified again (JOB-02, EXPORT-04)
         auto fingerprintIt = m_fingerprints.find(pageIndex);
-        if (fingerprintIt != m_fingerprints.end() && result->pageFingerprint != fingerprintIt->second)
+        if (fingerprintIt != m_fingerprints.end())
         {
-            excluded << tr("Page %1: the page content differs from the content, which was recognized.").arg(pageIndex + 1);
-            continue;
+            request.fingerprints[pageIndex] = fingerprintIt->second;
         }
-
-        if (!pdf::PDFOCRValidator::validate(*result).isEmpty())
-        {
-            excluded << tr("Page %1: the result has invalid geometry.").arg(pageIndex + 1);
-            continue;
-        }
-
-        const pdf::PDFOCRConfidenceStatistics statistics = m_session->getStatistics(pageIndex);
-        unreviewedWords += statistics.unreviewedCount;
-        uncertainWords += statistics.reviewRequiredCount;
-
-        pdf::PDFOCRTextLayerWriter::PageRequest request;
-        request.pageIndex = pageIndex;
-        request.result = *result;
-
-        // The writer checks the collisions with the existing text of the current
-        // document, not of the document of the recognition (PDF-02)
-        if (analysis)
-        {
-            request.result.analysis = *analysis;
-            if (analysis->hasOwnOCRLayer)
-            {
-                ++replacedLayers;
-            }
-        }
-        requests.push_back(std::move(request));
     }
 
-    if (requests.empty())
+    pdf::PDFOCRApplyProcessor::Plan plan = pdf::PDFOCRApplyProcessor::createPlan(applyContext, request);
+    if (!plan.hasRequests())
     {
-        QMessageBox::information(this, windowTitle(), tr("There is no result, which can be written into the PDF.\n\n%1").arg(excluded.join(QChar('\n'))));
+        QMessageBox::information(this, windowTitle(), tr("There is no result, which can be written into the PDF.\n\n%1").arg(plan.excluded.join(QChar('\n'))));
         return;
     }
 
-    QString copyFileName;
     if (outputMode == OutputMode::CreateCopy)
     {
         QFileInfo fileInfo(m_context.fileName);
         const QString suggestion = fileInfo.absolutePath() + QStringLiteral("/") + fileInfo.completeBaseName() + QStringLiteral("_ocr.pdf");
-        copyFileName = QFileDialog::getSaveFileName(this, tr("Create a Copy of the Document with OCR"), suggestion, tr("Portable Document (*.pdf)"));
+        const QString copyFileName = QFileDialog::getSaveFileName(this, tr("Create a Copy of the Document with OCR"), suggestion, tr("Portable Document (*.pdf)"));
         if (copyFileName.isEmpty())
         {
             return;
         }
-        // Canonical paths of files, which do not exist, are empty and would compare equal
-        const QFileInfo copyInfo(copyFileName);
-        const QFileInfo sourceInfo(m_context.fileName);
-        const bool isSameFile = (copyInfo.exists() && sourceInfo.exists()) ? copyInfo == sourceInfo
-                                                                          : QDir::cleanPath(copyInfo.absoluteFilePath()) == QDir::cleanPath(sourceInfo.absoluteFilePath());
-        if (isSameFile)
+
+        const QString copyError = pdf::PDFOCRApplyProcessor::setCopyFileName(plan, applyContext, copyFileName);
+        if (!copyError.isEmpty())
         {
-            QMessageBox::warning(this, windowTitle(), tr("The copy cannot overwrite the opened document."));
+            QMessageBox::warning(this, windowTitle(), copyError);
             return;
         }
     }
 
     // Summary before the application (PDF-02)
-    std::vector<pdf::PDFInteger> requestPages;
-    for (const auto& request : requests)
+    QMessageBox messageBox(QMessageBox::Question, tr("Apply to PDF"), pdf::PDFOCRApplyProcessor::getSummary(plan).join(QChar('\n')), QMessageBox::NoButton, this);
+    messageBox.setInformativeText(pdf::PDFOCRApplyProcessor::getWarnings(plan, applyContext).join(QStringLiteral("\n\n")));
+    if (!plan.excluded.isEmpty())
     {
-        requestPages.push_back(request.pageIndex);
-    }
-
-    QStringList summary;
-    summary << (outputMode == OutputMode::CreateCopy ? tr("Target: copy of the document, %1").arg(QDir::toNativeSeparators(copyFileName)) : tr("Target: current document (saved later by the standard Save command)"));
-    summary << tr("Pages: %1%2").arg(pdf::PDFOCRPageSelection::describe(requestPages), usedAllResults ? tr(" (all pages with a result, because no checked page has a result)") : QString());
-    summary << tr("Own OCR layers to be replaced: %1").arg(replacedLayers);
-    summary << tr("Words requiring review: %1, unreviewed words: %2").arg(uncertainWords).arg(unreviewedWords);
-
-    QStringList warnings;
-    if (ui->onlyReviewedCheckBox->isChecked())
-    {
-        warnings << tr("Only reviewed words will be written: the text layer will be INCOMPLETE.");
-    }
-    else if (uncertainWords > 0)
-    {
-        warnings << tr("Uncertain words are written as well; the uncertainty is an information for the review, not a filter of the text.");
-    }
-    if (outputMode == OutputMode::CreateCopy && m_context.certificationPermissions > 0)
-    {
-        warnings << tr("The document is certified. The certification of the copy is not valid, because the copy contains the added text layer.");
-    }
-    else if (m_context.hasSignatures)
-    {
-        // No claim, that the signatures stay valid (PDF-12)
-        warnings <<tr("The document is signed. Writing the text layer changes the content of the document; the state of the signatures or of the certification may stop to be valid, depending on the signature type and on the way of saving. Consider creating a copy.");
-    }
-    if (m_isTagged)
-    {
-        warnings << tr("The document is tagged. The existing structure tree is preserved and the text layer is written as an artifact; the result is not a complete accessible (PDF/UA) document.");
-    }
-    if (outputMode == OutputMode::CreateCopy && m_hasConformanceDeclaration)
-    {
-        warnings << tr("The copy will be an ordinary PDF: the unverified declaration of conformance (%1) is removed from its metadata.").arg(m_conformanceDeclarations.join(QStringLiteral(", ")));
-    }
-    warnings << tr("Correcting or deleting the text of the layer is not a redaction of the scanned image.");
-
-    QMessageBox messageBox(QMessageBox::Question, tr("Apply to PDF"), summary.join(QChar('\n')), QMessageBox::NoButton, this);
-    messageBox.setInformativeText(warnings.join(QStringLiteral("\n\n")));
-    if (!excluded.isEmpty())
-    {
-        messageBox.setDetailedText(tr("Pages, which are not written:\n%1").arg(excluded.join(QChar('\n'))));
+        messageBox.setDetailedText(tr("Pages, which are not written:\n%1").arg(plan.excluded.join(QChar('\n'))));
     }
     QPushButton* applyButton = messageBox.addButton(tr("Apply"), QMessageBox::AcceptRole);
     messageBox.addButton(QMessageBox::Cancel);
@@ -4566,152 +5028,28 @@ void PDFOCRDocumentDialog::onApplyClicked()
         return;
     }
 
-    pdf::PDFOCRTextLayerWriter::Options options;
-    options.keepReviewData = ui->keepReviewDataCheckBox->isChecked();
-    options.onlyReviewed = ui->onlyReviewedCheckBox->isChecked();
-    options.markAsArtifact = m_isTagged;
-
-    const pdf::PDFDocument* document = m_context.document;
-    const bool removeConformance = outputMode == OutputMode::CreateCopy && m_hasConformanceDeclaration;
-
-    std::map<pdf::PDFInteger, QByteArray> knownFingerprints;
-    for (const pdf::PDFOCRTextLayerWriter::PageRequest& request : requests)
-    {
-        auto it = m_fingerprints.find(request.pageIndex);
-        if (it != m_fingerprints.end())
-        {
-            knownFingerprints[request.pageIndex] = it->second;
-        }
-    }
-
     m_applyInProgress = true;
     ui->progressBar->setRange(0, 0);
-    ui->progressLabel->setText(tr("Writing the text layer..."));
+    ui->progressLabel->setText(compression.isEnabled() ? tr("Compressing the images and writing the text layer...") : tr("Writing the text layer..."));
     updateUi();
 
     // The change is prepared above an immutable snapshot and attached only after a successful validation (PDF-03)
-    startTask(m_applyTask, [this, document, requests, options, copyFileName, removeConformance, knownFingerprints](int generation, const pdf::PDFOperationControl* operationControl)
+    startTask(m_applyTask, [this, applyContext, plan](int generation, const pdf::PDFOperationControl* operationControl)
     {
-        ApplyResult result;
-        result.copyFileName = copyFileName;
-
-        try
-        {
-            // The missing fingerprints are computed and the own layers are read here,
-            // outside of the GUI thread (R12, JOB-02, EXPORT-04)
-            std::vector<pdf::PDFOCRTextLayerWriter::PageRequest> pageRequests;
-            QStringList changedPages;
-            for (pdf::PDFOCRTextLayerWriter::PageRequest request : requests)
-            {
-                auto it = knownFingerprints.find(request.pageIndex);
-                const QByteArray fingerprint = it != knownFingerprints.end() ? it->second : pdf::PDFOCRPagePreparer::computePageFingerprint(document, request.pageIndex);
-                if (request.result.pageFingerprint != fingerprint)
-                {
-                    changedPages << tr("Page %1: the page content differs from the content, which was recognized.").arg(request.pageIndex + 1);
-                    continue;
-                }
-
-                const pdf::PDFOCRTextLayerWriter::LayerInfo layerInfo = pdf::PDFOCRTextLayerWriter::readLayerInfo(document, request.pageIndex);
-                if (layerInfo.isPresent)
-                {
-                    request.layerId = layerInfo.layerId;
-                }
-                pageRequests.push_back(std::move(request));
-            }
-
-            pdf::PDFDocumentModifier modifier(document);
-            if (!pageRequests.empty())
-            {
-                result.report = pdf::PDFOCRTextLayerWriter::apply(modifier.getBuilder(), document, pageRequests, options);
-            }
-            result.report.messages << changedPages;
-
-            if (pageRequests.empty())
-            {
-                result.errorMessage = changedPages.join(QChar('\n'));
-            }
-            else if (result.report.error)
-            {
-                result.errorMessage = result.report.error.message;
-            }
-            else if (removeConformance && !pdf::PDFOCRTextLayerWriter::removeConformanceDeclaration(modifier.getBuilder(), document))
-            {
-                // An unverified declaration of conformance must not stay in the copy (PDF-15, R07)
-                result.errorMessage = tr("The conformance declaration could not be removed from the metadata, the copy was not written.");
-            }
-            else if (!pdf::PDFOperationControl::isOperationCancelled(operationControl))
-            {
-                result.conformanceRemoved = removeConformance;
-
-                if (result.report.isModified() || result.conformanceRemoved || !copyFileName.isEmpty())
-                {
-                    modifier.markPageContentsChanged();
-                    if (modifier.finalize())
-                    {
-                        result.document = modifier.getDocument();
-                    }
-                    else if (!copyFileName.isEmpty())
-                    {
-                        result.document = pdf::PDFDocumentPointer(new pdf::PDFDocument(*document));
-                    }
-                }
-
-                // Validation of the result: every written layer must be readable and bound to its page
-                if (result.document)
-                {
-                    for (pdf::PDFInteger pageIndex : result.report.writtenPages)
-                    {
-                        const pdf::PDFOCRTextLayerWriter::LayerInfo info = pdf::PDFOCRTextLayerWriter::readLayerInfo(result.document.data(), pageIndex);
-                        if (!info.isPresent || !info.fingerprintMatches)
-                        {
-                            result.errorMessage = tr("Validation of the text layer of the page %1 failed.").arg(pageIndex + 1);
-                            result.document.reset();
-                            break;
-                        }
-
-                        // Nesting of the whole content of the page is validated by the parser (PDF-05)
-                        QString validationError;
-                        if (!pdf::PDFOCRTextLayerWriter::validatePageContent(result.document.data(), pageIndex, &validationError))
-                        {
-                            result.errorMessage = tr("The content of the page %1 is not valid after writing the text layer: %2").arg(pageIndex + 1).arg(validationError);
-                            result.document.reset();
-                            break;
-                        }
-                    }
-                }
-
-                if (result.document && !copyFileName.isEmpty() && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
-                {
-                    pdf::PDFDocumentWriter writer(nullptr);
-                    const pdf::PDFOperationResult writeResult = writer.write(copyFileName, result.document.data(), true);
-                    if (!writeResult)
-                    {
-                        result.errorMessage = writeResult.getErrorMessage();
-                    }
-                }
-            }
-        }
-        catch (const pdf::PDFException& exception)
-        {
-            result.errorMessage = exception.getMessage();
-            result.document.reset();
-        }
-        catch (const std::exception& exception)
-        {
-            // Without the final signal the dialog would stay busy forever and could not be closed
-            result.errorMessage = QString::fromLocal8Bit(exception.what());
-            result.document.reset();
-        }
-        catch (...)
-        {
-            result.errorMessage = tr("Unexpected error.");
-            result.document.reset();
-        }
-
+        pdf::PDFOCRApplyProcessor::Result processorResult = pdf::PDFOCRApplyProcessor::execute(applyContext, plan, operationControl);
         if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
         {
             return;
         }
+
+        ApplyResult result;
+        result.document = std::move(processorResult.document);
+        result.report = std::move(processorResult.report);
+        result.errorMessage = std::move(processorResult.errorMessage);
+        result.copyFileName = std::move(processorResult.copyFileName);
+        result.conformanceRemoved = processorResult.conformanceRemoved;
+        result.compressionReport = std::move(processorResult.compressionReport);
+        result.fingerprints = std::move(processorResult.fingerprints);
 
         {
             QMutexLocker lock(&m_applyMutex);
@@ -4770,55 +5108,25 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
         return;
     }
 
-    const pdf::PDFDocument* document = m_context.document;
     m_applyInProgress = true;
     ui->progressBar->setRange(0, 0);
     ui->progressLabel->setText(tr("Removing the text layer..."));
     updateUi();
 
-    startTask(m_applyTask, [this, document, pages](int generation, const pdf::PDFOperationControl* operationControl)
+    const pdf::PDFOCRApplyProcessor::Context applyContext = getApplyContext();
+    startTask(m_applyTask, [this, applyContext, pages](int generation, const pdf::PDFOperationControl* operationControl)
     {
-        ApplyResult result;
-        result.isRemoval = true;
-
-        try
-        {
-            pdf::PDFDocumentModifier modifier(document);
-            for (pdf::PDFInteger page : pages)
-            {
-                if (pdf::PDFOCRTextLayerWriter::removeLayer(modifier.getBuilder(), document, page))
-                {
-                    result.report.writtenPages.push_back(page);
-                }
-            }
-
-            modifier.markPageContentsChanged();
-            if (!result.report.writtenPages.empty() && modifier.finalize())
-            {
-                result.document = modifier.getDocument();
-            }
-        }
-        catch (const pdf::PDFException& exception)
-        {
-            result.errorMessage = exception.getMessage();
-            result.document.reset();
-        }
-        catch (const std::exception& exception)
-        {
-            // Without the final signal the dialog would stay busy forever and could not be closed
-            result.errorMessage = QString::fromLocal8Bit(exception.what());
-            result.document.reset();
-        }
-        catch (...)
-        {
-            result.errorMessage = tr("Unexpected error.");
-            result.document.reset();
-        }
-
+        pdf::PDFOCRApplyProcessor::Result processorResult = pdf::PDFOCRApplyProcessor::removeLayers(applyContext, pages, operationControl);
         if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
         {
             return;
         }
+
+        ApplyResult result;
+        result.isRemoval = true;
+        result.document = std::move(processorResult.document);
+        result.report = std::move(processorResult.report);
+        result.errorMessage = std::move(processorResult.errorMessage);
 
         {
             QMutexLocker lock(&m_applyMutex);
@@ -4856,6 +5164,10 @@ void PDFOCRDocumentDialog::onApplyFinished(int generation)
     }
 
     QStringList messages = result.report.messages;
+    if (!result.compressionReport.images.empty())
+    {
+        messages.prepend(result.compressionReport.getSummary());
+    }
     if (!result.report.unchangedPages.empty())
     {
         messages << tr("Pages with an identical layer (not changed): %1").arg(pdf::PDFOCRPageSelection::describe(result.report.unchangedPages));
@@ -4899,8 +5211,20 @@ void PDFOCRDocumentDialog::onApplyFinished(int generation)
     m_modifiedDocument = result.document;
     ui->progressLabel->setText(result.isRemoval ? tr("The text layer was removed.") : tr("The text layer was written."));
 
+    // The compression changes the fingerprints of the pages, the results (and a project
+    // saved now) are bound to the new revision of the pages
+    m_session->rebindPageFingerprints(result.fingerprints);
+    for (const auto& [pageIndex, fingerprint] : result.fingerprints)
+    {
+        m_fingerprints[pageIndex] = fingerprint;
+    }
+
     QString text = result.isRemoval ? tr("The OCR layer was removed from %n page(s).", nullptr, int(result.report.writtenPages.size()))
                                     : tr("The invisible text layer with %1 words was written on %n page(s).", nullptr, int(result.report.writtenPages.size())).arg(result.report.writtenWords);
+    if (result.compressionReport.isChanged())
+    {
+        text += QStringLiteral("\n\n") + result.compressionReport.getSummary();
+    }
     text += QStringLiteral("\n\n") + tr("The dialog will be closed and the document of the editor will be updated in a single undo step. The file on the disk is changed by the standard Save command.");
     if (m_session->isDirty() && !result.isRemoval)
     {
@@ -4943,14 +5267,18 @@ bool PDFOCRDocumentDialog::confirmReadableTextOutput(const QString& title)
 
 void PDFOCRDocumentDialog::onExportClicked()
 {
-    if (!confirmReadableTextOutput(tr("Export Text")))
+    const int exportFormat = ui->exportFormatComboBox->currentData().toInt();
+    const bool isStructured = exportFormat != EXPORT_FORMAT_TEXT;
+    const QString title = isStructured ? tr("Export %1").arg(ui->exportFormatComboBox->currentText()) : tr("Export Text");
+
+    if (!confirmReadableTextOutput(title))
     {
         return;
     }
 
     const QStringList scopes = { tr("Current page"), tr("Checked pages"), tr("All results") };
     bool ok = false;
-    const QString scope = QInputDialog::getItem(this, tr("Export Text"), tr("Pages to export (the current corrected text in the reading order):"), scopes, 1, false, &ok);
+    const QString scope = QInputDialog::getItem(this, title, tr("Pages to export (the current corrected text in the reading order):"), scopes, 1, false, &ok);
     if (!ok)
     {
         return;
@@ -4988,6 +5316,12 @@ void PDFOCRDocumentDialog::onExportClicked()
             placeholders.push_back(placeholder);
             results.push_back(&placeholders.back());
         }
+    }
+
+    if (isStructured)
+    {
+        exportStructured(pdf::PDFOCRStructuredExporter::Format(exportFormat), results, title);
+        return;
     }
 
     pdf::PDFOCRTextExporter::Options options;
@@ -5037,6 +5371,95 @@ void PDFOCRDocumentDialog::onExportClicked()
     details << report.regionOrders;
 
     QMessageBox messageBox(QMessageBox::Information, tr("Export Text"), tr("The text of %n page(s) (%1 words) was exported.", nullptr, int(report.exportedPages.size())).arg(report.wordCount), QMessageBox::Ok, this);
+    if (!report.skippedPages.empty())
+    {
+        messageBox.setInformativeText(tr("%n page(s) have no result and are missing in the export.", nullptr, int(report.skippedPages.size())));
+    }
+    messageBox.setDetailedText(details.join(QChar('\n')));
+    messageBox.exec();
+}
+
+void PDFOCRDocumentDialog::exportStructured(pdf::PDFOCRStructuredExporter::Format format, const std::vector<const pdf::PDFOCRPageResult*>& results, const QString& title)
+{
+    pdf::PDFOCRStructuredExporter::Options options;
+    options.format = format;
+    options.dpi = ui->exportDpiSpinBox->value() <= EXPORT_DPI_OF_RECOGNITION ? 0.0 : ui->exportDpiSpinBox->value();
+    options.includeConfidence = ui->exportConfidenceCheckBox->isChecked();
+    options.normalizeNFC = ui->normalizeNfcCheckBox->isChecked();
+    options.title = QFileInfo(m_context.fileName).fileName();
+
+    // The pages with a result are exported, the others are reported (EXPORT-02)
+    pdf::PDFOCRTextExporter::Report report;
+    const QByteArray allPages = pdf::PDFOCRStructuredExporter::exportPages(m_context.document, results, options, &report);
+    if (report.exportedPages.empty())
+    {
+        QMessageBox::information(this, title, tr("The selected pages do not contain any result to export."));
+        return;
+    }
+
+    const bool perPage = ui->exportPerPageCheckBox->isChecked();
+    const QString suffix = pdf::PDFOCRStructuredExporter::getFileSuffix(format);
+    QFileInfo fileInfo(m_context.fileName);
+    const QString suggestion = fileInfo.absolutePath() + QStringLiteral("/") + fileInfo.completeBaseName() + QStringLiteral("_ocr.") + suffix;
+    QString fileName = QFileDialog::getSaveFileName(this, title, suggestion, pdf::PDFOCRStructuredExporter::getFileFilter(format));
+    if (fileName.isEmpty())
+    {
+        return;
+    }
+    if (QFileInfo(fileName).suffix().isEmpty())
+    {
+        fileName += QChar('.') + suffix;
+    }
+
+    QStringList writtenFiles;
+    QString errorMessage;
+    if (perPage)
+    {
+        const pdf::PDFInteger pageCount = pdf::PDFInteger(m_context.document->getCatalog()->getPageCount());
+        for (const pdf::PDFOCRPageResult* result : results)
+        {
+            if (std::find(report.exportedPages.begin(), report.exportedPages.end(), result->pageIndex) == report.exportedPages.end())
+            {
+                continue;
+            }
+
+            const QString pageFileName = pdf::PDFOCRStructuredExporter::getPageFileName(fileName, result->pageIndex, pageCount);
+            const QByteArray pageData = pdf::PDFOCRStructuredExporter::exportPages(m_context.document, { result }, options, nullptr);
+            if (!pdf::PDFOCRStructuredExporter::writeFile(pageFileName, pageData, &errorMessage))
+            {
+                break;
+            }
+            writtenFiles << QDir::toNativeSeparators(pageFileName);
+        }
+    }
+    else if (pdf::PDFOCRStructuredExporter::writeFile(fileName, allPages, &errorMessage))
+    {
+        writtenFiles << QDir::toNativeSeparators(fileName);
+    }
+
+    if (!errorMessage.isEmpty())
+    {
+        QMessageBox::critical(this, title, errorMessage);
+        return;
+    }
+
+    QStringList details;
+    details << tr("Exported pages: %1").arg(report.pageDescriptions.join(QStringLiteral(", ")));
+    details << tr("Files: %1").arg(writtenFiles.join(QStringLiteral(", ")));
+    details << (options.dpi > 0.0 ? tr("Coordinates: pixels of the visible page at %1 DPI.").arg(qRound(options.dpi))
+                                  : tr("Coordinates: pixels of the visible page at the resolution of the recognition of each page."));
+    if (!report.skippedPages.empty())
+    {
+        details << tr("Pages without a result (missing in the export): %1").arg(pdf::PDFOCRPageSelection::describe(report.skippedPages));
+        details << report.skippedDescriptions;
+    }
+    if (!report.noTextDescriptions.isEmpty())
+    {
+        details << tr("Exported pages without text:");
+        details << report.noTextDescriptions;
+    }
+
+    QMessageBox messageBox(QMessageBox::Information, title, tr("%n page(s) (%1 words) were exported into %2 file(s).", nullptr, int(report.exportedPages.size())).arg(report.wordCount).arg(writtenFiles.size()), QMessageBox::Ok, this);
     if (!report.skippedPages.empty())
     {
         messageBox.setInformativeText(tr("%n page(s) have no result and are missing in the export.", nullptr, int(report.skippedPages.size())));
@@ -5286,8 +5709,12 @@ void PDFOCRDocumentDialog::updateUi()
     // An engine without exact geometry is offered for the export only (ARCH-02, ENGINE-01)
     const bool exportOnly = m_engineCapabilities.isExportOnly;
     const QString exportOnlyToolTip = tr("The selected engine provides the text without exact geometry; its results can only be exported.");
-    ui->applyButton->setEnabled(!busy && hasResults && !exportOnly);
-    ui->applyButton->setToolTip(exportOnly ? exportOnlyToolTip : tr("Write the invisible text layer into the document"));
+    const bool compressionNeedsPreview = getCompressionSettings().isLossy() && !isCompressionPreviewConfirmed();
+    ui->applyButton->setEnabled(!busy && hasResults && !exportOnly && !compressionNeedsPreview);
+    ui->applyButton->setToolTip(exportOnly ? exportOnlyToolTip
+                                           : (compressionNeedsPreview ? tr("The lossy compression of the images must be checked and confirmed in the preview first (tab Output, button Preview).")
+                                                                      : tr("Write the invisible text layer into the document")));
+    ui->compressionPreviewButton->setEnabled(hasResults && !m_applyInProgress);
     ui->removeLayerButton->setEnabled(!busy && hasChecked && m_context.canModify && m_context.certificationPermissions == 0 && !exportOnly);
     ui->removeLayerButton->setToolTip(exportOnly ? exportOnlyToolTip : tr("Removes the OCR text layer created by PDF4QT including its private data. Other content is never removed."));
     ui->exportButton->setEnabled(hasResults && !m_applyInProgress);
@@ -5405,6 +5832,7 @@ void PDFOCRDocumentDialog::done(int result)
 
     cancelTask(m_pageDataTask);
     cancelTask(m_previewTask);
+    cancelTask(m_compressionEstimateTask);
     saveSettings();
     QDialog::done(result);
 }

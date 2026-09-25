@@ -23,6 +23,10 @@
 #include "pdftoolabstractapplication.h"
 #include "pdfconstants.h"
 
+#ifdef PDF4QT_OCR_TESSERACT
+#include "pdftesseractocrengine.h"
+#endif
+
 #include <QGuiApplication>
 #include <QCommandLineParser>
 
@@ -32,6 +36,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PdfTool");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
+
+#ifdef PDF4QT_OCR_TESSERACT
+    // OCR engines are registered by a stable identifier (command 'ocr')
+    pdf::PDFTesseractOCREngineFactory::registerEngine();
+#endif
 
     QStringList arguments = QCoreApplication::arguments();
 

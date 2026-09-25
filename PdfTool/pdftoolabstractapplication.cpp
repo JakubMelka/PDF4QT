@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolabstractapplication.h"
+#include "pdftoolocr.h"
 #include "pdfdocumentreader.h"
 #include "pdfutils.h"
 
@@ -198,6 +199,16 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("bitonal-invert", "Swap the black and the white pixels of the converted items. It can be used with '--bitonal-fill none' only."));
         parser->addOption(QCommandLineOption("bitonal-detect-blank", "Replace the pages, which are a scan of a blank sheet of paper, by a white fill instead of converting them. It can be used with '--bitonal-source pages' and '--bitonal-fill none' only."));
         parser->addOption(QCommandLineOption("bitonal-compression", "Compression of the created images. Valid values are auto|flate|runlength|ccittg4|jbig2. 'auto' compresses every image by all the algorithms and keeps the smallest result.", "compression", "auto"));
+    }
+
+    if (optionFlags.testFlag(OCR))
+    {
+        PDFToolOCR::initializeCommandLineParser(parser);
+    }
+
+    if (optionFlags.testFlag(OCRModels))
+    {
+        PDFToolOCRModels::initializeCommandLineParser(parser);
     }
 
     if (optionFlags.testFlag(Redact))
@@ -599,6 +610,16 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         {
             reportInvalidValue("bitonal-dpi", dpiResolution, "whole numbers");
         }
+    }
+
+    if (optionFlags.testFlag(OCR))
+    {
+        PDFToolOCR::readOptions(parser, options.ocr);
+    }
+
+    if (optionFlags.testFlag(OCRModels))
+    {
+        PDFToolOCRModels::readOptions(parser, options.ocr);
     }
 
     if (optionFlags.testFlag(Redact))

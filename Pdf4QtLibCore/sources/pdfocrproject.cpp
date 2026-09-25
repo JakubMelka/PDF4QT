@@ -306,6 +306,10 @@ QJsonObject PDFOCRProjectSerializer::wordToJson(const PDFOCRWord& word, PDFOCRSe
         }
         object[QStringLiteral("overlapsExcludedRegion")] = word.overlapsExcludedRegion;
         object[QStringLiteral("hasExtremeScaling")] = word.hasExtremeScaling;
+        if (word.inDictionary.has_value())
+        {
+            object[QStringLiteral("inDictionary")] = *word.inDictionary;
+        }
     }
     else if (word.reviewState == PDFOCRReviewState::Discarded)
     {
@@ -344,6 +348,11 @@ PDFOCRWord PDFOCRProjectSerializer::wordFromJson(const QJsonObject& object)
     word.predecessorIds = toIntVector(object.value(QStringLiteral("predecessors")));
     word.overlapsExcludedRegion = object.value(QStringLiteral("overlapsExcludedRegion")).toBool();
     word.hasExtremeScaling = object.value(QStringLiteral("hasExtremeScaling")).toBool();
+    const QJsonValue inDictionary = object.value(QStringLiteral("inDictionary"));
+    if (inDictionary.isBool())
+    {
+        word.inDictionary = inDictionary.toBool();
+    }
     return word;
 }
 

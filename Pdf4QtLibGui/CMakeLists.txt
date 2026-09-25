@@ -84,6 +84,12 @@ add_library(Pdf4QtLibGui SHARED
     pdfocrlanguagesdialog.h
     pdfocrpageview.cpp
     pdfocrpageview.h
+    pdfocrcompressionpreviewdialog.cpp
+    pdfocrcompressionpreviewdialog.h
+    pdfocrbatchdialog.cpp
+    pdfocrbatchdialog.h
+    pdfscanpreparationdialog.cpp
+    pdfscanpreparationdialog.h
     pdf4qtlibgui.qrc
     pdfbookmarkmanager.h
     pdfbookmarkmanager.cpp

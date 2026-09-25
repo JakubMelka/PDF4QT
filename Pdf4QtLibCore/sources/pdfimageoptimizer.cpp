@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfimageoptimizer.h"
+#include "pdfocrtextlayerwriter.h"
 
 #include "pdfdocument.h"
 #include "pdfexception.h"
@@ -32,6 +33,7 @@
 #include <QImageWriter>
 
 #include <cmath>
+#include <set>
 #include <unordered_set>
 
 #include "pdfdbgheap.h"
@@ -1018,6 +1020,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
     }
 
     PDFObjectStorage storage = document->getStorage();
+    std::set<PDFObjectReference> replacedObjects;
 
     if (results)
     {
@@ -1057,6 +1060,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         }
 
         storage.setObject(encoded.reference, PDFObject::createStream(std::make_shared<PDFStream>(std::move(stream))));
+        replacedObjects.insert(encoded.reference);
 
         if (results)
         {
@@ -1064,7 +1068,11 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         }
     }
 
-    return PDFDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());
+    PDFDocument optimizedDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());
+
+    // Only the encoding of the images was changed, their placement not: the OCR text
+    // layers of PDF4QT stay valid and are bound to the new revision of the pages
+    return PDFOCRTextLayerWriter::rebindOptimizedDocument(document, std::move(optimizedDocument), replacedObjects, nullptr);
 }
 
 }   // namespace pdf

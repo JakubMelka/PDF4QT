@@ -24,6 +24,12 @@
 #include "pdfocrengine.h"
 #include "pdfocrsession.h"
 #include "pdfocrproject.h"
+#include "pdfocrexport.h"
+#include "pdfocrapplyprocessor.h"
+#include "pdfocrdocumentrunner.h"
+#include "pdfocrcompression.h"
+#include "pdfimageoptimizer.h"
+#include "pdfscanpreparation.h"
 #include "pdfocrconfiguration.h"
 #include "pdfocrpagepreparer.h"
 #include "pdfocrjobcontroller.h"
@@ -68,8 +74,10 @@
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QCryptographicHash>
+#include <QThread>
 
 #include <random>
+#include <numbers>
 #include <stdexcept>
 
 using namespace pdf;
@@ -243,6 +251,20 @@ private slots:
     void regionRotationOverride();
     void runtimeSetLease();
     void modelDependenciesAndCompatibility();
+    // [tests: extensions of OCR_PLAN.md]
+    void dictionaryInformation();
+    void tesseractDictionaryInformation();
+    void structuredExport();
+    void applyProcessorPlanAndPermissions();
+    void applyProcessorExecute();
+    void compressionLossless();
+    void compressionBitonalAndShared();
+    void compressionStreaming();
+    void compressionWithTextLayer();
+    void optimizeImagesKeepsLayer();
+    void tesseractAfterDeskew();
+    void perspectiveCorrection();
+    void documentRunner();
     void qualityAndPerformanceBenchmark();
 
 private:
@@ -268,6 +290,15 @@ private:
     static PDFOCRWord makeWord(PDFOCRPageResult& result, const QString& text, const QRectF& rect, std::optional<double> confidence);
     static QRect findDarkBoundingBox(const QImage& image);
     static PDFDocumentPointer applyResults(const PDFDocument& document, const std::vector<PDFOCRPageResult>& results, const PDFOCRTextLayerWriter::Options& options, PDFOCRTextLayerWriter::Report* report);
+
+    /// Renders the page of the spec at 300 DPI into an image and creates a "scanned"
+    /// document, whose only content is this image
+    static PDFDocument createScanDocument(const PageSpec& spec);
+
+    /// Recognizes the first page of the document by Tesseract with the built-in models
+    /// of the profile Fast. Returns an empty result with the reason, if the engine or
+    /// the models are not available (the caller skips the test), or with the error.
+    static std::optional<PDFOCRPageResult> recognizeWithTesseract(const PDFDocument& document, PDFOCRConfiguration configuration, QString* skipReason, QString* errorMessage);
 
     std::shared_ptr<PDFOCRTestEngineFactory> m_testEngine;
 };
@@ -6071,6 +6102,2005 @@ void OCRTest::modelDependenciesAndCompatibility()
         QVERIFY2(finished[QStringLiteral("tesseract/fast/main")].first, qPrintable(finished[QStringLiteral("tesseract/fast/main")].second));
         QCOMPARE(upgraded.getModel(QStringLiteral("tesseract/fast/main"))->state, PDFOCRModelState::Installed);
     }
+}
+
+// -------------------------------------------------------------------------
+// Extensions of OCR_PLAN.md
+// -------------------------------------------------------------------------
+
+PDFDocument OCRTest::createScanDocument(const PageSpec& spec)
+{
+    PDFDocument textDocument = createDocument({ spec });
+    RenderingContext textContext(&textDocument);
+    PDFOCRPagePreparer textPreparer = textContext.createPreparer(&textDocument);
+    PDFOCRPagePreparer::RasterResult raster = textPreparer.rasterize(0, 300.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr);
+    if (raster.error)
+    {
+        return PDFDocument();
+    }
+    return createImageDocument(raster.image.convertToFormat(QImage::Format_RGB888), spec.size);
+}
+
+std::optional<PDFOCRPageResult> OCRTest::recognizeWithTesseract(const PDFDocument& document, PDFOCRConfiguration configuration, QString* skipReason, QString* errorMessage)
+{
+#ifndef PDF4QT_OCR_TESSERACT
+    Q_UNUSED(document);
+    Q_UNUSED(configuration);
+    Q_UNUSED(errorMessage);
+    *skipReason = QStringLiteral("Tesseract engine is not compiled in.");
+    return std::nullopt;
+#else
+    const QString builtInDirectory = getSourceOcrDirectory();
+    for (const QString& language : configuration.languages)
+    {
+        if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/%1.traineddata").arg(language)))
+        {
+            *skipReason = QStringLiteral("Built-in OCR language model '%1' is not available (ocr/tesseract/fast/tessdata).").arg(language);
+            return std::nullopt;
+        }
+    }
+
+    QTemporaryDir userDirectory;
+    PDFOCRModelManager manager(nullptr);
+    manager.setBuiltInDirectory(builtInDirectory);
+    manager.setUserDirectory(userDirectory.path());
+    manager.loadBundledCatalog();
+
+    PDFOCRError error;
+    configuration.engineId = QStringLiteral("tesseract");
+    PDFOCRResolvedModelSet models = manager.resolveModelSet(configuration.engineId, configuration.languages, PDFOCRModelProfile::Fast, &error);
+    if (!models.isValid())
+    {
+        *errorMessage = error.message;
+        return std::nullopt;
+    }
+
+    RenderingContext context(&document);
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+
+    PDFOCRJobDescription description;
+    description.configuration = configuration;
+    description.configuration.workerCount = 1;
+    description.models = models;
+    PDFOCRPageTask task;
+    task.pageIndex = 0;
+    task.configuration = description.configuration;
+    task.generation = 1;
+    description.pages.push_back(task);
+
+    std::optional<PDFOCRPageResult> result;
+    QObject receiver;
+    QObject::connect(&controller, &PDFOCRJobController::pageFinished, &receiver, [&](int, PDFOCRPageResult pageResult) { result = std::move(pageResult); });
+    int generation = 0;
+    if (!controller.start(description, &generation))
+    {
+        *errorMessage = QStringLiteral("Recognition job was not started.");
+        return std::nullopt;
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    while (!result.has_value() && timer.elapsed() < 120000)
+    {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    controller.waitForFinished();
+
+    if (!result.has_value())
+    {
+        *errorMessage = QStringLiteral("Recognition did not finish in time.");
+    }
+    else if (result->state != PDFOCRPageState::Done)
+    {
+        *errorMessage = result->error.message;
+    }
+    return result;
+#endif
+}
+
+void OCRTest::dictionaryInformation()
+{
+    // Engine output with the dictionary information: a dictionary word, a word
+    // outside the dictionary, a number (unknown) and a word with punctuation
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        PDFOCRRawBlock block;
+        block.rect = QRectF(10, 10, 400, 40);
+        PDFOCRRawLine line;
+        line.rect = block.rect;
+
+        auto addWord = [&line](QString text, double x, std::optional<bool> dictionary)
+        {
+            PDFOCRRawWord word;
+            word.text = std::move(text);
+            word.rect = QRectF(x, 10, 60, 40);
+            word.rawConfidence = 95.0;
+            word.isDictionaryWord = dictionary;
+            line.words.push_back(std::move(word));
+        };
+
+        addWord(QStringLiteral("document"), 10, true);
+        addWord(QStringLiteral("qxzvbl"), 80, false);
+        addWord(QStringLiteral("2026"), 150, std::nullopt);
+        addWord(QStringLiteral("(Pdfforqt),"), 220, false);
+        addWord(QStringLiteral("x"), 290, false);
+        addWord(QStringLiteral("--"), 360, false);
+        block.lines.push_back(std::move(line));
+        output.blocks.push_back(std::move(block));
+        return output;
+    });
+
+    PageSpec spec;
+    spec.size = QSizeF(500, 100);
+    spec.withImage = true;
+    PDFDocument document = createDocument({ spec });
+    RenderingContext context(&document);
+
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+
+    PDFOCRJobDescription description;
+    description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    description.configuration.languages = { QStringLiteral("eng") };
+    description.configuration.workerCount = 1;
+    description.configuration.detectBlankPages = false;
+    description.models.dataPath = QStringLiteral("/none");
+    description.models.languages = { QStringLiteral("eng") };
+    PDFOCRPageTask task;
+    task.pageIndex = 0;
+    task.configuration = description.configuration;
+    task.generation = 1;
+    description.pages.push_back(task);
+
+    std::optional<PDFOCRPageResult> result;
+    connect(&controller, &PDFOCRJobController::pageFinished, this, [&](int, PDFOCRPageResult pageResult) { result = std::move(pageResult); });
+    int generation = 0;
+    QVERIFY(controller.start(description, &generation));
+    QTRY_VERIFY_WITH_TIMEOUT(result.has_value(), 30000);
+    controller.waitForFinished();
+    m_testEngine->setHandler(PDFOCRTestEngineFactory::Handler());
+    QVERIFY2(result->state == PDFOCRPageState::Done, qPrintable(result->error.message));
+
+    // The engine information is transferred into the model
+    std::vector<PDFOCRWord*> words = result->getWords();
+    QCOMPARE(words.size(), size_t(6));
+    QCOMPARE(words[0]->inDictionary, std::optional<bool>(true));
+    QCOMPARE(words[1]->inDictionary, std::optional<bool>(false));
+    QVERIFY(!words[2]->inDictionary.has_value());
+    QCOMPARE(words[3]->inDictionary, std::optional<bool>(false));
+
+    // Only a real word outside the dictionary is a candidate: not a single character,
+    // not a word without letters, not a number, not a dictionary word
+    PDFOCRReviewCriteria criteria = PDFOCRReviewCriteria::create(50.0, true, QStringList());
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*words[0], criteria));
+    QVERIFY(PDFOCRReview::isOutsideDictionary(*words[1], criteria));
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*words[2], criteria));
+    QVERIFY(PDFOCRReview::isOutsideDictionary(*words[3], criteria));
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*words[4], criteria));
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*words[5], criteria));
+
+    // The switch decides the review, the statistics count the words always
+    QVERIFY(PDFOCRReview::requiresReview(*words[1], criteria));
+    QVERIFY(!PDFOCRReview::requiresReview(*words[0], criteria));
+    PDFOCRReviewCriteria scoreOnly = PDFOCRReviewCriteria::create(50.0, false, QStringList());
+    QVERIFY(!PDFOCRReview::requiresReview(*words[1], scoreOnly));
+    QVERIFY(!PDFOCRReview::requiresReview(*words[1], 50.0));
+
+    PDFOCRConfidenceStatistics statistics = PDFOCRConfidenceStatistics::compute(*result, criteria);
+    QCOMPARE(statistics.outsideDictionaryCount, 2);
+    QCOMPARE(statistics.dictionaryCheckedCount, 5);
+    QCOMPARE(statistics.reviewRequiredCount, 2);
+    PDFOCRConfidenceStatistics scoreOnlyStatistics = PDFOCRConfidenceStatistics::compute(*result, scoreOnly);
+    QCOMPARE(scoreOnlyStatistics.outsideDictionaryCount, 2);
+    QCOMPARE(scoreOnlyStatistics.reviewRequiredCount, 0);
+
+    // User words are accepted regardless of the case and of the surrounding punctuation
+    PDFOCRReviewCriteria withUserWords = PDFOCRReviewCriteria::create(50.0, true, { QStringLiteral("PDFFORQT") });
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*words[3], withUserWords));
+    QVERIFY(PDFOCRReview::isOutsideDictionary(*words[1], withUserWords));
+
+    // The session takes the criteria from the configuration (the switch is on by default,
+    // the user words are accepted words)
+    PDFOCRSession session(nullptr);
+    PDFOCRConfiguration configuration;
+    QVERIFY(configuration.reviewOutsideDictionary);
+    configuration.reviewThreshold = 50.0;
+    session.setConfiguration(configuration);
+    session.setPageResult(*result);
+    QCOMPARE(session.getStatistics(0).reviewRequiredCount, 2);
+    QCOMPARE(session.getReviewWords(0).size(), size_t(2));
+    configuration.userWords = { QStringLiteral("pdfforqt") };
+    session.setConfiguration(configuration);
+    QCOMPARE(session.getStatistics(0).reviewRequiredCount, 1);
+    configuration.reviewOutsideDictionary = false;
+    session.setConfiguration(configuration);
+    QCOMPARE(session.getStatistics(0).reviewRequiredCount, 0);
+    configuration.reviewOutsideDictionary = true;
+    configuration.userWords.clear();
+    session.setConfiguration(configuration);
+
+    // A decision of the user ends the dictionary review: a confirmed word and an
+    // edited word are not candidates anymore
+    const int unknownWordId = words[1]->id;
+    QVERIFY(session.setWordReviewState(0, unknownWordId, PDFOCRReviewState::Confirmed));
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*session.getPage(0)->findWord(unknownWordId), criteria));
+    session.undo();
+    QVERIFY(PDFOCRReview::isOutsideDictionary(*session.getPage(0)->findWord(unknownWordId), criteria));
+    const int punctuatedWordId = words[3]->id;
+    QVERIFY(session.setWordText(0, punctuatedWordId, QStringLiteral("(PDF4QT),")));
+    QVERIFY(!PDFOCRReview::isOutsideDictionary(*session.getPage(0)->findWord(punctuatedWordId), criteria));
+
+    // The configuration keeps the switch, an old configuration without it has it on
+    QVERIFY(!PDFOCRConfiguration::fromJson([]() { PDFOCRConfiguration off; off.reviewOutsideDictionary = false; return off.toJson(); }()).reviewOutsideDictionary);
+    QJsonObject oldConfiguration = PDFOCRConfiguration().toJson();
+    oldConfiguration.remove(QStringLiteral("reviewOutsideDictionary"));
+    QVERIFY(PDFOCRConfiguration::fromJson(oldConfiguration).reviewOutsideDictionary);
+
+    // The information survives the project (review data) and the text layer with the review data
+    const PDFOCRPageResult restored = PDFOCRProjectSerializer::pageResultFromJson(PDFOCRProjectSerializer::pageResultToJson(*result, PDFOCRSerializationFlag::ReviewData));
+    QCOMPARE(restored.getWords()[0]->inDictionary, std::optional<bool>(true));
+    QCOMPARE(restored.getWords()[1]->inDictionary, std::optional<bool>(false));
+    QVERIFY(!restored.getWords()[2]->inDictionary.has_value());
+
+    const PDFOCRPageResult withoutReviewData = PDFOCRProjectSerializer::pageResultFromJson(PDFOCRProjectSerializer::pageResultToJson(*result, PDFOCRSerializationFlags()));
+    QVERIFY(!withoutReviewData.getWords()[1]->inDictionary.has_value());
+
+    PDFOCRTextLayerWriter::Options options;
+    options.keepReviewData = true;
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer modified = applyResults(document, { *result }, options, &report);
+    QVERIFY2(modified, qPrintable(report.error.message));
+    PDFDocument reopened = read(write(*modified));
+    std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(&reopened, 0);
+    QVERIFY(layer.has_value());
+    QCOMPARE(layer->getWords()[1]->inDictionary, std::optional<bool>(false));
+    QCOMPARE(layer->getWords()[0]->inDictionary, std::optional<bool>(true));
+}
+
+void OCRTest::tesseractDictionaryInformation()
+{
+    // A "scanned" page with a dictionary word, a nonsense word and a number
+    PageSpec spec;
+    spec.size = QSizeF(520, 120);
+    spec.withHelvetica = true;
+    spec.content = "BT /F1 28 Tf 30 60 Td (Hello document qxzvbkw 2026) Tj ET";
+    PDFDocument document = createScanDocument(spec);
+    QVERIFY(document.getCatalog()->getPageCount() == 1);
+
+    PDFOCRConfiguration configuration;
+    configuration.languages = { QStringLiteral("eng") };
+    configuration.dpi = 300.0;
+
+    QString skipReason;
+    QString errorMessage;
+    std::optional<PDFOCRPageResult> result = recognizeWithTesseract(document, configuration, &skipReason, &errorMessage);
+    if (!skipReason.isEmpty())
+    {
+        PDF4QT_OCR_SKIP(qPrintable(skipReason));
+    }
+    QVERIFY2(result.has_value() && errorMessage.isEmpty(), qPrintable(errorMessage));
+
+    // The nonsense word itself may be recognized with an error (that is exactly the
+    // case the dictionary information reveals), so the words are taken by their order
+    const std::vector<PDFOCRWord*> words = result->getWords();
+    QVERIFY2(words.size() == 4, qPrintable(result->getText()));
+    const PDFOCRWord* dictionaryWord = words[1];
+    const PDFOCRWord* unknownWord = words[2];
+    const PDFOCRWord* number = words[3];
+    QCOMPARE(dictionaryWord->text, QStringLiteral("document"));
+    QCOMPARE(number->text, QStringLiteral("2026"));
+
+    // The LSTM recognizer reports the dictionary match of the word (the probe of
+    // chapter 4 of OCR_PLAN.md), numbers are not judged
+    QCOMPARE(dictionaryWord->inDictionary, std::optional<bool>(true));
+    QCOMPARE(unknownWord->inDictionary, std::optional<bool>(false));
+    QVERIFY(!number->inDictionary.has_value());
+
+    // Disabled word dictionary means unknown information
+    configuration.engineParameters[QStringLiteral("load_system_dawg")] = false;
+    std::optional<PDFOCRPageResult> withoutDictionary = recognizeWithTesseract(document, configuration, &skipReason, &errorMessage);
+    QVERIFY2(withoutDictionary.has_value() && errorMessage.isEmpty(), qPrintable(errorMessage));
+    for (const PDFOCRWord* word : withoutDictionary->getWords())
+    {
+        QVERIFY2(!word->inDictionary.has_value(), qPrintable(word->text));
+    }
+}
+
+void OCRTest::structuredExport()
+{
+    // Page 1: ordinary page, page 2: rotated by 90 degrees, page 3: crop box with an
+    // offset and user unit 2, page 4: not recognized (skipped and reported)
+    PageSpec plainSpec;
+    plainSpec.size = QSizeF(300, 200);
+    PageSpec rotatedSpec;
+    rotatedSpec.size = QSizeF(300, 200);
+    rotatedSpec.rotation = PageRotation::Rotate90;
+    PageSpec unitSpec;
+    unitSpec.size = QSizeF(300, 200);
+    unitSpec.cropBox = QRectF(50, 20, 200, 150);
+    unitSpec.userUnit = 2.0;
+    PDFDocument document = createDocument({ plainSpec, rotatedSpec, unitSpec, plainSpec });
+
+    // Page 1: two lines of a block, the first ends with a word hyphenated at the line end,
+    // a discarded word, a word with unknown confidence and a Czech word
+    PDFOCRPageResult page1;
+    page1.pageIndex = 0;
+    page1.state = PDFOCRPageState::Done;
+    page1.provenance.engineId = QStringLiteral("tesseract");
+    page1.provenance.engineVersion = QStringLiteral("5.5.2");
+    page1.geometry.dpi = 72.0;
+    {
+        PDFOCRBlock block;
+        block.id = page1.allocateId();
+
+        PDFOCRLine first;
+        first.id = page1.allocateId();
+        first.words.push_back(makeWord(page1, QStringLiteral("Hello"), QRectF(10, 150, 50, 20), 91.0));
+        first.words.back().language = QStringLiteral("eng");
+        PDFOCRWord discarded = makeWord(page1, QStringLiteral("noise"), QRectF(70, 150, 30, 20), 20.0);
+        discarded.reviewState = PDFOCRReviewState::Discarded;
+        first.words.push_back(discarded);
+        first.words.push_back(makeWord(page1, QStringLiteral("docu-"), QRectF(110, 150, 60, 20), 88.0));
+        first.words.back().language = QStringLiteral("ces");
+        first.updateGeometryFromWords();
+
+        PDFOCRLine second;
+        second.id = page1.allocateId();
+        second.words.push_back(makeWord(page1, QStringLiteral("ment"), QRectF(10, 120, 40, 20), 77.0));
+        second.words.push_back(makeWord(page1, QStringLiteral("<a&b>"), QRectF(60, 120, 40, 20), std::nullopt));
+        second.updateGeometryFromWords();
+
+        block.lines.push_back(first);
+        block.lines.push_back(second);
+        block.updateGeometryFromLines();
+        page1.blocks.push_back(block);
+    }
+
+    // Page 2: horizontal text of the page space, which is vertical on the rotated page
+    PDFOCRPageResult page2 = createSampleResult(1, { { QStringLiteral("Rotated"), QRectF(100, 100, 80, 20) } });
+    page2.geometry.dpi = 72.0;
+
+    // Page 3: a right-to-left line
+    PDFOCRPageResult page3 = createSampleResult(2, { { QStringLiteral("abc"), QRectF(60, 100, 40, 10) } });
+    page3.geometry.dpi = 72.0;
+    page3.blocks.front().lines.front().direction = PDFOCRTextDirection::RightToLeft;
+    page3.blocks.front().lines.front().baseline = QLineF(QPointF(100, 100), QPointF(60, 100));
+    page3.blocks.front().lines.front().words.front().language = QStringLiteral("script/Latin");
+
+    PDFOCRPageResult page4;
+    page4.pageIndex = 3;
+    page4.state = PDFOCRPageState::Pending;
+
+    const std::vector<const PDFOCRPageResult*> pages = { &page1, &page2, &page3, &page4 };
+
+    // Transformation of the pages (the same as the rasterization of the recognition)
+    QTransform transform;
+    QSize size;
+    QVERIFY(PDFOCRStructuredExporter::getPageTransform(&document, 0, 72.0, &transform, &size));
+    QCOMPARE(size, QSize(300, 200));
+    QVERIFY(PDFOCRStructuredExporter::getPageTransform(&document, 1, 72.0, &transform, &size));
+    QCOMPARE(size, QSize(200, 300));
+    QVERIFY(PDFOCRStructuredExporter::getPageTransform(&document, 2, 72.0, &transform, &size));
+    QCOMPARE(size, QSize(400, 300));
+    QVERIFY(!PDFOCRStructuredExporter::getPageTransform(&document, 7, 72.0, &transform, &size));
+
+    // Resolution: explicit, of the recognition, or the default
+    PDFOCRStructuredExporter::Options dpiOptions;
+    QCOMPARE(PDFOCRStructuredExporter::getExportDpi(page1, dpiOptions), 72.0);
+    QCOMPARE(PDFOCRStructuredExporter::getExportDpi(page4, dpiOptions), PDFOCRStructuredExporter::DefaultDpi);
+    dpiOptions.dpi = 150.0;
+    QCOMPARE(PDFOCRStructuredExporter::getExportDpi(page1, dpiOptions), 150.0);
+
+    // Language tags
+    QCOMPARE(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("ces")), QStringLiteral("cs"));
+    QCOMPARE(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("chi_sim")), QStringLiteral("zh-Hans"));
+    QCOMPARE(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("eng@ab12cd34")), QStringLiteral("en"));
+    QCOMPARE(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("xyz")), QStringLiteral("xyz"));
+    QVERIFY(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("script/Latin")).isEmpty());
+    QVERIFY(PDFOCRStructuredExporter::toLanguageTag(QStringLiteral("abc_def")).isEmpty());
+
+    // hOCR ---------------------------------------------------------------
+    PDFOCRStructuredExporter::Options options;
+    options.format = PDFOCRStructuredExporter::Format::Hocr;
+    options.imageFileNameTemplate = QStringLiteral("page-%1.png");
+    options.title = QStringLiteral("Test & document");
+    PDFOCRTextExporter::Report report;
+    const QByteArray hocr = PDFOCRStructuredExporter::exportPages(&document, pages, options, &report);
+
+    QCOMPARE(report.exportedPages, (std::vector<PDFInteger>{ 0, 1, 2 }));
+    QCOMPARE(report.skippedPages, std::vector<PDFInteger>{ 3 });
+    QCOMPARE(report.skippedDescriptions.size(), 1);
+    QCOMPARE(report.wordCount, 6);
+
+    struct HocrElement
+    {
+        QString className;
+        QString title;
+        QString text;
+        QString language;
+        QString direction;
+    };
+    std::vector<HocrElement> elements;
+    QStringList metaNames;
+    {
+        QXmlStreamReader reader(hocr);
+        std::vector<size_t> open;
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            if (reader.isStartElement())
+            {
+                if (reader.name() == QLatin1String("meta"))
+                {
+                    metaNames << reader.attributes().value(QStringLiteral("name")).toString();
+                }
+
+                const QString className = reader.attributes().value(QStringLiteral("class")).toString();
+                if (!className.isEmpty())
+                {
+                    HocrElement element;
+                    element.className = className;
+                    element.title = reader.attributes().value(QStringLiteral("title")).toString();
+                    element.language = reader.attributes().value(QStringLiteral("lang")).toString();
+                    element.direction = reader.attributes().value(QStringLiteral("dir")).toString();
+                    elements.push_back(element);
+                    open.push_back(elements.size() - 1);
+                }
+                else
+                {
+                    open.push_back(std::numeric_limits<size_t>::max());
+                }
+            }
+            else if (reader.isCharacters() && !open.empty() && open.back() != std::numeric_limits<size_t>::max())
+            {
+                elements[open.back()].text += reader.text().toString();
+            }
+            else if (reader.isEndElement() && !open.empty())
+            {
+                open.pop_back();
+            }
+        }
+        QVERIFY2(!reader.hasError(), qPrintable(reader.errorString()));
+    }
+
+    auto findElements = [&elements](const QString& className)
+    {
+        std::vector<HocrElement> result;
+        std::copy_if(elements.begin(), elements.end(), std::back_inserter(result), [&className](const HocrElement& element) { return element.className == className; });
+        return result;
+    };
+
+    QVERIFY(metaNames.contains(QStringLiteral("ocr-system")));
+    QVERIFY(metaNames.contains(QStringLiteral("ocr-capabilities")));
+    QVERIFY(metaNames.contains(QStringLiteral("ocr-number-of-pages")));
+    QVERIFY(metaNames.contains(QStringLiteral("ocr-langs")));
+
+    const std::vector<HocrElement> hocrPages = findElements(QStringLiteral("ocr_page"));
+    QCOMPARE(hocrPages.size(), size_t(3));
+    QCOMPARE(hocrPages[0].title, QStringLiteral("image \"page-1.png\"; bbox 0 0 300 200; ppageno 0; scan_res 72 72"));
+    QCOMPARE(hocrPages[1].title, QStringLiteral("image \"page-2.png\"; bbox 0 0 200 300; ppageno 1; scan_res 72 72"));
+
+    const std::vector<HocrElement> hocrWords = findElements(QStringLiteral("ocrx_word"));
+    QCOMPARE(hocrWords.size(), size_t(6));
+    QCOMPARE(hocrWords[0].text, QStringLiteral("Hello"));
+    QCOMPARE(hocrWords[0].title, QStringLiteral("bbox 10 30 60 50; x_wconf 91"));
+    QCOMPARE(hocrWords[0].language, QStringLiteral("en"));
+    QCOMPARE(hocrWords[1].text, QStringLiteral("docu-"));
+    QCOMPARE(hocrWords[1].language, QStringLiteral("cs"));
+    QCOMPARE(hocrWords[3].text, QStringLiteral("<a&b>"));
+    QCOMPARE(hocrWords[3].title, QStringLiteral("bbox 60 60 100 80"));
+
+    // Page with user unit 2 and the crop box starting at [50, 20]: [60, 100] - [100, 110]
+    // is [20, 120] - [100, 140] in the pixels of the visible page
+    QCOMPARE(hocrWords[5].text, QStringLiteral("abc"));
+    QVERIFY2(hocrWords[5].title.startsWith(QStringLiteral("bbox 20 120 100 140")), qPrintable(hocrWords[5].title));
+
+    const std::vector<HocrElement> hocrLines = findElements(QStringLiteral("ocr_line"));
+    QCOMPARE(hocrLines.size(), size_t(4));
+    QVERIFY2(hocrLines[0].title.startsWith(QStringLiteral("bbox 10 30 170 50; baseline 0.000 0")), qPrintable(hocrLines[0].title));
+    QVERIFY2(hocrLines[2].title.contains(QStringLiteral("textangle 270")), qPrintable(hocrLines[2].title));
+    QCOMPARE(hocrLines[3].direction, QStringLiteral("rtl"));
+    QVERIFY2(!hocrLines[3].title.contains(QStringLiteral("textangle")), qPrintable(hocrLines[3].title));
+
+    // Rotated page: the word is mapped by the same transformation as the rasterization
+    QVERIFY(PDFOCRStructuredExporter::getPageTransform(&document, 1, 72.0, &transform, &size));
+    const QRect rotatedBox = transform.map(PDFOCRQuad::fromRect(QRectF(100, 100, 80, 20)).toPolygon()).boundingRect().toAlignedRect();
+    QVERIFY2(hocrWords[4].title.startsWith(QStringLiteral("bbox %1 %2 %3 %4").arg(rotatedBox.left()).arg(rotatedBox.top()).arg(rotatedBox.right() + 1).arg(rotatedBox.bottom() + 1)), qPrintable(hocrWords[4].title));
+
+    // Without the scores, no confidence is exported
+    options.includeConfidence = false;
+    QVERIFY(!PDFOCRStructuredExporter::exportPages(&document, pages, options, nullptr).contains("x_wconf"));
+    options.includeConfidence = true;
+
+    // Only reviewed words
+    options.onlyReviewed = true;
+    PDFOCRPageResult reviewedPage = page1;
+    reviewedPage.getWords()[0]->reviewState = PDFOCRReviewState::Confirmed;
+    const QByteArray reviewedHocr = PDFOCRStructuredExporter::exportPages(&document, { &reviewedPage }, options, nullptr);
+    QVERIFY(reviewedHocr.contains(">Hello<"));
+    QVERIFY(!reviewedHocr.contains(">ment<"));
+    options.onlyReviewed = false;
+
+    // ALTO ---------------------------------------------------------------
+    options.format = PDFOCRStructuredExporter::Format::Alto;
+    const QByteArray alto = PDFOCRStructuredExporter::exportPages(&document, pages, options, nullptr);
+
+    struct AltoString
+    {
+        QXmlStreamAttributes attributes;
+        bool followedByHyphen = false;
+        QString polygon;
+    };
+    std::vector<AltoString> strings;
+    std::vector<QXmlStreamAttributes> altoPages;
+    std::vector<QXmlStreamAttributes> altoLines;
+    QString measurementUnit;
+    {
+        QXmlStreamReader reader(alto);
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            if (!reader.isStartElement())
+            {
+                continue;
+            }
+
+            if (reader.name() == QLatin1String("alto"))
+            {
+                QCOMPARE(reader.namespaceUri().toString(), QStringLiteral("http://www.loc.gov/standards/alto/ns-v4#"));
+            }
+            else if (reader.name() == QLatin1String("MeasurementUnit"))
+            {
+                measurementUnit = reader.readElementText();
+            }
+            else if (reader.name() == QLatin1String("Page"))
+            {
+                altoPages.push_back(reader.attributes());
+            }
+            else if (reader.name() == QLatin1String("TextLine"))
+            {
+                altoLines.push_back(reader.attributes());
+            }
+            else if (reader.name() == QLatin1String("String"))
+            {
+                strings.push_back(AltoString{ reader.attributes(), false, QString() });
+            }
+            else if (reader.name() == QLatin1String("HYP"))
+            {
+                QVERIFY(!strings.empty());
+                strings.back().followedByHyphen = true;
+                QCOMPARE(reader.attributes().value(QStringLiteral("CONTENT")).toString(), QStringLiteral("-"));
+            }
+            else if (reader.name() == QLatin1String("Polygon"))
+            {
+                QVERIFY(!strings.empty());
+                strings.back().polygon = reader.attributes().value(QStringLiteral("POINTS")).toString();
+            }
+        }
+        QVERIFY2(!reader.hasError(), qPrintable(reader.errorString()));
+    }
+
+    QCOMPARE(measurementUnit, QStringLiteral("pixel"));
+    QCOMPARE(altoPages.size(), size_t(3));
+    QCOMPARE(altoPages[0].value(QStringLiteral("WIDTH")).toString(), QStringLiteral("300"));
+    QCOMPARE(altoPages[1].value(QStringLiteral("WIDTH")).toString(), QStringLiteral("200"));
+    QCOMPARE(altoPages[2].value(QStringLiteral("HEIGHT")).toString(), QStringLiteral("300"));
+    QCOMPARE(altoPages[2].value(QStringLiteral("PHYSICAL_IMG_NR")).toString(), QStringLiteral("3"));
+    QCOMPARE(altoLines[0].value(QStringLiteral("BASELINE")).toString(), QStringLiteral("10,50 170,50"));
+
+    QCOMPARE(strings.size(), size_t(6));
+    const QXmlStreamAttributes& hello = strings[0].attributes;
+    QCOMPARE(hello.value(QStringLiteral("CONTENT")).toString(), QStringLiteral("Hello"));
+    QCOMPARE(hello.value(QStringLiteral("HPOS")).toString(), QStringLiteral("10"));
+    QCOMPARE(hello.value(QStringLiteral("VPOS")).toString(), QStringLiteral("30"));
+    QCOMPARE(hello.value(QStringLiteral("WIDTH")).toString(), QStringLiteral("50"));
+    QCOMPARE(hello.value(QStringLiteral("HEIGHT")).toString(), QStringLiteral("20"));
+    QCOMPARE(hello.value(QStringLiteral("WC")).toString(), QStringLiteral("0.910"));
+    QCOMPARE(hello.value(QStringLiteral("LANG")).toString(), QStringLiteral("en"));
+
+    // Word hyphenated at the line end: the first part without the hyphen, HYP, the second part
+    QCOMPARE(strings[1].attributes.value(QStringLiteral("CONTENT")).toString(), QStringLiteral("docu"));
+    QCOMPARE(strings[1].attributes.value(QStringLiteral("SUBS_TYPE")).toString(), QStringLiteral("HypPart1"));
+    QCOMPARE(strings[1].attributes.value(QStringLiteral("SUBS_CONTENT")).toString(), QStringLiteral("document"));
+    QVERIFY(strings[1].followedByHyphen);
+    QCOMPARE(strings[2].attributes.value(QStringLiteral("SUBS_TYPE")).toString(), QStringLiteral("HypPart2"));
+    QCOMPARE(strings[2].attributes.value(QStringLiteral("SUBS_CONTENT")).toString(), QStringLiteral("document"));
+
+    // Unknown confidence has no WC, the special characters are escaped by the writer
+    QCOMPARE(strings[3].attributes.value(QStringLiteral("CONTENT")).toString(), QStringLiteral("<a&b>"));
+    QVERIFY(!strings[3].attributes.hasAttribute(QStringLiteral("WC")));
+
+    // Vertical word of the rotated page has its exact polygon, the script model is not a language
+    QVERIFY(!strings[4].polygon.isEmpty());
+    QVERIFY(!strings[5].attributes.hasAttribute(QStringLiteral("LANG")));
+
+    // TSV ----------------------------------------------------------------
+    options.format = PDFOCRStructuredExporter::Format::Tsv;
+    const QStringList rows = QString::fromUtf8(PDFOCRStructuredExporter::exportPages(&document, pages, options, nullptr)).split(QChar('\n'), Qt::SkipEmptyParts);
+    QCOMPARE(rows.front(), QStringLiteral("level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"));
+
+    // 3 pages, 3 blocks (2 rows each), 4 lines and 6 words
+    QCOMPARE(rows.size(), 1 + 3 + 3 * 2 + 4 + 6);
+    for (const QString& row : rows)
+    {
+        QCOMPARE(row.split(QChar('\t')).size(), 12);
+    }
+    QCOMPARE(rows[1], QStringLiteral("1\t1\t0\t0\t0\t0\t0\t0\t300\t200\t-1\t"));
+    QVERIFY(rows.contains(QStringLiteral("5\t1\t1\t1\t1\t1\t10\t30\t50\t20\t91.000000\tHello")));
+    QVERIFY(rows.contains(QStringLiteral("5\t1\t1\t1\t2\t2\t60\t60\t40\t20\t-1\t<a&b>")));
+}
+
+namespace
+{
+
+/// Image of the image documents of the compression tests
+struct TestImage
+{
+    QImage image;               ///< Source pixels
+    int bitsPerComponent = 8;   ///< 1 (black and white) or 8
+    bool gray = true;           ///< DeviceGray or DeviceRGB
+    bool compress = false;      ///< FlateDecode, otherwise uncompressed
+    bool jpeg = false;          ///< DCTDecode (lossy source)
+};
+
+/// Encodes the samples of the image of the PDF image stream
+QByteArray getImageSamples(const TestImage& testImage)
+{
+    QByteArray data;
+    const QImage& image = testImage.image;
+    if (testImage.bitsPerComponent == 1)
+    {
+        const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
+        const int rowBytes = (gray.width() + 7) / 8;
+        for (int y = 0; y < gray.height(); ++y)
+        {
+            QByteArray row(rowBytes, '\0');
+            const uchar* line = gray.constScanLine(y);
+            for (int x = 0; x < gray.width(); ++x)
+            {
+                // Sample 1 is white in DeviceGray with the default decode array
+                if (line[x] >= 128)
+                {
+                    row[x / 8] = char(uchar(row[x / 8]) | uchar(0x80 >> (x % 8)));
+                }
+            }
+            data.append(row);
+        }
+    }
+    else if (testImage.gray)
+    {
+        const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
+        for (int y = 0; y < gray.height(); ++y)
+        {
+            data.append(reinterpret_cast<const char*>(gray.constScanLine(y)), gray.width());
+        }
+    }
+    else
+    {
+        const QImage rgb = image.convertToFormat(QImage::Format_RGB888);
+        for (int y = 0; y < rgb.height(); ++y)
+        {
+            data.append(reinterpret_cast<const char*>(rgb.constScanLine(y)), rgb.width() * 3);
+        }
+    }
+    return data;
+}
+
+/// Creates a document, whose pages draw the images over the whole page
+/// (pageImages[i] is the index of the image drawn on the page i; several
+/// pages can share one image object)
+PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version = PDFVersion(1, 7))
+{
+    PDFDocumentBuilder builder;
+
+    std::vector<PDFObjectReference> imageReferences;
+    for (const TestImage& testImage : images)
+    {
+        QByteArray data;
+        QByteArray filter;
+        if (testImage.jpeg)
+        {
+            QBuffer buffer(&data);
+            buffer.open(QBuffer::WriteOnly);
+            testImage.image.convertToFormat(testImage.gray ? QImage::Format_Grayscale8 : QImage::Format_RGB888).save(&buffer, "JPG", 90);
+            filter = "DCTDecode";
+        }
+        else
+        {
+            data = getImageSamples(testImage);
+            if (testImage.compress)
+            {
+                data = PDFFlateDecodeFilter::compress(data);
+                filter = "FlateDecode";
+            }
+        }
+
+        PDFDictionary dictionary;
+        dictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(testImage.image.width()));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(testImage.image.height()));
+        dictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName(testImage.gray ? "DeviceGray" : "DeviceRGB"));
+        dictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(testImage.bitsPerComponent));
+        dictionary.addEntry(PDFInplaceOrMemoryString("Interpolate"), PDFObject::createBool(false));
+        if (!filter.isEmpty())
+        {
+            dictionary.addEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName(filter));
+        }
+        dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(data.size()));
+        imageReferences.push_back(builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(data)))));
+    }
+
+    for (int imageIndex : pageImages)
+    {
+        const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
+        QByteArray content = QStringLiteral("q %1 0 0 %2 0 0 cm /Im1 Do Q").arg(pageSize.width()).arg(pageSize.height()).toLatin1();
+        PDFDictionary contentDictionary;
+        contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
+        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(contentDictionary), std::move(content))));
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Contents");
+        factory << contentReference;
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("Resources");
+        factory.beginDictionary();
+        factory.beginDictionaryItem("XObject");
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Im1");
+        factory << imageReferences[size_t(imageIndex)];
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(pageReference, factory.takeObject());
+    }
+
+    PDFDocument document = builder.build();
+    return PDFDocument(PDFObjectStorage(document.getStorage()), version, QByteArray());
+}
+
+/// Black and white image with some text-like structure
+QImage createBitonalTextImage(QSize size, int seed)
+{
+    QImage image(size, QImage::Format_Grayscale8);
+    image.fill(255);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setRenderHint(QPainter::TextAntialiasing, false);
+    QFont font = painter.font();
+    font.setPixelSize(size.height() / 20);
+    painter.setFont(font);
+    painter.setPen(Qt::black);
+    for (int line = 0; line < 12; ++line)
+    {
+        painter.drawText(QPoint(size.width() / 12, size.height() / 14 * (line + 1)), QStringLiteral("Line %1 of the scanned text %2 ABCDEFGH").arg(line + 1).arg(seed));
+    }
+    painter.end();
+
+    // Hard black and white (no antialiasing remains)
+    for (int y = 0; y < image.height(); ++y)
+    {
+        uchar* row = image.scanLine(y);
+        for (int x = 0; x < image.width(); ++x)
+        {
+            row[x] = row[x] < 128 ? 0 : 255;
+        }
+    }
+    return image;
+}
+
+/// Gray scan of a text: paper, ink and antialiased edges
+QImage createGrayTextScan(QSize size)
+{
+    QImage image(size, QImage::Format_Grayscale8);
+    image.fill(236);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    QFont font = painter.font();
+    font.setPixelSize(size.height() / 22);
+    painter.setFont(font);
+    painter.setPen(QColor(30, 30, 30));
+    for (int line = 0; line < 14; ++line)
+    {
+        painter.drawText(QPoint(size.width() / 12, size.height() / 16 * (line + 1)), QStringLiteral("Scanned gray text line %1 with some words").arg(line + 1));
+    }
+    return image;
+}
+
+/// Photo-like gray image (smooth gradients, a lot of mid tones)
+QImage createPhotoImage(QSize size, bool gray)
+{
+    QImage image(size, QImage::Format_RGB32);
+    for (int y = 0; y < size.height(); ++y)
+    {
+        QRgb* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+        for (int x = 0; x < size.width(); ++x)
+        {
+            const int r = 60 + (x * 140) / size.width() + (y * 40) / size.height();
+            const int g = 80 + (y * 120) / size.height();
+            const int b = 120 + ((x + y) * 60) / (size.width() + size.height());
+            row[x] = gray ? qRgb(qGray(r, g, b), qGray(r, g, b), qGray(r, g, b)) : qRgb(r, g, b);
+        }
+    }
+    return image;
+}
+
+QImage renderPage(const PDFDocument& document, PDFInteger pageIndex, double dpi)
+{
+    RenderingContext context(&document);
+    PDFOCRPagePreparer preparer = context.createPreparer(&document);
+    return preparer.rasterize(pageIndex, dpi, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image;
+}
+
+QByteArray getImageFilter(const PDFDocument& document, PDFInteger pageIndex)
+{
+    const PDFPage* page = document.getCatalog()->getPage(pageIndex);
+    const PDFDictionary* resources = document.getDictionaryFromObject(page->getResources());
+    const PDFDictionary* xobjects = document.getDictionaryFromObject(resources->get("XObject"));
+    const PDFObject& image = document.getObject(xobjects->get("Im1"));
+    const PDFObject& filter = document.getObject(image.getStream()->getDictionary()->get("Filter"));
+    return filter.isName() ? filter.getString() : QByteArray();
+}
+
+} // namespace
+
+void OCRTest::applyProcessorPlanAndPermissions()
+{
+    PageSpec spec;
+    spec.size = QSizeF(300, 200);
+    spec.withImage = true;
+    PDFDocument document = createDocument({ spec, spec, spec, spec, spec });
+
+    // Context of an ordinary document
+    PDFOCRApplyProcessor::Context context = PDFOCRApplyProcessor::createContext(&document, QString());
+    QVERIFY(context.canModify);
+    QVERIFY(context.canCopyContent);
+    QCOMPARE(context.certificationPermissions, 0);
+    QVERIFY(!context.isTagged);
+    QVERIFY(!context.hasSignatures);
+    QVERIFY(!context.hasConformanceDeclaration());
+    QVERIFY(PDFOCRApplyProcessor::checkPermissions(context, PDFOCRApplyProcessor::OutputMode::ModifyDocument).isEmpty());
+
+    // Permissions (PDF-12) and the conformance declaration (PDF-15)
+    using Mode = PDFOCRApplyProcessor::OutputMode;
+    PDFOCRApplyProcessor::Context locked = context;
+    locked.canModify = false;
+    QVERIFY(!PDFOCRApplyProcessor::checkPermissions(locked, Mode::ModifyDocument).isEmpty());
+    QVERIFY(!PDFOCRApplyProcessor::checkPermissions(locked, Mode::CreateCopy).isEmpty());
+    PDFOCRApplyProcessor::Context certified = context;
+    certified.certificationPermissions = 1;
+    QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::ModifyDocument).isEmpty());
+    QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
+    certified.certificationPermissions = 2;
+    QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::ModifyDocument).isEmpty());
+    QVERIFY(PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
+    certified.certificationPermissions = 3;
+    QVERIFY(PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
+    PDFOCRApplyProcessor::Context conforming = context;
+    conforming.conformanceDeclarations = { QStringLiteral("PDF/A-2b") };
+    QVERIFY2(PDFOCRApplyProcessor::checkPermissions(conforming, Mode::ModifyDocument).contains(QStringLiteral("PDF/A-2b")), qPrintable(PDFOCRApplyProcessor::checkPermissions(conforming, Mode::ModifyDocument)));
+    QVERIFY(PDFOCRApplyProcessor::checkPermissions(conforming, Mode::CreateCopy).isEmpty());
+
+    // Results: 0 = valid, 1 = review only, 2 = changed page, 3 = invalid geometry,
+    // 4 = no result, 9 = not a page of the document
+    auto createResult = [&](PDFInteger pageIndex)
+    {
+        PDFOCRPageResult result = createSampleResult(pageIndex, { { QStringLiteral("Hello"), QRectF(20, 100, 60, 20) }, { QStringLiteral("world"), QRectF(90, 100, 60, 20) } });
+        result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, qMin<PDFInteger>(pageIndex, 4));
+        return result;
+    };
+
+    PDFOCRApplyProcessor::Request request;
+    request.results.push_back(createResult(0));
+    request.results.push_back(createResult(1));
+    request.results.back().reviewOnly = true;
+    request.results.push_back(createResult(2));
+    request.results.back().pageFingerprint = QByteArray("changed");
+    request.results.push_back(createResult(3));
+    request.results.back().getWords()[0]->quad = PDFOCRQuad::fromRect(QRectF(2e7, 2e7, 10, 10));
+    PDFOCRPageResult pending;
+    pending.pageIndex = 4;
+    request.results.push_back(pending);
+    request.results.push_back(createResult(9));
+    for (PDFInteger page = 0; page < 5; ++page)
+    {
+        request.fingerprints[page] = PDFOCRPagePreparer::computePageFingerprint(&document, page);
+    }
+    PDFOCRPageAnalysis analysis;
+    analysis.hasOwnOCRLayer = true;
+    request.analysis[0] = analysis;
+    request.reviewCriteria = PDFOCRReviewCriteria::create(99.0, true, QStringList());
+
+    PDFOCRApplyProcessor::Plan plan = PDFOCRApplyProcessor::createPlan(context, request);
+    QCOMPARE(plan.getPages(), std::vector<PDFInteger>{ 0 });
+    QCOMPARE(plan.excludedPages, (std::vector<PDFInteger>{ 1, 2, 3, 4, 9 }));
+    QCOMPARE(plan.excluded.size(), 5);
+    QVERIFY2(plan.excluded[0].contains(QStringLiteral("review/export only")), qPrintable(plan.excluded[0]));
+    QVERIFY2(plan.excluded[1].contains(QStringLiteral("differs")), qPrintable(plan.excluded[1]));
+    QVERIFY2(plan.excluded[2].contains(QStringLiteral("geometry")), qPrintable(plan.excluded[2]));
+    QCOMPARE(plan.replacedLayers, 1);
+    QCOMPARE(plan.unreviewedWords, 2);
+    QCOMPARE(plan.uncertainWords, 2);
+    QVERIFY(plan.knownFingerprints.count(0));
+    QVERIFY(!plan.writerOptions.markAsArtifact);
+    QVERIFY(plan.requests.front().result.analysis.hasOwnOCRLayer);
+
+    // Tagged document writes an artifact, a copy of a conforming document removes the declaration
+    PDFOCRApplyProcessor::Context tagged = context;
+    tagged.isTagged = true;
+    QVERIFY(PDFOCRApplyProcessor::createPlan(tagged, request).writerOptions.markAsArtifact);
+    request.outputMode = Mode::CreateCopy;
+    QVERIFY(PDFOCRApplyProcessor::createPlan(conforming, request).removeConformance);
+    QVERIFY(!PDFOCRApplyProcessor::createPlan(context, request).removeConformance);
+    request.outputMode = Mode::ModifyDocument;
+
+    // The copy never overwrites the document
+    QTemporaryDir directory;
+    const QString sourceFile = directory.filePath(QStringLiteral("source.pdf"));
+    QFile file(sourceFile);
+    QVERIFY(file.open(QFile::WriteOnly));
+    file.write("%PDF-1.7");
+    file.close();
+    PDFOCRApplyProcessor::Context fileContext = context;
+    fileContext.fileName = sourceFile;
+    PDFOCRApplyProcessor::Plan copyPlan = PDFOCRApplyProcessor::createPlan(fileContext, request);
+    QVERIFY(!PDFOCRApplyProcessor::setCopyFileName(copyPlan, fileContext, sourceFile).isEmpty());
+    QVERIFY(copyPlan.copyFileName.isEmpty());
+    QVERIFY(PDFOCRApplyProcessor::setCopyFileName(copyPlan, fileContext, directory.filePath(QStringLiteral("copy.pdf"))).isEmpty());
+    QCOMPARE(copyPlan.copyFileName, directory.filePath(QStringLiteral("copy.pdf")));
+
+    // Summary and warnings
+    const QString summary = PDFOCRApplyProcessor::getSummary(plan).join(QChar('\n'));
+    QVERIFY2(summary.contains(QStringLiteral("Pages: 1")), qPrintable(summary));
+    QVERIFY2(summary.contains(QStringLiteral("Own OCR layers to be replaced: 1")), qPrintable(summary));
+    plan.writerOptions.onlyReviewed = true;
+    plan.compression.mode = PDFOCRCompressionMode::BitonalTextScans;
+    const QString warnings = PDFOCRApplyProcessor::getWarnings(plan, tagged).join(QChar('\n'));
+    QVERIFY2(warnings.contains(QStringLiteral("INCOMPLETE")), qPrintable(warnings));
+    QVERIFY2(warnings.contains(QStringLiteral("tagged")), qPrintable(warnings));
+    QVERIFY2(warnings.contains(QStringLiteral("LOSSY")), qPrintable(warnings));
+    QVERIFY2(PDFOCRApplyProcessor::getSummary(plan).join(QChar('\n')).contains(QStringLiteral("Black and white text scans")), qPrintable(PDFOCRApplyProcessor::getSummary(plan).join(QChar('\n'))));
+}
+
+void OCRTest::applyProcessorExecute()
+{
+    PageSpec spec;
+    spec.size = QSizeF(300, 200);
+    spec.withImage = true;
+    PDFDocument document = createDocument({ spec, spec });
+    const PDFOCRApplyProcessor::Context context = PDFOCRApplyProcessor::createContext(&document, QString());
+
+    PDFOCRApplyProcessor::Request request;
+    for (PDFInteger page = 0; page < 2; ++page)
+    {
+        PDFOCRPageResult result = createSampleResult(page, { { QStringLiteral("Page"), QRectF(20, 100, 60, 20) }, { QString::number(page + 1), QRectF(90, 100, 30, 20) } });
+        result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, page);
+        request.results.push_back(result);
+    }
+
+    // Modification of the document
+    PDFOCRApplyProcessor::Plan plan = PDFOCRApplyProcessor::createPlan(context, request);
+    QCOMPARE(plan.getPages(), (std::vector<PDFInteger>{ 0, 1 }));
+    PDFOCRApplyProcessor::Result result = PDFOCRApplyProcessor::execute(context, plan, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.errorMessage));
+    QVERIFY(result.document);
+    QCOMPARE(result.report.writtenPages, (std::vector<PDFInteger>{ 0, 1 }));
+    for (PDFInteger page = 0; page < 2; ++page)
+    {
+        const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(result.document.data(), page);
+        QVERIFY(info.isPresent && info.fingerprintMatches);
+        QCOMPARE(result.fingerprints[page], PDFOCRPagePreparer::computePageFingerprint(result.document.data(), page));
+    }
+    QVERIFY(extractText(*result.document, 1).contains(QStringLiteral("Page 2")));
+
+    // The same layer again: nothing is changed (PDF-11)
+    const PDFOCRApplyProcessor::Context writtenContext = PDFOCRApplyProcessor::createContext(result.document.data(), QString());
+    PDFOCRApplyProcessor::Result repeated = PDFOCRApplyProcessor::execute(writtenContext, PDFOCRApplyProcessor::createPlan(writtenContext, request), nullptr);
+    QVERIFY2(repeated.isSuccess(), qPrintable(repeated.errorMessage));
+    QVERIFY(!repeated.document);
+    QCOMPARE(repeated.report.unchangedPages, (std::vector<PDFInteger>{ 0, 1 }));
+
+    // A page changed since the recognition is not written, the other pages are
+    PDFOCRApplyProcessor::Plan changedPlan = plan;
+    changedPlan.knownFingerprints[0] = QByteArray("changed");
+    PDFOCRApplyProcessor::Result changedResult = PDFOCRApplyProcessor::execute(context, changedPlan, nullptr);
+    QVERIFY2(changedResult.isSuccess(), qPrintable(changedResult.errorMessage));
+    QCOMPARE(changedResult.report.writtenPages, std::vector<PDFInteger>{ 1 });
+    QVERIFY(changedResult.report.messages.join(QChar('\n')).contains(QStringLiteral("Page 1")));
+    changedPlan.knownFingerprints[1] = QByteArray("changed");
+    changedResult = PDFOCRApplyProcessor::execute(context, changedPlan, nullptr);
+    QVERIFY(!changedResult.isSuccess());
+    QVERIFY(!changedResult.document);
+
+    // Cancelled operation does not produce a document
+    PDFOCRCancelToken token;
+    token.cancel();
+    PDFOCRApplyProcessor::Result cancelled = PDFOCRApplyProcessor::execute(context, plan, &token);
+    QVERIFY(!cancelled.isSuccess());
+    QVERIFY(!cancelled.document);
+
+    // Permissions are enforced also by the execution
+    PDFOCRApplyProcessor::Context locked = context;
+    locked.canModify = false;
+    QVERIFY(!PDFOCRApplyProcessor::execute(locked, plan, nullptr).isSuccess());
+
+    // A copy is written into its file
+    QTemporaryDir directory;
+    PDFOCRApplyProcessor::Plan copyPlan = plan;
+    copyPlan.outputMode = PDFOCRApplyProcessor::OutputMode::CreateCopy;
+    QVERIFY(PDFOCRApplyProcessor::setCopyFileName(copyPlan, context, directory.filePath(QStringLiteral("copy.pdf"))).isEmpty());
+    PDFOCRApplyProcessor::Result copyResult = PDFOCRApplyProcessor::execute(context, copyPlan, nullptr);
+    QVERIFY2(copyResult.isSuccess(), qPrintable(copyResult.errorMessage));
+    QFile copyFile(directory.filePath(QStringLiteral("copy.pdf")));
+    QVERIFY(copyFile.open(QFile::ReadOnly));
+    PDFDocument copy = read(copyFile.readAll());
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(&copy, 0).fingerprintMatches);
+
+    // Removal of the layers
+    PDFOCRApplyProcessor::Result removed = PDFOCRApplyProcessor::removeLayers(writtenContext, { 0, 1 }, nullptr);
+    QVERIFY2(removed.isSuccess(), qPrintable(removed.errorMessage));
+    QVERIFY(removed.document);
+    QCOMPARE(removed.report.writtenPages, (std::vector<PDFInteger>{ 0, 1 }));
+    QVERIFY(!PDFOCRTextLayerWriter::readLayerInfo(removed.document.data(), 0).isPresent);
+    PDFOCRApplyProcessor::Context certifiedContext = writtenContext;
+    certifiedContext.certificationPermissions = 2;
+    QVERIFY(!PDFOCRApplyProcessor::removeLayers(certifiedContext, { 0 }, nullptr).isSuccess());
+}
+
+void OCRTest::compressionLossless()
+{
+    // 1: black and white image, 2: gray gradient, 3: lossy JPEG source, 4: color photo
+    std::vector<TestImage> images(4);
+    images[0].image = createBitonalTextImage(QSize(600, 400), 1);
+    images[0].bitsPerComponent = 1;
+    images[1].image = createPhotoImage(QSize(300, 200), true);
+    images[2].image = createPhotoImage(QSize(300, 200), true);
+    images[2].jpeg = true;
+    images[3].image = createPhotoImage(QSize(150, 100), false);
+    images[3].gray = false;
+    const PDFDocument document = createImagePagesDocument(images, { 0, 1, 2, 3 }, QSizeF(300, 200), PDFVersion(1, 3));
+
+    const std::map<PDFObjectReference, std::vector<PDFInteger>> usage = PDFOCRImageCompressor::getImageUsage(&document);
+    QCOMPARE(usage.size(), size_t(4));
+
+    std::vector<QImage> before;
+    for (PDFInteger page = 0; page < 4; ++page)
+    {
+        before.push_back(renderPage(document, page, 100.0));
+        QVERIFY(!before.back().isNull());
+    }
+
+    PDFOCRCompressionSettings settings;
+    settings.mode = PDFOCRCompressionMode::Lossless;
+    settings.bitonalEncoding = PDFOCRBitonalEncoding::JBIG2;
+    PDFOCRCompressionReport report;
+    const PDFDocument compressed = PDFOCRImageCompressor::compress(&document, { 0, 1, 2, 3 }, settings, qint64(1) << 30, nullptr, &report);
+
+    using Action = PDFOCRCompressionImageResult::Action;
+    QCOMPARE(report.images.size(), size_t(4));
+    auto findResult = [&report](PDFInteger page) -> const PDFOCRCompressionImageResult*
+    {
+        for (const PDFOCRCompressionImageResult& image : report.images)
+        {
+            if (image.pages == std::vector<PDFInteger>{ page })
+            {
+                return &image;
+            }
+        }
+        return nullptr;
+    };
+
+    // The black and white image is encoded by JBIG2 (generic region), the version is raised
+    const PDFOCRCompressionImageResult* bitonal = findResult(0);
+    QVERIFY(bitonal);
+    QCOMPARE(bitonal->action, Action::Compressed);
+    QCOMPARE(bitonal->imageClass, PDFOCRCompressionImageResult::ImageClass::Bitonal);
+    QCOMPARE(bitonal->encoding, QStringLiteral("JBIG2"));
+    QVERIFY(bitonal->newBytes < bitonal->originalBytes);
+    QCOMPARE(getImageFilter(compressed, 0), QByteArray("JBIG2Decode"));
+    QVERIFY(report.versionRaised);
+    QCOMPARE(compressed.getInfo()->version.minor, uint16_t(4));
+
+    // The uncompressed gray image is encoded by Flate, the JPEG source is kept
+    QCOMPARE(findResult(1)->action, Action::Compressed);
+    QCOMPARE(getImageFilter(compressed, 1), QByteArray("FlateDecode"));
+    QCOMPARE(findResult(2)->action, Action::SkippedUnsupported);
+    QCOMPARE(getImageFilter(compressed, 2), QByteArray("DCTDecode"));
+    QCOMPARE(findResult(3)->action, Action::Compressed);
+    QVERIFY2(report.getSummary().contains(QStringLiteral("3 compressed")), qPrintable(report.getSummary()));
+
+    // Lossless: the pages look exactly the same
+    for (PDFInteger page = 0; page < 4; ++page)
+    {
+        QVERIFY2(renderPage(compressed, page, 100.0) == before[size_t(page)], qPrintable(QStringLiteral("Page %1 differs").arg(page + 1)));
+    }
+
+    // Other entries of the image dictionary are kept
+    const PDFDictionary* resources = compressed.getDictionaryFromObject(compressed.getCatalog()->getPage(0)->getResources());
+    const PDFObject& image = compressed.getObject(compressed.getDictionaryFromObject(resources->get("XObject"))->get("Im1"));
+    QVERIFY(image.getStream()->getDictionary()->hasKey("Interpolate"));
+
+    // The smallest encoding of the black and white image, CCITT and Flate
+    for (PDFOCRBitonalEncoding encoding : { PDFOCRBitonalEncoding::Smallest, PDFOCRBitonalEncoding::CCITTGroup4, PDFOCRBitonalEncoding::Flate })
+    {
+        settings.bitonalEncoding = encoding;
+        PDFOCRCompressionReport encodingReport;
+        const PDFDocument encoded = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, nullptr, &encodingReport);
+        QCOMPARE(encodingReport.images.front().action, Action::Compressed);
+        QVERIFY2(renderPage(encoded, 0, 100.0) == before[0], qPrintable(encodingReport.images.front().encoding));
+        if (encoding == PDFOCRBitonalEncoding::CCITTGroup4)
+        {
+            QCOMPARE(getImageFilter(encoded, 0), QByteArray("CCITTFaxDecode"));
+        }
+    }
+
+    // Off: nothing is changed
+    settings.mode = PDFOCRCompressionMode::Off;
+    PDFOCRCompressionReport offReport;
+    const PDFDocument unchanged = PDFOCRImageCompressor::compress(&document, { 0, 1, 2, 3 }, settings, qint64(1) << 30, nullptr, &offReport);
+    QVERIFY(offReport.images.empty());
+    QCOMPARE(getImageFilter(unchanged, 0), QByteArray());
+
+    // Cancelled: nothing is changed
+    settings.mode = PDFOCRCompressionMode::Lossless;
+    PDFOCRCancelToken token;
+    token.cancel();
+    PDFOCRCompressionReport cancelledReport;
+    const PDFDocument cancelled = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, &token, &cancelledReport);
+    QVERIFY(!cancelledReport.isChanged());
+    QCOMPARE(getImageFilter(cancelled, 0), QByteArray());
+}
+
+void OCRTest::compressionBitonalAndShared()
+{
+    // Classification of the content
+    const QImage grayScan = createGrayTextScan(QSize(800, 600));
+    QVERIFY(PDFOCRImageCompressor::isTextScan(grayScan));
+    QVERIFY(!PDFOCRImageCompressor::isTextScan(createPhotoImage(QSize(400, 300), true)));
+    QVERIFY(!PDFOCRImageCompressor::isTextScan(createPhotoImage(QSize(400, 300), false)));
+
+    // Conversion to black and white by the method of the settings
+    PDFOCRCompressionSettings settings;
+    settings.mode = PDFOCRCompressionMode::BitonalTextScans;
+    for (PDFOCRThresholdMethod method : { PDFOCRThresholdMethod::Automatic, PDFOCRThresholdMethod::Adaptive, PDFOCRThresholdMethod::Manual })
+    {
+        settings.thresholdMethod = method;
+        const QImage bitonal = PDFOCRImageCompressor::toBitonal(grayScan, settings, nullptr);
+        QCOMPARE(bitonal.size(), grayScan.size());
+        int black = 0;
+        int other = 0;
+        for (int y = 0; y < bitonal.height(); ++y)
+        {
+            for (int x = 0; x < bitonal.width(); ++x)
+            {
+                const int value = qGray(bitonal.pixel(x, y));
+                black += value == 0 ? 1 : 0;
+                other += (value != 0 && value != 255) ? 1 : 0;
+            }
+        }
+        QCOMPARE(other, 0);
+        QVERIFY(black > 0);
+        QVERIFY(black < bitonal.width() * bitonal.height() / 3);
+    }
+    settings.thresholdMethod = PDFOCRThresholdMethod::Manual;
+    settings.manualThreshold = 0;
+    const QImage white = PDFOCRImageCompressor::toBitonal(grayScan, settings, nullptr);
+    QCOMPARE(qGray(white.pixel(white.width() / 2, white.height() / 2)), 255);
+    settings.thresholdMethod = PDFOCRThresholdMethod::Automatic;
+
+    // 0: gray scan of a text, 1: gray photo, 2: black and white image shared by the pages 3 and 4
+    std::vector<TestImage> images(3);
+    images[0].image = grayScan;
+    images[1].image = createPhotoImage(QSize(400, 300), true);
+    images[2].image = createBitonalTextImage(QSize(400, 300), 2);
+    images[2].bitsPerComponent = 1;
+    const PDFDocument document = createImagePagesDocument(images, { 0, 1, 2, 2 }, QSizeF(400, 300));
+
+    using Action = PDFOCRCompressionImageResult::Action;
+    using ImageClass = PDFOCRCompressionImageResult::ImageClass;
+
+    // Lossy mode: the scan becomes black and white, the photo is compressed losslessly
+    PDFOCRCompressionReport report;
+    const PDFDocument converted = PDFOCRImageCompressor::compress(&document, { 0, 1 }, settings, qint64(1) << 30, nullptr, &report);
+    QCOMPARE(report.images.size(), size_t(2));
+    for (const PDFOCRCompressionImageResult& image : report.images)
+    {
+        QCOMPARE(image.action, Action::Compressed);
+        if (image.pages.front() == 0)
+        {
+            QCOMPARE(image.imageClass, ImageClass::TextScan);
+            QVERIFY(image.encoding == QStringLiteral("JBIG2") || image.encoding == QStringLiteral("CCITT G4") || image.encoding == QStringLiteral("Flate"));
+        }
+        else
+        {
+            QCOMPARE(image.imageClass, ImageClass::Picture);
+            QCOMPARE(image.encoding, QStringLiteral("Flate"));
+        }
+    }
+
+    // The converted scan is a 1-bit image, the photo keeps its 8-bit samples and looks the same
+    auto getImageDictionary = [&converted](PDFInteger pageIndex)
+    {
+        const PDFDictionary* resources = converted.getDictionaryFromObject(converted.getCatalog()->getPage(pageIndex)->getResources());
+        return converted.getObject(converted.getDictionaryFromObject(resources->get("XObject"))->get("Im1")).getStream()->getDictionary();
+    };
+    QCOMPARE(getImageDictionary(0)->get("BitsPerComponent").getInteger(), PDFInteger(1));
+    QCOMPARE(getImageDictionary(1)->get("BitsPerComponent").getInteger(), PDFInteger(8));
+    QVERIFY(renderPage(converted, 1, 72.0) == renderPage(document, 1, 72.0));
+
+    // Lossless mode does not convert the scan
+    settings.mode = PDFOCRCompressionMode::Lossless;
+    PDFOCRCompressionReport losslessReport;
+    const PDFDocument lossless = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, nullptr, &losslessReport);
+    QCOMPARE(losslessReport.images.front().encoding, QStringLiteral("Flate"));
+    QVERIFY(renderPage(lossless, 0, 72.0) == renderPage(document, 0, 72.0));
+
+    // The image shared with a page, which is not written, is skipped by default
+    PDFOCRCompressionReport sharedReport;
+    PDFOCRImageCompressor::compress(&document, { 2 }, settings, qint64(1) << 30, nullptr, &sharedReport);
+    QCOMPARE(sharedReport.images.front().action, Action::SkippedShared);
+    QVERIFY2(sharedReport.images.front().message.contains(QStringLiteral("4")), qPrintable(sharedReport.images.front().message));
+    QVERIFY(sharedReport.getSummary().contains(QStringLiteral("1 skipped (shared)")));
+    PDFOCRCompressionReport bothPagesReport;
+    PDFOCRImageCompressor::compress(&document, { 2, 3 }, settings, qint64(1) << 30, nullptr, &bothPagesReport);
+    QCOMPARE(bothPagesReport.images.front().action, Action::Compressed);
+    QCOMPARE(bothPagesReport.images.front().pages, (std::vector<PDFInteger>{ 2, 3 }));
+    settings.compressSharedImages = true;
+    PDFOCRCompressionReport forcedReport;
+    PDFOCRImageCompressor::compress(&document, { 2 }, settings, qint64(1) << 30, nullptr, &forcedReport);
+    QCOMPARE(forcedReport.images.front().action, Action::Compressed);
+
+    // Excluded image
+    settings.excludedImages = { report.images.front().reference, report.images.back().reference };
+    PDFOCRCompressionReport excludedReport;
+    PDFOCRImageCompressor::compress(&document, { 0, 1 }, settings, qint64(1) << 30, nullptr, &excludedReport);
+    QCOMPARE(excludedReport.getCount(Action::SkippedExcluded), 2);
+    settings.excludedImages.clear();
+
+    // Preview of a page: original, result and sizes
+    settings.mode = PDFOCRCompressionMode::BitonalTextScans;
+    const std::vector<PDFOCRImageCompressor::Preview> previews = PDFOCRImageCompressor::createPreview(&document, 0, { 0, 1 }, settings, nullptr);
+    QCOMPARE(previews.size(), size_t(1));
+    QCOMPARE(previews.front().original.size(), grayScan.size());
+    QCOMPARE(previews.front().compressed.size(), grayScan.size());
+    QVERIFY(previews.front().result.newBytes > 0);
+
+    // Settings: JSON (the excluded images are not stored) and validation
+    PDFOCRCompressionSettings stored = settings;
+    stored.thresholdMethod = PDFOCRThresholdMethod::Manual;
+    stored.manualThreshold = 97;
+    stored.downsample = true;
+    stored.downsampleDpi = 200;
+    stored.jpegQuality = 70;
+    stored.excludedImages = { PDFObjectReference(5, 0) };
+    PDFOCRCompressionSettings restored = PDFOCRCompressionSettings::fromJson(stored.toJson());
+    QVERIFY(restored.excludedImages.empty());
+    restored.excludedImages = stored.excludedImages;
+    QVERIFY(restored == stored);
+    QVERIFY(PDFOCRCompressionSettings().validate().isEmpty());
+    PDFOCRCompressionSettings invalid;
+    invalid.manualThreshold = 300;
+    invalid.jpegQuality = 0;
+    QCOMPARE(invalid.validate().size(), 2);
+    QVERIFY(!PDFOCRCompressionSettings().isLossy());
+    stored.mode = PDFOCRCompressionMode::Custom;
+    QVERIFY(stored.isLossy());
+
+    // The compression is a part of the configuration and of the profiles
+    PDFOCRConfiguration configuration;
+    configuration.compression = stored;
+    configuration.compression.excludedImages.clear();
+    QVERIFY(PDFOCRConfiguration::fromJson(configuration.toJson()).compression == configuration.compression);
+}
+
+void OCRTest::compressionStreaming()
+{
+    // Many pages, each with its own black and white image
+    constexpr int PageCount = 24;
+    std::vector<TestImage> images;
+    std::vector<int> pageImages;
+    for (int i = 0; i < PageCount; ++i)
+    {
+        TestImage image;
+        image.image = createBitonalTextImage(QSize(400, 300), i);
+        image.bitsPerComponent = 1;
+        images.push_back(image);
+        pageImages.push_back(i);
+    }
+    const PDFDocument document = createImagePagesDocument(images, pageImages, QSizeF(400, 300));
+
+    std::vector<PDFInteger> pages;
+    for (int i = 0; i < PageCount; ++i)
+    {
+        pages.push_back(i);
+    }
+
+    PDFOCRCompressionSettings settings;
+    settings.mode = PDFOCRCompressionMode::Lossless;
+
+    // A small budget processes the pages one by one: a single decoded image at a time
+    PDFOCRCompressionReport smallBudget;
+    PDFOCRImageCompressor::compress(&document, pages, settings, 1, nullptr, &smallBudget);
+    QCOMPARE(smallBudget.getCount(PDFOCRCompressionImageResult::Action::Compressed), PageCount);
+    QCOMPARE(smallBudget.maximumConcurrentImages, 1);
+
+    // A large budget is bounded by the number of the threads, never by the number of the pages
+    PDFOCRCompressionReport largeBudget;
+    PDFOCRImageCompressor::compress(&document, pages, settings, qint64(64) << 30, nullptr, &largeBudget);
+    QCOMPARE(largeBudget.getCount(PDFOCRCompressionImageResult::Action::Compressed), PageCount);
+    QVERIFY(largeBudget.maximumConcurrentImages >= 1);
+    QVERIFY(largeBudget.maximumConcurrentImages <= qMax(1, QThread::idealThreadCount()));
+}
+
+void OCRTest::compressionWithTextLayer()
+{
+    std::vector<TestImage> images(2);
+    for (int i = 0; i < 2; ++i)
+    {
+        images[size_t(i)].image = createBitonalTextImage(QSize(600, 400), i);
+        images[size_t(i)].bitsPerComponent = 1;
+    }
+    const PDFDocument document = createImagePagesDocument(images, { 0, 1 }, QSizeF(300, 200));
+    const PDFOCRApplyProcessor::Context context = PDFOCRApplyProcessor::createContext(&document, QString());
+
+    PDFOCRSession session(nullptr);
+    PDFOCRApplyProcessor::Request request;
+    for (PDFInteger page = 0; page < 2; ++page)
+    {
+        PDFOCRPageResult result = createSampleResult(page, { { QStringLiteral("Scanned"), QRectF(20, 100, 80, 20) } });
+        result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, page);
+        request.results.push_back(result);
+        session.setPageResult(result);
+    }
+    request.compression.mode = PDFOCRCompressionMode::Lossless;
+    session.setDirty(false);
+
+    PDFOCRApplyProcessor::Plan plan = PDFOCRApplyProcessor::createPlan(context, request);
+    QVERIFY(PDFOCRApplyProcessor::getSummary(plan).join(QChar('\n')).contains(QStringLiteral("Compression of the scanned images: Lossless")));
+    QVERIFY(PDFOCRApplyProcessor::getWarnings(plan, context).join(QChar('\n')).contains(QStringLiteral("save the project again")));
+    QVERIFY(!PDFOCRApplyProcessor::getWarnings(plan, context).join(QChar('\n')).contains(QStringLiteral("LOSSY")));
+
+    PDFOCRApplyProcessor::Result result = PDFOCRApplyProcessor::execute(context, plan, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.errorMessage));
+    QVERIFY(result.document);
+    QCOMPARE(result.compressionReport.getCount(PDFOCRCompressionImageResult::Action::Compressed), 2);
+    QCOMPARE(result.report.writtenPages, (std::vector<PDFInteger>{ 0, 1 }));
+
+    // The layer is bound to the compressed page, so it can be opened again for the corrections
+    for (PDFInteger page = 0; page < 2; ++page)
+    {
+        QVERIFY(getImageFilter(*result.document, page) != QByteArray());
+        PDFOCRTextLayerWriter::LayerInfo info;
+        std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(result.document.data(), page, &info);
+        QVERIFY(layer.has_value());
+        QVERIFY(info.fingerprintMatches);
+        QVERIFY(result.fingerprints[page] != request.results[size_t(page)].pageFingerprint);
+    }
+
+    // The session is bound to the new revision of the pages
+    session.rebindPageFingerprints(result.fingerprints);
+    QVERIFY(session.isDirty());
+    QCOMPARE(session.getPage(0)->pageFingerprint, result.fingerprints[0]);
+    QCOMPARE(session.getPage(1)->pageFingerprint, PDFOCRPagePreparer::computePageFingerprint(result.document.data(), 1));
+
+    // Written copy is valid after the reading
+    PDFDocument reopened = read(write(*result.document));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(&reopened, 0).fingerprintMatches);
+    QVERIFY(extractText(reopened, 0).contains(QStringLiteral("Scanned")));
+}
+
+void OCRTest::optimizeImagesKeepsLayer()
+{
+    std::vector<TestImage> images(1);
+    images[0].image = createPhotoImage(QSize(300, 200), true);
+    const PDFDocument document = createImagePagesDocument(images, { 0 }, QSizeF(300, 200));
+
+    PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Photo"), QRectF(20, 100, 80, 20) } });
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer withLayer = applyResults(document, { result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(withLayer, qPrintable(report.error.message));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(withLayer.data(), 0).fingerprintMatches);
+
+    // Optimization of the images (only the encoding of the image changes): the layer is rebound
+    PDFImageOptimizer::Settings settings = PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.autoMode = false;
+    settings.colorMode = PDFImageOptimizer::ColorMode::Preserve;
+    settings.grayProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::Flate;
+    settings.grayProfile.targetDpi = 0;
+    settings.colorProfile.targetDpi = 0;
+    std::vector<PDFImageOptimizer::ImageResult> imageResults;
+    PDFImageOptimizer optimizer;
+    const PDFDocument optimized = optimizer.optimize(withLayer.data(), settings, PDFImageOptimizer::ImageOverrides(), nullptr, nullptr, &imageResults);
+    QCOMPARE(imageResults.size(), size_t(1));
+    QVERIFY(!imageResults.front().keptOriginal);
+    QVERIFY(PDFOCRPagePreparer::computePageFingerprint(&optimized, 0) != PDFOCRPagePreparer::computePageFingerprint(withLayer.data(), 0));
+    PDFOCRTextLayerWriter::LayerInfo optimizedInfo;
+    QVERIFY(PDFOCRTextLayerWriter::readLayer(&optimized, 0, &optimizedInfo).has_value());
+    QVERIFY(optimizedInfo.fingerprintMatches);
+
+    // Any other change of the page keeps the layer unbound (the change is not hidden)
+    const PDFObjectReference imageReference = imageResults.front().reference;
+    PDFDocumentBuilder builder(&optimized);
+    const PDFObjectReference pageReference = optimized.getCatalog()->getPage(0)->getPageReference();
+    builder.setPageMediaBox(pageReference, QRectF(0, 0, 310, 200));
+    const PDFDocument changed = builder.build();
+    std::vector<PDFInteger> rebound;
+    const PDFDocument rebindAttempt = PDFOCRTextLayerWriter::rebindOptimizedDocument(withLayer.data(), changed, { imageReference }, &rebound);
+    QVERIFY(rebound.empty());
+    QVERIFY(!PDFOCRTextLayerWriter::readLayerInfo(&rebindAttempt, 0).fingerprintMatches);
+
+    // A layer, which is not bound in the original, stays unbound
+    std::vector<PDFInteger> reboundAgain;
+    PDFOCRTextLayerWriter::rebindOptimizedDocument(&changed, optimized, { imageReference }, &reboundAgain);
+    QVERIFY(reboundAgain.empty());
+}
+
+void OCRTest::tesseractAfterDeskew()
+{
+    // A scan skewed by 4 degrees clockwise is straightened permanently by the preparation
+    // of the scan, then recognized: the words lie horizontally on the straightened text
+    PageSpec spec;
+    spec.size = QSizeF(520, 200);
+    spec.withHelvetica = true;
+    const QPointF center(260, 100);
+    const QTransform skew = QTransform::fromTranslate(-center.x(), -center.y()) * QTransform().rotate(-4.0) * QTransform::fromTranslate(center.x(), center.y());
+    spec.content = QStringLiteral("q %1 %2 %3 %4 %5 %6 cm BT /F1 30 Tf 40 110 Td (Straightened scan) Tj ET BT /F1 30 Tf 40 60 Td (of the page) Tj ET Q")
+                       .arg(skew.m11()).arg(skew.m12()).arg(skew.m21()).arg(skew.m22()).arg(skew.dx()).arg(skew.dy()).toLatin1();
+    const PDFDocument scan = createScanDocument(spec);
+    QCOMPARE(scan.getCatalog()->getPageCount(), size_t(1));
+
+    RenderingContext context(&scan);
+    PDFOCRPagePreparer preparer = context.createPreparer(&scan);
+    const PDFScanPreparation::PageAnalysis analysis = PDFScanPreparation::analyzePage(preparer, &scan, 0, nullptr);
+    QVERIFY(analysis.isScan);
+    QVERIFY2(std::abs(analysis.skewAngle - 4.0) < 0.5, qPrintable(QString::number(analysis.skewAngle)));
+
+    PDFScanPreparation::Plan plan = PDFScanPreparation::createIdentityPlan(&scan);
+    plan.pages.front().deskewAngle = analysis.skewAngle;
+    const PDFScanPreparation::Result prepared = PDFScanPreparation::apply(&scan, plan, nullptr);
+    QVERIFY2(prepared.isSuccess() && prepared.document, qPrintable(prepared.errorMessage));
+
+    PDFOCRConfiguration configuration;
+    configuration.languages = { QStringLiteral("eng") };
+    configuration.dpi = 300.0;
+    QString skipReason;
+    QString errorMessage;
+    std::optional<PDFOCRPageResult> result = recognizeWithTesseract(*prepared.document, configuration, &skipReason, &errorMessage);
+    if (!skipReason.isEmpty())
+    {
+        PDF4QT_OCR_SKIP(qPrintable(skipReason));
+    }
+    QVERIFY2(result.has_value() && errorMessage.isEmpty(), qPrintable(errorMessage));
+    QVERIFY2(result->getText().contains(QStringLiteral("Straightened")), qPrintable(result->getText()));
+
+    // The words are horizontal on the visible page and lie on the straightened text
+    const PDFPage* page = prepared.document->getCatalog()->getPage(0);
+    const QTransform pageToVisible = PDFScanPreparation::getPageToVisible(page);
+    for (const PDFOCRWord* word : result->getWords())
+    {
+        const QPointF bottomLeft = pageToVisible.map(word->quad.points[0]);
+        const QPointF bottomRight = pageToVisible.map(word->quad.points[1]);
+        const double angle = std::atan2(bottomRight.y() - bottomLeft.y(), bottomRight.x() - bottomLeft.x()) * 180.0 / std::numbers::pi;
+        QVERIFY2(std::abs(angle) < 1.0, qPrintable(QStringLiteral("%1: %2").arg(word->text).arg(angle)));
+    }
+
+    // The text layer written onto the straightened page is found at the text
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer withLayer = applyResults(*prepared.document, { *result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(withLayer, qPrintable(report.error.message));
+    QVERIFY(extractText(*withLayer, 0).contains(QStringLiteral("Straightened")));
+}
+
+void OCRTest::perspectiveCorrection()
+{
+    // A "photographed" page: the rendered text is warped by a known projective
+    // transformation into a trapezoid and the result is the image of the page
+    PageSpec spec;
+    spec.size = QSizeF(400, 300);
+    spec.withHelvetica = true;
+    spec.content = "BT /F1 30 Tf 40 190 Td (Perspective text) Tj ET BT /F1 30 Tf 40 120 Td (of a photo) Tj ET";
+    PDFDocument textDocument = createDocument({ spec });
+    QImage original;
+    {
+        RenderingContext textContext(&textDocument);
+        PDFOCRPagePreparer textPreparer = textContext.createPreparer(&textDocument);
+        original = textPreparer.rasterize(0, 300.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image.convertToFormat(QImage::Format_RGB32);
+    }
+    QVERIFY(!original.isNull());
+    const QSizeF imageSize = original.size();
+
+    // Corners of the document on the photo (image coordinates): TL, TR, BR, BL
+    const QPolygonF photoCorners = QPolygonF() << QPointF(0.09 * imageSize.width(), 0.08 * imageSize.height())
+                                               << QPointF(0.91 * imageSize.width(), 0.13 * imageSize.height())
+                                               << QPointF(0.96 * imageSize.width(), 0.92 * imageSize.height())
+                                               << QPointF(0.05 * imageSize.width(), 0.96 * imageSize.height());
+    QTransform warp;
+    QVERIFY(QTransform::quadToQuad(QPolygonF(QRectF(QPointF(0, 0), imageSize)), photoCorners, warp));
+    QImage photo(original.size(), QImage::Format_RGB32);
+    photo.fill(Qt::white);
+    {
+        QPainter painter(&photo);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setTransform(warp);
+        painter.drawImage(QPointF(0, 0), original);
+    }
+    PDFDocument document = createImageDocument(photo, spec.size);
+
+    // Image of the page -> canonical page space
+    const QTransform imageToPage = QTransform::fromScale(spec.size.width() / imageSize.width(), -spec.size.height() / imageSize.height()) * QTransform::fromTranslate(0, spec.size.height());
+    PDFOCRQuad corners;
+    corners.points[0] = imageToPage.map(photoCorners[3]);   // bottom-left
+    corners.points[1] = imageToPage.map(photoCorners[2]);   // bottom-right
+    corners.points[2] = imageToPage.map(photoCorners[1]);   // top-right
+    corners.points[3] = imageToPage.map(photoCorners[0]);   // top-left
+
+    // Validation of the corners
+    const QRectF pageRect(QPointF(0, 0), spec.size);
+    QVERIFY2(PDFOCRPagePreparer::validatePerspective(corners, pageRect).isEmpty(), qPrintable(PDFOCRPagePreparer::validatePerspective(corners, pageRect)));
+    PDFOCRQuad crossed = corners;
+    std::swap(crossed.points[1], crossed.points[2]);
+    QVERIFY(!PDFOCRPagePreparer::validatePerspective(crossed, pageRect).isEmpty());
+    PDFOCRQuad tinyQuad = PDFOCRQuad::fromRect(QRectF(10, 10, 50, 40));
+    QVERIFY(!PDFOCRPagePreparer::validatePerspective(tinyQuad, pageRect).isEmpty());
+    PDFOCRQuad sharp = PDFOCRQuad::fromRect(QRectF(0, 0, 400, 300));
+    sharp.points[2] = QPointF(10, 295);
+    QVERIFY(!PDFOCRPagePreparer::validatePerspective(sharp, pageRect).isEmpty());
+
+    // Preprocessing: the corrected raster is the rectangle of the document and the
+    // corners of the raster map back onto the corners of the document on the photo
+    RenderingContext context(&document);
+    PDFOCRPagePreparer preparer = context.createPreparer(&document);
+    const PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(0, 300.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr);
+    QVERIFY(!raster.error);
+    PDFOCRPreprocessing preprocessing;
+    preprocessing.perspective = corners;
+    preprocessing.deskew = true;
+    const PDFOCRPagePreparer::PreprocessResult corrected = PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, preprocessing, std::nullopt, nullptr);
+    QVERIFY2(!corrected.error, qPrintable(corrected.error.message));
+    QVERIFY(corrected.geometry.pipeline.join(QChar(' ')).contains(QStringLiteral("perspective(")));
+    QVERIFY(corrected.geometry.pipeline.contains(QStringLiteral("deskew(skipped,perspective)")));
+    const QTransform engineToPage = corrected.geometry.getEngineToPage();
+    const QSizeF engineSize = corrected.image.size();
+    QVERIFY(QLineF(engineToPage.map(QPointF(0, 0)), corners.points[3]).length() < 1.0);
+    QVERIFY(QLineF(engineToPage.map(QPointF(engineSize.width(), engineSize.height())), corners.points[1]).length() < 1.0);
+
+    // Invalid corners are an error of the page
+    PDFOCRPreprocessing invalid;
+    invalid.perspective = crossed;
+    QVERIFY(PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, invalid, std::nullopt, nullptr).error);
+
+    // Recognition by the test engine: the word of the corrected image lies on the text of the photo
+    const QRectF engineWord(0.2 * engineSize.width(), 0.3 * engineSize.height(), 0.4 * engineSize.width(), 0.1 * engineSize.height());
+    m_testEngine->setHandler([engineWord](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+        PDFOCRRawBlock block;
+        block.rect = engineWord;
+        PDFOCRRawLine line;
+        line.rect = engineWord;
+        PDFOCRRawWord word;
+        word.text = QStringLiteral("Perspective");
+        word.rect = engineWord;
+        word.rawConfidence = 90.0;
+        line.words.push_back(word);
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        return output;
+    });
+
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    PDFOCRJobDescription description;
+    description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    description.configuration.languages = { QStringLiteral("eng") };
+    description.configuration.workerCount = 1;
+    description.configuration.detectBlankPages = false;
+    description.configuration.dpi = 300.0;
+    description.models.dataPath = QStringLiteral("/none");
+    description.models.languages = { QStringLiteral("eng") };
+    PDFOCRPageOverride pageOverride;
+    pageOverride.perspective = corners;
+    PDFOCRPageTask task;
+    task.pageIndex = 0;
+    task.configuration = pageOverride.apply(description.configuration);
+    task.generation = 1;
+    description.pages.push_back(task);
+
+    std::optional<PDFOCRPageResult> result;
+    connect(&controller, &PDFOCRJobController::pageFinished, this, [&](int, PDFOCRPageResult pageResult) { result = std::move(pageResult); });
+    int generation = 0;
+    QVERIFY(controller.start(description, &generation));
+    QTRY_VERIFY_WITH_TIMEOUT(result.has_value(), 30000);
+    controller.waitForFinished();
+    m_testEngine->setHandler(PDFOCRTestEngineFactory::Handler());
+    QVERIFY2(result->state == PDFOCRPageState::Done, qPrintable(result->error.message));
+
+    // Expected position: the corrected image is the original image scaled to its size,
+    // the original image was warped onto the photo
+    auto expectedPagePoint = [&](QPointF enginePoint)
+    {
+        const QPointF originalPoint(enginePoint.x() * imageSize.width() / engineSize.width(), enginePoint.y() * imageSize.height() / engineSize.height());
+        return imageToPage.map(warp.map(originalPoint));
+    };
+    const PDFOCRWord* word = result->getWords().front();
+    QVERIFY2(QLineF(word->quad.points[0], expectedPagePoint(engineWord.bottomLeft())).length() < 2.0, qPrintable(QStringLiteral("%1 %2").arg(word->quad.points[0].x()).arg(word->quad.points[0].y())));
+    QVERIFY2(QLineF(word->quad.points[1], expectedPagePoint(engineWord.bottomRight())).length() < 2.0, qPrintable(QStringLiteral("%1 %2").arg(word->quad.points[1].x()).arg(word->quad.points[1].y())));
+
+    // The word is a parallelogram (the text layer can place it), the layer is written
+    const QPointF bottom = word->quad.points[1] - word->quad.points[0];
+    const QPointF top = word->quad.points[2] - word->quad.points[3];
+    QVERIFY(QLineF(QPointF(), bottom - top).length() < 1e-6);
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer withLayer = applyResults(document, { *result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(withLayer, qPrintable(report.error.message));
+    QVERIFY(extractText(*withLayer, 0).contains(QStringLiteral("Perspective")));
+
+    // Serialization: the page override, the configuration and the project
+    const PDFOCRPageOverride restoredOverride = PDFOCRPageOverride::fromJson(pageOverride.toJson());
+    QVERIFY(restoredOverride.perspective.has_value());
+    QVERIFY(restoredOverride == pageOverride);
+    QVERIFY(!restoredOverride.isEmpty());
+    PDFOCRConfiguration configuration = pageOverride.apply(PDFOCRConfiguration());
+    QVERIFY(PDFOCRConfiguration::fromJson(configuration.toJson()) == configuration);
+    QVERIFY(!PDFOCRPreprocessing::fromJson(PDFOCRPreprocessing().toJson()).perspective.has_value());
+
+    // Tesseract reads the corrected photo
+    PDFOCRConfiguration tesseractConfiguration;
+    tesseractConfiguration.languages = { QStringLiteral("eng") };
+    tesseractConfiguration.dpi = 300.0;
+    tesseractConfiguration.preprocessing.perspective = corners;
+    QString skipReason;
+    QString errorMessage;
+    std::optional<PDFOCRPageResult> tesseractResult = recognizeWithTesseract(document, tesseractConfiguration, &skipReason, &errorMessage);
+    if (!skipReason.isEmpty())
+    {
+        PDF4QT_OCR_SKIP(qPrintable(skipReason));
+    }
+    QVERIFY2(tesseractResult.has_value() && errorMessage.isEmpty(), qPrintable(errorMessage));
+    QVERIFY2(tesseractResult->getText().contains(QStringLiteral("Perspective")), qPrintable(tesseractResult->getText()));
+    QVERIFY2(tesseractResult->getText().contains(QStringLiteral("photo")), qPrintable(tesseractResult->getText()));
+}
+
+// -------------------------------------------------------------------------
+// Phase 7 of OCR_PLAN.md: recognition of a document without a user interface
+// -------------------------------------------------------------------------
+
+void OCRTest::documentRunner()
+{
+    PageSpec scanPage;
+    scanPage.withImage = true;
+
+    PageSpec numberedScanPage;
+    numberedScanPage.withHelvetica = true;
+    numberedScanPage.withImage = true;
+    numberedScanPage.content = "BT /F1 10 Tf 280 10 Td (12) Tj ET";
+
+    PageSpec textPage;
+    textPage.withHelvetica = true;
+    textPage.content = "BT /F1 12 Tf 20 150 Td (This is a page with a usable amount of visible digital text, ) Tj 0 -14 Td (which does not need any recognition at all.) Tj ET";
+
+    PageSpec wideScanPage;
+    wideScanPage.withImage = true;
+    wideScanPage.size = QSizeF(320, 200);
+
+    PageSpec mixedPage;
+    mixedPage.withHelvetica = true;
+    mixedPage.withImage = true;
+    mixedPage.content = "BT /F1 12 Tf 20 180 Td (This is a page with a usable amount of visible digital text and an image.) Tj ET";
+
+    // 0 scan, 1 scan with a digital page number, 2 digital text, 3 wide scan, 4 text and image
+    const PDFDocument document = createDocument({ scanPage, numberedScanPage, textPage, wideScanPage, mixedPage });
+
+    // The wide page fails on request, the other pages have a single word in the middle
+    std::atomic<bool> failWidePage = { true };
+    std::atomic<int> callCount = { 0 };
+    const int wideImageWidth = qRound(320.0 / 72.0 * 300.0);
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([&](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        ++callCount;
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        if (failWidePage && qAbs(input.image.width() - wideImageWidth) <= 2)
+        {
+            output.error = PDFOCRError::create(PDFOCRErrorCode::WorkerCrashed, QStringLiteral("Simulated failure"), QStringLiteral("Recognition"));
+            return output;
+        }
+
+        const QRectF rect(input.image.width() * 0.2, input.image.height() * 0.4, input.image.width() * 0.4, input.image.height() * 0.1);
+        PDFOCRRawBlock block;
+        block.rect = rect;
+        PDFOCRRawLine line;
+        line.rect = rect;
+        PDFOCRRawWord word;
+        word.text = QStringLiteral("word");
+        word.rect = rect;
+        word.rawConfidence = 90.0;
+        line.words.push_back(word);
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+        return output;
+    });
+
+    PDFOCRDocumentRunner::Settings settings;
+    settings.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    settings.configuration.languages = { QStringLiteral("eng") };
+    settings.configuration.workerCount = 2;
+    settings.configuration.detectBlankPages = false;
+
+    auto findRecord = [](const PDFOCRDocumentRunner::Result& result, PDFInteger page) -> const PDFOCRDocumentRunner::PageRecord&
+    {
+        static const PDFOCRDocumentRunner::PageRecord none;
+        auto it = std::find_if(result.records.cbegin(), result.records.cend(), [page](const auto& record) { return record.pageIndex == page; });
+        return it != result.records.cend() ? *it : none;
+    };
+
+    // Pages needing a decision are skipped by default, a failed page is reported
+    std::vector<int> progressCalls;
+    PDFOCRDocumentRunner::Result result = PDFOCRDocumentRunner::run(&document, settings, [&](int finished, int total, const PDFOCRPageResult* page)
+    {
+        if (page)
+        {
+            progressCalls.push_back(finished);
+            QCOMPARE(total, 2);
+        }
+    }, nullptr);
+    QVERIFY2(result.errorMessage.isEmpty(), qPrintable(result.errorMessage));
+    QVERIFY(!result.cancelled);
+    QCOMPARE(result.records.size(), size_t(5));
+    QCOMPARE(progressCalls, std::vector<int>({ 1, 2 }));
+    QCOMPARE(findRecord(result, 0).state, PDFOCRPageState::Done);
+    QCOMPARE(findRecord(result, 0).source, PDFOCRDocumentRunner::PageSource::Recognized);
+    QCOMPARE(findRecord(result, 0).statistics.wordCount, 1);
+    QCOMPARE(findRecord(result, 1).state, PDFOCRPageState::Skipped);
+    QVERIFY(findRecord(result, 1).message.contains(QStringLiteral("decision")));
+    QCOMPARE(findRecord(result, 2).state, PDFOCRPageState::Skipped);
+    QCOMPARE(findRecord(result, 2).source, PDFOCRDocumentRunner::PageSource::Skipped);
+    QCOMPARE(findRecord(result, 3).state, PDFOCRPageState::Error);
+    QVERIFY(findRecord(result, 3).message.contains(QStringLiteral("Simulated failure")));
+    QCOMPARE(findRecord(result, 4).state, PDFOCRPageState::Skipped);
+    QCOMPARE(result.getFailedPageCount(), 1);
+    QCOMPARE(result.getResultPageCount(), 1);
+    QCOMPARE(result.summary.errorPages, 1);
+    QCOMPARE(result.getStatistics().wordCount, 1);
+
+    // Masking: the scan with the digital page number is recognized with the number
+    // masked; the page with a visible text cannot be masked
+    failWidePage = false;
+    settings.decisionPolicy = PDFOCRDocumentRunner::DecisionPolicy::MaskExistingText;
+    result = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.errorMessage));
+    QCOMPARE(result.getFailedPageCount(), 0);
+    QCOMPARE(findRecord(result, 1).state, PDFOCRPageState::Done);
+    QVERIFY(findRecord(result, 1).masked);
+    QVERIFY(!findRecord(result, 1).reviewOnly);
+    QCOMPARE(findRecord(result, 3).state, PDFOCRPageState::Done);
+    QCOMPARE(findRecord(result, 4).state, PDFOCRPageState::Skipped);
+    QVERIFY(findRecord(result, 4).message.contains(QStringLiteral("cannot be masked")));
+
+    // The copy with the text layer
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString sourceFileName = directory.filePath(QStringLiteral("source.pdf"));
+    const QString copyFileName = directory.filePath(QStringLiteral("copy.pdf"));
+    {
+        QFile sourceFile(sourceFileName);
+        QVERIFY(sourceFile.open(QFile::WriteOnly));
+        sourceFile.write(write(document));
+    }
+
+    PDFOCRDocumentRunner::WriteOptions writeOptions;
+    writeOptions.sourceFileName = sourceFileName;
+    writeOptions.outputFileName = sourceFileName;
+    PDFOCRApplyProcessor::Plan plan;
+    PDFOCRApplyProcessor::Result writeResult = PDFOCRDocumentRunner::writeCopy(&document, result, writeOptions, &plan, nullptr);
+    QVERIFY2(!writeResult.isSuccess(), "The copy must never overwrite the source document");
+
+    writeOptions.outputFileName = copyFileName;
+    writeResult = PDFOCRDocumentRunner::writeCopy(&document, result, writeOptions, &plan, nullptr);
+    QVERIFY2(writeResult.isSuccess(), qPrintable(writeResult.errorMessage));
+    QCOMPARE(plan.getPages(), std::vector<PDFInteger>({ 0, 1, 3 }));
+    QVERIFY(QFileInfo::exists(copyFileName));
+    {
+        QFile copyFile(copyFileName);
+        QVERIFY(copyFile.open(QFile::ReadOnly));
+        const PDFDocument copy = read(copyFile.readAll());
+        QCOMPARE(copy.getCatalog()->getPageCount(), size_t(5));
+        for (PDFInteger page : { 0, 1, 3 })
+        {
+            const std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(&copy, page);
+            QVERIFY2(layer.has_value(), qPrintable(QStringLiteral("page %1").arg(page)));
+            QCOMPARE(layer->getText().trimmed(), QStringLiteral("word"));
+        }
+        QVERIFY(!PDFOCRTextLayerWriter::readLayer(&copy, 2).has_value());
+        QVERIFY(!PDFOCRTextLayerWriter::readLayer(&copy, 4).has_value());
+    }
+
+    // Exports of the results of the selected pages
+    const std::vector<const PDFOCRPageResult*> exportResults = PDFOCRDocumentRunner::getExportResults(result);
+    QCOMPARE(exportResults.size(), size_t(5));
+    PDFOCRTextExporter::Report textReport;
+    const QString text = PDFOCRTextExporter::exportText(exportResults, PDFOCRTextExporter::Options(), &textReport);
+    QCOMPARE(text.count(QStringLiteral("word")), 3);
+    QCOMPARE(textReport.exportedPages, std::vector<PDFInteger>({ 0, 1, 3 }));
+
+    // Review only: the pages needing a decision are recognized, but never written
+    settings.decisionPolicy = PDFOCRDocumentRunner::DecisionPolicy::ReviewOnly;
+    PDFOCRDocumentRunner::Result reviewResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QVERIFY(reviewResult.isSuccess());
+    QVERIFY(findRecord(reviewResult, 1).reviewOnly);
+    QVERIFY(findRecord(reviewResult, 4).reviewOnly);
+    QCOMPARE(findRecord(reviewResult, 4).state, PDFOCRPageState::Done);
+    QVERIFY(!findRecord(reviewResult, 0).reviewOnly);
+    writeOptions.outputFileName = directory.filePath(QStringLiteral("review.pdf"));
+    writeResult = PDFOCRDocumentRunner::writeCopy(&document, reviewResult, writeOptions, &plan, nullptr);
+    QVERIFY2(writeResult.isSuccess(), qPrintable(writeResult.errorMessage));
+    QCOMPARE(plan.getPages(), std::vector<PDFInteger>({ 0, 3 }));
+
+    // Page selection
+    settings.pages = { 3 };
+    PDFOCRDocumentRunner::Result selectedResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QVERIFY(selectedResult.isSuccess());
+    QCOMPARE(selectedResult.records.size(), size_t(1));
+    QCOMPARE(selectedResult.records.front().pageIndex, PDFInteger(3));
+    settings.pages = { 7 };
+    QVERIFY(!PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr).errorMessage.isEmpty());
+    settings.pages.clear();
+
+    // Project: the corrected results of the unchanged pages are used without a new
+    // recognition, a changed page is recognized again
+    const PDFOCRPageResult* firstPage = result.session->getPage(0);
+    QVERIFY(firstPage && !firstPage->getWords().empty());
+    QVERIFY(result.session->setWordText(0, firstPage->getWords().front()->id, QStringLiteral("Corrected")));
+    PDFOCRProject project = result.session->createProject(result.pages);
+    QVERIFY(project.pages.count(3));
+    project.pages[3].pageFingerprint = QByteArray("changed page");
+
+    settings.decisionPolicy = PDFOCRDocumentRunner::DecisionPolicy::MaskExistingText;
+    settings.project = project;
+    const int callsBefore = callCount;
+    PDFOCRDocumentRunner::Result projectResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QVERIFY2(projectResult.isSuccess(), qPrintable(projectResult.errorMessage));
+    QCOMPARE(callCount - callsBefore, 1);
+    QCOMPARE(findRecord(projectResult, 0).source, PDFOCRDocumentRunner::PageSource::Project);
+    QCOMPARE(findRecord(projectResult, 1).source, PDFOCRDocumentRunner::PageSource::Project);
+    QCOMPARE(findRecord(projectResult, 3).source, PDFOCRDocumentRunner::PageSource::Recognized);
+    QCOMPARE(projectResult.session->getPage(0)->getText().trimmed(), QStringLiteral("Corrected"));
+    QCOMPARE(projectResult.warnings.size(), qsizetype(1));
+    QVERIFY(projectResult.warnings.front().contains(QStringLiteral("different content")));
+    settings.project.reset();
+
+    // A page too large for the engine is an error without the consent to a reduced resolution
+    m_testEngine->setMaximumImageSize(QSize(800, 800));
+    settings.pages = { 0 };
+    PDFOCRDocumentRunner::Result largeResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QVERIFY(largeResult.errorMessage.isEmpty());
+    QCOMPARE(findRecord(largeResult, 0).state, PDFOCRPageState::Error);
+    QCOMPARE(largeResult.session->getPage(0)->error.code, PDFOCRErrorCode::ImageTooLarge);
+    settings.allowReducedResolution = true;
+    largeResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr);
+    QCOMPARE(findRecord(largeResult, 0).state, PDFOCRPageState::Done);
+    QCOMPARE(largeResult.warnings.size(), qsizetype(1));
+    m_testEngine->setMaximumImageSize(QSize());
+    settings.allowReducedResolution = false;
+    settings.pages.clear();
+
+    // Invalid configuration and an engine with managed models without the model manager
+    PDFOCRDocumentRunner::Settings invalidSettings = settings;
+    invalidSettings.configuration.languages.clear();
+    QVERIFY(!PDFOCRDocumentRunner::run(&document, invalidSettings, nullptr, nullptr).errorMessage.isEmpty());
+    invalidSettings = settings;
+    invalidSettings.configuration.engineId = QStringLiteral("unknown-engine");
+    QCOMPARE(PDFOCRDocumentRunner::run(&document, invalidSettings, nullptr, nullptr).errorCode, PDFOCRErrorCode::InvalidConfiguration);
+
+    // Processing of a file: the copy, the exports and the project are written
+    {
+        PDFOCRDocumentRunner::FileTask task;
+        task.inputFile = sourceFileName;
+        task.outputFile = directory.filePath(QStringLiteral("file.pdf"));
+        task.exportText = directory.filePath(QStringLiteral("file.txt"));
+        task.exportAlto = directory.filePath(QStringLiteral("file.xml"));
+        task.saveProjectFile = directory.filePath(QStringLiteral("file.pdf4qt-ocr"));
+        PDFOCRConfiguration taskConfiguration = settings.configuration;
+        task.configure = [&taskConfiguration](const PDFOCRProject* project, PDFOCRConfiguration* configuration)
+        {
+            *configuration = project ? project->configuration : taskConfiguration;
+            return QString();
+        };
+
+        PDFOCRDocumentRunner::Settings fileSettings;
+        fileSettings.decisionPolicy = PDFOCRDocumentRunner::DecisionPolicy::MaskExistingText;
+
+        failWidePage = true;
+        PDFOCRDocumentRunner::FileResult fileResult = PDFOCRDocumentRunner::processFile(task, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.status, PDFOCRDocumentRunner::FileResult::Status::Failed);
+        QCOMPARE(fileResult.stage, PDFOCRDocumentRunner::FileResult::Stage::PageErrors);
+        QVERIFY(!QFileInfo::exists(task.outputFile));
+        QVERIFY(!QFileInfo::exists(task.exportText));
+        QVERIFY(!QFileInfo::exists(task.saveProjectFile));
+
+        task.allowPageErrors = true;
+        fileResult = PDFOCRDocumentRunner::processFile(task, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.status, PDFOCRDocumentRunner::FileResult::Status::Success);
+        QVERIFY(fileResult.message.contains(QStringLiteral("failed")));
+        QCOMPARE(fileResult.pageCount, 5);
+        QCOMPARE(fileResult.plan.getPages(), std::vector<PDFInteger>({ 0, 1 }));
+        QVERIFY(QFileInfo::exists(task.outputFile));
+        QVERIFY(QFileInfo::exists(task.exportAlto));
+        QVERIFY(QFileInfo::exists(task.saveProjectFile));
+        QVERIFY(!fileResult.messages.isEmpty());
+        {
+            QFile textFile(task.exportText);
+            QVERIFY(textFile.open(QFile::ReadOnly));
+            QCOMPARE(QString::fromUtf8(textFile.readAll()).count(QStringLiteral("word")), 2);
+        }
+
+        // The saved project: its pages are used without a new recognition
+        failWidePage = false;
+        PDFOCRDocumentRunner::FileTask projectTask = task;
+        projectTask.outputFile.clear();
+        projectTask.saveProjectFile.clear();
+        projectTask.exportAlto.clear();
+        projectTask.exportText = directory.filePath(QStringLiteral("project.txt"));
+        projectTask.projectFile = task.saveProjectFile;
+        projectTask.allowPageErrors = false;
+        const int callsBeforeProject = callCount;
+        fileResult = PDFOCRDocumentRunner::processFile(projectTask, fileSettings, nullptr, nullptr);
+        QVERIFY2(fileResult.status == PDFOCRDocumentRunner::FileResult::Status::Success, qPrintable(fileResult.message));
+        QCOMPARE(callCount - callsBeforeProject, 1);    // only the failed page
+        QCOMPARE(findRecord(fileResult.result, 0).source, PDFOCRDocumentRunner::PageSource::Project);
+        QCOMPARE(findRecord(fileResult.result, 3).source, PDFOCRDocumentRunner::PageSource::Recognized);
+
+        // A page selection without a recognizable page writes nothing
+        PDFOCRDocumentRunner::FileTask textTask = task;
+        textTask.outputFile = directory.filePath(QStringLiteral("text.pdf"));
+        textTask.exportText = directory.filePath(QStringLiteral("text.txt"));
+        textTask.exportAlto.clear();
+        textTask.saveProjectFile.clear();
+        textTask.selectPages = [](PDFInteger, std::vector<PDFInteger>* pages) { *pages = { 2 }; return QString(); };
+        fileResult = PDFOCRDocumentRunner::processFile(textTask, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.status, PDFOCRDocumentRunner::FileResult::Status::Skipped);
+        QCOMPARE(fileResult.stage, PDFOCRDocumentRunner::FileResult::Stage::NothingToWrite);
+        QVERIFY(!QFileInfo::exists(textTask.outputFile));
+        QVERIFY(!QFileInfo::exists(textTask.exportText));
+
+        // Errors of the configuration and of the reading
+        textTask.selectPages = nullptr;
+        textTask.configure = [](const PDFOCRProject*, PDFOCRConfiguration*) { return QStringLiteral("No language"); };
+        fileResult = PDFOCRDocumentRunner::processFile(textTask, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.stage, PDFOCRDocumentRunner::FileResult::Stage::Configuration);
+        QCOMPARE(fileResult.message, QStringLiteral("No language"));
+
+        textTask.inputFile = directory.filePath(QStringLiteral("missing.pdf"));
+        fileResult = PDFOCRDocumentRunner::processFile(textTask, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.status, PDFOCRDocumentRunner::FileResult::Status::Failed);
+        QCOMPARE(fileResult.stage, PDFOCRDocumentRunner::FileResult::Stage::Reading);
+    }
+
+    // Cancellation
+    PDFOCRCancelToken cancelToken;
+    cancelToken.cancel();
+    const int callsBeforeCancel = callCount;
+    PDFOCRDocumentRunner::Result cancelledResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, &cancelToken);
+    QVERIFY(cancelledResult.cancelled);
+    QVERIFY(!cancelledResult.isSuccess());
+    QCOMPARE(callCount - callsBeforeCancel, 0);
+
+    m_testEngine->setHandler(PDFOCRTestEngineFactory::Handler());
 }
 
 QTEST_MAIN(OCRTest)

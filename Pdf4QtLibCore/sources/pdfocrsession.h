@@ -73,6 +73,10 @@ public:
 
     double getReviewThreshold() const { return m_configuration.reviewThreshold; }
 
+    /// Returns the criteria of the review: the score threshold, the dictionary
+    /// criterion and the user words of the configuration (accepted words)
+    PDFOCRReviewCriteria getReviewCriteria() const;
+
     // Results ------------------------------------------------------------
 
     /// Returns page result, or nullptr, if page has no record
@@ -99,6 +103,12 @@ public:
     /// the result, not an undo step; it survives the editing, undo/redo and the
     /// project round trip (INPUT-04, EXPORT-03).
     void setPageReviewOnly(PDFInteger pageIndex, bool reviewOnly);
+
+    /// Binds the results of the pages to a new revision of the pages, which changed
+    /// without a change of the geometry (the scanned images were compressed when the
+    /// text layer was written). A project saved afterwards matches the new revision.
+    /// Not an undo step.
+    void rebindPageFingerprints(const std::map<PDFInteger, QByteArray>& fingerprints);
 
     /// Finds the word of the raw recognition of the page by its identifier
     /// (the identifier at the time of the recognition), or nullptr (DATA-02)

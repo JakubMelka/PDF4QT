@@ -290,6 +290,9 @@ PDFOCREngineCapabilities PDFOCRTestEngineFactory::getCapabilities() const
     capabilities.supportsProgress = true;
     capabilities.supportsMultipleLanguages = true;
 
+    // The handler decides the dictionary information of the words (empty = unknown)
+    capabilities.providesDictionaryInformation = true;
+
     // No parameter schema: the test engine accepts any engine parameter, the tests
     // pass their data (page index, flags) through the parameters to the handler.
 

@@ -29,6 +29,7 @@
 #include <QLineF>
 #include <QString>
 #include <QPointF>
+#include <QSet>
 #include <QPolygonF>
 #include <QDateTime>
 #include <QTransform>
@@ -228,6 +229,13 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRWord
 
     /// Horizontal scaling of the text into the geometry is extreme (EDIT-04)
     bool hasExtremeScaling = false;
+
+    /// The original recognized text was found in the dictionary of the language
+    /// model (historical, like the confidence). Empty, if the engine does not
+    /// know - no dictionary was loaded, the word is a number, or the engine does
+    /// not provide the information. Words created or merged by the user have
+    /// no dictionary information.
+    std::optional<bool> inDictionary;
 
     /// Returns true, if the word is usable for the text layer (nonempty
     /// text, valid geometry, not discarded)
@@ -679,6 +687,33 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageResult
     bool operator==(const PDFOCRPageResult&) const = default;
 };
 
+/// Criteria of the review (CONF-03). They are properties of the review, not
+/// of the recognition, so they can be changed without a new recognition.
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCRReviewCriteria
+{
+    PDFOCRReviewCriteria() = default;
+
+    /// Creates the criteria
+    /// \param threshold Words with a normalized score below this value require a review
+    /// \param outsideDictionary Words not found in the dictionary of the language model require a review
+    /// \param acceptedWords Words accepted by the user (user words), they never
+    ///        require a review because of the dictionary
+    static PDFOCRReviewCriteria create(double threshold, bool outsideDictionary, const QStringList& acceptedWords);
+
+    /// Returns true, if the text is one of the accepted words (the comparison
+    /// ignores the case and the surrounding punctuation)
+    bool isAcceptedWord(const QString& text) const;
+
+    /// Normalizes the word for the comparison with the accepted words
+    static QString normalizeWord(const QString& text);
+
+    double threshold = 80.0;
+    bool outsideDictionary = false;
+
+    /// Normalized accepted words (see normalizeWord)
+    QSet<QString> acceptedWords;
+};
+
 /// Statistics of the confidence (CONF-04)
 struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfidenceStatistics
 {
@@ -712,6 +747,14 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfidenceStatistics
     /// Number of words requiring a review
     int reviewRequiredCount = 0;
 
+    /// Number of words, which were not found in the dictionary of the language
+    /// model and were not accepted by the user (see PDFOCRReview::isOutsideDictionary).
+    /// Counted regardless of whether the dictionary criterion of the review is enabled.
+    int outsideDictionaryCount = 0;
+
+    /// Number of words with available dictionary information
+    int dictionaryCheckedCount = 0;
+
     /// Arithmetic mean of the original scores of words with available score
     /// (scores of manually added or edited words are historical and not included
     /// in the sense of CONF-05, so mean is computed from original engine scores only).
@@ -721,6 +764,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfidenceStatistics
     PDFOCRConfidenceLevel level = PDFOCRConfidenceLevel::Unknown;
 
     /// Computes statistics of the page
+    static PDFOCRConfidenceStatistics compute(const PDFOCRPageResult& page, const PDFOCRReviewCriteria& criteria);
+
+    /// Computes statistics of the page using only the score threshold
     static PDFOCRConfidenceStatistics compute(const PDFOCRPageResult& page, double threshold);
 
     /// Merges statistics of several pages
@@ -736,11 +782,23 @@ class PDF4QTLIBCORESHARED_EXPORT PDFOCRReview
 public:
     /// Returns true, if word requires a review: its score is below threshold,
     /// its score is unknown, it was manually inserted and not confirmed,
-    /// or it overlaps an excluded region.
+    /// it overlaps an excluded region, or - if the criterion is enabled - it
+    /// was not found in the dictionary of the language model.
+    static bool requiresReview(const PDFOCRWord& word, const PDFOCRReviewCriteria& criteria);
+
+    /// Returns true, if word requires a review using only the score threshold
+    /// (the dictionary criterion is not applied)
     static bool requiresReview(const PDFOCRWord& word, double threshold);
 
     /// Returns true, if score is below threshold (unknown score is not below threshold)
     static bool isBelowThreshold(const PDFOCRConfidence& confidence, double threshold);
+
+    /// Returns true, if the word was not found in the dictionary of the language
+    /// model and it is a candidate for the review: it is unreviewed, its text is
+    /// the recognized text, it contains a letter and at least two characters, and
+    /// it is not accepted by the user (user words). Independent of the criterion
+    /// switch, the switch only decides, whether such a word requires a review.
+    static bool isOutsideDictionary(const PDFOCRWord& word, const PDFOCRReviewCriteria& criteria);
 };
 
 /// Validation of the results before writing (DATA-03)

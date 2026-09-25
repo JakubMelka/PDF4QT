@@ -33,6 +33,7 @@
 #include "pdfimageoptimizer.h"
 #include "pdfredact.h"
 #include "pdfbitonaldocumentcreator.h"
+#include "pdfocrdocumentrunner.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -41,6 +42,7 @@
 #include <QStringConverter>
 
 #include <vector>
+#include <functional>
 
 class QCommandLineParser;
 
@@ -50,6 +52,62 @@ namespace pdftool
 struct PDFToolTranslationContext
 {
     Q_DECLARE_TR_FUNCTIONS(PDFToolTranslationContext)
+};
+
+/// Options of the commands 'ocr' and 'ocr-models'
+struct PDFToolOCROptions
+{
+    /// Output document (the source document is never overwritten)
+    QString output;
+
+    /// Changes of the configuration requested by the options, in the order of the
+    /// options. They are applied onto the configuration of the project (--project),
+    /// or onto the default configuration.
+    std::vector<std::function<void(pdf::PDFOCRConfiguration&)>> configurationChanges;
+
+    pdf::PDFOCRDocumentRunner::DecisionPolicy decisionPolicy = pdf::PDFOCRDocumentRunner::DecisionPolicy::Skip;
+
+    QString userWordsFile;
+    QString userPatternsFile;
+
+    // Exports of a single document
+    QString exportText;
+    QString exportHocr;
+    QString exportAlto;
+    QString exportTsv;
+    double exportDpi = 0.0;
+    bool exportOnly = false;
+
+    QString project;
+    QString saveProject;
+
+    bool keepReviewData = false;
+    bool onlyReviewed = false;
+    bool allowPageErrors = false;
+    bool allowReducedResolution = false;
+    bool quiet = false;
+
+    /// Directory of the downloaded and imported language models
+    QString dataDirectory;
+
+    // Batch
+    QString batch;
+    QString outputDirectory;
+    QString suffix = QStringLiteral("_ocr");
+    QStringList batchExports;
+    bool skipExisting = false;
+    bool continueOnError = false;
+
+    // Command 'ocr-models'
+    QString modelsAction;
+    QStringList modelsLanguages;
+    pdf::PDFOCRModelProfile modelsProfile = pdf::PDFOCRModelProfile::Fast;
+    bool modelsProfileSet = false;
+    QString modelsEngine = QStringLiteral("tesseract");
+    bool modelsAcceptDownload = false;
+
+    /// Description of the first invalid value of an option (empty = all options are valid)
+    QString invalidArgument;
 };
 
 struct PDFToolOptions
@@ -194,6 +252,9 @@ struct PDFToolOptions
     /// Returns true, if the user has restricted the conversion to a page range
     bool isPageRangeSet() const { return !pageSelectorFirstPage.isEmpty() || !pageSelectorLastPage.isEmpty() || !pageSelectorSelection.isEmpty(); }
 
+    // For options 'OCR' and 'OCRModels'
+    PDFToolOCROptions ocr;
+
     // For option 'Encrypt'
     pdf::PDFSecurityHandlerFactory::Algorithm encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
     pdf::PDFSecurityHandlerFactory::EncryptContents encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
@@ -289,6 +350,8 @@ public:
         Diff                            = 0x01000000,       ///< Diff settings (compare documents)
         Redact                          = 0x02000000,       ///< Settings for Redact tool
         Bitonal                         = 0x04000000,       ///< Settings for Bitonal tool
+        OCR                             = 0x08000000,       ///< Settings for OCR tool (text recognition)
+        OCRModels                       = 0x10000000,       ///< Settings for OCR language models tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 
