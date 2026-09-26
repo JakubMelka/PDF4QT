@@ -709,13 +709,30 @@ public:
         m_stack.emplace_back(std::forward<Arguments>(arguments)...);
     }
 
-    /// Moves items of the frame to a vector of the exact size and removes them from the stack
-    inline std::vector<Item> take()
+    /// Moves items of the frame to the array of the exact size (the array is
+    /// then created without any copy) and removes them from the stack
+    inline void moveTo(PDFArrayBuilder& builder)
     {
         auto begin = std::next(m_stack.begin(), m_begin);
-        std::vector<Item> result(std::make_move_iterator(begin), std::make_move_iterator(m_stack.end()));
+        builder.setFixedSize(static_cast<size_t>(std::distance(begin, m_stack.end())));
+        for (auto it = begin; it != m_stack.end(); ++it)
+        {
+            builder.appendItem(std::move(*it));
+        }
         m_stack.erase(begin, m_stack.end());
-        return result;
+    }
+
+    /// Moves entries of the frame to the dictionary of the exact size (the
+    /// dictionary is then created without any copy) and removes them from the stack
+    inline void moveTo(PDFDictionaryBuilder& builder)
+    {
+        auto begin = std::next(m_stack.begin(), m_begin);
+        builder.setFixedSize(static_cast<size_t>(std::distance(begin, m_stack.end())));
+        for (auto it = begin; it != m_stack.end(); ++it)
+        {
+            builder.addEntry(std::move(it->first), std::move(it->second));
+        }
+        m_stack.erase(begin, m_stack.end());
     }
 
 private:
@@ -867,7 +884,10 @@ PDFObject PDFParser::getObject()
             else
             {
                 shift();
-                return PDFObject::createArray(PDFArray(items.take()));
+
+                PDFArrayBuilder array;
+                items.moveTo(array);
+                return PDFObject::createArray(std::move(array));
             }
             return PDFObject::createNull();
         }
@@ -906,8 +926,9 @@ PDFObject PDFParser::getObject()
                 error(tr("End of stream inside dictionary reached."));
             }
 
-            PDFDictionary parsedDictionary(entries.take());
-            PDFDictionary* dictionary = &parsedDictionary;
+            PDFDictionaryBuilder parsedDictionary;
+            entries.moveTo(parsedDictionary);
+            const PDFDictionaryBuilder* dictionary = &parsedDictionary;
 
             // Is it a content stream?
             if (m_lookAhead2.type == PDFLexicalAnalyzer::TokenType::Command &&
@@ -976,7 +997,7 @@ PDFObject PDFParser::getObject()
                 {
                     // Everything OK, just advance and return stream object
                     shift();
-                    return PDFObject::createStream(PDFStream(std::move(*dictionary), std::move(buffer)));
+                    return PDFObject::createStream(PDFStream(std::move(parsedDictionary), std::move(buffer)));
                 }
                 else
                 {

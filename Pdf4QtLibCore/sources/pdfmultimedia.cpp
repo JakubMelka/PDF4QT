@@ -1141,13 +1141,13 @@ PDF3DBackground PDF3DBackground::parse(const PDFObjectStorage* storage, PDFObjec
             colorSpace = PDFObject::createName("DeviceRGB");
         }
         std::vector<PDFReal> color = loader.readNumberArrayFromDictionary(dictionary, "C", { 1.0, 1.0, 1.0});
-        PDFArray array;
+        PDFArrayBuilder array;
         array.appendItem(colorSpace);
         for (PDFReal colorComponent : color)
         {
             array.appendItem(PDFObject::createReal(colorComponent));
         }
-        PDFObject colorObject = PDFObject::createArray(PDFArray(qMove(array)));
+        PDFObject colorObject = PDFObject::createArray(qMove(array));
 
         result.m_color = PDF3DAuxiliaryParser::parseColor(storage, colorObject, Qt::white);
         result.m_entireAnnotation = loader.readBooleanFromDictionary(dictionary, "EA", false);

@@ -183,7 +183,7 @@ QRectF PDFAnnotationManipulator::centerRectangle(const QRectF& rectangle, const 
     return result;
 }
 
-bool PDFAnnotationManipulator::transformPointArray(PDFDictionary& dictionary,
+bool PDFAnnotationManipulator::transformPointArray(PDFDictionaryBuilder& dictionary,
                                                    const PDFObjectStorage* storage,
                                                    const char* key,
                                                    const QTransform& transform)
@@ -194,7 +194,7 @@ bool PDFAnnotationManipulator::transformPointArray(PDFDictionary& dictionary,
     }
 
     PDFDocumentDataLoaderDecorator loader(storage);
-    std::vector<PDFReal> numbers = loader.readNumberArrayFromDictionary(&dictionary, key);
+    std::vector<PDFReal> numbers = loader.readNumberArrayFromDictionary(dictionary.getDictionary(), key);
     if (numbers.empty() || numbers.size() % 2 != 0)
     {
         return false;
@@ -211,7 +211,7 @@ bool PDFAnnotationManipulator::transformPointArray(PDFDictionary& dictionary,
     return true;
 }
 
-void PDFAnnotationManipulator::transformPointArrays(PDFDictionary& dictionary,
+void PDFAnnotationManipulator::transformPointArrays(PDFDictionaryBuilder& dictionary,
                                                     const PDFObjectStorage* storage,
                                                     const char* key,
                                                     const QTransform& transform)
@@ -254,10 +254,10 @@ void PDFAnnotationManipulator::transformPointArrays(PDFDictionary& dictionary,
     dictionary.setEntry(PDFInplaceOrMemoryString(key), factory.takeObject());
 }
 
-void PDFAnnotationManipulator::reversePointArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key)
+void PDFAnnotationManipulator::reversePointArray(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key)
 {
     PDFDocumentDataLoaderDecorator loader(storage);
-    const std::vector<PDFReal> numbers = loader.readNumberArrayFromDictionary(&dictionary, key);
+    const std::vector<PDFReal> numbers = loader.readNumberArrayFromDictionary(dictionary.getDictionary(), key);
 
     std::vector<PDFReal> reversedNumbers;
     reversedNumbers.reserve(numbers.size());
@@ -270,7 +270,7 @@ void PDFAnnotationManipulator::reversePointArray(PDFDictionary& dictionary, cons
     dictionary.setEntry(PDFInplaceOrMemoryString(key), createNumberArray(reversedNumbers));
 }
 
-void PDFAnnotationManipulator::reverseArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key)
+void PDFAnnotationManipulator::reverseArray(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key)
 {
     const PDFObject& object = storage->getObject(dictionary.get(key));
     if (!object.isArray())
@@ -279,16 +279,16 @@ void PDFAnnotationManipulator::reverseArray(PDFDictionary& dictionary, const PDF
     }
 
     const PDFArray* array = object.getArray();
-    PDFArray reversedArray;
+    PDFArrayBuilder reversedArray;
     for (size_t i = array->getCount(); i > 0; --i)
     {
         reversedArray.appendItem(array->getItem(i - 1));
     }
 
-    dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createArray(PDFArray(std::move(reversedArray))));
+    dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createArray(std::move(reversedArray)));
 }
 
-void PDFAnnotationManipulator::scaleNumber(PDFDictionary& dictionary,
+void PDFAnnotationManipulator::scaleNumber(PDFDictionaryBuilder& dictionary,
                                            const PDFObjectStorage* storage,
                                            const char* key,
                                            PDFReal factor)
@@ -299,11 +299,11 @@ void PDFAnnotationManipulator::scaleNumber(PDFDictionary& dictionary,
     }
 
     PDFDocumentDataLoaderDecorator loader(storage);
-    const PDFReal value = loader.readNumberFromDictionary(&dictionary, key, 0.0);
+    const PDFReal value = loader.readNumberFromDictionary(dictionary.getDictionary(), key, 0.0);
     dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createReal(value * factor));
 }
 
-void PDFAnnotationManipulator::transformLineParameters(PDFDictionary& dictionary,
+void PDFAnnotationManipulator::transformLineParameters(PDFDictionaryBuilder& dictionary,
                                                        const PDFObjectStorage* storage,
                                                        const QLineF& line,
                                                        const QTransform& transform)
@@ -335,7 +335,7 @@ void PDFAnnotationManipulator::transformLineParameters(PDFDictionary& dictionary
         reversePointArray(dictionary, storage, "L");
 
         PDFDocumentDataLoaderDecorator lineEndingLoader(storage);
-        std::vector<QByteArray> lineEndings = lineEndingLoader.readNameArrayFromDictionary(&dictionary, "LE");
+        std::vector<QByteArray> lineEndings = lineEndingLoader.readNameArrayFromDictionary(dictionary.getDictionary(), "LE");
         if (lineEndings.size() == 2)
         {
             PDFObjectFactory factory;
@@ -367,7 +367,7 @@ void PDFAnnotationManipulator::transformLineParameters(PDFDictionary& dictionary
 
     // Offset of the caption - along the line and perpendicular to the line
     PDFDocumentDataLoaderDecorator loader(storage);
-    std::vector<PDFReal> captionOffset = loader.readNumberArrayFromDictionary(&dictionary, "CO");
+    std::vector<PDFReal> captionOffset = loader.readNumberArrayFromDictionary(dictionary.getDictionary(), "CO");
     if (captionOffset.size() == 2)
     {
         captionOffset[0] *= lengthFactor;
@@ -376,7 +376,7 @@ void PDFAnnotationManipulator::transformLineParameters(PDFDictionary& dictionary
     }
 }
 
-void PDFAnnotationManipulator::transformRectangleDifferences(PDFDictionary& dictionary,
+void PDFAnnotationManipulator::transformRectangleDifferences(PDFDictionaryBuilder& dictionary,
                                                              const PDFObjectStorage* storage,
                                                              const QRectF& oldRectangle,
                                                              const QRectF& newRectangle,
@@ -388,7 +388,7 @@ void PDFAnnotationManipulator::transformRectangleDifferences(PDFDictionary& dict
     }
 
     PDFDocumentDataLoaderDecorator loader(storage);
-    std::vector<PDFReal> differences = loader.readNumberArrayFromDictionary(&dictionary, "RD");
+    std::vector<PDFReal> differences = loader.readNumberArrayFromDictionary(dictionary.getDictionary(), "RD");
     if (differences.size() != 4)
     {
         return;
@@ -466,7 +466,7 @@ PDFObject PDFAnnotationManipulator::transformAppearanceStream(PDFDocumentBuilder
     const QTransform linear(transform.m11(), transform.m12(), transform.m21(), transform.m22(), 0.0, 0.0);
     const QTransform newMatrix = matrix * QTransform::fromScale(scaleX, scaleY) * linear;
 
-    PDFDictionary newStreamDictionary = *streamDictionary;
+    PDFDictionaryBuilder newStreamDictionary(*streamDictionary);
     newStreamDictionary.setEntry(PDFInplaceOrMemoryString("Matrix"), createNumberArray({ newMatrix.m11(), newMatrix.m12(), newMatrix.m21(), newMatrix.m22(), newMatrix.dx(), newMatrix.dy() }));
 
     QByteArray content = *stream->getContent();
@@ -475,7 +475,7 @@ PDFObject PDFAnnotationManipulator::transformAppearanceStream(PDFDocumentBuilder
 }
 
 void PDFAnnotationManipulator::transformAppearanceStreams(PDFDocumentBuilder* builder,
-                                                          PDFDictionary& dictionary,
+                                                          PDFDictionaryBuilder& dictionary,
                                                           const QRectF& rectangle,
                                                           const QTransform& transform,
                                                           QRectF& newRectangle)
@@ -615,7 +615,7 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
 
     const bool isTranslation = transform.type() <= QTransform::TxTranslate;
 
-    PDFDictionary modifiedDictionary = *dictionary;
+    PDFDictionaryBuilder modifiedDictionary(*dictionary);
     QRectF newRectangle = rectangle;
     bool regenerateAppearance = false;
 
@@ -684,7 +684,7 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
     translatePopup(builder, dictionary, newRectangle.center() - rectangle.center());
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(std::move(modifiedDictionary)));
 
     // Measured value follows the geometry, and it is a part of the appearance
     if (!isTranslation && updateMeasurement(builder, annotation, parsedAnnotation.data()))
@@ -718,7 +718,7 @@ QRectF PDFAnnotationManipulator::getFreeTextRectangle(const PDFObjectStorage* st
     return rectangle;
 }
 
-QRectF PDFAnnotationManipulator::setFreeTextGeometry(PDFDictionary& dictionary,
+QRectF PDFAnnotationManipulator::setFreeTextGeometry(PDFDictionaryBuilder& dictionary,
                                                      const QRectF& textRectangle,
                                                      const std::vector<QPointF>& calloutLine,
                                                      PDFReal margin)
@@ -741,7 +741,7 @@ QRectF PDFAnnotationManipulator::setFreeTextGeometry(PDFDictionary& dictionary,
     return rectangle;
 }
 
-QRectF PDFAnnotationManipulator::moveBox(PDFDictionary& dictionary,
+QRectF PDFAnnotationManipulator::moveBox(PDFDictionaryBuilder& dictionary,
                                          const PDFObjectStorage* storage,
                                          const PDFAnnotation* annotation,
                                          const QRectF& rectangle,
@@ -758,7 +758,7 @@ QRectF PDFAnnotationManipulator::moveBox(PDFDictionary& dictionary,
     // transformed exactly. The text box cannot be rotated, it is moved and the
     // rest of the callout line (which is attached to the text box) moves with it,
     // so the callout line stays connected to the text box.
-    const QRectF textRectangle = getFreeTextRectangle(storage, &dictionary, rectangle);
+    const QRectF textRectangle = getFreeTextRectangle(storage, dictionary.getDictionary(), rectangle);
     const QPointF offset = transform.map(textRectangle.center()) - textRectangle.center();
 
     calloutLine.points.front() = transform.map(calloutLine.points.front());
@@ -1114,7 +1114,7 @@ bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PD
     const QRectF rectangle = readRectangle(storage, dictionary, "Rect");
     QRectF oldPointsBounds = getPointsBoundingRectangle(currentPoints.points);
     QRectF newPointsBounds = getPointsBoundingRectangle(points);
-    PDFDictionary modifiedDictionary = *dictionary;
+    PDFDictionaryBuilder modifiedDictionary(*dictionary);
     QRectF newRectangle;
 
     if (currentPoints.isQuadEnds)
@@ -1195,7 +1195,7 @@ bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PD
     }
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(std::move(modifiedDictionary)));
     updateMeasurement(builder, annotation, parsedAnnotation.data());
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
@@ -1855,7 +1855,7 @@ bool PDFAnnotationManipulator::setFileAttachment(PDFDocumentBuilder* builder, PD
     streamFactory.endDictionaryItem();
     streamFactory.endDictionary();
 
-    PDFDictionary streamDictionary = *streamFactory.takeObject().getDictionary();
+    PDFDictionaryBuilder streamDictionary(*streamFactory.takeObject().getDictionary());
     const PDFObjectReference embeddedFile = builder->addObject(PDFObject::createStream(PDFStream(std::move(streamDictionary), QByteArray(data))));
 
     // File specification
@@ -2126,7 +2126,7 @@ bool PDFAnnotationManipulator::setParts(PDFDocumentBuilder* builder, PDFObjectRe
     factory.endArray();
 
     const PDFDictionary* dictionary = storage->getDictionaryFromObject(storage->getObject(annotation));
-    PDFDictionary modifiedDictionary = *dictionary;
+    PDFDictionaryBuilder modifiedDictionary(*dictionary);
     if (parts.isFilled)
     {
         modifiedDictionary.setEntry(PDFInplaceOrMemoryString("QuadPoints"), createNumberArray(quadPoints));
@@ -2140,7 +2140,7 @@ bool PDFAnnotationManipulator::setParts(PDFDocumentBuilder* builder, PDFObjectRe
     const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
     const PDFReal margin = std::max(1.0, parsedAnnotation->getBorder().getWidth());
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(boundingRectangle.adjusted(-margin, -margin, margin, margin)));
-    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(std::move(modifiedDictionary)));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
@@ -2176,7 +2176,7 @@ bool PDFAnnotationManipulator::setFreeTextRectangle(PDFDocumentBuilder* builder,
     const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
     const QRectF rectangle = readRectangle(storage, dictionary, "Rect");
 
-    PDFDictionary modifiedDictionary = *dictionary;
+    PDFDictionaryBuilder modifiedDictionary(*dictionary);
     QRectF newRectangle;
 
     EditablePoints calloutLine = getEditablePoints(parsedAnnotation.data());
@@ -2207,7 +2207,7 @@ bool PDFAnnotationManipulator::setFreeTextRectangle(PDFDocumentBuilder* builder,
 
     translatePopup(builder, dictionary, newRectangle.center() - rectangle.center());
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(std::move(modifiedDictionary)));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
@@ -2225,7 +2225,7 @@ bool PDFAnnotationManipulator::setFreeTextCalloutLine(PDFDocumentBuilder* builde
     const PDFDictionary* dictionary = storage->getDictionaryFromObject(storage->getObject(annotation));
     const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
 
-    PDFDictionary modifiedDictionary = *dictionary;
+    PDFDictionaryBuilder modifiedDictionary(*dictionary);
     QRectF newRectangle = textRectangle;
 
     if (calloutLine.empty())
@@ -2254,16 +2254,16 @@ bool PDFAnnotationManipulator::setFreeTextCalloutLine(PDFDocumentBuilder* builde
     }
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
-    builder->setObject(annotation, PDFObject::createDictionary(PDFDictionary(std::move(modifiedDictionary))));
+    builder->setObject(annotation, PDFObject::createDictionary(std::move(modifiedDictionary)));
     builder->updateAnnotationAppearanceStreams(annotation);
     return true;
 }
 
-PDFDictionary PDFAnnotationManipulator::prepareAnnotationForCopy(const PDFDictionary& dictionary, bool removeOptionalContent, bool isReply)
+PDFDictionaryBuilder PDFAnnotationManipulator::prepareAnnotationForCopy(const PDFDictionary& dictionary, bool removeOptionalContent, bool isReply)
 {
     // Jakub Melka: the link to the replied annotation is always removed (the deep
     // copy would follow it). It is restored, when the copies are linked together.
-    PDFDictionary result = dictionary;
+    PDFDictionaryBuilder result(dictionary);
     result.removeEntry("P");
     result.removeEntry("Popup");
     result.removeEntry("IRT");
@@ -2282,9 +2282,9 @@ PDFDictionary PDFAnnotationManipulator::prepareAnnotationForCopy(const PDFDictio
     return result;
 }
 
-PDFDictionary PDFAnnotationManipulator::preparePopupForCopy(const PDFDictionary& dictionary)
+PDFDictionaryBuilder PDFAnnotationManipulator::preparePopupForCopy(const PDFDictionary& dictionary)
 {
-    PDFDictionary result = dictionary;
+    PDFDictionaryBuilder result(dictionary);
     result.removeEntry("P");
     result.removeEntry("Parent");
     return result;
@@ -2540,31 +2540,33 @@ PDFObjectReference PDFAnnotationManipulator::copyAnnotation(PDFDocumentBuilder* 
     std::vector<PDFObjectReference> pageAnnotations;
     for (const PDFObjectReference& sourceAnnotation : thread)
     {
-        // Dictionaries are copied, because adding of an object invalidates the pointers
+        // The object keeps the dictionary alive, because adding of an object
+        // can replace the objects in the storage
         const bool isReply = sourceAnnotation != annotation;
-        const PDFDictionary sourceDictionary = *storage->getDictionaryFromObject(storage->getObject(sourceAnnotation));
+        const PDFObject sourceObject = storage->getObject(sourceAnnotation);
+        const PDFDictionary* sourceDictionary = storage->getDictionaryFromObject(sourceObject);
 
-        PDFDictionary popupDictionary;
-        const bool hasPopup = getPopupDictionary(storage, &sourceDictionary) != nullptr;
+        PDFDictionaryBuilder popupDictionary;
+        const bool hasPopup = getPopupDictionary(storage, sourceDictionary) != nullptr;
         if (hasPopup)
         {
-            popupDictionary = preparePopupForCopy(*getPopupDictionary(storage, &sourceDictionary));
+            popupDictionary = preparePopupForCopy(*getPopupDictionary(storage, sourceDictionary));
         }
 
         PDFObjectReference inReplyTo;
         if (isReply)
         {
-            inReplyTo = copies.at(sourceDictionary.get("IRT").getReference());
+            inReplyTo = copies.at(sourceDictionary->get("IRT").getReference());
         }
 
-        const PDFObjectReference copiedAnnotation = builder->addObject(PDFObject::createDictionary(PDFDictionary(prepareAnnotationForCopy(sourceDictionary, false, isReply))));
+        const PDFObjectReference copiedAnnotation = builder->addObject(PDFObject::createDictionary(prepareAnnotationForCopy(*sourceDictionary, false, isReply)));
         PDFObjectReference copiedPopup;
         if (hasPopup)
         {
-            copiedPopup = builder->addObject(PDFObject::createDictionary(PDFDictionary(std::move(popupDictionary))));
+            copiedPopup = builder->addObject(PDFObject::createDictionary(std::move(popupDictionary)));
         }
 
-        linkAnnotation(builder, copiedAnnotation, copiedPopup, targetPage, sourceDictionary.hasKey("NM"), inReplyTo);
+        linkAnnotation(builder, copiedAnnotation, copiedPopup, targetPage, sourceDictionary->hasKey("NM"), inReplyTo);
         copies[sourceAnnotation] = copiedAnnotation;
 
         pageAnnotations.push_back(copiedAnnotation);
@@ -2677,12 +2679,12 @@ std::vector<PDFObjectReference> PDFAnnotationManipulator::importAnnotations(PDFD
 
             ImportedAnnotation importedAnnotation;
             importedAnnotation.annotationIndex = objects.size();
-            objects.emplace_back(PDFObject::createDictionary(PDFDictionary(prepareAnnotationForCopy(*sourceDictionary, removeOptionalContent, isReply))));
+            objects.emplace_back(PDFObject::createDictionary(PDFDictionaryBuilder(prepareAnnotationForCopy(*sourceDictionary, removeOptionalContent, isReply))));
 
             if (const PDFDictionary* popupDictionary = getPopupDictionary(&storage, sourceDictionary))
             {
                 importedAnnotation.popupIndex = objects.size();
-                objects.emplace_back(PDFObject::createDictionary(PDFDictionary(preparePopupForCopy(*popupDictionary))));
+                objects.emplace_back(PDFObject::createDictionary(PDFDictionaryBuilder(preparePopupForCopy(*popupDictionary))));
             }
 
             if (isReply)

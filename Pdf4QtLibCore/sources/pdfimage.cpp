@@ -1539,7 +1539,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         throw PDFException(PDFTranslationContext::tr("Encoded image stream is empty."));
     }
 
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     dictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
     dictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
     dictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(prepared.width));
@@ -1581,14 +1581,14 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
 
     if (!prepared.decode.empty())
     {
-        PDFArray decodeArray;
+        PDFArrayBuilder decodeArray;
         for (PDFReal value : prepared.decode)
         {
             decodeArray.appendItem(PDFObject::createReal(value));
         }
 
         dictionary.addEntry(PDFInplaceOrMemoryString("Decode"),
-                            PDFObject::createArray(PDFArray(std::move(decodeArray))));
+                            PDFObject::createArray(std::move(decodeArray)));
     }
 
     if (compression == ImageCompression::CCITTGroup4)
@@ -1596,25 +1596,25 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         // The default values of the other parameters of the filter match the encoder -
         // the black pixel is 0, the data are terminated by the end-of-block code, there
         // are no end-of-line codes and the rows are not byte aligned
-        PDFDictionary decodeParams;
+        PDFDictionaryBuilder decodeParams;
         decodeParams.addEntry(PDFInplaceOrMemoryString("K"), PDFObject::createInteger(-1));
         decodeParams.addEntry(PDFInplaceOrMemoryString("Columns"), PDFObject::createInteger(prepared.width));
         decodeParams.addEntry(PDFInplaceOrMemoryString("Rows"), PDFObject::createInteger(prepared.height));
 
         dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_DECODE_PARMS),
-                            PDFObject::createDictionary(PDFDictionary(std::move(decodeParams))));
+                            PDFObject::createDictionary(std::move(decodeParams)));
     }
 
     if (compression == ImageCompression::Flate && options.enablePngPredictor)
     {
-        PDFDictionary decodeParams;
+        PDFDictionaryBuilder decodeParams;
         decodeParams.addEntry(PDFInplaceOrMemoryString("Predictor"), PDFObject::createInteger(15));
         decodeParams.addEntry(PDFInplaceOrMemoryString("Columns"), PDFObject::createInteger(prepared.width));
         decodeParams.addEntry(PDFInplaceOrMemoryString("Colors"), PDFObject::createInteger(prepared.components));
         decodeParams.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(prepared.bitsPerComponent));
 
         dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_DECODE_PARMS),
-                            PDFObject::createDictionary(PDFDictionary(std::move(decodeParams))));
+                            PDFObject::createDictionary(std::move(decodeParams)));
     }
 
     dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(encodedData.size()));

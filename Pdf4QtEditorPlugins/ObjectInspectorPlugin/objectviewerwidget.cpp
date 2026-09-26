@@ -222,8 +222,8 @@ void ObjectViewerWidget::updateUi()
                     const pdf::PDFObject& colorSpaceObject = m_document->getObject(dictionary->get("ColorSpace"));
                     if (colorSpaceObject.isName() || colorSpaceObject.isArray())
                     {
-                        pdf::PDFDictionary dummyColorSpaceDictionary;
-                        colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(&dummyColorSpaceDictionary, m_document, colorSpaceObject);
+                        pdf::PDFDictionaryBuilder dummyColorSpaceDictionary;
+                        colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(dummyColorSpaceDictionary.getDictionary(), m_document, colorSpaceObject);
                     }
                     else if (!colorSpaceObject.isNull())
                     {

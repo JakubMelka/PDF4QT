@@ -544,7 +544,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
     const PDFObject& familyObject = document->getObject(array->getItem(0));
     const QByteArray family = familyObject.isName() ? familyObject.getString() : QByteArray();
 
-    PDFArray resolvedArray = *array;
+    PDFArrayBuilder resolvedArray(*array);
     bool isArrayChanged = false;
 
     auto resolveItem = [&](size_t index)
@@ -587,7 +587,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
                 PDFObject alternate = resolve(profileDictionary->get("Alternate"), &isAlternateChanged);
                 if (isAlternateChanged)
                 {
-                    PDFDictionary resolvedProfileDictionary = *profileDictionary;
+                    PDFDictionaryBuilder resolvedProfileDictionary(*profileDictionary);
                     resolvedProfileDictionary.setEntry(PDFInplaceOrMemoryString("Alternate"), std::move(alternate));
                     resolvedArray.setItem(PDFObject::createStream(PDFStream(std::move(resolvedProfileDictionary), QByteArray(*profileStream->getContent()))), 1);
                     isArrayChanged = true;
@@ -603,13 +603,13 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
         const PDFDictionary* attributes = resolvedArray.getCount() > 4 ? document->getDictionaryFromObject(resolvedArray.getItem(4)) : nullptr;
         if (attributes)
         {
-            PDFDictionary resolvedAttributes = *attributes;
+            PDFDictionaryBuilder resolvedAttributes(*attributes);
             bool isAttributesChanged = false;
 
             // Colorants - dictionary of the separation color spaces
             if (const PDFDictionary* colorants = document->getDictionaryFromObject(attributes->get("Colorants")))
             {
-                PDFDictionary resolvedColorants = *colorants;
+                PDFDictionaryBuilder resolvedColorants(*colorants);
                 bool isColorantsChanged = false;
 
                 for (size_t i = 0; i < colorants->getCount(); ++i)
@@ -625,7 +625,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
 
                 if (isColorantsChanged)
                 {
-                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Colorants"), PDFObject::createDictionary(PDFDictionary(std::move(resolvedColorants))));
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Colorants"), PDFObject::createDictionary(std::move(resolvedColorants)));
                     isAttributesChanged = true;
                 }
             }
@@ -637,16 +637,16 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
                 PDFObject processColorSpace = resolve(process->get("ColorSpace"), &isProcessColorSpaceChanged);
                 if (isProcessColorSpaceChanged)
                 {
-                    PDFDictionary resolvedProcess = *process;
+                    PDFDictionaryBuilder resolvedProcess(*process);
                     resolvedProcess.setEntry(PDFInplaceOrMemoryString("ColorSpace"), std::move(processColorSpace));
-                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Process"), PDFObject::createDictionary(PDFDictionary(std::move(resolvedProcess))));
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Process"), PDFObject::createDictionary(std::move(resolvedProcess)));
                     isAttributesChanged = true;
                 }
             }
 
             if (isAttributesChanged)
             {
-                resolvedArray.setItem(PDFObject::createDictionary(PDFDictionary(std::move(resolvedAttributes))), 4);
+                resolvedArray.setItem(PDFObject::createDictionary(std::move(resolvedAttributes)), 4);
                 isArrayChanged = true;
             }
         }
@@ -658,7 +658,7 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
     }
 
     *isChanged = true;
-    return PDFObject::createArray(PDFArray(std::move(resolvedArray)));
+    return PDFObject::createArray(std::move(resolvedArray));
 }
 
 PDFEditedPageContentTransparencyGroupPointer PDFPageContentEditorProcessor::getCurrentTransparencyGroup() const
@@ -690,7 +690,7 @@ PDFObject PDFPageContentEditorProcessor::getShadingObjectWithResolvedColorSpace(
         return shadingObject;
     }
 
-    PDFDictionary resolvedShadingDictionary = *shadingDictionary;
+    PDFDictionaryBuilder resolvedShadingDictionary(*shadingDictionary);
     resolvedShadingDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), std::move(colorSpaceObject));
 
     if (shadingStream)
@@ -698,7 +698,7 @@ PDFObject PDFPageContentEditorProcessor::getShadingObjectWithResolvedColorSpace(
         return PDFObject::createStream(PDFStream(std::move(resolvedShadingDictionary), QByteArray(*shadingStream->getContent())));
     }
 
-    return PDFObject::createDictionary(PDFDictionary(std::move(resolvedShadingDictionary)));
+    return PDFObject::createDictionary(std::move(resolvedShadingDictionary));
 }
 
 void PDFPageContentEditorProcessor::registerFontResources(PDFEditedPageContentElementText* textElement) const
@@ -993,44 +993,44 @@ PDFEditedPageContentElement* PDFEditedPageContent::getBackElement() const
     return m_contentElements.back().get();
 }
 
-PDFDictionary PDFEditedPageContent::getFontDictionary() const
+PDFDictionaryBuilder PDFEditedPageContent::getFontDictionary() const
 {
     return m_fontDictionary;
 }
 
 void PDFEditedPageContent::setFontDictionary(const PDFDictionary& newFontDictionary)
 {
-    m_fontDictionary = newFontDictionary;
+    m_fontDictionary = PDFDictionaryBuilder(newFontDictionary);
 }
 
-PDFDictionary PDFEditedPageContent::getXObjectDictionary() const
+PDFDictionaryBuilder PDFEditedPageContent::getXObjectDictionary() const
 {
     return m_xobjectDictionary;
 }
 
 void PDFEditedPageContent::setXObjectDictionary(const PDFDictionary& newXobjectDictionary)
 {
-    m_xobjectDictionary = newXobjectDictionary;
+    m_xobjectDictionary = PDFDictionaryBuilder(newXobjectDictionary);
 }
 
-PDFDictionary PDFEditedPageContent::getGraphicStateDictionary() const
+PDFDictionaryBuilder PDFEditedPageContent::getGraphicStateDictionary() const
 {
     return m_graphicStateDictionary;
 }
 
 void PDFEditedPageContent::setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary)
 {
-    m_graphicStateDictionary = newGraphicStateDictionary;
+    m_graphicStateDictionary = PDFDictionaryBuilder(newGraphicStateDictionary);
 }
 
-PDFDictionary PDFEditedPageContent::getShadingDictionary() const
+PDFDictionaryBuilder PDFEditedPageContent::getShadingDictionary() const
 {
     return m_shadingDictionary;
 }
 
 void PDFEditedPageContent::setShadingDictionary(const PDFDictionary& newShadingDictionary)
 {
-    m_shadingDictionary = newShadingDictionary;
+    m_shadingDictionary = PDFDictionaryBuilder(newShadingDictionary);
 }
 
 PDFEditedPageContentElement::PDFEditedPageContentElement(PDFPageContentProcessorState state, QTransform transform) :

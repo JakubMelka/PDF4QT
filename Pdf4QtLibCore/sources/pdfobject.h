@@ -38,6 +38,7 @@
 #include <cstring>
 #include <cstdint>
 #include <stdexcept>
+#include <new>
 
 namespace pdf
 {
@@ -45,7 +46,12 @@ class PDFArray;
 class PDFString;
 class PDFStream;
 class PDFDictionary;
+class PDFArrayBuilder;
+class PDFDictionaryBuilder;
 class PDFAbstractVisitor;
+
+template<typename Header, typename Item>
+class PDFTrailingItems;
 
 /// This class represents a content of the PDF object, which is stored in the heap
 /// and shared by the objects - array of objects, dictionary, content stream data,
@@ -82,7 +88,11 @@ private:
 
     /// Adds a reference to the content. Relaxed ordering is sufficient, a new
     /// reference can be created only from an existing one.
-    inline void addReference() const noexcept { m_referenceCount.fetch_add(1, std::memory_order_relaxed); }
+    inline void addReference() const noexcept
+    {
+        [[maybe_unused]] const uint32_t oldReferenceCount = m_referenceCount.fetch_add(1, std::memory_order_relaxed);
+        Q_ASSERT(oldReferenceCount != std::numeric_limits<uint32_t>::max());
+    }
 
     /// Removes a reference to the content. Returns true, if it was the last
     /// reference, and the content must be deleted by the caller. Acquire-release
@@ -91,12 +101,16 @@ private:
     inline bool removeReference() const noexcept { return m_referenceCount.fetch_sub(1, std::memory_order_acq_rel) == 1; }
 
     /// Returns current number of references (for diagnostic purposes only)
-    inline uint64_t getReferenceCount() const noexcept { return m_referenceCount.load(std::memory_order_relaxed); }
+    inline uint32_t getReferenceCount() const noexcept { return m_referenceCount.load(std::memory_order_relaxed); }
 
-    /// A 32-bit counter can overflow on large-memory systems. A 64-bit count
-    /// cannot wrap for any number of 16-byte objects that fits in address space.
-    mutable std::atomic<uint64_t> m_referenceCount = 0;
+    /// Number of objects referencing this content. A 32-bit counter would overflow
+    /// only with 2^32 living objects referencing the same content (64 GB of objects
+    /// sharing one content). It leaves room for the item count in the header of
+    /// the arrays and dictionaries (the header has 8 bytes).
+    mutable std::atomic<uint32_t> m_referenceCount = 0;
 };
+
+static_assert(sizeof(PDFObjectContent) == 4, "Content header must have 4 bytes");
 
 /// This class represents inplace string in the PDF object. To avoid too much
 /// memory allocation, we store small strings inplace as small objects, so
@@ -211,7 +225,7 @@ public:
 
     /// Returns number of strings sharing the string in the heap,
     /// or zero, if string is inplace (for diagnostic purposes only).
-    inline uint64_t getContentReferenceCount() const;
+    inline uint32_t getContentReferenceCount() const;
 
 private:
     friend class PDFDictionary;
@@ -380,7 +394,7 @@ public:
     /// Returns number of objects sharing the content of this object in the heap,
     /// or zero, if object has no content in the heap (for diagnostic purposes only,
     /// value can be outdated, when copies are created or destroyed in other threads).
-    inline uint64_t getContentReferenceCount() const;
+    inline uint32_t getContentReferenceCount() const;
 
     bool operator==(const PDFObject& other) const;
     bool operator!=(const PDFObject& other) const { return !(*this == other); }
@@ -403,11 +417,11 @@ public:
     /// Creates a reference object
     static inline PDFObject createReference(const PDFObjectReference& reference);
 
-    /// Creates an array object
-    static PDFObject createArray(PDFArray array);
+    /// Creates an array object from the items of the builder (builder becomes empty)
+    static PDFObject createArray(PDFArrayBuilder array);
 
-    /// Creates a dictionary object
-    static PDFObject createDictionary(PDFDictionary dictionary);
+    /// Creates a dictionary object from the entries of the builder (builder becomes empty)
+    static PDFObject createDictionary(PDFDictionaryBuilder dictionary);
 
     /// Creates a stream object
     static PDFObject createStream(PDFStream stream);
@@ -550,70 +564,70 @@ private:
     QByteArray m_string;
 };
 
-/// Represents an array of objects in the PDF file.
+/// Represents an array of objects in the PDF file. Array is immutable, it is
+/// stored in a single allocation together with its items (items follow the
+/// header in the memory). Arrays are created by PDFArrayBuilder.
 class PDF4QTLIBCORESHARED_EXPORT PDFArray : public PDFObjectContent
 {
 public:
-    inline PDFArray() = default;
-    inline PDFArray(std::vector<PDFObject>&& objects) : m_objects(qMove(objects)) { }
+    PDFArray(const PDFArray&) = delete;
+    PDFArray(PDFArray&&) = delete;
+    PDFArray& operator=(const PDFArray&) = delete;
+    PDFArray& operator=(PDFArray&&) = delete;
 
-    PDFArray(const PDFArray&) = default;
-    PDFArray(PDFArray&&) noexcept = default;
-
-    // Copy before replacing content: the source may be owned by a nested object.
-    PDFArray& operator=(const PDFArray& other) { PDFArray(other).swap(*this); return *this; }
-    PDFArray& operator=(PDFArray&& other) noexcept { PDFArray(std::move(other)).swap(*this); return *this; }
-    void swap(PDFArray& other) noexcept { m_objects.swap(other.m_objects); }
-
-    bool operator==(const PDFArray& other) const { return m_objects == other.m_objects; }
+    bool operator==(const PDFArray& other) const;
 
     /// Returns item at the specified index. If index is invalid,
     /// then it throws an exception.
-    const PDFObject& getItem(size_t index) const { return m_objects.at(index); }
-
-    /// Sets item at the specified index. Index must be valid.
-    void setItem(PDFObject value, size_t index) { m_objects[index] = qMove(value); }
+    inline const PDFObject& getItem(size_t index) const;
 
     /// Returns size of the array (number of elements)
-    size_t getCount() const { return m_objects.size(); }
+    size_t getCount() const { return m_count; }
 
-    /// Returns capacity of the array (theoretical number of elements before reallocation)
-    size_t getCapacity() const { return m_objects.capacity(); }
+    /// Returns true, if array has no items
+    bool isEmpty() const { return m_count == 0; }
 
-    /// Appends object to the end of object list
-    void appendItem(PDFObject object);
-
-    /// Optimizes the array for memory consumption
-    void optimize();
-
-    auto begin() { return m_objects.begin(); }
-    auto end() { return m_objects.end(); }
-
-    auto begin() const { return m_objects.begin(); }
-    auto end() const { return m_objects.end(); }
+    const PDFObject* begin() const { return getItems(); }
+    const PDFObject* end() const { return getItems() + m_count; }
 
 private:
-    std::vector<PDFObject> m_objects;
+    friend class PDFObject;
+    friend class PDFArrayBuilder;
+    friend class PDFTrailingItems<PDFArray, PDFObject>;
+
+    PDFArray() = default;
+    ~PDFArray() = default;
+
+    inline PDFObject* getItems() { return std::launder(reinterpret_cast<PDFObject*>(reinterpret_cast<char*>(this) + sizeof(PDFArray))); }
+    inline const PDFObject* getItems() const { return std::launder(reinterpret_cast<const PDFObject*>(reinterpret_cast<const char*>(this) + sizeof(PDFArray))); }
+
+    /// Destroys the items and releases the memory of the array
+    static void destroy(PDFArray* array) noexcept;
+
+    /// Throws exception about invalid index of the item
+    [[noreturn]] static void throwInvalidIndex(size_t index, size_t count);
+
+    /// Empty array (for the empty builders)
+    static const PDFArray s_emptyArray;
+
+    /// Number of the items, items are stored in the memory behind the header
+    uint32_t m_count = 0;
 };
 
 /// Represents a dictionary of objects in the PDF file. Dictionary is
 /// an array of pairs key-value, where key is name object and value is any
 /// PDF object. We do not use map, because dictionaries are usually small.
+/// Dictionary is immutable, it is stored in a single allocation together
+/// with its entries. Dictionaries are created by PDFDictionaryBuilder.
 class PDF4QTLIBCORESHARED_EXPORT PDFDictionary : public PDFObjectContent
 {
 public:
     using DictionaryEntry = std::pair<PDFInplaceOrMemoryString, PDFObject>;
 
-    inline PDFDictionary() = default;
-    inline PDFDictionary(std::vector<DictionaryEntry>&& dictionary) : m_dictionary(qMove(dictionary)) { }
-
-    PDFDictionary(const PDFDictionary&) = default;
-    PDFDictionary(PDFDictionary&&) noexcept = default;
-
-    // Copy before replacing content: the source may be owned by a nested object.
-    PDFDictionary& operator=(const PDFDictionary& other) { PDFDictionary(other).swap(*this); return *this; }
-    PDFDictionary& operator=(PDFDictionary&& other) noexcept { PDFDictionary(std::move(other)).swap(*this); return *this; }
-    void swap(PDFDictionary& other) noexcept { m_dictionary.swap(other.m_dictionary); }
+    PDFDictionary(const PDFDictionary&) = delete;
+    PDFDictionary(PDFDictionary&&) = delete;
+    PDFDictionary& operator=(const PDFDictionary&) = delete;
+    PDFDictionary& operator=(PDFDictionary&&) = delete;
 
     bool operator==(const PDFDictionary& other) const;
 
@@ -634,26 +648,214 @@ public:
 
     /// Returns true, if dictionary contains a particular key
     /// \param key Key to be found in the dictionary
-    bool hasKey(const QByteArray& key) const { return find(key) != m_dictionary.cend(); }
+    bool hasKey(const QByteArray& key) const;
 
     /// Returns true, if dictionary contains a particular key
     /// \param key Key to be found in the dictionary
-    bool hasKey(const char* key) const { return find(key) != m_dictionary.cend(); }
+    bool hasKey(const char* key) const;
 
-    /// Removes entry with given key. If entry with this key is not found,
-    /// nothing happens.
-    /// \param key Key to be removed
-    void removeEntry(const char* key);
+    /// Returns count of items in the dictionary
+    size_t getCount() const { return m_count; }
+
+    /// Returns true, if dictionary has no entries
+    bool isEmpty() const { return m_count == 0; }
+
+    /// Returns n-th key of the dictionary
+    /// \param index Zero-based index of key in the dictionary
+    const PDFInplaceOrMemoryString& getKey(size_t index) const { Q_ASSERT(index < m_count); return getEntries()[index].first; }
+
+    /// Returns n-th value of the dictionary
+    /// \param index Zero-based index of value in the dictionary
+    const PDFObject& getValue(size_t index) const { Q_ASSERT(index < m_count); return getEntries()[index].second; }
+
+    const DictionaryEntry* begin() const { return getEntries(); }
+    const DictionaryEntry* end() const { return getEntries() + m_count; }
+
+private:
+    friend class PDFObject;
+    friend class PDFDictionaryBuilder;
+    friend class PDFTrailingItems<PDFDictionary, DictionaryEntry>;
+
+    PDFDictionary() = default;
+    ~PDFDictionary() = default;
+
+    inline DictionaryEntry* getEntries() { return std::launder(reinterpret_cast<DictionaryEntry*>(reinterpret_cast<char*>(this) + sizeof(PDFDictionary))); }
+    inline const DictionaryEntry* getEntries() const { return std::launder(reinterpret_cast<const DictionaryEntry*>(reinterpret_cast<const char*>(this) + sizeof(PDFDictionary))); }
+
+    /// Destroys the entries and releases the memory of the dictionary
+    static void destroy(PDFDictionary* dictionary) noexcept;
+
+    /// Finds an entry in the entries, if the key is not found, then end is returned.
+    /// \param begin First entry
+    /// \param end End of the entries
+    /// \param key Key to be found
+    /// \param length Length of the key
+    static const DictionaryEntry* find(const DictionaryEntry* begin, const DictionaryEntry* end, const char* key, size_t length);
+
+    /// Finds an entry in the entries, if the key is not found, then end is returned.
+    /// \param begin First entry
+    /// \param end End of the entries
+    /// \param key Key to be found
+    static const DictionaryEntry* find(const DictionaryEntry* begin, const DictionaryEntry* end, const PDFInplaceOrMemoryString& key);
+
+    /// Null object returned for keys, which are not in the dictionary
+    static const PDFObject s_nullObject;
+
+    /// Empty dictionary (for the empty builders)
+    static const PDFDictionary s_emptyDictionary;
+
+    /// Number of the entries, entries are stored in the memory behind the header
+    uint32_t m_count = 0;
+};
+
+static_assert(sizeof(PDFArray) == 8 && sizeof(PDFArray) % alignof(PDFObject) == 0, "Items of the array must follow the header");
+static_assert(sizeof(PDFDictionary) == 8 && sizeof(PDFDictionary) % alignof(PDFDictionary::DictionaryEntry) == 0, "Entries of the dictionary must follow the header");
+
+/// Builder of the array. Items are stored directly in the memory of the array
+/// being built, so when the number of the items is known in advance (see
+/// setFixedSize), the array is created without any copy.
+class PDF4QTLIBCORESHARED_EXPORT PDFArrayBuilder
+{
+public:
+    PDFArrayBuilder() = default;
+    PDFArrayBuilder(std::vector<PDFObject>&& items);
+    explicit PDFArrayBuilder(const PDFArray& array);
+    ~PDFArrayBuilder();
+
+    PDFArrayBuilder(const PDFArrayBuilder& other);
+    PDFArrayBuilder(PDFArrayBuilder&& other) noexcept;
+    PDFArrayBuilder& operator=(const PDFArrayBuilder& other) { PDFArrayBuilder(other).swap(*this); return *this; }
+    PDFArrayBuilder& operator=(PDFArrayBuilder&& other) noexcept { PDFArrayBuilder(std::move(other)).swap(*this); return *this; }
+    void swap(PDFArrayBuilder& other) noexcept;
+
+    bool operator==(const PDFArrayBuilder& other) const;
+
+    /// Reserves memory for the given number of items
+    void reserve(size_t count);
+
+    /// Allocates the memory of the array of exactly the given size. It can be
+    /// used only when the number of the items is known in advance: exactly this
+    /// number of items must be appended, then the array is created without any
+    /// copy. Builder must be empty.
+    void setFixedSize(size_t count);
+
+    /// Appends object to the end of object list
+    void appendItem(PDFObject object);
+
+    /// Sets item at the specified index. Index must be valid.
+    void setItem(PDFObject value, size_t index);
+
+    /// Returns item at the specified index. If index is invalid,
+    /// then it throws an exception.
+    const PDFObject& getItem(size_t index) const;
+
+    /// Returns size of the array (number of elements)
+    size_t getCount() const { return m_array ? m_array->m_count : 0; }
+
+    /// Returns true, if array has no items
+    bool isEmpty() const { return getCount() == 0; }
+
+    const PDFObject* begin() const { return m_array ? m_array->getItems() : nullptr; }
+    const PDFObject* end() const { return m_array ? m_array->getItems() + m_array->m_count : nullptr; }
+
+    /// Returns the array with the items of the builder for read-only access
+    /// (for functions reading arrays). It is valid until the builder is modified.
+    const PDFArray* getArray() const { return m_array ? m_array : &PDFArray::s_emptyArray; }
+
+private:
+    friend class PDFObject;
+
+    /// Returns array of the exact size, builder becomes empty
+    PDFArray* takeArray();
+
+    /// Array being built, it can have memory for more items, than it has
+    PDFArray* m_array = nullptr;
+
+    /// Number of items, for which the memory of the array is allocated
+    size_t m_capacity = 0;
+
+    /// Number of items is fixed to the capacity (see setFixedSize)
+    bool m_isFixedSize = false;
+};
+
+/// Builder of the dictionary. Entries are stored directly in the memory of
+/// the dictionary being built, so when the number of the entries is known
+/// in advance (see setFixedSize), the dictionary is created without any copy.
+class PDF4QTLIBCORESHARED_EXPORT PDFDictionaryBuilder
+{
+public:
+    using DictionaryEntry = PDFDictionary::DictionaryEntry;
+
+    PDFDictionaryBuilder() = default;
+    PDFDictionaryBuilder(std::vector<DictionaryEntry>&& entries);
+    explicit PDFDictionaryBuilder(const PDFDictionary& dictionary);
+    ~PDFDictionaryBuilder();
+
+    PDFDictionaryBuilder(const PDFDictionaryBuilder& other);
+    PDFDictionaryBuilder(PDFDictionaryBuilder&& other) noexcept;
+    PDFDictionaryBuilder& operator=(const PDFDictionaryBuilder& other) { PDFDictionaryBuilder(other).swap(*this); return *this; }
+    PDFDictionaryBuilder& operator=(PDFDictionaryBuilder&& other) noexcept { PDFDictionaryBuilder(std::move(other)).swap(*this); return *this; }
+    void swap(PDFDictionaryBuilder& other) noexcept;
+
+    bool operator==(const PDFDictionaryBuilder& other) const;
+
+    /// Reserves memory for the given number of entries
+    void reserve(size_t count);
+
+    /// Allocates the memory of the dictionary of exactly the given size. It can
+    /// be used only when the number of the entries is known in advance: exactly
+    /// this number of entries must be added, then the dictionary is created
+    /// without any copy. Builder must be empty.
+    void setFixedSize(size_t count);
+
+    /// Returns object for the key. If key is not found in the dictionary,
+    /// then valid reference to the null object is returned.
+    const PDFObject& get(const QByteArray& key) const;
+
+    /// Returns object for the key. If key is not found in the dictionary,
+    /// then valid reference to the null object is returned.
+    const PDFObject& get(const char* key) const;
+
+    /// Returns object for the key. If key is not found in the dictionary,
+    /// then valid reference to the null object is returned.
+    const PDFObject& get(const PDFInplaceOrMemoryString& key) const;
+
+    /// Returns true, if dictionary contains a particular key
+    bool hasKey(const QByteArray& key) const;
+
+    /// Returns true, if dictionary contains a particular key
+    bool hasKey(const char* key) const;
+
+    /// Returns count of items in the dictionary
+    size_t getCount() const { return m_dictionary ? m_dictionary->m_count : 0; }
+
+    /// Returns true, if dictionary has no entries
+    bool isEmpty() const { return getCount() == 0; }
+
+    /// Returns n-th key of the dictionary
+    /// \param index Zero-based index of key in the dictionary
+    const PDFInplaceOrMemoryString& getKey(size_t index) const { Q_ASSERT(index < getCount()); return m_dictionary->getEntries()[index].first; }
+
+    /// Returns n-th value of the dictionary
+    /// \param index Zero-based index of value in the dictionary
+    const PDFObject& getValue(size_t index) const { Q_ASSERT(index < getCount()); return m_dictionary->getEntries()[index].second; }
+
+    const DictionaryEntry* begin() const { return m_dictionary ? m_dictionary->getEntries() : nullptr; }
+    const DictionaryEntry* end() const { return m_dictionary ? m_dictionary->getEntries() + m_dictionary->m_count : nullptr; }
+
+    /// Returns the dictionary with the entries of the builder for read-only access
+    /// (for functions reading dictionaries). It is valid until the builder is modified.
+    const PDFDictionary* getDictionary() const { return m_dictionary ? m_dictionary : &PDFDictionary::s_emptyDictionary; }
 
     /// Adds a new entry to the dictionary.
     /// \param key Key
     /// \param value Value
-    void addEntry(PDFInplaceOrMemoryString&& key, PDFObject&& value) { m_dictionary.emplace_back(std::move(key), std::move(value)); }
+    void addEntry(PDFInplaceOrMemoryString&& key, PDFObject&& value);
 
-    /// Adds a new entry to the dictionary.
+    /// Adds a new entry to the dictionary. Key can be a key of this builder.
     /// \param key Key
     /// \param value Value
-    void addEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value) { m_dictionary.emplace_back(key, std::move(value)); }
+    void addEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value);
 
     /// Sets entry value. If entry with given key doesn't exist,
     /// then it is created.
@@ -661,75 +863,34 @@ public:
     /// \param value Value
     void setEntry(const PDFInplaceOrMemoryString& key, PDFObject&& value);
 
-    /// Returns count of items in the dictionary
-    size_t getCount() const { return m_dictionary.size(); }
-
-    /// Returns capacity of items in the dictionary
-    size_t getCapacity() const { return m_dictionary.capacity(); }
-
-    /// Returns n-th key of the dictionary
-    /// \param index Zero-based index of key in the dictionary
-    const PDFInplaceOrMemoryString& getKey(size_t index) const { return m_dictionary[index].first; }
-
-    /// Returns n-th value of the dictionary
-    /// \param index Zero-based index of value in the dictionary
-    const PDFObject& getValue(size_t index) const { return m_dictionary[index].second; }
+    /// Removes entry with given key. If entry with this key is not found,
+    /// nothing happens.
+    /// \param key Key to be removed
+    void removeEntry(const char* key);
 
     /// Removes null objects from dictionary
     void removeNullObjects();
 
-    bool isEmpty() const { return getCount() == 0; }
-
-    /// Optimizes the dictionary for memory consumption
-    void optimize();
-
 private:
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::const_iterator find(const QByteArray& key) const;
+    friend class PDFObject;
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::iterator find(const QByteArray& key);
+    /// Returns dictionary of the exact size, builder becomes empty
+    PDFDictionary* takeDictionary();
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::const_iterator find(const char* key) const;
+    /// Returns entry for the key, or nullptr, if the key is not found
+    DictionaryEntry* findEntry(const PDFInplaceOrMemoryString& key);
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::iterator find(const char* key);
+    /// Makes room for one more entry
+    void prepareAppend();
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::const_iterator find(const PDFInplaceOrMemoryString& key) const;
+    /// Dictionary being built, it can have memory for more entries, than it has
+    PDFDictionary* m_dictionary = nullptr;
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    std::vector<DictionaryEntry>::iterator find(const PDFInplaceOrMemoryString& key);
+    /// Number of entries, for which the memory of the dictionary is allocated
+    size_t m_capacity = 0;
 
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    /// \param length Length of the key
-    std::vector<DictionaryEntry>::const_iterator find(const char* key, size_t length) const;
-
-    /// Finds an item in the dictionary array, if the item is not in the dictionary,
-    /// then end iterator is returned.
-    /// \param key Key to be found
-    /// \param length Length of the key
-    std::vector<DictionaryEntry>::iterator find(const char* key, size_t length);
-
-    /// Null object returned for keys, which are not in the dictionary
-    static const PDFObject s_nullObject;
-
-    std::vector<DictionaryEntry> m_dictionary;
+    /// Number of entries is fixed to the capacity (see setFixedSize)
+    bool m_isFixedSize = false;
 };
 
 /// Represents a stream object in the PDF file. Stream consists of dictionary
@@ -737,17 +898,13 @@ private:
 class PDF4QTLIBCORESHARED_EXPORT PDFStream : public PDFObjectContent
 {
 public:
-    inline explicit PDFStream() = default;
-    inline explicit PDFStream(PDFDictionary&& dictionary, QByteArray&& content) :
-        m_dictionary(std::move(dictionary)),
-        m_content(takeOwnedByteArray(std::move(content)))
-    {
-
-    }
+    explicit PDFStream();
+    explicit PDFStream(PDFDictionaryBuilder dictionary, QByteArray&& content);
 
     PDFStream(const PDFStream&) = default;
     PDFStream(PDFStream&&) noexcept = default;
 
+    // Copy before replacing content: the source may be owned by a nested object.
     PDFStream& operator=(const PDFStream& other) { PDFStream(other).swap(*this); return *this; }
     PDFStream& operator=(PDFStream&& other) noexcept { PDFStream(std::move(other)).swap(*this); return *this; }
     void swap(PDFStream& other) noexcept { m_dictionary.swap(other.m_dictionary); m_content.swap(other.m_content); }
@@ -755,17 +912,18 @@ public:
     bool operator==(const PDFStream& other) const { return m_dictionary == other.m_dictionary && m_content == other.m_content; }
 
     /// Returns dictionary for this content stream
-    const PDFDictionary* getDictionary() const { return &m_dictionary; }
+    inline const PDFDictionary* getDictionary() const;
 
     /// Optimizes the stream for memory consumption. Shared content
     /// would be copied, so it is not shrinked.
-    void optimize() { m_dictionary.optimize(); if (m_content.isDetached()) { m_content.shrink_to_fit(); } }
+    void optimize() { if (m_content.isDetached()) { m_content.shrink_to_fit(); } }
 
     /// Returns content of the stream
     const QByteArray* getContent() const { return &m_content; }
 
 private:
-    PDFDictionary m_dictionary;
+    /// Dictionary object of the stream (the dictionary is in its own allocation)
+    PDFObject m_dictionary;
     QByteArray m_content;
 };
 
@@ -897,7 +1055,7 @@ QByteArrayView PDFInplaceOrMemoryString::getView() const
 }
 
 inline
-uint64_t PDFInplaceOrMemoryString::getContentReferenceCount() const
+uint32_t PDFInplaceOrMemoryString::getContentReferenceCount() const
 {
     return isInplace() ? 0 : m_storage.memory.string->getReferenceCount();
 }
@@ -1029,7 +1187,7 @@ const PDFArray* PDFObject::getArray() const
 }
 
 inline
-uint64_t PDFObject::getContentReferenceCount() const
+uint32_t PDFObject::getContentReferenceCount() const
 {
     return hasContent() ? m_storage.value.content->getReferenceCount() : 0;
 }
@@ -1105,6 +1263,23 @@ QByteArrayView PDFObject::getStringView() const
     }
 
     return QByteArrayView(stringRef.memoryString->getString());
+}
+
+inline
+const PDFObject& PDFArray::getItem(size_t index) const
+{
+    if (index >= m_count)
+    {
+        throwInvalidIndex(index, m_count);
+    }
+
+    return getItems()[index];
+}
+
+inline
+const PDFDictionary* PDFStream::getDictionary() const
+{
+    return m_dictionary.getDictionary();
 }
 
 }   // namespace pdf

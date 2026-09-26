@@ -423,7 +423,7 @@ void PDFCreateObjectInspectorTreeItemFromObjectVisitor::visitName(pdf::PDFString
 
 void PDFCreateObjectInspectorTreeItemFromObjectVisitor::visitArray(const pdf::PDFArray* array)
 {
-    PDFObjectInspectorTreeItem* arrayRoot = new PDFObjectInspectorTreeItem(m_reference, pdf::PDFObject::createArray(pdf::PDFArray(*array)), m_parents.top());
+    PDFObjectInspectorTreeItem* arrayRoot = new PDFObjectInspectorTreeItem(m_reference, pdf::PDFObject::createArray(pdf::PDFArrayBuilder(*array)), m_parents.top());
     m_parents.top()->addCreatedChild(arrayRoot);
     m_parents.push(arrayRoot);
     acceptArray(array);
@@ -432,7 +432,7 @@ void PDFCreateObjectInspectorTreeItemFromObjectVisitor::visitArray(const pdf::PD
 
 void PDFCreateObjectInspectorTreeItemFromObjectVisitor::visitDictionary(const pdf::PDFDictionary* dictionary)
 {
-    PDFObjectInspectorTreeItem* dictionaryRoot = new PDFObjectInspectorTreeItem(m_reference, pdf::PDFObject::createDictionary(pdf::PDFDictionary(*dictionary)), m_parents.top());
+    PDFObjectInspectorTreeItem* dictionaryRoot = new PDFObjectInspectorTreeItem(m_reference, pdf::PDFObject::createDictionary(pdf::PDFDictionaryBuilder(*dictionary)), m_parents.top());
     m_parents.top()->addCreatedChild(dictionaryRoot);
     m_parents.push(dictionaryRoot);
 

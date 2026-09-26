@@ -397,24 +397,24 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
         }
     }
 
-    pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
-    pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
-    pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
-    pdf::PDFDictionary shadingDictionary = contentStreamBuilder.getShadingDictionary();
+    pdf::PDFDictionaryBuilder fontDictionary = contentStreamBuilder.getFontDictionary();
+    pdf::PDFDictionaryBuilder xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
+    pdf::PDFDictionaryBuilder graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
+    pdf::PDFDictionaryBuilder shadingDictionary = contentStreamBuilder.getShadingDictionary();
 
     builder->replaceObjectsByReferences(fontDictionary);
     builder->replaceObjectsByReferences(xobjectDictionary);
     builder->replaceObjectsByReferences(graphicStateDictionary);
     builder->replaceObjectsByReferences(shadingDictionary);
 
-    pdf::PDFArray array;
+    pdf::PDFArrayBuilder array;
     array.appendItem(pdf::PDFObject::createName("FlateDecode"));
 
     // Compress the content stream
     QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
-    pdf::PDFDictionary contentDictionary;
+    pdf::PDFDictionaryBuilder contentDictionary;
     contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
-    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(pdf::PDFArray(qMove(array))));
+    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(qMove(array)));
     pdf::PDFObject contentObject = pdf::PDFObject::createStream(pdf::PDFStream(qMove(contentDictionary), qMove(compressedData)));
 
     pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
@@ -425,18 +425,18 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     // properties - are preserved. Only the regenerated categories are replaced.
     // The current resources cannot be merged by the merge operation below, because
     // they are usually an indirect object, which is replaced as a whole.
-    pdf::PDFDictionary resourcesDictionary;
+    pdf::PDFDictionaryBuilder resourcesDictionary;
     if (const pdf::PDFDictionary* currentResourcesDictionary = m_document->getDictionaryFromObject(page->getResources()))
     {
-        resourcesDictionary = *currentResourcesDictionary;
+        resourcesDictionary = pdf::PDFDictionaryBuilder(*currentResourcesDictionary);
     }
 
-    auto setResources = [&resourcesDictionary](const char* key, const pdf::PDFDictionary& dictionary)
+    auto setResources = [&resourcesDictionary](const char* key, const pdf::PDFDictionaryBuilder& dictionary)
     {
         if (!dictionary.isEmpty())
         {
             resourcesDictionary.setEntry(pdf::PDFInplaceOrMemoryString(key),
-                                         pdf::PDFObject::createDictionary(pdf::PDFDictionary(dictionary)));
+                                         pdf::PDFObject::createDictionary(dictionary));
         }
     };
 

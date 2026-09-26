@@ -164,7 +164,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitArray(const PDFArray* array)
 
     auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
     std::vector<PDFObject> objects(it, m_objectStack.cend());
-    PDFObject object = PDFObject::createArray(PDFArray(qMove(objects)));
+    PDFObject object = PDFObject::createArray(qMove(objects));
     m_objectStack.erase(it, m_objectStack.cend());
     m_objectStack.push_back(object);
 }
@@ -199,7 +199,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dict
         }
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
 void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
@@ -212,7 +212,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 
     if (isMetadata && !m_securityHandler->isMetadataEncrypted())
     {
-        m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionary(*dictionary), QByteArray(*stream->getContent()))));
+        m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionaryBuilder(*dictionary), QByteArray(*stream->getContent()))));
         return;
     }
 
@@ -223,7 +223,7 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 
     // We must also handle situation, that stream has specified Crypt filter.
     // In this case, we must delegate decryption/encryption to the stream filters.
-    PDFDictionary processedDictionary(*dictionaryObject.getDictionary());
+    PDFDictionaryBuilder processedDictionary(*dictionaryObject.getDictionary());
     QByteArray processedData;
     if (!processedDictionary.hasKey("Crypt"))
     {

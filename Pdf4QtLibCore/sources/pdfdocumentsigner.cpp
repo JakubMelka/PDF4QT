@@ -162,9 +162,9 @@ PDFDocumentSigner::Result PDFDocumentSigner::signAttempt(const Parameters& param
     {
         if (const PDFDictionary* dictionary = builder.getDictionaryFromObject(builder.getObjectByReference(signatureDictionary)))
         {
-            PDFDictionary timestampDictionary(*dictionary);
+            PDFDictionaryBuilder timestampDictionary(*dictionary);
             timestampDictionary.removeEntry("M");
-            builder.setObject(signatureDictionary, PDFObject::createDictionary(PDFDictionary(qMove(timestampDictionary))));
+            builder.setObject(signatureDictionary, PDFObject::createDictionary(qMove(timestampDictionary)));
         }
     }
     const PDFObjectReference signatureField = parameters.createSignatureFieldFunction(builder, signatureDictionary);

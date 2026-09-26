@@ -254,7 +254,7 @@ pdf::PDFDocument BitonalDocumentTest::createDocument(const std::vector<QSizeF>& 
         QByteArray content = QString("0 0 0 rg 0 0 %1 %2 re f").arg(pageSize.width() / 2.0, 0, 'f', 3)
                                                                .arg(pageSize.height(), 0, 'f', 3).toLatin1();
 
-        pdf::PDFDictionary pageUpdate;
+        pdf::PDFDictionaryBuilder pageUpdate;
 
         if (hasBrokenImage)
         {
@@ -263,7 +263,7 @@ pdf::PDFDocument BitonalDocumentTest::createDocument(const std::vector<QSizeF>& 
             // page is rendered.
             QByteArray garbage("this is not a compressed image stream at all");
 
-            pdf::PDFDictionary imageDictionary;
+            pdf::PDFDictionaryBuilder imageDictionary;
             imageDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XObject"));
             imageDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Image"));
             imageDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Width"), pdf::PDFObject::createInteger(16));
@@ -275,19 +275,19 @@ pdf::PDFDocument BitonalDocumentTest::createDocument(const std::vector<QSizeF>& 
             const pdf::PDFObjectReference imageReference = builder.addObject(
                 pdf::PDFObject::createStream(pdf::PDFStream(std::move(imageDictionary), std::move(garbage))));
 
-            pdf::PDFDictionary xobjects;
+            pdf::PDFDictionaryBuilder xobjects;
             xobjects.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageReference));
 
-            pdf::PDFDictionary resources;
-            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(xobjects))));
-            pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(resources))));
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), pdf::PDFObject::createDictionary(std::move(xobjects)));
+            pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::move(resources)));
 
             content.append(QString(" q %1 0 0 %2 %3 0 cm /Im1 Do Q").arg(pageSize.width() / 4.0, 0, 'f', 3)
                                                                    .arg(pageSize.height() / 2.0, 0, 'f', 3)
                                                                    .arg(pageSize.width() * 0.6, 0, 'f', 3).toLatin1());
         }
 
-        pdf::PDFDictionary contentDictionary;
+        pdf::PDFDictionaryBuilder contentDictionary;
         contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH),
                                    pdf::PDFObject::createInteger(content.size()));
         const pdf::PDFObjectReference contentReference = builder.addObject(
@@ -300,26 +300,26 @@ pdf::PDFDocument BitonalDocumentTest::createDocument(const std::vector<QSizeF>& 
             pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("StructParents"), pdf::PDFObject::createInteger(structParent++));
         }
 
-        builder.mergeTo(pageReference, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
+        builder.mergeTo(pageReference, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
     }
 
     if (addStructureTree)
     {
-        pdf::PDFDictionary structTreeRoot;
+        pdf::PDFDictionaryBuilder structTreeRoot;
         structTreeRoot.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("StructTreeRoot"));
         const pdf::PDFObjectReference structTreeRootReference = builder.addObject(
-            pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(structTreeRoot))));
+            pdf::PDFObject::createDictionary(std::move(structTreeRoot)));
 
-        pdf::PDFDictionary markInfo;
+        pdf::PDFDictionaryBuilder markInfo;
         markInfo.addEntry(pdf::PDFInplaceOrMemoryString("Marked"), pdf::PDFObject::createBool(true));
 
-        pdf::PDFDictionary catalogUpdate;
+        pdf::PDFDictionaryBuilder catalogUpdate;
         catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("StructTreeRoot"), pdf::PDFObject::createReference(structTreeRootReference));
         catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("MarkInfo"),
-                               pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(markInfo))));
+                               pdf::PDFObject::createDictionary(std::move(markInfo)));
 
         builder.mergeTo(builder.getCatalogReference(),
-                        pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(catalogUpdate))));
+                        pdf::PDFObject::createDictionary(std::move(catalogUpdate)));
     }
 
     return builder.build();
@@ -335,22 +335,22 @@ BitonalDocumentTest::TaggedDocument BitonalDocumentTest::createTaggedDocument()
 
     auto createDictionary = [](std::initializer_list<std::pair<const char*, pdf::PDFObject>> entries)
     {
-        pdf::PDFDictionary dictionary;
+        pdf::PDFDictionaryBuilder dictionary;
         for (const auto& [key, value] : entries)
         {
             dictionary.addEntry(pdf::PDFInplaceOrMemoryString(key), pdf::PDFObject(value));
         }
-        return pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(dictionary)));
+        return pdf::PDFObject::createDictionary(std::move(dictionary));
     };
 
     auto createArray = [](std::initializer_list<pdf::PDFObject> items)
     {
-        pdf::PDFArray array;
+        pdf::PDFArrayBuilder array;
         for (const pdf::PDFObject& item : items)
         {
             array.appendItem(item);
         }
-        return pdf::PDFObject::createArray(pdf::PDFArray(std::move(array)));
+        return pdf::PDFObject::createArray(std::move(array));
     };
 
     auto ref = [](pdf::PDFObjectReference reference) { return pdf::PDFObject::createReference(reference); };
@@ -377,12 +377,12 @@ BitonalDocumentTest::TaggedDocument BitonalDocumentTest::createTaggedDocument()
         result.pages.push_back(pageReference);
 
         QByteArray content("/P <</MCID 0>> BDC 0 0 0 rg 0 0 100 100 re f EMC /Span <</MCID 1>> BDC 0 0 10 10 re f EMC");
-        pdf::PDFDictionary contentDictionary;
+        pdf::PDFDictionaryBuilder contentDictionary;
         contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), integer(content.size()));
         const pdf::PDFObjectReference contentReference = builder.addObject(
             pdf::PDFObject::createStream(pdf::PDFStream(std::move(contentDictionary), std::move(content))));
 
-        pdf::PDFDictionary pageUpdate;
+        pdf::PDFDictionaryBuilder pageUpdate;
         pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), ref(contentReference));
         pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("StructParents"), integer(pdf::PDFInteger(pageIndex)));
 
@@ -392,7 +392,7 @@ BitonalDocumentTest::TaggedDocument BitonalDocumentTest::createTaggedDocument()
             pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), createDictionary({ { "XObject", createDictionary({ { "Im1", ref(result.image) } }) } }));
         }
 
-        builder.mergeTo(pageReference, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
+        builder.mergeTo(pageReference, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
     }
 
     const pdf::PDFObjectReference page0 = result.pages[0];
@@ -424,10 +424,10 @@ BitonalDocumentTest::TaggedDocument BitonalDocumentTest::createTaggedDocument()
 
     builder.setObject(result.root, createDictionary({ { "Type", name("StructTreeRoot") }, { "K", ref(result.documentElement) }, { "ParentTree", ref(parentTree) }, { "ParentTreeNextKey", integer(4) }, { "IDTree", ref(idTree) } }));
 
-    pdf::PDFDictionary catalogUpdate;
+    pdf::PDFDictionaryBuilder catalogUpdate;
     catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("StructTreeRoot"), ref(result.root));
     catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("MarkInfo"), createDictionary({ { "Marked", pdf::PDFObject::createBool(true) } }));
-    builder.mergeTo(builder.getCatalogReference(), pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(catalogUpdate))));
+    builder.mergeTo(builder.getCatalogReference(), pdf::PDFObject::createDictionary(std::move(catalogUpdate)));
 
     result.document = builder.build();
     return result;

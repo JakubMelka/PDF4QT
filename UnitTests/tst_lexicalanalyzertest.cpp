@@ -274,7 +274,7 @@ void LexicalAnalyzerTest::test_parser_objects()
     QVERIFY(object.isDictionary());
     const pdf::PDFDictionary* dictionary = object.getDictionary();
     QCOMPARE(dictionary->getCount(), size_t(7));
-    QCOMPARE(dictionary->getCapacity(), size_t(7));
+    QCOMPARE(dictionary->getCount(), size_t(7));
     QCOMPARE(dictionary->get("Type").getString(), QByteArray("Page"));
     QCOMPARE(dictionary->get("VeryLongKeyOfTheDictionary").getString(), QByteArray("VeryLongValueOfTheName"));
     QVERIFY(!dictionary->getKey(1).isInplace());
@@ -285,7 +285,7 @@ void LexicalAnalyzerTest::test_parser_objects()
     QVERIFY(kidsObject.isArray());
     const pdf::PDFArray* kids = kidsObject.getArray();
     QCOMPARE(kids->getCount(), size_t(6));
-    QCOMPARE(kids->getCapacity(), size_t(6));
+    QCOMPARE(kids->getCount(), size_t(6));
     QCOMPARE(kids->getItem(0).getReference(), pdf::PDFObjectReference(1, 0));
     QCOMPARE(kids->getItem(1).getReference(), pdf::PDFObjectReference(2, 0));
 
@@ -401,7 +401,7 @@ void LexicalAnalyzerTest::test_parser_scratch_stacks()
 
 void LexicalAnalyzerTest::test_dictionary_lookup()
 {
-    pdf::PDFDictionary dictionary;
+    pdf::PDFDictionaryBuilder dictionary;
     dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Page"));
     dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Typ"), pdf::PDFObject::createInteger(1));
     dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Types"), pdf::PDFObject::createInteger(2));

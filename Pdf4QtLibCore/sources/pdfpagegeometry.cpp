@@ -120,7 +120,7 @@ public:
     {
         Q_ASSERT(builder);
 
-        PDFDictionary dictionary;
+        PDFDictionaryBuilder dictionary;
         dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(content.size()));
         PDFObject streamObject = PDFObject::createStream(PDFStream(std::move(dictionary), QByteArray(content)));
         return builder->addObject(std::move(streamObject));

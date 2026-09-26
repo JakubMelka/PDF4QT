@@ -110,7 +110,7 @@ void PDFRemoveNullDictionaryEntriesVisitor::visitDictionary(const PDFDictionary*
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
 PDFOptimizer::PDFOptimizer(OptimizationFlags flags, QObject* parent) :
@@ -452,7 +452,7 @@ bool PDFOptimizer::performRecompressFlateStreams()
                 if (currentBytesSaved > 0)
                 {
                     bytesSaved += currentBytesSaved;
-                    PDFDictionary updatedDictionary = *dictionary;
+                    PDFDictionaryBuilder updatedDictionary(*dictionary);
                     updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(recompressedData.size()));
                     entry.object = PDFObject::createStream(PDFStream(qMove(updatedDictionary), qMove(recompressedData)));
                 }

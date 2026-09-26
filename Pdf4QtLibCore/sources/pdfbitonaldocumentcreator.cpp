@@ -258,7 +258,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
 
         if (!imageObject.isNull())
         {
-            PDFDictionary dictionary = *imageObject.getStream()->getDictionary();
+            PDFDictionaryBuilder dictionary(*imageObject.getStream()->getDictionary());
             QByteArray content = *imageObject.getStream()->getContent();
 
             // Transfer the entries of the original image, which are not related
@@ -440,22 +440,22 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
                                        .arg(mediaBox.top(), 0, 'f', 6).toLatin1();
         QByteArray compressedContentStream = PDFFlateDecodeFilter::compress(contentStream);
 
-        PDFDictionary contentStreamDictionary;
+        PDFDictionaryBuilder contentStreamDictionary;
         contentStreamDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("FlateDecode"));
         contentStreamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedContentStream.size()));
 
         const PDFObjectReference contentStreamReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentStreamDictionary), std::move(compressedContentStream))));
 
-        PDFDictionary xobjectDictionary;
+        PDFDictionaryBuilder xobjectDictionary;
         xobjectDictionary.setEntry(PDFInplaceOrMemoryString("BitonalImage"), PDFObject::createReference(imageReference));
 
-        PDFArray procSetArray;
+        PDFArrayBuilder procSetArray;
         procSetArray.appendItem(PDFObject::createName("PDF"));
         procSetArray.appendItem(PDFObject::createName("ImageB"));
 
-        PDFDictionary resourcesDictionary;
-        resourcesDictionary.setEntry(PDFInplaceOrMemoryString("XObject"), PDFObject::createDictionary(PDFDictionary(std::move(xobjectDictionary))));
-        resourcesDictionary.setEntry(PDFInplaceOrMemoryString("ProcSet"), PDFObject::createArray(PDFArray(std::move(procSetArray))));
+        PDFDictionaryBuilder resourcesDictionary;
+        resourcesDictionary.setEntry(PDFInplaceOrMemoryString("XObject"), PDFObject::createDictionary(std::move(xobjectDictionary)));
+        resourcesDictionary.setEntry(PDFInplaceOrMemoryString("ProcSet"), PDFObject::createArray(std::move(procSetArray)));
 
         const PDFObjectReference pageReference = page->getPageReference();
         const PDFDictionary* originalPageDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(pageReference));
@@ -468,9 +468,9 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
 
         // Everything except the page content is preserved - the page keeps its size,
         // rotation, annotations and other properties.
-        PDFDictionary pageDictionary = *originalPageDictionary;
+        PDFDictionaryBuilder pageDictionary(*originalPageDictionary);
         pageDictionary.setEntry(PDFInplaceOrMemoryString("Contents"), PDFObject::createReference(contentStreamReference));
-        pageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(PDFDictionary(std::move(resourcesDictionary))));
+        pageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::move(resourcesDictionary)));
 
         // The marked content of the page is gone, so the page must not be a part
         // of the structure tree anymore.
@@ -481,7 +481,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         // the removal of the unused objects it references.
         pageDictionary.removeEntry("Thumb");
 
-        builder.setObject(pageReference, PDFObject::createDictionary(PDFDictionary(std::move(pageDictionary))));
+        builder.setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
         isConverted = true;
         convertedPages.insert(pageReference);
         ++m_convertedItemCount;
@@ -514,10 +514,10 @@ void PDFBitonalDocumentCreator::removeStructureTree(PDFDocumentBuilder& builder)
             return;
         }
 
-        PDFDictionary catalogDictionary = *originalCatalogDictionary;
+        PDFDictionaryBuilder catalogDictionary(*originalCatalogDictionary);
         catalogDictionary.removeEntry("StructTreeRoot");
         catalogDictionary.removeEntry("MarkInfo");
-        builder.setObject(catalogReference, PDFObject::createDictionary(PDFDictionary(std::move(catalogDictionary))));
+        builder.setObject(catalogReference, PDFObject::createDictionary(std::move(catalogDictionary)));
     }
 }
 
@@ -560,7 +560,7 @@ private:
     {
         bool isKept = true;
         bool isChanged = false;
-        PDFDictionary dictionary;
+        PDFDictionaryBuilder dictionary;
     };
 
     /// Result of the pruning of the kids of an element
@@ -588,7 +588,7 @@ private:
 
     /// Writes the object into the builder, either as the indirect object or as
     /// a direct entry of the parent dictionary
-    static void setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionary& parentDictionary, const char* key, PDFObject object);
+    static void setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionaryBuilder& parentDictionary, const char* key, PDFObject object);
 
     const PDFDocument* m_document;
     PDFDocumentBuilder* m_builder;
@@ -651,7 +651,7 @@ bool PDFStructureTreePruner::prune()
 
     pruneElementReferences();
 
-    PDFDictionary newRootDictionary = *rootDictionary;
+    PDFDictionaryBuilder newRootDictionary(*rootDictionary);
     bool isRootChanged = false;
 
     if (kids.isChanged)
@@ -688,13 +688,13 @@ bool PDFStructureTreePruner::prune()
     {
         if (rootObject.isReference())
         {
-            m_builder->setObject(rootObject.getReference(), PDFObject::createDictionary(PDFDictionary(std::move(newRootDictionary))));
+            m_builder->setObject(rootObject.getReference(), PDFObject::createDictionary(std::move(newRootDictionary)));
         }
         else
         {
-            PDFDictionary newCatalogDictionary = *catalogDictionary;
-            newCatalogDictionary.setEntry(PDFInplaceOrMemoryString("StructTreeRoot"), PDFObject::createDictionary(PDFDictionary(std::move(newRootDictionary))));
-            m_builder->setObject(catalogReference, PDFObject::createDictionary(PDFDictionary(std::move(newCatalogDictionary))));
+            PDFDictionaryBuilder newCatalogDictionary(*catalogDictionary);
+            newCatalogDictionary.setEntry(PDFInplaceOrMemoryString("StructTreeRoot"), PDFObject::createDictionary(std::move(newRootDictionary)));
+            m_builder->setObject(catalogReference, PDFObject::createDictionary(std::move(newCatalogDictionary)));
         }
     }
 
@@ -710,7 +710,7 @@ PDFStructureTreePruner::KidsResult PDFStructureTreePruner::pruneKids(const PDFOb
 
     if (dereferencedKids.isArray())
     {
-        PDFArray newKids;
+        PDFArrayBuilder newKids;
         const PDFArray* kidsArray = dereferencedKids.getArray();
 
         for (size_t i = 0, count = kidsArray->getCount(); i < count; ++i)
@@ -734,7 +734,7 @@ PDFStructureTreePruner::KidsResult PDFStructureTreePruner::pruneKids(const PDFOb
 
         if (result.isChanged)
         {
-            result.kids = newKids.getCount() > 0 ? PDFObject::createArray(PDFArray(std::move(newKids))) : PDFObject();
+            result.kids = newKids.getCount() > 0 ? PDFObject::createArray(std::move(newKids)) : PDFObject();
         }
     }
     else if (!kids.isNull())
@@ -837,7 +837,7 @@ std::optional<PDFObject> PDFStructureTreePruner::pruneKid(const PDFObject& kid, 
 
     if (result.isChanged)
     {
-        return PDFObject::createDictionary(PDFDictionary(std::move(result.dictionary)));
+        return PDFObject::createDictionary(std::move(result.dictionary));
     }
 
     return kid;
@@ -864,7 +864,7 @@ PDFStructureTreePruner::ElementResult PDFStructureTreePruner::pruneElementDictio
     }
 
     result.isChanged = true;
-    result.dictionary = *dictionary;
+    result.dictionary = PDFDictionaryBuilder(*dictionary);
     result.dictionary.setEntry(PDFInplaceOrMemoryString("K"), std::move(kids.kids));
     return result;
 }
@@ -900,7 +900,7 @@ bool PDFStructureTreePruner::pruneElement(PDFObjectReference reference, PDFObjec
 
     if (result.isChanged)
     {
-        m_builder->setObject(reference, PDFObject::createDictionary(PDFDictionary(std::move(result.dictionary))));
+        m_builder->setObject(reference, PDFObject::createDictionary(std::move(result.dictionary)));
     }
 
     if (dictionary->hasKey("Ref"))
@@ -929,7 +929,7 @@ PDFObject PDFStructureTreePruner::rebuildParentTree(const PDFObject& parentTree,
     std::vector<Entry> entries = PDFNumberTreeLoader<Entry>::parse(&m_document->getStorage(), parentTree);
     bool isChanged = false;
 
-    PDFArray numbers;
+    PDFArrayBuilder numbers;
 
     for (Entry& entry : entries)
     {
@@ -956,7 +956,7 @@ PDFObject PDFStructureTreePruner::rebuildParentTree(const PDFObject& parentTree,
             // is inconsistent. A removed element is replaced by null, so the identifiers
             // of the other elements keep their positions.
             const PDFArray* array = dereferencedValue.getArray();
-            PDFArray newArray;
+            PDFArrayBuilder newArray;
             bool isArrayChanged = false;
 
             for (size_t i = 0, count = array->getCount(); i < count; ++i)
@@ -976,7 +976,7 @@ PDFObject PDFStructureTreePruner::rebuildParentTree(const PDFObject& parentTree,
 
             if (isArrayChanged)
             {
-                PDFObject newArrayObject = PDFObject::createArray(PDFArray(std::move(newArray)));
+                PDFObject newArrayObject = PDFObject::createArray(std::move(newArray));
 
                 if (entry.value.isReference())
                 {
@@ -1000,9 +1000,9 @@ PDFObject PDFStructureTreePruner::rebuildParentTree(const PDFObject& parentTree,
     }
 
     // The tree is rebuilt as a single node - that is a valid number tree of any size
-    PDFDictionary dictionary;
-    dictionary.setEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(PDFArray(std::move(numbers))));
-    return PDFObject::createDictionary(PDFDictionary(std::move(dictionary)));
+    PDFDictionaryBuilder dictionary;
+    dictionary.setEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(std::move(numbers)));
+    return PDFObject::createDictionary(std::move(dictionary));
 }
 
 PDFObject PDFStructureTreePruner::rebuildIdTree(const PDFObject& idTree)
@@ -1010,7 +1010,7 @@ PDFObject PDFStructureTreePruner::rebuildIdTree(const PDFObject& idTree)
     const std::map<QByteArray, PDFObject> entries = PDFNameTreeLoader<PDFObject>::parse(&m_document->getStorage(), idTree, [](const PDFObjectStorage*, const PDFObject& object) { return object; });
     bool isChanged = false;
 
-    PDFArray names;
+    PDFArrayBuilder names;
 
     for (const auto& [name, value] : entries)
     {
@@ -1031,9 +1031,9 @@ PDFObject PDFStructureTreePruner::rebuildIdTree(const PDFObject& idTree)
 
     // The tree is rebuilt as a single node with the keys in the byte order, in which
     // the map keeps them
-    PDFDictionary dictionary;
-    dictionary.setEntry(PDFInplaceOrMemoryString("Names"), PDFObject::createArray(PDFArray(std::move(names))));
-    return PDFObject::createDictionary(PDFDictionary(std::move(dictionary)));
+    PDFDictionaryBuilder dictionary;
+    dictionary.setEntry(PDFInplaceOrMemoryString("Names"), PDFObject::createArray(std::move(names)));
+    return PDFObject::createDictionary(std::move(dictionary));
 }
 
 void PDFStructureTreePruner::pruneElementReferences()
@@ -1057,7 +1057,7 @@ void PDFStructureTreePruner::pruneElementReferences()
             continue;
         }
 
-        PDFArray newReferences;
+        PDFArrayBuilder newReferences;
         bool isChanged = false;
 
         for (size_t i = 0, count = references.getArray()->getCount(); i < count; ++i)
@@ -1078,18 +1078,18 @@ void PDFStructureTreePruner::pruneElementReferences()
             continue;
         }
 
-        PDFDictionary newDictionary = *dictionary;
+        PDFDictionaryBuilder newDictionary(*dictionary);
 
         if (newReferences.getCount() > 0)
         {
-            newDictionary.setEntry(PDFInplaceOrMemoryString("Ref"), PDFObject::createArray(PDFArray(std::move(newReferences))));
+            newDictionary.setEntry(PDFInplaceOrMemoryString("Ref"), PDFObject::createArray(std::move(newReferences)));
         }
         else
         {
             newDictionary.removeEntry("Ref");
         }
 
-        m_builder->setObject(reference, PDFObject::createDictionary(PDFDictionary(std::move(newDictionary))));
+        m_builder->setObject(reference, PDFObject::createDictionary(std::move(newDictionary)));
     }
 }
 
@@ -1125,7 +1125,7 @@ PDFObjectReference PDFStructureTreePruner::getEffectivePage(const PDFDictionary*
     return page.isValid() ? page : inheritedPage;
 }
 
-void PDFStructureTreePruner::setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionary& parentDictionary, const char* key, PDFObject object)
+void PDFStructureTreePruner::setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionaryBuilder& parentDictionary, const char* key, PDFObject object)
 {
     if (original.isReference())
     {
@@ -1298,7 +1298,7 @@ PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& imag
 
             PDFStream stream = PDFImage::createStreamFromImage(image, options, nullptr);
 
-            PDFDictionary dictionary = *stream.getDictionary();
+            PDFDictionaryBuilder dictionary(*stream.getDictionary());
             QByteArray content = *stream.getContent();
 
             return PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content)));
@@ -1856,8 +1856,8 @@ std::optional<PDFImage> PDFBitonalDocumentCreator::getImageFromReference(PDFObje
             const PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
             if (colorSpaceObject.isName() || colorSpaceObject.isArray())
             {
-                PDFDictionary dummyDictionary;
-                colorSpace = PDFAbstractColorSpace::createColorSpace(&dummyDictionary, m_document, colorSpaceObject);
+                PDFDictionaryBuilder dummyDictionary;
+                colorSpace = PDFAbstractColorSpace::createColorSpace(dummyDictionary.getDictionary(), m_document, colorSpaceObject);
             }
         }
         pdfImage.emplace(PDFImage::createImage(m_document,

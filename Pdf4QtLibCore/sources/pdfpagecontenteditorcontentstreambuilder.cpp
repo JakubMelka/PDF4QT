@@ -83,19 +83,19 @@ PDFObject createSoftMaskObject(const QImage& alphaImage)
 {
     Q_ASSERT(alphaImage.format() == QImage::Format_Alpha8);
 
-    PDFArray filter;
+    PDFArrayBuilder filter;
     filter.appendItem(PDFObject::createName("FlateDecode"));
 
     QByteArray compressedData = PDFFlateDecodeFilter::compress(getImageSamples(alphaImage, 1));
 
-    PDFDictionary softMaskDictionary;
+    PDFDictionaryBuilder softMaskDictionary;
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(alphaImage.width()));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(alphaImage.height()));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceGray"));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
     softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filter))));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(qMove(filter)));
 
     return PDFObject::createStream(PDFStream(qMove(softMaskDictionary), qMove(compressedData)));
 }
@@ -882,13 +882,13 @@ void PDFPageContentEditorContentStreamBuilder::endTransparencyGroup()
         boundingBox = QRectF(0.0, 0.0, 1.0, 1.0);
     }
 
-    PDFArray boundingBoxArray;
+    PDFArrayBuilder boundingBoxArray;
     boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.left()));
     boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.top()));
     boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.right()));
     boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.bottom()));
 
-    PDFDictionary groupDictionary;
+    PDFDictionaryBuilder groupDictionary;
     groupDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Group"));
     groupDictionary.setEntry(PDFInplaceOrMemoryString("S"), PDFObject::createName("Transparency"));
     groupDictionary.setEntry(PDFInplaceOrMemoryString("I"), PDFObject::createBool(group->isolated));
@@ -898,19 +898,19 @@ void PDFPageContentEditorContentStreamBuilder::endTransparencyGroup()
         groupDictionary.setEntry(PDFInplaceOrMemoryString("CS"), PDFObject(group->colorSpaceObject));
     }
 
-    PDFArray filter;
+    PDFArrayBuilder filter;
     filter.appendItem(PDFObject::createName("FlateDecode"));
 
     // The form XObject has no resource dictionary, so it uses the resources of the page,
     // into which all resources used by the elements of the group are written.
     QByteArray compressedData = PDFFlateDecodeFilter::compress(groupContent);
-    PDFDictionary formDictionary;
+    PDFDictionaryBuilder formDictionary;
     formDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
     formDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Form"));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("BBox"), PDFObject::createArray(PDFArray(qMove(boundingBoxArray))));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("Group"), PDFObject::createDictionary(PDFDictionary(qMove(groupDictionary))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("BBox"), PDFObject::createArray(qMove(boundingBoxArray)));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Group"), PDFObject::createDictionary(qMove(groupDictionary)));
     formDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    formDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filter))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(qMove(filter)));
     PDFObject formObject = PDFObject::createStream(PDFStream(qMove(formDictionary), qMove(compressedData)));
 
     QByteArray key;
@@ -1571,7 +1571,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
         QByteArray currentKey = QString("Im%1").arg(++i).toLatin1();
         if (!m_xobjectDictionary.hasKey(currentKey))
         {
-            PDFArray array;
+            PDFArrayBuilder array;
             array.appendItem(PDFObject::createName("FlateDecode"));
 
             // The alpha channel cannot be stored in the image samples, it must be
@@ -1587,7 +1587,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
 
             // Compress the content stream
             QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
-            PDFDictionary imageDictionary;
+            PDFDictionaryBuilder imageDictionary;
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(image.width()));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(image.height()));
@@ -1595,7 +1595,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             imageDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceRGB"));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-            imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(array))));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(qMove(array)));
 
             if (!softMaskImage.isNull())
             {
@@ -1800,24 +1800,24 @@ void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
     m_errors << error;
 }
 
-void PDFPageContentEditorContentStreamBuilder::setFontDictionary(const PDFDictionary& newFontDictionary)
+void PDFPageContentEditorContentStreamBuilder::setFontDictionary(PDFDictionaryBuilder newFontDictionary)
 {
-    m_fontDictionary = newFontDictionary;
+    m_fontDictionary = std::move(newFontDictionary);
 }
 
-void PDFPageContentEditorContentStreamBuilder::setXObjectDictionary(const PDFDictionary& newXObjectDictionary)
+void PDFPageContentEditorContentStreamBuilder::setXObjectDictionary(PDFDictionaryBuilder newXObjectDictionary)
 {
-    m_xobjectDictionary = newXObjectDictionary;
+    m_xobjectDictionary = std::move(newXObjectDictionary);
 }
 
-void PDFPageContentEditorContentStreamBuilder::setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary)
+void PDFPageContentEditorContentStreamBuilder::setGraphicStateDictionary(PDFDictionaryBuilder newGraphicStateDictionary)
 {
-    m_graphicStateDictionary = newGraphicStateDictionary;
+    m_graphicStateDictionary = std::move(newGraphicStateDictionary);
 }
 
-void PDFPageContentEditorContentStreamBuilder::setShadingDictionary(const PDFDictionary& newShadingDictionary)
+void PDFPageContentEditorContentStreamBuilder::setShadingDictionary(PDFDictionaryBuilder newShadingDictionary)
 {
-    m_shadingDictionary = newShadingDictionary;
+    m_shadingDictionary = std::move(newShadingDictionary);
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path,

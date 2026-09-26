@@ -66,7 +66,7 @@ public:
     static PDFInteger readDirectIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue);
     static QByteArray readDirectNameFromDictionary(const PDFDictionary* dictionary, const char* key);
     static QByteArray sanitizeInvisibleTextInContent(const QByteArray& content, bool* changed);
-    static PDFObject createCompressedContentStream(const PDFStream* originalStream, QByteArray decodedContent, PDFDictionary dictionary);
+    static PDFObject createCompressedContentStream(const PDFStream* originalStream, QByteArray decodedContent, PDFDictionaryBuilder dictionary);
     static bool isFormXObject(const PDFObject& object, PDFDocumentBuilder& builder);
     static SanitizedObjectResult sanitizeResourcesObject(PDFDocumentBuilder& builder, const PDFObject& resourcesObject, InvisibleTextSanitizationContext& context);
     static SanitizedObjectResult sanitizeFormXObject(PDFDocumentBuilder& builder, const PDFObject& object, InvisibleTextSanitizationContext& context);
@@ -192,8 +192,8 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
                     { "CMYK", "DeviceCMYK" }
                 };
 
-                PDFDictionary inlineImageDictionary;
-                PDFDictionary* dictionary = &inlineImageDictionary;
+                PDFDictionaryBuilder inlineImageDictionary;
+                PDFDictionaryBuilder* dictionary = &inlineImageDictionary;
 
                 while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
                 {
@@ -222,12 +222,12 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
 
                 if (dictionary->hasKey("Length"))
                 {
-                    dataLength = readDirectIntegerFromDictionary(dictionary, "Length", 0);
+                    dataLength = readDirectIntegerFromDictionary(dictionary->getDictionary(), "Length", 0);
                 }
                 else if (dictionary->hasKey("Filter"))
                 {
                     dataLength = -1;
-                    const QByteArray filterName = readDirectNameFromDictionary(dictionary, "Filter");
+                    const QByteArray filterName = readDirectNameFromDictionary(dictionary->getDictionary(), "Filter");
                     if (!filterName.isEmpty())
                     {
                         dataLength = PDFStreamFilterStorage::getStreamDataLength(content, filterName, startDataPosition);
@@ -240,9 +240,9 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
                 }
                 else
                 {
-                    const PDFInteger width = readDirectIntegerFromDictionary(dictionary, "Width", 0);
-                    const PDFInteger height = readDirectIntegerFromDictionary(dictionary, "Height", 0);
-                    const PDFInteger bpc = readDirectIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+                    const PDFInteger width = readDirectIntegerFromDictionary(dictionary->getDictionary(), "Width", 0);
+                    const PDFInteger height = readDirectIntegerFromDictionary(dictionary->getDictionary(), "Height", 0);
+                    const PDFInteger bpc = readDirectIntegerFromDictionary(dictionary->getDictionary(), "BitsPerComponent", 8);
 
                     if (width > 0 && height > 0 && bpc > 0)
                     {
@@ -335,18 +335,18 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
 
 PDFObject PDFInvisibleTextSanitizerHelper::createCompressedContentStream(const PDFStream* originalStream,
                                                                          QByteArray decodedContent,
-                                                                         PDFDictionary dictionary)
+                                                                         PDFDictionaryBuilder dictionary)
 {
     // Re-encode the rewritten content into a regular compressed stream so the
     // updated object can be written back through the document builder.
-    PDFArray filters;
+    PDFArrayBuilder filters;
     filters.appendItem(PDFObject::createName("FlateDecode"));
 
     dictionary.removeEntry("DecodeParms");
 
     QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedContent);
     dictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-    dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArray(qMove(filters))));
+    dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(qMove(filters)));
 
     Q_UNUSED(originalStream);
     return PDFObject::createStream(PDFStream(qMove(dictionary), qMove(compressedData)));
@@ -394,7 +394,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeFormXObject(PDFDo
     }
 
     const PDFStream* stream = object.getStream();
-    PDFDictionary dictionary = *stream->getDictionary();
+    PDFDictionaryBuilder dictionary(*stream->getDictionary());
     QByteArray decodedContent = builder.getDecodedStream(stream);
     bool contentChanged = false;
     QByteArray sanitizedContent = sanitizeInvisibleTextInContent(decodedContent, &contentChanged);
@@ -459,8 +459,8 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
         return { resourcesObject, false };
     }
 
-    PDFDictionary updatedResourcesDictionary(*resourcesDictionary);
-    PDFDictionary updatedXObjectDictionary(*xobjectDictionary);
+    PDFDictionaryBuilder updatedResourcesDictionary(*resourcesDictionary);
+    PDFDictionaryBuilder updatedXObjectDictionary(*xobjectDictionary);
     bool changed = false;
 
     // Walk XObjects recursively because invisible OCR text is often stored in
@@ -483,8 +483,8 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
     }
 
     updatedResourcesDictionary.setEntry(PDFInplaceOrMemoryString("XObject"),
-                                        PDFObject::createDictionary(PDFDictionary(qMove(updatedXObjectDictionary))));
-    return { PDFObject::createDictionary(PDFDictionary(qMove(updatedResourcesDictionary))), true };
+                                        PDFObject::createDictionary(qMove(updatedXObjectDictionary)));
+    return { PDFObject::createDictionary(qMove(updatedResourcesDictionary)), true };
 }
 
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PDFDocumentBuilder& builder,
@@ -510,7 +510,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
 
     if (contentsObject.isArray())
     {
-        PDFArray updatedArray(*contentsObject.getArray());
+        PDFArrayBuilder updatedArray(*contentsObject.getArray());
         bool changed = false;
 
         for (size_t i = 0, count = updatedArray.getCount(); i < count; ++i)
@@ -523,7 +523,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
             }
         }
 
-        return { changed ? PDFObject::createArray(PDFArray(qMove(updatedArray))) : contentsObject, changed };
+        return { changed ? PDFObject::createArray(qMove(updatedArray)) : contentsObject, changed };
     }
 
     if (!contentsObject.isStream())
@@ -542,7 +542,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
     }
 
     ++context.modifiedStreamCount;
-    return { createCompressedContentStream(stream, qMove(sanitizedContent), PDFDictionary(*stream->getDictionary())), true };
+    return { createCompressedContentStream(stream, qMove(sanitizedContent), PDFDictionaryBuilder(*stream->getDictionary())), true };
 }
 
 class PDFRemoveMetadataVisitor : public PDFUpdateObjectVisitor
@@ -583,7 +583,7 @@ void PDFRemoveMetadataVisitor::visitDictionary(const PDFDictionary* dictionary)
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
 PDFDocumentSanitizer::PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent) :
@@ -730,9 +730,9 @@ void PDFDocumentSanitizer::performSanitizeFileAttachments()
         const PDFDictionary* namesDictionary = builder.getDictionaryFromObject(namesObject);
         if (namesDictionary->hasKey("EmbeddedFiles"))
         {
-            PDFDictionary dictionaryCopy = *namesDictionary;
+            PDFDictionaryBuilder dictionaryCopy(*namesDictionary);
             dictionaryCopy.setEntry(PDFInplaceOrMemoryString("EmbeddedFiles"), PDFObject());
-            namesObject = PDFObject::createDictionary(PDFDictionary(qMove(dictionaryCopy)));
+            namesObject = PDFObject::createDictionary(qMove(dictionaryCopy));
 
             PDFObjectFactory factory;
             factory.beginDictionary();
@@ -762,9 +762,9 @@ void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()
         const PDFDictionary* pieceInfoDictionary = builder.getDictionaryFromObject(pieceInfoObject);
         if (pieceInfoDictionary->hasKey("SearchIndex"))
         {
-            PDFDictionary dictionaryCopy = *pieceInfoDictionary;
+            PDFDictionaryBuilder dictionaryCopy(*pieceInfoDictionary);
             dictionaryCopy.setEntry(PDFInplaceOrMemoryString("SearchIndex"), PDFObject());
-            pieceInfoObject = PDFObject::createDictionary(PDFDictionary(qMove(dictionaryCopy)));
+            pieceInfoObject = PDFObject::createDictionary(qMove(dictionaryCopy));
 
             PDFObjectFactory factory;
             factory.beginDictionary();
@@ -863,7 +863,7 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
             continue;
         }
 
-        PDFDictionary updatedPageDictionary(*pageDictionary);
+        PDFDictionaryBuilder updatedPageDictionary(*pageDictionary);
         bool pageChanged = false;
 
         if (pageDictionary->hasKey("Contents"))
@@ -888,7 +888,7 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
 
         if (pageChanged)
         {
-            builder.setObject(pageReference, PDFObject::createDictionary(PDFDictionary(qMove(updatedPageDictionary))));
+            builder.setObject(pageReference, PDFObject::createDictionary(qMove(updatedPageDictionary)));
             changed = true;
         }
     }

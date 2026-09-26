@@ -138,7 +138,7 @@ public:
     PDFObjectFactory& operator<<(const PDFDestination& destination);
     PDFObjectFactory& operator<<(PageRotation pageRotation);
     PDFObjectFactory& operator<<(PDFFormSubmitFlags flags);
-    PDFObjectFactory& operator<<(PDFDictionary dictionary);
+    PDFObjectFactory& operator<<(PDFDictionaryBuilder dictionary);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -178,7 +178,7 @@ private:
 
     /// What is stored in this structure, depends on the type.
     /// If type is 'Object', then single simple object is in object,
-    /// if type is dictionary, then PDFDictionary is stored in object,
+    /// if type is dictionary, then PDFDictionaryBuilder is stored in object,
     /// if type is dictionary item, then object and item name is stored
     /// in the data, if item is array, then array is stored in the data.
     struct Item
@@ -204,7 +204,7 @@ private:
 
         ItemType type = ItemType::Object;
         QByteArray itemName;
-        std::variant<PDFObject, PDFArray, PDFDictionary> object;
+        std::variant<PDFObject, PDFArrayBuilder, PDFDictionaryBuilder> object;
     };
 
     std::vector<Item> m_items;
@@ -350,7 +350,7 @@ public:
     PDFDocument build();
 
     ///  Replaces all objects by references in the dictionary
-    void replaceObjectsByReferences(PDFDictionary& dictionary);
+    void replaceObjectsByReferences(PDFDictionaryBuilder& dictionary);
 
     /// Recursively replaces stream objects nested inside dictionaries or arrays
     /// by references to newly created document objects. Nested streams are illegal

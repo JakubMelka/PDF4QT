@@ -38,7 +38,7 @@ namespace signaturebuildertest
 {
 PDFObject dictionary(std::initializer_list<std::pair<const char*, PDFObject>> entries)
 {
-    PDFDictionary result;
+    PDFDictionaryBuilder result;
     for (const auto& entry : entries)
     {
         result.setEntry(PDFInplaceOrMemoryString(entry.first), PDFObject(entry.second));
@@ -61,7 +61,7 @@ PDFObjectReference appearance(PDFDocumentBuilder& builder, QRectF bbox)
     factory.endDictionaryItem();
     factory.endDictionary();
     const PDFObject object = factory.takeObject();
-    PDFDictionary streamDictionary(*object.getDictionary());
+    PDFDictionaryBuilder streamDictionary(*object.getDictionary());
     QByteArray data("1 0 0 rg 20 30 80 40 re f\n");
     streamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(data.size()));
     return builder.addObject(PDFObject::createStream(PDFStream(std::move(streamDictionary), std::move(data))));
@@ -491,7 +491,7 @@ void SignatureBuilderTest::preservesAcroForm()
     const auto oldField = original.addObject(dictionary({{"FT", PDFObject::createName("Tx")},
                                                        {"T", PDFObjectFactory::createTextString("Existing")},
                                                        {"V", PDFObjectFactory::createTextString("Keep this value")}}));
-    PDFObject fields = PDFObject::createArray(PDFArray(PDFDocumentBuilder::createObjectsFromReferences({oldField})));
+    PDFObject fields = PDFObject::createArray(PDFArrayBuilder(PDFDocumentBuilder::createObjectsFromReferences({oldField})));
     if (indirectFields)
     {
         fields = PDFObject::createReference(original.addObject(fields));
@@ -563,7 +563,7 @@ void SignatureBuilderTest::widgetStructure()
     builder.setPageRotation(page, static_cast<PageRotation>(rotation / 90));
     const auto annotation = builder.addObject(dictionary({{"Type", PDFObject::createName("Annot")},
                                                         {"Subtype", PDFObject::createName("Text")}}));
-    builder.mergeTo(page, dictionary({{"Annots", PDFObject::createArray(PDFArray(PDFDocumentBuilder::createObjectsFromReferences({annotation})))}}));
+    builder.mergeTo(page, dictionary({{"Annots", PDFObject::createArray(PDFArrayBuilder(PDFDocumentBuilder::createObjectsFromReferences({annotation})))}}));
     // Existing /Annots may itself be indirect.
     const auto annots = builder.getStorage()->getObjectByReference(page).getDictionary()->get("Annots");
     const auto annotsReference = builder.addObject(annots);

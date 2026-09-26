@@ -285,11 +285,11 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
     size_t arrayIndex = m_attributes.at(attribute).arrayIndex;
     if (arrayIndex)
     {
-        PDFArray array;
+        PDFArrayBuilder array;
         PDFObject arrayObject = m_storage->getObject(getValue(attribute, false));
         if (arrayObject.isArray())
         {
-            array = *arrayObject.getArray();
+            array = PDFArrayBuilder(*arrayObject.getArray());
         }
 
         --arrayIndex;
@@ -302,7 +302,7 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
         }
 
         array.setItem(qMove(value), arrayIndex);
-        factory << PDFObject::createArray(PDFArray(qMove(array)));
+        factory << PDFObject::createArray(qMove(array));
     }
     else
     {

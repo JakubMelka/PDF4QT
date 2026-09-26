@@ -72,15 +72,15 @@ public:
     const QByteArray& getOutputContent();
 
     /// Resource dictionaries (open transparency groups are finished first)
-    const PDFDictionary& getFontDictionary() { finishTransparencyGroups(); return m_fontDictionary; }
-    const PDFDictionary& getXObjectDictionary() { finishTransparencyGroups(); return m_xobjectDictionary; }
-    const PDFDictionary& getGraphicStateDictionary() { finishTransparencyGroups(); return m_graphicStateDictionary; }
-    const PDFDictionary& getShadingDictionary() { finishTransparencyGroups(); return m_shadingDictionary; }
+    const PDFDictionaryBuilder& getFontDictionary() { finishTransparencyGroups(); return m_fontDictionary; }
+    const PDFDictionaryBuilder& getXObjectDictionary() { finishTransparencyGroups(); return m_xobjectDictionary; }
+    const PDFDictionaryBuilder& getGraphicStateDictionary() { finishTransparencyGroups(); return m_graphicStateDictionary; }
+    const PDFDictionaryBuilder& getShadingDictionary() { finishTransparencyGroups(); return m_shadingDictionary; }
 
-    void setFontDictionary(const PDFDictionary& newFontDictionary);
-    void setXObjectDictionary(const PDFDictionary& newXObjectDictionary);
-    void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
-    void setShadingDictionary(const PDFDictionary& newShadingDictionary);
+    void setFontDictionary(PDFDictionaryBuilder newFontDictionary);
+    void setXObjectDictionary(PDFDictionaryBuilder newXObjectDictionary);
+    void setGraphicStateDictionary(PDFDictionaryBuilder newGraphicStateDictionary);
+    void setShadingDictionary(PDFDictionaryBuilder newShadingDictionary);
 
     const QStringList& getErrors() const { return m_errors; }
     void clearErrors() { m_errors.clear(); }
@@ -188,10 +188,10 @@ private:
     void addError(const QString& error);
 
     PDFDocument* m_document = nullptr;
-    PDFDictionary m_fontDictionary;
-    PDFDictionary m_xobjectDictionary;
-    PDFDictionary m_graphicStateDictionary;
-    PDFDictionary m_shadingDictionary;
+    PDFDictionaryBuilder m_fontDictionary;
+    PDFDictionaryBuilder m_xobjectDictionary;
+    PDFDictionaryBuilder m_graphicStateDictionary;
+    PDFDictionaryBuilder m_shadingDictionary;
     QByteArray m_outputContent;
     PDFPageContentProcessorState m_currentState;
     PDFFontPointer m_textFont;

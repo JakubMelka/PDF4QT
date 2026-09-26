@@ -133,7 +133,7 @@ void PDFReplaceReferencesVisitor::visitArray(const PDFArray* array)
 
     auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
     std::vector<PDFObject> objects(it, m_objectStack.cend());
-    PDFObject object = PDFObject::createArray(PDFArray(qMove(objects)));
+    PDFObject object = PDFObject::createArray(qMove(objects));
     m_objectStack.erase(it, m_objectStack.cend());
     m_objectStack.push_back(object);
 }
@@ -152,7 +152,7 @@ void PDFReplaceReferencesVisitor::visitDictionary(const PDFDictionary* dictionar
         m_objectStack.pop_back();
     }
 
-    m_objectStack.push_back(PDFObject::createDictionary(PDFDictionary(qMove(entries))));
+    m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
 void PDFReplaceReferencesVisitor::visitStream(const PDFStream* stream)
@@ -161,7 +161,7 @@ void PDFReplaceReferencesVisitor::visitStream(const PDFStream* stream)
     visitDictionary(stream->getDictionary());
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
-    m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionary(*dictionaryObject.getDictionary()), QByteArray(*stream->getContent()))));
+    m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionaryBuilder(*dictionaryObject.getDictionary()), QByteArray(*stream->getContent()))));
 }
 
 void PDFReplaceReferencesVisitor::visitReference(const PDFObjectReference reference)

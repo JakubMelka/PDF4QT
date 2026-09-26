@@ -251,7 +251,7 @@ PDFObject PDFDocumentReader::getObjectFromXrefTable(PDFXRefTable* xrefTable, PDF
 
 PDFObject PDFDocumentReader::readDamagedTrailerDictionary() const
 {
-    PDFObject object = PDFObject::createDictionary(PDFDictionary(PDFDictionary()));
+    PDFObject object = PDFObject::createDictionary(PDFDictionaryBuilder(PDFDictionaryBuilder()));
     PDFParsingContext context([](PDFParsingContext*, PDFObjectReference){ return PDFObject(); });
 
     int offset = 0;

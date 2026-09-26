@@ -269,7 +269,7 @@ void SignatureAppearanceTest::fallback()
     const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
     const auto field = builder.createSignatureField("Signature", signature, page, appearance, QRectF(20, 30, 80, 40));
     // Exercise existing PDFs with missing, malformed, direct or indirect appearances.
-    PDFDictionary widget(*builder.getStorage()->getObjectByReference(field).getDictionary());
+    PDFDictionaryBuilder widget(*builder.getStorage()->getObjectByReference(field).getDictionary());
     if (emptyRect)
     {
         PDFObjectFactory factory;
@@ -282,7 +282,7 @@ void SignatureAppearanceTest::fallback()
     }
     else if (appearanceKind == 1)
     {
-        PDFDictionary ap;
+        PDFDictionaryBuilder ap;
         ap.setEntry(PDFInplaceOrMemoryString("N"), PDFObject::createInteger(7));
         widget.setEntry(PDFInplaceOrMemoryString("AP"), PDFObject::createDictionary(std::move(ap)));
     }

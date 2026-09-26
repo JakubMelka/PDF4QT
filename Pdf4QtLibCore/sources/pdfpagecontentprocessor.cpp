@@ -620,8 +620,8 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                             { "CMYK", "DeviceCMYK" }
                         };
 
-                        PDFDictionary inlineImageDictionary;
-                        PDFDictionary* dictionary = &inlineImageDictionary;
+                        PDFDictionaryBuilder inlineImageDictionary;
+                        PDFDictionaryBuilder* dictionary = &inlineImageDictionary;
 
                         while (inlineImageParser.lookahead().type != PDFLexicalAnalyzer::TokenType::EndOfFile)
                         {
@@ -652,14 +652,14 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                         if (dictionary->hasKey("Length"))
                         {
-                            dataLength = loader.readIntegerFromDictionary(dictionary, "Length", 0);
+                            dataLength = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Length", 0);
                         }
                         else if (dictionary->hasKey("Filter"))
                         {
                             dataLength = -1;
 
                             // We will try to use stream filter hint
-                            QByteArray filterName = loader.readNameFromDictionary(dictionary, "Filter");
+                            QByteArray filterName = loader.readNameFromDictionary(dictionary->getDictionary(), "Filter");
                             if (!filterName.isEmpty())
                             {
                                 dataLength = PDFStreamFilterStorage::getStreamDataLength(content, filterName, startDataPosition);
@@ -674,10 +674,10 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                         else
                         {
                             // We will calculate stream size from the with/height and bit per component
-                            const bool isImageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
-                            const PDFInteger width = loader.readIntegerFromDictionary(dictionary, "Width", 0);
-                            const PDFInteger height = loader.readIntegerFromDictionary(dictionary, "Height", 0);
-                            const PDFInteger bpc = isImageMask ? 1 : loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+                            const bool isImageMask = loader.readBooleanFromDictionary(dictionary->getDictionary(), "ImageMask", false);
+                            const PDFInteger width = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Width", 0);
+                            const PDFInteger height = loader.readIntegerFromDictionary(dictionary->getDictionary(), "Height", 0);
+                            const PDFInteger bpc = isImageMask ? 1 : loader.readIntegerFromDictionary(dictionary->getDictionary(), "BitsPerComponent", 8);
 
                             if (width <= 0 || height <= 0 || bpc <= 0)
                             {

@@ -222,7 +222,7 @@ pdf::PDFDocument ImageOptimizerTest::damageImageData(const pdf::PDFDocument& doc
     const pdf::PDFObject& imageObject = document.getObjectByReference(imageReference);
     Q_ASSERT(imageObject.isStream());
 
-    pdf::PDFDictionary dictionary = *imageObject.getStream()->getDictionary();
+    pdf::PDFDictionaryBuilder dictionary(*imageObject.getStream()->getDictionary());
     QByteArray garbage("this is not a compressed image stream at all");
     dictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(garbage.size()));
 
@@ -260,7 +260,7 @@ pdf::PDFDocument ImageOptimizerTest::createDocumentWithImage(const QImage& image
         pdf::PDFObjectReference maskRef = builder.addObject(
             pdf::PDFObject::createStream(pdf::PDFStream(maskStream)));
 
-        pdf::PDFDictionary dict = *imageStream.getDictionary();
+        pdf::PDFDictionaryBuilder dict(*imageStream.getDictionary());
         dict.setEntry(pdf::PDFInplaceOrMemoryString("SMask"), pdf::PDFObject::createReference(maskRef));
         const QByteArray* content = imageStream.getContent();
         QByteArray contentDereferenced = content ? *content : QByteArray();
@@ -271,26 +271,26 @@ pdf::PDFDocument ImageOptimizerTest::createDocumentWithImage(const QImage& image
         pdf::PDFObject::createStream(pdf::PDFStream(imageStream)));
 
     QByteArray content("q 200 0 0 200 0 0 cm /Im1 Do Q");
-    pdf::PDFDictionary contentDict;
+    pdf::PDFDictionaryBuilder contentDict;
     contentDict.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH),
                          pdf::PDFObject::createInteger(content.size()));
     pdf::PDFStream contentStream(std::move(contentDict), std::move(content));
     pdf::PDFObjectReference contentRef = builder.addObject(
         pdf::PDFObject::createStream(pdf::PDFStream(contentStream)));
 
-    pdf::PDFDictionary xObject;
+    pdf::PDFDictionaryBuilder xObject;
     xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
 
-    pdf::PDFDictionary resources;
+    pdf::PDFDictionaryBuilder resources;
     resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
-                       pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(xObject))));
+                       pdf::PDFObject::createDictionary(std::move(xObject)));
 
-    pdf::PDFDictionary pageUpdate;
+    pdf::PDFDictionaryBuilder pageUpdate;
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"),
-                        pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(resources))));
+                        pdf::PDFObject::createDictionary(std::move(resources)));
     pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentRef));
 
-    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(pdf::PDFDictionary(std::move(pageUpdate))));
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
 
     return builder.build();
 }

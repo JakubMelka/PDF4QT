@@ -1234,7 +1234,7 @@ void AnnotationManipulatorTest::appearanceWithoutStreams()
         const PDFDocument temporary = builder.build();
         const PDFObjectReference streamReference = normalAppearance(temporary, noBoundingBox);
         const PDFStream* stream = temporary.getObjectByReference(streamReference).getStream();
-        PDFDictionary dictionary = *stream->getDictionary();
+        PDFDictionaryBuilder dictionary(*stream->getDictionary());
         dictionary.removeEntry("BBox");
         builder.setObject(streamReference, PDFObject::createStream(PDFStream(std::move(dictionary), QByteArray(*stream->getContent()))));
         setEntry(builder, normalAppearance(temporary, zeroMatrix), "Matrix", numberArray({ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }));
@@ -2353,7 +2353,7 @@ void AnnotationManipulatorTest::findAnnotationPageInDamagedTree()
     const PDFObjectReference orphan = emptyStorage.addObject(storage->getObject(square));
     QVERIFY(!PDFAnnotationManipulator::findAnnotationPage(&emptyStorage, orphan).isValid());
 
-    emptyStorage.updateTrailerDictionary(PDFObject::createDictionary(PDFDictionary()));
+    emptyStorage.updateTrailerDictionary(PDFObject::createDictionary(PDFDictionaryBuilder()));
     QVERIFY(!PDFAnnotationManipulator::findAnnotationPage(&emptyStorage, orphan).isValid());
 }
 

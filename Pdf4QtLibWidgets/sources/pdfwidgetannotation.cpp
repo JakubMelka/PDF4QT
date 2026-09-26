@@ -4995,9 +4995,9 @@ void PDFWidgetAnnotationManager::onEditAnnotation()
 
             if (isRectangleChanged)
             {
-                PDFDictionary dictionary = *editedDictionary;
+                PDFDictionaryBuilder dictionary(*editedDictionary);
                 dictionary.setEntry(PDFInplaceOrMemoryString("Rect"), PDFObject(originalDictionary->get("Rect")));
-                object = PDFObject::createDictionary(PDFDictionary(std::move(dictionary)));
+                object = PDFObject::createDictionary(std::move(dictionary));
             }
 
             PDFDocumentModifier modifier(m_document);

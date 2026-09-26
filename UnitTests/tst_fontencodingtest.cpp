@@ -471,7 +471,7 @@ void FontEncodingTest::test_type3_font_encode()
 void FontEncodingTest::test_fallback_font_generator()
 {
     pdf::PDFEditorFallbackFontManager manager;
-    pdf::PDFDictionary fontDictionary;
+    pdf::PDFDictionaryBuilder fontDictionary;
 
     QStringList errors;
     auto errorCallback = [&errors](const QString& error) { errors << error; };
@@ -527,7 +527,7 @@ void FontEncodingTest::test_fallback_font_generator()
 void FontEncodingTest::test_nested_stream_extraction()
 {
     pdf::PDFEditorFallbackFontManager manager;
-    pdf::PDFDictionary fontDictionary;
+    pdf::PDFDictionaryBuilder fontDictionary;
 
     const std::u32string codePoints = U"€";
     std::vector<pdf::PDFEditorFallbackFontManager::Run> runs = manager.encode(codePoints, nullptr, fontDictionary, nullptr);

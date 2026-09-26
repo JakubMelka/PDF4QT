@@ -415,24 +415,24 @@ private:
 
     /// Transforms an array of point coordinates stored under the key. Returns false,
     /// if the entry is not present or it is malformed.
-    static bool transformPointArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key, const QTransform& transform);
+    static bool transformPointArray(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key, const QTransform& transform);
 
     /// Transforms an array of arrays of point coordinates stored under the key
     /// (ink list, or path with its control points)
-    static void transformPointArrays(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key, const QTransform& transform);
+    static void transformPointArrays(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key, const QTransform& transform);
 
     /// Reverses the order of the points stored under the key
-    static void reversePointArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key);
+    static void reversePointArray(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key);
 
     /// Multiplies the number stored under the key by the factor
-    static void scaleNumber(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key, PDFReal factor);
+    static void scaleNumber(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key, PDFReal factor);
 
     /// Transforms the entries of a line annotation, which are relative to the line
     /// (leader lines, caption offset). Lengths of the leader lines are oriented
     /// (the sign selects the side of the line), so mirroring changes the sign. If
     /// mirroring makes the caption of the line unreadable (upside down), then the
     /// end points of the line (entry L must be already transformed) are swapped.
-    static void transformLineParameters(PDFDictionary& dictionary, const PDFObjectStorage* storage, const QLineF& line, const QTransform& transform);
+    static void transformLineParameters(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const QLineF& line, const QTransform& transform);
 
     /// Returns true, if the transformation is applied to the rectangle based
     /// annotation exactly (otherwise the annotation is just moved)
@@ -444,13 +444,13 @@ private:
 
     /// Sets the geometry of a free text annotation with a callout line. Returns
     /// the new annotation rectangle (the dictionary is updated except the entry Rect).
-    static QRectF setFreeTextGeometry(PDFDictionary& dictionary, const QRectF& textRectangle, const std::vector<QPointF>& calloutLine, PDFReal margin);
+    static QRectF setFreeTextGeometry(PDFDictionaryBuilder& dictionary, const QRectF& textRectangle, const std::vector<QPointF>& calloutLine, PDFReal margin);
 
     /// Moves the rectangle based annotation to the transformed position. The tip
     /// of the callout line of a free text annotation is transformed exactly, the
     /// text box with the rest of the callout line follows it. Returns the new
     /// annotation rectangle.
-    static QRectF moveBox(PDFDictionary& dictionary,
+    static QRectF moveBox(PDFDictionaryBuilder& dictionary,
                           const PDFObjectStorage* storage,
                           const PDFAnnotation* annotation,
                           const QRectF& rectangle,
@@ -478,7 +478,7 @@ private:
     static std::vector<QPointF> getPolygonalPoints(const PDFPolygonalGeometryAnnotation* annotation);
 
     /// Reverses the order of the items of an array (of the points of a path without curves)
-    static void reverseArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key);
+    static void reverseArray(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const char* key);
 
     /// Returns the points of the path. Returns empty array, if the path contains
     /// curves. The point, which closes the path, is not returned.
@@ -547,7 +547,7 @@ private:
 
     /// Recomputes the rectangle differences (entry RD), so the inner rectangle
     /// is transformed the same way as the annotation rectangle.
-    static void transformRectangleDifferences(PDFDictionary& dictionary,
+    static void transformRectangleDifferences(PDFDictionaryBuilder& dictionary,
                                               const PDFObjectStorage* storage,
                                               const QRectF& oldRectangle,
                                               const QRectF& newRectangle,
@@ -563,7 +563,7 @@ private:
     /// \param transform Transformation
     /// \param[in,out] newRectangle New annotation rectangle
     static void transformAppearanceStreams(PDFDocumentBuilder* builder,
-                                           PDFDictionary& dictionary,
+                                           PDFDictionaryBuilder& dictionary,
                                            const QRectF& rectangle,
                                            const QTransform& transform,
                                            QRectF& newRectangle);
@@ -586,14 +586,14 @@ private:
     /// \param dictionary Annotation dictionary
     /// \param removeOptionalContent Remove also the optional content membership
     /// \param isReply The annotation is copied as a reply (its reply type is preserved)
-    static PDFDictionary prepareAnnotationForCopy(const PDFDictionary& dictionary, bool removeOptionalContent, bool isReply);
+    static PDFDictionaryBuilder prepareAnnotationForCopy(const PDFDictionary& dictionary, bool removeOptionalContent, bool isReply);
 
     /// Returns true, if the page lists the annotation in its annotation array
     static bool isAnnotationOnPage(const PDFObjectStorage* storage, PDFObjectReference page, PDFObjectReference annotation);
 
     /// Returns a copy of the popup dictionary prepared for copying (links to the
     /// page and parent annotation are removed).
-    static PDFDictionary preparePopupForCopy(const PDFDictionary& dictionary);
+    static PDFDictionaryBuilder preparePopupForCopy(const PDFDictionary& dictionary);
 
     /// Returns true, if the dictionary is an annotation dictionary, which can be
     /// copied (it has a subtype and it is not a popup annotation)

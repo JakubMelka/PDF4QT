@@ -482,11 +482,11 @@ QImage simulateJpegCompression(const QImage& image, int quality)
     return decoded.isNull() ? image : decoded;
 }
 
-PDFDictionary mergeDictionaries(const PDFDictionary& base,
+PDFDictionaryBuilder mergeDictionaries(const PDFDictionary& base,
                                 const PDFDictionary& original,
                                 const std::unordered_set<QByteArray>& blockedKeys)
 {
-    PDFDictionary merged = base;
+    PDFDictionaryBuilder merged(base);
     for (size_t i = 0; i < original.getCount(); ++i)
     {
         const PDFInplaceOrMemoryString& key = original.getKey(i);
@@ -988,7 +988,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                         "Mask", "SMask", "ImageMask", "SMaskInData"
                     };
 
-                    PDFDictionary merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
+                    PDFDictionaryBuilder merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
                     if (originalDict->hasKey("SMask"))
                     {
                         const PDFObject& maskObject = originalDict->get("SMask");
@@ -1051,7 +1051,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                 maskReference = storage.addObject(PDFObject::createStream(PDFStream(*encoded.maskStream)));
             }
 
-            PDFDictionary updatedDictionary = *stream.getDictionary();
+            PDFDictionaryBuilder updatedDictionary(*stream.getDictionary());
             updatedDictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(maskReference));
             stream = PDFStream(std::move(updatedDictionary), QByteArray(*stream.getContent()));
         }

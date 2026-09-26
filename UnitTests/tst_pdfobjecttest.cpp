@@ -94,6 +94,10 @@ private slots:
     void test_equality();
     void test_visitor();
     void test_manipulator();
+    void test_array_builder();
+    void test_dictionary_builder();
+    void test_builder_fixed_size();
+    void test_builder_views();
     void test_concurrent_copies();
     void test_concurrent_last_reference();
     void test_concurrent_subobjects();
@@ -101,6 +105,7 @@ private slots:
     void test_concurrent_keys();
     void test_concurrent_parsing();
     void test_concurrent_random_objects();
+    void test_concurrent_builders();
 
 private:
     /// Returns number of threads for concurrent tests (more threads,
@@ -177,7 +182,7 @@ QByteArray PDFObjectTest::createProbe(int seed)
 
 PDFObject PDFObjectTest::createDictionary(std::initializer_list<std::pair<QByteArray, PDFObject>> entries)
 {
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     for (const auto& entry : entries)
     {
         dictionary.addEntry(PDFInplaceOrMemoryString(entry.first), PDFObject(entry.second));
@@ -192,7 +197,7 @@ PDFObject PDFObjectTest::createArray(std::initializer_list<PDFObject> items)
 
 PDFObject PDFObjectTest::createStream(std::initializer_list<std::pair<QByteArray, PDFObject>> entries, QByteArray content)
 {
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     for (const auto& entry : entries)
     {
         dictionary.addEntry(PDFInplaceOrMemoryString(entry.first), PDFObject(entry.second));
@@ -293,24 +298,24 @@ void PDFObjectTest::test_inplace_string_validation()
 void PDFObjectTest::test_content_assignment()
 {
     const PDFObject value = PDFObject::createString(createData(64, 3));
-    PDFArray array;
+    PDFArrayBuilder array;
     array.appendItem(createArray({ value, value }));
     array.appendItem(PDFObject());
-    array = *array.getItem(0).getArray();
+    array = PDFArrayBuilder(*array.getItem(0).getArray());
     QCOMPARE(array.getCount(), size_t(2));
     QVERIFY(array.getItem(0) == value);
     QVERIFY(array.getItem(1) == value);
 
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     dictionary.addEntry(PDFInplaceOrMemoryString("Child"), createDictionary({ { "A", value }, { "B", value } }));
     dictionary.addEntry(PDFInplaceOrMemoryString("Padding"), PDFObject());
-    dictionary = *dictionary.get("Child").getDictionary();
+    dictionary = PDFDictionaryBuilder(*dictionary.get("Child").getDictionary());
     QCOMPARE(dictionary.getCount(), size_t(2));
     QVERIFY(dictionary.get("A") == value);
     QVERIFY(dictionary.get("B") == value);
 
     const QByteArray content = createData(64, 5);
-    PDFDictionary streamDictionary;
+    PDFDictionaryBuilder streamDictionary;
     streamDictionary.addEntry(PDFInplaceOrMemoryString("Child"), createStream({ { "A", value } }, content));
     PDFStream stream(std::move(streamDictionary), QByteArray("parent"));
     stream = *stream.getDictionary()->get("Child").getStream();
@@ -389,6 +394,23 @@ void PDFObjectTest::test_sizes()
 
     // Content can't be deleted through the pointer to the base class
     QVERIFY(!std::is_destructible_v<PDFObjectContent>);
+
+    // Arrays and dictionaries have 8 byte header (reference count and number of the
+    // items) followed by the items in the same memory. They can't be created, copied
+    // or destroyed other way than by the builders and objects.
+    QCOMPARE(sizeof(PDFObjectContent), size_t(4));
+    QCOMPARE(sizeof(PDFArray), size_t(8));
+    QCOMPARE(sizeof(PDFDictionary), size_t(8));
+    QVERIFY(!std::is_default_constructible_v<PDFArray>);
+    QVERIFY(!std::is_copy_constructible_v<PDFArray>);
+    QVERIFY(!std::is_destructible_v<PDFArray>);
+    QVERIFY(!std::is_default_constructible_v<PDFDictionary>);
+    QVERIFY(!std::is_copy_constructible_v<PDFDictionary>);
+    QVERIFY(!std::is_destructible_v<PDFDictionary>);
+    QVERIFY(std::is_nothrow_move_constructible_v<PDFArrayBuilder>);
+    QVERIFY(std::is_nothrow_move_assignable_v<PDFArrayBuilder>);
+    QVERIFY(std::is_nothrow_move_constructible_v<PDFDictionaryBuilder>);
+    QVERIFY(std::is_nothrow_move_assignable_v<PDFDictionaryBuilder>);
     QVERIFY(!std::has_virtual_destructor_v<PDFObjectContent>);
 }
 
@@ -399,7 +421,7 @@ void PDFObjectTest::test_null()
     QCOMPARE(object.getType(), PDFObject::Type::Null);
     QVERIFY(!object.isBool() && !object.isInt() && !object.isReal() && !object.isString() && !object.isName());
     QVERIFY(!object.isArray() && !object.isDictionary() && !object.isStream() && !object.isReference());
-    QCOMPARE(object.getContentReferenceCount(), uint64_t(0));
+    QCOMPARE(object.getContentReferenceCount(), uint32_t(0));
 
     QVERIFY(object == PDFObject::createNull());
     QVERIFY(!(object != PDFObject::createNull()));
@@ -413,7 +435,7 @@ void PDFObjectTest::test_null()
     QVERIFY(object != PDFObject::createReference(PDFObjectReference()));
 
     // Null object returned by the dictionary for missing keys
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     QVERIFY(dictionary.get("Missing").isNull());
     QVERIFY(&dictionary.get("Missing") == &dictionary.get(QByteArray("Other")));
 }
@@ -426,7 +448,7 @@ void PDFObjectTest::test_bool()
         QVERIFY(object.isBool());
         QCOMPARE(object.getType(), PDFObject::Type::Bool);
         QCOMPARE(object.getBool(), value);
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(0));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(0));
         QVERIFY(object == PDFObject::createBool(value));
         QVERIFY(object != PDFObject::createBool(!value));
         QVERIFY(object != PDFObject::createInteger(value ? 1 : 0));
@@ -448,7 +470,7 @@ void PDFObjectTest::test_integer()
         QVERIFY(object.isInt());
         QCOMPARE(object.getType(), PDFObject::Type::Int);
         QCOMPARE(object.getInteger(), value);
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(0));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(0));
         QVERIFY(object == PDFObject::createInteger(value));
         QVERIFY(object != PDFObject::createInteger(value ^ 1));
         QVERIFY(object != PDFObject::createReal(PDFReal(value)));
@@ -474,7 +496,7 @@ void PDFObjectTest::test_real()
         QCOMPARE(object.getType(), PDFObject::Type::Real);
         QCOMPARE(object.getReal(), value);
         QCOMPARE(std::signbit(object.getReal()), std::signbit(value));
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(0));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(0));
         QVERIFY(object == PDFObject::createReal(value));
 
         PDFObject copy = object;
@@ -524,10 +546,10 @@ void PDFObjectTest::test_reference()
         QCOMPARE(object.getType(), PDFObject::Type::Reference);
         QCOMPARE(object.getReference().objectNumber, reference.objectNumber);
         QCOMPARE(object.getReference().generation, reference.generation);
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(isInHeap ? 1 : 0));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(isInHeap ? 1 : 0));
 
         PDFObject copy = object;
-        QCOMPARE(copy.getContentReferenceCount(), uint64_t(isInHeap ? 2 : 0));
+        QCOMPARE(copy.getContentReferenceCount(), uint32_t(isInHeap ? 2 : 0));
         QVERIFY(copy == object);
         QVERIFY(object == PDFObject::createReference(reference));
         QVERIFY(object != PDFObject::createReference(PDFObjectReference(reference.objectNumber ^ 1, reference.generation)));
@@ -703,8 +725,8 @@ void PDFObjectTest::test_copy_and_move()
         const PDFObject& sample = samples[i];
         const QString message = QString("sample %1").arg(i);
         const bool hasContent = sample.getContentReferenceCount() > 0;
-        const uint64_t base = sample.getContentReferenceCount();
-        auto expectedCount = [hasContent, base](uint64_t added) { return hasContent ? base + added : uint64_t(0); };
+        const uint32_t base = sample.getContentReferenceCount();
+        auto expectedCount = [hasContent, base](uint32_t added) { return hasContent ? base + added : uint32_t(0); };
 
         {
             // Copy constructor
@@ -772,44 +794,46 @@ void PDFObjectTest::test_self_assignment_and_aliasing()
 
         // Self copy assignment
         object = alias;
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
         QCOMPARE(object.getArray()->getCount(), size_t(2));
 
         // Self move assignment keeps the object unchanged
         object = std::move(alias);
         QVERIFY(object.isArray());
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
         QCOMPARE(object.getArray()->getCount(), size_t(2));
 
         // Self swap
         object.swap(alias);
         QVERIFY(object.isArray());
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
 
         // Assignment of the item, which is owned by the object itself (the array
         // is destroyed during the assignment, the item must survive)
         object = object.getArray()->getItem(0);
         QVERIFY(object.isStream());
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
         QCOMPARE(*object.getStream()->getContent(), probe);
 
         // The same for the dictionary
         object = createDictionary({ { "Key", PDFObject(object) } });
         object = object.getDictionary()->get("Key");
         QVERIFY(object.isStream());
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
         QCOMPARE(*object.getStream()->getContent(), probe);
         QVERIFY(!probe.isDetached());
     }
 
     QVERIFY(probe.isDetached());
 
-    // Dictionary entry with the key, which references the dictionary itself
-    PDFDictionary dictionary;
-    dictionary.addEntry(PDFInplaceOrMemoryString("VeryLongKeyOfTheDictionary"), PDFObject::createInteger(1));
-    dictionary.addEntry(PDFInplaceOrMemoryString("Short"), PDFObject::createInteger(2));
-    dictionary.optimize();
-    QCOMPARE(dictionary.getCapacity(), dictionary.getCount());
+    // Dictionary entry with the key, which references the dictionary itself. Builder
+    // created from a dictionary has no free memory, so the entries are moved to a new
+    // memory, when the entry is added.
+    PDFDictionaryBuilder source;
+    source.addEntry(PDFInplaceOrMemoryString("VeryLongKeyOfTheDictionary"), PDFObject::createInteger(1));
+    source.addEntry(PDFInplaceOrMemoryString("Short"), PDFObject::createInteger(2));
+    const PDFObject sourceObject = PDFObject::createDictionary(std::move(source));
+    PDFDictionaryBuilder dictionary(*sourceObject.getDictionary());
     dictionary.addEntry(dictionary.getKey(0), PDFObject::createInteger(3));
     QCOMPARE(dictionary.getCount(), size_t(3));
     QCOMPARE(dictionary.getKey(2).getString(), QByteArray("VeryLongKeyOfTheDictionary"));
@@ -817,10 +841,10 @@ void PDFObjectTest::test_self_assignment_and_aliasing()
     QCOMPARE(dictionary.get("Short").getInteger(), PDFInteger(4));
 
     // Array item set from the array itself
-    PDFArray array(std::vector<PDFObject>{ PDFObject::createName("NameStoredInTheHeap"), PDFObject::createInteger(1) });
+    PDFArrayBuilder array(std::vector<PDFObject>{ PDFObject::createName("NameStoredInTheHeap"), PDFObject::createInteger(1) });
     array.setItem(array.getItem(0), 1);
     QCOMPARE(array.getItem(1).getString(), QByteArray("NameStoredInTheHeap"));
-    QCOMPARE(array.getItem(0).getContentReferenceCount(), uint64_t(2));
+    QCOMPARE(array.getItem(0).getContentReferenceCount(), uint32_t(2));
 }
 
 void PDFObjectTest::test_content_lifetime()
@@ -837,7 +861,7 @@ void PDFObjectTest::test_content_lifetime()
         PDFObject name = PDFObject::createName(nameProbe);
         PDFObject stream = createStream({ }, streamProbe);
 
-        PDFDictionary dictionary;
+        PDFDictionaryBuilder dictionary;
         dictionary.addEntry(PDFInplaceOrMemoryString(keyProbe), PDFObject(stream));
         dictionary.addEntry(PDFInplaceOrMemoryString("Name"), PDFObject(name));
         PDFObject root = createArray({ PDFObject::createDictionary(std::move(dictionary)), string });
@@ -847,8 +871,8 @@ void PDFObjectTest::test_content_lifetime()
         QVERIFY(!keyProbe.isDetached());
         QVERIFY(!nameProbe.isDetached());
 
-        QCOMPARE(stream.getContentReferenceCount(), uint64_t(2));
-        QCOMPARE(string.getContentReferenceCount(), uint64_t(2));
+        QCOMPARE(stream.getContentReferenceCount(), uint32_t(2));
+        QCOMPARE(string.getContentReferenceCount(), uint32_t(2));
 
         // Destroy the local objects, content is still referenced by the root
         stream = PDFObject();
@@ -865,7 +889,7 @@ void PDFObjectTest::test_content_lifetime()
         QVERIFY(!streamProbe.isDetached());
         QVERIFY(!keyProbe.isDetached());
         QVERIFY(!nameProbe.isDetached());
-        QCOMPARE(copyOfNested.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(copyOfNested.getContentReferenceCount(), uint32_t(1));
         QCOMPARE(*copyOfNested.getDictionary()->get(keyProbe).getStream()->getContent(), streamProbe);
     }
 
@@ -878,7 +902,7 @@ void PDFObjectTest::test_content_lifetime()
     QByteArray valueProbe = createProbe(5);
     {
         PDFObject object = createDictionary({ { "Value", PDFObject::createString(valueProbe) } });
-        PDFDictionary copy = *object.getDictionary();
+        PDFDictionaryBuilder copy(*object.getDictionary());
         object = PDFObject();
         QVERIFY(!valueProbe.isDetached());
         QCOMPARE(copy.get("Value").getString(), valueProbe);
@@ -898,29 +922,29 @@ void PDFObjectTest::test_vector_of_objects()
             // Reallocations must move objects, not copy them
             objects.push_back(i % 2 ? shared : PDFObject::createInteger(i));
         }
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(5001));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(5001));
 
         objects.erase(objects.begin(), objects.begin() + 1000);
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(4501));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(4501));
 
         objects.insert(objects.begin() + 10, 100, shared);
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(4601));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(4601));
 
         std::reverse(objects.begin(), objects.end());
         std::stable_partition(objects.begin(), objects.end(), [](const PDFObject& object) { return object.isInt(); });
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(4601));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(4601));
         QVERIFY(std::is_partitioned(objects.cbegin(), objects.cend(), [](const PDFObject& object) { return object.isInt(); }));
 
         std::vector<PDFObject> copy = objects;
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(9201));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(9201));
         QVERIFY(copy == objects);
 
         objects.clear();
         objects.shrink_to_fit();
-        QCOMPARE(shared.getContentReferenceCount(), uint64_t(4601));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(4601));
     }
 
-    QCOMPARE(shared.getContentReferenceCount(), uint64_t(1));
+    QCOMPARE(shared.getContentReferenceCount(), uint32_t(1));
     shared = PDFObject();
     QVERIFY(probe.isDetached());
 }
@@ -943,7 +967,6 @@ void PDFObjectTest::test_array()
     PDFObject object = PDFObject::createArray(std::vector<PDFObject>(items));
     const PDFArray* array = object.getArray();
     QCOMPARE(array->getCount(), size_t(4));
-    QCOMPARE(array->getCapacity(), size_t(4));
     QCOMPARE(array->getItem(0).getInteger(), PDFInteger(1));
     QCOMPARE(array->getItem(1).getReal(), 2.5);
     QCOMPARE(array->getItem(2).getString(), QByteArray("Three"));
@@ -972,13 +995,13 @@ void PDFObjectTest::test_array()
     QVERIFY(nanArray != nanArrayAlias);
 
     // Modification of the copy doesn't change the original
-    PDFArray copy = *array;
+    PDFArrayBuilder copy(*array);
     copy.appendItem(PDFObject::createInteger(5));
     copy.setItem(PDFObject::createNull(), 0);
     QCOMPARE(copy.getCount(), size_t(5));
     QCOMPARE(array->getCount(), size_t(4));
     QCOMPARE(array->getItem(0).getInteger(), PDFInteger(1));
-    QCOMPARE(copy.getItem(3).getContentReferenceCount(), uint64_t(2));
+    QCOMPARE(copy.getItem(3).getContentReferenceCount(), uint32_t(2));
 }
 
 void PDFObjectTest::test_dictionary()
@@ -997,16 +1020,15 @@ void PDFObjectTest::test_dictionary()
     keys.push_back(QByteArray("Zero\0Byte", 9));
     keys.push_back(QByteArray("VeryLongKey\0WithZeroByte", 24));
 
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     for (size_t i = 0; i < keys.size(); ++i)
     {
         dictionary.addEntry(PDFInplaceOrMemoryString(keys[i]), PDFObject::createInteger(PDFInteger(i)));
     }
 
-    PDFObject object = PDFObject::createDictionary(PDFDictionary(dictionary));
+    PDFObject object = PDFObject::createDictionary(PDFDictionaryBuilder(dictionary));
     const PDFDictionary* stored = object.getDictionary();
     QCOMPARE(stored->getCount(), keys.size());
-    QCOMPARE(stored->getCapacity(), keys.size());
 
     for (size_t i = 0; i < keys.size(); ++i)
     {
@@ -1069,7 +1091,7 @@ void PDFObjectTest::test_dictionary()
     QCOMPARE(stored->get(keys[5]).getInteger(), PDFInteger(5));
 
     // Duplicate key - first entry is found
-    PDFDictionary duplicate;
+    PDFDictionaryBuilder duplicate;
     duplicate.addEntry(PDFInplaceOrMemoryString("Key"), PDFObject::createInteger(1));
     duplicate.addEntry(PDFInplaceOrMemoryString("Key"), PDFObject::createInteger(2));
     QCOMPARE(duplicate.get("Key").getInteger(), PDFInteger(1));
@@ -1083,7 +1105,7 @@ void PDFObjectTest::test_dictionary()
     QVERIFY(createDictionary({ { "A", PDFObject::createInteger(1) } }) != createDictionary({ { "B", PDFObject::createInteger(1) } }));
 
     // Empty dictionary
-    PDFDictionary emptyDictionary;
+    PDFDictionaryBuilder emptyDictionary;
     QVERIFY(emptyDictionary.isEmpty());
     QVERIFY(emptyDictionary.get("").isNull());
     QVERIFY(emptyDictionary.get(keys.back()).isNull());
@@ -1100,7 +1122,7 @@ void PDFObjectTest::test_dictionary_keys()
     QVERIFY(defaultKey == PDFInplaceOrMemoryString(""));
     QVERIFY(defaultKey == PDFInplaceOrMemoryString(QByteArray()));
     QVERIFY(defaultKey == "");
-    QCOMPARE(defaultKey.getContentReferenceCount(), uint64_t(0));
+    QCOMPARE(defaultKey.getContentReferenceCount(), uint32_t(0));
 
     for (int length = 0; length <= 40; ++length)
     {
@@ -1197,7 +1219,7 @@ void PDFObjectTest::test_stream()
     // Detached stream data with capacity are shrinked
     QByteArray reserved = createData(100, 4);
     reserved.reserve(10000);
-    PDFObject shrinked = PDFObject::createStream(PDFStream(PDFDictionary(), std::move(reserved)));
+    PDFObject shrinked = PDFObject::createStream(PDFStream(PDFDictionaryBuilder(), std::move(reserved)));
     QCOMPARE(shrinked.getStream()->getContent()->capacity(), qsizetype(100));
 }
 
@@ -1332,7 +1354,7 @@ void PDFObjectTest::test_concurrent_copies()
     QByteArray probe = createProbe(1);
     QByteArray keyProbe = createProbe(2);
 
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     dictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Page"));
     dictionary.addEntry(PDFInplaceOrMemoryString(keyProbe), PDFObject::createString(probe));
     dictionary.addEntry(PDFInplaceOrMemoryString("Kids"), createArray({ PDFObject::createReference(PDFObjectReference(1, 0)), createStream({ }, probe) }));
@@ -1376,8 +1398,8 @@ void PDFObjectTest::test_concurrent_copies()
     });
 
     QCOMPARE(errors.load(), 0);
-    QCOMPARE(shared.getContentReferenceCount(), uint64_t(2));
-    QCOMPARE(shared.getDictionary()->get("Kids").getContentReferenceCount(), uint64_t(1));
+    QCOMPARE(shared.getContentReferenceCount(), uint32_t(2));
+    QCOMPARE(shared.getDictionary()->get("Kids").getContentReferenceCount(), uint32_t(1));
     QVERIFY(shared == expected);
 
     shared = PDFObject();
@@ -1400,10 +1422,10 @@ void PDFObjectTest::test_concurrent_last_reference()
         {
             PDFObject object = createArray({ createStream({ }, probe), PDFObject::createName("NameStoredInTheHeap") });
             copies.assign(size_t(threadCount), object);
-            QCOMPARE(object.getContentReferenceCount(), uint64_t(threadCount + 1));
+            QCOMPARE(object.getContentReferenceCount(), uint32_t(threadCount + 1));
         }
 
-        QCOMPARE(copies.front().getContentReferenceCount(), uint64_t(threadCount));
+        QCOMPARE(copies.front().getContentReferenceCount(), uint32_t(threadCount));
 
         // All threads release their references at the same moment,
         // exactly one of them must destroy the content.
@@ -1475,7 +1497,7 @@ void PDFObjectTest::test_concurrent_subobjects()
 void PDFObjectTest::test_concurrent_dictionary_lookup()
 {
     std::vector<QByteArray> keys;
-    PDFDictionary dictionary;
+    PDFDictionaryBuilder dictionary;
     for (int i = 0; i < 200; ++i)
     {
         QByteArray key = "Key" + QByteArray::number(i);
@@ -1513,7 +1535,7 @@ void PDFObjectTest::test_concurrent_dictionary_lookup()
     });
 
     QCOMPARE(errors.load(), 0);
-    QCOMPARE(shared.getContentReferenceCount(), uint64_t(1));
+    QCOMPARE(shared.getContentReferenceCount(), uint32_t(1));
 }
 
 void PDFObjectTest::test_concurrent_keys()
@@ -1554,8 +1576,8 @@ void PDFObjectTest::test_concurrent_keys()
     });
 
     QCOMPARE(errors.load(), 0);
-    QCOMPARE(keys[0].getContentReferenceCount(), uint64_t(1));
-    QCOMPARE(keys[2].getContentReferenceCount(), uint64_t(1));
+    QCOMPARE(keys[0].getContentReferenceCount(), uint32_t(1));
+    QCOMPARE(keys[2].getContentReferenceCount(), uint32_t(1));
 
     keys.clear();
     QVERIFY(probe.isDetached());
@@ -1660,7 +1682,7 @@ void PDFObjectTest::test_concurrent_parsing()
 
     QCOMPARE(errors.load(), 0);
     exchange.clear();
-    QCOMPARE(expected.getContentReferenceCount(), uint64_t(1));
+    QCOMPARE(expected.getContentReferenceCount(), uint32_t(1));
 }
 
 void PDFObjectTest::test_concurrent_random_objects()
@@ -1704,7 +1726,7 @@ void PDFObjectTest::test_concurrent_random_objects()
         {
             // Create a new object from randomly chosen objects of the pool
             std::vector<PDFObject> items;
-            PDFDictionary dictionary;
+            PDFDictionaryBuilder dictionary;
             const size_t itemCount = 1 + size_t(i % 5);
             for (size_t j = 0; j < itemCount; ++j)
             {
@@ -1764,7 +1786,7 @@ void PDFObjectTest::test_concurrent_random_objects()
 
     for (const PDFObject& object : pool)
     {
-        QCOMPARE(object.getContentReferenceCount(), uint64_t(1));
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
     }
 
     pool.clear();
@@ -1772,6 +1794,463 @@ void PDFObjectTest::test_concurrent_random_objects()
     {
         QVERIFY(probe.isDetached());
     }
+}
+
+void PDFObjectTest::test_array_builder()
+{
+    // Empty builder creates an empty array
+    {
+        PDFArrayBuilder builder;
+        QVERIFY(builder.isEmpty());
+        QCOMPARE(builder.getCount(), size_t(0));
+        QVERIFY(builder.begin() == builder.end());
+
+        const PDFObject object = PDFObject::createArray(std::move(builder));
+        QVERIFY(object.isArray());
+        QVERIFY(object.getArray()->isEmpty());
+        QCOMPARE(object.getArray()->getCount(), size_t(0));
+        QVERIFY(object.getArray()->begin() == object.getArray()->end());
+        QCOMPARE(object.getContentReferenceCount(), uint32_t(1));
+    }
+
+    // Memory grows, items are moved to the new memory (shared content is not copied)
+    {
+        QByteArray probe = createProbe(1);
+        PDFObject shared = PDFObject::createString(probe);
+        const uint32_t sharedCount = 334; // items with index divisible by 3 in 0..999
+
+        PDFArrayBuilder builder;
+        for (int i = 0; i < 1000; ++i)
+        {
+            builder.appendItem(i % 3 == 0 ? shared : PDFObject::createInteger(i));
+        }
+        QCOMPARE(builder.getCount(), size_t(1000));
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(1 + sharedCount));
+
+        PDFObject object = PDFObject::createArray(std::move(builder));
+        QVERIFY(builder.isEmpty());
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(1 + sharedCount));
+
+        const PDFArray* array = object.getArray();
+        QCOMPARE(array->getCount(), size_t(1000));
+        for (int i = 0; i < 1000; ++i)
+        {
+            if (i % 3 == 0)
+            {
+                QVERIFY(array->getItem(i) == shared);
+            }
+            else
+            {
+                QCOMPARE(array->getItem(i).getInteger(), PDFInteger(i));
+            }
+        }
+        QCOMPARE(std::distance(array->begin(), array->end()), std::ptrdiff_t(1000));
+
+        // Builder can be used again, when the array was created
+        builder.appendItem(PDFObject::createInteger(7));
+        QCOMPARE(PDFObject::createArray(std::move(builder)).getArray()->getItem(0).getInteger(), PDFInteger(7));
+
+        // Items are destroyed with the array
+        object = PDFObject();
+        QCOMPARE(shared.getContentReferenceCount(), uint32_t(1));
+        shared = PDFObject();
+        QVERIFY(probe.isDetached());
+    }
+
+    // Items are destroyed with the builder, which didn't create any array
+    {
+        QByteArray probe = createProbe(2);
+        {
+            PDFArrayBuilder builder;
+            builder.setFixedSize(3);
+            builder.appendItem(PDFObject::createString(probe));
+            QVERIFY(!probe.isDetached());
+        }
+        QVERIFY(probe.isDetached());
+    }
+
+    // Invalid indices
+    {
+        PDFArrayBuilder builder(std::vector<PDFObject>{ PDFObject::createInteger(1) });
+        QCOMPARE(builder.getCount(), size_t(1));
+        QVERIFY_THROWS_EXCEPTION(std::out_of_range, builder.getItem(1));
+        QVERIFY_THROWS_EXCEPTION(std::out_of_range, builder.setItem(PDFObject(), 1));
+        builder.setItem(PDFObject::createInteger(2), 0);
+        QCOMPARE(builder.getItem(0).getInteger(), PDFInteger(2));
+
+        // Builder passed as lvalue is copied
+        const PDFObject object = PDFObject::createArray(builder);
+        QCOMPARE(builder.getCount(), size_t(1));
+        QVERIFY_THROWS_EXCEPTION(std::out_of_range, object.getArray()->getItem(1));
+        QVERIFY_THROWS_EXCEPTION(std::out_of_range, object.getArray()->getItem(std::numeric_limits<size_t>::max()));
+        QCOMPARE(object.getArray()->getItem(0).getInteger(), PDFInteger(2));
+    }
+
+    // Builder created from an array is a copy, the array is not changed
+    {
+        const PDFObject original = createArray({ PDFObject::createInteger(1), PDFObject::createName("NameStoredInTheHeap"), createArray({ PDFObject::createInteger(2) }) });
+        const PDFArray* originalArray = original.getArray();
+
+        PDFArrayBuilder copy(*originalArray);
+        QCOMPARE(copy.getCount(), size_t(3));
+        QVERIFY(copy.getItem(1) == originalArray->getItem(1));
+        QCOMPARE(originalArray->getItem(1).getContentReferenceCount(), uint32_t(2));
+        QCOMPARE(originalArray->getItem(2).getContentReferenceCount(), uint32_t(2));
+
+        copy.setItem(PDFObject::createInteger(5), 0);
+        copy.appendItem(PDFObject::createInteger(6));
+        QCOMPARE(originalArray->getCount(), size_t(3));
+        QCOMPARE(originalArray->getItem(0).getInteger(), PDFInteger(1));
+
+        PDFArrayBuilder second(copy);
+        QVERIFY(second == copy);
+        second.appendItem(PDFObject::createInteger(7));
+        QVERIFY(!(second == copy));
+        QCOMPARE(copy.getCount(), size_t(4));
+
+        PDFArrayBuilder moved(std::move(second));
+        QVERIFY(second.isEmpty());
+        QCOMPARE(moved.getCount(), size_t(5));
+
+        // Self assignment
+        PDFArrayBuilder& alias = moved;
+        moved = alias;
+        QCOMPARE(moved.getCount(), size_t(5));
+        moved = std::move(alias);
+        QCOMPARE(moved.getCount(), size_t(5));
+        QCOMPARE(moved.getItem(4).getInteger(), PDFInteger(7));
+
+        // Assignment of the content of its own item
+        moved.appendItem(createArray({ PDFObject::createInteger(8), PDFObject::createInteger(9) }));
+        moved = PDFArrayBuilder(*moved.getItem(5).getArray());
+        QCOMPARE(moved.getCount(), size_t(2));
+        QCOMPARE(moved.getItem(1).getInteger(), PDFInteger(9));
+
+        copy = PDFArrayBuilder();
+        QVERIFY(copy.isEmpty());
+        QCOMPARE(originalArray->getItem(1).getContentReferenceCount(), uint32_t(1));
+    }
+}
+
+void PDFObjectTest::test_dictionary_builder()
+{
+    const std::vector<QByteArray> keys = { "A", "Type", "FourteenCharsK", "FifteenCharsKey", "VeryLongKeyOfTheDictionary", "" };
+
+    PDFDictionaryBuilder builder;
+    QVERIFY(builder.isEmpty());
+    QVERIFY(builder.get("Type").isNull());
+    QVERIFY(!builder.hasKey("Type"));
+    QVERIFY(builder.begin() == builder.end());
+
+    for (size_t i = 0; i < keys.size(); ++i)
+    {
+        builder.addEntry(PDFInplaceOrMemoryString(keys[i]), PDFObject::createInteger(PDFInteger(i)));
+    }
+    QCOMPARE(builder.getCount(), keys.size());
+
+    for (size_t i = 0; i < keys.size(); ++i)
+    {
+        QCOMPARE(builder.getKey(i).getString(), keys[i]);
+        QCOMPARE(builder.getValue(i).getInteger(), PDFInteger(i));
+        QCOMPARE(builder.get(keys[i]).getInteger(), PDFInteger(i));
+        QCOMPARE(builder.get(keys[i].constData()).getInteger(), PDFInteger(i));
+        QCOMPARE(builder.get(PDFInplaceOrMemoryString(keys[i])).getInteger(), PDFInteger(i));
+        QVERIFY(builder.hasKey(keys[i]));
+        QVERIFY(builder.hasKey(keys[i].constData()));
+    }
+    QVERIFY(!builder.hasKey("FourteenCharsX"));
+    QVERIFY(!builder.hasKey("FifteenCharsKeX"));
+    QVERIFY(builder.get("VeryLongKeyOfTheDictionarX").isNull());
+
+    // Existing entry is replaced, new entry is added at the end
+    builder.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Page"));
+    QCOMPARE(builder.getCount(), keys.size());
+    QCOMPARE(builder.getKey(1).getString(), QByteArray("Type"));
+    QCOMPARE(builder.get("Type").getString(), QByteArray("Page"));
+    builder.setEntry(PDFInplaceOrMemoryString("AnotherVeryLongKey"), PDFObject::createInteger(100));
+    QCOMPARE(builder.getCount(), keys.size() + 1);
+    QCOMPARE(builder.getKey(keys.size()).getString(), QByteArray("AnotherVeryLongKey"));
+
+    // Removed entries release their values, order of other entries is kept
+    QByteArray probe = createProbe(3);
+    builder.setEntry(PDFInplaceOrMemoryString("FourteenCharsK"), PDFObject::createString(probe));
+    QVERIFY(!probe.isDetached());
+    builder.removeEntry("FourteenCharsK");
+    QVERIFY(probe.isDetached());
+    builder.removeEntry("NotInTheDictionary");
+    builder.removeEntry("A");
+
+    // Removed last entry releases its key and value
+    const PDFInplaceOrMemoryString lastKey("AnotherVeryLongKey");
+    builder.setEntry(lastKey, PDFObject::createString(probe));
+    QCOMPARE(builder.getKey(builder.getCount() - 1).getString(), QByteArray("AnotherVeryLongKey"));
+    QVERIFY(!probe.isDetached());
+    builder.removeEntry("AnotherVeryLongKey");
+    QVERIFY(probe.isDetached());
+    QCOMPARE(builder.getCount(), size_t(4));
+    QCOMPARE(builder.getKey(0).getString(), QByteArray("Type"));
+    QCOMPARE(builder.getKey(1).getString(), QByteArray("FifteenCharsKey"));
+    QCOMPARE(builder.getKey(2).getString(), QByteArray("VeryLongKeyOfTheDictionary"));
+    QCOMPARE(builder.getKey(3).getString(), QByteArray(""));
+
+    builder.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject());
+    builder.setEntry(PDFInplaceOrMemoryString(""), PDFObject());
+    builder.removeNullObjects();
+    QCOMPARE(builder.getCount(), size_t(2));
+    QCOMPARE(builder.getKey(0).getString(), QByteArray("FifteenCharsKey"));
+    QCOMPARE(builder.getKey(1).getString(), QByteArray("VeryLongKeyOfTheDictionary"));
+
+    // Key in the heap is shared by the builder, the dictionary and its copies
+    const PDFInplaceOrMemoryString heapKey("VeryLongKeyOfTheDictionary");
+    builder.removeEntry("VeryLongKeyOfTheDictionary");
+    builder.setEntry(heapKey, PDFObject::createInteger(4));
+    QCOMPARE(heapKey.getContentReferenceCount(), uint32_t(2));
+    PDFObject object = PDFObject::createDictionary(std::move(builder));
+    QVERIFY(builder.isEmpty());
+    const PDFDictionary* dictionary = object.getDictionary();
+    QCOMPARE(dictionary->getCount(), size_t(2));
+    QCOMPARE(dictionary->get("VeryLongKeyOfTheDictionary").getInteger(), PDFInteger(4));
+    QCOMPARE(dictionary->get(QByteArray("FifteenCharsKey")).getInteger(), PDFInteger(3));
+    QVERIFY(dictionary->hasKey(QByteArray("FifteenCharsKey")));
+    QVERIFY(!dictionary->hasKey("Type"));
+    QCOMPARE(std::distance(dictionary->begin(), dictionary->end()), std::ptrdiff_t(2));
+
+    // Builder created from a dictionary is a copy, the dictionary is not changed
+    PDFDictionaryBuilder copy(*dictionary);
+    QVERIFY(copy.getKey(1) == heapKey);
+    copy.setEntry(PDFInplaceOrMemoryString("FifteenCharsKey"), PDFObject::createInteger(30));
+    copy.addEntry(PDFInplaceOrMemoryString("New"), PDFObject::createInteger(31));
+    QCOMPARE(dictionary->getCount(), size_t(2));
+    QCOMPARE(dictionary->get("FifteenCharsKey").getInteger(), PDFInteger(3));
+
+    PDFDictionaryBuilder second(copy);
+    QVERIFY(second == copy);
+    second.removeEntry("New");
+    QVERIFY(!(second == copy));
+    PDFDictionaryBuilder moved(std::move(second));
+    QVERIFY(second.isEmpty());
+    QCOMPARE(moved.getCount(), size_t(2));
+
+    // Self assignment
+    PDFDictionaryBuilder& alias = moved;
+    moved = alias;
+    QCOMPARE(moved.getCount(), size_t(2));
+    moved = std::move(alias);
+    QCOMPARE(moved.getCount(), size_t(2));
+
+    // Value moved out of the entry of the builder itself, when the memory is enlarged
+    PDFDictionaryBuilder full(*dictionary);
+    PDFObject valueOfEntry = full.get("FifteenCharsKey");
+    full.addEntry(full.getKey(1), std::move(valueOfEntry));
+    QCOMPARE(full.getCount(), size_t(3));
+    QVERIFY(full.getKey(2) == heapKey);
+    QCOMPARE(full.getValue(2).getInteger(), PDFInteger(3));
+
+    // Entries (and keys in the heap) are released with the dictionaries
+    QCOMPARE(heapKey.getContentReferenceCount(), uint32_t(6));
+    copy = PDFDictionaryBuilder();
+    moved = PDFDictionaryBuilder();
+    full = PDFDictionaryBuilder();
+    QCOMPARE(heapKey.getContentReferenceCount(), uint32_t(2));
+    object = PDFObject();
+    QCOMPARE(heapKey.getContentReferenceCount(), uint32_t(1));
+}
+
+void PDFObjectTest::test_builder_fixed_size()
+{
+    // Array and dictionary of the known size are created in the memory of the builder
+    for (const size_t count : { size_t(0), size_t(1), size_t(7), size_t(100) })
+    {
+        PDFArrayBuilder arrayBuilder;
+        arrayBuilder.setFixedSize(count);
+        PDFDictionaryBuilder dictionaryBuilder;
+        dictionaryBuilder.setFixedSize(count);
+        for (size_t i = 0; i < count; ++i)
+        {
+            arrayBuilder.appendItem(PDFObject::createInteger(PDFInteger(i)));
+            dictionaryBuilder.addEntry(PDFInplaceOrMemoryString(QByteArray("Key") + QByteArray::number(qulonglong(i))), PDFObject::createInteger(PDFInteger(i)));
+        }
+
+        const PDFArray* arrayMemory = arrayBuilder.getArray();
+        const PDFDictionary* dictionaryMemory = dictionaryBuilder.getDictionary();
+        const PDFObject arrayObject = PDFObject::createArray(std::move(arrayBuilder));
+        const PDFObject dictionaryObject = PDFObject::createDictionary(std::move(dictionaryBuilder));
+
+        QVERIFY(arrayObject.getArray() == arrayMemory);
+        QVERIFY(dictionaryObject.getDictionary() == dictionaryMemory);
+        QCOMPARE(arrayObject.getArray()->getCount(), count);
+        QCOMPARE(dictionaryObject.getDictionary()->getCount(), count);
+        if (count > 0)
+        {
+            QCOMPARE(arrayObject.getArray()->getItem(count - 1).getInteger(), PDFInteger(count - 1));
+            QCOMPARE(dictionaryObject.getDictionary()->get(QByteArray("Key") + QByteArray::number(qulonglong(count - 1))).getInteger(), PDFInteger(count - 1));
+        }
+    }
+
+    // Fully used reserved memory is not copied either
+    {
+        PDFArrayBuilder builder;
+        builder.reserve(3);
+        for (int i = 0; i < 3; ++i)
+        {
+            builder.appendItem(PDFObject::createInteger(i));
+        }
+        const PDFArray* memory = builder.getArray();
+        QVERIFY(PDFObject::createArray(std::move(builder)).getArray() == memory);
+    }
+
+    // Memory, which is not fully used, is moved to the memory of the exact size
+    {
+        PDFDictionaryBuilder builder;
+        builder.reserve(10);
+        builder.addEntry(PDFInplaceOrMemoryString("A"), PDFObject::createInteger(1));
+        builder.addEntry(PDFInplaceOrMemoryString("VeryLongKeyOfTheDictionary"), PDFObject::createInteger(2));
+        const PDFDictionary* memory = builder.getDictionary();
+        const PDFObject object = PDFObject::createDictionary(std::move(builder));
+        QVERIFY(object.getDictionary() != memory);
+        QCOMPARE(object.getDictionary()->getCount(), size_t(2));
+        QCOMPARE(object.getDictionary()->get("VeryLongKeyOfTheDictionary").getInteger(), PDFInteger(2));
+    }
+
+    // Reserve never shrinks the memory
+    {
+        PDFArrayBuilder builder;
+        builder.reserve(10);
+        builder.appendItem(PDFObject::createInteger(1));
+        builder.reserve(2);
+        const PDFArray* memory = builder.getArray();
+        for (int i = 0; i < 9; ++i)
+        {
+            builder.appendItem(PDFObject::createInteger(i));
+        }
+        QVERIFY(builder.getArray() == memory);
+        QVERIFY(PDFObject::createArray(std::move(builder)).getArray() == memory);
+    }
+
+#ifdef QT_NO_DEBUG
+    // Wrong number of the items asserts in the debug build. In the release build,
+    // the builder remains valid and the object has all the items.
+    {
+        PDFArrayBuilder fewer;
+        fewer.setFixedSize(5);
+        fewer.appendItem(PDFObject::createInteger(1));
+        QCOMPARE(PDFObject::createArray(std::move(fewer)).getArray()->getCount(), size_t(1));
+
+        PDFDictionaryBuilder more;
+        more.setFixedSize(1);
+        more.addEntry(PDFInplaceOrMemoryString("A"), PDFObject::createInteger(1));
+        more.addEntry(PDFInplaceOrMemoryString("B"), PDFObject::createInteger(2));
+        const PDFObject object = PDFObject::createDictionary(std::move(more));
+        QCOMPARE(object.getDictionary()->getCount(), size_t(2));
+        QCOMPARE(object.getDictionary()->get("B").getInteger(), PDFInteger(2));
+    }
+#endif
+}
+
+void PDFObjectTest::test_builder_views()
+{
+    // Builder provides its entries as a dictionary for the functions reading dictionaries
+    PDFDictionaryBuilder dictionaryBuilder;
+    const PDFDictionary* emptyDictionary = dictionaryBuilder.getDictionary();
+    QVERIFY(emptyDictionary);
+    QVERIFY(emptyDictionary->isEmpty());
+    QVERIFY(emptyDictionary->begin() == emptyDictionary->end());
+    QVERIFY(emptyDictionary->get("Length").isNull());
+    QVERIFY(!emptyDictionary->hasKey("Length"));
+
+    dictionaryBuilder.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(5));
+    dictionaryBuilder.addEntry(PDFInplaceOrMemoryString("VeryLongKeyOfTheDictionary"), PDFObject::createName("Value"));
+    const PDFDictionary* dictionary = dictionaryBuilder.getDictionary();
+    QCOMPARE(dictionary->getCount(), size_t(2));
+    QCOMPARE(dictionary->get("Length").getInteger(), PDFInteger(5));
+    QCOMPARE(dictionary->get("VeryLongKeyOfTheDictionary").getString(), QByteArray("Value"));
+
+    // Empty dictionary of a builder can't be distinguished from an empty dictionary object
+    QVERIFY(*emptyDictionary == *PDFObject::createDictionary(PDFDictionaryBuilder()).getDictionary());
+
+    PDFArrayBuilder arrayBuilder;
+    QVERIFY(arrayBuilder.getArray()->isEmpty());
+    QVERIFY(arrayBuilder.getArray()->begin() == arrayBuilder.getArray()->end());
+    QVERIFY_THROWS_EXCEPTION(std::out_of_range, arrayBuilder.getArray()->getItem(0));
+    arrayBuilder.appendItem(PDFObject::createInteger(1));
+    QCOMPARE(arrayBuilder.getArray()->getCount(), size_t(1));
+    QCOMPARE(arrayBuilder.getArray()->getItem(0).getInteger(), PDFInteger(1));
+
+    // Stream has its dictionary in the separate memory, which is shared by its copies
+    const PDFStream emptyStream;
+    QVERIFY(emptyStream.getDictionary()->isEmpty());
+    QVERIFY(emptyStream.getContent()->isEmpty());
+
+    PDFStream stream(std::move(dictionaryBuilder), QByteArray("abcde"));
+    QVERIFY(dictionaryBuilder.isEmpty());
+    const PDFStream copy(stream);
+    QVERIFY(copy.getDictionary() == stream.getDictionary());
+    QVERIFY(copy == stream);
+    QVERIFY(!(copy == emptyStream));
+    const PDFObject streamObject = PDFObject::createStream(std::move(stream));
+    QVERIFY(streamObject.getStream()->getDictionary() == copy.getDictionary());
+    QCOMPARE(*streamObject.getStream()->getContent(), QByteArray("abcde"));
+    QCOMPARE(streamObject.getStream()->getDictionary()->get("Length").getInteger(), PDFInteger(5));
+}
+
+void PDFObjectTest::test_concurrent_builders()
+{
+    // Shared dictionary is copied to the builders in many threads at once. Copies of
+    // the entries change reference counts of the shared content, builders are
+    // destroyed and objects created by them are destroyed in other threads.
+    QByteArray probe = createProbe(9);
+    PDFObject heapValue = PDFObject::createString(probe);
+    PDFObject shared = createDictionary({ { "Type", PDFObject::createName("Page") },
+                                          { "VeryLongKeyOfTheDictionary", heapValue },
+                                          { "Kids", createArray({ heapValue, heapValue }) } });
+    const uint32_t baseCount = heapValue.getContentReferenceCount();
+    QCOMPARE(baseCount, uint32_t(4));
+
+    const int threadCount = getThreadCount();
+    std::atomic<int> errors = 0;
+    std::mutex exchangeMutex;
+    std::vector<PDFObject> exchange(static_cast<size_t>(threadCount));
+
+    runConcurrently(threadCount, [&](int threadIndex)
+    {
+        for (int i = 0; i < 200; ++i)
+        {
+            PDFDictionaryBuilder builder(*shared.getDictionary());
+            builder.setEntry(PDFInplaceOrMemoryString("Thread"), PDFObject::createInteger(threadIndex));
+            builder.removeEntry("Type");
+
+            PDFArrayBuilder kids(*builder.get("Kids").getArray());
+            kids.appendItem(heapValue);
+            builder.setEntry(PDFInplaceOrMemoryString("Kids"), PDFObject::createArray(std::move(kids)));
+
+            PDFDictionaryBuilder unused(builder);
+            unused.addEntry(PDFInplaceOrMemoryString("Unused"), PDFObject(heapValue));
+
+            PDFObject object = PDFObject::createDictionary(std::move(builder));
+            const PDFDictionary* dictionary = object.getDictionary();
+            if (dictionary->get("Thread").getInteger() != threadIndex ||
+                dictionary->hasKey("Type") ||
+                dictionary->get("Kids").getArray()->getCount() != 3 ||
+                dictionary->get("VeryLongKeyOfTheDictionary") != heapValue)
+            {
+                ++errors;
+            }
+
+            // Object created in this thread is destroyed in another thread
+            std::scoped_lock lock(exchangeMutex);
+            exchange[size_t(threadIndex + 1) % exchange.size()] = std::move(object);
+        }
+    });
+
+    QCOMPARE(errors.load(), 0);
+    exchange.clear();
+    QCOMPARE(heapValue.getContentReferenceCount(), baseCount);
+    QCOMPARE(shared.getDictionary()->getCount(), size_t(3));
+    QCOMPARE(shared.getDictionary()->get("Kids").getArray()->getCount(), size_t(2));
+
+    shared = PDFObject();
+    heapValue = PDFObject();
+    QVERIFY(probe.isDetached());
 }
 
 QTEST_APPLESS_MAIN(PDFObjectTest)
