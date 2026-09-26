@@ -196,9 +196,9 @@ PDFObject PDFObject::createStringObject(Type type, QByteArray string)
         return PDFObject(Storage(storage));
     }
 
-    PDFString* content = new PDFString(std::move(string));
+    std::unique_ptr<PDFString> content(new PDFString(std::move(string)));
     content->optimize();
-    return createWithContent(type, content);
+    return createWithContent(type, content.release());
 }
 
 PDFObject PDFObject::createStringObject(Type type, PDFStringRef string)
@@ -309,7 +309,7 @@ void PDFObject::throwInvalidType(Type expectedType)
 
 void PDFString::setString(const QByteArray& string)
 {
-    m_string = string;
+    m_string = takeOwnedByteArray(string);
 }
 
 void PDFString::optimize()
@@ -427,7 +427,7 @@ std::vector<PDFDictionary::DictionaryEntry>::const_iterator PDFDictionary::find(
         // to the inplace string once (no allocation) and then compare whole
         // storage of the key (16 bytes) at once.
         const PDFInplaceOrMemoryString::RawStorage inplaceKey = PDFInplaceOrMemoryString::createInplaceRawStorage(key, length);
-        return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&inplaceKey](const DictionaryEntry& entry) { return PDFInplaceOrMemoryString::isRawEqual(entry.first.getRawStorage(), inplaceKey); });
+        return std::find_if(m_dictionary.cbegin(), m_dictionary.cend(), [&inplaceKey](const DictionaryEntry& entry) { return entry.first.isInplace() && PDFInplaceOrMemoryString::isRawEqual(entry.first.getRawStorage(), inplaceKey); });
     }
 
     // Keys of other sizes are rejected without access to the string in the heap
@@ -595,7 +595,7 @@ QByteArray PDFStringRef::getString() const
 }
 
 PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string) :
-    PDFInplaceOrMemoryString(string, std::strlen(string))
+    PDFInplaceOrMemoryString(string, string ? std::strlen(string) : 0)
 {
 
 }
@@ -621,10 +621,10 @@ PDFString* PDFInplaceOrMemoryString::createMemoryString(QByteArray string)
 {
     Q_ASSERT(string.size() > PDFInplaceString::MAX_STRING_SIZE);
 
-    PDFString* memoryString = new PDFString(std::move(string));
+    std::unique_ptr<PDFString> memoryString(new PDFString(std::move(string)));
     memoryString->optimize();
     memoryString->addReference();
-    return memoryString;
+    return memoryString.release();
 }
 
 void PDFInplaceOrMemoryString::destroyMemoryString(PDFString* string) noexcept

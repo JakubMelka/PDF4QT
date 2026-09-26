@@ -37,6 +37,7 @@
 #include <initializer_list>
 #include <cstring>
 #include <cstdint>
+#include <stdexcept>
 
 namespace pdf
 {
@@ -68,6 +69,13 @@ public:
 protected:
     ~PDFObjectContent() = default;
 
+    /// Keep owned arrays shared, but copy borrowed data before publishing content.
+    static inline QByteArray takeOwnedByteArray(QByteArray value)
+    {
+        return !value.isEmpty() && value.capacity() == 0
+            ? QByteArray(value.constData(), value.size()) : std::move(value);
+    }
+
 private:
     friend class PDFObject;
     friend class PDFInplaceOrMemoryString;
@@ -83,11 +91,11 @@ private:
     inline bool removeReference() const noexcept { return m_referenceCount.fetch_sub(1, std::memory_order_acq_rel) == 1; }
 
     /// Returns current number of references (for diagnostic purposes only)
-    inline uint32_t getReferenceCount() const noexcept { return m_referenceCount.load(std::memory_order_relaxed); }
+    inline uint64_t getReferenceCount() const noexcept { return m_referenceCount.load(std::memory_order_relaxed); }
 
-    /// Number of objects referencing this content. A 32-bit counter
-    /// would overflow only with 2^32 living objects (64 GB of objects).
-    mutable std::atomic<uint32_t> m_referenceCount = 0;
+    /// A 32-bit counter can overflow on large-memory systems. A 64-bit count
+    /// cannot wrap for any number of 16-byte objects that fits in address space.
+    mutable std::atomic<uint64_t> m_referenceCount = 0;
 };
 
 /// This class represents inplace string in the PDF object. To avoid too much
@@ -96,32 +104,38 @@ private:
 /// Very often, PDF document consists of large number of names and strings
 /// objects, which will fit into this category.
 ///
-/// Characters behind the end of the string are always zero (the array is
-/// zero-initialized and constructors copy only the string itself), so the
-/// whole storage can be compared at once.
+/// Constructors zero characters behind the end of the string. PDFObject and
+/// PDFInplaceOrMemoryString preserve this invariant in their private storage.
 struct PDFInplaceString
 {
     static constexpr const int MAX_STRING_SIZE = 14;
 
     constexpr PDFInplaceString() = default;
 
-    inline PDFInplaceString(const char* data, int size)
+    inline PDFInplaceString(const char* data, qsizetype size)
     {
-        Q_ASSERT(size >= 0 && size <= MAX_STRING_SIZE);
+        if (size < 0 || size > MAX_STRING_SIZE)
+        {
+            throw std::length_error("Invalid inplace string length");
+        }
+        if (size != 0)
+        {
+            if (!data)
+            {
+                throw std::invalid_argument("Null inplace string data");
+            }
+            std::memcpy(string.data(), data, static_cast<size_t>(size));
+        }
         this->size = static_cast<uint8_t>(size);
-        std::copy(data, data + size, string.data());
     }
 
-    inline PDFInplaceString(const QByteArray& data)
-    {
-        Q_ASSERT(data.size() <= MAX_STRING_SIZE);
-        size = static_cast<uint8_t>(data.size());
-        std::copy(data.cbegin(), data.cend(), string.data());
-    }
+    inline PDFInplaceString(const QByteArray& data) : PDFInplaceString(data.constData(), data.size()) { }
 
     inline bool operator==(const PDFInplaceString& other) const
     {
-        return std::memcmp(this, &other, sizeof(PDFInplaceString)) == 0;
+        // Members are public: unused bytes need not be zero in standalone strings.
+        return size == other.size && std::memcmp(string.data(), other.string.data(),
+                                                qMin(static_cast<int>(size), MAX_STRING_SIZE)) == 0;
     }
 
     inline bool operator!=(const PDFInplaceString& other) const
@@ -184,7 +198,7 @@ public:
     inline bool operator!=(const PDFInplaceOrMemoryString& other) const { return !(*this == other); }
 
     inline bool operator==(const QByteArray& value) const { return equals(value.constData(), static_cast<size_t>(value.size())); }
-    inline bool operator==(const char* value) const { return equals(value, std::strlen(value)); }
+    inline bool operator==(const char* value) const { return equals(value, value ? std::strlen(value) : 0); }
 
     /// Returns true, if string is inplace (i.e. doesn't allocate memory)
     inline bool isInplace() const { return getTag() == INPLACE_TAG; }
@@ -197,7 +211,7 @@ public:
 
     /// Returns number of strings sharing the string in the heap,
     /// or zero, if string is inplace (for diagnostic purposes only).
-    inline uint32_t getContentReferenceCount() const;
+    inline uint64_t getContentReferenceCount() const;
 
 private:
     friend class PDFDictionary;
@@ -292,6 +306,9 @@ private:
     Storage m_storage;
 };
 
+/// Immutable content may be read and shared concurrently, including copying the
+/// same const object. Assignment, moving from, swapping or destroying a particular
+/// PDFObject requires synchronization with all accesses to that same instance.
 class PDF4QTLIBCORESHARED_EXPORT PDFObject
 {
 public:
@@ -363,7 +380,7 @@ public:
     /// Returns number of objects sharing the content of this object in the heap,
     /// or zero, if object has no content in the heap (for diagnostic purposes only,
     /// value can be outdated, when copies are created or destroyed in other threads).
-    inline uint32_t getContentReferenceCount() const;
+    inline uint64_t getContentReferenceCount() const;
 
     bool operator==(const PDFObject& other) const;
     bool operator!=(const PDFObject& other) const { return !(*this == other); }
@@ -516,7 +533,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFString : public PDFObjectContent
 public:
     inline explicit PDFString() = default;
     inline explicit PDFString(QByteArray&& value) :
-        m_string(std::move(value))
+        m_string(takeOwnedByteArray(std::move(value)))
     {
 
     }
@@ -539,6 +556,14 @@ class PDF4QTLIBCORESHARED_EXPORT PDFArray : public PDFObjectContent
 public:
     inline PDFArray() = default;
     inline PDFArray(std::vector<PDFObject>&& objects) : m_objects(qMove(objects)) { }
+
+    PDFArray(const PDFArray&) = default;
+    PDFArray(PDFArray&&) noexcept = default;
+
+    // Copy before replacing content: the source may be owned by a nested object.
+    PDFArray& operator=(const PDFArray& other) { PDFArray(other).swap(*this); return *this; }
+    PDFArray& operator=(PDFArray&& other) noexcept { PDFArray(std::move(other)).swap(*this); return *this; }
+    void swap(PDFArray& other) noexcept { m_objects.swap(other.m_objects); }
 
     bool operator==(const PDFArray& other) const { return m_objects == other.m_objects; }
 
@@ -581,6 +606,14 @@ public:
 
     inline PDFDictionary() = default;
     inline PDFDictionary(std::vector<DictionaryEntry>&& dictionary) : m_dictionary(qMove(dictionary)) { }
+
+    PDFDictionary(const PDFDictionary&) = default;
+    PDFDictionary(PDFDictionary&&) noexcept = default;
+
+    // Copy before replacing content: the source may be owned by a nested object.
+    PDFDictionary& operator=(const PDFDictionary& other) { PDFDictionary(other).swap(*this); return *this; }
+    PDFDictionary& operator=(PDFDictionary&& other) noexcept { PDFDictionary(std::move(other)).swap(*this); return *this; }
+    void swap(PDFDictionary& other) noexcept { m_dictionary.swap(other.m_dictionary); }
 
     bool operator==(const PDFDictionary& other) const;
 
@@ -707,10 +740,17 @@ public:
     inline explicit PDFStream() = default;
     inline explicit PDFStream(PDFDictionary&& dictionary, QByteArray&& content) :
         m_dictionary(std::move(dictionary)),
-        m_content(std::move(content))
+        m_content(takeOwnedByteArray(std::move(content)))
     {
 
     }
+
+    PDFStream(const PDFStream&) = default;
+    PDFStream(PDFStream&&) noexcept = default;
+
+    PDFStream& operator=(const PDFStream& other) { PDFStream(other).swap(*this); return *this; }
+    PDFStream& operator=(PDFStream&& other) noexcept { PDFStream(std::move(other)).swap(*this); return *this; }
+    void swap(PDFStream& other) noexcept { m_dictionary.swap(other.m_dictionary); m_content.swap(other.m_content); }
 
     bool operator==(const PDFStream& other) const { return m_dictionary == other.m_dictionary && m_content == other.m_content; }
 
@@ -771,6 +811,15 @@ static_assert(sizeof(PDFDictionary::DictionaryEntry) == 32, "Entry of the dictio
 inline
 PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string, size_t length)
 {
+    if (length > static_cast<size_t>(std::numeric_limits<qsizetype>::max()))
+    {
+        throw std::length_error("Invalid string length");
+    }
+    if (!string && length != 0)
+    {
+        throw std::invalid_argument("Null string data");
+    }
+
     if (length <= static_cast<size_t>(PDFInplaceString::MAX_STRING_SIZE))
     {
         InplaceStorage storage;
@@ -789,6 +838,11 @@ PDFInplaceOrMemoryString::PDFInplaceOrMemoryString(const char* string, size_t le
 inline
 bool PDFInplaceOrMemoryString::equals(const char* value, size_t length) const
 {
+    if ((!value && length != 0) || length > static_cast<size_t>(std::numeric_limits<qsizetype>::max()))
+    {
+        return false;
+    }
+
     if (isInplace())
     {
         const PDFInplaceString& string = m_storage.inplace.string;
@@ -802,16 +856,19 @@ bool PDFInplaceOrMemoryString::equals(const char* value, size_t length) const
 inline
 bool PDFInplaceOrMemoryString::operator==(const PDFInplaceOrMemoryString& other) const
 {
-    if (isRawEqual(other))
+    if (isInplace())
     {
-        return true;
+        return other.isInplace() && isRawEqual(other);
     }
-
-    // Different inplace strings are not equal, and inplace string is
-    // never equal to the string in the heap (it is shorter).
-    if (isInplace() || other.isInplace())
+    if (other.isInplace())
     {
         return false;
+    }
+    // Only inplace storage has a fully defined byte representation on every
+    // architecture. Heap storage may contain padding after a 32-bit pointer.
+    if (m_storage.memory.string == other.m_storage.memory.string)
+    {
+        return true;
     }
 
     if (m_storage.memory.size != UNKNOWN_SIZE && !other.canHaveSize(m_storage.memory.size))
@@ -840,7 +897,7 @@ QByteArrayView PDFInplaceOrMemoryString::getView() const
 }
 
 inline
-uint32_t PDFInplaceOrMemoryString::getContentReferenceCount() const
+uint64_t PDFInplaceOrMemoryString::getContentReferenceCount() const
 {
     return isInplace() ? 0 : m_storage.memory.string->getReferenceCount();
 }
@@ -972,7 +1029,7 @@ const PDFArray* PDFObject::getArray() const
 }
 
 inline
-uint32_t PDFObject::getContentReferenceCount() const
+uint64_t PDFObject::getContentReferenceCount() const
 {
     return hasContent() ? m_storage.value.content->getReferenceCount() : 0;
 }

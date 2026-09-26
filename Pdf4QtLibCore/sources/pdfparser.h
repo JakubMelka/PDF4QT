@@ -29,6 +29,7 @@
 
 #include <QVariant>
 #include <QByteArray>
+#include <QVarLengthArray>
 
 #include <set>
 #include <functional>
@@ -362,6 +363,15 @@ private:
 
     PDFLexicalAnalyzer::Token m_lookAhead1;
     PDFLexicalAnalyzer::Token m_lookAhead2;
+
+    /// Scratch stacks. Items of arrays and entries of dictionaries are collected
+    /// here, and when an array (dictionary) is complete, they are moved to a vector
+    /// of the exact size, so this vector is allocated only once. Nested arrays and
+    /// dictionaries use the part of the stack above the outer ones. Inline capacity
+    /// covers typical objects, so the stacks are not allocated in the heap at all
+    /// (a parser is created for each object of the document).
+    QVarLengthArray<PDFObject, 64> m_arrayItemStack;
+    QVarLengthArray<PDFDictionary::DictionaryEntry, 32> m_dictionaryEntryStack;
 };
 
 // Implementation

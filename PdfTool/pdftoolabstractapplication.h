@@ -143,9 +143,8 @@ struct PDFToolOptions
 
     // For option 'RenderFlags'
     pdf::PDFRenderer::Features renderFeatures = pdf::PDFRenderer::getDefaultFeatures();
-    bool renderUseSoftwareRendering = true;
+    pdf::RendererEngine renderEngine = pdf::RendererEngine::Blend2D_SingleThread;
     bool renderShowPageStatistics = false;
-    int renderMSAAsamples = 4;
     int renderRasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount();
 
     // For option 'Separate'

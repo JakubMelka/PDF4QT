@@ -333,9 +333,17 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
             parser->addOption(QCommandLineOption(info.option, info.description, "bool", defaultFeatures.testFlag(info.feature) ? "1" : "0"));
         }
 
-        parser->addOption(QCommandLineOption("render-hw-accel", "Use hardware acceleration (using GPU).", "bool", "1"));
+        parser->addOption(QCommandLineOption("render-engine", "Rendering engine. Valid values are blend2d|blend2d-parallel|qpainter. Pages are rendered in parallel by the rasterizers, blend2d-parallel also uses multiple threads for each page.", "engine", "blend2d"));
         parser->addOption(QCommandLineOption("render-show-page-stat", "Show page rendering statistics."));
-        parser->addOption(QCommandLineOption("render-msaa-samples", "MSAA sample count for GPU rendering.", "samples", "4"));
+
+        // Options of the removed GPU renderer. They are accepted (and ignored),
+        // so existing scripts do not fail on an unknown option.
+        QCommandLineOption hardwareAccelerationOption("render-hw-accel", "Obsolete, it has no effect.", "bool", "0");
+        hardwareAccelerationOption.setFlags(QCommandLineOption::HiddenFromHelp);
+        parser->addOption(hardwareAccelerationOption);
+        QCommandLineOption msaaSamplesOption("render-msaa-samples", "Obsolete, it has no effect.", "samples", "4");
+        msaaSamplesOption.setFlags(QCommandLineOption::HiddenFromHelp);
+        parser->addOption(msaaSamplesOption);
         parser->addOption(QCommandLineOption("render-rasterizers", "Number of rasterizer contexts.", "rasterizers", QString::number(pdf::PDFRasterizerPool::getDefaultRasterizerCount())));
     }
 
@@ -1061,26 +1069,30 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             }
         }
 
-        QString textValue = parser->value("render-software");
-        bool ok = false;
-        bool value = textValue.toInt(&ok);
-        if (ok)
+        QString textValue = parser->value("render-engine");
+        if (textValue == "blend2d")
         {
-            options.renderUseSoftwareRendering = value;
+            options.renderEngine = pdf::RendererEngine::Blend2D_SingleThread;
+        }
+        else if (textValue == "blend2d-parallel")
+        {
+            options.renderEngine = pdf::RendererEngine::Blend2D_MultiThread;
+        }
+        else if (textValue == "qpainter")
+        {
+            options.renderEngine = pdf::RendererEngine::QPainter;
         }
         else
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown bool value '%1'. GPU rendering is used as default.").arg(textValue), options.outputCodec);
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown rendering engine '%1'. Blend2D is used as default.").arg(textValue), options.outputCodec);
         }
 
-        textValue = parser->value("render-msaa-samples");
-        options.renderMSAAsamples = textValue.toInt(&ok);
-        if (!ok)
+        if (parser->isSet("render-hw-accel") || parser->isSet("render-msaa-samples"))
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Uknown MSAA sample count '%1'. 4 samples are used as default.").arg(textValue), options.outputCodec);
-            options.renderMSAAsamples = 4;
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Options --render-hw-accel and --render-msaa-samples are obsolete and have no effect, use --render-engine instead."), options.outputCodec);
         }
 
+        bool ok = false;
         textValue = parser->value("render-rasterizers");
         options.renderRasterizerCount = textValue.toInt(&ok);
         if (!ok)

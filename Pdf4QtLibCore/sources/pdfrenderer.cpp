@@ -284,7 +284,11 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     {
         PDFBLPaintDevice blPaintDevice(image, false);
 
+        // Blend2D clears the buffer to transparent when painting begins, so the
+        // paper is filled through the painter (the same as the QPainter engine).
+        // Otherwise, formats without alpha channel (JPEG) get a black page.
         QPainter painter(&blPaintDevice);
+        painter.fillRect(QRect(QPoint(0, 0), size), Qt::white);
         compiledPage->draw(&painter, page->getCropBox(), matrix, features, 1.0);
 
         if (annotationManager)

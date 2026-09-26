@@ -324,7 +324,7 @@ void LexicalAnalyzerTest::test_parser_scratch_stacks()
     pdf::PDFObject dictionary = parse("<< /A 1 >>", nullptr);
     QCOMPARE(dictionary.getDictionary()->getCount(), size_t(1));
 
-    // Large array exceeds the retained capacity of the scratch stack
+    // Large array exceeds the inline capacity of the scratch stack
     QByteArray largeArrayData("[");
     for (int i = 0; i < 5000; ++i)
     {
@@ -336,8 +336,51 @@ void LexicalAnalyzerTest::test_parser_scratch_stacks()
     QCOMPARE(largeArray.getArray()->getCount(), size_t(5000));
     QCOMPARE(largeArray.getArray()->getItem(4999).getInteger(), pdf::PDFInteger(4999));
 
-    // Nested parser (length of the stream is an indirect object) uses the scratch
-    // stacks, while the outer array has its items on the stack.
+    // Nested array and dictionary exceed the inline capacity of the scratch stacks
+    // (64 items, 32 entries), while the outer array has its items on the stack, so
+    // the stack is moved from the inline buffer to the heap under the outer array.
+    QByteArray nestedData("[");
+    for (int i = 0; i < 60; ++i)
+    {
+        nestedData += QByteArray::number(i) + ' ';
+    }
+    nestedData += "[";
+    for (int i = 0; i < 10; ++i)
+    {
+        nestedData += QByteArray::number(100 + i) + ' ';
+    }
+    nestedData += "] <<";
+    for (int i = 0; i < 40; ++i)
+    {
+        nestedData += " /K" + QByteArray::number(i) + " [" + QByteArray::number(i) + " << /V " + QByteArray::number(i) + " >>]";
+    }
+    nestedData += " >> 60]";
+
+    pdf::PDFObject nested = parse(nestedData, nullptr);
+    const pdf::PDFArray* nestedItems = nested.getArray();
+    QCOMPARE(nestedItems->getCount(), size_t(63));
+    for (int i = 0; i < 60; ++i)
+    {
+        QCOMPARE(nestedItems->getItem(i).getInteger(), pdf::PDFInteger(i));
+    }
+    const pdf::PDFArray* innerArray = nestedItems->getItem(60).getArray();
+    QCOMPARE(innerArray->getCount(), size_t(10));
+    QCOMPARE(innerArray->getItem(0).getInteger(), pdf::PDFInteger(100));
+    QCOMPARE(innerArray->getItem(9).getInteger(), pdf::PDFInteger(109));
+    const pdf::PDFDictionary* innerDictionary = nestedItems->getItem(61).getDictionary();
+    QCOMPARE(innerDictionary->getCount(), size_t(40));
+    for (int i = 0; i < 40; ++i)
+    {
+        QCOMPARE(innerDictionary->getKey(i).getString(), "K" + QByteArray::number(i));
+        const pdf::PDFArray* value = innerDictionary->getValue(i).getArray();
+        QCOMPARE(value->getCount(), size_t(2));
+        QCOMPARE(value->getItem(0).getInteger(), pdf::PDFInteger(i));
+        QCOMPARE(value->getItem(1).getDictionary()->get("V").getInteger(), pdf::PDFInteger(i));
+    }
+    QCOMPARE(nestedItems->getItem(62).getInteger(), pdf::PDFInteger(60));
+
+    // Nested parser (length of the stream is an indirect object) has its own scratch
+    // stacks, while the outer array has its items on the stack of the outer parser.
     pdf::PDFParsingContext context([&parse](pdf::PDFParsingContext*, pdf::PDFObjectReference reference)
     {
         // If nested array is wrong, stream length is zero and the test fails

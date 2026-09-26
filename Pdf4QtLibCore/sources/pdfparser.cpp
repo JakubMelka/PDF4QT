@@ -676,31 +676,15 @@ void PDFLexicalAnalyzer::error(const QString& message) const
     throw PDFException(tr("Error near position %1. %2").arg(distance).arg(message));
 }
 
-/// Scratch stacks of the parser. Items of arrays and entries of dictionaries are
-/// collected here and when an array (dictionary) is complete, they are moved to
-/// a vector of the exact size, so this vector is allocated only once. The stacks
-/// are thread local and shared by all parsers of the thread; nested arrays,
-/// dictionaries and parsers (for example, when length of the stream is fetched
-/// from another object) use the part of the stack above the outer ones.
-class PDFParserScratchStacks
-{
-public:
-    PDFParserScratchStacks() = delete;
-
-    /// Returns stack of the array items of the current thread
-    static std::vector<PDFObject>& getArrayItems();
-
-    /// Returns stack of the dictionary entries of the current thread
-    static std::vector<PDFDictionary::DictionaryEntry>& getDictionaryEntries();
-};
-
-/// Part of the scratch stack used by one array or dictionary. Items, which
-/// were not taken (an exception was thrown), are removed in the destructor.
-template<typename T>
+/// Part of the scratch stack of the parser used by one array or dictionary. Items,
+/// which were not taken (an exception was thrown), are removed in the destructor.
+template<typename Stack>
 class PDFParserScratchFrame
 {
 public:
-    explicit inline PDFParserScratchFrame(std::vector<T>& stack) :
+    using Item = typename Stack::value_type;
+
+    explicit inline PDFParserScratchFrame(Stack& stack) :
         m_stack(stack),
         m_begin(stack.size())
     {
@@ -711,12 +695,6 @@ public:
     {
         Q_ASSERT(m_stack.size() >= m_begin);
         m_stack.erase(std::next(m_stack.begin(), m_begin), m_stack.end());
-
-        // Do not keep memory of large arrays (dictionaries) forever
-        if (m_begin == 0 && m_stack.capacity() > MAX_RETAINED_CAPACITY)
-        {
-            m_stack.shrink_to_fit();
-        }
     }
 
     PDFParserScratchFrame(const PDFParserScratchFrame&) = delete;
@@ -732,32 +710,18 @@ public:
     }
 
     /// Moves items of the frame to a vector of the exact size and removes them from the stack
-    inline std::vector<T> take()
+    inline std::vector<Item> take()
     {
         auto begin = std::next(m_stack.begin(), m_begin);
-        std::vector<T> result(std::make_move_iterator(begin), std::make_move_iterator(m_stack.end()));
+        std::vector<Item> result(std::make_move_iterator(begin), std::make_move_iterator(m_stack.end()));
         m_stack.erase(begin, m_stack.end());
         return result;
     }
 
 private:
-    static constexpr size_t MAX_RETAINED_CAPACITY = 1024;
-
-    std::vector<T>& m_stack;
-    size_t m_begin;
+    Stack& m_stack;
+    qsizetype m_begin;
 };
-
-std::vector<PDFObject>& PDFParserScratchStacks::getArrayItems()
-{
-    thread_local std::vector<PDFObject> arrayItems;
-    return arrayItems;
-}
-
-std::vector<PDFDictionary::DictionaryEntry>& PDFParserScratchStacks::getDictionaryEntries()
-{
-    thread_local std::vector<PDFDictionary::DictionaryEntry> dictionaryEntries;
-    return dictionaryEntries;
-}
 
 PDFObject PDFParsingContext::getObject(const PDFObject& object)
 {
@@ -886,7 +850,7 @@ PDFObject PDFParser::getObject()
 
             // Collect items on the scratch stack (if the exception is thrown, items
             // will be properly destroyed by the frame destructor)
-            PDFParserScratchFrame<PDFObject> items(PDFParserScratchStacks::getArrayItems());
+            PDFParserScratchFrame items(m_arrayItemStack);
 
             while (m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::EndOfFile &&
                    m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::ArrayEnd)
@@ -915,7 +879,7 @@ PDFObject PDFParser::getObject()
             // we must load also the stream content. Entries are collected on the scratch
             // stack (if the exception is thrown, entries will be properly destroyed by
             // the frame destructor).
-            PDFParserScratchFrame<PDFDictionary::DictionaryEntry> entries(PDFParserScratchStacks::getDictionaryEntries());
+            PDFParserScratchFrame entries(m_dictionaryEntryStack);
 
             // Now, scan key/value pairs
             while (m_lookAhead1.type != PDFLexicalAnalyzer::TokenType::EndOfFile &&
@@ -1094,7 +1058,23 @@ void PDFParser::shift()
 
 PDFLexicalAnalyzer::Token PDFParser::fetch()
 {
-    return m_tokenFetcher ? m_tokenFetcher() : m_lexicalAnalyzer.fetch();
+    if (!m_tokenFetcher)
+    {
+        return m_lexicalAnalyzer.fetch();
+    }
+
+    PDFLexicalAnalyzer::Token token = m_tokenFetcher();
+    if (token.data.typeId() == QMetaType::QByteArray)
+    {
+        const QByteArray data = token.data.toByteArray();
+        // External token sources may reuse borrowed storage on the next fetch.
+        // Both lookahead tokens must remain valid across that call.
+        if (!data.isEmpty() && data.capacity() == 0)
+        {
+            token.data = QByteArray(data.constData(), data.size());
+        }
+    }
+    return token;
 }
 
 QByteArray PDFParser::getNameData() const

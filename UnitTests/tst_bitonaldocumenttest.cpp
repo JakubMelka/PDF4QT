@@ -50,7 +50,9 @@
 class RenderingContext
 {
 public:
-    explicit RenderingContext(pdf::PDFDocument* document, int rasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount()) :
+    explicit RenderingContext(pdf::PDFDocument* document,
+                              int rasterizerCount = pdf::PDFRasterizerPool::getDefaultRasterizerCount(),
+                              pdf::RendererEngine rendererEngine = pdf::RendererEngine::QPainter) :
         m_optionalContentActivity(document, pdf::OCUsage::Export, nullptr),
         m_cmsManager(nullptr),
         m_fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT)
@@ -69,7 +71,7 @@ public:
                                                                     pdf::PDFBitonalDocumentCreator::getPageRasterizationFeatures(),
                                                                     m_meshQualitySettings,
                                                                     rasterizerCount,
-                                                                    pdf::RendererEngine::QPainter,
+                                                                    rendererEngine,
                                                                     nullptr);
     }
 
@@ -154,6 +156,7 @@ private slots:
     void test_rasterizer_returned_after_exception();
     void test_page_image_size_rejects_overflow();
     void test_page_rasterization_limits_resolution();
+    void test_page_rasterization_paper_is_white();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -1541,6 +1544,28 @@ void BitonalDocumentTest::test_page_rasterization_limits_resolution()
         [&image](pdf::PDFRenderedPageImage& rendered) { image = rendered.pageImage; }, nullptr, nullptr);
     QVERIFY(!image.isNull());
     QCOMPARE(image.dotsPerMeterX(), std::numeric_limits<int>::max());
+}
+
+void BitonalDocumentTest::test_page_rasterization_paper_is_white()
+{
+    // The paper must be opaque white for every engine. Blend2D clears its buffer
+    // to transparent black, which gave black pages in formats without alpha (JPEG).
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+
+    for (const pdf::RendererEngine engine : { pdf::RendererEngine::QPainter, pdf::RendererEngine::Blend2D_SingleThread, pdf::RendererEngine::Blend2D_MultiThread })
+    {
+        RenderingContext context(&document, 1, engine);
+        QImage image;
+        context.getRasterizerPool()->render({ 0 }, [](const pdf::PDFPage*) { return QSize(64, 32); },
+            [&image](pdf::PDFRenderedPageImage& rendered) { image = rendered.pageImage; }, nullptr, nullptr);
+        QVERIFY(!image.isNull());
+
+        // Left half of the page is painted black, right half is the paper
+        QCOMPARE(image.pixel(8, 16), qRgba(0, 0, 0, 255));
+        QCOMPARE(image.pixel(56, 16), qRgba(255, 255, 255, 255));
+        QCOMPARE(image.pixel(63, 0), qRgba(255, 255, 255, 255));
+        QCOMPARE(image.pixel(63, 31), qRgba(255, 255, 255, 255));
+    }
 }
 
 QTEST_MAIN(BitonalDocumentTest)
