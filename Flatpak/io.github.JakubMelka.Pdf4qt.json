@@ -1,7 +1,7 @@
 {
     "app-id": "io.github.JakubMelka.Pdf4qt",
     "runtime": "org.kde.Platform",
-    "runtime-version": "6.9",
+    "runtime-version": "6.11",
     "runtime-branch": "stable",
     "sdk": "org.kde.Sdk",
     "sdk-branch": "stable",
@@ -39,22 +39,26 @@
                 {
                     "type": "git",
                     "url": "https://github.com/uxlfoundation/oneTBB.git",
-                    "commit": "d3b0a80d02501b2304de6afb940465f465482a6b"
+                    "tag": "v2023.1.0",
+                    "commit": "3046c8b0c29df995980003ea24f4d78c80ec0c8d"
                 }
             ]
         },
         {
             "name": "lcms2",
-            "buildsystem": "cmake-ninja",
-            "builddir": true,
+            "buildsystem": "meson",
             "config-opts": [
-                "-DCMAKE_BUILD_TYPE=Release"
+                "--buildtype=release",
+                "-Dtests=disabled",
+                "-Djpeg=disabled",
+                "-Dtiff=disabled"
             ],
             "sources": [
                 {
                     "type": "git",
-                    "url": "https://github.com/JakubMelka/Little-CMS.git",
-                    "commit": "c70dfeb34f2bcdc64358b353de19e372503cf3fa"
+                    "url": "https://github.com/mm2/Little-CMS.git",
+                    "tag": "lcms2.19.1",
+                    "commit": "21c582a594fe5279f90c0b93437c398f93bf62b0"
                 }
             ]
         },
@@ -62,14 +66,15 @@
             "name": "zlib",
             "buildsystem": "cmake-ninja",
             "config-opts": [
-                "-DCMAKE_BUILD_TYPE=Release"
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DZLIB_BUILD_TESTING=OFF"
             ],
             "sources": [
                 {
                     "type": "git",
                     "url": "https://github.com/madler/zlib.git",
-                    "tag": "v1.3.1",
-                    "commit": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf"
+                    "tag": "v1.3.2",
+                    "commit": "da607da739fa6047df13e66a2af6b8bec7c2a498"
                 }
             ]
         },
@@ -84,8 +89,33 @@
                 {
                     "type": "git",
                     "url": "https://github.com/uclouvain/openjpeg.git",
-                    "tag": "v2.5.2",
-                    "commit": "39e8c50a2f9bdcf36810ee3d41bcbf1cc78968ae"
+                    "tag": "v2.5.4",
+                    "commit": "6c4a29b00211eb0430fa0e5e890f1ce5c80f409f"
+                }
+            ]
+        },
+        {
+            "name": "clipper2",
+            "buildsystem": "cmake-ninja",
+            "subdir": "CPP",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCLIPPER2_EXAMPLES=OFF",
+                "-DCLIPPER2_TESTS=OFF",
+                "-DCLIPPER2_UTILS=OFF"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/AngusJohnson/Clipper2.git",
+                    "tag": "Clipper2_2.0.1",
+                    "commit": "21ebba05db8894f0c7217ad35ea518080f324946"
+                },
+                {
+                    "type": "shell",
+                    "commands": [
+                        "sed -i 's/int ec;/int ec = 0;/' CPP/Clipper2Lib/src/clipper.triangulation.cpp"
+                    ]
                 }
             ]
         },
@@ -115,6 +145,111 @@
                     "type": "git",
                     "url": "https://github.com/blend2d/blend2d.git",
                     "commit": "6dbc2cefbc996379e07104e34519a440b49b15d7"
+                }
+            ]
+        },
+        {
+            "name": "dotconf",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static"
+            ],
+            "cleanup": [
+                "*"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/williamh/dotconf.git",
+                    "tag": "v1.4.1",
+                    "commit": "7c3e0515c29efce45de6aae29befb2ab4396bd60"
+                },
+                {
+                    "type": "shell",
+                    "commands": [
+                        "autoreconf -fi"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "speech-dispatcher",
+            "buildsystem": "autotools",
+            "config-opts": [
+                "--disable-static",
+                "--disable-python",
+                "--disable-doc",
+                "--without-espeak",
+                "--without-espeak-ng",
+                "--without-flite",
+                "--without-ibmtts",
+                "--without-voxin",
+                "--without-ivona",
+                "--without-pico",
+                "--without-baratinoo",
+                "--without-kali",
+                "--without-libao",
+                "--without-pipewire",
+                "--without-alsa",
+                "--without-oss",
+                "--without-nas",
+                "--with-pulse",
+                "--with-systemdsystemunitdir=no",
+                "--with-systemduserunitdir=no"
+            ],
+            "cleanup": [
+                "/bin",
+                "/etc",
+                "/include",
+                "/libexec",
+                "/share",
+                "/lib/pkgconfig",
+                "/lib/speech-dispatcher",
+                "/lib/speech-dispatcher-modules",
+                "/lib/*.la",
+                "/lib/libspeechd.so",
+                "/lib/libspeechd_module.so*"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://github.com/brailcom/speechd/releases/download/0.12.1/speech-dispatcher-0.12.1.tar.gz",
+                    "sha256": "b14a5238d287d2dcce4dd42bbd66ca65fa228e7e683708267f7b34036f7ba4b4"
+                }
+            ]
+        },
+        {
+            "name": "qtspeech-speechd",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DFEATURE_speechd=ON",
+                "-DFEATURE_flite=OFF",
+                "-DQT_BUILD_TESTS=OFF",
+                "-DQT_BUILD_EXAMPLES=OFF"
+            ],
+            "cleanup": [
+                "/include",
+                "/lib/x86_64-linux-gnu",
+                "/lib/cmake",
+                "/lib/metatypes",
+                "/lib/modules",
+                "/lib/pkgconfig",
+                "/lib/qml",
+                "/lib/sbom",
+                "/lib/*.prl",
+                "/lib/libQt6TextToSpeech*",
+                "/lib/plugins/texttospeech/libqtexttospeech_mock.so",
+                "/mkspecs",
+                "/modules",
+                "/share",
+                "/sbom"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://download.qt.io/official_releases/qt/6.11/6.11.2/submodules/qtspeech-everywhere-src-6.11.2.tar.xz",
+                    "sha256": "9c1d05dc9d710049f20a67680fc6b4293c9b584a90f04f4cf6cc36e758c5cb98"
                 }
             ]
         },
