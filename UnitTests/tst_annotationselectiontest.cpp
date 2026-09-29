@@ -3100,7 +3100,9 @@ void AnnotationSelectionTest::previewIsResultOfOperation()
 
     // A stamp is displayed by its appearance stream, which is transformed by the preview.
     // A square, which is resized together with it, is displayed as the result of the operation.
-    const QRectF stampFrame = fixture.pageToDevice().mapRect(QRectF(20, 20, 120, 40)).normalized();
+    // The size of the stamp is given by the width of its text (it depends on the font of the
+    // system), so the handle is taken from the displayed frame, not from the created rectangle.
+    const QRectF stampFrame = fixture.displayedRectangle(stamp);
     fixture.annotations.setSelectedAnnotations({ stamp });
     QVERIFY(fixture.press(stampFrame.bottomRight().toPoint()));
     QVERIFY(fixture.move(stampFrame.bottomRight().toPoint() + QPoint(20, 20), Qt::ControlModifier));

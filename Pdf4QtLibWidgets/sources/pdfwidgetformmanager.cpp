@@ -1120,34 +1120,6 @@ void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEven
     const bool isDown = key == Qt::Key_Down;
     const bool isHorizontal = isLeft || isRight;
 
-    Qt::NavigationMode navigationMode = Qt::NavigationModeKeypadDirectional;
-#ifdef QT_KEYPAD_NAVIGATION
-    navigationMode = QApplication::navigationMode();
-#endif
-
-    switch (navigationMode)
-    {
-        case Qt::NavigationModeKeypadTabOrder:
-        {
-            // According the Qt's documentation, Up/Down arrows are used
-            // to change focus. So, if user pressed Left/Right, we must
-            // ignore this event.
-            if (isHorizontal)
-            {
-                return;
-            }
-            break;
-        }
-
-        case Qt::NavigationModeKeypadDirectional:
-            // Default behaviour
-            break;
-
-        default:
-            // Nothing happens
-            return;
-    }
-
     bool next = false;
     if (isHorizontal)
     {

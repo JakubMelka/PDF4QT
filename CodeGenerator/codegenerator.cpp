@@ -276,9 +276,11 @@ void CodeGenerator::generateCode(QString headerName, QString sourceName) const
             QString headerGeneratedCode = generateHeader(indent);
             QString allCode = frontPart + headerGeneratedCode + backPart;
 
-            headerFile.open(QFile::WriteOnly | QFile::Truncate);
-            headerFile.write(allCode.toUtf8());
-            headerFile.close();
+            if (headerFile.open(QFile::WriteOnly | QFile::Truncate))
+            {
+                headerFile.write(allCode.toUtf8());
+                headerFile.close();
+            }
         }
     }
 
@@ -298,9 +300,11 @@ void CodeGenerator::generateCode(QString headerName, QString sourceName) const
             QString sourceGeneratedCode = generateSource(className, indent);
             QString allCode = frontPart + sourceGeneratedCode + backPart;
 
-            sourceFile.open(QFile::WriteOnly | QFile::Truncate);
-            sourceFile.write(allCode.toUtf8());
-            sourceFile.close();
+            if (sourceFile.open(QFile::WriteOnly | QFile::Truncate))
+            {
+                sourceFile.write(allCode.toUtf8());
+                sourceFile.close();
+            }
         }
     }
 }
@@ -1426,9 +1430,11 @@ void XFACodeGenerator::generateCode(const QDomDocument& document, QString header
             QString headerGeneratedCode = generateHeader();
             QString allCode = frontPart + headerGeneratedCode + backPart;
 
-            headerFile.open(QFile::WriteOnly | QFile::Truncate);
-            headerFile.write(allCode.toUtf8());
-            headerFile.close();
+            if (headerFile.open(QFile::WriteOnly | QFile::Truncate))
+            {
+                headerFile.write(allCode.toUtf8());
+                headerFile.close();
+            }
         }
     }
 
@@ -1448,9 +1454,11 @@ void XFACodeGenerator::generateCode(const QDomDocument& document, QString header
             QString sourceGeneratedCode = generateSource();
             QString allCode = frontPart + sourceGeneratedCode + backPart;
 
-            sourceFile.open(QFile::WriteOnly | QFile::Truncate);
-            sourceFile.write(allCode.toUtf8());
-            sourceFile.close();
+            if (sourceFile.open(QFile::WriteOnly | QFile::Truncate))
+            {
+                sourceFile.write(allCode.toUtf8());
+                sourceFile.close();
+            }
         }
     }
 }

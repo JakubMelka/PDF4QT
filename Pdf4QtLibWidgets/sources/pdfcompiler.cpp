@@ -52,80 +52,76 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
     QMutexLocker locker(m_mutex);
     while (!isInterruptionRequested())
     {
-        if (m_waitCondition->wait(locker.mutex(), QDeadlineTimer(QDeadlineTimer::Forever)))
+        std::vector<PDFAsynchronousPageCompiler::CompileTask> tasks = m_compiler->pickTasksForCompilation();
+
+        if (tasks.empty())
         {
-            while (!isInterruptionRequested())
+            // Jakub Melka: new tasks and the interruption request are both signalled
+            // with the mutex locked, so the check above and the wait form one atomic
+            // step - no wake up can be lost (otherwise stop() could wait forever).
+            m_waitCondition->wait(locker.mutex(), QDeadlineTimer(QDeadlineTimer::Forever));
+            continue;
+        }
+
+        locker.unlock();
+
+        // Perform page compilation
+        auto proxy = m_compiler->getProxy();
+        proxy->getFontCache()->setCacheShrinkEnabled(this, false);
+
+        auto compilePage = [this, proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
+        {
+            PDFPrecompiledPage compiledPage;
+
+            // Jakub Melka: task can be cancelled while it is waiting in the thread
+            // pool queue - in that case we do not start the compilation at all.
+            if (task.isCancelled())
             {
-                std::vector<PDFAsynchronousPageCompiler::CompileTask> tasks = m_compiler->pickTasksForCompilation();
-
-                if (!tasks.empty())
-                {
-                    locker.unlock();
-
-                    // Perform page compilation
-                    auto proxy = m_compiler->getProxy();
-                    proxy->getFontCache()->setCacheShrinkEnabled(this, false);
-
-                    auto compilePage = [this, proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
-                    {
-                        PDFPrecompiledPage compiledPage;
-
-                        // Jakub Melka: task can be cancelled while it is waiting in the thread
-                        // pool queue - in that case we do not start the compilation at all.
-                        if (task.isCancelled())
-                        {
-                            return compiledPage;
-                        }
-
-                        PDFPageCompilerOperationControl operationControl(m_compiler, task.cancelFlag);
-                        PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
-                        PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
-                        renderer.setOperationControl(&operationControl);
-                        renderer.compile(&task.precompiledPage, task.pageIndex);
-                        task.finished = !operationControl.isOperationCancelled();
-                        return compiledPage;
-                    };
-                    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), compilePage);
-
-                    proxy->getFontCache()->setCacheShrinkEnabled(this, true);
-
-                    // Relock the mutex to write the tasks
-                    locker.relock();
-
-                    // Now, write compiled pages. We must check, that the task is still
-                    // present in the task map - it can be cancelled and erased while we
-                    // were compiling it (for example, page scrolled out of the viewport).
-                    bool isSomethingWritten = false;
-                    for (auto& task : tasks)
-                    {
-                        if (!task.finished || task.isCancelled())
-                        {
-                            continue;
-                        }
-
-                        auto it = m_compiler->m_tasks.find(task.pageIndex);
-                        if (it != m_compiler->m_tasks.end() && !it->second.finished)
-                        {
-                            isSomethingWritten = true;
-                            it->second = std::move(task);
-                        }
-                    }
-
-                    if (isSomethingWritten)
-                    {
-                        // Why we are unlocking the mutex? Because
-                        // we do not want to emit signals with locked mutexes.
-                        // If direct connection is applied, this can lead to deadlock.
-                        locker.unlock();
-                        Q_EMIT pageCompiled();
-                        locker.relock();
-                    }
-                }
-                else
-                {
-                    break;
-                }
+                return compiledPage;
             }
+
+            PDFPageCompilerOperationControl operationControl(m_compiler, task.cancelFlag);
+            PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
+            PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
+            renderer.setOperationControl(&operationControl);
+            renderer.compile(&task.precompiledPage, task.pageIndex);
+            task.finished = !operationControl.isOperationCancelled();
+            return compiledPage;
+        };
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), compilePage);
+
+        proxy->getFontCache()->setCacheShrinkEnabled(this, true);
+
+        // Relock the mutex to write the tasks
+        locker.relock();
+
+        // Now, write compiled pages. We must check, that the task is still
+        // present in the task map - it can be cancelled and erased while we
+        // were compiling it (for example, page scrolled out of the viewport).
+        bool isSomethingWritten = false;
+        for (auto& task : tasks)
+        {
+            if (!task.finished || task.isCancelled())
+            {
+                continue;
+            }
+
+            auto it = m_compiler->m_tasks.find(task.pageIndex);
+            if (it != m_compiler->m_tasks.end() && !it->second.finished)
+            {
+                isSomethingWritten = true;
+                it->second = std::move(task);
+            }
+        }
+
+        if (isSomethingWritten)
+        {
+            // Why we are unlocking the mutex? Because
+            // we do not want to emit signals with locked mutexes.
+            // If direct connection is applied, this can lead to deadlock.
+            locker.unlock();
+            Q_EMIT pageCompiled();
+            locker.relock();
         }
     }
 }
@@ -193,8 +189,13 @@ void PDFAsynchronousPageCompiler::stop(bool clearCache)
             m_state = State::Stopping;
 
             Q_ASSERT(m_thread);
-            m_thread->requestInterruption();
-            m_waitCondition.wakeAll();
+            {
+                // The worker checks the interruption request with the mutex locked
+                // just before it waits, so the request must be made under the mutex.
+                QMutexLocker locker(&m_mutex);
+                m_thread->requestInterruption();
+                m_waitCondition.wakeAll();
+            }
             m_thread->wait();
             delete m_thread;
             m_thread = nullptr;

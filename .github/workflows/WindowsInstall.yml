@@ -114,9 +114,9 @@ jobs:
         working-directory: vcpkg
         
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
-          version: '6.9.0'
+          version: '6.11.3'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
@@ -124,7 +124,10 @@ jobs:
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia qtimageformats'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-690
+          cache-key-prefix: ${{ runner.os }}-qt-6113
+          # aqtinstall 3.3 cannot read the Windows repository layout of Qt 6.11+, use a commit of its master
+          # until a release supports it
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
           
 
       - name: Find VC Redistributable Directories
@@ -155,7 +158,7 @@ jobs:
         working-directory: pdf4qt
         shell: pwsh
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:QT_ROOT_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
           cmake --build build --target release_translations --config Release -j6
           cmake --build build --config Release -j6
           cmake --install build --config Release
