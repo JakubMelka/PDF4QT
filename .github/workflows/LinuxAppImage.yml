@@ -125,7 +125,7 @@ jobs:
           cp install/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install/io.github.JakubMelka.Pdf4qt.svg
           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
-          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
+          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -bundle-non-qt-libs -extra-plugins=iconengines,imageformats,texttospeech
           
       - name: Sign and Repack AppImage
         working-directory: pdf4qt/build
