@@ -1,0 +1,1165 @@
+# PDF4QT – katalog nástrojů (Tools)
+
+Podklad pro stránku **Tools** nové sjednocené aplikace PDF4QT. Popisuje, co je „tool“, do jakých kategorií tooly patří, jakou mají barvu, co přesně dělají, podle jakých klíčových slov je uživatel najde a co nám proti konkurenci chybí.
+
+Stav dokumentu: návrh k připomínkám, 2. 10. 2026. Figma se tímto dokumentem nemění.
+
+Zdroje: zdrojový kód větve `master` (Editor, Viewer, PageMaster, Diff, všech devět pluginů a PdfTool), větev `origin/branches/issue85` (OCR), stávající návrh stránky `pdf4qt-tools` ve Figmě a rešerše konkurenčních aplikací v kapitole 7.
+
+## Obsah
+
+1. [Co je a co není tool](#1-co-je-a-co-není-tool)
+2. [Zásady katalogu](#2-zásady-katalogu)
+3. [Kategorie a barvy](#3-kategorie-a-barvy)
+4. [Přehled toolů](#4-přehled-toolů)
+5. [Podrobný popis toolů](#5-podrobný-popis-toolů)
+6. [Mapa pokrytí dnešních aplikací](#6-mapa-pokrytí-dnešních-aplikací)
+7. [Rešerše konkurence](#7-rešerše-konkurence)
+8. [Co chybí – návrhy nových toolů](#8-co-chybí--návrhy-nových-toolů)
+9. [Doporučení pro UI katalogu](#9-doporučení-pro-ui-katalogu)
+10. [Rozdíly proti současné Figmě a rozhodnutí](#10-rozdíly-proti-současné-figmě-a-rozhodnutí)
+
+---
+
+## 1. Co je a co není tool
+
+**Tool** je položka katalogu, která pojmenovává jeden uživatelský úkol („sloučit PDF“, „zaheslovat“, „porovnat dvě verze“). Má název, jednořádkový popis, ikonu, kategorii s barvou a klíčová slova pro hledání. Spouští se z karty na stránce Tools, z hledání, nebo z dokumentu.
+
+Tool **není** totéž co `PDFWidgetTool`. `PDFWidgetTool` je technická třída pro interaktivní režim myši nad stránkou (výběr textu, lupa, kreslení anotace). Tyhle režimy se spouštějí přímo na stránce dokumentu, hlavně z položek Select a Annotate, a v katalogu se neopakují:
+
+| Vrstva | Příklad | Kde žije v novém UI |
+| --- | --- | --- |
+| **Tool** (tento dokument) | Merge, Compress, Redact Content | Stránka Tools, hledání, připnuté tooly |
+| **Příkaz dokumentu** | Zoom, Fit Width, Find, Print, Save, Undo | Lišta a panely dokumentu (File, View, Go To) |
+| **Režim myši** (`PDFWidgetTool`) | Select Text, Select Table, Magnifier, Screenshot, všechny anotace | Lišta dokumentu, položky Select a Annotate |
+| **Chování dokumentu** | Vyplňování formulářů, odkazy, ověření podpisů při otevření | Přímo ve stránce, bez spouštění |
+| **Panel** | Outline, Thumbnails, Layers, Attachments, Speech, Signatures, Notes | Postranní panel dokumentu |
+| **Nastavení** | Rendering, Color management, Shortcuts | Stránka Settings |
+
+Pravidlo pro zařazení: tool má **vlastní obrazovku nebo dialog s nastavením a s výsledkem** (změněný dokument, nový soubor, zpráva), nebo jde spustit **bez otevřeného dokumentu**. Co se dělá přímo na stránce nebo v panelu, tool není. Proto v katalogu nejsou anotace, vyplňování formulářů, osnova, přílohy, čtení nahlas, ověření podpisů ani výběr tabulky. Kapitola 6 mapuje každou dnešní akci do jedné z těchto vrstev, takže nic nevypadne.
+
+Čtyři tooly jsou vědomá výjimka. **Measure**, **Redact Content** a **Sign by Hand** jsou uvnitř režimy myši, ale mají vlastní lištu a závěrečný krok s výsledkem. **Soft Proofing** je přepínač pohledu s vlastním nastavením a patří k ostatním toolům tiskové přípravy.
+
+### Stavy toolů
+
+| Stav | Význam |
+| --- | --- |
+| **GUI** | Dnes existuje jako samostatná akce, dialog nebo plugin. |
+| **GUI·split** | Funkce dnes existuje, ale je schovaná ve větším celku. V katalogu dostává vlastní vstupní bod. |
+| **CLI** | Umí to jen `PdfTool` z příkazové řádky. GUI chybí. |
+| **Branch** | Hotovo v jiné větvi, do `master` ještě nezačleněno. |
+| **New** | Chybí. Návrh, viz kapitola 8. |
+
+---
+
+## 2. Zásady katalogu
+
+Vychází z doporučení Nielsen Norman Group pro pojmenování příkazů a informační architekturu a z toho, jak katalogy řeší Acrobat, Stirling-PDF, PDF24, Smallpdf a iLovePDF. Zdroje jsou v kapitole 7.
+
+1. **Název říká úkol, ne technologii.** Sloveso, nejvýš čtyři slova: *Compress*, ne *Optimizer*. Předmět se přidává tam, kde bez něj není jasné, čeho se tool týká: *Rotate Pages*, *Optimize Images*. Slovo „PDF“ se v názvu neuvádí, protože v aplikaci jen pro PDF nic neříká. Zůstává jen tam, kde udává směr převodu (*PDF to Images*, *Images to PDF*). Odborný termín patří do klíčových slov (*bitonal*, *linearize*), pokud není krátký a zavedený jako *Sanitize*. Výjimkou jsou názvy pohledů zavedené v oboru (*Output Preview*, *Ink Coverage*, *Object Inspector*).
+2. **Jeden tool, jeden úkol.** Dialog s mnoha účely se v katalogu rozpadne na víc vstupních bodů, i když pod kapotou zůstane jedna obrazovka s jinou předvolbou. Dnešní dialog Encryption tak dává čtyři tooly a PageMaster jedenáct.
+3. **Klíčová slova pokrývají slovník uživatele.** Synonyma, názvy z konkurence, formáty souborů, britský i americký pravopis a slova, kterými by úkol popsal laik. *Merge* se musí najít přes *join*, *combine*, *assemble*, *concatenate* i *bind*.
+4. **Kategorií je šest.** Spotřebitelské katalogy mají pět až osm kategorií, profesionální aplikace víc. Šest odpovídá šesti duhovým odstínům, které ve Figmě máme, takže každá kategorie má vlastní barvu. Jemnější dělení uvnitř kategorie řeší podskupiny bez vlastní barvy. Žádná kategorie se nejmenuje „Other“ ani „Advanced“.
+5. **Barva nese kategorii, ne význam jednotlivého toolu.** Všechny tooly kategorie mají stejný odstín. Barva nikdy není jediný nosič informace, vždy ji doprovází název kategorie.
+6. **Každý tool patří právě do jedné kategorie.** Co by patřilo do dvou, se dohledá přes klíčová slova. Karta ve dvou kategoriích by měla dvě barvy.
+7. **Běžné napřed, odborné nakonec.** V každé kategorii jsou nejdřív tooly pro běžného uživatele, pak podskupina pro pokročilé (prepress, vývojářské nástroje).
+8. **Popis na kartě má nejvýš 45 znaků** a říká výsledek, ne postup.
+
+### Klíčová slova – pravidla
+
+- Píší se anglicky, malými písmeny, oddělená čárkou. Hledání ignoruje velikost písmen a diakritiku.
+- Anglická klíčová slova se hledají vždy, i když je aplikace přeložená. Překlad přidává další slova v jazyce rozhraní, takže keywords procházejí přes `tr()`.
+- Hledá se podle začátku slova a s tolerancí jednoho překlepu. Pořadí shody: název, klíčová slova, popis.
+- Klíčová slova se v UI nezobrazují. Výjimkou je výsledek hledání, kde se ukáže slovo, které rozhodlo o shodě („Merge – odpovídá *combine*“).
+
+---
+
+## 3. Kategorie a barvy
+
+Barvy jsou stávající odstíny z kolekce Color ve Figmě (`accent/<hue>/bg`, `bg-hover`, `bg-pressed`, `border`, `border-strong`, `icon`) a varianta `Hue` komponenty **Tool icon**. Odstín **Neutral** není barva kategorie. Je vyhrazený pro příkazy, panely a nastavení ve výsledcích hledání.
+
+| # | Kategorie | Krátký štítek (chip) | Odstín | Popis kategorie na stránce | Proč tahle barva |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Organize Pages** | Pages | **Amber** | Merge, split, reorder and resize pages | Barva papíru a pořadačů. Největší a nejpoužívanější skupina dostává nejteplejší barvu. |
+| 2 | **Create & Convert** | Convert | **Blue** | Create PDFs and get content out of them | Neutrální „vstup a výstup“. Modrá je primární barva aplikace, tyhle tooly bývají první krok práce. |
+| 3 | **Edit** | Edit | **Green** | Change the content of pages | Nejčastější každodenní práce s dokumentem. Zelená se dobře odliší od modré i červené sousedních kategorií. |
+| 4 | **Protect & Sign** | Protect | **Red** | Protect, sign and remove sensitive data | Zabezpečení a nevratné zásahy. Červená zvyšuje pozornost u redakce a šifrování. |
+| 5 | **Optimize & Repair** | Optimize | **Violet** | Make files smaller, cleaner and healthier | Technické zásahy do souboru. Fialová je odliší od červené u zabezpečení i od tyrkysové u kontroly. |
+| 6 | **Review & Inspect** | Review | **Teal** | Compare, measure, proof and look inside | Analytická práce, při které se dokument nemění. Klidný studený odstín. |
+
+Pořadí kategorií odpovídá typickému postupu práce: uspořádat, vytvořit nebo převést, upravit, zabezpečit, zmenšit, zkontrolovat.
+
+Ustálená konvence barev u konkurence neexistuje, viz část 7.3. Společný je jen princip „jedna barva na kategorii“.
+
+### Podskupiny
+
+Podskupiny slouží jen k řazení a k nadpisům uvnitř kategorie. Nemají vlastní barvu ani vlastní chip.
+
+| Kategorie | Podskupiny v tomto pořadí |
+| --- | --- |
+| Organize Pages | Combine & split · Arrange · Page size |
+| Create & Convert | Create · Recognize · Export |
+| Edit | bez podskupin |
+| Protect & Sign | Encryption · Signatures · Privacy |
+| Optimize & Repair | File size · Color |
+| Review & Inspect | Review · Print production · Developer |
+
+---
+
+## 4. Přehled toolů
+
+Celkem **45 toolů**, které pokrývají dnešní funkce (včetně OCR z větve a funkcí dostupných jen v CLI). Návrhy nových toolů jsou zvlášť v kapitole 8.
+
+### 4.1 Organize Pages · Amber · 11 toolů
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `pages.merge` | **Merge** | Combine several files into one PDF | Combine & split | GUI |
+| `pages.split` | **Split** | Separate a document into several files | Combine & split | GUI |
+| `pages.extract` | **Extract Pages** | Save selected pages as a new PDF | Combine & split | GUI·split |
+| `pages.interleave` | **Interleave Pages** | Mix front and back sides of a scan | Combine & split | GUI·split |
+| `pages.manage` | **Manage Pages** | Reorder, group and arrange pages | Arrange | GUI |
+| `pages.insert` | **Insert Pages** | Add PDF pages, images or blank pages | Arrange | GUI·split |
+| `pages.remove` | **Remove Pages** | Delete unwanted pages | Arrange | GUI·split |
+| `pages.rotate` | **Rotate Pages** | Turn pages in 90° steps | Arrange | GUI·split |
+| `pages.crop` | **Crop Pages** | Trim margins or set a crop area | Page size | GUI |
+| `pages.resize` | **Resize Pages** | Change paper size, margins and scale | Page size | GUI |
+| `pages.boxes` | **Set Page Boxes** | Media, crop, bleed, trim and art box | Page size | GUI·split |
+
+### 4.2 Create & Convert · Blue · 8 toolů
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `convert.images-to-pdf` | **Images to PDF** | Turn photos and scans into a PDF | Create | GUI·split |
+| `convert.blank` | **Blank PDF** | Start a new document with empty pages | Create | GUI·split |
+| `convert.scan` | **Scan to PDF** | Scan paper pages from a scanner | Create | GUI |
+| `convert.ocr` | **Recognize Text (OCR)** | Make scanned pages searchable | Recognize | Branch |
+| `convert.pdf-to-images` | **PDF to Images** | Save pages as PNG, JPEG or TIFF | Export | GUI |
+| `convert.extract-text` | **Extract Text** | Save the document text as a text file | Export | CLI |
+| `convert.extract-images` | **Extract Images** | Save embedded pictures to a folder | Export | CLI |
+| `convert.audiobook` | **Create Audio Book** | Turn the document text into MP3 | Export | GUI |
+
+### 4.3 Edit · Green · 2 tooly
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `edit.content` | **Edit Content** | Edit or add text, images and graphics | – | GUI |
+| `edit.page-numbers` | **Add Page Numbers** | Number pages in a chosen style | – | GUI |
+
+### 4.4 Protect & Sign · Red · 11 toolů
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `protect.password` | **Protect with Password** | Require a password to open the PDF | Encryption | GUI·split |
+| `protect.permissions` | **Restrict Permissions** | Limit printing, copying and editing | Encryption | GUI·split |
+| `protect.certificate-encrypt` | **Encrypt with Certificate** | Only the certificate holder can open it | Encryption | GUI·split |
+| `protect.unlock` | **Remove Password** | Remove encryption you have access to | Encryption | GUI·split |
+| `protect.sign` | **Sign with Certificate** | Add a digital signature | Signatures | GUI |
+| `protect.timestamp` | **Add Timestamp** | Prove the document existed at a time | Signatures | GUI·split |
+| `protect.sign-by-hand` | **Sign by Hand** | Place a handwritten signature or mark | Signatures | GUI |
+| `protect.certificates` | **Manage Certificates** | Create and trust digital IDs | Signatures | GUI |
+| `protect.redact` | **Redact Content** | Permanently remove sensitive content | Privacy | GUI |
+| `protect.sanitize` | **Sanitize** | Strip metadata, comments and more | Privacy | GUI |
+| `protect.remove-links` | **Remove External Links** | Delete links that leave the document | Privacy | GUI |
+
+### 4.5 Optimize & Repair · Violet · 5 toolů
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `optimize.compress` | **Compress** | Reduce the file size in one step | File size | GUI·split |
+| `optimize.images` | **Optimize Images** | Downsample and recompress images | File size | GUI |
+| `optimize.structure` | **Optimize Structure** | Clean up and recompress PDF objects | File size | GUI |
+| `optimize.bitonal` | **Convert to Black & White** | Make scans 1-bit and much smaller | Color | GUI |
+| `optimize.grayscale` | **Convert to Grayscale** | Remove color from images | Color | GUI·split |
+
+### 4.6 Review & Inspect · Teal · 8 toolů
+
+| ID | Název | Popis na kartě | Podskupina | Stav |
+| --- | --- | --- | --- | --- |
+| `review.compare` | **Compare** | Find differences between two PDFs | Review | GUI |
+| `review.measure` | **Measure** | Distances, areas, perimeters, angles | Review | GUI |
+| `review.output-preview` | **Output Preview** | Separations, overprint, color warnings | Print production | GUI |
+| `review.ink-coverage` | **Ink Coverage** | Ink usage of every page | Print production | GUI |
+| `review.soft-proof` | **Soft Proofing** | Simulate print colors, check gamut | Print production | GUI |
+| `review.statistics` | **Document Statistics** | What takes up space in the file | Developer | GUI |
+| `review.object-inspector` | **Object Inspector** | Browse the internal PDF objects | Developer | GUI |
+| `review.report` | **Document Report** | Structure, scripts, destinations as a report | Developer | CLI |
+
+### 4.7 Dokument otevřený jen pro čtení
+
+PDF půjde otevřít jen pro čtení. Tím se nahrazuje dnešní samostatný Viewer. Pro takový dokument jsou dostupné jen tooly, které ho **nemění**. Tool, který zapisuje nový soubor a otevřený dokument nechá beze změny, se počítá jako neměnící.
+
+| Kategorie | Dostupné pro dokument jen pro čtení | Nedostupné |
+| --- | --- | --- |
+| Organize Pages | Merge, Split, Extract Pages, Interleave Pages | Manage Pages, Insert Pages, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes |
+| Create & Convert | PDF to Images, Extract Text, Extract Images, Create Audio Book | Scan to PDF, Recognize Text (OCR) |
+| Edit | – | Edit Content, Add Page Numbers |
+| Protect & Sign | – | Protect with Password, Restrict Permissions, Encrypt with Certificate, Remove Password, Sign with Certificate, Add Timestamp, Sign by Hand, Redact Content, Sanitize, Remove External Links |
+| Optimize & Repair | – | Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert to Grayscale |
+| Review & Inspect | Compare, Measure, Output Preview, Ink Coverage, Soft Proofing, Document Statistics, Object Inspector, Document Report | – |
+
+Dostupných je 16 toolů, nedostupných 26. Tři tooly dokument nepotřebují a režim se jich netýká: Images to PDF, Blank PDF a Manage Certificates.
+
+Poznámky k hraničním případům:
+
+- **Measure** měří a exportuje do CSV. Převod měření na anotace je v režimu jen pro čtení vypnutý.
+- **Recognize Text (OCR)** je nedostupný jako celek. Jeho režim „jen export textu“ dokument nemění a šel by povolit zvlášť.
+- **Redact Content** a **Sign with Certificate** sice ukládají výsledek do nového souboru, ale cestou dokument mění (značky redakce, podpisové pole). Proto jsou nedostupné.
+- Nedostupný tool se v katalogu neschovává. Karta ukáže důvod *Document is open read-only* a nabídne otevřít dokument pro úpravy.
+
+---
+
+## 5. Podrobný popis toolů
+
+U každého toolu je uvedeno, co dělá, s čím pracuje, kde je ta funkce dnes a podle čeho se hledá. Názvy, popisy na kartě a klíčová slova jsou anglicky, protože jde o texty rozhraní.
+
+### 5.1 Organize Pages (Amber)
+
+Všech jedenáct toolů dnes pokrývá aplikace **PageMaster** a dialog **Page Geometry**. V nové aplikaci sdílejí jednu pracovní plochu s náhledy stránek. Tool určuje, jaká akce je na ní předvolená a jaké tlačítko je primární.
+
+#### `pages.merge` – Merge
+
+- **Co dělá:** Sloučí několik PDF a obrázků do jednoho dokumentu v pořadí, které uživatel nastaví.
+- **Funkce:** přidání souborů dialogem i přetažením, řazení podle názvu souboru, zdroje, čísla stránky a typu, obrácení pořadí, náhledy stránek. Volba osnovy výsledku: *No Outline*, *Join Outlines*, *Document Parts*. Volitelná optimalizace obrázků ve výstupu. Šablona názvu výstupního souboru, kontrola přepsání existujících souborů a náhled toho, co vznikne.
+- **Vstup → výstup:** dva a více souborů (PDF, obrázky) → jeden nový PDF.
+- **Dnes:** PageMaster, *Make → United Document* (F5), dialog *Assemble Documents*. CLI `unite`.
+- **Klíčová slova:** `merge, join, combine, assemble, unite, concatenate, connect, append, bind, glue, stitch, put together, add files, one file, binder, collate`
+
+#### `pages.split` – Split
+
+- **Co dělá:** Rozdělí dokument na víc souborů podle zvoleného pravidla.
+- **Funkce:** režimy *Every page*, *Every N pages*, *At selected page numbers*, *At top-level bookmarks*, *By approximate output file size*. Dále dělení podle skupin na pracovní ploše: jeden soubor na stránku (*Separate to Multiple Documents*) a jeden soubor na skupinu (*Grouped*). Skupiny se dají vytvořit automaticky: sudé a liché stránky, dvojice stránek, podle osnovy. Šablona názvu se zástupnými znaky `#` (číslo výstupu), `@` (číslo stránky) a `%` (index vstupu). Před zápisem se ukáže, kolik souborů vznikne.
+- **Vstup → výstup:** jeden nebo víc PDF → několik nových PDF ve zvolené složce.
+- **Dnes:** PageMaster, *Make → Split…*, *Separate to Multiple Documents* (F6), *Separate to Multiple Documents (Grouped)* (F7), nabídka *Regroup*. CLI `separate`.
+- **Klíčová slova:** `split, separate, divide, break apart, disassemble, unbind, burst, cut, chapters, by bookmarks, by outline, by size, every page, single pages, even odd, page ranges, parts, chunk`
+
+#### `pages.extract` – Extract Pages
+
+- **Co dělá:** Uloží vybrané stránky jako nový dokument a původní nechá beze změny.
+- **Funkce:** výběr stránek myší, rozsahem (`1-3, 8, 10-12`), sudé, liché, na výšku, na šířku. Výstup jako jeden soubor nebo každá stránka zvlášť.
+- **Vstup → výstup:** otevřený dokument a výběr stránek → nový PDF.
+- **Dnes:** v PageMasteru jen nepřímo: vybrat, ostatní odebrat a spustit *United Document*. Samostatná akce chybí.
+- **Klíčová slova:** `extract pages, export pages, save pages as, pull out, page range, subset, copy pages, selected pages, take out, pick pages`
+- **Poznámka:** Uživatelé „extract“ hledají odděleně od „split“. Konkurence to má jako samostatný tool.
+
+#### `pages.interleave` – Interleave Pages
+
+- **Co dělá:** Prolne stránky dvou dokumentů nastřídačku. Typické použití je sken lichých a sudých stran na jednostranném skeneru.
+- **Funkce:** střídání stránek ze dvou zdrojů, varianta s obráceným pořadím druhého zdroje (zadní strany skenované od konce).
+- **Vstup → výstup:** dva PDF (přední a zadní strany) → jeden PDF.
+- **Dnes:** PageMaster, *Regroup → Regroup by Alternating Pages* a *Regroup by Alternating Pages (Reversed Order)*, pak *United Document*.
+- **Klíčová slova:** `interleave, alternate, mix, alternate mix, collate, zip, zipper, duplex scan, double sided, front and back, odd even merge, shuffle`
+
+#### `pages.manage` – Manage Pages
+
+- **Co dělá:** Pracovní plocha s náhledy, na které se stránky přeskupují, seskupují a připravují pro výstup.
+- **Funkce:** přesun přetažením, vyjmout, kopírovat a vložit, klonování výběru, seskupení a zrušení skupiny, přejmenování položky nebo skupiny, vlastnosti položky (zdroj, původní číslo stránky, rozměr, orientace, rotace). Řazení podle názvu souboru, zdroje, čísla stránky a typu, obrácení pořadí. Výběr: vše, nic, rozsah, sudé, liché, na výšku, na šířku, viditelné, invertovat. Hledání na ploše (včetně slov *grouped*, *portrait*, *landscape*). Zvětšení náhledů, zobrazení názvu dokumentu u položek, zobrazení Details. Zpět a znovu s popisem kroku. Uložení a otevření pracovní plochy (`.pagemaster`), pojmenované kontrolní body (checkpoint), obnovení odebraných položek.
+- **Vstup → výstup:** jeden nebo víc souborů → upravený dokument, nebo nové soubory přes Merge a Split.
+- **Dnes:** PageMaster, hlavní okno.
+- **Klíčová slova:** `organize, manage, arrange, reorder, rearrange, resequence, move pages, sort, page order, thumbnails, group, duplicate, clone, reverse order, drag and drop, page sorter, workspace`
+
+#### `pages.insert` – Insert Pages
+
+- **Co dělá:** Přidá do dokumentu stránky z jiného PDF, obrázky nebo prázdné stránky.
+- **Funkce:** *Insert PDF* (celý dokument), *Insert PDF Pages* (rozsah jako `1-5, 7, 10-, odd, even` s náhledem výběru), *Insert Image*, *Insert Empty Page*, *Replace Selection* (nahradí vybrané stránky). Soubory jde vložit i přetažením na konkrétní místo. Nepodporované soubory se přeskočí s upozorněním.
+- **Vstup → výstup:** otevřený dokument a další soubory → upravený dokument.
+- **Dnes:** PageMaster, nabídka *Insert* a *Edit → Replace Selection*.
+- **Klíčová slova:** `insert, add pages, append, import pages, blank page, empty page, add image, replace pages, paste pages, attach pages, add pdf`
+
+#### `pages.remove` – Remove Pages
+
+- **Co dělá:** Odstraní vybrané stránky z dokumentu.
+- **Funkce:** odebrání výběru (Del), výběr rozsahem nebo filtrem (sudé, liché, na výšku, na šířku), obnovení odebraných stránek.
+- **Vstup → výstup:** otevřený dokument a výběr stránek → upravený dokument.
+- **Dnes:** PageMaster, *Edit → Remove Selection* a *Restore Removed Items*.
+- **Klíčová slova:** `remove, delete, discard, drop pages, erase page, cut out, get rid of, trash, delete pages`
+
+#### `pages.rotate` – Rotate Pages
+
+- **Co dělá:** Trvale otočí vybrané stránky po 90°.
+- **Funkce:** otočení vlevo a vpravo, *Reset Rotation*, použití na výběr (všechny, sudé, liché, jen na šířku).
+- **Vstup → výstup:** otevřený dokument a výběr stránek → upravený dokument.
+- **Dnes:** PageMaster, *Edit → Rotate Left / Rotate Right / Reset Rotation*. V Editoru a Vieweru *View → Rotate* otáčí jen pohled a do souboru se neukládá.
+- **Klíčová slova:** `rotate, turn, orientation, landscape, portrait, upside down, sideways, 90, 180, clockwise, counterclockwise, fix orientation`
+- **Poznámka:** Rozdíl mezi otočením pohledu a otočením stránky musí být v UI zřejmý. Viz kapitola 9.
+
+#### `pages.crop` – Crop Pages
+
+- **Co dělá:** Ořízne stránky, typicky bílé okraje.
+- **Funkce:** *Crop margins equally* (stejný okraj ze všech stran), *Set crop box manually* (levý, horní, šířka, výška), referenční rozměr stránky, volba, na které stránky se ořez použije, zobrazení výsledného rozměru. PDF stránky se ořezávají ve výstupu, obrázky před vložením do stránky.
+- **Vstup → výstup:** otevřený dokument a výběr stránek → upravený dokument.
+- **Dnes:** PageMaster, *Edit → Crop Pages…*
+- **Klíčová slova:** `crop, trim, cut margins, crop box, remove white margins, clip, shrink margins, cut edges, visible area`
+
+#### `pages.resize` – Resize Pages
+
+- **Co dělá:** Změní formát stránek, okraje a umístění obsahu.
+- **Funkce:** cílový formát (A5, A4, A3, Letter, Legal, vlastní v mm), okraje, kotva umístění obsahu (devět poloh), posun X a Y, *Scale content*, *Preserve aspect ratio*, *Scale comments and form fields*. Výběr stránek rozsahem a podmnožinou (všechny, liché, sudé, na výšku, na šířku).
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** Editor *Edit → Page Geometry…*, PageMaster *Edit → Page Geometry…*
+- **Klíčová slova:** `resize, page size, paper size, scale, a4, a3, a5, letter, legal, margins, fit to page, enlarge, shrink, change format, page geometry, add margins`
+
+#### `pages.boxes` – Set Page Boxes
+
+- **Co dělá:** Nastaví rámce stránky pro tisk bez zásahu do obsahu.
+- **Funkce:** referenční rámec (Media, Crop, Bleed, Trim, Art) a volba, do kterých rámců se výsledek zapíše. Při vypnutém škálování obsahu je úprava nedestruktivní.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** stejný dialog *Page Geometry* jako u `pages.resize`. CLI `info-page-boxes` rámce jen vypisuje.
+- **Klíčová slova:** `page boxes, media box, crop box, bleed box, trim box, art box, bleed, prepress, mediabox, cropbox, trimbox`
+- **Poznámka:** Pokročilý tool pro tiskovou přípravu, v kategorii je řazený poslední.
+
+### 5.2 Create & Convert (Blue)
+
+#### `convert.images-to-pdf` – Images to PDF
+
+- **Co dělá:** Vytvoří PDF z obrázků, jeden obrázek na stránku.
+- **Funkce:** výběr více obrázků nebo přetažení, řazení, otočení, ořez obrázku před vložením, formát stránky přes Page Geometry, volitelná optimalizace obrázků ve výstupu. Podporované jsou rastrové formáty, které umí Qt.
+- **Vstup → výstup:** obrázky → nový PDF.
+- **Dnes:** PageMaster, *Insert → Insert Image* a *United Document*.
+- **Klíčová slova:** `images to pdf, jpg to pdf, jpeg to pdf, png to pdf, tiff to pdf, bmp, photo to pdf, picture, convert image, create pdf, pdf from images, photos`
+
+#### `convert.blank` – Blank PDF
+
+- **Co dělá:** Založí nový dokument s prázdnými stránkami.
+- **Funkce:** počet stránek, formát a orientace, pak pokračování v Manage Pages nebo Edit Content.
+- **Vstup → výstup:** nic → nový PDF.
+- **Dnes:** PageMaster, *Insert → Insert Empty Page* a *United Document*.
+- **Klíčová slova:** `blank pdf, new pdf, empty document, new document, create pdf, empty page, from scratch, white page, start new`
+
+#### `convert.scan` – Scan to PDF
+
+- **Co dělá:** Naskenuje papírové stránky a připojí je k dokumentu.
+- **Funkce:** výběr zařízení a zdroje, barevný režim *Color*, *Grayscale*, *Lineart*, rozlišení v DPI, počet stránek, opětovné načtení seznamu zařízení. Backend WIA na Windows a SANE na Linuxu.
+- **Vstup → výstup:** skener → nové stránky na konci otevřeného dokumentu.
+- **Dnes:** plugin Scanner, *Scan Pages…*
+- **Klíčová slova:** `scan, scanner, acquire, twain, wia, sane, paper, digitize, document feeder, adf, flatbed, scan to pdf`
+
+#### `convert.ocr` – Recognize Text (OCR)
+
+- **Co dělá:** Rozpozná text ve skenovaných stránkách a přidá neviditelnou textovou vrstvu, takže dokument jde prohledávat a text kopírovat.
+- **Funkce:** výběr stránek (všechny, aktuální, viditelné, rozsah, sudé a liché), engine Tesseract 5, kvalita modelu *Fast*, *Standard*, *Quality*, víc jazyků v zadaném pořadí, rozvržení stránky, zacházení s existujícím textem, pojmenované profily nastavení. Příprava obrazu: 150 až 1200 DPI, rotace, automatická orientace, narovnání, převod do šedé, odstranění šumu, inverze, detekce prázdných stránek, oblasti k rozpoznání. Rozpoznání běží na pozadí a dá se zastavit. Kontrola výsledku: strom bloků, řádků a slov svázaný s obrazem, jistota slov, práh pro kontrolu, opravy textu, hledání a nahrazování. Zápis do aktuálního dokumentu, do kopie, nebo jen export. Export prostého textu (TXT, UTF-8). Projekt OCR pro pozdější pokračování. Odstranění vlastní vrstvy. Správa jazyků: vestavěné modely, stahování dalších, import vlastního modelu.
+- **Vstup → výstup:** otevřený dokument → dokument s textovou vrstvou, nebo textový soubor.
+- **Dnes:** větev `issue85`, *Tools → Recognize Text (OCR)* a *Manage OCR Languages*. Jen Editor.
+- **Klíčová slova:** `ocr, recognize text, text recognition, searchable pdf, scanned, make searchable, image to text, tesseract, read text from image, selectable text, text layer, digitize`
+
+#### `convert.pdf-to-images` – PDF to Images
+
+- **Co dělá:** Vykreslí stránky do obrázkových souborů.
+- **Funkce:** všechny stránky nebo rozsah, šablona názvu a cílová složka, rozlišení v DPI nebo v pixelech, formát obrázku podle toho, co umí Qt, podtyp, gamma, kvalita, komprese, *Optimized write*, *Progressive scan write*.
+- **Vstup → výstup:** otevřený dokument → obrázky ve složce.
+- **Dnes:** Editor, *File → Render to Images…* CLI `render`.
+- **Klíčová slova:** `pdf to images, pdf to jpg, pdf to jpeg, pdf to png, pdf to tiff, render, rasterize, export images, convert to image, picture, page as image, thumbnails, bitmap`
+
+#### `convert.extract-text` – Extract Text
+
+- **Co dělá:** Uloží text dokumentu do textového souboru.
+- **Funkce:** výběr stránek, výstup jako prostý text. V GUI dnes jde text jen vybrat a zkopírovat ručně (*Select All*, *Copy text*).
+- **Vstup → výstup:** otevřený dokument → soubor TXT nebo schránka.
+- **Dnes:** CLI `fetch-text`. V GUI jen výběr a kopírování textu. Větev OCR přidává export TXT rozpoznaného textu.
+- **Klíčová slova:** `extract text, pdf to text, pdf to txt, export text, copy all text, plain text, get text, text file, content`
+
+#### `convert.extract-images` – Extract Images
+
+- **Co dělá:** Uloží obrázky vložené v dokumentu jako soubory.
+- **Funkce:** výběr stránek, cílová složka, šablona názvu. V GUI dnes existuje jen režim myši *Extract Image*, který zkopíruje jeden kliknutý obrázek do schránky.
+- **Vstup → výstup:** otevřený dokument → obrázky ve složce.
+- **Dnes:** CLI `fetch-images`. Editor *Tools → Extract Image* pro jeden obrázek.
+- **Klíčová slova:** `extract images, save pictures, export embedded images, photos, get images, pull images, image extraction, original images, figures`
+
+#### `convert.audiobook` – Create Audio Book
+
+- **Co dělá:** Převede text dokumentu na zvukový soubor.
+- **Funkce:** vytvoření textového proudu z dokumentu, výběr položek obdélníkem, podle obsaženého textu, regulárním výrazem a seznamem stránek, aktivace a deaktivace položek (záhlaví, čísla stránek), úprava textu a obnovení původního, změna pořadí, synchronizace výběru mezi tabulkou a stránkou. Výstup do MP3 zvoleným hlasem.
+- **Vstup → výstup:** otevřený dokument → soubor MP3.
+- **Dnes:** plugin AudioBook. CLI `audio-book` a `audio-book-voices`.
+- **Klíčová slova:** `audiobook, audio book, mp3, text to speech, tts, narrate, listen, voice, export audio, speech, read to me`
+
+### 5.3 Edit (Green)
+
+Kategorie obsahuje jen úpravy, které mají vlastní režim nebo dialog. **Anotace** (poznámky, zvýraznění, tvary, textová pole, razítka a odkazy) se přidávají přímo v dokumentu položkou Annotate a v katalogu nejsou. Stejně tak **vyplňování formulářů** (kliknutí do pole), **osnova** (panel Outline) a **přílohy** (panel Attachments). Návrhy dalších toolů této kategorie jsou v kapitole 8.
+
+#### `edit.content` – Edit Content
+
+- **Co dělá:** Upraví existující obsah stránky (text, obrázky, vektorové cesty a stínování) a přidá nový text, obrázky a tvary jako trvalou součást stránky.
+- **Funkce:** výběr prvku na stránce, přesun, změna velikosti, smazání. Úprava textu, náhrada obrázku (*Load Image*), pero a výplň (styl, šířka, barva), transformace (posun, měřítko, rotace, zkosení). Přidání nových prvků: textový štítek, křivka od ruky, značka souhlasu a nesouhlasu, obdélník, zaoblený obdélník, vodorovná, svislá a obecná čára, tečka, obrázek (SVG i rastr). Režim *Create Multiple Elements* pro opakované vkládání stejně velkých prvků. Zarovnání (nahoru, na střed, dolů, vlevo, vpravo), stejná šířka, výška a velikost, vystředění na stránku, rozložení do řady, sloupce, formuláře a mřížky. Zpět a znovu, *Clear All Graphics*. Změny se do dokumentu zapíšou až po potvrzení.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** plugin Editor, *Edit page content* a panel *Editor Toolbox*.
+- **Klíčová slova:** `edit pdf, edit text, change text, modify, fix typo, correct, replace image, move object, delete object, edit content, vector graphics, add text, type on pdf, write on pdf, add image, insert picture, place logo, svg`
+
+#### `edit.page-numbers` – Add Page Numbers
+
+- **Co dělá:** Očísluje stránky textem ve zvoleném stylu.
+- **Funkce:** styl číslování (arabské, římské velké a malé, písmena velká a malá), formát (*1*, *1 / N*, *Page 1*, *Page 1 of N* nebo vlastní), počáteční číslo, písmo, barva, zarovnání vlevo, na střed, vpravo, rozsah stránek (všechny, sudé, liché, vlastní, viditelné), náhled. Oblast pro číslo se na stránce určí myší.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** Editor, *Insert → Insert Page Numbers…*
+- **Klíčová slova:** `page numbers, numbering, number pages, pagination, page x of y, roman numerals, footer number, folio`
+
+### 5.4 Protect & Sign (Red)
+
+Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu jsou to čtyři tooly, které otevřou stejnou obrazovku s jinou předvolbou.
+
+#### `protect.password` – Protect with Password
+
+- **Co dělá:** Zašifruje dokument tak, že jde otevřít jen s heslem.
+- **Funkce:** algoritmus *AES 256-bit* (doporučený), *AES 128-bit*, *RC4 128-bit* pro zpětnou kompatibilitu. Heslo pro otevření, ukazatel síly hesla. Rozsah šifrování: celý dokument včetně metadat, vše kromě metadat, jen přílohy.
+- **Vstup → výstup:** otevřený dokument → zašifrovaný dokument.
+- **Dnes:** Editor, *Edit → Encryption…* CLI `encrypt`.
+- **Klíčová slova:** `password, protect, lock, secure, encrypt, encryption, aes, aes-256, open password, user password, password protect`
+
+#### `protect.permissions` – Restrict Permissions
+
+- **Co dělá:** Omezí, co smí čtenář s dokumentem dělat.
+- **Funkce:** heslo vlastníka a oprávnění: tisk v nízkém a vysokém rozlišení, vyplňování formulářů, přístupnost, změna obsahu, skládání dokumentu (vkládání, otáčení, mazání stránek), úprava interaktivních prvků, kopírování obsahu.
+- **Vstup → výstup:** otevřený dokument → zašifrovaný dokument s omezeními.
+- **Dnes:** Editor, *Edit → Encryption…*, část *Permissions*.
+- **Klíčová slova:** `permissions, restrict, prevent printing, prevent copying, disable copy, no editing, owner password, read only, lock editing, rights`
+
+#### `protect.certificate-encrypt` – Encrypt with Certificate
+
+- **Co dělá:** Zašifruje dokument certifikátem, takže ho otevře jen držitel soukromého klíče.
+- **Funkce:** výběr certifikátu se soukromým klíčem ze správce certifikátů.
+- **Vstup → výstup:** otevřený dokument → zašifrovaný dokument.
+- **Dnes:** Editor, *Edit → Encryption…*, algoritmus *Certificate Encryption*.
+- **Klíčová slova:** `certificate encryption, public key, pki, recipient, private key, digital id, encrypt for, certificate security`
+
+#### `protect.unlock` – Remove Password
+
+- **Co dělá:** Odstraní šifrování z dokumentu, ke kterému má uživatel plný přístup.
+- **Funkce:** vyžaduje oprávnění vlastníka, jinak si vyžádá znovu heslo. Neprolamuje neznámá hesla.
+- **Vstup → výstup:** zašifrovaný dokument a heslo → nezašifrovaný dokument.
+- **Dnes:** Editor, *Edit → Encryption…*, algoritmus *None*. CLI `decrypt`.
+- **Klíčová slova:** `remove password, unlock, decrypt, remove security, remove restrictions, remove encryption, unprotect, open locked`
+
+#### `protect.sign` – Sign with Certificate
+
+- **Co dělá:** Podepíše dokument digitálním podpisem.
+- **Funkce:** viditelný nebo neviditelný podpis, typ *Signature* nebo *Signature with timestamp*, certifikát a jeho heslo, adresa časové autority, důvod podpisu a kontakt. Vzhled viditelného podpisu se nakreslí nástroji panelu *Signature Toolbox* (text, křivka od ruky, značky, tvary, obrázek). Podepsaný dokument se uloží jako nový soubor.
+- **Vstup → výstup:** otevřený dokument a certifikát → podepsaný PDF.
+- **Dnes:** plugin Signature, *Sign Digitally With Certificate*.
+- **Klíčová slova:** `sign, signature, digital signature, certificate, pkcs12, pfx, p12, pades, digital id, electronic signature, esign, approve, qualified signature`
+
+#### `protect.timestamp` – Add Timestamp
+
+- **Co dělá:** Přidá dokumentové časové razítko, které dokládá existenci dokumentu v daném čase.
+- **Funkce:** volba *Document timestamp only*, adresa časové autority (RFC 3161).
+- **Vstup → výstup:** otevřený dokument → dokument s časovým razítkem.
+- **Dnes:** plugin Signature, dialog podpisu, typ *Document timestamp only*.
+- **Klíčová slova:** `timestamp, time stamp, tsa, rfc 3161, trusted time, document timestamp, proof of existence, long term`
+
+#### `protect.sign-by-hand` – Sign by Hand
+
+- **Co dělá:** Umístí na stránku vlastnoruční podpis nebo značku. Nejde o kryptografický podpis.
+- **Funkce:** text, křivka od ruky, značka souhlasu a nesouhlasu, tvary, čáry, obrázek. Po potvrzení (*Sign Electronically*) se grafika stane součástí stránky.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** plugin Signature, *Activate signature creator* a *Sign Electronically*.
+- **Klíčová slova:** `draw signature, handwritten, sign by hand, fill and sign, fill & sign, initials, e-sign, electronic signature, autograph, signature image, tick, cross`
+
+#### `protect.certificates` – Manage Certificates
+
+- **Co dělá:** Spravuje osobní certifikáty pro podpis a šifrování.
+- **Funkce:** seznam certifikátů, vytvoření certifikátu podepsaného sebou samým (jméno, organizace, útvar, e-mail, země, délka klíče, platnost, soubor), seznam důvěryhodných certifikátů a jeho úprava.
+- **Vstup → výstup:** nic → úložiště certifikátů.
+- **Dnes:** Editor a Viewer, *Tools → Certificates…*, plugin Signature *Certificates Manager*. CLI `cert-store`, `cert-store-install`.
+- **Klíčová slova:** `certificates, digital id, self-signed, create certificate, trusted certificates, keystore, pfx, p12, key, certificate store`
+
+#### `protect.redact` – Redact Content
+
+- **Co dělá:** Trvale odstraní citlivý obsah. Odstraněný obsah v dokumentu fyzicky nezůstane.
+- **Funkce:** označení obdélníkem (*Redact Rectangle*), tažením přes text (*Redact Text*), z výsledků pokročilého hledání včetně regulárních výrazů (*Redact Text Selection*), celých stránek (*Redact Page(s)*). Vytvoření redigovaného dokumentu: výstupní soubor, barva výplně, volitelné převzetí názvu, metadat a osnovy.
+- **Vstup → výstup:** otevřený dokument → nový redigovaný PDF.
+- **Dnes:** plugin Redact. CLI `redact`.
+- **Klíčová slova:** `redact, black out, blackout, censor, remove sensitive, hide text, gdpr, anonymize, obscure, cover up, personal data, erase text`
+
+#### `protect.sanitize` – Sanitize
+
+- **Co dělá:** Odstraní z dokumentu údaje, které nejsou na první pohled vidět.
+- **Funkce:** volby: informace o dokumentu, všechna metadata, osnova, přílohy, vložený vyhledávací index, komentáře a ostatní anotace, náhledy stránek, popisky stránek, neviditelný text (vrstva OCR). Protokol s velikostí před a po.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** Editor, *Edit → Sanitize…*
+- **Klíčová slova:** `sanitize, sanitise, remove hidden data, remove hidden information, hidden data, remove metadata, strip metadata, clean, privacy, remove comments, remove author, scrub, remove ocr text, document info, exif`
+
+#### `protect.remove-links` – Remove External Links
+
+- **Co dělá:** Smaže z dokumentu všechny odkazy vedoucí ven.
+- **Funkce:** jeden krok bez nastavení, hlášení počtu odstraněných odkazů.
+- **Vstup → výstup:** otevřený dokument → upravený dokument.
+- **Dnes:** Editor, *Edit → Remove External Links*. CLI `remove-external-links`.
+- **Klíčová slova:** `remove links, external links, url, hyperlinks, web links, strip links, phishing, tracking links, disable links`
+
+### 5.5 Optimize & Repair (Violet)
+
+#### `optimize.compress` – Compress
+
+- **Co dělá:** Zmenší soubor jedním krokem bez nutnosti rozumět kompresi.
+- **Funkce:** předvolby (například *Smaller file*, *Balanced*, *Best quality*), které spustí optimalizaci obrázků a optimalizaci struktury dohromady. Ukázka velikosti před a po a úspory v procentech. Odkaz na podrobné nastavení v `optimize.images` a `optimize.structure`.
+- **Vstup → výstup:** otevřený dokument → menší dokument.
+- **Dnes:** samostatně neexistuje. Skládá se z *Optimize…* a *Optimize Images…* v Editoru. CLI `optimize`.
+- **Klíčová slova:** `compress, reduce size, shrink, smaller, make smaller, downsize, optimize, minimize, file size, email size, mb, too large, lighten, reduce`
+- **Poznámka:** Nejhledanější tool této kategorie. Dnešní dva odborné dialogy běžný uživatel pod slovem „compress“ nenajde.
+
+#### `optimize.images` – Optimize Images
+
+- **Co dělá:** Převzorkuje a znovu zkomprimuje obrázky v dokumentu s plnou kontrolou nad výsledkem.
+- **Funkce:** režim *Auto* nebo *Custom*, barevný režim (*Auto*, *Preserve*, *Color (RGB)*, *Grayscale*, *Bitonal*), cíl (*Prefer quality*, *Minimum size*), *Keep original if larger*, *Preserve transparency*. Zvlášť profily pro barevné, šedé a bitonální obrázky: algoritmus (*Auto*, *Flate*, *JPEG*, *JPEG2000*, *RunLength*), cílové DPI, filtr převzorkování (*Nearest*, *Bilinear*, *Bicubic*, *Lanczos*), kvalita JPEG, poměr JPEG2000, PNG prediktor, práh pro bitonální převod. Seznam obrázků s výběrem, zapnutím komprese a vlastním nastavením pro jednotlivé obrázky. Náhled před a po a souhrn úspory.
+- **Vstup → výstup:** otevřený dokument → dokument s menšími obrázky.
+- **Dnes:** Editor, *Edit → Optimize Images…* PageMaster, volba *Optimize images in output PDFs* a *Image Optimization Settings…*
+- **Klíčová slova:** `optimize images, downsample, resample, recompress, jpeg quality, dpi, image compression, jpeg2000, reduce image size, resolution, 150 dpi`
+
+#### `optimize.structure` – Optimize Structure
+
+- **Co dělá:** Zmenší soubor úklidem vnitřní struktury bez změny vzhledu.
+- **Funkce:** vložení jednoduchých objektů namísto odkazů, odstranění prázdných objektů ze slovníků, odstranění nepoužitých objektů, sloučení shodných objektů, zhuštění úložiště objektů, rekomprese proudů Flate maximální kompresí. Protokol s časem, velikostí před a po a kompresním poměrem.
+- **Vstup → výstup:** otevřený dokument → menší dokument.
+- **Dnes:** Editor, *Edit → Optimize…* CLI `optimize`.
+- **Klíčová slova:** `optimize structure, clean up, remove unused objects, merge identical objects, recompress, flate, garbage collect, lossless, object streams`
+- **Poznámka:** Pokročilý tool, bezeztrátový.
+
+#### `optimize.bitonal` – Convert to Black & White
+
+- **Co dělá:** Převede obrázky nebo celé stránky na jednobitové černobílé. U skenů textu to dává výrazně menší soubor.
+- **Funkce:** převod jen obrázků, nebo celých stránek. Metoda: automatická (Otsu), ruční práh 0 až 255, adaptivní prahování, rozptyl Floyd–Steinberg. Rozlišení v DPI. Komprese: automaticky nejmenší výsledek, *Flate*, *RunLength*, *CCITT Group 4*, *JBIG2*. Pro každou položku režim: převést, převést inverzně, ponechat, vyplnit černou, vyplnit bílou. *Detect Blank Pages* s nabídkou nahradit prázdné stránky bílou výplní. Náhled originálu a výsledku vedle sebe.
+- **Vstup → výstup:** otevřený dokument → černobílý dokument.
+- **Dnes:** Editor, *Edit → Create Bitonal Document…* CLI `bitonal`.
+- **Klíčová slova:** `black and white, bitonal, monochrome, 1-bit, b&w, bw, fax, jbig2, ccitt, threshold, scan cleanup, two colors, lineart`
+
+#### `optimize.grayscale` – Convert to Grayscale
+
+- **Co dělá:** Převede barevné obrázky v dokumentu do odstínů šedi.
+- **Funkce:** předvolba `optimize.images` s barevným režimem *Grayscale*.
+- **Vstup → výstup:** otevřený dokument → dokument s šedými obrázky.
+- **Dnes:** Editor, *Edit → Optimize Images…*, *Color mode → Grayscale*.
+- **Klíčová slova:** `grayscale, greyscale, gray, grey, remove color, desaturate, black and white photo, colorless, save ink`
+- **Poznámka:** Dnes se převádějí jen obrázky. Barevný text a vektorová grafika zůstávají barevné. Karta to musí říct, nebo je potřeba převod doplnit, viz kapitola 8.
+
+### 5.6 Review & Inspect (Teal)
+
+#### `review.compare` – Compare
+
+- **Co dělá:** Najde a ukáže rozdíly mezi dvěma dokumenty.
+- **Funkce:** levý a pravý dokument, výběr stránek u každého. Volby: porovnat text jako vektorovou grafiku, porovnávat znaky místo slov. Filtry rozdílů: text, vektorová grafika, obrázky, stínování, přesun stránek. Pohledy: rozdíly vedle sebe, jen levý, jen pravý, překryv s plynulým prolnutím, s přizpůsobením velikosti stránek, měřítkem každé strany a posunem. Seznam rozdílů, předchozí a další rozdíl, jen stránky s rozdíly, synchronizace pohledu se seznamem, zobrazení značek. Barvy pro odebrané, přidané, nahrazené a přesunuté. Zpráva o porovnání do PDF, export rozdílů do XML.
+- **Vstup → výstup:** dva PDF → přehled rozdílů, zpráva PDF nebo XML.
+- **Dnes:** aplikace Diff. CLI `diff`.
+- **Klíčová slova:** `compare, diff, differences, changes, versions, revision, side by side, overlay, what changed, redline, track changes, before after`
+
+#### `review.measure` – Measure
+
+- **Co dělá:** Měří na stránce délky, obvody, plochy a úhly ve skutečných jednotkách.
+- **Funkce:** vodorovný, svislý a obecný rozměr, obvod, obvod obdélníku, plocha, plocha obdélníku, úhel. Měřítko: kalibrace dvěma body o známé vzdálenosti, předvolby měřítek, vlastní měřítko, měřítko pamatované pro každý dokument. Jednotky délek, ploch a úhlů. Zobrazení a smazání měření, převod na měřicí anotace uložené v dokumentu, export měření do CSV. Vzhled popisků (písmo, barvy).
+- **Vstup → výstup:** otevřený dokument → měření na obrazovce, anotace nebo CSV.
+- **Dnes:** plugin Dimensions.
+- **Klíčová slova:** `measure, distance, length, area, perimeter, angle, scale, ruler, dimension, calibrate, floor plan, drawing, takeoff, blueprint, cad`
+
+#### `review.output-preview` – Output Preview
+
+- **Co dělá:** Ukáže, jak se dokument vytiskne: separace, přetisk a problémová místa.
+- **Funkce:** režimy *Separations*, *Color Warnings – Ink Coverage*, *Color Warnings – Rich Black*, *Ink Coverage*, *Shape Channel*, *Opacity Channel*. Seznam procesních a přímých barev se zapínáním. Simulace separací a barvy papíru. Zapínání druhů obsahu: obrázky, text, vektorová grafika, stínování, vzory. Limit krytí, limit sytě černé, barva výstrahy.
+- **Vstup → výstup:** otevřený dokument → náhled.
+- **Dnes:** plugin OutputPreview, *Output Preview*.
+- **Klíčová slova:** `output preview, separations, overprint, spot colors, cmyk, prepress, rich black, color warnings, plates, pantone, print preview, transparency`
+
+#### `review.ink-coverage` – Ink Coverage
+
+- **Co dělá:** Spočítá spotřebu barev pro každou stránku a celý dokument.
+- **Funkce:** tabulka krytí procesních a přímých barev po stránkách.
+- **Vstup → výstup:** otevřený dokument → tabulka.
+- **Dnes:** plugin OutputPreview, *Ink Coverage*. CLI `ink-coverage` a `info-inks`.
+- **Klíčová slova:** `ink coverage, ink usage, toner, tac, total area coverage, cmyk coverage, print cost, inks, ink consumption`
+
+#### `review.soft-proof` – Soft Proofing
+
+- **Co dělá:** Simuluje na obrazovce barvy cílového tiskového zařízení a upozorní na barvy mimo gamut.
+- **Funkce:** zapnutí soft proofingu, kontrola gamutu, profil a záměr proofingu, barva výstrahy.
+- **Vstup → výstup:** otevřený dokument → náhled.
+- **Dnes:** plugin SoftProofing.
+- **Klíčová slova:** `soft proof, soft proofing, gamut, gamut check, icc profile, color profile, cmyk simulation, proof colors, out of gamut, color management`
+
+#### `review.statistics` – Document Statistics
+
+- **Co dělá:** Ukáže, co v souboru zabírá místo.
+- **Funkce:** statistika podle funkce objektu (stránky, proudy obsahu, grafické stavy, barevné prostory, vzory, stínování, obrázky, formuláře, písma, akce, anotace, ostatní) a podle typu objektu: podíl, počet, velikost v bajtech. Tabulka a graf.
+- **Vstup → výstup:** otevřený dokument → přehled.
+- **Dnes:** plugin ObjectInspector, *Object Statistics*. CLI `statistics`.
+- **Klíčová slova:** `statistics, space usage, audit, what takes space, file size analysis, object count, size breakdown, why so big`
+
+#### `review.object-inspector` – Object Inspector
+
+- **Co dělá:** Prochází vnitřní objekty PDF.
+- **Funkce:** strom objektů v pohledech *Document*, *Pages*, *Content streams*, *Graphic states*, *Color spaces*, *Patterns*, *Shadings*, *Images*, *Forms*, *Fonts*, *Actions*, *Annotations*, *Object List*. Detail objektu: odkaz, typ, popis, obsah včetně dekomprimovaných proudů a obrázků. Připnutí objektu pro porovnání.
+- **Vstup → výstup:** otevřený dokument → prohlížeč objektů.
+- **Dnes:** plugin ObjectInspector, *Object Inspector*.
+- **Klíčová slova:** `object inspector, internal structure, objects, streams, dictionary, debug, pdf syntax, cos, raw, developer, low level, xref`
+
+#### `review.report` – Document Report
+
+- **Co dělá:** Sestaví zprávu o dokumentu, kterou jde uložit.
+- **Funkce:** základní informace, metadata (XMP), JavaScript v dokumentu, pojmenované cíle, rámce stránek, strom struktury tagovaného dokumentu, použité barvy. Export celé vnitřní struktury do XML. Výstup jako text, XML nebo HTML.
+- **Vstup → výstup:** otevřený dokument → zpráva.
+- **Dnes:** jen CLI: `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `info-inks`, `xml`.
+- **Klíčová slova:** `report, document info, javascript, scripts, named destinations, structure tree, tags, tagged pdf, xmp, metadata, xml export, analyze, audit`
+
+---
+
+## 6. Mapa pokrytí dnešních aplikací
+
+Kontrola, že nová aplikace neztratí nic z toho, co dnes umí Editor, Viewer, PageMaster a Diff. Každá akce dnešního rozhraní je přiřazena buď toolu, nebo jiné vrstvě podle kapitoly 1. Seznam akcí je vytažený ze souborů `.ui`, z výčtu `PDFActionManager::Action` a ze zdrojáků pluginů.
+
+Zkratky ve sloupci „Kam“: **Tool** (ID toolu), **Příkaz** (lišta nebo panel dokumentu), **Režim** (režim myši z položek Select a Annotate), **Dokument** (chování přímo ve stránce), **Panel** (postranní panel), **Nastavení**, **Aplikace** (stránka nebo funkce na úrovni celé aplikace).
+
+### 6.1 Editor
+
+Viewer je podmnožina Editoru. Akce, které má i Viewer, jsou označené **V**.
+
+| Nabídka | Akce | Kam |
+| --- | --- | --- |
+| File | Open **V**, Close **V**, Quit **V** | Aplikace: Open, karty dokumentů |
+| File | Automatic Document Refresh **V** | Příkaz: panel File |
+| File | Save, Save As | Příkaz: panel File |
+| File | Send by E-Mail **V**, Print **V** | Příkaz: panel File |
+| File | Render to Images | Tool `convert.pdf-to-images` |
+| File | Properties **V** | Příkaz: obrazovka Properties včetně části Fonts |
+| File | Clear Recent File History **V** | Aplikace: stránka Recent |
+| Edit | Undo, Redo | Příkaz |
+| Edit | Find, Find Previous, Find Next **V** | Příkaz: hledání v dokumentu |
+| Edit | Pokročilé hledání (panel *Advanced Find*: celá slova, velikost písmen, regulární výrazy, zástupné znaky, měkké dělení, tabulka výsledků) | Příkaz: hledání v dokumentu. Zdroj výběru pro `protect.redact` |
+| Edit | Select text, Select All, Deselect, Copy text **V** | Režim a Příkaz. Hromadně Tool `convert.extract-text` |
+| Edit | Select table **V** | Režim: Select |
+| Edit | Encryption | Tooly `protect.password`, `protect.permissions`, `protect.certificate-encrypt`, `protect.unlock` |
+| Edit | Optimize | Tool `optimize.structure`, součást `optimize.compress` |
+| Edit | Optimize Images | Tool `optimize.images`, předvolby `optimize.compress` a `optimize.grayscale` |
+| Edit | Sanitize | Tool `protect.sanitize` |
+| Edit | Remove External Links | Tool `protect.remove-links` |
+| Edit | Page Geometry | Tooly `pages.resize`, `pages.boxes` |
+| Edit | Create Bitonal Document | Tool `optimize.bitonal` |
+| View | Page Layout: Single Page, Continuous, Two Pages, Two columns, First page on right side **V** | Příkaz: panel View |
+| View | Fullscreen Mode **V** | Příkaz: panel View |
+| View | Rendering Options: Antialiasing, Text Antialiasing, Smooth Pictures, Ignore Optional Content Settings, Display Annotations, Display Render Times **V** | Příkaz: panel View, a Nastavení |
+| View | Rotate Right, Rotate Left (jen pohled) **V** | Příkaz: panel View. Trvalé otočení je Tool `pages.rotate` |
+| View | Zoom In, Zoom Out, Fit Page, Fit Width, Fit Height **V** | Příkaz: lišta dokumentu |
+| View | Color: Inverted, Grayscale, High Contrast, Monochromatic, Custom **V** | Příkaz: panel View (barevné režimy) |
+| Insert | Sticky Note (7 druhů) | Režim: Annotate |
+| Insert | Hyperlink, Hyperlink to this PDF (9 typů cíle) | Režim: Annotate |
+| Insert | Inline text | Režim: Annotate |
+| Insert | Straight Line, Polyline, Rectangle, Polygon, Ellipse, Freehand Curve | Režim: Annotate |
+| Insert | Stamp (14 razítek) | Režim: Annotate |
+| Insert | Text Highlight: Highlight, Underline, Strikeout, Squiggly | Režim: Annotate |
+| Insert | Delete Annotations | Režim: Annotate |
+| Insert | Insert Page Numbers | Tool `edit.page-numbers` |
+| Go To | Document start, Document end, Next page, Previous page, Next line, Previous line **V** | Příkaz: panel Go To |
+| Go To | Bookmark Page, Next Bookmark, Previous Bookmark, Export, Import, Generate Automatically **V** | Panel Bookmarks |
+| Tools | Magnifier **V** | Režim |
+| Tools | Screenshot | Režim (výřez stránky do schránky) |
+| Tools | Extract Image | Režim. Hromadně Tool `convert.extract-images` |
+| Tools | Rendering Errors **V** | Příkaz: stavový řádek, obrazovka Rendering issues |
+| Tools | Options **V**, Reset to Factory Settings **V** | Nastavení |
+| Tools | Certificates **V** | Tool `protect.certificates` |
+| Help | Get Source **V**, Become a Sponsor **V**, About **V** | Aplikace: stránky About, Sponsor |
+| Developer | Show Text Blocks, Show Text Lines | Příkaz: panel View, jen ve vývojářském režimu |
+
+Funkce Editoru bez položky v nabídce:
+
+| Funkce | Kam |
+| --- | --- |
+| Panel Outline: procházení **V**, úpravy osnovy | Panel |
+| Panel Thumbnails: náhledy, velikost, synchronizace s aktuální stránkou **V** | Panel |
+| Panel Visibility: vrstvy (optional content) **V** | Panel Layers |
+| Panel Attachments: otevřít, uložit **V** | Panel |
+| Panel Speech: čtení nahlas **V** | Panel |
+| Panel Signatures: ověření podpisů, důvěra certifikátu **V** | Dokument (ověření při otevření) a Panel |
+| Panel Bookmarks: osobní záložky **V** | Panel |
+| Panel Notes: seznam anotací, hledání | Panel |
+| Vyplňování formulářů | Dokument: kliknutí do pole |
+| Práce s anotací: výběr, přesun, velikost, otočení, zarovnání, kopírování na víc stránek, vlastnosti, odpovědi, geometrie | Dokument: přímo na stránce a kontextová nabídka |
+| Otevření zaheslovaného dokumentu **V** | Aplikace: obrazovka hesla |
+| Odkazy a akce v dokumentu: přechod na cíl, otevření URL a spuštění aplikace s potvrzením **V** | Příkaz. Povolení v Nastavení (Security) |
+| Dotaz na uložení při zavření | Aplikace |
+
+Pluginy Editoru:
+
+| Plugin | Akce | Kam |
+| --- | --- | --- |
+| AudioBook | Create Text Stream, výběry (Rectangle, Contained Text, Regular Expression, Page List), Activate, Deactivate, Restore Original Text, Move Up, Move Down, synchronizace výběru, Create Audio Book, Clear Text Stream | Tool `convert.audiobook` |
+| Dimensions | Horizontal, Vertical, Linear Dimension, Perimeter, Rectangle Perimeter, Area, Rectangle Area, Angle, Calibrate Scale, Scale, Show, Clear, Convert to Annotations, Export Measurements, Settings | Tool `review.measure` |
+| Editor | Edit page content, Create Text Label, Freehand Curve, Accept Mark, Reject Mark, Rectangle, Rounded Rectangle, Horizontal Line, Vertical Line, Line, Dot, SVG Image, Multiple Elements, Undo, Redo, Clear All Graphics, panel Editor Toolbox | Tool `edit.content` |
+| ObjectInspector | Object Inspector | Tool `review.object-inspector` |
+| ObjectInspector | Object Statistics | Tool `review.statistics` |
+| OutputPreview | Output Preview | Tool `review.output-preview` |
+| OutputPreview | Ink Coverage | Tool `review.ink-coverage` |
+| Redact | Redact Rectangle, Redact Text, Redact Text Selection, Redact Page(s), Create Redacted Document | Tool `protect.redact` |
+| Scanner | Scan Pages | Tool `convert.scan` |
+| Signature | Activate signature creator, kreslicí nástroje, Clear All Graphics, Sign Electronically | Tool `protect.sign-by-hand` |
+| Signature | Sign Digitally With Certificate | Tooly `protect.sign`, `protect.timestamp` |
+| Signature | Certificates Manager | Tool `protect.certificates` |
+| SoftProofing | Soft Proofing, Gamut Checking, Soft Proofing Settings | Tool `review.soft-proof` |
+
+Nastavení (dialog *Options*) přechází celé na stránku Settings: Engine, Rendering, Shading, Cache, Shortcuts, Color management, Color postprocessing, Security, Author identity, UI, Speech, Form, Digital signature verification, Plugins. Větev OCR přidává *Text Recognition (OCR)* a *Manage OCR Languages*.
+
+### 6.2 PageMaster
+
+| Nabídka | Akce | Kam |
+| --- | --- | --- |
+| File | Add Documents | Tooly `pages.merge`, `pages.manage` (přidání zdrojů) |
+| File | Open Workspace, Save Workspace | Tool `pages.manage` |
+| File | Save Checkpoint, Load Checkpoint | Tool `pages.manage` |
+| File | Recent (soubory, pracovní plochy, složky), Clear Recent | Aplikace: stránka Recent |
+| File | Clear, Close | Tool `pages.manage`, Aplikace |
+| Edit | Undo, Redo | Příkaz v rámci toolu |
+| Edit | Clone Selection, Cut, Copy, Paste | Tool `pages.manage` |
+| Edit | Remove Selection, Restore Removed Items | Tool `pages.remove` |
+| Edit | Replace Selection | Tool `pages.insert` |
+| Edit | Page Geometry | Tooly `pages.resize`, `pages.boxes` |
+| Edit | Rotate Left, Rotate Right, Reset Rotation | Tool `pages.rotate` |
+| Edit | Group, Ungroup, Rename Item or Group, Properties | Tool `pages.manage` |
+| Edit | Crop Pages | Tool `pages.crop` |
+| Edit | Sort: by File Name, by Source, by Page Number, by Type, Reverse Order | Tool `pages.manage` |
+| Insert | Insert PDF, Insert PDF Pages, Insert Empty Page | Tool `pages.insert`. Prázdný dokument Tool `convert.blank` |
+| Insert | Insert Image | Tool `pages.insert`. Dokument jen z obrázků Tool `convert.images-to-pdf` |
+| Regroup | by Even/Odd Pages, by Page Pairs, by Outline, by Reverse | Tool `pages.split` (automatické skupiny), Tool `pages.manage` |
+| Regroup | by Alternating Pages, by Alternating Pages (Reversed Order) | Tool `pages.interleave` |
+| View | Select None, All, Page Range, Even, Odd, Portrait, Landscape, Visible, Invert Selection | Společný výběr stránek všech toolů kategorie |
+| View | Zoom In, Zoom Out, Show Document Title in Items, Details View | Tool `pages.manage` |
+| View | Hledání na pracovní ploše, Clear Search | Tool `pages.manage` |
+| Make | United Document | Tool `pages.merge`. Pro výběr stránek Tool `pages.extract` |
+| Make | Separate to Multiple Documents, Separate to Multiple Documents (Grouped), Split | Tool `pages.split` |
+| Make | Volba Optimize images in output PDFs, Image Optimization Settings | Volba výstupu v `pages.merge` a `pages.split`, jinak Tool `optimize.images` |
+| Toolbars | Zobrazení lišt | Zaniká, nové UI má pevné rozvržení |
+| Help | Get Source, Become a Sponsor, About | Aplikace |
+| Help | Prepare Icon Theme | Vývojářská akce, zaniká |
+
+### 6.3 Diff
+
+| Nabídka | Akce | Kam |
+| --- | --- | --- |
+| File | Open Left, Open Right, Close | Tool `review.compare` |
+| Compare | Compare | Tool `review.compare` |
+| Compare | Create Compare Report, Save Differences to XML | Tool `review.compare` (výstupy) |
+| View | Previous Difference, Next Difference | Tool `review.compare` |
+| View | View Differences, View Left, View Right, View Overlay | Tool `review.compare` |
+| View | Filter: Text, Vector Graphics, Images, Shading, Page Movement | Tool `review.compare` |
+| View | Show Pages with Differences, Synchronize View with Differences, Display Differences, Display Markers | Tool `review.compare` |
+| Panel Settings | výběr stránek levého a pravého dokumentu, volby porovnání, nastavení překryvu, barvy | Tool `review.compare` |
+| Panel Differences | seznam rozdílů | Tool `review.compare` |
+| Help | Get Source, Become a Sponsor, About | Aplikace |
+
+### 6.4 PdfTool (příkazová řádka)
+
+PdfTool do zadání nepatří, ale ukazuje funkce, které knihovna umí a GUI je nenabízí. Ty jsou v katalogu ve stavu **CLI**.
+
+| Příkaz | Tool nebo jiné místo | V GUI dnes |
+| --- | --- | --- |
+| `unite` | `pages.merge` | ano |
+| `separate` | `pages.split` | ano |
+| `render` | `convert.pdf-to-images` | ano |
+| `fetch-text` | `convert.extract-text` | **ne** |
+| `fetch-images` | `convert.extract-images` | jen jeden obrázek |
+| `audio-book`, `audio-book-voices` | `convert.audiobook` | ano |
+| `attachments` | Panel Attachments | ano |
+| `encrypt` | `protect.password`, `protect.permissions` | ano |
+| `decrypt` | `protect.unlock` | ano |
+| `verify-signatures` | Panel Signatures | ano |
+| `cert-store`, `cert-store-install` | `protect.certificates` | ano |
+| `redact` | `protect.redact` | ano |
+| `remove-external-links` | `protect.remove-links` | ano |
+| `optimize` | `optimize.structure`, `optimize.compress` | ano |
+| `bitonal` | `optimize.bitonal` | ano |
+| `diff` | `review.compare` | ano |
+| `ink-coverage`, `info-inks` | `review.ink-coverage` | ano |
+| `info-fonts` | Obrazovka Properties, část Fonts | ano |
+| `statistics` | `review.statistics` | ano |
+| `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `xml` | `review.report` | **ne** (jen část v Properties) |
+| `color-profiles` | Nastavení (Color management) | ano |
+| `benchmark` | bez toolu, vývojářská funkce | ne |
+
+### 6.5 Větev OCR
+
+| Akce | Kam |
+| --- | --- |
+| Tools → Recognize Text (OCR) | Tool `convert.ocr` |
+| Manage OCR Languages | Tool `convert.ocr` (správa jazyků), Nastavení |
+
+---
+
+## 7. Rešerše konkurence
+
+Rešerše proběhla 2. 10. 2026 nad oficiálními stránkami, manuály a zdrojovým kódem výrobců. Odkazy jsou v části 7.7.
+
+### 7.1 Co bylo zkoumáno a s jakou jistotou
+
+| Zkratka | Produkt | Zdroj a spolehlivost |
+| --- | --- | --- |
+| AA | Adobe Acrobat Pro | Jednotlivé stránky nápovědy. Úplný seznam „All tools“ Adobe jako text nezveřejňuje a názvy kategorií nového zobrazení se nepodařilo ověřit. |
+| FX | Foxit PDF Editor 13 | Uživatelský manuál, ověřeno. |
+| PX | PDF-XChange Editor 10 | Manuál, ověřeno. Obsah karty Accessibility nezjištěn. |
+| NI | Nitro PDF Pro | Ověřen jen seznam karet, příkazy na kartách ne. |
+| PS, PSE | PDFsam Basic, PDFsam Enhanced | Stránky produktu, ověřeno. |
+| ST | Stirling-PDF | Registr toolů ve zdrojovém kódu, přesné. |
+| SM, IL | Smallpdf, iLovePDF | Webové katalogy, ověřeno. |
+| P24 | PDF24 | Webový katalog. Dlaždice desktopové aplikace neověřeny. |
+| PG | PDFgear | Webový katalog. Desktopová aplikace neověřena. |
+| MP | Master PDF Editor | Obsah nápovědy. |
+| SJ | Sejda | Web a desktop, ověřeno. |
+| BB | Bluebeam Revu 21 | Manuál, ověřeno. |
+| PP | Tungsten Power PDF 5.1 | Manuál, ověřeno. |
+| – | qpdf, pdfcpu, mutool, poppler-utils | Dokumentace příkazové řádky. |
+
+Když u funkce níže některý produkt chybí, znamená to „nepotvrzeno ve zdrojích“, ne „produkt to neumí“.
+
+### 7.2 Jak konkurence člení katalog
+
+| Produkt | Počet kategorií | Kategorie |
+| --- | --- | --- |
+| Acrobat, klasické Tools center | 5 | Create & Edit, Forms & Signatures, Share & Review, Protect & Standardize, Customize |
+| Acrobat online | 5 | Generative AI, Convert, Reduce file size, Edit, Sign & protect |
+| iLovePDF | 6 a Workflows | Organize, Optimize, Convert, Edit, Security, Intelligence |
+| Smallpdf | 8 | Compress, Convert, Organize, Edit, Fill & Sign, Protect, AI PDF, Scan |
+| PDFgear online | 5 | Edit & Read, Convert from PDF, Convert to PDF, Organize, Sign |
+| PDF24 | 11 a tři osobní sekce | Create, Invoices, Edit, Organize, Optimize & repair, Security & privacy, View & check, Convert to PDF, Convert from PDF, Convert images, Desktop |
+| Sejda | 8 až 10 | Merge, Split, Edit & Sign, Compress, Scans, Security, Convert from PDF, Convert to PDF, Others, Automate |
+| Stirling-PDF | 3 úrovně × 12 podkategorií | Recommended, Standard, Advanced. Podkategorie Signing, Document Security, Verification, Document Review, Page Formatting, Extraction, Removal, Automation, General, Advanced Formatting, Developer Tools, AI |
+| Foxit, PDF-XChange, Nitro, Power PDF | 9 až 13 karet pásu | Home, Convert, Edit, Organize, Comment, View, Form, Protect, Share, Accessibility a další |
+| Bluebeam | nabídky | Document (jeden soubor), Batch (víc souborů), Tools (značky, měření, formuláře) |
+
+Co z toho plyne:
+
+1. **Spotřebitelské katalogy se sbíhají k pěti až osmi kategoriím podle úkolu:** Organize, Edit, Convert, Optimize, Security, Sign. Náš návrh se šesti kategoriemi je nejblíž iLovePDF.
+2. **Profesionální aplikace přidávají druhou vrstvu:** Forms, Review, Accessibility, Print production, Automate. Pro profesionální editor rešerše doporučuje sedm až devět kategorií. Šest volíme kvůli počtu barevných odstínů, viz rozhodnutí v kapitole 10.
+3. **Tři zařazení jsou mezi produkty sporná.** Podpis je pod Security v iLovePDF a PDF24, ale samostatně ve Smallpdf, Acrobatu a Stirlingu. Vodoznak je Edit v iLovePDF, Security v Sejdě a Stirlingu. Flatten je Protect ve Smallpdf a Optimize i Security v PDF24.
+4. **Sběrné kategorie jsou varování.** Sejda má v „Others“ patnáct toolů včetně Rotate a Crop. Stirling má v „General“ vedle sebe Merge, OCR a Add Text. Proto návrh nemá žádnou kategorii „Other“ ani „Advanced“.
+5. **Dělení Convert na „do PDF“ a „z PDF“ je téměř všude.** U nás to řeší podskupiny Create a Export.
+6. **Jeden tool s režimy, nebo mnoho karet.** Stirling má jeden Split s osmi metodami a jeden Convert. PDF24 a Smallpdf rozpadají převody na 20 až 30 karet, což je dané SEO webu. Sejda má pět karet Split. Náš návrh drží režimy uvnitř toolu (Split) a dělí jen tam, kde jde o jiný úkol (heslo proti oprávněním).
+7. **Anotace a formuláře jako tool.** Webové katalogy mají karty „Annotate“ a „Fill Forms“, protože katalog je u nich jediný vstup do aplikace. Desktopové aplikace s lištou dokumentu (Foxit, PDF-XChange, Bluebeam) je mají přímo u dokumentu. Náš návrh je proto v katalogu nemá.
+
+### 7.3 Barvy u konkurence
+
+| Produkt | Pravidlo |
+| --- | --- |
+| iLovePDF | Jedna barva na kategorii: Organize oranžovočervená, Optimize zelená, Edit fialovorůžová, Security modrá, Intelligence fialová. Převody mají barvu cílové aplikace. |
+| Smallpdf | Jedna barva na kategorii: Compress a Convert červená, Organize fialová, Edit tyrkysová, Protect korálová, Sign růžová, AI a Scan tmavě modrá. Převody mají barvu druhého formátu (Word modrá, Excel zelená, PowerPoint oranžová). |
+| Stirling-PDF | Osm barev pro dvanáct podkategorií: Signing zelená, Security a Verification oranžová, Review a General modrá, Page Formatting fialová, Extraction azurová, Removal červená, AI a Automation růžová, Developer šedá. |
+| Acrobat | Barvy ikon se z textových zdrojů nepodařilo ověřit. |
+
+Ustálená konvence neexistuje. Princip „jedna barva na kategorii“ používají všechny tři ověřené produkty. Naše volba se s iLovePDF shoduje jen zhruba u Organize (teplá barva). U Edit a Optimize máme barvy obráceně než iLovePDF: Edit je zelená a Optimize fialová.
+
+### 7.4 Co má konkurence lépe
+
+Seřazeno podle dopadu na návrh katalogu. U každého bodu je, co si z toho vzít.
+
+| # | Co | Kdo | Co z toho pro nás |
+| --- | --- | --- | --- |
+| 1 | **Hledání se skrytými synonymy.** Každá karta má seznam slov, podle kterých se najde. | P24 (atribut `data-tags`), ST (pole `synonyms`) | Klíčová slova v kapitole 5 jsou přesně tohle. Jejich seznamy jsou doplněné o slova, která používají PDF24 a Stirling. |
+| 2 | **Hledání příkazů z kteréhokoli místa.** | FX (Alt+Q), PP („Find a Tool“), PX („Quick Launch“), AA, NI | Jedno hledání pro tooly, příkazy a nastavení, viz 9.1. |
+| 3 | **Oblíbené, naposledy použité a často používané.** | P24 (Favorites, Last used, Frequently used), ST (hvězdička, Quick Access), PP, AA (přeuspořádání) | Pinned a Recent ve Figmě jsou. Chybí „často používané“. |
+| 4 | **Tool jako panel vedle dokumentu.** | AA (toolset v levém panelu), ST (postranní panel nebo celoplošný katalog) | Návrh běhu toolu nad dokumentem, viz 9.3. |
+| 5 | **Dávky jako plnohodnotná část UI.** | BB (nabídka Batch zrcadlí nabídku Document), FX (Batch print, Batch Encrypt), AA (OCR ve více souborech), PP (Watched Folders), ST (sledování složky) | Nemáme vůbec. Viz 8.3. |
+| 6 | **Řetězení toolů.** | AA (Use guided actions), FX (Action Wizard), ST (Automate), IL a SJ (Workflows), PP, BB (Script) | Collections ve Figmě jsou zatím jen skupiny. Viz 8.3. |
+| 7 | **Tool popsaný daty.** Registr toolu nese synonyma, počet souborů, podporované formáty, příznak pro automatizaci a stav alpha nebo beta. | ST | Viz 9.5. |
+| 8 | **Vysvětlený nedostupný stav.** | ST („Unavailable – required tool missing“), IL (štítek „New!“) | Viz 9.2. |
+| 9 | **Komprese pro laiky.** Acrobat přejmenoval „Optimize PDF“ na „Compress a PDF“. PDFgear má i „Compress PDF to 100KB“. | AA, FX, SM, P24, PG | Tool `optimize.compress` s předvolbami. Zvážit i předvolbu cílové velikosti. |
+| 10 | **Redakce hledáním vzorů.** | AA, FX (i Smart Redact), PX, ST, PP | Máme regulární výrazy a redakci výběru, chybí hotové vzory. Viz 8.2. |
+| 11 | **Vodoznak, záhlaví a zápatí, Batesovo číslování, pozadí.** | AA, FX, PX, MP, SJ a další | Nemáme. Viz 8.2. |
+| 12 | **Flatten.** | AA, FX, PX, ST, SM, PG, P24, SJ, BB, PP | Nemáme. Viz 8.2. |
+| 13 | **Tvorba formulářů a rozpoznání polí.** | AA, FX, PX, ST, IL, P24, BB, PP | Umíme jen vyplňovat. Viz 8.2. |
+| 14 | **Převody z a do Office.** | všechny komerční produkty, ST přes LibreOffice | Nemáme. Viz 8.2. |
+| 15 | **PDF/A: převod a kontrola.** | AA, FX, ST, SM, IL, P24, MP, BB | Nemáme. Viz 8.2. |
+| 16 | **Oprava poškozeného PDF.** | ST, IL, P24, SJ, BB | Nemáme jako tool. Viz 8.2. |
+| 17 | **Úklid skenů:** narovnání, automatické otočení, vylepšení. | PX, AA, SJ, ST | Větev OCR to umí jen na pracovním obrazu. Viz 8.2. |
+| 18 | **Bohatší práce se stránkami:** N-up, brožura, půlení stránek, překryv stránek, hledání duplicitních stránek, výměna dvou stránek. | ST, P24, SJ, PX, FX | Viz 8.2. |
+| 19 | **Generování záložek (osnovy).** PDF-XChange má pět generátorů: z textu stránky, každá N-tá stránka, z obsahu, ze zvýraznění, z textového souboru. | PX, FX, SJ | Viz 8.2. |
+| 20 | **Souhrn, import a export komentářů.** | AA, FX, PX, BB, PP | Viz 8.2. |
+| 21 | **Úprava metadat.** | AA, FX, ST, P24, SJ | Vlastnosti dokumentu máme jen pro čtení. Viz 8.2. |
+| 22 | **Měření navíc:** poloměr, objem, počítání prvků. | BB | Okrajové, nezařazeno. |
+| 23 | **Přístupnost:** kontrola, automatické tagování, pořadí čtení. | AA, FX, PX, NI | Viz 8.2. |
+
+### 7.5 Kde je PDF4QT na úrovni konkurence nebo před ní
+
+Tyhle tooly si zaslouží v katalogu viditelné místo, protože je konkurence většinou nemá.
+
+| Oblast | Stav u konkurence | PDF4QT |
+| --- | --- | --- |
+| Tisková příprava: náhled výstupu, separace, krytí barev | V rešerši jen Acrobat. | Output Preview, Ink Coverage, Soft Proofing, Set Page Boxes. |
+| Rozbor velikosti souboru | Jen Acrobat (Audit space usage). | Document Statistics a Object Inspector. |
+| Převod do zvuku | Čtení nahlas AA, FX, PP. Uložení do MP3 jen Power PDF. | Čtení nahlas v panelu Speech a tool Create Audio Book s úpravou textu před převodem. |
+| Převod na černobílé s JBIG2 a CCITT | V rešerši nenalezeno jako samostatný tool. | Convert to Black & White s volbou metody a náhledem. |
+| Porovnání dokumentů | Porovnání mají AA, FX, PX, ST, IL, P24, MP, BB a PP. Překryv jako způsob porovnání má Bluebeam. | Compare s překryvem, filtry druhů rozdílů a zprávou. |
+| Šifrování certifikátem | AA, FX, PX, PP, MP. | Encrypt with Certificate. |
+| Časové razítko | AA, FX, PX, ST, PP. | Add Timestamp. |
+| Prolnutí stránek | FX, PS, SJ, P24. | Interleave Pages. |
+| Měření s kalibrací, úhlem a exportem | AA, FX, PX, MP, BB, PP. | Measure, export do CSV, převod na anotace. |
+| Kontrola výsledku OCR | Foxit má „Suspect Results“. | Větev OCR má kontrolu slov podle jistoty a opravy. |
+| Práce bez cloudu a bez účtu | Smallpdf, iLovePDF a z části Acrobat pracují přes server. | Vše lokálně. |
+
+### 7.6 Zásady z literatury, o které se návrh opírá
+
+| Zásada | Zdroj | Kde je v návrhu |
+| --- | --- | --- |
+| Popisek příkazu začíná slovesem, má dvě až čtyři slova a podstatné jméno ho upřesní („Delete Folder“, ne „Delete“). Stejný popisek všude, kde se příkaz objeví. | NN/g, UI Copy | Názvy toolů, zásada 1 v kapitole 2. |
+| Názvy kategorií mají být známá slova, ne vymyšlené nebo abstraktní pojmy. | NN/g, Menu-Design Checklist a Top 10 IA Mistakes | Názvy kategorií. Bez „Smart Tools“ a „Advanced Processing“. |
+| Popisek musí předpovědět obsah (information scent). Pomáhá jednořádkový popis pod názvem. | NN/g, Information Scent | Popis na kartě u každého toolu. |
+| Položku lze zařadit do dvou kategorií, když ji tam lidé hledají, ale jen výjimečně. | NN/g, Polyhierarchy | Zásada 6. Kvůli barvě držíme jednu kategorii a zbytek řeší hledání. |
+| Rozpoznání je snazší než vybavení. Historie a oblíbené ho podporují. | NN/g, Recognition and Recall | Viditelná mřížka, Pinned a Recent. |
+| Hledání bez synonym selhává. | Baymard, studie hledání v e-shopech | Klíčová slova u každého toolu. |
+| Kategorie se mají ověřit tříděním karet s uživateli. | NN/g, Card Sorting | Doporučení: před implementací udělat uzavřené třídění karet s několika uživateli. |
+
+### 7.7 Zdroje
+
+Adobe Acrobat
+- https://helpx.adobe.com/acrobat/desktop/get-started/learn-the-basics/workspace.html
+- https://helpx.adobe.com/acrobat/using/print-production-tools-overview-acrobat.html
+- https://helpx.adobe.com/acrobat/using/action-wizard-acrobat-pro.html
+- https://helpx.adobe.com/acrobat/using/create-verify-pdf-accessibility.html
+- https://helpx.adobe.com/acrobat/using/compare-documents.html
+- https://www.adobe.com/devnet-docs/acrobatetk/tools/AdminGuide/advancedconfig.html
+- https://www.adobe.com/acrobat/online.html
+
+Foxit, PDF-XChange, Nitro
+- https://cdn01.foxitsoftware.com/pub/foxit/manual/phantom/en_us/foxit-pdf-editor-user-manual-13.pdf
+- https://help.pdf-xchange.com/pdfxe10/tabs-guide_ed.html
+- https://www.gonitro.com/user-guide/pro/article/explore-the-user-interface
+
+PDFsam, Stirling-PDF
+- https://pdfsam.org/pdfsam-basic/
+- https://pdfsam.org/pdfsam-enhanced/
+- https://github.com/Stirling-Tools/Stirling-PDF/blob/main/frontend/editor/src/core/data/useTranslatedToolRegistry.tsx
+- https://github.com/Stirling-Tools/Stirling-PDF/blob/main/frontend/editor/src/core/data/toolsTaxonomy.ts
+
+Webové katalogy
+- https://smallpdf.com/pdf-tools
+- https://www.ilovepdf.com/
+- https://tools.pdf24.org/en/all-tools
+- https://www.pdfgear.com/online-tools/
+- https://www.sejda.com/
+
+Ostatní desktopové aplikace
+- https://code-industry.net/masterpdfeditor-help/
+- https://support.bluebeam.com/user-manual/menus/document/document-menu.html
+- https://support.bluebeam.com/user-manual/menus/batch/batch-menu.html
+- https://support.bluebeam.com/user-manual/menus/tools/tools-menu.html
+- https://docshield.tungstenautomation.com/PowerPDF/en_US/5.1.1-x2ki7a3ycc/help/PowerPDF_help/c_ribbonhandlingandoverview.html
+
+Příkazová řádka
+- https://qpdf.readthedocs.io/en/stable/cli.html
+- https://github.com/pdfcpu/pdfcpu
+- https://mupdf.readthedocs.io/en/latest/tools/mutool.html
+
+Zásady UX
+- https://www.nngroup.com/articles/ui-copy/
+- https://www.nngroup.com/articles/menu-design/
+- https://www.nngroup.com/articles/information-scent/
+- https://www.nngroup.com/articles/polyhierarchy/
+- https://www.nngroup.com/articles/card-sorting-definition/
+- https://www.nngroup.com/articles/recognition-and-recall/
+- https://www.nngroup.com/articles/top-10-ia-mistakes/
+- https://baymard.com/blog/ecommerce-search-report-and-benchmark
+
+---
+
+## 8. Co chybí – návrhy nových toolů
+
+Seznam vychází z rešerše v kapitole 7. Zkratky produktů jsou v části 7.1.
+
+- **Očekávání** říká, jak moc uživatelé tool čekají. **P1** má většina zkoumaných produktů včetně bezplatných. **P2** je běžný v profesionálních aplikacích, nebo je to levné rozšíření něčeho, co už umíme. **P3** je specializovaný.
+- **Náročnost** je můj hrubý odhad bez rozboru kódu: nízká (GUI nad hotovou funkcí), střední, vysoká (nový velký celek nebo externí komponenta).
+
+### 8.1 Rychlé výhry: knihovna to umí, chybí jen GUI
+
+Těchto pět toolů už je v katalogu v kapitole 4 se stavem CLI nebo GUI·split.
+
+| Tool | Kategorie | Co je potřeba | Kdo to má |
+| --- | --- | --- | --- |
+| **Compress** (`optimize.compress`) | Optimize & Repair | Předvolby nad existující optimalizací obrázků a struktury. | AA, FX, ST, SM, IL, PG, P24, SJ, BB, PP |
+| **Extract Pages** (`pages.extract`) | Organize Pages | Přímá akce „uložit výběr jako nový PDF“. | AA, FX, PX, PS, ST, SM, IL, PG, P24, SJ, BB, PP |
+| **Extract Text** (`convert.extract-text`) | Create & Convert | Dialog nad tím, co dělá CLI `fetch-text`. | AA, FX, P24, SJ |
+| **Extract Images** (`convert.extract-images`) | Create & Convert | Dialog nad CLI `fetch-images`. | FX, ST, P24, SJ |
+| **Document Report** (`review.report`) | Review & Inspect | Obrazovka nad CLI `info-*` a `xml`. | ST (Get ALL Info on PDF, Show JavaScript) |
+
+### 8.2 Nové tooly
+
+#### Organize Pages (Amber)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Multiple Pages per Sheet** | Put 2, 4 or more pages on one sheet | Vyřazení N stránek na arch s volbou mřížky, okrajů a pořadí. | ST, P24, SJ, pdfcpu | P2 | střední | `n-up, 2-up, 4-up, pages per sheet, handout, imposition, grid, tile` |
+| **Make Booklet** | Reorder pages for booklet printing | Přeskládá stránky pro tisk brožury s vazbou na hřbet. | ST, pdfcpu, AA jen jako volba tisku | P2 | střední | `booklet, brochure, pamphlet, saddle stitch, imposition, fold, signature` |
+| **Split Double Pages** | Cut scanned spreads into single pages | Rozřízne dvoustrany skenu na jednotlivé stránky. | FX, PX, ST, P24, SJ | P2 | střední | `split in half, halve, double page, spread, two-page scan, book scan, divide page` |
+| **Remove Blank Pages** | Find and delete empty pages | Najde prázdné stránky a nabídne je k odstranění. Detekce už existuje v dialogu Bitonal a ve větvi OCR. | ST | P2 | nízká | `blank pages, empty pages, remove blank, white pages, scan cleanup, separator pages` |
+| **Overlay Pages** | Put one PDF on top of another | Položí stránky jednoho PDF přes druhé nebo pod ně. Typicky hlavičkový papír. | PX, ST, P24, PP, qpdf | P2 | střední | `overlay, underlay, superimpose, letterhead, layer pages, background pdf, digital paper` |
+| **Page Labels** | Set the page numbers shown by viewers | Úprava logického číslování stránek (i, ii, 1, 2, A-1). Čtení popisků knihovna umí. | AA, FX, PX, BB, qpdf | P3 | střední | `page labels, logical page numbers, renumber, roman numerals, front matter` |
+| **Poster** | Print one page across several sheets | Rozdělí velkou stránku na dlaždice pro tisk na menší papír. | ST, pdfcpu, mutool | P3 | střední | `poster, tile, large format, split page, banner, plot` |
+
+#### Create & Convert (Blue)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **PDF to Word / Excel / PowerPoint** | Export to editable Office files | Export do formátů Office. Vyžaduje rekonstrukci rozvržení. | AA, FX, PX, ST, SM, IL, PG, P24, SJ, PP, PSE | P1 | vysoká | `pdf to word, docx, pdf to excel, xlsx, pptx, office, editable, convert to word` |
+| **Office to PDF** | Convert Word, Excel, PowerPoint files | Převod z formátů Office. Stirling to řeší přes externí LibreOffice. | AA, FX, PX, ST, SM, IL, PG, P24, SJ, PP | P1 | vysoká | `word to pdf, docx to pdf, excel to pdf, xlsx, pptx to pdf, office, libreoffice` |
+| **Convert to PDF/A** | Make an archival, self-contained PDF | Převod do PDF/A. Vyžadují ho úřady a archivy. | AA, FX, ST, SM, IL, P24, MP, BB | P1 | vysoká | `pdf/a, pdfa, archive, archival, long term, iso 19005, compliance, pdf/a-1b, pdf/a-2b` |
+| **Text to PDF** | Turn text, Markdown or HTML into a PDF | Vytvoření PDF z textového souboru, Markdownu nebo HTML. | PX, SM, P24, SJ, IL | P2 | střední | `text to pdf, txt to pdf, markdown to pdf, md, html to pdf, web page to pdf` |
+| **PDF to SVG** | Save pages as vector images | Export stránek do SVG. | P24, mutool, pdftocairo | P3 | střední | `svg, vector export, pdf to svg, scalable, inkscape, illustrator` |
+| **Rasterize PDF** | Turn pages into images inside the PDF | Nahradí obsah stránek obrázkem, takže nejde upravit ani kopírovat. Vykreslování stránek už máme. | PX, P24 | P3 | nízká | `rasterize, flatten to image, image pdf, non-editable, burn in` |
+| **E-Invoice** | Read and create ZUGFeRD, Factur-X invoices | Vytvoření, převod a kontrola elektronických faktur vložených v PDF. | P24 | P3 | vysoká | `e-invoice, zugferd, factur-x, xrechnung, invoice xml, en 16931` |
+
+#### Edit (Green)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Add Watermark** | Stamp text or an image across pages | Textový nebo obrazový vodoznak s průhledností, rotací, polohou a rozsahem stránek. | AA, FX, PX, ST, SM, IL, P24, MP, SJ, PSE | P1 | střední | `watermark, draft, confidential, logo, overlay, background text, branding, copyright` |
+| **Header & Footer** | Add text, date and numbers to pages | Záhlaví a zápatí s textem, datem, názvem souboru a číslem stránky. Rozšíření dnešního Add Page Numbers. | AA, FX, PX, MP, SJ, BB, PP, PSE | P1 | střední | `header, footer, running head, date stamp, running title, top, bottom, file name on page` |
+| **Flatten** | Make comments and form fields permanent | Převede anotace a vyplněná pole do obsahu stránky, takže je nejde měnit. | AA, FX, PX, ST, SM, PG, P24, SJ, BB, PP | P1 | střední | `flatten, freeze, make static, bake, burn in, make permanent, lock form, print annotations` |
+| **Prepare Form** | Add text fields, checkboxes and buttons | Vytváření a úprava formulářových polí, případně rozpoznání polí. | AA, FX, PX, ST, IL, PG, P24, MP, SJ, BB, PP, PSE | P1 | vysoká | `create form, form fields, fillable, make fillable, text field, checkbox, radio button, dropdown, form builder` |
+| **Edit Document Properties** | Change title, author and keywords | Úprava názvu, autora, předmětu a klíčových slov. Dnes jsou vlastnosti jen pro čtení. | AA, FX, ST, P24, SJ | P1 | nízká | `metadata, title, author, subject, keywords, document info, properties, edit metadata` |
+| **Remove Comments** | Delete all comments at once | Odstraní všechny anotace, případně podle typu nebo autora. Základ už umí Sanitize. | ST, SJ, PX | P2 | nízká | `remove annotations, delete comments, strip comments, clear markup, remove highlights` |
+| **Bates Numbering** | Number pages across a set of documents | Průběžné číslování s předponou a příponou přes víc dokumentů. | AA, FX, PX, MP, SJ, PP | P2 | střední | `bates, bates stamp, legal numbering, exhibit, prefix, sequential numbering, discovery` |
+| **Import / Export Form Data** | Move form values in and out | Import a export hodnot formuláře (FDF, XFDF, CSV, XML). | AA, FX, PX, BB, PP, PSE, pdfcpu | P2 | střední | `fdf, xfdf, form data, export form, import form, csv, merge data` |
+| **Import / Export Comments** | Share comments without the PDF | Export a import anotací a tisknutelný souhrn komentářů. | AA, FX, PX, BB, PP | P2 | střední | `export comments, import comments, xfdf, comment summary, summarize comments, review report` |
+| **Generate Outline** | Build the table of contents automatically | Vytvoří osnovu z nadpisů nebo z textu stránek. Automatické generování osobních záložek z kapitol už existuje. | PX, FX, SJ | P2 | střední | `auto bookmarks, generate outline, table of contents, headings, toc from headings, create bookmarks` |
+| **Set Initial View** | Choose how the PDF opens | Nastaví rozvržení stránek, panel a zvětšení při otevření. Čtení těchto voleb už je v Properties. | FX, P24, PP, pdfcpu | P3 | nízká | `initial view, viewer preferences, open options, page mode, page layout, open in full screen` |
+| **Find & Replace Text** | Replace a word in the whole document | Nahrazení textu v obsahu stránek. | FX, PX | P3 | vysoká | `find and replace, replace text, search and replace, change word` |
+| **Detect Links** | Turn web addresses into clickable links | Najde URL v textu a vytvoří z nich odkazy. | AA, FX, PX, BB | P3 | střední | `auto link, detect urls, create links from text, clickable urls, web links` |
+| **Page Background** | Put a color or image behind the content | Barevné nebo obrazové pozadí stránek. | AA, FX, PX, MP | P3 | střední | `background, page color, paper color, letterhead, underlay image` |
+
+Dvě chybějící funkce patří podle pravidla z kapitoly 1 mimo katalog. **Přidání přílohy** (AA, FX, PX, ST, MP, PP) patří do panelu Attachments. **Vlastní razítka** z obrázku nebo textu (AA, FX, PX, MP) patří do položky Annotate.
+
+#### Protect & Sign (Red)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Find & Redact** | Redact e-mails, phone numbers, IDs | Hledání podle vzorů (e-mail, telefon, IBAN, rodné číslo, datum) a hromadná redakce. Regulární výrazy a redakce výběru už existují, chybí hotové vzory a jeden krok. | AA, FX, PX, ST, PP | P2 | nízká | `search and redact, find and redact, pattern, pii, personal data, email, phone number, iban, auto redact, gdpr` |
+| **Remove Scripts & Actions** | Strip JavaScript and launch actions | Odstraní JavaScript a spouštěcí akce. Výpis skriptů umí CLI `info-javascript`. | AA (součást Sanitize document), ST (jen výpis, Show JavaScript) | P2 | střední | `remove javascript, scripts, actions, launch action, malware, safe pdf, disarm` |
+| **Certify Document** | Sign and lock what may change later | Certifikační podpis s omezením dalších změn. | AA, FX, PX, BB | P3 | střední | `certify, docmdp, certification signature, lock document, author signature` |
+| **Remove Signatures** | Clear signatures from a document | Odstraní podpisy a podpisová pole. | ST, PX | P3 | střední | `remove signature, unsign, clear signatures, delete signature field` |
+| **Add Validation Data (LTV)** | Keep signatures verifiable for years | Vloží do dokumentu údaje pro dlouhodobé ověření podpisu. | v rešerši nepotvrzeno | P3 | vysoká | `ltv, long term validation, dss, ocsp, crl, pades-lt, archival signature` |
+
+#### Optimize & Repair (Violet)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Repair PDF** | Recover a damaged document | Pokusí se opravit poškozený soubor a uložit ho znovu. | ST, IL, P24, SJ, BB, mutool | P1 | střední | `repair, fix, recover, corrupted, corrupt, damaged, broken, cannot open, rebuild` |
+| **Convert Colors** | Convert to grayscale, sRGB or CMYK | Převod barev celého obsahu včetně textu a vektorů. Doplní dnešní Convert to Grayscale, který převádí jen obrázky. | AA, PX, BB, SJ, ST, mutool | P2 | vysoká | `convert colors, cmyk, srgb, color profile, icc, grayscale, recolor, invert colors, rgb to cmyk` |
+| **Clean Up Scans** | Straighten and clean scanned pages | Narovnání, automatické otočení a odstranění šumu u skenů. Větev OCR to dělá jen na pracovním obrazu. | PX, AA, SJ, ST, FX | P2 | střední | `deskew, straighten, despeckle, clean scan, enhance scan, remove noise, auto rotate` |
+| **Fast Web View** | Optimize for opening from the web | Linearizace souboru. | P24, qpdf | P3 | střední | `linearize, fast web view, web optimize, streaming, byte serving` |
+| **Embed Fonts** | Embed or replace fonts | Vloží chybějící písma, vytvoří podmnožiny nebo písmo nahradí. | PX (Replace Fonts) | P3 | vysoká | `embed fonts, subset fonts, missing fonts, replace fonts, font embedding` |
+
+#### Review & Inspect (Teal)
+
+| Tool | Popis na kartě | Co dělá | Kdo to má | Očekávání | Náročnost | Klíčová slova |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Check PDF Standards** | Verify PDF/A, PDF/X or PDF/UA compliance | Kontrola shody se standardem a zpráva o nálezech. | AA, FX (Preflight), P24 (Check PDF/A) | P2 | vysoká | `preflight, validate, pdf/a check, pdf/x, pdf/ua, compliance, conformance, standards` |
+| **Search in Files** | Search many PDFs at once | Hledání textu ve složce PDF souborů. | AA, FX, PP, P24 | P2 | střední | `search folder, search multiple pdfs, find in files, full text search, index` |
+| **Check Accessibility** | Find problems for screen readers | Kontrola tagů, alternativních textů a pořadí čtení. Výpis stromu struktury umí CLI. | AA, FX, PX, NI | P3 | vysoká | `accessibility, pdf/ua, wcag, tags, screen reader, alt text, reading order, section 508` |
+| **Word Count** | Count words, characters and pages | Statistika textu dokumentu. | FX, PX | P3 | nízká | `word count, character count, count words, text statistics` |
+
+### 8.3 Funkce napříč tooly
+
+| Funkce | Popis | Kdo to má | Očekávání |
+| --- | --- | --- | --- |
+| **Dávkové zpracování** | Spustit jeden tool nad mnoha soubory nebo složkou. Kandidáti: Compress, OCR, Protect with Password, Sanitize, PDF to Images, Add Watermark. | BB (nabídka Batch), FX, AA, PP, ST | P1 |
+| **Řetězení toolů** | Collections ve Figmě jako skutečné sekvence spuštěné jedním krokem („Prepare for sharing“ = Compress, Sanitize, Sign). | AA, FX, ST, IL, SJ, PP, BB | P2 |
+| **Sledovaná složka** | Automatické zpracování souborů, které se objeví ve složce. | PP, ST, AA (Distiller) | P3 |
+| **Často používané** | Třetí osobní sekce vedle Pinned a Recent. | P24 | P3 |
+
+### 8.4 Co vědomě nenavrhuji
+
+- **AI asistent, shrnutí, překlad a chat s dokumentem.** Mají je AA, FX, SM, IL a ST. Vyžadují cloud nebo velký model, což jde proti lokální práci bez účtu.
+- **Žádosti o elektronický podpis a sdílená revize.** Mají je AA, FX, PX, SM, IL a PP. Vyžadují serverovou službu.
+- **Multimédia, 3D, portfolia a správa práv (RMS).** Okrajové, 3D má vlastní větev.
+- **Další měřicí nástroje Bluebeamu** (poloměr, objem, počítání prvků). Specializace na stavebnictví.
+
+---
+
+## 9. Doporučení pro UI katalogu
+
+Stránka `pdf4qt-tools` ve Figmě už má hledání, filtr kategorií, připnuté tooly, kolekce a naposledy použité. To odpovídá tomu, co mají PDF24, Stirling-PDF a Acrobat, a zůstává. Níže je to, co je potřeba doplnit nebo rozhodnout, až se bude Figma upravovat.
+
+### 9.1 Hledání
+
+1. **Jedno hledání pro všechno.** Výsledky jsou ve skupinách *Tools*, *Commands*, *Settings*, *Documents*, *Help*. Tooly mají barvu kategorie, ostatní výsledky odstín Neutral.
+2. **Ukázat, proč výsledek odpovídá.** Když rozhodlo klíčové slovo, zobrazí se pod názvem: „Merge · matches *combine*“.
+3. **Prázdný výsledek nikdy není slepá ulička.** Nabídne nejbližší tooly a odkaz na seznam plánovaných funkcí. Pro hledané výrazy jako *word*, *excel*, *watermark* je vhodné mít připravenou odpověď, i když tool zatím chybí.
+4. **Klávesová zkratka** pro hledání odkudkoli (Ctrl+K) a spuštění prvního výsledku klávesou Enter.
+
+### 9.2 Karta toolu
+
+1. **Co tool potřebuje, je vidět předem.** Tři druhy vstupu: otevřený dokument, víc souborů, nic. Tool spuštěný bez otevřeného dokumentu začne výběrem souboru. Soubor jde na kartu i přetáhnout.
+2. **Stavové štítky** na kartě: *New*, *Beta*, *Advanced*, a důvod nedostupnosti (*No scanner found*, *Not allowed by document security*, *Document is open read-only*). Nedostupný tool se neschovává, vysvětlí proč.
+3. **Hustota.** Čtyřicet pět karet se na jednu obrazovku nevejde. Doporučení: výchozí pohled *All* ukazuje kategorie s nadpisem a podskupinami, tooly se štítkem *Advanced* jsou až na konci kategorie. Volba v nastavení je může skrýt úplně.
+4. **Barva.** Odstín kategorie nese ikona toolu (komponenta *Tool icon*) a chip kategorie. Karta sama zůstává neutrální, jinak bude stránka pestrá a nečitelná. Kontrast ikony vůči pozadí musí splnit WCAG AA v obou tématech.
+
+### 9.3 Běh toolu
+
+1. **Tool nad dokumentem běží v kartě dokumentu.** Lišta toolu nahoře nese název a barvu kategorie, panel voleb je vpravo, tlačítka *Apply* a *Cancel* mají vždy stejné místo. Tohle je návrh „tool-running state“, který ve Figmě zatím chybí.
+2. **Tooly nad víc soubory mají vlastní kartu.** Týká se kategorie Organize Pages a toolu Compare.
+3. **Náhled před provedením a souhrn po něm.** U Compress velikost před a po, u Split počet vzniklých souborů, u Redact počet odstraněných míst. Dnešní dialogy to z části umí, sjednotit.
+4. **Nevratné tooly ukládají kopii.** Redact Content, Sanitize, Convert to Black & White a Flatten mají jako výchozí *Save as copy*. Přepsání originálu je vědomá volba.
+5. **Dlouhé operace běží na pozadí** s průběhem a možností zrušit (OCR, Compress, Merge velkých souborů). Uživatel může mezitím pracovat v jiné kartě.
+6. **Po dokončení nabídnout další krok.** Po OCR nabídnout Compress, po Merge nabídnout Add Page Numbers. Navazuje na Collections ve Figmě.
+
+### 9.4 Místa, kde se dnes uživatel splete
+
+1. **Otočení pohledu a otočení stránek.** *View → Rotate* se do souboru neuloží, *Rotate Pages* ano. V panelu View má být u otočení pohledu odkaz „Rotate pages permanently“.
+2. **Barevné režimy pohledu a převod barev.** *Grayscale* v panelu View dokument nemění, *Convert to Grayscale* ano. Stejná pomůcka jako u otočení.
+3. **Anotace a obsah stránky.** Tvar nakreslený přes Annotate je komentář, tvar z *Edit Content* je trvalý. Nástrojová lišta má ukazovat, kam se kreslí.
+4. **Bookmarks a Outline.** Osobní záložky proti osnově dokumentu. Doporučení: v UI používat *Outline* pro osnovu a *My Bookmarks* pro osobní záložky.
+5. **Tři druhy podpisu.** Digitální podpis certifikátem, časové razítko a nakreslený podpis mají různou právní váhu. Karta *Sign by Hand* má v popisu říct, že nejde o digitální podpis.
+6. **Heslo pro otevření a heslo vlastníka.** Dva tooly místo jednoho dialogu to oddělují. Tool *Restrict Permissions* má upozornit, že omezení nejsou silná ochrana.
+
+### 9.5 Rozšiřitelnost
+
+Tool má být popsán daty: ID, název, popis, klíčová slova, kategorie, podskupina, ikona, počet a typy vstupních souborů, zda tool mění dokument, zda jde spustit dávkově a v řetězu, stav (například beta). Stejně to má registr toolů ve Stirling-PDF. Pluginy pak mohou do katalogu registrovat vlastní tooly stejnou cestou jako vestavěné funkce a katalog se nemusí měnit s každým novým pluginem.
+
+---
+
+## 10. Rozdíly proti současné Figmě a rozhodnutí
+
+Stránka `pdf4qt-tools` má dnes 29 toolů v šesti kategoriích. Tento dokument jich navrhuje 45 ve stejném počtu kategorií. Odstíny zůstávají stejné až na prohození u Edit a Optimize & Repair. Figma se nemění, dokud to neschválíš.
+
+### 10.1 Kategorie
+
+| Figma dnes | Návrh | Odstín |
+| --- | --- | --- |
+| Pages | Organize Pages (chip Pages) | Amber, beze změny |
+| Convert | Create & Convert (chip Convert) | Blue, beze změny |
+| Edit & Forms | Edit (chip Edit) | **Green**, ve Figmě je dnes Violet |
+| Security | Protect & Sign (chip Protect) | Red, beze změny |
+| Optimize | Optimize & Repair (chip Optimize) | **Violet**, ve Figmě je dnes Green |
+| Review | Review & Inspect (chip Review) | Teal, beze změny |
+
+### 10.2 Tooly
+
+| Figma dnes | Návrh |
+| --- | --- |
+| Merge PDF, Split PDF | **Merge**, **Split** |
+| Insert Pages, Rotate Pages | beze změny |
+| Reorganize Pages | **Manage Pages** |
+| Delete Pages | **Remove Pages** (*delete* zůstává v klíčových slovech) |
+| Create PDF | rozděleno na **Images to PDF** a **Blank PDF** |
+| PDF to Images, Extract Text, Extract Images | beze změny |
+| OCR | **Recognize Text (OCR)** |
+| Edit Content | beze změny, nově zahrnuje i přidání textu a obrázku |
+| Annotate, Fill Forms, Attachments | **vyřazeno z katalogu**, zůstává v dokumentu: položka Annotate, pole formuláře, panel Attachments |
+| Encrypt PDF | rozděleno na **Protect with Password**, **Restrict Permissions**, **Encrypt with Certificate** |
+| Remove Password, Redact Content | beze změny |
+| Verify Signatures | **vyřazeno z katalogu**, ověření při otevření a panel Signatures |
+| Sign Document | rozděleno na **Sign with Certificate**, **Add Timestamp**, **Sign by Hand** |
+| Sanitize | beze změny |
+| Compress PDF | **Compress**, nově zastřešuje Optimize Images a Optimize Structure |
+| Bitonal Images | **Convert to Black & White** |
+| Remove External Links | přesun z Optimize do **Protect & Sign** |
+| Compare PDFs | **Compare** |
+| Measure, Document Statistics | beze změny |
+| Inspect Fonts, Read Aloud | **vyřazeno z katalogu**, zůstává v obrazovce Properties a v panelu Speech |
+
+Nové karty, které Figma nemá: Extract Pages, Interleave Pages, Crop Pages, Resize Pages, Set Page Boxes, Scan to PDF, Create Audio Book, Add Page Numbers, Manage Certificates, Optimize Images, Optimize Structure, Convert to Grayscale, Output Preview, Ink Coverage, Soft Proofing, Object Inspector, Document Report.
+
+### 10.3 Rozhodnuto
+
+1. **Co je tool.** Tool má vlastní obrazovku nebo dialog s výsledkem, nebo jde spustit bez dokumentu. Anotace, vyplňování formulářů, osnova, přílohy, čtení nahlas, ověření podpisů, seznam písem a výběr tabulky v katalogu nejsou.
+2. **Výjimky.** Measure, Redact Content, Sign by Hand a Soft Proofing zůstávají tooly.
+3. **Názvy bez „PDF“.** Compress, Merge, Split a Compare. „PDF“ zůstává jen u převodů.
+4. **Barvy.** Edit je Green, Optimize & Repair je Violet.
+5. **Klíčová slova vyřazených položek** se nikam nepřenášejí.
+6. **Kategorie Edit zůstává malá.** Má dva tooly a naplní ji až návrhy z kapitoly 8 (vodoznak, záhlaví a zápatí, Flatten, tvorba formulářů). S jinou kategorií se neslučuje.
+7. **Šest kategorií.** Podpisy, tisková příprava a vývojářské nástroje zůstávají podskupinami. Nové odstíny se nepřidávají.
+8. **Sanitize.** Název zůstává *Sanitize*, protože je kratší.
+9. **Sign by Hand.** Nahrazuje dnešní *Sign Electronically*, které se plete s digitálním podpisem.
+10. **Jen pro čtení místo Vieweru.** PDF jde otevřít jen pro čtení a pro takový dokument jsou dostupné pouze tooly, které ho nemění. Seznam je v části 4.7.
+
+Otevřené otázky ke katalogu nezbývají.
