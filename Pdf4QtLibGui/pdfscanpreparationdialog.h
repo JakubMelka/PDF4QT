@@ -233,6 +233,7 @@ private:
     void createUi();
     void loadSettings();
     void saveSettings() const;
+    static QString getSettingsGroup();
 
     // Pages
     void updatePageItem(pdf::PDFInteger pageIndex);

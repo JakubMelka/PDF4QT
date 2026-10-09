@@ -44,9 +44,6 @@
 
 using namespace pdf;
 
-namespace
-{
-
 /// Rendering environment of the tests
 class RenderingContext
 {
@@ -89,13 +86,42 @@ struct TestPage
     std::vector<QRectF> links;
 };
 
-PDFObjectReference addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionary dictionary = PDFDictionary())
+/// Test documents, rendering and measurements of the scan preparation tests
+class ScanPreparationTestHelper
+{
+public:
+    ScanPreparationTestHelper() = delete;
+
+    static PDFObjectReference addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionary dictionary = PDFDictionary());
+
+    static PDFDocument createDocument(const std::vector<TestPage>& pages, const QByteArray& pageLabels = QByteArray());
+
+    /// Content: horizontal bars around the center, rotated clockwise (visually) by the angle
+    static QByteArray createSkewedBars(QPointF center, double angle, double width = 260.0);
+
+    static QImage render(const PDFDocument& document, PDFInteger pageIndex, double dpi = 100.0);
+
+    static double measureSkew(const PDFDocument& document, PDFInteger pageIndex);
+
+    static QPointF getDarkCentroid(const QImage& image);
+
+    static QByteArray write(const PDFDocument& document);
+
+    static PDFDocument read(const QByteArray& data);
+
+    /// Writes an own OCR layer on the page
+    static PDFDocument writeLayer(const PDFDocument& document, PDFInteger pageIndex);
+
+    static QRectF getCropBox(const PDFDocument& document, PDFInteger pageIndex);
+};
+
+PDFObjectReference ScanPreparationTestHelper::addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionary dictionary)
 {
     dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(data.size()));
     return builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(data))));
 }
 
-PDFDocument createDocument(const std::vector<TestPage>& pages, const QByteArray& pageLabels = QByteArray())
+PDFDocument ScanPreparationTestHelper::createDocument(const std::vector<TestPage>& pages, const QByteArray& pageLabels)
 {
     PDFDocumentBuilder builder;
 
@@ -217,8 +243,7 @@ PDFDocument createDocument(const std::vector<TestPage>& pages, const QByteArray&
     return builder.build();
 }
 
-/// Content: horizontal bars around the center, rotated clockwise (visually) by the angle
-QByteArray createSkewedBars(QPointF center, double angle, double width = 260.0)
+QByteArray ScanPreparationTestHelper::createSkewedBars(QPointF center, double angle, double width)
 {
     const QTransform matrix = QTransform::fromTranslate(-center.x(), -center.y()) * QTransform().rotate(-angle) * QTransform::fromTranslate(center.x(), center.y());
     QByteArray content = QStringLiteral("q %1 %2 %3 %4 %5 %6 cm 0 g\n").arg(matrix.m11()).arg(matrix.m12()).arg(matrix.m21()).arg(matrix.m22()).arg(matrix.dx()).arg(matrix.dy()).toLatin1();
@@ -231,20 +256,20 @@ QByteArray createSkewedBars(QPointF center, double angle, double width = 260.0)
     return content;
 }
 
-QImage render(const PDFDocument& document, PDFInteger pageIndex, double dpi = 100.0)
+QImage ScanPreparationTestHelper::render(const PDFDocument& document, PDFInteger pageIndex, double dpi)
 {
     RenderingContext context(&document);
     PDFOCRPagePreparer preparer = context.createPreparer(&document);
     return preparer.rasterize(pageIndex, dpi, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image.convertToFormat(QImage::Format_Grayscale8);
 }
 
-double measureSkew(const PDFDocument& document, PDFInteger pageIndex)
+double ScanPreparationTestHelper::measureSkew(const PDFDocument& document, PDFInteger pageIndex)
 {
     double confidence = 0.0;
     return PDFOCRPagePreparer::estimateSkewAngle(render(document, pageIndex), &confidence, nullptr, PDFScanPreparation::MaximumDeskewAngle, true);
 }
 
-QPointF getDarkCentroid(const QImage& image)
+QPointF ScanPreparationTestHelper::getDarkCentroid(const QImage& image)
 {
     double sumX = 0.0;
     double sumY = 0.0;
@@ -265,7 +290,7 @@ QPointF getDarkCentroid(const QImage& image)
     return count > 0 ? QPointF(sumX / count, sumY / count) : QPointF();
 }
 
-QByteArray write(const PDFDocument& document)
+QByteArray ScanPreparationTestHelper::write(const PDFDocument& document)
 {
     QBuffer buffer;
     buffer.open(QIODevice::ReadWrite);
@@ -273,14 +298,13 @@ QByteArray write(const PDFDocument& document)
     return buffer.data();
 }
 
-PDFDocument read(const QByteArray& data)
+PDFDocument ScanPreparationTestHelper::read(const QByteArray& data)
 {
     PDFDocumentReader reader(nullptr, nullptr, false, false);
     return reader.readFromBuffer(data);
 }
 
-/// Writes an own OCR layer on the page
-PDFDocument writeLayer(const PDFDocument& document, PDFInteger pageIndex)
+PDFDocument ScanPreparationTestHelper::writeLayer(const PDFDocument& document, PDFInteger pageIndex)
 {
     PDFOCRPageResult result;
     result.pageIndex = pageIndex;
@@ -310,12 +334,10 @@ PDFDocument writeLayer(const PDFDocument& document, PDFInteger pageIndex)
     return *modifier.getDocument();
 }
 
-QRectF getCropBox(const PDFDocument& document, PDFInteger pageIndex)
+QRectF ScanPreparationTestHelper::getCropBox(const PDFDocument& document, PDFInteger pageIndex)
 {
     return document.getCatalog()->getPage(pageIndex)->getCropBox();
 }
-
-} // namespace
 
 class ScanPreparationTest : public QObject
 {
@@ -363,13 +385,13 @@ void ScanPreparationTest::deskewSignAndCenter()
         page.cropBox = testCase.cropBox;
         page.userUnit = testCase.userUnit;
         const QRectF cropBox = testCase.cropBox.isValid() ? testCase.cropBox : QRectF(QPointF(0, 0), page.size);
-        page.content = createSkewedBars(cropBox.center(), testCase.angle);
-        const PDFDocument document = createDocument({ page });
+        page.content = ScanPreparationTestHelper::createSkewedBars(cropBox.center(), testCase.angle);
+        const PDFDocument document = ScanPreparationTestHelper::createDocument({ page });
 
-        const double measured = measureSkew(document, 0);
+        const double measured = ScanPreparationTestHelper::measureSkew(document, 0);
         QVERIFY2(std::abs(measured - testCase.angle) < 0.3, qPrintable(QStringLiteral("rotation %1: measured %2, expected %3").arg(int(testCase.rotation)).arg(measured).arg(testCase.angle)));
 
-        const QPointF centroidBefore = getDarkCentroid(render(document, 0));
+        const QPointF centroidBefore = ScanPreparationTestHelper::getDarkCentroid(ScanPreparationTestHelper::render(document, 0));
 
         PDFScanPreparation::Plan plan = PDFScanPreparation::createIdentityPlan(&document);
         plan.pages.front().deskewAngle = measured;
@@ -381,9 +403,9 @@ void ScanPreparationTest::deskewSignAndCenter()
         QCOMPARE(result.pageCount, 1);
 
         // Straight after the deskew, rotated around the center of the crop box
-        const double remaining = measureSkew(*result.document, 0);
+        const double remaining = ScanPreparationTestHelper::measureSkew(*result.document, 0);
         QVERIFY2(std::abs(remaining) < 0.3, qPrintable(QStringLiteral("rotation %1: remaining skew %2").arg(int(testCase.rotation)).arg(remaining)));
-        const QPointF centroidAfter = getDarkCentroid(render(*result.document, 0));
+        const QPointF centroidAfter = ScanPreparationTestHelper::getDarkCentroid(ScanPreparationTestHelper::render(*result.document, 0));
         QVERIFY2(QLineF(centroidBefore, centroidAfter).length() < 3.0, qPrintable(QStringLiteral("rotation %1: centroid moved by %2 px").arg(int(testCase.rotation)).arg(QLineF(centroidBefore, centroidAfter).length())));
 
         // The content is valid and the original content stream is kept (shared, not re-encoded)
@@ -394,9 +416,9 @@ void ScanPreparationTest::deskewSignAndCenter()
         QCOMPARE(contents[1], PDFOCRTextLayerWriter::getPageContentReferences(&document, 0).front());
 
         // Written and read again
-        const PDFDocument reopened = read(write(*result.document));
+        const PDFDocument reopened = ScanPreparationTestHelper::read(ScanPreparationTestHelper::write(*result.document));
         QCOMPARE(reopened.getCatalog()->getPageCount(), size_t(1));
-        QVERIFY(std::abs(measureSkew(reopened, 0)) < 0.3);
+        QVERIFY(std::abs(ScanPreparationTestHelper::measureSkew(reopened, 0)) < 0.3);
     }
 }
 
@@ -407,14 +429,14 @@ void ScanPreparationTest::deskewUnbalancedContent()
     // wrapper (the rotation stays), a stray "ET" is an error and the page is not straightened.
     TestPage open;
     open.size = QSizeF(420, 320);
-    open.content = "1 0 0 1 0 0 cm q q\n" + createSkewedBars(QPointF(210, 160), 3.0) + "BT\n";
+    open.content = "1 0 0 1 0 0 cm q q\n" + ScanPreparationTestHelper::createSkewedBars(QPointF(210, 160), 3.0) + "BT\n";
     TestPage strayQ;
     strayQ.size = QSizeF(420, 320);
-    strayQ.content = "Q\n" + createSkewedBars(QPointF(210, 160), 3.0);
+    strayQ.content = "Q\n" + ScanPreparationTestHelper::createSkewedBars(QPointF(210, 160), 3.0);
     TestPage strayET;
     strayET.size = QSizeF(420, 320);
-    strayET.content = createSkewedBars(QPointF(210, 160), 3.0) + "ET\n";
-    const PDFDocument document = createDocument({ open, strayQ, strayET });
+    strayET.content = ScanPreparationTestHelper::createSkewedBars(QPointF(210, 160), 3.0) + "ET\n";
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ open, strayQ, strayET });
 
     // Analysis reports the stray closing operator of the text object
     RenderingContext context(&document);
@@ -439,7 +461,7 @@ void ScanPreparationTest::deskewUnbalancedContent()
     {
         QString error;
         QVERIFY2(PDFOCRTextLayerWriter::validatePageContent(result.document.data(), page, &error), qPrintable(error));
-        const double remaining = measureSkew(*result.document, page);
+        const double remaining = ScanPreparationTestHelper::measureSkew(*result.document, page);
         QVERIFY2(std::abs(remaining) < 0.3, qPrintable(QStringLiteral("page %1: %2").arg(page + 1).arg(remaining)));
     }
     QCOMPARE(PDFOCRTextLayerWriter::getPageContentReferences(result.document.data(), 2).size(), size_t(1));
@@ -455,7 +477,7 @@ void ScanPreparationTest::splitSharesContent()
     spread.content = "q 600 0 0 400 0 0 cm /Im1 Do Q\n";
     spread.links = { QRectF(50, 50, 100, 20), QRectF(400, 300, 100, 20) };
     TestPage last;
-    const PDFDocument document = createDocument({ first, spread, last });
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ first, spread, last });
 
     const std::array<QRectF, 2> halves = PDFScanPreparation::computeSplit(QSizeF(600, 400), PDFScanPreparation::SplitOrientation::SideBySide, 300.0, 10.0);
     QCOMPARE(halves[0], QRectF(0, 0, 295, 400));
@@ -479,8 +501,8 @@ void ScanPreparationTest::splitSharesContent()
     QCOMPARE(split.getCatalog()->getPageCount(), size_t(4));
 
     // The halves have their crop boxes (the page is not rotated: visible = page space, y flipped)
-    QCOMPARE(getCropBox(split, 1), QRectF(0, 0, 295, 400));
-    QCOMPARE(getCropBox(split, 2), QRectF(305, 0, 295, 400));
+    QCOMPARE(ScanPreparationTestHelper::getCropBox(split, 1), QRectF(0, 0, 295, 400));
+    QCOMPARE(ScanPreparationTestHelper::getCropBox(split, 2), QRectF(305, 0, 295, 400));
     QCOMPARE(split.getCatalog()->getPage(2)->getMediaBox(), QRectF(0, 0, 600, 400));
 
     // The halves share the content stream and the image (the image is in the file once)
@@ -507,9 +529,9 @@ void ScanPreparationTest::splitSharesContent()
     QCOMPARE(leftLink->get("P").getReference(), leftPage);
 
     // Written and read again, the rendering of the halves shows the halves of the spread
-    const PDFDocument reopened = read(write(split));
+    const PDFDocument reopened = ScanPreparationTestHelper::read(ScanPreparationTestHelper::write(split));
     QCOMPARE(reopened.getCatalog()->getPageCount(), size_t(4));
-    QCOMPARE(render(reopened, 2, 72.0).size(), QSize(295, 400));
+    QCOMPARE(ScanPreparationTestHelper::render(reopened, 2, 72.0).size(), QSize(295, 400));
     QVERIFY(result.getSummary().contains(QStringLiteral("4 page(s)")));
 }
 
@@ -523,7 +545,7 @@ void ScanPreparationTest::splitReadingOrderAndLabels()
     spread.rotation = PageRotation::Rotate90;
     spread.content = "0 g 10 10 50 50 re f\n";
     TestPage last;
-    const PDFDocument document = createDocument({ first, spread, last }, "0 D; 2 r");
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ first, spread, last }, "0 D; 2 r");
 
     const QSizeF visibleSize = PDFScanPreparation::getVisibleSize(document.getCatalog()->getPage(1));
     QCOMPARE(visibleSize, QSizeF(600, 400));
@@ -541,8 +563,8 @@ void ScanPreparationTest::splitReadingOrderAndLabels()
     const PDFDocument& split = *result.document;
 
     // Both halves are 300 x 400 visible points, each shows a different part of the page
-    const QRectF firstCrop = getCropBox(split, 1);
-    const QRectF secondCrop = getCropBox(split, 2);
+    const QRectF firstCrop = ScanPreparationTestHelper::getCropBox(split, 1);
+    const QRectF secondCrop = ScanPreparationTestHelper::getCropBox(split, 2);
     QCOMPARE(split.getCatalog()->getPage(1)->getRotatedCropBox().size(), QSizeF(300, 400));
     QCOMPARE(split.getCatalog()->getPage(2)->getRotatedCropBox().size(), QSizeF(300, 400));
     QVERIFY(!firstCrop.intersects(secondCrop.adjusted(1, 1, -1, -1)));
@@ -565,7 +587,7 @@ void ScanPreparationTest::taggedPageIsNotSplit()
     tagged.size = QSizeF(600, 400);
     tagged.structParents = true;
     tagged.content = "0 g 10 10 50 50 re f\n";
-    const PDFDocument document = createDocument({ tagged });
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ tagged });
 
     PDFScanPreparation::Plan plan = PDFScanPreparation::createIdentityPlan(&document);
     const std::array<QRectF, 2> halves = PDFScanPreparation::computeSplit(QSizeF(600, 400), PDFScanPreparation::SplitOrientation::SideBySide, 300.0, 0.0);
@@ -587,14 +609,14 @@ void ScanPreparationTest::taggedPageIsNotSplit()
     const PDFScanPreparation::Result cropped = PDFScanPreparation::apply(&document, cropPlan, nullptr);
     QVERIFY2(cropped.isSuccess(), qPrintable(cropped.errorMessage));
     QCOMPARE(cropped.croppedPages, 1);
-    QCOMPARE(getCropBox(*cropped.document, 0), QRectF(10, 90, 500, 300));
+    QCOMPARE(ScanPreparationTestHelper::getCropBox(*cropped.document, 0), QRectF(10, 90, 500, 300));
 }
 
 void ScanPreparationTest::ocrLayerDecision()
 {
     TestPage page;
     page.content = "0 g 10 10 50 50 re f\n";
-    const PDFDocument document = writeLayer(createDocument({ page, page }), 0);
+    const PDFDocument document = ScanPreparationTestHelper::writeLayer(ScanPreparationTestHelper::createDocument({ page, page }), 0);
     QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(&document, 0).isPresent);
 
     PDFScanPreparation::Plan plan = PDFScanPreparation::createIdentityPlan(&document);
@@ -607,7 +629,7 @@ void ScanPreparationTest::ocrLayerDecision()
     QVERIFY2(skipped.isSuccess(), qPrintable(skipped.errorMessage));
     QCOMPARE(skipped.skippedPages, std::vector<PDFInteger>{ 0 });
     QCOMPARE(skipped.croppedPages, 1);
-    QCOMPARE(getCropBox(*skipped.document, 0), QRectF(0, 0, 400, 300));
+    QCOMPARE(ScanPreparationTestHelper::getCropBox(*skipped.document, 0), QRectF(0, 0, 400, 300));
     QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(skipped.document.data(), 0).fingerprintMatches);
 
     // Removal of the layer: the page is changed and has no layer
@@ -717,10 +739,10 @@ void ScanPreparationTest::pageAnalysis()
     TestPage scan;
     scan.size = QSizeF(420, 320);
     scan.withImage = true;
-    scan.content = "q 420 0 0 320 0 0 cm /Im1 Do Q\n" + createSkewedBars(QPointF(210, 160), 2.0);
+    scan.content = "q 420 0 0 320 0 0 cm /Im1 Do Q\n" + ScanPreparationTestHelper::createSkewedBars(QPointF(210, 160), 2.0);
     TestPage vector;
     vector.content = "0 g 10 10 50 50 re f\n";
-    const PDFDocument document = writeLayer(createDocument({ scan, vector }), 1);
+    const PDFDocument document = ScanPreparationTestHelper::writeLayer(ScanPreparationTestHelper::createDocument({ scan, vector }), 1);
 
     RenderingContext context(&document);
     PDFOCRPagePreparer preparer = context.createPreparer(&document);
@@ -742,7 +764,7 @@ void ScanPreparationTest::planValidation()
 {
     TestPage page;
     page.content = "0 g 10 10 50 50 re f\n";
-    const PDFDocument document = createDocument({ page, page });
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ page, page });
 
     // Identity plan does not change anything
     const PDFScanPreparation::Result identity = PDFScanPreparation::apply(&document, PDFScanPreparation::createIdentityPlan(&document), nullptr);
@@ -785,8 +807,8 @@ void ScanPreparationTest::splitWithDeskewAndCrop()
     // own centers and cropped automatically to their content
     TestPage spread;
     spread.size = QSizeF(840, 320);
-    spread.content = createSkewedBars(QPointF(210, 160), 3.0, 240.0) + createSkewedBars(QPointF(630, 160), -2.0, 240.0);
-    const PDFDocument document = createDocument({ spread });
+    spread.content = ScanPreparationTestHelper::createSkewedBars(QPointF(210, 160), 3.0, 240.0) + ScanPreparationTestHelper::createSkewedBars(QPointF(630, 160), -2.0, 240.0);
+    const PDFDocument document = ScanPreparationTestHelper::createDocument({ spread });
 
     RenderingContext context(&document);
     PDFOCRPagePreparer preparer = context.createPreparer(&document);
@@ -819,10 +841,10 @@ void ScanPreparationTest::splitWithDeskewAndCrop()
     // The halves are straight and their whole content is inside the crop (no ink touches the edge)
     for (PDFInteger page = 0; page < 2; ++page)
     {
-        const double remaining = measureSkew(*result.document, page);
+        const double remaining = ScanPreparationTestHelper::measureSkew(*result.document, page);
         QVERIFY2(std::abs(remaining) < 0.3, qPrintable(QStringLiteral("half %1: %2").arg(page + 1).arg(remaining)));
 
-        const QImage image = render(*result.document, page);
+        const QImage image = ScanPreparationTestHelper::render(*result.document, page);
         int edgeInk = 0;
         for (int x = 0; x < image.width(); ++x)
         {

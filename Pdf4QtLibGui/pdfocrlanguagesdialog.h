@@ -59,6 +59,11 @@ private:
     void updateModelItem(const QString& modelId);
     void updateUi();
     void fillItem(QTreeWidgetItem* item, const pdf::PDFOCRModelInfo& model) const;
+
+    /// Formats the version of the model (a git commit of the source repository,
+    /// or the date of the import) and its tool tip
+    QString formatVersion(const pdf::PDFOCRModelInfo& model, QString& toolTip) const;
+
     bool isModelVisible(const pdf::PDFOCRModelInfo& model) const;
     std::vector<pdf::PDFOCRModelInfo> getSelectedModels() const;
 

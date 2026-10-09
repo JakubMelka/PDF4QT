@@ -1,6 +1,8 @@
 #include "pdfimageconversion.h"
 #include "pdfdbgheap.h"
 
+#include <QPainter>
+
 #include <cmath>
 #include <array>
 #include <vector>
@@ -784,6 +786,69 @@ QImage PDFImageConversion::convertDithered(int threshold) const
     }
 
     return bitonal;
+}
+
+QImage PDFImageConversion::compositeOntoWhite(const QImage& image)
+{
+    QImage result(image.size(), QImage::Format_RGB32);
+    result.fill(Qt::white);
+
+    QPainter painter(&result);
+    painter.drawImage(0, 0, image);
+    painter.end();
+
+    return result;
+}
+
+int PDFImageConversion::calculateOtsuThreshold(const QImage& grayImage)
+{
+    std::array<qint64, 256> histogram = { };
+    for (int y = 0; y < grayImage.height(); ++y)
+    {
+        const uchar* row = grayImage.constScanLine(y);
+        for (int x = 0; x < grayImage.width(); ++x)
+        {
+            ++histogram[row[x]];
+        }
+    }
+
+    const qint64 total = qint64(grayImage.width()) * grayImage.height();
+    double sum = 0.0;
+    for (int i = 0; i < 256; ++i)
+    {
+        sum += double(i) * histogram[size_t(i)];
+    }
+
+    double sumBackground = 0.0;
+    qint64 weightBackground = 0;
+    double bestVariance = -1.0;
+    int threshold = DEFAULT_THRESHOLD;
+    for (int i = 0; i < 256; ++i)
+    {
+        weightBackground += histogram[size_t(i)];
+        if (weightBackground == 0)
+        {
+            continue;
+        }
+
+        const qint64 weightForeground = total - weightBackground;
+        if (weightForeground == 0)
+        {
+            break;
+        }
+
+        sumBackground += double(i) * histogram[size_t(i)];
+        const double meanBackground = sumBackground / weightBackground;
+        const double meanForeground = (sum - sumBackground) / weightForeground;
+        const double variance = double(weightBackground) * double(weightForeground) * (meanBackground - meanForeground) * (meanBackground - meanForeground);
+        if (variance > bestVariance)
+        {
+            bestVariance = variance;
+            threshold = i;
+        }
+    }
+
+    return threshold;
 }
 
 }   // namespace pdf

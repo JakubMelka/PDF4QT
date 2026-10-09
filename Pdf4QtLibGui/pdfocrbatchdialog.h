@@ -122,6 +122,19 @@ private:
         ColumnCount
     };
 
+    /// Roles of the data of the file item
+    static constexpr int InputFileRole = Qt::UserRole;
+    static constexpr int OutputFileRole = Qt::UserRole + 1;
+
+    /// Choice of the compression of the images
+    enum CompressionChoice
+    {
+        CompressionOff,
+        CompressionLossless
+    };
+
+    static QString getSettingsGroup();
+
     void createUi();
     void loadSettings();
     void saveSettings() const;

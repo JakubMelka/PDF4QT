@@ -49,31 +49,6 @@
 namespace pdf
 {
 
-namespace
-{
-
-/// Disables the shrinking of the font cache for the time of the run (the pages are
-/// rendered concurrently) and enables it again, whatever happens
-class PDFFontCacheShrinkGuard
-{
-public:
-    explicit PDFFontCacheShrinkGuard(PDFFontCache* fontCache) :
-        m_fontCache(fontCache)
-    {
-        m_fontCache->setCacheShrinkEnabled(nullptr, false);
-    }
-
-    ~PDFFontCacheShrinkGuard()
-    {
-        m_fontCache->setCacheShrinkEnabled(nullptr, true);
-    }
-
-private:
-    PDFFontCache* m_fontCache;
-};
-
-}   // namespace
-
 int PDFOCRDocumentRunner::Result::getFailedPageCount() const
 {
     return int(std::count_if(records.cbegin(), records.cend(), [](const PageRecord& record)
@@ -821,9 +796,9 @@ PDFOCRApplyProcessor::Result PDFOCRDocumentRunner::writeCopy(const PDFDocument* 
 }
 
 PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTask& task,
-                                                                  const Settings& settings,
-                                                                  const ProgressCallback& progress,
-                                                                  const PDFOperationControl* operationControl)
+                                                                   const Settings& settings,
+                                                                   const ProgressCallback& progress,
+                                                                   const PDFOperationControl* operationControl)
 {
     FileResult fileResult;
     QElapsedTimer timer;

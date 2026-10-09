@@ -35,6 +35,8 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdfdocumentwriter.h"
 #include "pdfnumbertreeloader.h"
+#include "pdfimageconversion.h"
+#include "pdfutils.h"
 
 #include <QPainter>
 #include <QCryptographicHash>
@@ -236,9 +238,28 @@ private:
     std::vector<QRectF> m_invisibleCharacterRects;
 };
 
-/// Merges the rectangles of the characters into the rectangles of the lines: characters
-/// with an overlapping vertical extent and a small horizontal gap form one rectangle.
-static std::vector<QRectF> clusterTextRectangles(std::vector<QRectF> characters)
+/// Clustering of the text rectangles and the digest of the objects of the page fingerprint
+class PDFOCRPagePreparerHelper
+{
+public:
+    PDFOCRPagePreparerHelper() = delete;
+
+    /// Merges the rectangles of the characters into the rectangles of the lines: characters
+    /// with an overlapping vertical extent and a small horizontal gap form one rectangle.
+    static std::vector<QRectF> clusterTextRectangles(std::vector<QRectF> characters);
+
+    /// Computes digest of the object. Dictionaries, which are empty after skipping
+    /// the keys of the own layer, have the same digest as a missing dictionary, so
+    /// adding/removing the own font resource does not change the fingerprint.
+    static QByteArray digestObject(const PDFObject& object,
+                                   const PDFObjectStorage* storage,
+                                   int depth,
+                                   std::set<PDFObjectReference>& visited,
+                                   const std::function<bool(const QByteArray&)>& skipKey,
+                                   const std::set<PDFObjectReference>* neutralObjects = nullptr);
+};
+
+std::vector<QRectF> PDFOCRPagePreparerHelper::clusterTextRectangles(std::vector<QRectF> characters)
 {
     std::erase_if(characters, [](const QRectF& rect) { return !rect.isValid() || rect.isEmpty() || !std::isfinite(rect.left()) || !std::isfinite(rect.top()) || !std::isfinite(rect.width()) || !std::isfinite(rect.height()); });
     std::sort(characters.begin(), characters.end(), [](const QRectF& left, const QRectF& right) { return left.left() < right.left(); });
@@ -527,7 +548,7 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
             characterRects.push_back(rect);
         }
     }
-    analysis.textRectangles = clusterTextRectangles(std::move(characterRects));
+    analysis.textRectangles = PDFOCRPagePreparerHelper::clusterTextRectangles(std::move(characterRects));
 
     analysis.isTagged = isTaggedDocument(m_document);
 
@@ -637,46 +658,6 @@ bool PDFOCRPagePreparer::hasConformanceDeclaration(const PDFDocument* document, 
     return PDFOCRTextLayerWriter::findConformanceDeclarations(metadata, declarations, nullptr);
 }
 
-static QString toRoman(PDFInteger number, bool uppercase)
-{
-    if (number <= 0 || number >= 4000)
-    {
-        return QString::number(number);
-    }
-
-    static const std::array<std::pair<int, const char*>, 13> table =
-    { {
-        { 1000, "M" }, { 900, "CM" }, { 500, "D" }, { 400, "CD" }, { 100, "C" }, { 90, "XC" },
-        { 50, "L" }, { 40, "XL" }, { 10, "X" }, { 9, "IX" }, { 5, "V" }, { 4, "IV" }, { 1, "I" }
-    } };
-
-    QString result;
-    PDFInteger remaining = number;
-    for (const auto& item : table)
-    {
-        while (remaining >= item.first)
-        {
-            result += QLatin1String(item.second);
-            remaining -= item.first;
-        }
-    }
-
-    return uppercase ? result : result.toLower();
-}
-
-static QString toLetters(PDFInteger number, bool uppercase)
-{
-    if (number <= 0)
-    {
-        return QString::number(number);
-    }
-
-    // 1 = A, 26 = Z, 27 = AA, ...
-    const int count = int((number - 1) / 26) + 1;
-    const QChar letter = QChar(int((uppercase ? 'A' : 'a') + (number - 1) % 26));
-    return QString(count, letter);
-}
-
 QString PDFOCRPagePreparer::getPageLabel(const PDFDocument* document, PDFInteger pageIndex)
 {
     const PDFDictionary* trailer = document->getTrailerDictionary();
@@ -711,42 +692,17 @@ QString PDFOCRPagePreparer::getPageLabel(const PDFDocument* document, PDFInteger
     }
 
     const PDFInteger number = label->getPageStartNumber() + (pageIndex - label->getPageIndex());
-    QString numberText;
-    switch (label->getNumberingStyle())
-    {
-        case PDFPageLabel::NumberingStyle::None:
-            break;
-        case PDFPageLabel::NumberingStyle::DecimalArabic:
-            numberText = QString::number(number);
-            break;
-        case PDFPageLabel::NumberingStyle::UppercaseRoman:
-            numberText = toRoman(number, true);
-            break;
-        case PDFPageLabel::NumberingStyle::LowercaseRoman:
-            numberText = toRoman(number, false);
-            break;
-        case PDFPageLabel::NumberingStyle::UppercaseLetters:
-            numberText = toLetters(number, true);
-            break;
-        case PDFPageLabel::NumberingStyle::LowercaseLetters:
-            numberText = toLetters(number, false);
-            break;
-    }
-
-    return label->getPrefix() + numberText;
+    return label->getPrefix() + PDFPageLabel::formatPageNumber(label->getNumberingStyle(), number);
 }
 
 static const QByteArray EMPTY_DICTIONARY_DIGEST = QByteArrayLiteral("EMPTY-DICTIONARY");
 
-/// Computes digest of the object. Dictionaries, which are empty after skipping
-/// the keys of the own layer, have the same digest as a missing dictionary, so
-/// adding/removing the own font resource does not change the fingerprint.
-static QByteArray digestObject(const PDFObject& object,
-                               const PDFObjectStorage* storage,
-                               int depth,
-                               std::set<PDFObjectReference>& visited,
-                               const std::function<bool(const QByteArray&)>& skipKey,
-                               const std::set<PDFObjectReference>* neutralObjects = nullptr)
+QByteArray PDFOCRPagePreparerHelper::digestObject(const PDFObject& object,
+                                                  const PDFObjectStorage* storage,
+                                                  int depth,
+                                                  std::set<PDFObjectReference>& visited,
+                                                  const std::function<bool(const QByteArray&)>& skipKey,
+                                                  const std::set<PDFObjectReference>* neutralObjects)
 {
     if (object.isReference() && neutralObjects && neutralObjects->count(object.getReference()))
     {
@@ -936,14 +892,14 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     constexpr int MaximumDepth = 64;
     hash.addData(QByteArrayLiteral("RES"));
     const std::set<PDFObjectReference>* neutral = neutralObjects.empty() ? nullptr : &neutralObjects;
-    hash.addData(digestObject(page->getResources(), storage, MaximumDepth, visited, skipKey, neutral));
+    hash.addData(PDFOCRPagePreparerHelper::digestObject(page->getResources(), storage, MaximumDepth, visited, skipKey, neutral));
 
     // Annotations: their rectangles, flags and appearances cover the page content and
     // an unapplied redaction blocks the recognition (IMAGE-03, PDF-13)
     hash.addData(QByteArrayLiteral("ANNOTS"));
     for (const PDFObjectReference& annotationReference : page->getAnnotations())
     {
-        hash.addData(digestObject(PDFObject::createReference(annotationReference), storage, MaximumDepth, visited, skipKey, neutral));
+        hash.addData(PDFOCRPagePreparerHelper::digestObject(PDFObject::createReference(annotationReference), storage, MaximumDepth, visited, skipKey, neutral));
     }
 
     // Default configuration of the optional content (visibility of the layers, JOB-10)
@@ -952,7 +908,7 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     {
         if (const PDFDictionary* properties = document->getDictionaryFromObject(catalogDictionary->get("OCProperties")))
         {
-            hash.addData(digestObject(properties->get("D"), storage, MaximumDepth, visited, skipKey, neutral));
+            hash.addData(PDFOCRPagePreparerHelper::digestObject(properties->get("D"), storage, MaximumDepth, visited, skipKey, neutral));
         }
     }
 
@@ -1054,18 +1010,6 @@ qint64 PDFOCRPagePreparer::estimateRasterBytes(const PDFPage* page, double dpi)
 {
     const QSize size = getRasterSize(page, dpi);
     return qint64(size.width()) * qint64(size.height()) * 4;
-}
-
-static QImage compositeOntoWhite(const QImage& image)
-{
-    QImage result(image.size(), QImage::Format_RGB32);
-    result.fill(Qt::white);
-
-    QPainter painter(&result);
-    painter.drawImage(0, 0, image);
-    painter.end();
-
-    return result;
 }
 
 PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIndex,
@@ -1174,7 +1118,7 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
     }
 
     // Composite onto white background (IMAGE-02)
-    result.image = compositeOntoWhite(image);
+    result.image = PDFImageConversion::compositeOntoWhite(image);
     if (result.image.isNull())
     {
         result.error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory, PDFTranslationContext::tr("Not enough memory for the image of the page %1.").arg(pageIndex + 1), PDFTranslationContext::tr("Rendering"));
@@ -1374,7 +1318,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
             QImage rotated = image.transformed(deskewMatrix, Qt::SmoothTransformation);
 
             // Transparent corners must become white
-            image = compositeOntoWhite(rotated.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+            image = PDFImageConversion::compositeOntoWhite(rotated.convertToFormat(QImage::Format_ARGB32_Premultiplied));
             if (image.isNull())
             {
                 result.error = PDFOCRError::create(PDFOCRErrorCode::OutOfMemory, PDFTranslationContext::tr("Not enough memory for the straightened image."), PDFTranslationContext::tr("Preprocessing"));
@@ -1845,21 +1789,6 @@ PDFOCRQuad PDFOCRPagePreparer::imagePolygonToPageQuad(const QPolygonF& polygon, 
     return quad;
 }
 
-/// Intersection over union of two rectangles. Unlike the ratio to the smaller
-/// rectangle, a small word inside of a large (wrong) box is not a duplicate.
-static double getIntersectionOverUnion(const QRectF& first, const QRectF& second)
-{
-    const QRectF intersection = first.intersected(second);
-    if (intersection.isEmpty())
-    {
-        return 0.0;
-    }
-
-    const double intersectionArea = intersection.width() * intersection.height();
-    const double unionArea = first.width() * first.height() + second.width() * second.height() - intersectionArea;
-    return unionArea > 0.0 ? intersectionArea / unionArea : 0.0;
-}
-
 bool PDFOCRPagePreparer::intersectsAny(const QRectF& rect, const std::vector<QRectF>& rectangles)
 {
     for (const QRectF& other : rectangles)
@@ -1988,7 +1917,7 @@ void PDFOCRPagePreparer::appendOutput(PDFOCRPageResult& result,
                 bool duplicate = false;
                 for (const QRectF& existing : existingWords)
                 {
-                    if (getIntersectionOverUnion(existing, wordRect) > 0.5)
+                    if (PDFGeometryUtils::getIntersectionOverUnion(existing, wordRect) > 0.5)
                     {
                         duplicate = true;
                         break;

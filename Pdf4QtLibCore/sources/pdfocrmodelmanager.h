@@ -394,6 +394,10 @@ private:
     /// temporary files and runtime sets, which were not used for a long time
     /// (LANG-07, OPS-04). It is done once, when no other instance holds the lock.
     void performHousekeeping();
+
+    /// Removes the runtime set (its models are read-only). The marker of the complete
+    /// set is removed first, so a partially removed set is never taken as complete.
+    static bool removeRuntimeSet(const QString& setDirectory);
     QString getLanguageWithoutImport(const QString& language, QString* importId) const;
 
     mutable QMutex m_mutex;

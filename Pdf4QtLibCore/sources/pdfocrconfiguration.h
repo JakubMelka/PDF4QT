@@ -69,6 +69,17 @@ enum class PDFOCRLayout
     RawLine = 13
 };
 
+/// Engine mode (REC-01). Values are the OCR engine modes (OEM) of Tesseract,
+/// other engines map them to their own capabilities. The values are stored
+/// in the configurations and in the projects, they must not be changed.
+enum class PDFOCREngineMode
+{
+    Legacy = 0,         ///< Legacy engine only
+    NeuralNetwork = 1,  ///< LSTM neural network only
+    Combined = 2,       ///< Legacy engine combined with the LSTM neural network
+    Default = 3         ///< Default mode of the available models
+};
+
 /// Binarization mode (IMAGE-04)
 enum class PDFOCRBinarization
 {
@@ -139,8 +150,7 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
 
     PDFOCRLayout layout = PDFOCRLayout::Automatic;
 
-    /// Engine mode (for Tesseract OEM: 0 legacy, 1 LSTM, 2 combined, 3 default)
-    int engineMode = 1;
+    PDFOCREngineMode engineMode = PDFOCREngineMode::NeuralNetwork;
 
     /// Raster resolution in DPI
     double dpi = 300.0;
@@ -223,6 +233,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
 
     /// Returns all layouts
     static const std::vector<PDFOCRLayout>& getLayouts();
+
+    /// Returns human readable, translated name of the engine mode
+    static QString getEngineModeName(PDFOCREngineMode engineMode);
 
     /// Returns all profiles, from the fastest one to the most accurate one
     static const std::vector<PDFOCRModelProfile>& getProfiles();

@@ -25,6 +25,7 @@
 #include "pdfdocument.h"
 #include "pdfcatalog.h"
 #include "pdfconstants.h"
+#include "pdfutils.h"
 
 #include <QDir>
 #include <QHash>
@@ -41,79 +42,94 @@
 namespace pdf
 {
 
-namespace
+/// Geometry of the pages of the structured export and the writers of the formats (hOCR, ALTO, TSV)
+class PDFOCRStructuredExporterHelper
 {
+public:
+    PDFOCRStructuredExporterHelper() = delete;
 
-/// Word of the export with its geometry in the pixels of the export
-struct ExportWord
-{
-    const PDFOCRWord* word = nullptr;
-    QString text;
-    QPolygonF polygon;
-    QRect box;
-};
-
-/// Line of the export
-struct ExportLine
-{
-    const PDFOCRLine* line = nullptr;
-    std::vector<ExportWord> words;
-    QRect box;
-
-    /// Baseline in the pixels of the export (from the start to the end of the line)
-    QLineF baseline;
-
-    /// Angle of the text in degrees, counterclockwise (0 = horizontal text)
-    int textAngle = 0;
-};
-
-/// Block of the export
-struct ExportBlock
-{
-    const PDFOCRBlock* block = nullptr;
-    std::vector<ExportLine> lines;
-    QRect box;
-};
-
-/// Page of the export
-struct ExportPage
-{
-    const PDFOCRPageResult* page = nullptr;
-    std::vector<ExportBlock> blocks;
-    QSize size;
-    double dpi = 0.0;
-    QString description;
-};
-
-QRect toPixelBox(const QRectF& rect, QSize size)
-{
-    const int left = qBound(0, int(std::floor(rect.left())), size.width());
-    const int top = qBound(0, int(std::floor(rect.top())), size.height());
-    const int right = qBound(0, int(std::ceil(rect.right())), size.width());
-    const int bottom = qBound(0, int(std::ceil(rect.bottom())), size.height());
-    return QRect(QPoint(left, top), QPoint(right - 1, bottom - 1));
-}
-
-QRect unite(const QRect& first, const QRect& second)
-{
-    if (first.isNull())
+    /// Word of the export with its geometry in the pixels of the export
+    struct ExportWord
     {
-        return second;
-    }
-    if (second.isNull())
-    {
-        return first;
-    }
-    return first.united(second);
-}
+        const PDFOCRWord* word = nullptr;
+        QString text;
+        QPolygonF polygon;
+        QRect box;
+    };
 
-/// Returns the coordinates of the box as "left top right bottom" (exclusive right/bottom)
-QString formatBox(const QRect& box)
+    /// Line of the export
+    struct ExportLine
+    {
+        const PDFOCRLine* line = nullptr;
+        std::vector<ExportWord> words;
+        QRect box;
+
+        /// Baseline in the pixels of the export (from the start to the end of the line)
+        QLineF baseline;
+
+        /// Angle of the text in degrees, counterclockwise (0 = horizontal text)
+        int textAngle = 0;
+    };
+
+    /// Block of the export
+    struct ExportBlock
+    {
+        const PDFOCRBlock* block = nullptr;
+        std::vector<ExportLine> lines;
+        QRect box;
+    };
+
+    /// Page of the export
+    struct ExportPage
+    {
+        const PDFOCRPageResult* page = nullptr;
+        std::vector<ExportBlock> blocks;
+        QSize size;
+        double dpi = 0.0;
+        QString description;
+    };
+
+    /// Returns the coordinates of the box as "left top right bottom" (exclusive right/bottom)
+    static QString formatBox(const QRect& box);
+
+    static QString getPageDescription(const PDFOCRPageResult& page);
+
+    static bool isWordConfidenceLevel(const PDFOCRConfidence& confidence);
+
+    /// Returns the confidence of the line, if the engine scores the lines only
+    static std::optional<double> getLineConfidence(const PDFOCRLine& line);
+
+    /// Prepares the geometry of the page for the export
+    static bool preparePage(const PDFDocument* document, const PDFOCRPageResult& page, const PDFOCRStructuredExporter::Options& options, ExportPage& exportPage);
+
+    /// Collects the engines of the pages ("tesseract 5.5.2")
+    static QStringList getEngines(const std::vector<ExportPage>& pages);
+
+    /// Collects the language tags of the words of the pages
+    static QStringList getLanguages(const std::vector<ExportPage>& pages);
+
+    static QString getImageFileName(const PDFOCRStructuredExporter::Options& options, const PDFOCRPageResult& page);
+
+    static QByteArray writeHocr(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options);
+
+    static QString formatPoints(const QPolygonF& polygon);
+
+    /// Returns true, if the word is the first part of a word hyphenated at the end of
+    /// the line and the next line continues it (the same rule as the text export:
+    /// only a lowercase continuation is a continuation of the word)
+    static bool isHyphenationPart1(const ExportLine& line, size_t wordIndex, const ExportLine* nextLine);
+
+    static QByteArray writeAlto(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options);
+
+    static QByteArray writeTsv(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options);
+};
+
+QString PDFOCRStructuredExporterHelper::formatBox(const QRect& box)
 {
     return QStringLiteral("%1 %2 %3 %4").arg(box.left()).arg(box.top()).arg(box.left() + box.width()).arg(box.top() + box.height());
 }
 
-QString getPageDescription(const PDFOCRPageResult& page)
+QString PDFOCRStructuredExporterHelper::getPageDescription(const PDFOCRPageResult& page)
 {
     QString description = PDFTranslationContext::tr("Page %1").arg(page.pageIndex + 1);
     if (!page.pageLabel.isEmpty() && page.pageLabel != QString::number(page.pageIndex + 1))
@@ -123,13 +139,12 @@ QString getPageDescription(const PDFOCRPageResult& page)
     return description;
 }
 
-bool isWordConfidenceLevel(const PDFOCRConfidence& confidence)
+bool PDFOCRStructuredExporterHelper::isWordConfidenceLevel(const PDFOCRConfidence& confidence)
 {
     return confidence.isAvailable() && (confidence.level == PDFOCRConfidenceLevel::Word || confidence.level == PDFOCRConfidenceLevel::Symbol);
 }
 
-/// Returns the confidence of the line, if the engine scores the lines only
-std::optional<double> getLineConfidence(const PDFOCRLine& line)
+std::optional<double> PDFOCRStructuredExporterHelper::getLineConfidence(const PDFOCRLine& line)
 {
     if (line.confidence.isAvailable() && line.confidence.level == PDFOCRConfidenceLevel::Line)
     {
@@ -147,8 +162,7 @@ std::optional<double> getLineConfidence(const PDFOCRLine& line)
     return std::nullopt;
 }
 
-/// Prepares the geometry of the page for the export
-bool preparePage(const PDFDocument* document, const PDFOCRPageResult& page, const PDFOCRStructuredExporter::Options& options, ExportPage& exportPage)
+bool PDFOCRStructuredExporterHelper::preparePage(const PDFDocument* document, const PDFOCRPageResult& page, const PDFOCRStructuredExporter::Options& options, ExportPage& exportPage)
 {
     exportPage.page = &page;
     exportPage.dpi = PDFOCRStructuredExporter::getExportDpi(page, options);
@@ -184,8 +198,8 @@ bool preparePage(const PDFDocument* document, const PDFOCRPageResult& page, cons
                 exportWord.word = &word;
                 exportWord.text = options.normalizeNFC ? word.text.normalized(QString::NormalizationForm_C) : word.text;
                 exportWord.polygon = pageToExport.map(word.quad.toPolygon());
-                exportWord.box = toPixelBox(exportWord.polygon.boundingRect(), exportPage.size);
-                exportLine.box = unite(exportLine.box, exportWord.box);
+                exportWord.box = PDFGeometryUtils::getPixelRect(exportWord.polygon.boundingRect(), exportPage.size);
+                exportLine.box = exportLine.box.united(exportWord.box);
                 exportLine.words.push_back(std::move(exportWord));
             }
 
@@ -223,7 +237,7 @@ bool preparePage(const PDFDocument* document, const PDFOCRPageResult& page, cons
                 }
             }
 
-            exportBlock.box = unite(exportBlock.box, exportLine.box);
+            exportBlock.box = exportBlock.box.united(exportLine.box);
             exportBlock.lines.push_back(std::move(exportLine));
         }
 
@@ -236,8 +250,7 @@ bool preparePage(const PDFDocument* document, const PDFOCRPageResult& page, cons
     return true;
 }
 
-/// Collects the engines of the pages ("tesseract 5.5.2")
-QStringList getEngines(const std::vector<ExportPage>& pages)
+QStringList PDFOCRStructuredExporterHelper::getEngines(const std::vector<ExportPage>& pages)
 {
     QStringList engines;
     for (const ExportPage& page : pages)
@@ -257,8 +270,7 @@ QStringList getEngines(const std::vector<ExportPage>& pages)
     return engines;
 }
 
-/// Collects the language tags of the words of the pages
-QStringList getLanguages(const std::vector<ExportPage>& pages)
+QStringList PDFOCRStructuredExporterHelper::getLanguages(const std::vector<ExportPage>& pages)
 {
     QStringList languages;
     for (const ExportPage& page : pages)
@@ -281,7 +293,7 @@ QStringList getLanguages(const std::vector<ExportPage>& pages)
     return languages;
 }
 
-QString getImageFileName(const PDFOCRStructuredExporter::Options& options, const PDFOCRPageResult& page)
+QString PDFOCRStructuredExporterHelper::getImageFileName(const PDFOCRStructuredExporter::Options& options, const PDFOCRPageResult& page)
 {
     if (options.imageFileNameTemplate.isEmpty())
     {
@@ -294,7 +306,7 @@ QString getImageFileName(const PDFOCRStructuredExporter::Options& options, const
 // hOCR
 // -------------------------------------------------------------------------
 
-QByteArray writeHocr(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
+QByteArray PDFOCRStructuredExporterHelper::writeHocr(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
 {
     const QStringList engines = getEngines(pages);
     const QStringList languages = getLanguages(pages);
@@ -425,7 +437,7 @@ QByteArray writeHocr(const std::vector<ExportPage>& pages, const PDFOCRStructure
 // ALTO
 // -------------------------------------------------------------------------
 
-QString formatPoints(const QPolygonF& polygon)
+QString PDFOCRStructuredExporterHelper::formatPoints(const QPolygonF& polygon)
 {
     QStringList points;
     for (const QPointF& point : polygon)
@@ -435,10 +447,7 @@ QString formatPoints(const QPolygonF& polygon)
     return points.join(QChar(' '));
 }
 
-/// Returns true, if the word is the first part of a word hyphenated at the end of
-/// the line and the next line continues it (the same rule as the text export:
-/// only a lowercase continuation is a continuation of the word)
-bool isHyphenationPart1(const ExportLine& line, size_t wordIndex, const ExportLine* nextLine)
+bool PDFOCRStructuredExporterHelper::isHyphenationPart1(const ExportLine& line, size_t wordIndex, const ExportLine* nextLine)
 {
     if (!nextLine || wordIndex + 1 != line.words.size() || nextLine->words.empty())
     {
@@ -450,7 +459,7 @@ bool isHyphenationPart1(const ExportLine& line, size_t wordIndex, const ExportLi
     return text.size() > 1 && text.endsWith(QChar('-')) && text.at(text.size() - 2).isLetter() && !next.isEmpty() && next.front().isLower();
 }
 
-QByteArray writeAlto(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
+QByteArray PDFOCRStructuredExporterHelper::writeAlto(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
 {
     QByteArray data;
     QBuffer buffer(&data);
@@ -639,7 +648,7 @@ QByteArray writeAlto(const std::vector<ExportPage>& pages, const PDFOCRStructure
 // TSV
 // -------------------------------------------------------------------------
 
-QByteArray writeTsv(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
+QByteArray PDFOCRStructuredExporterHelper::writeTsv(const std::vector<ExportPage>& pages, const PDFOCRStructuredExporter::Options& options)
 {
     QString text = QStringLiteral("level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n");
 
@@ -686,8 +695,6 @@ QByteArray writeTsv(const std::vector<ExportPage>& pages, const PDFOCRStructured
     return text.toUtf8();
 }
 
-} // namespace
-
 // -------------------------------------------------------------------------
 // PDFOCRStructuredExporter
 // -------------------------------------------------------------------------
@@ -697,7 +704,7 @@ QByteArray PDFOCRStructuredExporter::exportPages(const PDFDocument* document,
                                                  const Options& options,
                                                  PDFOCRTextExporter::Report* report)
 {
-    std::vector<ExportPage> exportPages;
+    std::vector<PDFOCRStructuredExporterHelper::ExportPage> exportPages;
     for (const PDFOCRPageResult* page : pages)
     {
         if (!page)
@@ -705,7 +712,7 @@ QByteArray PDFOCRStructuredExporter::exportPages(const PDFDocument* document,
             continue;
         }
 
-        const QString description = getPageDescription(*page);
+        const QString description = PDFOCRStructuredExporterHelper::getPageDescription(*page);
         if (!page->hasResult())
         {
             if (report)
@@ -716,8 +723,8 @@ QByteArray PDFOCRStructuredExporter::exportPages(const PDFDocument* document,
             continue;
         }
 
-        ExportPage exportPage;
-        if (!preparePage(document, *page, options, exportPage))
+        PDFOCRStructuredExporterHelper::ExportPage exportPage;
+        if (!PDFOCRStructuredExporterHelper::preparePage(document, *page, options, exportPage))
         {
             if (report)
             {
@@ -736,9 +743,9 @@ QByteArray PDFOCRStructuredExporter::exportPages(const PDFDocument* document,
 
             report->exportedPages.push_back(page->pageIndex);
             report->pageDescriptions << description;
-            for (const ExportBlock& block : exportPage.blocks)
+            for (const PDFOCRStructuredExporterHelper::ExportBlock& block : exportPage.blocks)
             {
-                for (const ExportLine& line : block.lines)
+                for (const PDFOCRStructuredExporterHelper::ExportLine& line : block.lines)
                 {
                     report->wordCount += int(line.words.size());
                 }
@@ -751,11 +758,11 @@ QByteArray PDFOCRStructuredExporter::exportPages(const PDFDocument* document,
     switch (options.format)
     {
         case Format::Hocr:
-            return writeHocr(exportPages, options);
+            return PDFOCRStructuredExporterHelper::writeHocr(exportPages, options);
         case Format::Alto:
-            return writeAlto(exportPages, options);
+            return PDFOCRStructuredExporterHelper::writeAlto(exportPages, options);
         case Format::Tsv:
-            return writeTsv(exportPages, options);
+            return PDFOCRStructuredExporterHelper::writeTsv(exportPages, options);
     }
 
     return QByteArray();

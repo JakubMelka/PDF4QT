@@ -28,7 +28,8 @@
 #   cmake -DPDFTOOL=<PdfTool executable> -DWORK_DIR=<directory> [-DOCR_REQUIRED=ON] -P pdftoolocrsmoke.cmake
 #
 # Missing engine or models skip the test (the output contains PDF4QT_OCR_SKIP), unless
-# OCR_REQUIRED is set (release gate).
+# OCR_REQUIRED is set (release gate). Every command gets the data directory of the test
+# ('--ocr-data-dir'), the data shared with the editor of the user are never touched.
 
 if(NOT PDFTOOL OR NOT WORK_DIR)
     message(FATAL_ERROR "PDFTOOL and WORK_DIR must be set.")
@@ -148,9 +149,9 @@ if(position EQUAL -1)
 endif()
 
 # The source is never overwritten, invalid values are refused (ErrorInvalidArguments = 7)
-run_pdftool(7 ocr scan.pdf -o scan.pdf --languages eng)
-run_pdftool(7 ocr scan.pdf -o x.pdf --languages eng --compression zip)
-run_pdftool(7 ocr scan.pdf -o x.pdf)
+run_pdftool(7 ocr scan.pdf -o scan.pdf --languages eng --ocr-data-dir "${models}")
+run_pdftool(7 ocr scan.pdf -o x.pdf --languages eng --compression zip --ocr-data-dir "${models}")
+run_pdftool(7 ocr scan.pdf -o x.pdf --ocr-data-dir "${models}")
 
 # Lossless compression of the scan
 run_pdftool(0 ocr scan.pdf -o compressed.pdf --languages eng --compression lossless --quiet --ocr-data-dir "${models}")

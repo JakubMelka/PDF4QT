@@ -2,9 +2,5 @@
   "name": "pdf4qt",
   "version-string": "1.5.2",
   "builtin-baseline": "0a76d776dcb77d588cff9de746c6e73d06028503",
-  "dependencies": [ "tbb", "openssl", "lcms", "zlib", "openjpeg", "freetype", "libjpeg-turbo", "libpng", "blend2d", "clipper2", "tesseract" ],
-  "overrides": [
-    { "name": "tesseract", "version": "5.5.2" },
-    { "name": "leptonica", "version": "1.87.0" }
-  ]
+  "dependencies": [ "tbb", "openssl", "lcms", "zlib", "openjpeg", "freetype", "libjpeg-turbo", "libpng", "blend2d", "clipper2", "tesseract" ]
 }

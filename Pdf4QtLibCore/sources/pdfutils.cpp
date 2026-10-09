@@ -723,4 +723,26 @@ QDataStream& operator>>(QDataStream& stream, long unsigned int &i)
     return stream;
 }
 
+double PDFGeometryUtils::getIntersectionOverUnion(const QRectF& first, const QRectF& second)
+{
+    const QRectF intersection = first.intersected(second);
+    if (intersection.isEmpty())
+    {
+        return 0.0;
+    }
+
+    const double intersectionArea = intersection.width() * intersection.height();
+    const double unionArea = first.width() * first.height() + second.width() * second.height() - intersectionArea;
+    return unionArea > 0.0 ? intersectionArea / unionArea : 0.0;
+}
+
+QRect PDFGeometryUtils::getPixelRect(const QRectF& rect, QSize size)
+{
+    const int left = qBound(0, int(std::floor(rect.left())), size.width());
+    const int top = qBound(0, int(std::floor(rect.top())), size.height());
+    const int right = qBound(0, int(std::ceil(rect.right())), size.width());
+    const int bottom = qBound(0, int(std::ceil(rect.bottom())), size.height());
+    return QRect(QPoint(left, top), QPoint(right - 1, bottom - 1));
+}
+
 }   // namespace pdf

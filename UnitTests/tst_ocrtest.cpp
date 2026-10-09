@@ -91,9 +91,6 @@ using namespace pdf;
 #define PDF4QT_OCR_SKIP(message) QSKIP(message)
 #endif
 
-namespace
-{
-
 /// Rendering environment for the tests (font cache, color management, optional content)
 class RenderingContext
 {
@@ -197,7 +194,55 @@ private:
     QHash<QTcpSocket*, QByteArray> m_buffers;
 };
 
-} // anonymous namespace
+/// Image of the image documents of the compression tests
+struct TestImage
+{
+    QImage image;               ///< Source pixels
+    int bitsPerComponent = 8;   ///< 1 (black and white) or 8
+    bool gray = true;           ///< DeviceGray or DeviceRGB
+    bool compress = false;      ///< FlateDecode, otherwise uncompressed
+    bool jpeg = false;          ///< DCTDecode (lossy source)
+};
+
+/// Test data, rendering and measurements of the OCR tests
+class OCRTestHelper
+{
+public:
+    OCRTestHelper() = delete;
+
+    /// Directory with the built-in OCR data of the build tree (the language models are
+    /// extracted there from the archives of the repository by CMake)
+    static QString getSourceOcrDirectory();
+
+#ifdef PDF4QT_OCR_TESSERACT
+    static size_t getLevenshteinDistance(const QStringList& first, const QStringList& second);
+
+    static QStringList toCharacters(const QString& text);
+
+    static qint64 getPeakMemory();
+#endif
+
+    /// Encodes the samples of the image of the PDF image stream
+    static QByteArray getImageSamples(const TestImage& testImage);
+
+    /// Creates a document, whose pages draw the images over the whole page
+    /// (pageImages[i] is the index of the image drawn on the page i; several
+    /// pages can share one image object)
+    static PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version = PDFVersion(1, 7));
+
+    /// Black and white image with some text-like structure
+    static QImage createBitonalTextImage(QSize size, int seed);
+
+    /// Gray scan of a text: paper, ink and antialiased edges
+    static QImage createGrayTextScan(QSize size);
+
+    /// Photo-like gray image (smooth gradients, a lot of mid tones)
+    static QImage createPhotoImage(QSize size, bool gray);
+
+    static QImage renderPage(const PDFDocument& document, PDFInteger pageIndex, double dpi);
+
+    static QByteArray getImageFilter(const PDFDocument& document, PDFInteger pageIndex);
+};
 
 class OCRTest : public QObject
 {
@@ -2649,9 +2694,7 @@ void OCRTest::invalidEngineOutput()
 // AT-02 / AT-22: built-in models
 // -------------------------------------------------------------------------
 
-/// Directory with the built-in OCR data of the build tree (the language models are
-/// extracted there from the archives of the repository by CMake)
-static QString getSourceOcrDirectory()
+QString OCRTestHelper::getSourceOcrDirectory()
 {
     const QByteArray environmentDirectory = qgetenv("PDF4QT_OCR_DATA_DIRECTORY");
     if (!environmentDirectory.isEmpty())
@@ -2668,7 +2711,7 @@ static QString getSourceOcrDirectory()
 
 void OCRTest::modelManagerBuiltIn()
 {
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
         PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
@@ -3048,7 +3091,7 @@ void OCRTest::tesseractRecognition()
 #ifndef PDF4QT_OCR_TESSERACT
     PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
         PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
@@ -3188,10 +3231,8 @@ void OCRTest::tesseractRecognition()
 // -------------------------------------------------------------------------
 
 #ifdef PDF4QT_OCR_TESSERACT
-namespace
-{
 
-size_t getLevenshteinDistance(const QStringList& first, const QStringList& second)
+size_t OCRTestHelper::getLevenshteinDistance(const QStringList& first, const QStringList& second)
 {
     std::vector<size_t> previous(size_t(second.size()) + 1);
     std::vector<size_t> current(size_t(second.size()) + 1);
@@ -3210,7 +3251,7 @@ size_t getLevenshteinDistance(const QStringList& first, const QStringList& secon
     return previous[size_t(second.size())];
 }
 
-QStringList toCharacters(const QString& text)
+QStringList OCRTestHelper::toCharacters(const QString& text)
 {
     QStringList result;
     for (const QChar& character : text)
@@ -3220,7 +3261,7 @@ QStringList toCharacters(const QString& text)
     return result;
 }
 
-qint64 getPeakMemory()
+qint64 OCRTestHelper::getPeakMemory()
 {
 #ifdef Q_OS_WIN
     PROCESS_MEMORY_COUNTERS counters = { };
@@ -3232,7 +3273,6 @@ qint64 getPeakMemory()
     return -1;
 }
 
-} // anonymous namespace
 #endif
 
 void OCRTest::qualityAndPerformanceBenchmark()
@@ -3245,7 +3285,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         QSKIP("Benchmark runs only when PDF4QT_OCR_BENCHMARK is set (it needs the native platform plugin with system fonts).");
     }
 
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
         PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
@@ -3441,10 +3481,10 @@ void OCRTest::qualityAndPerformanceBenchmark()
 
             const QString reference = corpus.lines.join(QChar(' ')).simplified();
             const QString recognized = results.front().getText().simplified();
-            characterErrors += getLevenshteinDistance(toCharacters(reference), toCharacters(recognized));
+            characterErrors += OCRTestHelper::getLevenshteinDistance(OCRTestHelper::toCharacters(reference), OCRTestHelper::toCharacters(recognized));
             characterCount += size_t(reference.size());
             const QStringList referenceWords = reference.split(QChar(' '), Qt::SkipEmptyParts);
-            wordErrors += getLevenshteinDistance(referenceWords, recognized.split(QChar(' '), Qt::SkipEmptyParts));
+            wordErrors += OCRTestHelper::getLevenshteinDistance(referenceWords, recognized.split(QChar(' '), Qt::SkipEmptyParts));
             wordCount += size_t(referenceWords.size());
         }
 
@@ -3481,7 +3521,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         PDFDocument document = builder.build();
         QCOMPARE(document.getCatalog()->getPageCount(), size_t(pageCount));
 
-        const qint64 memoryBefore = getPeakMemory();
+        const qint64 memoryBefore = OCRTestHelper::getPeakMemory();
         std::vector<PDFOCRPageResult> results;
         qint64 elapsed = 0;
         recognize(document, { QStringLiteral("eng") }, 2, results, elapsed);
@@ -3504,7 +3544,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         report << QStringLiteral("Throughput: %1 pages A4/300 DPI, 2 workers, total %2 s, %3 pages per minute, page time p50 %4 ms, p95 %5 ms, %6 words")
                   .arg(pageCount).arg(elapsed / 1000.0, 0, 'f', 1).arg(60000.0 * pageCount / qMax<qint64>(1, elapsed), 0, 'f', 1)
                   .arg(times[times.size() / 2]).arg(times[size_t(double(times.size() - 1) * 0.95)]).arg(words);
-        report << QStringLiteral("Peak working set: %1 MB before, %2 MB after the run (raster budget 1024 MB)").arg(memoryBefore / (1024 * 1024)).arg(getPeakMemory() / (1024 * 1024));
+        report << QStringLiteral("Peak working set: %1 MB before, %2 MB after the run (raster budget 1024 MB)").arg(memoryBefore / (1024 * 1024)).arg(OCRTestHelper::getPeakMemory() / (1024 * 1024));
 
         // Size increment of the output: text, font and metadata, not a new copy of the images
         std::vector<PDFOCRPageResult> writtenResults(results.begin(), results.begin() + qMin<size_t>(results.size(), 10));
@@ -5115,7 +5155,7 @@ void OCRTest::scriptModelIdentifiers()
 #ifdef PDF4QT_OCR_TESSERACT
     // The Tesseract adapter passes the identifier through: a model stored under
     // tessdata/script/<Name>.traineddata is loaded by the language string "script/<Name>"
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     const QString englishModel = builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata");
     if (builtInDirectory.isEmpty() || !QFile::exists(englishModel))
     {
@@ -5240,7 +5280,7 @@ void OCRTest::engineParameterSchema()
 #ifndef PDF4QT_OCR_TESSERACT
     PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
 #else
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
     {
         PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
@@ -6130,7 +6170,7 @@ std::optional<PDFOCRPageResult> OCRTest::recognizeWithTesseract(const PDFDocumen
     *skipReason = QStringLiteral("Tesseract engine is not compiled in.");
     return std::nullopt;
 #else
-    const QString builtInDirectory = getSourceOcrDirectory();
+    const QString builtInDirectory = OCRTestHelper::getSourceOcrDirectory();
     for (const QString& language : configuration.languages)
     {
         if (builtInDirectory.isEmpty() || !QFile::exists(builtInDirectory + QStringLiteral("/tesseract/fast/tessdata/%1.traineddata").arg(language)))
@@ -6735,21 +6775,7 @@ void OCRTest::structuredExport()
     QVERIFY(rows.contains(QStringLiteral("5\t1\t1\t1\t2\t2\t60\t60\t40\t20\t-1\t<a&b>")));
 }
 
-namespace
-{
-
-/// Image of the image documents of the compression tests
-struct TestImage
-{
-    QImage image;               ///< Source pixels
-    int bitsPerComponent = 8;   ///< 1 (black and white) or 8
-    bool gray = true;           ///< DeviceGray or DeviceRGB
-    bool compress = false;      ///< FlateDecode, otherwise uncompressed
-    bool jpeg = false;          ///< DCTDecode (lossy source)
-};
-
-/// Encodes the samples of the image of the PDF image stream
-QByteArray getImageSamples(const TestImage& testImage)
+QByteArray OCRTestHelper::getImageSamples(const TestImage& testImage)
 {
     QByteArray data;
     const QImage& image = testImage.image;
@@ -6791,10 +6817,7 @@ QByteArray getImageSamples(const TestImage& testImage)
     return data;
 }
 
-/// Creates a document, whose pages draw the images over the whole page
-/// (pageImages[i] is the index of the image drawn on the page i; several
-/// pages can share one image object)
-PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version = PDFVersion(1, 7))
+PDFDocument OCRTestHelper::createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version)
 {
     PDFDocumentBuilder builder;
 
@@ -6868,8 +6891,7 @@ PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const
     return PDFDocument(PDFObjectStorage(document.getStorage()), version, QByteArray());
 }
 
-/// Black and white image with some text-like structure
-QImage createBitonalTextImage(QSize size, int seed)
+QImage OCRTestHelper::createBitonalTextImage(QSize size, int seed)
 {
     QImage image(size, QImage::Format_Grayscale8);
     image.fill(255);
@@ -6898,8 +6920,7 @@ QImage createBitonalTextImage(QSize size, int seed)
     return image;
 }
 
-/// Gray scan of a text: paper, ink and antialiased edges
-QImage createGrayTextScan(QSize size)
+QImage OCRTestHelper::createGrayTextScan(QSize size)
 {
     QImage image(size, QImage::Format_Grayscale8);
     image.fill(236);
@@ -6917,8 +6938,7 @@ QImage createGrayTextScan(QSize size)
     return image;
 }
 
-/// Photo-like gray image (smooth gradients, a lot of mid tones)
-QImage createPhotoImage(QSize size, bool gray)
+QImage OCRTestHelper::createPhotoImage(QSize size, bool gray)
 {
     QImage image(size, QImage::Format_RGB32);
     for (int y = 0; y < size.height(); ++y)
@@ -6935,14 +6955,14 @@ QImage createPhotoImage(QSize size, bool gray)
     return image;
 }
 
-QImage renderPage(const PDFDocument& document, PDFInteger pageIndex, double dpi)
+QImage OCRTestHelper::renderPage(const PDFDocument& document, PDFInteger pageIndex, double dpi)
 {
     RenderingContext context(&document);
     PDFOCRPagePreparer preparer = context.createPreparer(&document);
     return preparer.rasterize(pageIndex, dpi, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image;
 }
 
-QByteArray getImageFilter(const PDFDocument& document, PDFInteger pageIndex)
+QByteArray OCRTestHelper::getImageFilter(const PDFDocument& document, PDFInteger pageIndex)
 {
     const PDFPage* page = document.getCatalog()->getPage(pageIndex);
     const PDFDictionary* resources = document.getDictionaryFromObject(page->getResources());
@@ -6951,8 +6971,6 @@ QByteArray getImageFilter(const PDFDocument& document, PDFInteger pageIndex)
     const PDFObject& filter = document.getObject(image.getStream()->getDictionary()->get("Filter"));
     return filter.isName() ? filter.getString() : QByteArray();
 }
-
-} // namespace
 
 void OCRTest::applyProcessorPlanAndPermissions()
 {
@@ -6965,7 +6983,7 @@ void OCRTest::applyProcessorPlanAndPermissions()
     PDFOCRApplyProcessor::Context context = PDFOCRApplyProcessor::createContext(&document, QString());
     QVERIFY(context.canModify);
     QVERIFY(context.canCopyContent);
-    QCOMPARE(context.certificationPermissions, 0);
+    QCOMPARE(context.certificationPermissions, PDFOCRApplyProcessor::CertificationPermissions::NotCertified);
     QVERIFY(!context.isTagged);
     QVERIFY(!context.hasSignatures);
     QVERIFY(!context.hasConformanceDeclaration());
@@ -6978,13 +6996,13 @@ void OCRTest::applyProcessorPlanAndPermissions()
     QVERIFY(!PDFOCRApplyProcessor::checkPermissions(locked, Mode::ModifyDocument).isEmpty());
     QVERIFY(!PDFOCRApplyProcessor::checkPermissions(locked, Mode::CreateCopy).isEmpty());
     PDFOCRApplyProcessor::Context certified = context;
-    certified.certificationPermissions = 1;
+    certified.certificationPermissions = PDFOCRApplyProcessor::CertificationPermissions::NoChanges;
     QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::ModifyDocument).isEmpty());
     QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
-    certified.certificationPermissions = 2;
+    certified.certificationPermissions = PDFOCRApplyProcessor::CertificationPermissions::FormFilling;
     QVERIFY(!PDFOCRApplyProcessor::checkPermissions(certified, Mode::ModifyDocument).isEmpty());
     QVERIFY(PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
-    certified.certificationPermissions = 3;
+    certified.certificationPermissions = PDFOCRApplyProcessor::CertificationPermissions::FormFillingAndAnnotations;
     QVERIFY(PDFOCRApplyProcessor::checkPermissions(certified, Mode::CreateCopy).isEmpty());
     PDFOCRApplyProcessor::Context conforming = context;
     conforming.conformanceDeclarations = { QStringLiteral("PDF/A-2b") };
@@ -7153,7 +7171,7 @@ void OCRTest::applyProcessorExecute()
     QCOMPARE(removed.report.writtenPages, (std::vector<PDFInteger>{ 0, 1 }));
     QVERIFY(!PDFOCRTextLayerWriter::readLayerInfo(removed.document.data(), 0).isPresent);
     PDFOCRApplyProcessor::Context certifiedContext = writtenContext;
-    certifiedContext.certificationPermissions = 2;
+    certifiedContext.certificationPermissions = PDFOCRApplyProcessor::CertificationPermissions::FormFilling;
     QVERIFY(!PDFOCRApplyProcessor::removeLayers(certifiedContext, { 0 }, nullptr).isSuccess());
 }
 
@@ -7161,14 +7179,14 @@ void OCRTest::compressionLossless()
 {
     // 1: black and white image, 2: gray gradient, 3: lossy JPEG source, 4: color photo
     std::vector<TestImage> images(4);
-    images[0].image = createBitonalTextImage(QSize(600, 400), 1);
+    images[0].image = OCRTestHelper::createBitonalTextImage(QSize(600, 400), 1);
     images[0].bitsPerComponent = 1;
-    images[1].image = createPhotoImage(QSize(300, 200), true);
-    images[2].image = createPhotoImage(QSize(300, 200), true);
+    images[1].image = OCRTestHelper::createPhotoImage(QSize(300, 200), true);
+    images[2].image = OCRTestHelper::createPhotoImage(QSize(300, 200), true);
     images[2].jpeg = true;
-    images[3].image = createPhotoImage(QSize(150, 100), false);
+    images[3].image = OCRTestHelper::createPhotoImage(QSize(150, 100), false);
     images[3].gray = false;
-    const PDFDocument document = createImagePagesDocument(images, { 0, 1, 2, 3 }, QSizeF(300, 200), PDFVersion(1, 3));
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, { 0, 1, 2, 3 }, QSizeF(300, 200), PDFVersion(1, 3));
 
     const std::map<PDFObjectReference, std::vector<PDFInteger>> usage = PDFOCRImageCompressor::getImageUsage(&document);
     QCOMPARE(usage.size(), size_t(4));
@@ -7176,7 +7194,7 @@ void OCRTest::compressionLossless()
     std::vector<QImage> before;
     for (PDFInteger page = 0; page < 4; ++page)
     {
-        before.push_back(renderPage(document, page, 100.0));
+        before.push_back(OCRTestHelper::renderPage(document, page, 100.0));
         QVERIFY(!before.back().isNull());
     }
 
@@ -7207,22 +7225,23 @@ void OCRTest::compressionLossless()
     QCOMPARE(bitonal->imageClass, PDFOCRCompressionImageResult::ImageClass::Bitonal);
     QCOMPARE(bitonal->encoding, QStringLiteral("JBIG2"));
     QVERIFY(bitonal->newBytes < bitonal->originalBytes);
-    QCOMPARE(getImageFilter(compressed, 0), QByteArray("JBIG2Decode"));
+    QCOMPARE(OCRTestHelper::getImageFilter(compressed, 0), QByteArray("JBIG2Decode"));
     QVERIFY(report.versionRaised);
-    QCOMPARE(compressed.getInfo()->version.minor, uint16_t(4));
+    QVERIFY(compressed.getInfo()->version == PDFVersion(1, 4));
+    static_assert(PDFVersion(1, 3) < PDFVersion(1, 4) && PDFVersion(1, 7) < PDFVersion(2, 0) && PDFVersion(2, 0) >= PDFVersion(1, 4));
 
     // The uncompressed gray image is encoded by Flate, the JPEG source is kept
     QCOMPARE(findResult(1)->action, Action::Compressed);
-    QCOMPARE(getImageFilter(compressed, 1), QByteArray("FlateDecode"));
+    QCOMPARE(OCRTestHelper::getImageFilter(compressed, 1), QByteArray("FlateDecode"));
     QCOMPARE(findResult(2)->action, Action::SkippedUnsupported);
-    QCOMPARE(getImageFilter(compressed, 2), QByteArray("DCTDecode"));
+    QCOMPARE(OCRTestHelper::getImageFilter(compressed, 2), QByteArray("DCTDecode"));
     QCOMPARE(findResult(3)->action, Action::Compressed);
     QVERIFY2(report.getSummary().contains(QStringLiteral("3 compressed")), qPrintable(report.getSummary()));
 
     // Lossless: the pages look exactly the same
     for (PDFInteger page = 0; page < 4; ++page)
     {
-        QVERIFY2(renderPage(compressed, page, 100.0) == before[size_t(page)], qPrintable(QStringLiteral("Page %1 differs").arg(page + 1)));
+        QVERIFY2(OCRTestHelper::renderPage(compressed, page, 100.0) == before[size_t(page)], qPrintable(QStringLiteral("Page %1 differs").arg(page + 1)));
     }
 
     // Other entries of the image dictionary are kept
@@ -7237,10 +7256,10 @@ void OCRTest::compressionLossless()
         PDFOCRCompressionReport encodingReport;
         const PDFDocument encoded = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, nullptr, &encodingReport);
         QCOMPARE(encodingReport.images.front().action, Action::Compressed);
-        QVERIFY2(renderPage(encoded, 0, 100.0) == before[0], qPrintable(encodingReport.images.front().encoding));
+        QVERIFY2(OCRTestHelper::renderPage(encoded, 0, 100.0) == before[0], qPrintable(encodingReport.images.front().encoding));
         if (encoding == PDFOCRBitonalEncoding::CCITTGroup4)
         {
-            QCOMPARE(getImageFilter(encoded, 0), QByteArray("CCITTFaxDecode"));
+            QCOMPARE(OCRTestHelper::getImageFilter(encoded, 0), QByteArray("CCITTFaxDecode"));
         }
     }
 
@@ -7249,7 +7268,7 @@ void OCRTest::compressionLossless()
     PDFOCRCompressionReport offReport;
     const PDFDocument unchanged = PDFOCRImageCompressor::compress(&document, { 0, 1, 2, 3 }, settings, qint64(1) << 30, nullptr, &offReport);
     QVERIFY(offReport.images.empty());
-    QCOMPARE(getImageFilter(unchanged, 0), QByteArray());
+    QCOMPARE(OCRTestHelper::getImageFilter(unchanged, 0), QByteArray());
 
     // Cancelled: nothing is changed
     settings.mode = PDFOCRCompressionMode::Lossless;
@@ -7258,16 +7277,16 @@ void OCRTest::compressionLossless()
     PDFOCRCompressionReport cancelledReport;
     const PDFDocument cancelled = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, &token, &cancelledReport);
     QVERIFY(!cancelledReport.isChanged());
-    QCOMPARE(getImageFilter(cancelled, 0), QByteArray());
+    QCOMPARE(OCRTestHelper::getImageFilter(cancelled, 0), QByteArray());
 }
 
 void OCRTest::compressionBitonalAndShared()
 {
     // Classification of the content
-    const QImage grayScan = createGrayTextScan(QSize(800, 600));
+    const QImage grayScan = OCRTestHelper::createGrayTextScan(QSize(800, 600));
     QVERIFY(PDFOCRImageCompressor::isTextScan(grayScan));
-    QVERIFY(!PDFOCRImageCompressor::isTextScan(createPhotoImage(QSize(400, 300), true)));
-    QVERIFY(!PDFOCRImageCompressor::isTextScan(createPhotoImage(QSize(400, 300), false)));
+    QVERIFY(!PDFOCRImageCompressor::isTextScan(OCRTestHelper::createPhotoImage(QSize(400, 300), true)));
+    QVERIFY(!PDFOCRImageCompressor::isTextScan(OCRTestHelper::createPhotoImage(QSize(400, 300), false)));
 
     // Conversion to black and white by the method of the settings
     PDFOCRCompressionSettings settings;
@@ -7301,10 +7320,10 @@ void OCRTest::compressionBitonalAndShared()
     // 0: gray scan of a text, 1: gray photo, 2: black and white image shared by the pages 3 and 4
     std::vector<TestImage> images(3);
     images[0].image = grayScan;
-    images[1].image = createPhotoImage(QSize(400, 300), true);
-    images[2].image = createBitonalTextImage(QSize(400, 300), 2);
+    images[1].image = OCRTestHelper::createPhotoImage(QSize(400, 300), true);
+    images[2].image = OCRTestHelper::createBitonalTextImage(QSize(400, 300), 2);
     images[2].bitsPerComponent = 1;
-    const PDFDocument document = createImagePagesDocument(images, { 0, 1, 2, 2 }, QSizeF(400, 300));
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, { 0, 1, 2, 2 }, QSizeF(400, 300));
 
     using Action = PDFOCRCompressionImageResult::Action;
     using ImageClass = PDFOCRCompressionImageResult::ImageClass;
@@ -7336,14 +7355,14 @@ void OCRTest::compressionBitonalAndShared()
     };
     QCOMPARE(getImageDictionary(0)->get("BitsPerComponent").getInteger(), PDFInteger(1));
     QCOMPARE(getImageDictionary(1)->get("BitsPerComponent").getInteger(), PDFInteger(8));
-    QVERIFY(renderPage(converted, 1, 72.0) == renderPage(document, 1, 72.0));
+    QVERIFY(OCRTestHelper::renderPage(converted, 1, 72.0) == OCRTestHelper::renderPage(document, 1, 72.0));
 
     // Lossless mode does not convert the scan
     settings.mode = PDFOCRCompressionMode::Lossless;
     PDFOCRCompressionReport losslessReport;
     const PDFDocument lossless = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, nullptr, &losslessReport);
     QCOMPARE(losslessReport.images.front().encoding, QStringLiteral("Flate"));
-    QVERIFY(renderPage(lossless, 0, 72.0) == renderPage(document, 0, 72.0));
+    QVERIFY(OCRTestHelper::renderPage(lossless, 0, 72.0) == OCRTestHelper::renderPage(document, 0, 72.0));
 
     // The image shared with a page, which is not written, is skipped by default
     PDFOCRCompressionReport sharedReport;
@@ -7412,12 +7431,12 @@ void OCRTest::compressionStreaming()
     for (int i = 0; i < PageCount; ++i)
     {
         TestImage image;
-        image.image = createBitonalTextImage(QSize(400, 300), i);
+        image.image = OCRTestHelper::createBitonalTextImage(QSize(400, 300), i);
         image.bitsPerComponent = 1;
         images.push_back(image);
         pageImages.push_back(i);
     }
-    const PDFDocument document = createImagePagesDocument(images, pageImages, QSizeF(400, 300));
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, pageImages, QSizeF(400, 300));
 
     std::vector<PDFInteger> pages;
     for (int i = 0; i < PageCount; ++i)
@@ -7447,10 +7466,10 @@ void OCRTest::compressionWithTextLayer()
     std::vector<TestImage> images(2);
     for (int i = 0; i < 2; ++i)
     {
-        images[size_t(i)].image = createBitonalTextImage(QSize(600, 400), i);
+        images[size_t(i)].image = OCRTestHelper::createBitonalTextImage(QSize(600, 400), i);
         images[size_t(i)].bitsPerComponent = 1;
     }
-    const PDFDocument document = createImagePagesDocument(images, { 0, 1 }, QSizeF(300, 200));
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, { 0, 1 }, QSizeF(300, 200));
     const PDFOCRApplyProcessor::Context context = PDFOCRApplyProcessor::createContext(&document, QString());
 
     PDFOCRSession session(nullptr);
@@ -7479,7 +7498,7 @@ void OCRTest::compressionWithTextLayer()
     // The layer is bound to the compressed page, so it can be opened again for the corrections
     for (PDFInteger page = 0; page < 2; ++page)
     {
-        QVERIFY(getImageFilter(*result.document, page) != QByteArray());
+        QVERIFY(OCRTestHelper::getImageFilter(*result.document, page) != QByteArray());
         PDFOCRTextLayerWriter::LayerInfo info;
         std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(result.document.data(), page, &info);
         QVERIFY(layer.has_value());
@@ -7502,8 +7521,8 @@ void OCRTest::compressionWithTextLayer()
 void OCRTest::optimizeImagesKeepsLayer()
 {
     std::vector<TestImage> images(1);
-    images[0].image = createPhotoImage(QSize(300, 200), true);
-    const PDFDocument document = createImagePagesDocument(images, { 0 }, QSizeF(300, 200));
+    images[0].image = OCRTestHelper::createPhotoImage(QSize(300, 200), true);
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, { 0 }, QSizeF(300, 200));
 
     PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Photo"), QRectF(20, 100, 80, 20) } });
     PDFOCRTextLayerWriter::Report report;

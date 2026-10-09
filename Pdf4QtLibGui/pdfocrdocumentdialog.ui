@@ -397,16 +397,9 @@
        </item>
       </layout>
      </widget>
-     <widget class="QSplitter" name="rightSplitter">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="childrenCollapsible">
-       <bool>true</bool>
-      </property>
       <widget class="QTabWidget" name="settingsTabWidget">
        <property name="accessibleName">
-        <string>Settings</string>
+        <string>Settings and review</string>
        </property>
        <property name="currentIndex">
         <number>0</number>
@@ -1286,6 +1279,597 @@
          </item>
         </layout>
        </widget>
+       <widget class="QWidget" name="reviewTab">
+        <attribute name="title">
+         <string>Review and correct</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="reviewPanelLayout" stretch="0,1,0,0">
+         <item>
+          <layout class="QHBoxLayout" name="reviewFilterLayout" stretch="0,1,0,0">
+           <item>
+            <widget class="QLabel" name="reviewFilterLabel">
+             <property name="text">
+              <string>Show:</string>
+             </property>
+             <property name="buddy">
+              <cstring>reviewFilterComboBox</cstring>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="reviewFilterComboBox">
+             <property name="accessibleName">
+              <string>Filter of the results</string>
+             </property>
+             <property name="sizeAdjustPolicy">
+              <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+             </property>
+             <property name="minimumContentsLength">
+              <number>8</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="undoButton">
+             <property name="text">
+              <string>&amp;Undo</string>
+             </property>
+             <property name="toolTip">
+              <string>Undo the last correction</string>
+             </property>
+             <property name="accessibleName">
+              <string>Undo</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="redoButton">
+             <property name="text">
+              <string>R&amp;edo</string>
+             </property>
+             <property name="toolTip">
+              <string>Redo the correction</string>
+             </property>
+             <property name="accessibleName">
+              <string>Redo</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QTreeWidget" name="resultsTreeWidget">
+           <property name="accessibleName">
+            <string>Recognized text</string>
+           </property>
+           <property name="uniformRowHeights">
+            <bool>true</bool>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>110</height>
+            </size>
+           </property>
+           <column>
+            <property name="text">
+             <string>Text</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>Confidence</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>State</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>Dictionary</string>
+            </property>
+            <property name="toolTip">
+             <string>Whether the recognized word was found in the dictionary of the language model. It is not a spelling checker.</string>
+            </property>
+           </column>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="statisticsLabel">
+           <property name="text">
+            <string></string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="inspectorGroupBox">
+           <property name="title">
+            <string>Selected word</string>
+           </property>
+           <layout class="QVBoxLayout" name="inspectorLayout">
+            <item>
+             <layout class="QGridLayout" name="inspectorGridLayout">
+              <item row="0" column="0">
+               <widget class="QLabel" name="wordTextLabel">
+                <property name="text">
+                 <string>&amp;Text:</string>
+                </property>
+                <property name="buddy">
+                 <cstring>wordTextEdit</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLineEdit" name="wordTextEdit">
+                <property name="accessibleName">
+                 <string>Text of the word</string>
+                </property>
+                <property name="toolTip">
+                 <string>Corrected text of the invisible text layer. The correction does not change the scanned image.</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="lineTextLabel">
+                <property name="text">
+                 <string>L&amp;ine:</string>
+                </property>
+                <property name="buddy">
+                 <cstring>lineTextEdit</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLineEdit" name="lineTextEdit">
+                <property name="accessibleName">
+                 <string>Text of the line</string>
+                </property>
+                <property name="toolTip">
+                 <string>Text of the whole line. Unchanged words keep their geometry, the geometry of the changed words is estimated.</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="originalTextCaptionLabel">
+                <property name="text">
+                 <string>Original:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QLabel" name="originalTextLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="confidenceCaptionLabel">
+                <property name="text">
+                 <string>Confidence:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QLabel" name="confidenceLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="reviewStateCaptionLabel">
+                <property name="text">
+                 <string>State:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QLabel" name="reviewStateLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="modelCaptionLabel">
+                <property name="text">
+                 <string>Language / model:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QLabel" name="modelLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QLabel" name="regionCaptionLabel">
+                <property name="text">
+                 <string>Region / geometry:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
+               <widget class="QLabel" name="regionLabel">
+                <property name="text">
+                 <string></string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QGridLayout" name="inspectorButtonsLayout">
+              <item row="0" column="0">
+               <widget class="QPushButton" name="confirmNextButton">
+                <property name="text">
+                 <string>&amp;Confirm and Next</string>
+                </property>
+                <property name="toolTip">
+                 <string>Confirm the word and go to the next word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Confirm and Next</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QPushButton" name="skipButton">
+                <property name="text">
+                 <string>&amp;Skip</string>
+                </property>
+                <property name="toolTip">
+                 <string>Go to the next word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Skip</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QPushButton" name="previousReviewButton">
+                <property name="text">
+                 <string>Previous</string>
+                </property>
+                <property name="toolTip">
+                 <string>Go to the previous word requiring a review</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Previous</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QPushButton" name="restoreOriginalButton">
+                <property name="text">
+                 <string>Restore Original</string>
+                </property>
+                <property name="toolTip">
+                 <string>Restore the original recognition of the word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Restore Original</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QPushButton" name="notTextButton">
+                <property name="text">
+                 <string>Not Text</string>
+                </property>
+                <property name="toolTip">
+                 <string>The result is not a text (false detection); it will not be written</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Not Text</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QPushButton" name="rerecognizeButton">
+                <property name="text">
+                 <string>Recognize Again</string>
+                </property>
+                <property name="toolTip">
+                 <string>Recognize the area of the selected word or line again</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Recognize Again</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QPushButton" name="mergeButton">
+                <property name="text">
+                 <string>Merge with Next</string>
+                </property>
+                <property name="toolTip">
+                 <string>Merge the word with the next word of the line</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Merge with Next</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QPushButton" name="splitButton">
+                <property name="text">
+                 <string>Split at Cursor</string>
+                </property>
+                <property name="toolTip">
+                 <string>Split the word at the cursor position of the text field</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Split at Cursor</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QPushButton" name="insertWordButton">
+                <property name="text">
+                 <string>Insert Word After...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Insert a missing word after the selected word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Insert Word After</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QPushButton" name="deleteWordButton">
+                <property name="text">
+                 <string>Delete Word</string>
+                </property>
+                <property name="toolTip">
+                 <string>Delete the selected word</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Delete Word</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QPushButton" name="moveUpButton">
+                <property name="text">
+                 <string>Move Up</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move the selected block or line up in the reading order</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Move Up</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QPushButton" name="moveDownButton">
+                <property name="text">
+                 <string>Move Down</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move the selected block or line down in the reading order</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Move Down</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QPushButton" name="editGeometryButton">
+                <property name="text">
+                 <string>Edit Box</string>
+                </property>
+                <property name="toolTip">
+                 <string>Move or resize the box of the selected word in the page view</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Edit Box</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1" rowspan="1" colspan="2">
+               <widget class="QPushButton" name="confirmAllButton">
+                <property name="text">
+                 <string>Confirm All on Page...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Confirm all words of the current page</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Confirm All on Page</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="findReplaceTab">
+        <attribute name="title">
+         <string>Find and replace</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="findReplaceTabOuterLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QScrollArea" name="findReplaceTabScrollArea">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="widgetResizable">
+            <bool>true</bool>
+           </property>
+           <widget class="QWidget" name="findReplaceTabContents">
+            <layout class="QVBoxLayout" name="findReplaceTabLayout">
+             <item>
+              <widget class="QGroupBox" name="findReplaceGroupBox">
+               <property name="title">
+                <string>Find and replace in the OCR results</string>
+               </property>
+               <layout class="QGridLayout" name="findReplaceLayout">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="findLabel">
+                  <property name="text">
+                   <string>&amp;Find:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>findEdit</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1" rowspan="1" colspan="2">
+                 <widget class="QLineEdit" name="findEdit">
+                  <property name="accessibleName">
+                   <string>Find</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="replaceLabel">
+                  <property name="text">
+                   <string>&amp;Replace:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>replaceEdit</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1" rowspan="1" colspan="2">
+                 <widget class="QLineEdit" name="replaceEdit">
+                  <property name="accessibleName">
+                   <string>Replace with</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="findScopeLabel">
+                  <property name="text">
+                   <string>Scope:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>findScopeComboBox</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1" rowspan="1" colspan="2">
+                 <widget class="QComboBox" name="findScopeComboBox">
+                  <property name="accessibleName">
+                   <string>Scope of the search</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+                  </property>
+                  <property name="minimumContentsLength">
+                   <number>8</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QCheckBox" name="caseSensitiveCheckBox">
+                  <property name="text">
+                   <string>Case sensitive</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Case sensitive</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QCheckBox" name="wholeWordsCheckBox">
+                  <property name="text">
+                   <string>Whole words</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Whole words</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0">
+                 <widget class="QPushButton" name="findNextButton">
+                  <property name="text">
+                   <string>Find Next</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Find Next</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="1">
+                 <widget class="QPushButton" name="replaceAllButton">
+                  <property name="text">
+                   <string>Replace All...</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Shows the number of occurrences and a preview before the replacement. The whole replacement is a single undo step.</string>
+                  </property>
+                  <property name="accessibleName">
+                   <string>Replace All</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <spacer name="findReplaceTabSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
        <widget class="QWidget" name="outputTab">
         <attribute name="title">
          <string>Output</string>
@@ -2082,606 +2666,6 @@
         </layout>
        </widget>
       </widget>
-      <widget class="QTabWidget" name="reviewTabWidget">
-       <property name="accessibleName">
-        <string>Review</string>
-       </property>
-       <property name="currentIndex">
-        <number>0</number>
-       </property>
-       <widget class="QWidget" name="reviewTab">
-        <attribute name="title">
-         <string>Review and correct</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="reviewPanelLayout" stretch="0,1,0,0">
-         <item>
-          <layout class="QHBoxLayout" name="reviewFilterLayout" stretch="0,1,0,0">
-           <item>
-            <widget class="QLabel" name="reviewFilterLabel">
-             <property name="text">
-              <string>Show:</string>
-             </property>
-             <property name="buddy">
-              <cstring>reviewFilterComboBox</cstring>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QComboBox" name="reviewFilterComboBox">
-             <property name="accessibleName">
-              <string>Filter of the results</string>
-             </property>
-             <property name="sizeAdjustPolicy">
-              <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
-             </property>
-             <property name="minimumContentsLength">
-              <number>8</number>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="undoButton">
-             <property name="text">
-              <string>&amp;Undo</string>
-             </property>
-             <property name="toolTip">
-              <string>Undo the last correction</string>
-             </property>
-             <property name="accessibleName">
-              <string>Undo</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="redoButton">
-             <property name="text">
-              <string>R&amp;edo</string>
-             </property>
-             <property name="toolTip">
-              <string>Redo the correction</string>
-             </property>
-             <property name="accessibleName">
-              <string>Redo</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="QTreeWidget" name="resultsTreeWidget">
-           <property name="accessibleName">
-            <string>Recognized text</string>
-           </property>
-           <property name="uniformRowHeights">
-            <bool>true</bool>
-           </property>
-           <property name="minimumSize">
-            <size>
-             <width>0</width>
-             <height>110</height>
-            </size>
-           </property>
-           <column>
-            <property name="text">
-             <string>Text</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Confidence</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>State</string>
-            </property>
-           </column>
-           <column>
-            <property name="text">
-             <string>Dictionary</string>
-            </property>
-            <property name="toolTip">
-             <string>Whether the recognized word was found in the dictionary of the language model. It is not a spelling checker.</string>
-            </property>
-           </column>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="statisticsLabel">
-           <property name="text">
-            <string></string>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QGroupBox" name="inspectorGroupBox">
-           <property name="title">
-            <string>Selected word</string>
-           </property>
-           <layout class="QVBoxLayout" name="inspectorLayout">
-            <item>
-             <layout class="QGridLayout" name="inspectorGridLayout">
-              <item row="0" column="0">
-               <widget class="QLabel" name="wordTextLabel">
-                <property name="text">
-                 <string>&amp;Text:</string>
-                </property>
-                <property name="buddy">
-                 <cstring>wordTextEdit</cstring>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QLineEdit" name="wordTextEdit">
-                <property name="accessibleName">
-                 <string>Text of the word</string>
-                </property>
-                <property name="toolTip">
-                 <string>Corrected text of the invisible text layer. The correction does not change the scanned image.</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="lineTextLabel">
-                <property name="text">
-                 <string>L&amp;ine:</string>
-                </property>
-                <property name="buddy">
-                 <cstring>lineTextEdit</cstring>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QLineEdit" name="lineTextEdit">
-                <property name="accessibleName">
-                 <string>Text of the line</string>
-                </property>
-                <property name="toolTip">
-                 <string>Text of the whole line. Unchanged words keep their geometry, the geometry of the changed words is estimated.</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="originalTextCaptionLabel">
-                <property name="text">
-                 <string>Original:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QLabel" name="originalTextLabel">
-                <property name="text">
-                 <string></string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="confidenceCaptionLabel">
-                <property name="text">
-                 <string>Confidence:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QLabel" name="confidenceLabel">
-                <property name="text">
-                 <string></string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="reviewStateCaptionLabel">
-                <property name="text">
-                 <string>State:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="1">
-               <widget class="QLabel" name="reviewStateLabel">
-                <property name="text">
-                 <string></string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="0">
-               <widget class="QLabel" name="modelCaptionLabel">
-                <property name="text">
-                 <string>Language / model:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="1">
-               <widget class="QLabel" name="modelLabel">
-                <property name="text">
-                 <string></string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="0">
-               <widget class="QLabel" name="regionCaptionLabel">
-                <property name="text">
-                 <string>Region / geometry:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="1">
-               <widget class="QLabel" name="regionLabel">
-                <property name="text">
-                 <string></string>
-                </property>
-                <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QGridLayout" name="inspectorButtonsLayout">
-              <item row="0" column="0">
-               <widget class="QPushButton" name="confirmNextButton">
-                <property name="text">
-                 <string>&amp;Confirm and Next</string>
-                </property>
-                <property name="toolTip">
-                 <string>Confirm the word and go to the next word requiring a review</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Confirm and Next</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
-               <widget class="QPushButton" name="skipButton">
-                <property name="text">
-                 <string>&amp;Skip</string>
-                </property>
-                <property name="toolTip">
-                 <string>Go to the next word requiring a review</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Skip</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="2">
-               <widget class="QPushButton" name="previousReviewButton">
-                <property name="text">
-                 <string>Previous</string>
-                </property>
-                <property name="toolTip">
-                 <string>Go to the previous word requiring a review</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Previous</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QPushButton" name="restoreOriginalButton">
-                <property name="text">
-                 <string>Restore Original</string>
-                </property>
-                <property name="toolTip">
-                 <string>Restore the original recognition of the word</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Restore Original</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QPushButton" name="notTextButton">
-                <property name="text">
-                 <string>Not Text</string>
-                </property>
-                <property name="toolTip">
-                 <string>The result is not a text (false detection); it will not be written</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Not Text</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="2">
-               <widget class="QPushButton" name="rerecognizeButton">
-                <property name="text">
-                 <string>Recognize Again</string>
-                </property>
-                <property name="toolTip">
-                 <string>Recognize the area of the selected word or line again</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Recognize Again</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QPushButton" name="mergeButton">
-                <property name="text">
-                 <string>Merge with Next</string>
-                </property>
-                <property name="toolTip">
-                 <string>Merge the word with the next word of the line</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Merge with Next</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QPushButton" name="splitButton">
-                <property name="text">
-                 <string>Split at Cursor</string>
-                </property>
-                <property name="toolTip">
-                 <string>Split the word at the cursor position of the text field</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Split at Cursor</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="2">
-               <widget class="QPushButton" name="insertWordButton">
-                <property name="text">
-                 <string>Insert Word After...</string>
-                </property>
-                <property name="toolTip">
-                 <string>Insert a missing word after the selected word</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Insert Word After</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QPushButton" name="deleteWordButton">
-                <property name="text">
-                 <string>Delete Word</string>
-                </property>
-                <property name="toolTip">
-                 <string>Delete the selected word</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Delete Word</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QPushButton" name="moveUpButton">
-                <property name="text">
-                 <string>Move Up</string>
-                </property>
-                <property name="toolTip">
-                 <string>Move the selected block or line up in the reading order</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Move Up</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="2">
-               <widget class="QPushButton" name="moveDownButton">
-                <property name="text">
-                 <string>Move Down</string>
-                </property>
-                <property name="toolTip">
-                 <string>Move the selected block or line down in the reading order</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Move Down</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QPushButton" name="editGeometryButton">
-                <property name="text">
-                 <string>Edit Box</string>
-                </property>
-                <property name="toolTip">
-                 <string>Move or resize the box of the selected word in the page view</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Edit Box</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="1" rowspan="1" colspan="2">
-               <widget class="QPushButton" name="confirmAllButton">
-                <property name="text">
-                 <string>Confirm All on Page...</string>
-                </property>
-                <property name="toolTip">
-                 <string>Confirm all words of the current page</string>
-                </property>
-                <property name="accessibleName">
-                 <string>Confirm All on Page</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="findReplaceTab">
-        <attribute name="title">
-         <string>Find and replace</string>
-        </attribute>
-        <layout class="QVBoxLayout" name="findReplaceTabOuterLayout">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QScrollArea" name="findReplaceTabScrollArea">
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="widgetResizable">
-            <bool>true</bool>
-           </property>
-           <widget class="QWidget" name="findReplaceTabContents">
-            <layout class="QVBoxLayout" name="findReplaceTabLayout">
-             <item>
-              <widget class="QGroupBox" name="findReplaceGroupBox">
-               <property name="title">
-                <string>Find and replace in the OCR results</string>
-               </property>
-               <layout class="QGridLayout" name="findReplaceLayout">
-                <item row="0" column="0">
-                 <widget class="QLabel" name="findLabel">
-                  <property name="text">
-                   <string>&amp;Find:</string>
-                  </property>
-                  <property name="buddy">
-                   <cstring>findEdit</cstring>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1" rowspan="1" colspan="2">
-                 <widget class="QLineEdit" name="findEdit">
-                  <property name="accessibleName">
-                   <string>Find</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QLabel" name="replaceLabel">
-                  <property name="text">
-                   <string>&amp;Replace:</string>
-                  </property>
-                  <property name="buddy">
-                   <cstring>replaceEdit</cstring>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="1" rowspan="1" colspan="2">
-                 <widget class="QLineEdit" name="replaceEdit">
-                  <property name="accessibleName">
-                   <string>Replace with</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="2" column="0">
-                 <widget class="QLabel" name="findScopeLabel">
-                  <property name="text">
-                   <string>Scope:</string>
-                  </property>
-                  <property name="buddy">
-                   <cstring>findScopeComboBox</cstring>
-                  </property>
-                 </widget>
-                </item>
-                <item row="2" column="1" rowspan="1" colspan="2">
-                 <widget class="QComboBox" name="findScopeComboBox">
-                  <property name="accessibleName">
-                   <string>Scope of the search</string>
-                  </property>
-                  <property name="sizeAdjustPolicy">
-                   <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
-                  </property>
-                  <property name="minimumContentsLength">
-                   <number>8</number>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="0">
-                 <widget class="QCheckBox" name="caseSensitiveCheckBox">
-                  <property name="text">
-                   <string>Case sensitive</string>
-                  </property>
-                  <property name="accessibleName">
-                   <string>Case sensitive</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="1">
-                 <widget class="QCheckBox" name="wholeWordsCheckBox">
-                  <property name="text">
-                   <string>Whole words</string>
-                  </property>
-                  <property name="accessibleName">
-                   <string>Whole words</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="0">
-                 <widget class="QPushButton" name="findNextButton">
-                  <property name="text">
-                   <string>Find Next</string>
-                  </property>
-                  <property name="accessibleName">
-                   <string>Find Next</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="4" column="1">
-                 <widget class="QPushButton" name="replaceAllButton">
-                  <property name="text">
-                   <string>Replace All...</string>
-                  </property>
-                  <property name="toolTip">
-                   <string>Shows the number of occurrences and a preview before the replacement. The whole replacement is a single undo step.</string>
-                  </property>
-                  <property name="accessibleName">
-                   <string>Replace All</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <spacer name="findReplaceTabSpacer">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-            </layout>
-           </widget>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </widget>
-     </widget>
     </widget>
    </item>
    <item>
@@ -2835,7 +2819,6 @@
   <tabstop>regionPropertiesButton</tabstop>
   <tabstop>removeRegionButton</tabstop>
   <tabstop>settingsTabWidget</tabstop>
-  <tabstop>reviewTabWidget</tabstop>
   <tabstop>reviewFilterComboBox</tabstop>
   <tabstop>undoButton</tabstop>
   <tabstop>redoButton</tabstop>

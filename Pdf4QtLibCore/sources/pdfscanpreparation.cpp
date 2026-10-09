@@ -29,6 +29,8 @@
 #include "pdfpage.h"
 #include "pdfexception.h"
 #include "pdfconstants.h"
+#include "pdfimageconversion.h"
+#include "pdfobjectutils.h"
 
 #include <QtMath>
 
@@ -40,64 +42,23 @@
 namespace pdf
 {
 
-namespace
+/// Analysis of the ink of the scanned pages (gutter of the spreads)
+class PDFScanPreparationHelper
 {
+public:
+    PDFScanPreparationHelper() = delete;
 
-/// Otsu's threshold of the histogram of a gray image
-int computeOtsuThreshold(const QImage& gray)
-{
-    std::array<qint64, 256> histogram = { };
-    for (int y = 0; y < gray.height(); ++y)
-    {
-        const uchar* row = gray.constScanLine(y);
-        for (int x = 0; x < gray.width(); ++x)
-        {
-            ++histogram[row[x]];
-        }
-    }
+    /// Marks the dark pixels, which are not connected with the border of the image
+    /// (the edges of the scanner and the shadows of the page are connected with it)
+    static std::vector<uchar> computeInk(const QImage& gray, int threshold, int* borderPixels);
 
-    const qint64 total = qint64(gray.width()) * gray.height();
-    double sum = 0.0;
-    for (int i = 0; i < 256; ++i)
-    {
-        sum += double(i) * histogram[size_t(i)];
-    }
+    /// Finds the gutter of a spread in the middle band of the axis. Columns (or rows)
+    /// of the image are profiled: a wide gap without ink, or a dark valley of the
+    /// mean brightness (the shadow of the spine).
+    static std::optional<PDFScanPreparation::GutterCandidate> findGutter(const QImage& gray, const std::vector<uchar>& ink, bool vertical, double dpi);
+};
 
-    double sumBackground = 0.0;
-    qint64 weightBackground = 0;
-    double bestVariance = -1.0;
-    int threshold = 128;
-    for (int i = 0; i < 256; ++i)
-    {
-        weightBackground += histogram[size_t(i)];
-        if (weightBackground == 0)
-        {
-            continue;
-        }
-
-        const qint64 weightForeground = total - weightBackground;
-        if (weightForeground == 0)
-        {
-            break;
-        }
-
-        sumBackground += double(i) * histogram[size_t(i)];
-        const double meanBackground = sumBackground / weightBackground;
-        const double meanForeground = (sum - sumBackground) / weightForeground;
-        const double variance = double(weightBackground) * double(weightForeground) * (meanBackground - meanForeground) * (meanBackground - meanForeground);
-        if (variance > bestVariance)
-        {
-            bestVariance = variance;
-            threshold = i;
-        }
-    }
-
-    return threshold;
-}
-
-/// Marks the dark pixels, which are not connected with the border of the image
-/// (the edges of the scanner and the shadows of the page are connected with it)
-std::vector<uchar> computeInk(const QImage& gray, int threshold, int* borderPixels)
+std::vector<uchar> PDFScanPreparationHelper::computeInk(const QImage& gray, int threshold, int* borderPixels)
 {
     const int width = gray.width();
     const int height = gray.height();
@@ -166,10 +127,7 @@ std::vector<uchar> computeInk(const QImage& gray, int threshold, int* borderPixe
     return dark;
 }
 
-/// Finds the gutter of a spread in the middle band of the axis. Columns (or rows)
-/// of the image are profiled: a wide gap without ink, or a dark valley of the
-/// mean brightness (the shadow of the spine).
-std::optional<PDFScanPreparation::GutterCandidate> findGutter(const QImage& gray, const std::vector<uchar>& ink, bool vertical, double dpi)
+std::optional<PDFScanPreparation::GutterCandidate> PDFScanPreparationHelper::findGutter(const QImage& gray, const std::vector<uchar>& ink, bool vertical, double dpi)
 {
     const int width = gray.width();
     const int height = gray.height();
@@ -277,68 +235,6 @@ std::optional<PDFScanPreparation::GutterCandidate> findGutter(const QImage& gray
     return gap ? gap : shadow;
 }
 
-QByteArray formatNumber(double value)
-{
-    QByteArray result = QByteArray::number(value, 'f', 6);
-    while (result.contains('.') && (result.endsWith('0') || result.endsWith('.')))
-    {
-        result.chop(1);
-    }
-    return result.isEmpty() || result == "-" ? QByteArray("0") : result;
-}
-
-PDFDictionary copyDictionary(const PDFDocumentBuilder& builder, const PDFObject& object)
-{
-    if (const PDFDictionary* dictionary = builder.getDictionaryFromObject(object))
-    {
-        return *dictionary;
-    }
-    return PDFDictionary();
-}
-
-void removeEntry(PDFDictionary& dictionary, const char* key)
-{
-    if (dictionary.hasKey(key))
-    {
-        dictionary.removeEntry(key);
-    }
-}
-
-/// Reads the entries of a number tree (recursively over /Kids)
-void readNumberTree(const PDFDocumentBuilder& builder, const PDFObject& node, std::vector<std::pair<PDFInteger, PDFObject>>& entries, int depth)
-{
-    const PDFDictionary* dictionary = builder.getDictionaryFromObject(node);
-    if (!dictionary || depth > 32)
-    {
-        return;
-    }
-
-    const PDFObject& nums = builder.getObject(dictionary->get("Nums"));
-    if (nums.isArray())
-    {
-        const PDFArray* array = nums.getArray();
-        for (size_t i = 0; i + 1 < array->getCount(); i += 2)
-        {
-            const PDFObject& key = builder.getObject(array->getItem(i));
-            if (key.isInt())
-            {
-                entries.emplace_back(key.getInteger(), array->getItem(i + 1));
-            }
-        }
-    }
-
-    const PDFObject& kids = builder.getObject(dictionary->get("Kids"));
-    if (kids.isArray())
-    {
-        for (size_t i = 0; i < kids.getArray()->getCount(); ++i)
-        {
-            readNumberTree(builder, kids.getArray()->getItem(i), entries, depth + 1);
-        }
-    }
-}
-
-} // namespace
-
 // -------------------------------------------------------------------------
 // Analysis
 // -------------------------------------------------------------------------
@@ -424,9 +320,9 @@ void PDFScanPreparation::analyzeImage(const QImage& image, double dpi, PageAnaly
     analysis.skewAngle = PDFOCRPagePreparer::estimateSkewAngle(gray, &analysis.skewConfidence, operationControl, MaximumDeskewAngle, true);
 
     // Ink: the dark pixels, which are not connected with the border
-    const int threshold = qMin(computeOtsuThreshold(gray), 200);
+    const int threshold = qMin(PDFImageConversion::calculateOtsuThreshold(gray), 200);
     int borderPixels = 0;
-    const std::vector<uchar> ink = computeInk(gray, threshold, &borderPixels);
+    const std::vector<uchar> ink = PDFScanPreparationHelper::computeInk(gray, threshold, &borderPixels);
 
     // Mask of the ink at a low resolution (a cell with at least two ink pixels is ink,
     // so the isolated specks of the scan do not enlarge the content)
@@ -478,8 +374,8 @@ void PDFScanPreparation::analyzeImage(const QImage& image, double dpi, PageAnaly
     }
 
     // Gutters of the spreads
-    analysis.gutterSideBySide = findGutter(gray, ink, true, dpi);
-    analysis.gutterOneAboveAnother = findGutter(gray, ink, false, dpi);
+    analysis.gutterSideBySide = PDFScanPreparationHelper::findGutter(gray, ink, true, dpi);
+    analysis.gutterOneAboveAnother = PDFScanPreparationHelper::findGutter(gray, ink, false, dpi);
 }
 
 std::array<QRectF, 2> PDFScanPreparation::computeSplit(QSizeF visibleSize, SplitOrientation orientation, double position, double gutterWidth)
@@ -791,7 +687,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
             firstOutputIndex[source] = PDFInteger(newPages.size());
 
             // Source page dictionary (after a possible removal of the OCR layer)
-            const PDFDictionary sourceDictionary = copyDictionary(builder, builder.getObjectByReference(sourceReference));
+            const PDFDictionary sourceDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(sourceReference));
             const std::vector<PDFObjectReference> annotations = sourcePage->getAnnotations();
 
             std::vector<PDFObjectReference> outputReferences;
@@ -806,10 +702,10 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                 {
                     // Clone sharing the content and the resources; the annotations are
                     // distributed below, the thumbnail and the beads belong to the original
-                    removeEntry(dictionary, "Annots");
-                    removeEntry(dictionary, "Thumb");
-                    removeEntry(dictionary, "B");
-                    removeEntry(dictionary, "StructParents");
+                    dictionary.removeEntry("Annots");
+                    dictionary.removeEntry("Thumb");
+                    dictionary.removeEntry("B");
+                    dictionary.removeEntry("StructParents");
                     reference = builder.addObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(dictionary)));
                 }
 
@@ -827,7 +723,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                 }
                 const bool isCropped = cropBox != currentCropBox;
 
-                PDFDictionary pageDictionary = copyDictionary(builder, builder.getObjectByReference(reference));
+                PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(reference));
                 if (isCropped)
                 {
                     PDFObjectFactory boxFactory;
@@ -879,8 +775,8 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                     const QTransform matrix = getDeskewMatrix(region, output.deskewAngle);
 
                     // A stray "Q" of the content pops the extra "q" first, the rotation stays
-                    QByteArray begin = "q " + formatNumber(matrix.m11()) + ' ' + formatNumber(matrix.m12()) + ' ' + formatNumber(matrix.m21()) + ' ' +
-                                       formatNumber(matrix.m22()) + ' ' + formatNumber(matrix.dx()) + ' ' + formatNumber(matrix.dy()) + " cm\n";
+                    QByteArray begin = "q " + PDFDocumentBuilder::formatPDFReal(matrix.m11()) + ' ' + PDFDocumentBuilder::formatPDFReal(matrix.m12()) + ' ' + PDFDocumentBuilder::formatPDFReal(matrix.m21()) + ' ' +
+                                       PDFDocumentBuilder::formatPDFReal(matrix.m22()) + ' ' + PDFDocumentBuilder::formatPDFReal(matrix.dx()) + ' ' + PDFDocumentBuilder::formatPDFReal(matrix.dy()) + " cm\n";
                     for (int k = 0; k < qMax(0, -balance.graphicStateDepth); ++k)
                     {
                         begin += "q\n";
@@ -922,7 +818,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
 
                 if (isCropped || !qFuzzyIsNull(output.deskewAngle) || i > 0)
                 {
-                    removeEntry(pageDictionary, "Thumb");
+                    pageDictionary.removeEntry("Thumb");
                     builder.setObject(reference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
                     isChanged = true;
                 }
@@ -966,8 +862,8 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
 
                 for (size_t k = 0; k < outputReferences.size(); ++k)
                 {
-                    PDFDictionary pageDictionary = copyDictionary(builder, builder.getObjectByReference(outputReferences[k]));
-                    removeEntry(pageDictionary, "Annots");
+                    PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(outputReferences[k]));
+                    pageDictionary.removeEntry("Annots");
                     if (!distributed[k].empty())
                     {
                         PDFObjectFactory annotationsFactory;
@@ -996,8 +892,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
             {
                 if (catalogDictionary->hasKey("PageLabels"))
                 {
-                    std::vector<std::pair<PDFInteger, PDFObject>> entries;
-                    readNumberTree(builder, catalogDictionary->get("PageLabels"), entries, 0);
+                    std::vector<std::pair<PDFInteger, PDFObject>> entries = PDFObjectUtils::readNumberTree(builder.getStorage(), catalogDictionary->get("PageLabels"));
                     std::sort(entries.begin(), entries.end(), [](const auto& left, const auto& right) { return left.first < right.first; });
 
                     PDFObjectFactory labelsFactory;

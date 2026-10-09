@@ -34,8 +34,6 @@
 #include <QDir>
 #include <QFileInfo>
 
-#include <algorithm>
-
 namespace pdf
 {
 
@@ -75,11 +73,11 @@ PDFOCRApplyProcessor::Context PDFOCRApplyProcessor::createContext(const PDFDocum
     return context;
 }
 
-int PDFOCRApplyProcessor::getCertificationPermissions(const PDFDocument* document)
+PDFOCRApplyProcessor::CertificationPermissions PDFOCRApplyProcessor::getCertificationPermissions(const PDFDocument* document)
 {
     if (!document)
     {
-        return 0;
+        return CertificationPermissions::NotCertified;
     }
 
     const PDFDictionary* trailer = document->getTrailerDictionary();
@@ -87,7 +85,7 @@ int PDFOCRApplyProcessor::getCertificationPermissions(const PDFDocument* documen
     const PDFDictionary* permissions = catalog ? document->getDictionaryFromObject(catalog->get("Perms")) : nullptr;
     if (!permissions || !permissions->hasKey("DocMDP") || document->getObject(permissions->get("DocMDP")).isNull())
     {
-        return 0;
+        return CertificationPermissions::NotCertified;
     }
 
     // The permissions are in the transform parameters of the DocMDP signature reference;
@@ -108,7 +106,16 @@ int PDFOCRApplyProcessor::getCertificationPermissions(const PDFDocument* documen
         }
     }
 
-    return int(std::clamp(value, PDFInteger(1), PDFInteger(3)));
+    switch (value)
+    {
+        case 1:
+            return CertificationPermissions::NoChanges;
+        case 3:
+            return CertificationPermissions::FormFillingAndAnnotations;
+        default:
+            // An unknown value of /P is treated as the default value
+            return CertificationPermissions::FormFilling;
+    }
 }
 
 bool PDFOCRApplyProcessor::hasSignatureFields(const PDFDocument* document)
@@ -147,14 +154,14 @@ QString PDFOCRApplyProcessor::checkPermissions(const Context& context, OutputMod
     }
 
     // The certification signature (DocMDP) is enforced, not only reported (PDF-12)
-    if (context.certificationPermissions == 1)
+    if (context.certificationPermissions == CertificationPermissions::NoChanges)
     {
         return PDFTranslationContext::tr("The document is certified and its certification does not allow any change. The text layer cannot be written into the document nor into its copy; the recognized text can only be exported.");
     }
 
     if (outputMode == OutputMode::ModifyDocument)
     {
-        if (context.certificationPermissions > 0)
+        if (context.isCertified())
         {
             return PDFTranslationContext::tr("The document is certified and its certification allows only filling of forms, signing and annotating. Writing the text layer would invalidate the certification, so the current document cannot be modified. "
                                              "Use the output mode 'Create a copy of the document with OCR'; the certification of the copy will not be valid.");
@@ -329,7 +336,7 @@ QStringList PDFOCRApplyProcessor::getWarnings(const Plan& plan, const Context& c
     {
         warnings << PDFTranslationContext::tr("Uncertain words are written as well; the uncertainty is an information for the review, not a filter of the text.");
     }
-    if (plan.outputMode == OutputMode::CreateCopy && context.certificationPermissions > 0)
+    if (plan.outputMode == OutputMode::CreateCopy && context.isCertified())
     {
         warnings << PDFTranslationContext::tr("The document is certified. The certification of the copy is not valid, because the copy contains the added text layer.");
     }
@@ -555,7 +562,7 @@ PDFOCRApplyProcessor::Result PDFOCRApplyProcessor::removeLayers(const Context& c
         return result;
     }
 
-    if (context.certificationPermissions > 0)
+    if (context.isCertified())
     {
         // The removal changes the content of the certified document (PDF-12)
         result.errorMessage = PDFTranslationContext::tr("The document is certified; removing the text layer would invalidate the certification.");

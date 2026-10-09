@@ -69,7 +69,7 @@ static constexpr double VIEW_DPI = 100.0;
 static constexpr size_t IMAGE_CACHE_SIZE = 8;
 static constexpr double HANDLE_SIZE = 8.0;
 
-static QString getSettingsGroup()
+QString PDFScanPreparationDialog::getSettingsGroup()
 {
     return QStringLiteral("ScanPreparationDialog");
 }

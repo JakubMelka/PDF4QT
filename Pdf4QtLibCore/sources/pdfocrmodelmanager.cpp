@@ -701,9 +701,8 @@ void PDFOCRModelManager::performHousekeeping()
     const QFileInfoList runtimeSets = QDir(getRuntimeDirectory(QStringLiteral("tesseract"))).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QFileInfo& info : runtimeSets)
     {
-        const bool isTemporary = info.fileName().contains(QStringLiteral(".tmp-"));
         const QFileInfo completeInfo(info.absoluteFilePath() + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE));
-        const bool remove = isTemporary ? isOlderThan(info, ONE_DAY) : (!completeInfo.exists() ? isOlderThan(info, ONE_DAY) : isOlderThan(completeInfo, UNUSED_SET_LIFETIME));
+        const bool remove = completeInfo.exists() ? isOlderThan(completeInfo, UNUSED_SET_LIFETIME) : isOlderThan(info, ONE_DAY);
         if (!remove)
         {
             continue;
@@ -715,14 +714,25 @@ void PDFOCRModelManager::performHousekeeping()
             continue;
         }
 
-        QDirIterator fileIt(info.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
-        while (fileIt.hasNext())
-        {
-            // Models of the runtime sets are read-only
-            QFile::setPermissions(fileIt.next(), QFile::ReadOwner | QFile::WriteOwner);
-        }
-        QDir(info.absoluteFilePath()).removeRecursively();
+        removeRuntimeSet(info.absoluteFilePath());
     }
+}
+
+bool PDFOCRModelManager::removeRuntimeSet(const QString& setDirectory)
+{
+    const QString completeFile = setDirectory + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE);
+    if (QFile::exists(completeFile) && !QFile::remove(completeFile))
+    {
+        return false;
+    }
+
+    QDirIterator fileIt(setDirectory, QDir::Files, QDirIterator::Subdirectories);
+    while (fileIt.hasNext())
+    {
+        // Models of the runtime sets are read-only
+        QFile::setPermissions(fileIt.next(), QFile::ReadOwner | QFile::WriteOwner);
+    }
+    return QDir(setDirectory).removeRecursively();
 }
 
 void PDFOCRModelManager::refresh()
@@ -1383,20 +1393,27 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
             return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Not enough free space in '%1' to prepare the model set (%2 MB required).").arg(m_userDirectory).arg(requiredBytes / (1024 * 1024) + 1));
         }
 
-        const QString temporaryDirectory = getRuntimeDirectory(engineId) + QStringLiteral("/") + setHash + QStringLiteral(".tmp-") + QString::number(QCoreApplication::applicationPid());
-        QDir().mkpath(temporaryDirectory + QStringLiteral("/tessdata"));
+        // The set is built in place under the lock and published by the marker file, which
+        // is written as the last one, when all the models are copied and verified (LANG-06).
+        // A set without the marker is never used: an interrupted build is built again here,
+        // or removed by the housekeeping. The directory is never renamed (a new file can be
+        // locked for a moment by another process, for example a virus scanner).
+        if (QDir(runtimeDirectory).exists() && !removeRuntimeSet(runtimeDirectory))
+        {
+            return fail(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the incomplete runtime set directory '%1'.").arg(runtimeDirectory));
+        }
+        QDir().mkpath(tessdataDirectory);
 
         for (const Selected& item : selected)
         {
-            const QString targetPath = temporaryDirectory + QStringLiteral("/tessdata/") + item.languageCode + QLatin1String(TRAINEDDATA_SUFFIX);
+            const QString targetPath = tessdataDirectory + QStringLiteral("/") + item.languageCode + QLatin1String(TRAINEDDATA_SUFFIX);
 
             // Script models are stored in a subdirectory ("script/Arabic")
             QDir().mkpath(QFileInfo(targetPath).absolutePath());
-            QFile::remove(targetPath);
             if (!QFile::copy(item.path, targetPath))
             {
-                QDir(temporaryDirectory).removeRecursively();
-                return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot copy model '%1' into the runtime set directory '%2'.").arg(item.path, temporaryDirectory));
+                removeRuntimeSet(runtimeDirectory);
+                return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot copy model '%1' into the runtime set directory '%2'.").arg(item.path, runtimeDirectory));
             }
 
             // The copy is verified against the recorded checksum (LANG-02, LANG-06): a damaged
@@ -1406,8 +1423,7 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
                 const QString copyHash = computeSha256(targetPath);
                 if (copyHash.compare(item.sha256, Qt::CaseInsensitive) != 0)
                 {
-                    QFile::setPermissions(targetPath, QFile::ReadOwner | QFile::WriteOwner);
-                    QDir(temporaryDirectory).removeRecursively();
+                    removeRuntimeSet(runtimeDirectory);
                     return fail(PDFOCRErrorCode::VerificationFailed, PDFTranslationContext::tr("Model file '%1' is damaged, its checksum does not match. Reinstall the application or download the model again.").arg(item.path));
                 }
             }
@@ -1429,28 +1445,15 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         completeObject[QStringLiteral("models")] = modelArray;
         completeObject[QStringLiteral("hash")] = setHash;
 
-        QFile completeFile(temporaryDirectory + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE));
-        if (!completeFile.open(QFile::WriteOnly | QFile::Truncate))
-        {
-            QDir(temporaryDirectory).removeRecursively();
-            return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot write into the runtime set directory '%1'.").arg(temporaryDirectory));
-        }
-        completeFile.write(QJsonDocument(completeObject).toJson(QJsonDocument::Indented));
+        // Publication of the complete set
+        QFile completeFile(runtimeDirectory + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE));
+        const QByteArray completeData = QJsonDocument(completeObject).toJson(QJsonDocument::Indented);
+        const bool written = completeFile.open(QFile::WriteOnly | QFile::Truncate) && completeFile.write(completeData) == completeData.size();
         completeFile.close();
-
-        // Atomic activation: the set is published only when complete (LANG-06)
-        if (QDir(runtimeDirectory).exists())
+        if (!written)
         {
-            QDir(runtimeDirectory).removeRecursively();
-        }
-
-        if (!QDir().rename(temporaryDirectory, runtimeDirectory))
-        {
-            QDir(temporaryDirectory).removeRecursively();
-            if (!QFile::exists(runtimeDirectory + QStringLiteral("/") + QLatin1String(RUNTIME_COMPLETE_FILE)))
-            {
-                return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot activate the runtime set directory '%1'.").arg(runtimeDirectory));
-            }
+            removeRuntimeSet(runtimeDirectory);
+            return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot write into the runtime set directory '%1'.").arg(runtimeDirectory));
         }
     }
 
@@ -2257,17 +2260,7 @@ PDFOCRError PDFOCRModelManager::cleanRuntimeSets()
                 continue;
             }
 
-            if (info.isDir())
-            {
-                QDirIterator fileIt(info.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
-                while (fileIt.hasNext())
-                {
-                    // Models of the runtime sets are read-only
-                    QFile::setPermissions(fileIt.next(), QFile::ReadOwner | QFile::WriteOwner);
-                }
-            }
-
-            const bool removed = info.isDir() ? QDir(info.absoluteFilePath()).removeRecursively() : QFile::remove(info.absoluteFilePath());
+            const bool removed = info.isDir() ? removeRuntimeSet(info.absoluteFilePath()) : QFile::remove(info.absoluteFilePath());
             if (!removed)
             {
                 return PDFOCRError::create(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the runtime set '%1'. A model set may be in use.").arg(info.absoluteFilePath()), PDFTranslationContext::tr("Cache cleanup"));

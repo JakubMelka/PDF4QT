@@ -102,12 +102,12 @@ enum HelperSelection
     HelperWaitingForReview
 };
 
-static QString getSettingsGroup()
+QString PDFOCRDocumentDialog::getSettingsGroup()
 {
     return QStringLiteral("OCRDialog");
 }
 
-static QString getLanguageSuggestion()
+QString PDFOCRDocumentDialog::getLanguageSuggestion()
 {
     // First selection is suggested by the language of the user interface (LANG-03)
     switch (QLocale().language())
@@ -204,8 +204,6 @@ PDFOCRDocumentDialog::PDFOCRDocumentDialog(const Context& context, QWidget* pare
         {
             ui->mainSplitter->setSizes({ width() * 20 / 100, width() * 48 / 100, width() * 32 / 100 });
         }
-        // The right column follows the workflow: settings first, review after the recognition
-        showReviewPanel(false);
         settings.endGroup();
     }
 
@@ -254,7 +252,7 @@ pdf::PDFOCRDocumentIdentity PDFOCRDocumentDialog::createIdentity() const
     return identity;
 }
 
-int PDFOCRDocumentDialog::getCertificationPermissions(const pdf::PDFDocument* document)
+pdf::PDFOCRApplyProcessor::CertificationPermissions PDFOCRDocumentDialog::getCertificationPermissions(const pdf::PDFDocument* document)
 {
     return pdf::PDFOCRApplyProcessor::getCertificationPermissions(document);
 }
@@ -428,8 +426,10 @@ void PDFOCRDocumentDialog::initializeUi()
         ui->exportFormatComboBox->addItem(pdf::PDFOCRStructuredExporter::getFormatName(format), int(format));
     }
 
-    ui->engineModeComboBox->addItem(tr("1 - LSTM neural network"), 1);
-    ui->engineModeComboBox->addItem(tr("3 - Default of the available models"), 3);
+    for (pdf::PDFOCREngineMode engineMode : { pdf::PDFOCREngineMode::NeuralNetwork, pdf::PDFOCREngineMode::Default })
+    {
+        ui->engineModeComboBox->addItem(tr("%1 - %2").arg(int(engineMode)).arg(pdf::PDFOCRConfiguration::getEngineModeName(engineMode)), int(engineMode));
+    }
 
     ui->reviewFilterComboBox->addItem(tr("All words"), FilterAll);
     ui->reviewFilterComboBox->addItem(tr("Words requiring review"), FilterRequiresReview);
@@ -826,7 +826,7 @@ void PDFOCRDocumentDialog::initializeUi()
     QShortcut* findShortcut = new QShortcut(QKeySequence::Find, this);
     connect(findShortcut, &QShortcut::activated, this, [this]()
     {
-        ui->reviewTabWidget->setCurrentWidget(ui->findReplaceTab);
+        ui->settingsTabWidget->setCurrentWidget(ui->findReplaceTab);
         ui->findEdit->setFocus();
         ui->findEdit->selectAll();
     });
@@ -1180,7 +1180,7 @@ void PDFOCRDocumentDialog::onOwnLayerLoaded(int generation, pdf::PDFOCRPageResul
     m_session->setPageResult(std::move(result));
     m_session->setDirty(wasDirty);
 
-    showReviewPanel(true);
+    showReviewTab();
     updatePageItem(pageIndex);
     updateUi();
     if (pageIndex == m_currentPage)
@@ -1383,7 +1383,7 @@ pdf::PDFOCRConfiguration PDFOCRDocumentDialog::getConfigurationFromUi() const
     configuration.profile = pdf::PDFOCRModelProfile(ui->profileComboBox->currentData().toInt());
     configuration.layout = pdf::PDFOCRLayout(ui->layoutComboBox->currentData().toInt());
     configuration.existingTextPolicy = pdf::PDFOCRExistingTextPolicy(ui->existingTextPolicyComboBox->currentData().toInt());
-    configuration.engineMode = ui->engineModeComboBox->currentData().toInt();
+    configuration.engineMode = pdf::PDFOCREngineMode(ui->engineModeComboBox->currentData().toInt());
 
     const int resolution = ui->dpiComboBox->currentData().toInt();
     configuration.dpi = resolution > 0 ? resolution : ui->customDpiSpinBox->value();
@@ -1434,7 +1434,7 @@ void PDFOCRDocumentDialog::setConfigurationToUi(const pdf::PDFOCRConfiguration& 
     select(ui->engineComboBox, configuration.engineId);
     select(ui->profileComboBox, int(configuration.profile));
     select(ui->existingTextPolicyComboBox, int(configuration.existingTextPolicy));
-    select(ui->engineModeComboBox, configuration.engineMode);
+    select(ui->engineModeComboBox, int(configuration.engineMode));
 
     if (!pdf::PDFOCRConfiguration::isBasicLayout(configuration.layout))
     {
@@ -2164,7 +2164,7 @@ QString PDFOCRDocumentDialog::getPageStateName(pdf::PDFOCRPageState state)
     return QString();
 }
 
-static QString getContentClassName(pdf::PDFOCRPageContentClass contentClass)
+QString PDFOCRDocumentDialog::getContentClassName(pdf::PDFOCRPageContentClass contentClass)
 {
     switch (contentClass)
     {
@@ -3220,7 +3220,7 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
 
     if (runMode == RunMode::Pages && (summary.donePages > 0 || summary.noTextPages > 0))
     {
-        showReviewPanel(true);
+        showReviewTab();
     }
     processCandidates();
     updateUi();
@@ -5072,7 +5072,7 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
         return;
     }
 
-    if (m_context.certificationPermissions > 0)
+    if (m_context.isCertified())
     {
         // The removal changes the content of the certified document (PDF-12)
         QMessageBox::warning(this, windowTitle(), tr("The document is certified; removing the text layer would invalidate the certification."));
@@ -5612,7 +5612,7 @@ void PDFOCRDocumentDialog::onOpenProject()
     m_session->setDirty(wasDirty);
 
     m_projectFileName = fileName;
-    showReviewPanel(true);
+    showReviewTab();
     setConfigurationToUi(m_session->getConfiguration());
     if (!project.selectedPages.empty())
     {
@@ -5633,16 +5633,14 @@ void PDFOCRDocumentDialog::onOpenProject()
 // Common
 // -------------------------------------------------------------------------
 
-void PDFOCRDocumentDialog::showReviewPanel(bool show)
+void PDFOCRDocumentDialog::showReviewTab()
 {
-    const int total = qMax(100, ui->rightSplitter->height());
-    if (show)
+    // The right column follows the workflow: settings first, review after the recognition.
+    // Find and replace is a part of the review, the user stays there.
+    QWidget* currentTab = ui->settingsTabWidget->currentWidget();
+    if (currentTab != ui->reviewTab && currentTab != ui->findReplaceTab)
     {
-        ui->rightSplitter->setSizes({ total * 22 / 100, total * 78 / 100 });
-    }
-    else
-    {
-        ui->rightSplitter->setSizes({ total, 0 });
+        ui->settingsTabWidget->setCurrentWidget(ui->reviewTab);
     }
 }
 
@@ -5704,7 +5702,11 @@ void PDFOCRDocumentDialog::updateUi()
     ui->recognizeButton->setToolTip(running ? tr("A recognition is running. Changes of the settings apply to the next run only.") : tr("Recognize the checked pages. The document is not modified."));
     ui->stopButton->setEnabled((running && !m_jobController->isStopping()) || preparing);
     ui->manageLanguagesButton->setEnabled(!preparing);
-    ui->settingsTabWidget->setToolTip(running ? tr("The running recognition uses the settings from its start. Changes apply to the next run.") : QString());
+    const QString settingsToolTip = running ? tr("The running recognition uses the settings from its start. Changes apply to the next run.") : QString();
+    for (QWidget* settingsTab : { ui->pagesTab, ui->recognitionTab, ui->imageTab, ui->outputTab, ui->advancedTab })
+    {
+        ui->settingsTabWidget->setTabToolTip(ui->settingsTabWidget->indexOf(settingsTab), settingsToolTip);
+    }
 
     // An engine without exact geometry is offered for the export only (ARCH-02, ENGINE-01)
     const bool exportOnly = m_engineCapabilities.isExportOnly;
@@ -5715,7 +5717,7 @@ void PDFOCRDocumentDialog::updateUi()
                                            : (compressionNeedsPreview ? tr("The lossy compression of the images must be checked and confirmed in the preview first (tab Output, button Preview).")
                                                                       : tr("Write the invisible text layer into the document")));
     ui->compressionPreviewButton->setEnabled(hasResults && !m_applyInProgress);
-    ui->removeLayerButton->setEnabled(!busy && hasChecked && m_context.canModify && m_context.certificationPermissions == 0 && !exportOnly);
+    ui->removeLayerButton->setEnabled(!busy && hasChecked && m_context.canModify && !m_context.isCertified() && !exportOnly);
     ui->removeLayerButton->setToolTip(exportOnly ? exportOnlyToolTip : tr("Removes the OCR text layer created by PDF4QT including its private data. Other content is never removed."));
     ui->exportButton->setEnabled(hasResults && !m_applyInProgress);
     ui->saveProjectButton->setEnabled(!m_applyInProgress && (hasResults || m_session->isDirty()));
@@ -5766,11 +5768,11 @@ void PDFOCRDocumentDialog::updateUi()
     {
         outputInfo << tr("The document declares %1: only an export or an ordinary PDF copy without the declaration is possible.").arg(m_conformanceDeclarations.join(QStringLiteral(", ")));
     }
-    if (m_context.certificationPermissions == 1)
+    if (m_context.certificationPermissions == pdf::PDFOCRApplyProcessor::CertificationPermissions::NoChanges)
     {
         outputInfo << tr("The document is certified without permitted changes: the recognized text can only be exported.");
     }
-    else if (m_context.certificationPermissions > 0)
+    else if (m_context.isCertified())
     {
         outputInfo << tr("The document is certified: it cannot be modified, only a copy with OCR can be created, whose certification is not valid.");
     }

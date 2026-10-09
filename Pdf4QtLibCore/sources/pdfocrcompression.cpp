@@ -24,30 +24,20 @@
 #include "pdfdocument.h"
 #include "pdfcatalog.h"
 #include "pdfpage.h"
-#include "pdfimage.h"
 #include "pdfcms.h"
-#include "pdffont.h"
-#include "pdfconstants.h"
 #include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfimagecompressor.h"
 #include "pdfimageconversion.h"
 #include "pdfimageoptimizer.h"
-#include "pdfoptionalcontent.h"
-#include "pdfmeshqualitysettings.h"
-#include "pdfpagecontentprocessor.h"
 
 #include <QMutex>
 #include <QThread>
-#include <QJsonArray>
 #include <QScopeGuard>
 
-#include <set>
-#include <map>
-#include <cmath>
 #include <atomic>
 #include <limits>
-#include <functional>
-#include <unordered_set>
+#include <optional>
 
 namespace pdf
 {
@@ -308,40 +298,390 @@ QString PDFOCRCompressionReport::getSummary() const
 // PDFOCRImageCompressor
 // -------------------------------------------------------------------------
 
-namespace
-{
-
-using ImageResult = PDFOCRCompressionImageResult;
-
 /// Image, which was encoded
-struct EncodedImage
+struct PDFOCRImageCompressor::EncodedImage
 {
-    ImageResult result;
+    PDFOCRCompressionImageResult result;
     PDFStream stream;
     QImage preview;
     double encodedDpi = 0.0;
     bool usesJbig2 = false;
 };
 
-QString getFilterName(const PDFDocument* document, const PDFDictionary* dictionary)
+/// Compression of the images of a document, shared by the compression and by the preview
+class PDFOCRImageCompressor::ImageCompressionJob
 {
-    const PDFObject& filter = document->getObject(dictionary->get("Filter"));
-    if (filter.isName())
+public:
+    ImageCompressionJob(const PDFDocument* document, const PDFOCRCompressionSettings& settings, const std::set<PDFInteger>& processedPages, bool keepPreview) :
+        m_document(document),
+        m_settings(settings),
+        m_processedPages(processedPages),
+        m_keepPreview(keepPreview),
+        m_usage(PDFOCRImageCompressor::getImageUsage(document))
     {
-        return QString::fromLatin1(filter.getString());
+
     }
-    if (filter.isArray() && filter.getArray()->getCount() > 0)
+
+    /// Processes an image drawn on the page
+    void processImage(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, PDFInteger pageIndex, QPointF dpi, const PDFCMS* cms, const PDFOperationControl* operationControl);
+
+    std::map<PDFObjectReference, EncodedImage> takeImages() { return std::move(m_images); }
+
+    int getMaximumConcurrentImages() const { return m_maximumConcurrentImages.load(); }
+
+private:
+    using ImageResult = PDFOCRCompressionImageResult;
+
+    /// Checks the image, which cannot be re-encoded. Returns the reason, or empty string.
+    std::optional<ImageResult::Action> checkImage(const PDFImage& image, const PDFDictionary* dictionary, PDFObjectReference reference, QString* message) const;
+
+    /// Encodes the decoded image. Returns false, if the image is not re-encoded.
+    bool encode(const QImage& decoded, const PDFImage& image, double dpi, EncodedImage& encoded) const;
+
+    const PDFDocument* m_document;
+    PDFOCRCompressionSettings m_settings;
+    std::set<PDFInteger> m_processedPages;
+    bool m_keepPreview;
+    std::map<PDFObjectReference, std::vector<PDFInteger>> m_usage;
+
+    QMutex m_mutex;
+    std::map<PDFObjectReference, EncodedImage> m_images;
+    std::set<PDFObjectReference> m_inProgress;
+    std::map<PDFObjectReference, std::vector<PDFInteger>> m_pendingPages;
+    std::atomic<int> m_concurrentImages = 0;
+    std::atomic<int> m_maximumConcurrentImages = 0;
+};
+
+std::optional<PDFOCRCompressionImageResult::Action> PDFOCRImageCompressor::ImageCompressionJob::checkImage(const PDFImage& image, const PDFDictionary* dictionary, PDFObjectReference reference, QString* message) const
+{
+    PDFDocumentDataLoaderDecorator loader(m_document);
+
+    if (m_settings.isExcluded(reference))
     {
-        const PDFObject& last = document->getObject(filter.getArray()->getItem(filter.getArray()->getCount() - 1));
-        if (last.isName())
+        return ImageResult::Action::SkippedExcluded;
+    }
+
+    // The image drawn on a page, which is not written, is left as it is by default
+    auto usageIt = m_usage.find(reference);
+    if (usageIt != m_usage.end() && !m_settings.compressSharedImages)
+    {
+        for (PDFInteger page : usageIt->second)
         {
-            return QString::fromLatin1(last.getString());
+            if (!m_processedPages.count(page))
+            {
+                *message = PDFTranslationContext::tr("The image is drawn also on the page %1.").arg(page + 1);
+                return ImageResult::Action::SkippedShared;
+            }
         }
     }
-    return QString();
+
+    if (loader.readBooleanFromDictionary(dictionary, "ImageMask", false) || image.getImageData().getMaskingType() == PDFImageData::MaskingType::ImageMask)
+    {
+        *message = PDFTranslationContext::tr("Stencil masks are not re-encoded.");
+        return ImageResult::Action::SkippedUnsupported;
+    }
+
+    if (dictionary->hasKey("SMask") || dictionary->hasKey("Mask") || dictionary->hasKey("SMaskInData") ||
+        image.getImageData().getMaskingType() != PDFImageData::MaskingType::None)
+    {
+        *message = PDFTranslationContext::tr("Images with transparency are not re-encoded.");
+        return ImageResult::Action::SkippedUnsupported;
+    }
+
+    const PDFAbstractColorSpace* colorSpace = image.getColorSpace().data();
+    if (!colorSpace)
+    {
+        *message = PDFTranslationContext::tr("The color space of the image is not known.");
+        return ImageResult::Action::SkippedUnsupported;
+    }
+
+    return std::nullopt;
 }
 
-QString getEncodingName(PDFImage::ImageCompression compression)
+bool PDFOCRImageCompressor::ImageCompressionJob::encode(const QImage& decoded, const PDFImage& image, double dpi, EncodedImage& encoded) const
+{
+    const PDFAbstractColorSpace* colorSpace = image.getColorSpace().data();
+    const PDFAbstractColorSpace::ColorSpace colorSpaceType = colorSpace->getColorSpace();
+    const bool isDeviceGray = colorSpaceType == PDFAbstractColorSpace::ColorSpace::DeviceGray;
+    const bool isDeviceRGB = colorSpaceType == PDFAbstractColorSpace::ColorSpace::DeviceRGB;
+    const int bitsPerComponent = int(image.getImageData().getBitsPerComponent());
+    const QString filter = encoded.result.originalFilter;
+    const bool isLossySource = filter == QLatin1String("DCTDecode") || filter == QLatin1String("JPXDecode");
+
+    // Classification of the content
+    const bool bitonal = (isDeviceGray && bitsPerComponent == 1) || PDFImage::canBeConvertedToMonochromatic(decoded);
+    if (bitonal)
+    {
+        encoded.result.imageClass = ImageResult::ImageClass::Bitonal;
+    }
+    else if (PDFOCRImageCompressor::isTextScan(decoded))
+    {
+        encoded.result.imageClass = ImageResult::ImageClass::TextScan;
+    }
+    else
+    {
+        encoded.result.imageClass = ImageResult::ImageClass::Picture;
+    }
+
+    // Custom mode: the image optimizer decides the encoding
+    if (m_settings.mode == PDFOCRCompressionMode::Custom)
+    {
+        PDFImageOptimizer::Settings optimizerSettings = PDFImageOptimizer::Settings::createDefault();
+        optimizerSettings.enabled = true;
+        optimizerSettings.autoMode = true;
+        optimizerSettings.keepOriginalIfLarger = true;
+        optimizerSettings.preserveTransparency = false;
+        for (PDFImageOptimizer::CompressionProfile* profile : { &optimizerSettings.colorProfile, &optimizerSettings.grayProfile })
+        {
+            profile->targetDpi = m_settings.downsample ? m_settings.downsampleDpi : 0;
+            profile->jpegQuality = m_settings.jpegQuality;
+        }
+        optimizerSettings.bitonalProfile.targetDpi = m_settings.downsample ? m_settings.downsampleDpi : 0;
+        switch (m_settings.bitonalEncoding)
+        {
+            case PDFOCRBitonalEncoding::Smallest:
+            case PDFOCRBitonalEncoding::JBIG2:
+                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::JBIG2;
+                break;
+            case PDFOCRBitonalEncoding::CCITTGroup4:
+                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4;
+                break;
+            case PDFOCRBitonalEncoding::Flate:
+                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::Flate;
+                break;
+        }
+
+        PDFImageOptimizer::ImageInfo info;
+        info.image = decoded;
+        info.minimalDpi = QPointF(dpi, dpi);
+        info.pixelSize = decoded.size();
+        info.bitsPerComponent = bitsPerComponent;
+        info.filterName = filter;
+        info.originalBytes = int(qMin<qint64>(encoded.result.originalBytes, std::numeric_limits<int>::max()));
+
+        const PDFImageOptimizer::ResolvedPlan plan = PDFImageOptimizer::resolvePlan(info, optimizerSettings);
+        PDFRenderErrorReporterDummy reporter;
+        encoded.stream = PDFImage::createStreamFromImage(decoded, plan.encodeOptions, &reporter);
+        encoded.result.encoding = PDFOCRImageCompressor::getEncodingName(plan.encodeOptions.compression);
+        encoded.usesJbig2 = plan.encodeOptions.compression == PDFImage::ImageCompression::JBIG2;
+        if (m_keepPreview)
+        {
+            encoded.preview = PDFImageOptimizer::createPreviewImage(info, plan, true);
+        }
+        return true;
+    }
+
+    // Black and white images: lossless re-encoding of the 1-bit samples
+    if (bitonal)
+    {
+        if (!PDFOCRImageCompressor::encodeBitonal(decoded, m_settings.bitonalEncoding, &encoded.stream, &encoded.result.encoding, &encoded.usesJbig2))
+        {
+            return false;
+        }
+        if (m_keepPreview)
+        {
+            encoded.preview = decoded.convertToFormat(QImage::Format_Grayscale8);
+        }
+        return true;
+    }
+
+    // Scans of a text converted to black and white (lossy, explicit choice of the user)
+    if (m_settings.mode == PDFOCRCompressionMode::BitonalTextScans && encoded.result.imageClass == ImageResult::ImageClass::TextScan)
+    {
+        const QImage converted = PDFOCRImageCompressor::toBitonal(decoded, m_settings, nullptr);
+        if (converted.isNull() || !PDFOCRImageCompressor::encodeBitonal(converted, m_settings.bitonalEncoding, &encoded.stream, &encoded.result.encoding, &encoded.usesJbig2))
+        {
+            return false;
+        }
+        if (m_keepPreview)
+        {
+            encoded.preview = converted;
+        }
+        return true;
+    }
+
+    // Lossless re-encoding of gray and color images. The samples of the device color
+    // spaces are exact; other color spaces (ICC, Indexed, CMYK, ...) and the lossy
+    // sources (JPEG) would not be smaller or would change the colors.
+    if (isLossySource)
+    {
+        encoded.result.message = PDFTranslationContext::tr("The source is a lossy JPEG image, a lossless encoding would be larger.");
+        return false;
+    }
+    if (!(isDeviceGray || isDeviceRGB) || bitsPerComponent != 8)
+    {
+        encoded.result.message = PDFTranslationContext::tr("Only 8-bit DeviceGray and DeviceRGB images are re-encoded losslessly.");
+        return false;
+    }
+    if (!image.getImageData().getDecode().empty())
+    {
+        encoded.result.message = PDFTranslationContext::tr("Images with a decode array are not re-encoded losslessly.");
+        return false;
+    }
+
+    PDFImage::ImageEncodeOptions options;
+    options.compression = PDFImage::ImageCompression::Flate;
+    options.colorMode = isDeviceGray ? PDFImage::ImageColorMode::Grayscale : PDFImage::ImageColorMode::Color;
+    options.enablePngPredictor = true;
+    PDFRenderErrorReporterDummy reporter;
+    encoded.stream = PDFImage::createStreamFromImage(decoded, options, &reporter);
+    encoded.result.encoding = PDFOCRImageCompressor::getEncodingName(options.compression);
+    if (m_keepPreview)
+    {
+        encoded.preview = decoded;
+    }
+    return true;
+}
+
+void PDFOCRImageCompressor::ImageCompressionJob::processImage(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, PDFInteger pageIndex, QPointF axisDpi, const PDFCMS* cms, const PDFOperationControl* operationControl)
+{
+    const PDFDictionary* dictionary = stream ? stream->getDictionary() : nullptr;
+    if (!reference.isValid() || !dictionary)
+    {
+        // Inline images and direct streams are not shared objects, they are part of the content
+        return;
+    }
+
+    // Resolution of the image in the user space of the page (smaller of the axes)
+    const double dpi = (axisDpi.x() > 0.0 && axisDpi.y() > 0.0) ? qMin(axisDpi.x(), axisDpi.y()) : 0.0;
+
+    {
+        QMutexLocker lock(&m_mutex);
+
+        auto it = m_images.find(reference);
+        if (it != m_images.end())
+        {
+            EncodedImage& existing = it->second;
+            if (std::find(existing.result.pages.begin(), existing.result.pages.end(), pageIndex) == existing.result.pages.end())
+            {
+                existing.result.pages.push_back(pageIndex);
+            }
+
+            // A downsampled image is encoded again, if it is drawn larger elsewhere
+            // (a lower resolution); otherwise the first encoding is final
+            const bool needsReencoding = m_settings.mode == PDFOCRCompressionMode::Custom && m_settings.downsample &&
+                                         existing.result.action == ImageResult::Action::Compressed && dpi > 0.0 && dpi < existing.encodedDpi * 0.99;
+            if (!needsReencoding)
+            {
+                return;
+            }
+        }
+
+        if (m_inProgress.count(reference))
+        {
+            // The image is being encoded by another page right now, the page is recorded
+            // and added to the pages of the image, when its encoding is stored
+            m_pendingPages[reference].push_back(pageIndex);
+            return;
+        }
+        m_inProgress.insert(reference);
+    }
+
+    auto inProgressGuard = qScopeGuard([&]()
+    {
+        QMutexLocker lock(&m_mutex);
+        m_inProgress.erase(reference);
+    });
+
+    EncodedImage encoded;
+    encoded.result.reference = reference;
+    encoded.result.pages = { pageIndex };
+    encoded.result.pixelSize = QSize(int(image.getImageData().getWidth()), int(image.getImageData().getHeight()));
+    encoded.result.originalFilter = PDFImageOptimizer::readFilterName(m_document, dictionary);
+    encoded.result.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
+    encoded.encodedDpi = dpi;
+
+    QString message;
+    if (std::optional<ImageResult::Action> action = checkImage(image, dictionary, reference, &message))
+    {
+        encoded.result.action = *action;
+        encoded.result.message = message;
+    }
+    else
+    {
+        // Number of the images decoded at the same time (diagnostics of the memory)
+        const int concurrent = ++m_concurrentImages;
+        int maximum = m_maximumConcurrentImages.load();
+        while (concurrent > maximum && !m_maximumConcurrentImages.compare_exchange_weak(maximum, concurrent))
+        {
+        }
+        auto concurrentGuard = qScopeGuard([this]() { --m_concurrentImages; });
+
+        try
+        {
+            PDFRenderErrorReporterDummy reporter;
+            const QImage decoded = image.getImage(cms, &reporter, operationControl);
+            if (decoded.isNull())
+            {
+                encoded.result.action = ImageResult::Action::Failed;
+                encoded.result.message = PDFTranslationContext::tr("The image cannot be decoded.");
+            }
+            else if (!encode(decoded, image, dpi, encoded))
+            {
+                encoded.result.action = ImageResult::Action::SkippedUnsupported;
+                encoded.preview = QImage();
+            }
+            else
+            {
+                encoded.result.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
+                if (encoded.result.newBytes <= 0 || encoded.result.newBytes >= encoded.result.originalBytes)
+                {
+                    encoded.result.action = ImageResult::Action::KeptLarger;
+                    encoded.stream = PDFStream();
+                }
+                else
+                {
+                    encoded.result.action = ImageResult::Action::Compressed;
+
+                    PDFDictionary merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *dictionary);
+                    const QByteArray* content = encoded.stream.getContent();
+                    encoded.stream = PDFStream(std::move(merged), content ? QByteArray(*content) : QByteArray());
+                }
+            }
+
+        }
+        catch (const PDFException& exception)
+        {
+            encoded.result.action = ImageResult::Action::Failed;
+            encoded.result.message = exception.getMessage();
+            encoded.stream = PDFStream();
+        }
+    }
+
+    // The decoded image is released here, only the encoded stream is kept (memory)
+    QMutexLocker lock(&m_mutex);
+    auto it = m_images.find(reference);
+    if (it != m_images.end())
+    {
+        // Re-encoding at a lower resolution: the pages of the image are kept
+        encoded.result.pages = it->second.result.pages;
+    }
+
+    // Pages, which have drawn the image during its encoding
+    auto pendingIt = m_pendingPages.find(reference);
+    if (pendingIt != m_pendingPages.end())
+    {
+        for (PDFInteger page : pendingIt->second)
+        {
+            if (std::find(encoded.result.pages.begin(), encoded.result.pages.end(), page) == encoded.result.pages.end())
+            {
+                encoded.result.pages.push_back(page);
+            }
+        }
+        m_pendingPages.erase(pendingIt);
+    }
+
+    if (it != m_images.end())
+    {
+        it->second = std::move(encoded);
+    }
+    else
+    {
+        m_images.emplace(reference, std::move(encoded));
+    }
+}
+
+QString PDFOCRImageCompressor::getEncodingName(PDFImage::ImageCompression compression)
 {
     switch (compression)
     {
@@ -361,9 +701,7 @@ QString getEncodingName(PDFImage::ImageCompression compression)
     return QString();
 }
 
-/// Encodes a black and white image (samples 0 or 255) by the encoding of the settings.
-/// Returns false, if no encoding succeeded.
-bool encodeBitonal(const QImage& bitonal, PDFOCRBitonalEncoding encoding, PDFStream* stream, QString* encodingName, bool* usesJbig2)
+bool PDFOCRImageCompressor::encodeBitonal(const QImage& bitonal, PDFOCRBitonalEncoding encoding, PDFStream* stream, QString* encodingName, bool* usesJbig2)
 {
     std::vector<PDFImage::ImageCompression> candidates;
     switch (encoding)
@@ -442,485 +780,17 @@ bool encodeBitonal(const QImage& bitonal, PDFOCRBitonalEncoding encoding, PDFStr
     return hasResult;
 }
 
-/// Returns true, if all pixels of the image are black or white
-bool isBitonalImage(const QImage& image)
+void PDFOCRImageCompressor::processPages(const PDFDocument* document, const std::vector<PDFInteger>& pages, ImageCompressionJob& job, qint64 memoryBudget, const PDFOperationControl* operationControl)
 {
-    const QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
-    for (int y = 0; y < gray.height(); ++y)
-    {
-        const uchar* row = gray.constScanLine(y);
-        for (int x = 0; x < gray.width(); ++x)
-        {
-            if (row[x] != 0 && row[x] != 255)
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-/// Compression of the images of a document, shared by the compression and by the preview
-class ImageCompressionJob
-{
-public:
-    ImageCompressionJob(const PDFDocument* document, const PDFOCRCompressionSettings& settings, const std::set<PDFInteger>& processedPages, bool keepPreview) :
-        m_document(document),
-        m_settings(settings),
-        m_processedPages(processedPages),
-        m_keepPreview(keepPreview),
-        m_usage(PDFOCRImageCompressor::getImageUsage(document))
-    {
-
-    }
-
-    /// Processes an image drawn on the page
-    void processImage(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, PDFInteger pageIndex, double dpi, const PDFCMS* cms, const PDFOperationControl* operationControl);
-
-    std::map<PDFObjectReference, EncodedImage> takeImages() { return std::move(m_images); }
-
-    int getMaximumConcurrentImages() const { return m_maximumConcurrentImages.load(); }
-
-private:
-    /// Checks the image, which cannot be re-encoded. Returns the reason, or empty string.
-    std::optional<ImageResult::Action> checkImage(const PDFImage& image, const PDFDictionary* dictionary, PDFObjectReference reference, QString* message) const;
-
-    /// Encodes the decoded image. Returns false, if the image is not re-encoded.
-    bool encode(const QImage& decoded, const PDFImage& image, const PDFDictionary* dictionary, double dpi, EncodedImage& encoded) const;
-
-    const PDFDocument* m_document;
-    PDFOCRCompressionSettings m_settings;
-    std::set<PDFInteger> m_processedPages;
-    bool m_keepPreview;
-    std::map<PDFObjectReference, std::vector<PDFInteger>> m_usage;
-
-    QMutex m_mutex;
-    std::map<PDFObjectReference, EncodedImage> m_images;
-    std::set<PDFObjectReference> m_inProgress;
-    std::map<PDFObjectReference, std::vector<PDFInteger>> m_pendingPages;
-    std::atomic<int> m_concurrentImages = 0;
-    std::atomic<int> m_maximumConcurrentImages = 0;
-};
-
-std::optional<ImageResult::Action> ImageCompressionJob::checkImage(const PDFImage& image, const PDFDictionary* dictionary, PDFObjectReference reference, QString* message) const
-{
-    PDFDocumentDataLoaderDecorator loader(m_document);
-
-    if (m_settings.isExcluded(reference))
-    {
-        return ImageResult::Action::SkippedExcluded;
-    }
-
-    // The image drawn on a page, which is not written, is left as it is by default
-    auto usageIt = m_usage.find(reference);
-    if (usageIt != m_usage.end() && !m_settings.compressSharedImages)
-    {
-        for (PDFInteger page : usageIt->second)
-        {
-            if (!m_processedPages.count(page))
-            {
-                *message = PDFTranslationContext::tr("The image is drawn also on the page %1.").arg(page + 1);
-                return ImageResult::Action::SkippedShared;
-            }
-        }
-    }
-
-    if (loader.readBooleanFromDictionary(dictionary, "ImageMask", false) || image.getImageData().getMaskingType() == PDFImageData::MaskingType::ImageMask)
-    {
-        *message = PDFTranslationContext::tr("Stencil masks are not re-encoded.");
-        return ImageResult::Action::SkippedUnsupported;
-    }
-
-    if (dictionary->hasKey("SMask") || dictionary->hasKey("Mask") || dictionary->hasKey("SMaskInData") ||
-        image.getImageData().getMaskingType() != PDFImageData::MaskingType::None)
-    {
-        *message = PDFTranslationContext::tr("Images with transparency are not re-encoded.");
-        return ImageResult::Action::SkippedUnsupported;
-    }
-
-    const PDFAbstractColorSpace* colorSpace = image.getColorSpace().data();
-    if (!colorSpace)
-    {
-        *message = PDFTranslationContext::tr("The color space of the image is not known.");
-        return ImageResult::Action::SkippedUnsupported;
-    }
-
-    return std::nullopt;
-}
-
-bool ImageCompressionJob::encode(const QImage& decoded, const PDFImage& image, const PDFDictionary* dictionary, double dpi, EncodedImage& encoded) const
-{
-    const PDFAbstractColorSpace* colorSpace = image.getColorSpace().data();
-    const PDFAbstractColorSpace::ColorSpace colorSpaceType = colorSpace->getColorSpace();
-    const bool isDeviceGray = colorSpaceType == PDFAbstractColorSpace::ColorSpace::DeviceGray;
-    const bool isDeviceRGB = colorSpaceType == PDFAbstractColorSpace::ColorSpace::DeviceRGB;
-    const int bitsPerComponent = int(image.getImageData().getBitsPerComponent());
-    const QString filter = encoded.result.originalFilter;
-    const bool isLossySource = filter == QLatin1String("DCTDecode") || filter == QLatin1String("JPXDecode");
-
-    // Classification of the content
-    const bool bitonal = (isDeviceGray && bitsPerComponent == 1) || isBitonalImage(decoded);
-    if (bitonal)
-    {
-        encoded.result.imageClass = ImageResult::ImageClass::Bitonal;
-    }
-    else if (PDFOCRImageCompressor::isTextScan(decoded))
-    {
-        encoded.result.imageClass = ImageResult::ImageClass::TextScan;
-    }
-    else
-    {
-        encoded.result.imageClass = ImageResult::ImageClass::Picture;
-    }
-
-    // Custom mode: the image optimizer decides the encoding
-    if (m_settings.mode == PDFOCRCompressionMode::Custom)
-    {
-        PDFImageOptimizer::Settings optimizerSettings = PDFImageOptimizer::Settings::createDefault();
-        optimizerSettings.enabled = true;
-        optimizerSettings.autoMode = true;
-        optimizerSettings.keepOriginalIfLarger = true;
-        optimizerSettings.preserveTransparency = false;
-        for (PDFImageOptimizer::CompressionProfile* profile : { &optimizerSettings.colorProfile, &optimizerSettings.grayProfile })
-        {
-            profile->targetDpi = m_settings.downsample ? m_settings.downsampleDpi : 0;
-            profile->jpegQuality = m_settings.jpegQuality;
-        }
-        optimizerSettings.bitonalProfile.targetDpi = m_settings.downsample ? m_settings.downsampleDpi : 0;
-        switch (m_settings.bitonalEncoding)
-        {
-            case PDFOCRBitonalEncoding::Smallest:
-            case PDFOCRBitonalEncoding::JBIG2:
-                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::JBIG2;
-                break;
-            case PDFOCRBitonalEncoding::CCITTGroup4:
-                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4;
-                break;
-            case PDFOCRBitonalEncoding::Flate:
-                optimizerSettings.bitonalProfile.algorithm = PDFImageOptimizer::CompressionAlgorithm::Flate;
-                break;
-        }
-
-        PDFImageOptimizer::ImageInfo info;
-        info.image = decoded;
-        info.minimalDpi = QPointF(dpi, dpi);
-        info.pixelSize = decoded.size();
-        info.bitsPerComponent = bitsPerComponent;
-        info.filterName = filter;
-        info.originalBytes = int(qMin<qint64>(encoded.result.originalBytes, std::numeric_limits<int>::max()));
-
-        const PDFImageOptimizer::ResolvedPlan plan = PDFImageOptimizer::resolvePlan(info, optimizerSettings);
-        PDFRenderErrorReporterDummy reporter;
-        encoded.stream = PDFImage::createStreamFromImage(decoded, plan.encodeOptions, &reporter);
-        encoded.result.encoding = getEncodingName(plan.encodeOptions.compression);
-        encoded.usesJbig2 = plan.encodeOptions.compression == PDFImage::ImageCompression::JBIG2;
-        if (m_keepPreview)
-        {
-            encoded.preview = PDFImageOptimizer::createPreviewImage(info, plan, true);
-        }
-        return true;
-    }
-
-    // Black and white images: lossless re-encoding of the 1-bit samples
-    if (bitonal)
-    {
-        if (!encodeBitonal(decoded, m_settings.bitonalEncoding, &encoded.stream, &encoded.result.encoding, &encoded.usesJbig2))
-        {
-            return false;
-        }
-        if (m_keepPreview)
-        {
-            encoded.preview = decoded.convertToFormat(QImage::Format_Grayscale8);
-        }
-        return true;
-    }
-
-    // Scans of a text converted to black and white (lossy, explicit choice of the user)
-    if (m_settings.mode == PDFOCRCompressionMode::BitonalTextScans && encoded.result.imageClass == ImageResult::ImageClass::TextScan)
-    {
-        const QImage converted = PDFOCRImageCompressor::toBitonal(decoded, m_settings, nullptr);
-        if (converted.isNull() || !encodeBitonal(converted, m_settings.bitonalEncoding, &encoded.stream, &encoded.result.encoding, &encoded.usesJbig2))
-        {
-            return false;
-        }
-        if (m_keepPreview)
-        {
-            encoded.preview = converted;
-        }
-        return true;
-    }
-
-    // Lossless re-encoding of gray and color images. The samples of the device color
-    // spaces are exact; other color spaces (ICC, Indexed, CMYK, ...) and the lossy
-    // sources (JPEG) would not be smaller or would change the colors.
-    if (isLossySource)
-    {
-        encoded.result.message = PDFTranslationContext::tr("The source is a lossy JPEG image, a lossless encoding would be larger.");
-        return false;
-    }
-    if (!(isDeviceGray || isDeviceRGB) || bitsPerComponent != 8)
-    {
-        encoded.result.message = PDFTranslationContext::tr("Only 8-bit DeviceGray and DeviceRGB images are re-encoded losslessly.");
-        return false;
-    }
-    if (!image.getImageData().getDecode().empty())
-    {
-        encoded.result.message = PDFTranslationContext::tr("Images with a decode array are not re-encoded losslessly.");
-        return false;
-    }
-
-    Q_UNUSED(dictionary);
-
-    PDFImage::ImageEncodeOptions options;
-    options.compression = PDFImage::ImageCompression::Flate;
-    options.colorMode = isDeviceGray ? PDFImage::ImageColorMode::Grayscale : PDFImage::ImageColorMode::Color;
-    options.enablePngPredictor = true;
-    PDFRenderErrorReporterDummy reporter;
-    encoded.stream = PDFImage::createStreamFromImage(decoded, options, &reporter);
-    encoded.result.encoding = getEncodingName(options.compression);
-    if (m_keepPreview)
-    {
-        encoded.preview = decoded;
-    }
-    return true;
-}
-
-void ImageCompressionJob::processImage(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, PDFInteger pageIndex, double dpi, const PDFCMS* cms, const PDFOperationControl* operationControl)
-{
-    const PDFDictionary* dictionary = stream ? stream->getDictionary() : nullptr;
-    if (!reference.isValid() || !dictionary)
-    {
-        // Inline images and direct streams are not shared objects, they are part of the content
-        return;
-    }
-
-    {
-        QMutexLocker lock(&m_mutex);
-
-        auto it = m_images.find(reference);
-        if (it != m_images.end())
-        {
-            EncodedImage& existing = it->second;
-            if (std::find(existing.result.pages.begin(), existing.result.pages.end(), pageIndex) == existing.result.pages.end())
-            {
-                existing.result.pages.push_back(pageIndex);
-            }
-
-            // A downsampled image is encoded again, if it is drawn larger elsewhere
-            // (a lower resolution); otherwise the first encoding is final
-            const bool needsReencoding = m_settings.mode == PDFOCRCompressionMode::Custom && m_settings.downsample &&
-                                         existing.result.action == ImageResult::Action::Compressed && dpi > 0.0 && dpi < existing.encodedDpi * 0.99;
-            if (!needsReencoding)
-            {
-                return;
-            }
-        }
-
-        if (m_inProgress.count(reference))
-        {
-            // The image is being encoded by another page right now, the page is recorded
-            // and added to the pages of the image, when its encoding is stored
-            m_pendingPages[reference].push_back(pageIndex);
-            return;
-        }
-        m_inProgress.insert(reference);
-    }
-
-    auto inProgressGuard = qScopeGuard([&]()
-    {
-        QMutexLocker lock(&m_mutex);
-        m_inProgress.erase(reference);
-    });
-
-    EncodedImage encoded;
-    encoded.result.reference = reference;
-    encoded.result.pages = { pageIndex };
-    encoded.result.pixelSize = QSize(int(image.getImageData().getWidth()), int(image.getImageData().getHeight()));
-    encoded.result.originalFilter = getFilterName(m_document, dictionary);
-    encoded.result.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
-    encoded.encodedDpi = dpi;
-
-    QString message;
-    if (std::optional<ImageResult::Action> action = checkImage(image, dictionary, reference, &message))
-    {
-        encoded.result.action = *action;
-        encoded.result.message = message;
-    }
-    else
-    {
-        // Number of the images decoded at the same time (diagnostics of the memory)
-        const int concurrent = ++m_concurrentImages;
-        int maximum = m_maximumConcurrentImages.load();
-        while (concurrent > maximum && !m_maximumConcurrentImages.compare_exchange_weak(maximum, concurrent))
-        {
-        }
-        auto concurrentGuard = qScopeGuard([this]() { --m_concurrentImages; });
-
-        try
-        {
-            PDFRenderErrorReporterDummy reporter;
-            const QImage decoded = image.getImage(cms, &reporter, operationControl);
-            if (decoded.isNull())
-            {
-                encoded.result.action = ImageResult::Action::Failed;
-                encoded.result.message = PDFTranslationContext::tr("The image cannot be decoded.");
-            }
-            else if (!encode(decoded, image, dictionary, dpi, encoded))
-            {
-                encoded.result.action = ImageResult::Action::SkippedUnsupported;
-                encoded.preview = QImage();
-            }
-            else
-            {
-                encoded.result.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
-                if (encoded.result.newBytes <= 0 || encoded.result.newBytes >= encoded.result.originalBytes)
-                {
-                    encoded.result.action = ImageResult::Action::KeptLarger;
-                    encoded.stream = PDFStream();
-                }
-                else
-                {
-                    encoded.result.action = ImageResult::Action::Compressed;
-
-                    // The other entries of the image dictionary (Interpolate, Intent, OC,
-                    // Metadata, StructParent, ...) are kept, the entries describing the
-                    // samples are replaced by the new encoding
-                    static const std::unordered_set<QByteArray> replacedKeys =
-                    {
-                        "Type", "Subtype", "Width", "Height", "BitsPerComponent", "ColorSpace", "Filter",
-                        "DecodeParms", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData"
-                    };
-
-                    PDFDictionary merged = *encoded.stream.getDictionary();
-                    for (size_t i = 0; i < dictionary->getCount(); ++i)
-                    {
-                        const QByteArray key = dictionary->getKey(i).getString();
-                        if (!replacedKeys.count(key) && !merged.hasKey(key))
-                        {
-                            merged.addEntry(dictionary->getKey(i), PDFObject(dictionary->getValue(i)));
-                        }
-                    }
-                    const QByteArray* content = encoded.stream.getContent();
-                    encoded.stream = PDFStream(std::move(merged), content ? QByteArray(*content) : QByteArray());
-                }
-            }
-
-        }
-        catch (const PDFException& exception)
-        {
-            encoded.result.action = ImageResult::Action::Failed;
-            encoded.result.message = exception.getMessage();
-            encoded.stream = PDFStream();
-        }
-    }
-
-    // The decoded image is released here, only the encoded stream is kept (memory)
-    QMutexLocker lock(&m_mutex);
-    auto it = m_images.find(reference);
-    if (it != m_images.end())
-    {
-        // Re-encoding at a lower resolution: the pages of the image are kept
-        encoded.result.pages = it->second.result.pages;
-    }
-
-    // Pages, which have drawn the image during its encoding
-    auto pendingIt = m_pendingPages.find(reference);
-    if (pendingIt != m_pendingPages.end())
-    {
-        for (PDFInteger page : pendingIt->second)
-        {
-            if (std::find(encoded.result.pages.begin(), encoded.result.pages.end(), page) == encoded.result.pages.end())
-            {
-                encoded.result.pages.push_back(page);
-            }
-        }
-        m_pendingPages.erase(pendingIt);
-    }
-
-    if (it != m_images.end())
-    {
-        it->second = std::move(encoded);
-    }
-    else
-    {
-        m_images.emplace(reference, std::move(encoded));
-    }
-}
-
-/// Content processor, which only reports the image XObjects drawn on the page
-class ImageCollectorProcessor : public PDFPageContentProcessor
-{
-public:
-    using Callback = std::function<void(const PDFImage&, const PDFStream*, PDFObjectReference, double)>;
-
-    ImageCollectorProcessor(const PDFPage* page,
-                            const PDFDocument* document,
-                            const PDFFontCache* fontCache,
-                            const PDFCMS* cms,
-                            const PDFOptionalContentActivity* optionalContentActivity,
-                            const PDFMeshQualitySettings& meshQualitySettings,
-                            Callback callback) :
-        PDFPageContentProcessor(page, document, fontCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
-        m_callback(std::move(callback))
-    {
-
-    }
-
-protected:
-    virtual bool isContentKindSuppressed(ContentKind kind) const override
-    {
-        switch (kind)
-        {
-            case ContentKind::Images:
-            case ContentKind::Tiling:
-            case ContentKind::Forms:
-                return false;
-
-            default:
-                return true;
-        }
-    }
-
-    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
-    {
-        if (!isContentSuppressed() && !isProcessingCancelled())
-        {
-            // Resolution of the image in the user space of the page (smaller of the axes)
-            const QTransform ctm = getGraphicState()->getCurrentTransformationMatrix();
-            const double widthInches = std::hypot(ctm.m11(), ctm.m12()) * PDF_POINT_TO_INCH;
-            const double heightInches = std::hypot(ctm.m21(), ctm.m22()) * PDF_POINT_TO_INCH;
-            double dpi = 0.0;
-            if (widthInches > 0.0 && heightInches > 0.0)
-            {
-                dpi = qMin(image.getImageData().getWidth() / widthInches, image.getImageData().getHeight() / heightInches);
-            }
-            m_callback(image, stream, reference, dpi);
-        }
-        return true;
-    }
-
-private:
-    Callback m_callback;
-};
-
-/// Runs the processing of the images of the pages
-void processPages(const PDFDocument* document, const std::vector<PDFInteger>& pages, ImageCompressionJob& job, qint64 memoryBudget, const PDFOperationControl* operationControl)
-{
-    PDFOptionalContentActivity optionalContentActivity(document, OCUsage::Export, nullptr);
-    PDFCMSGeneric cms;
-    PDFMeshQualitySettings meshQualitySettings;
-    PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-    PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &optionalContentActivity);
-    fontCache.setDocument(modifiedDocument);
-    fontCache.setCacheShrinkEnabled(nullptr, false);
-    auto fontCacheGuard = qScopeGuard([&fontCache]() { fontCache.setCacheShrinkEnabled(nullptr, true); });
+    // The samples of the device color spaces are decoded exactly by the generic color
+    // management system, which is required by the lossless re-encoding
+    const PDFImageCompressor::Environment environment(document, PDFCMSPointer(new PDFCMSGeneric()));
 
     // A decoded scan of an A4 page at 300 DPI in color has about 35 MB, the encoders
     // need further copies; the number of pages processed at once is bounded by the budget
     constexpr qint64 PAGE_MEMORY_ESTIMATE = qint64(128) << 20;
     const int concurrency = int(qBound<qint64>(1, memoryBudget / PAGE_MEMORY_ESTIMATE, qint64(qMax(1, QThread::idealThreadCount()))));
 
-    const PDFCatalog* catalog = document->getCatalog();
     for (size_t start = 0; start < pages.size(); start += size_t(concurrency))
     {
         if (PDFOperationControl::isOperationCancelled(operationControl))
@@ -931,19 +801,10 @@ void processPages(const PDFDocument* document, const std::vector<PDFInteger>& pa
         const size_t end = qMin(pages.size(), start + size_t(concurrency));
         auto processPage = [&](PDFInteger pageIndex)
         {
-            const PDFPage* page = pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-            if (!page || PDFOperationControl::isOperationCancelled(operationControl))
+            environment.processPage(pageIndex, [&](const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, QPointF dpi)
             {
-                return;
-            }
-
-            ImageCollectorProcessor processor(page, document, &fontCache, &cms, &optionalContentActivity, meshQualitySettings,
-                                              [&](const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, double dpi)
-            {
-                job.processImage(image, stream, reference, pageIndex, dpi, &cms, operationControl);
-            });
-            processor.setOperationControl(operationControl);
-            processor.processContents();
+                job.processImage(image, stream, reference, pageIndex, dpi, environment.getCMS(), operationControl);
+            }, operationControl);
         };
 
         if (concurrency > 1)
@@ -957,7 +818,7 @@ void processPages(const PDFDocument* document, const std::vector<PDFInteger>& pa
     }
 }
 
-void collectXObjectImages(const PDFDocument* document, const PDFObject& resourcesObject, PDFInteger pageIndex, std::set<PDFObjectReference>& visitedForms, std::map<PDFObjectReference, std::vector<PDFInteger>>& usage)
+void PDFOCRImageCompressor::collectXObjectImages(const PDFDocument* document, const PDFObject& resourcesObject, PDFInteger pageIndex, std::set<PDFObjectReference>& visitedForms, std::map<PDFObjectReference, std::vector<PDFInteger>>& usage)
 {
     const PDFDictionary* resources = document->getDictionaryFromObject(resourcesObject);
     const PDFDictionary* xobjects = resources ? document->getDictionaryFromObject(resources->get("XObject")) : nullptr;
@@ -1002,8 +863,6 @@ void collectXObjectImages(const PDFDocument* document, const PDFObject& resource
         }
     }
 }
-
-} // namespace
 
 std::map<PDFObjectReference, std::vector<PDFInteger>> PDFOCRImageCompressor::getImageUsage(const PDFDocument* document)
 {
@@ -1056,7 +915,7 @@ PDFDocument PDFOCRImageCompressor::compress(const PDFDocument* document,
         std::map<PDFObjectReference, EncodedImage> images = job.takeImages();
         for (auto& [reference, encoded] : images)
         {
-            if (encoded.result.action == ImageResult::Action::Compressed)
+            if (encoded.result.action == PDFOCRCompressionImageResult::Action::Compressed)
             {
                 storage.setObject(reference, PDFObject::createStream(std::make_shared<PDFStream>(std::move(encoded.stream))));
                 usesJbig2 = usesJbig2 || encoded.usesJbig2;
@@ -1075,7 +934,7 @@ PDFDocument PDFOCRImageCompressor::compress(const PDFDocument* document,
         }
 
         // JBIG2Decode is a filter of PDF 1.4
-        if (usesJbig2 && (version.major < 1 || (version.major == 1 && version.minor < 4)))
+        if (usesJbig2 && version < PDFVersion(1, 4))
         {
             version = PDFVersion(1, 4);
             if (report)
@@ -1100,49 +959,36 @@ std::vector<PDFOCRImageCompressor::Preview> PDFOCRImageCompressor::createPreview
         return previews;
     }
 
+    std::set<PDFInteger> processed(processedPages.begin(), processedPages.end());
+    processed.insert(pageIndex);
+    PDFOCRCompressionSettings previewSettings = settings;
+    if (previewSettings.mode == PDFOCRCompressionMode::Off)
+    {
+        previewSettings.mode = PDFOCRCompressionMode::Lossless;
+    }
+    ImageCompressionJob job(document, previewSettings, processed, true);
+
     // Decoded originals are collected by a separate pass (the job releases them)
     std::map<PDFObjectReference, QImage> originals;
+    const PDFImageCompressor::Environment environment(document, PDFCMSPointer(new PDFCMSGeneric()));
+    environment.processPage(pageIndex, [&](const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, QPointF dpi)
     {
-        PDFOptionalContentActivity optionalContentActivity(document, OCUsage::Export, nullptr);
-        PDFCMSGeneric cms;
-        PDFMeshQualitySettings meshQualitySettings;
-        PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-        PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &optionalContentActivity);
-        fontCache.setDocument(modifiedDocument);
-        fontCache.setCacheShrinkEnabled(nullptr, false);
-        auto fontCacheGuard = qScopeGuard([&fontCache]() { fontCache.setCacheShrinkEnabled(nullptr, true); });
-
-        std::set<PDFInteger> processed(processedPages.begin(), processedPages.end());
-        processed.insert(pageIndex);
-        PDFOCRCompressionSettings previewSettings = settings;
-        if (previewSettings.mode == PDFOCRCompressionMode::Off)
+        if (!originals.count(reference))
         {
-            previewSettings.mode = PDFOCRCompressionMode::Lossless;
+            PDFRenderErrorReporterDummy reporter;
+            originals[reference] = image.getImage(environment.getCMS(), &reporter, operationControl);
         }
-        ImageCompressionJob job(document, previewSettings, processed, true);
+        job.processImage(image, stream, reference, pageIndex, dpi, environment.getCMS(), operationControl);
+    }, operationControl);
 
-        ImageCollectorProcessor processor(document->getCatalog()->getPage(pageIndex), document, &fontCache, &cms, &optionalContentActivity, meshQualitySettings,
-                                          [&](const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, double dpi)
-        {
-            if (reference.isValid() && !originals.count(reference))
-            {
-                PDFRenderErrorReporterDummy reporter;
-                originals[reference] = image.getImage(&cms, &reporter, operationControl);
-            }
-            job.processImage(image, stream, reference, pageIndex, dpi, &cms, operationControl);
-        });
-        processor.setOperationControl(operationControl);
-        processor.processContents();
-
-        std::map<PDFObjectReference, EncodedImage> images = job.takeImages();
-        for (auto& [reference, encoded] : images)
-        {
-            Preview preview;
-            preview.result = std::move(encoded.result);
-            preview.original = originals[reference];
-            preview.compressed = preview.result.action == ImageResult::Action::Compressed ? std::move(encoded.preview) : QImage();
-            previews.push_back(std::move(preview));
-        }
+    std::map<PDFObjectReference, EncodedImage> images = job.takeImages();
+    for (auto& [reference, encoded] : images)
+    {
+        Preview preview;
+        preview.result = std::move(encoded.result);
+        preview.original = originals[reference];
+        preview.compressed = preview.result.action == PDFOCRCompressionImageResult::Action::Compressed ? std::move(encoded.preview) : QImage();
+        previews.push_back(std::move(preview));
     }
 
     return previews;

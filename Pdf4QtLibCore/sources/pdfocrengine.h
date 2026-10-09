@@ -95,7 +95,7 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCREngineCapabilities
     std::vector<PDFOCRLayout> supportedLayouts;
 
     /// Supported engine modes, empty = not selectable
-    std::vector<int> supportedEngineModes;
+    std::vector<PDFOCREngineMode> supportedEngineModes;
 
     bool supportsOrientationDetection = false;
     bool supportsAlternatives = false;

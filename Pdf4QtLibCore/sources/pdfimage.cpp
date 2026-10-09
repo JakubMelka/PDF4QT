@@ -1668,23 +1668,34 @@ QImage PDFImage::getImage(const PDFCMS* cms,
 
 bool PDFImage::canBeConvertedToMonochromatic(const QImage& image)
 {
-    for (int y = 0; y < image.height(); ++y)
+    if (image.format() == QImage::Format_Grayscale8)
     {
-        for (int x = 0; x < image.width(); ++x)
+        // Gray samples are always opaque
+        for (int y = 0; y < image.height(); ++y)
         {
-            QRgb pixel = image.pixel(x, y);
-            int red = qRed(pixel);
-            int green = qGreen(pixel);
-            int blue = qBlue(pixel);
-            int alpha = qAlpha(pixel);
-
-            if (alpha != 255)
+            const uchar* row = image.constScanLine(y);
+            for (int x = 0; x < image.width(); ++x)
             {
-                return false;
+                if (row[x] != 0 && row[x] != 255)
+                {
+                    return false;
+                }
             }
+        }
+        return true;
+    }
 
-            // Zkontrolujte, zda jsou kanály stejné (odstín šedi) a zda jsou pouze 0 (černá) nebo 255 (bílá)
-            if ((red != green || green != blue) || (red != 0 && red != 255)) {
+    // The conversion does not copy the image, if it is already in the format
+    const QImage argb = image.convertToFormat(QImage::Format_ARGB32);
+    constexpr QRgb black = 0xFF000000;
+    constexpr QRgb white = 0xFFFFFFFF;
+    for (int y = 0; y < argb.height(); ++y)
+    {
+        const QRgb* row = reinterpret_cast<const QRgb*>(argb.constScanLine(y));
+        for (int x = 0; x < argb.width(); ++x)
+        {
+            if (row[x] != black && row[x] != white)
+            {
                 return false;
             }
         }

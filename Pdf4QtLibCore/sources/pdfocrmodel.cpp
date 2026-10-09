@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfocrmodel.h"
+#include "pdfutils.h"
 
 #include <QSet>
 #include <QtMath>
@@ -1127,40 +1128,7 @@ bool PDFOCRValidator::isValidRect(const QRectF& rect, double coordinateLimit)
 // PDFOCREnumerations
 // -------------------------------------------------------------------------
 
-template<typename Enum>
-struct PDFOCREnumerationEntry
-{
-    Enum value;
-    const char* name;
-};
-
-template<typename Enum, size_t N>
-static QString enumToString(const PDFOCREnumerationEntry<Enum> (&entries)[N], Enum value)
-{
-    for (const auto& entry : entries)
-    {
-        if (entry.value == value)
-        {
-            return QLatin1String(entry.name);
-        }
-    }
-    return QString();
-}
-
-template<typename Enum, size_t N>
-static Enum stringToEnum(const PDFOCREnumerationEntry<Enum> (&entries)[N], const QString& value)
-{
-    for (const auto& entry : entries)
-    {
-        if (value == QLatin1String(entry.name))
-        {
-            return entry.value;
-        }
-    }
-    return entries[0].value;
-}
-
-static const PDFOCREnumerationEntry<PDFOCRPageState> s_pageStates[] =
+static const PDFEnumerationNames::Entry<PDFOCRPageState> s_pageStates[] =
 {
     { PDFOCRPageState::Pending, "pending" },
     { PDFOCRPageState::Preparing, "preparing" },
@@ -1173,7 +1141,7 @@ static const PDFOCREnumerationEntry<PDFOCRPageState> s_pageStates[] =
     { PDFOCRPageState::Stale, "stale" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRReviewState> s_reviewStates[] =
+static const PDFEnumerationNames::Entry<PDFOCRReviewState> s_reviewStates[] =
 {
     { PDFOCRReviewState::Unreviewed, "unreviewed" },
     { PDFOCRReviewState::Confirmed, "confirmed" },
@@ -1181,7 +1149,7 @@ static const PDFOCREnumerationEntry<PDFOCRReviewState> s_reviewStates[] =
     { PDFOCRReviewState::Discarded, "discarded" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRGeometryOrigin> s_geometryOrigins[] =
+static const PDFEnumerationNames::Entry<PDFOCRGeometryOrigin> s_geometryOrigins[] =
 {
     { PDFOCRGeometryOrigin::Engine, "engine" },
     { PDFOCRGeometryOrigin::Estimated, "estimated" },
@@ -1190,7 +1158,7 @@ static const PDFOCREnumerationEntry<PDFOCRGeometryOrigin> s_geometryOrigins[] =
     { PDFOCRGeometryOrigin::Digital, "digital" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRTextOrigin> s_textOrigins[] =
+static const PDFEnumerationNames::Entry<PDFOCRTextOrigin> s_textOrigins[] =
 {
     { PDFOCRTextOrigin::OCR, "ocr" },
     { PDFOCRTextOrigin::Manual, "manual" },
@@ -1198,7 +1166,7 @@ static const PDFOCREnumerationEntry<PDFOCRTextOrigin> s_textOrigins[] =
     { PDFOCRTextOrigin::Digital, "digital" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRConfidenceLevel> s_confidenceLevels[] =
+static const PDFEnumerationNames::Entry<PDFOCRConfidenceLevel> s_confidenceLevels[] =
 {
     { PDFOCRConfidenceLevel::Unknown, "unknown" },
     { PDFOCRConfidenceLevel::Symbol, "symbol" },
@@ -1208,7 +1176,7 @@ static const PDFOCREnumerationEntry<PDFOCRConfidenceLevel> s_confidenceLevels[] 
     { PDFOCRConfidenceLevel::Page, "page" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRBlockType> s_blockTypes[] =
+static const PDFEnumerationNames::Entry<PDFOCRBlockType> s_blockTypes[] =
 {
     { PDFOCRBlockType::Text, "text" },
     { PDFOCRBlockType::Table, "table" },
@@ -1217,20 +1185,20 @@ static const PDFOCREnumerationEntry<PDFOCRBlockType> s_blockTypes[] =
     { PDFOCRBlockType::Other, "other" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRRegionType> s_regionTypes[] =
+static const PDFEnumerationNames::Entry<PDFOCRRegionType> s_regionTypes[] =
 {
     { PDFOCRRegionType::Recognize, "recognize" },
     { PDFOCRRegionType::Exclude, "exclude" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRTextDirection> s_textDirections[] =
+static const PDFEnumerationNames::Entry<PDFOCRTextDirection> s_textDirections[] =
 {
     { PDFOCRTextDirection::LeftToRight, "ltr" },
     { PDFOCRTextDirection::RightToLeft, "rtl" },
     { PDFOCRTextDirection::TopToBottom, "ttb" }
 };
 
-static const PDFOCREnumerationEntry<PDFOCRPageContentClass> s_contentClasses[] =
+static const PDFEnumerationNames::Entry<PDFOCRPageContentClass> s_contentClasses[] =
 {
     { PDFOCRPageContentClass::Unknown, "unknown" },
     { PDFOCRPageContentClass::Image, "image" },
@@ -1241,24 +1209,94 @@ static const PDFOCREnumerationEntry<PDFOCRPageContentClass> s_contentClasses[] =
     { PDFOCRPageContentClass::Ambiguous, "ambiguous" }
 };
 
-QString PDFOCREnumerations::toString(PDFOCRPageState value) { return enumToString(s_pageStates, value); }
-QString PDFOCREnumerations::toString(PDFOCRReviewState value) { return enumToString(s_reviewStates, value); }
-QString PDFOCREnumerations::toString(PDFOCRGeometryOrigin value) { return enumToString(s_geometryOrigins, value); }
-QString PDFOCREnumerations::toString(PDFOCRTextOrigin value) { return enumToString(s_textOrigins, value); }
-QString PDFOCREnumerations::toString(PDFOCRConfidenceLevel value) { return enumToString(s_confidenceLevels, value); }
-QString PDFOCREnumerations::toString(PDFOCRBlockType value) { return enumToString(s_blockTypes, value); }
-QString PDFOCREnumerations::toString(PDFOCRRegionType value) { return enumToString(s_regionTypes, value); }
-QString PDFOCREnumerations::toString(PDFOCRTextDirection value) { return enumToString(s_textDirections, value); }
-QString PDFOCREnumerations::toString(PDFOCRPageContentClass value) { return enumToString(s_contentClasses, value); }
+QString PDFOCREnumerations::toString(PDFOCRPageState value)
+{
+    return PDFEnumerationNames::toString(s_pageStates, value);
+}
 
-PDFOCRPageState PDFOCREnumerations::toPageState(const QString& value) { return stringToEnum(s_pageStates, value); }
-PDFOCRReviewState PDFOCREnumerations::toReviewState(const QString& value) { return stringToEnum(s_reviewStates, value); }
-PDFOCRGeometryOrigin PDFOCREnumerations::toGeometryOrigin(const QString& value) { return stringToEnum(s_geometryOrigins, value); }
-PDFOCRTextOrigin PDFOCREnumerations::toTextOrigin(const QString& value) { return stringToEnum(s_textOrigins, value); }
-PDFOCRConfidenceLevel PDFOCREnumerations::toConfidenceLevel(const QString& value) { return stringToEnum(s_confidenceLevels, value); }
-PDFOCRBlockType PDFOCREnumerations::toBlockType(const QString& value) { return stringToEnum(s_blockTypes, value); }
-PDFOCRRegionType PDFOCREnumerations::toRegionType(const QString& value) { return stringToEnum(s_regionTypes, value); }
-PDFOCRTextDirection PDFOCREnumerations::toTextDirection(const QString& value) { return stringToEnum(s_textDirections, value); }
-PDFOCRPageContentClass PDFOCREnumerations::toPageContentClass(const QString& value) { return stringToEnum(s_contentClasses, value); }
+QString PDFOCREnumerations::toString(PDFOCRReviewState value)
+{
+    return PDFEnumerationNames::toString(s_reviewStates, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRGeometryOrigin value)
+{
+    return PDFEnumerationNames::toString(s_geometryOrigins, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRTextOrigin value)
+{
+    return PDFEnumerationNames::toString(s_textOrigins, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRConfidenceLevel value)
+{
+    return PDFEnumerationNames::toString(s_confidenceLevels, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRBlockType value)
+{
+    return PDFEnumerationNames::toString(s_blockTypes, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRRegionType value)
+{
+    return PDFEnumerationNames::toString(s_regionTypes, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRTextDirection value)
+{
+    return PDFEnumerationNames::toString(s_textDirections, value);
+}
+
+QString PDFOCREnumerations::toString(PDFOCRPageContentClass value)
+{
+    return PDFEnumerationNames::toString(s_contentClasses, value);
+}
+
+PDFOCRPageState PDFOCREnumerations::toPageState(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_pageStates, value);
+}
+
+PDFOCRReviewState PDFOCREnumerations::toReviewState(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_reviewStates, value);
+}
+
+PDFOCRGeometryOrigin PDFOCREnumerations::toGeometryOrigin(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_geometryOrigins, value);
+}
+
+PDFOCRTextOrigin PDFOCREnumerations::toTextOrigin(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_textOrigins, value);
+}
+
+PDFOCRConfidenceLevel PDFOCREnumerations::toConfidenceLevel(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_confidenceLevels, value);
+}
+
+PDFOCRBlockType PDFOCREnumerations::toBlockType(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_blockTypes, value);
+}
+
+PDFOCRRegionType PDFOCREnumerations::toRegionType(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_regionTypes, value);
+}
+
+PDFOCRTextDirection PDFOCREnumerations::toTextDirection(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_textDirections, value);
+}
+
+PDFOCRPageContentClass PDFOCREnumerations::toPageContentClass(const QString& value)
+{
+    return PDFEnumerationNames::fromString(s_contentClasses, value);
+}
 
 }   // namespace pdf

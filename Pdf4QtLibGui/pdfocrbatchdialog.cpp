@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfocrbatchdialog.h"
+#include "pdfocrdocumentdialog.h"
 #include "pdfocrlanguagesdialog.h"
 #include "pdfocrmodelmanager.h"
 #include "pdfocrjobcontroller.h"
@@ -57,30 +58,10 @@
 namespace pdfviewer
 {
 
-namespace
-{
-
-QString getSettingsGroup()
+QString PDFOCRBatchDialog::getSettingsGroup()
 {
     return QStringLiteral("OCRBatchDialog");
 }
-
-/// Group of the settings of the OCR dialog (its last configuration and the named profiles)
-QString getOCRDialogSettingsGroup()
-{
-    return QStringLiteral("OCRDialog");
-}
-
-constexpr int InputFileRole = Qt::UserRole;
-constexpr int OutputFileRole = Qt::UserRole + 1;
-
-enum CompressionChoice
-{
-    CompressionOff,
-    CompressionLossless
-};
-
-}   // namespace
 
 PDFOCRBatchDialog::PDFOCRBatchDialog(QWidget* parent) :
     BaseClass(parent),
@@ -305,7 +286,7 @@ void PDFOCRBatchDialog::createUi()
 void PDFOCRBatchDialog::updateSettingsSources()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.beginGroup(getOCRDialogSettingsGroup());
+    settings.beginGroup(PDFOCRDocumentDialog::getSettingsGroup());
     const QByteArray lastConfiguration = settings.value(QStringLiteral("configuration")).toByteArray();
     const QJsonArray profiles = QJsonDocument::fromJson(settings.value(QStringLiteral("profiles")).toByteArray()).array();
     settings.endGroup();

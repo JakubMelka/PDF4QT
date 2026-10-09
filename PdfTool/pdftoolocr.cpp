@@ -43,11 +43,25 @@ namespace pdftool
 static PDFToolOCR s_ocrApplication;
 static PDFToolOCRModels s_ocrModelsApplication;
 
-namespace
+/// Parsing and formatting of the values of the OCR commands
+class PDFToolOCRHelper
 {
+public:
+    PDFToolOCRHelper() = delete;
 
-/// Remembers the first invalid value of an option
-void reportInvalidValue(PDFToolOCROptions& options, const QString& option, const QString& value, const QString& validValues)
+    /// Remembers the first invalid value of an option
+    static void reportInvalidValue(PDFToolOCROptions& options, const QString& option, const QString& value, const QString& validValues);
+
+    /// Parses the profile of the language models
+    static bool parseProfile(const QString& value, pdf::PDFOCRModelProfile* profile);
+
+    /// Splits the languages given as "ces+eng" or "ces,eng"
+    static QStringList splitLanguages(const QString& value);
+
+    static QString formatMilliseconds(qint64 milliseconds);
+};
+
+void PDFToolOCRHelper::reportInvalidValue(PDFToolOCROptions& options, const QString& option, const QString& value, const QString& validValues)
 {
     if (options.invalidArgument.isEmpty())
     {
@@ -55,8 +69,7 @@ void reportInvalidValue(PDFToolOCROptions& options, const QString& option, const
     }
 }
 
-/// Parses the profile of the language models
-bool parseProfile(const QString& value, pdf::PDFOCRModelProfile* profile)
+bool PDFToolOCRHelper::parseProfile(const QString& value, pdf::PDFOCRModelProfile* profile)
 {
     for (pdf::PDFOCRModelProfile item : pdf::PDFOCRConfiguration::getProfiles())
     {
@@ -69,8 +82,7 @@ bool parseProfile(const QString& value, pdf::PDFOCRModelProfile* profile)
     return false;
 }
 
-/// Splits the languages given as "ces+eng" or "ces,eng"
-QStringList splitLanguages(const QString& value)
+QStringList PDFToolOCRHelper::splitLanguages(const QString& value)
 {
     QStringList languages;
     for (const QString& part : value.split(QRegularExpression(QStringLiteral("[+,]")), Qt::SkipEmptyParts))
@@ -84,12 +96,10 @@ QStringList splitLanguages(const QString& value)
     return languages;
 }
 
-QString formatMilliseconds(qint64 milliseconds)
+QString PDFToolOCRHelper::formatMilliseconds(qint64 milliseconds)
 {
     return QString::number(double(milliseconds) / 1000.0, 'f', 1);
 }
-
-}   // namespace
 
 // -------------------------------------------------------------------------
 // Command 'ocr'
@@ -225,7 +235,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         const int number = text.toInt(&ok);
         if (!ok || number < minimum || number > maximum)
         {
-            reportInvalidValue(options, QString::fromLatin1(option), text, validValues);
+            PDFToolOCRHelper::reportInvalidValue(options, QString::fromLatin1(option), text, validValues);
             return false;
         }
         *value = number;
@@ -239,7 +249,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         const double number = text.toDouble(&ok);
         if (!ok || !std::isfinite(number) || number < minimum || number > maximum)
         {
-            reportInvalidValue(options, QString::fromLatin1(option), text, validValues);
+            PDFToolOCRHelper::reportInvalidValue(options, QString::fromLatin1(option), text, validValues);
             return false;
         }
         *value = number;
@@ -255,10 +265,10 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
 
     if (parser->isSet("languages"))
     {
-        const QStringList languages = splitLanguages(parser->value("languages"));
+        const QStringList languages = PDFToolOCRHelper::splitLanguages(parser->value("languages"));
         if (languages.isEmpty())
         {
-            reportInvalidValue(options, "languages", parser->value("languages"), "language codes joined by '+', for example ces+eng");
+            PDFToolOCRHelper::reportInvalidValue(options, "languages", parser->value("languages"), "language codes joined by '+', for example ces+eng");
         }
         addChange([languages](Configuration& configuration) { configuration.languages = languages; });
     }
@@ -266,9 +276,9 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
     if (parser->isSet("profile"))
     {
         pdf::PDFOCRModelProfile profile = pdf::PDFOCRModelProfile::Fast;
-        if (!parseProfile(parser->value("profile"), &profile))
+        if (!PDFToolOCRHelper::parseProfile(parser->value("profile"), &profile))
         {
-            reportInvalidValue(options, "profile", parser->value("profile"), "fast|standard|best");
+            PDFToolOCRHelper::reportInvalidValue(options, "profile", parser->value("profile"), "fast|standard|best");
         }
         addChange([profile](Configuration& configuration) { configuration.profile = profile; });
     }
@@ -309,7 +319,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         }
         else
         {
-            reportInvalidValue(options, "layout", value, "0-13|auto|auto-osd|single-column|vertical-block|single-block|single-line|single-word|sparse|sparse-osd|raw-line");
+            PDFToolOCRHelper::reportInvalidValue(options, "layout", value, "0-13|auto|auto-osd|single-column|vertical-block|single-block|single-line|single-word|sparse|sparse-osd|raw-line");
         }
     }
 
@@ -329,7 +339,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         const qsizetype separator = parameter.indexOf(QChar('='));
         if (separator <= 0)
         {
-            reportInvalidValue(options, "engine-parameter", parameter, "name=value");
+            PDFToolOCRHelper::reportInvalidValue(options, "engine-parameter", parameter, "name=value");
             continue;
         }
 
@@ -366,7 +376,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         const int rotation = value.toInt(&ok);
         if (!ok || (rotation != 0 && rotation != 90 && rotation != 180 && rotation != 270))
         {
-            reportInvalidValue(options, "rotation", value, "0|90|180|270");
+            PDFToolOCRHelper::reportInvalidValue(options, "rotation", value, "0|90|180|270");
         }
         addChange([rotation](Configuration& configuration) { configuration.preprocessing.rotation = rotation; });
     }
@@ -384,7 +394,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         auto it = binarizations.find(value);
         if (it == binarizations.cend())
         {
-            reportInvalidValue(options, "binarization", value, "auto|otsu|adaptive-otsu|sauvola");
+            PDFToolOCRHelper::reportInvalidValue(options, "binarization", value, "auto|otsu|adaptive-otsu|sauvola");
         }
         else
         {
@@ -416,7 +426,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
 
         if (!policy)
         {
-            reportInvalidValue(options, "existing-text", value, "skip|replace-own|review-only|regions");
+            PDFToolOCRHelper::reportInvalidValue(options, "existing-text", value, "skip|replace-own|review-only|regions");
         }
         else if (parser->isSet("existing-text"))
         {
@@ -442,7 +452,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         }
         else
         {
-            reportInvalidValue(options, "mixed-pages", value, "skip|mask|review-only");
+            PDFToolOCRHelper::reportInvalidValue(options, "mixed-pages", value, "skip|mask|review-only");
         }
     }
 
@@ -497,7 +507,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         }
         else
         {
-            reportInvalidValue(options, "compression", value, "off|lossless|bitonal");
+            PDFToolOCRHelper::reportInvalidValue(options, "compression", value, "off|lossless|bitonal");
         }
     }
     if (parser->isSet("compression-encoding"))
@@ -514,7 +524,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         auto it = encodings.find(value);
         if (it == encodings.cend())
         {
-            reportInvalidValue(options, "compression-encoding", value, "smallest|jbig2|ccittg4|flate");
+            PDFToolOCRHelper::reportInvalidValue(options, "compression-encoding", value, "smallest|jbig2|ccittg4|flate");
         }
         else
         {
@@ -535,7 +545,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
         auto it = methods.find(value);
         if (it == methods.cend())
         {
-            reportInvalidValue(options, "bitonal-algorithm", value, "automatic|adaptive|manual");
+            PDFToolOCRHelper::reportInvalidValue(options, "bitonal-algorithm", value, "automatic|adaptive|manual");
         }
         else
         {
@@ -573,7 +583,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
     readDouble("export-dpi", 0.0, Configuration::MaximumDpi, QStringLiteral("0-%1").arg(Configuration::MaximumDpi), &options.exportDpi);
     if (options.exportDpi > 0.0 && options.exportDpi < 1.0)
     {
-        reportInvalidValue(options, "export-dpi", parser->value("export-dpi"), QStringLiteral("0 or 1-%1").arg(Configuration::MaximumDpi));
+        PDFToolOCRHelper::reportInvalidValue(options, "export-dpi", parser->value("export-dpi"), QStringLiteral("0 or 1-%1").arg(Configuration::MaximumDpi));
     }
     options.exportOnly = parser->isSet("export-only");
     options.onlyReviewed = parser->isSet("only-reviewed");
@@ -625,7 +635,7 @@ void PDFToolOCR::readOptions(QCommandLineParser* parser, PDFToolOCROptions& opti
             const QString trimmedFormat = format.trimmed();
             if (trimmedFormat != "txt" && trimmedFormat != "hocr" && trimmedFormat != "alto" && trimmedFormat != "tsv")
             {
-                reportInvalidValue(options, "batch-export", parser->value("batch-export"), "a comma separated list of txt|hocr|alto|tsv");
+                PDFToolOCRHelper::reportInvalidValue(options, "batch-export", parser->value("batch-export"), "a comma separated list of txt|hocr|alto|tsv");
             }
             else if (!options.batchExports.contains(trimmedFormat))
             {
@@ -1035,7 +1045,7 @@ int PDFToolOCR::processDocument(const PDFToolOptions& options,
             formatter.writeTableColumn("confidence", hasResult && record.statistics.meanScore ? QString::number(*record.statistics.meanScore, 'f', 1) : QString(), Qt::AlignRight);
             formatter.writeTableColumn("review", hasResult ? QString::number(record.statistics.reviewRequiredCount) : QString(), Qt::AlignRight);
             formatter.writeTableColumn("dictionary", hasResult && record.statistics.dictionaryCheckedCount > 0 ? QString::number(record.statistics.outsideDictionaryCount) : QString(), Qt::AlignRight);
-            formatter.writeTableColumn("time", record.source == pdf::PDFOCRDocumentRunner::PageSource::Recognized ? formatMilliseconds(record.elapsedMilliseconds) : QString(), Qt::AlignRight);
+            formatter.writeTableColumn("time", record.source == pdf::PDFOCRDocumentRunner::PageSource::Recognized ? PDFToolOCRHelper::formatMilliseconds(record.elapsedMilliseconds) : QString(), Qt::AlignRight);
             formatter.writeTableColumn("note", notes.join(QStringLiteral("; ")));
             formatter.endTableRow();
         }
@@ -1049,7 +1059,7 @@ int PDFToolOCR::processDocument(const PDFToolOptions& options,
                                          .arg(statistics.meanScore ? QString::number(*statistics.meanScore, 'f', 1) : PDFToolTranslationContext::tr("unknown")));
         if (result.summary.totalPages > 0)
         {
-            formatter.writeText("time", PDFToolTranslationContext::tr("Recognition time: %1 s, workers: %2.").arg(formatMilliseconds(result.summary.elapsedMilliseconds)).arg(result.summary.workerCount));
+            formatter.writeText("time", PDFToolTranslationContext::tr("Recognition time: %1 s, workers: %2.").arg(PDFToolOCRHelper::formatMilliseconds(result.summary.elapsedMilliseconds)).arg(result.summary.workerCount));
         }
         formatter.endHeader();
         formatter.endDocument();
@@ -1226,7 +1236,7 @@ int PDFToolOCR::executeBatch(const PDFToolOptions& options, pdf::PDFOCRModelMana
         formatter.writeTableColumn("failed", QString::number(report.failedPages), Qt::AlignRight);
         formatter.writeTableColumn("words", QString::number(report.wordCount), Qt::AlignRight);
         formatter.writeTableColumn("review", QString::number(report.reviewWords), Qt::AlignRight);
-        formatter.writeTableColumn("time", formatMilliseconds(report.elapsedMilliseconds), Qt::AlignRight);
+        formatter.writeTableColumn("time", PDFToolOCRHelper::formatMilliseconds(report.elapsedMilliseconds), Qt::AlignRight);
         formatter.writeTableColumn("message", report.message);
         formatter.endTableRow();
     }
@@ -1294,7 +1304,7 @@ void PDFToolOCRModels::readOptions(QCommandLineParser* parser, PDFToolOCROptions
     options.modelsAction = positionalArguments.isEmpty() ? QString() : positionalArguments.takeFirst();
     for (const QString& argument : positionalArguments)
     {
-        for (const QString& language : splitLanguages(argument))
+        for (const QString& language : PDFToolOCRHelper::splitLanguages(argument))
         {
             if (!options.modelsLanguages.contains(language))
             {
@@ -1309,9 +1319,9 @@ void PDFToolOCRModels::readOptions(QCommandLineParser* parser, PDFToolOCROptions
 
     if (parser->isSet("profile"))
     {
-        if (!parseProfile(parser->value("profile"), &options.modelsProfile))
+        if (!PDFToolOCRHelper::parseProfile(parser->value("profile"), &options.modelsProfile))
         {
-            reportInvalidValue(options, "profile", parser->value("profile"), "fast|standard|best");
+            PDFToolOCRHelper::reportInvalidValue(options, "profile", parser->value("profile"), "fast|standard|best");
         }
         else
         {
@@ -1322,7 +1332,7 @@ void PDFToolOCRModels::readOptions(QCommandLineParser* parser, PDFToolOCROptions
 
     if (options.modelsAction != "list" && options.modelsAction != "install" && options.modelsAction != "remove")
     {
-        reportInvalidValue(options, "action", options.modelsAction, "list|install|remove");
+        PDFToolOCRHelper::reportInvalidValue(options, "action", options.modelsAction, "list|install|remove");
     }
 }
 

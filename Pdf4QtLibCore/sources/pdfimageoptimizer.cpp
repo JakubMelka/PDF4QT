@@ -84,43 +84,6 @@ QString readNameFromColorSpace(const PDFDocument* document, const PDFObject& obj
     return QString();
 }
 
-QString readFilterName(const PDFDocument* document, const PDFDictionary* dictionary)
-{
-    if (!document || !dictionary)
-    {
-        return QString();
-    }
-
-    PDFObject filters;
-    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
-    {
-        filters = document->getObject(dictionary->get(PDF_STREAM_DICT_FILTER));
-    }
-    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
-    {
-        filters = document->getObject(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
-    }
-
-    if (filters.isName())
-    {
-        return QString::fromLatin1(filters.getString());
-    }
-    if (filters.isArray())
-    {
-        const PDFArray* array = filters.getArray();
-        if (array && array->getCount() > 0)
-        {
-            const PDFObject& last = document->getObject(array->getItem(array->getCount() - 1));
-            if (last.isName())
-            {
-                return QString::fromLatin1(last.getString());
-            }
-        }
-    }
-
-    return QString();
-}
-
 bool hasNonOpaquePixel(const QImage& image)
 {
     if (!image.hasAlphaChannel())
@@ -484,26 +447,68 @@ QImage simulateJpegCompression(const QImage& image, int quality)
     return decoded.isNull() ? image : decoded;
 }
 
-PDFDictionaryBuilder mergeDictionaries(const PDFDictionary& base,
-                                const PDFDictionary& original,
-                                const std::unordered_set<QByteArray>& blockedKeys)
+}   // namespace imageoptimizer
+
+using namespace imageoptimizer;
+
+QString PDFImageOptimizer::readFilterName(const PDFDocument* document, const PDFDictionary* dictionary)
 {
-    PDFDictionaryBuilder merged(base);
+    if (!document || !dictionary)
+    {
+        return QString();
+    }
+
+    PDFObject filters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
+    {
+        filters = document->getObject(dictionary->get(PDF_STREAM_DICT_FILTER));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
+    {
+        filters = document->getObject(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
+    }
+
+    if (filters.isName())
+    {
+        return QString::fromLatin1(filters.getString());
+    }
+    if (filters.isArray())
+    {
+        const PDFArray* array = filters.getArray();
+        if (array && array->getCount() > 0)
+        {
+            const PDFObject& last = document->getObject(array->getItem(array->getCount() - 1));
+            if (last.isName())
+            {
+                return QString::fromLatin1(last.getString());
+            }
+        }
+    }
+
+    return QString();
+}
+
+PDFDictionaryBuilder PDFImageOptimizer::mergeImageDictionary(const PDFDictionary& encoded, const PDFDictionary& original)
+{
+    // Entries describing the samples and the masks of the original image
+    static const std::unordered_set<QByteArray> replacedKeys =
+    {
+        "Type", "Subtype", "Width", "Height", "BitsPerComponent", "ColorSpace", "Filter",
+        "DecodeParms", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData"
+    };
+
+    PDFDictionaryBuilder merged(encoded);
     for (size_t i = 0; i < original.getCount(); ++i)
     {
         const PDFInplaceOrMemoryString& key = original.getKey(i);
         const QByteArray keyString = key.getString();
-        if (blockedKeys.count(keyString) == 0 && !merged.hasKey(keyString))
+        if (replacedKeys.count(keyString) == 0 && !merged.hasKey(keyString))
         {
             merged.addEntry(key, PDFObject(original.getValue(i)));
         }
     }
     return merged;
 }
-
-}   // namespace imageoptimizer
-
-using namespace imageoptimizer;
 
 PDFImageOptimizer::Settings PDFImageOptimizer::Settings::createDefault()
 {
@@ -984,13 +989,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                 const PDFDictionary* originalDict = originalStream->getDictionary();
                 if (originalDict)
                 {
-                    static const std::unordered_set<QByteArray> blocked = {
-                        "Type", "Subtype", "Width", "Height", "BitsPerComponent",
-                        "ColorSpace", "Filter", "DecodeParms", "Length", "Decode",
-                        "Mask", "SMask", "ImageMask", "SMaskInData"
-                    };
-
-                    PDFDictionaryBuilder merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
+                    PDFDictionaryBuilder merged = mergeImageDictionary(*encoded.stream.getDictionary(), *originalDict);
                     if (originalDict->hasKey("SMask"))
                     {
                         const PDFObject& maskObject = originalDict->get("SMask");

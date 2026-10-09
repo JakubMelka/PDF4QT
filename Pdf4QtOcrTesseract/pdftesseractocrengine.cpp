@@ -44,25 +44,68 @@
 namespace pdf
 {
 
-namespace
+/// Conversions between PDF4QT and Tesseract, the callbacks and the file access of the engine
+class PDFTesseractOCREngineHelper
 {
+public:
+    PDFTesseractOCREngineHelper() = delete;
 
-/// Monitor data passed to the Tesseract cancel/progress callbacks
-struct MonitorContext
-{
-    const PDFOperationControl* operationControl = nullptr;
-    const PDFOCRProgressCallback* progressCallback = nullptr;
-    int lastProgress = -1;
+    /// Monitor data passed to the Tesseract cancel/progress callbacks
+    struct MonitorContext
+    {
+        const PDFOperationControl* operationControl = nullptr;
+        const PDFOCRProgressCallback* progressCallback = nullptr;
+        int lastProgress = -1;
+    };
+
+    static bool cancelFunction(void* data, int words);
+
+    static bool progressFunction(tesseract::ETEXT_DESC* monitor, int left, int right, int top, int bottom);
+
+    static tesseract::PageSegMode toPageSegMode(PDFOCRLayout layout);
+
+    static tesseract::OcrEngineMode toEngineMode(PDFOCREngineMode engineMode);
+
+    static QRectF boundingBox(const tesseract::PageIterator* iterator, tesseract::PageIteratorLevel level);
+
+    /// Reads the files for Tesseract. Tesseract opens the files by the narrow character
+    /// functions, which use the ANSI code page on Windows, so a path with characters
+    /// outside of the code page (user name with diacritics) would not work. Reading
+    /// through Qt makes the model loading independent of the code page (AT-22).
+    static bool readFileForEngine(const char* fileName, std::vector<char>* data);
+
+    /// Initializes the engine with the data path in UTF-8 and the file reader
+    static int initializeApi(tesseract::TessBaseAPI& api,
+                             const QString& dataPath,
+                             const QByteArray& languages,
+                             tesseract::OcrEngineMode mode,
+                             const std::vector<std::string>& variableNames,
+                             const std::vector<std::string>& variableValues);
+
+    /// Encodes the name of a file, which is opened by the engine itself (user words and
+    /// patterns). Returns no value, if the name cannot be represented.
+    static std::optional<QByteArray> encodeFileNameForEngine(const QString& fileName);
+
+    static QString takeText(char* text);
+
+    /// Formats the validated value of a typed parameter for the engine (REC-03).
+    /// Numbers are always formatted with the '.' decimal separator.
+    static QByteArray formatParameterValue(const PDFOCREngineParameterDescriptor& descriptor, const QVariant& value);
+
+    /// Vetted schema of the Tesseract parameters offered to the user (REC-03). Only
+    /// these variables are passed to the engine, everything else is refused by the
+    /// validation of the configuration. Names are the names of the Tesseract 5 variables.
+    static const std::vector<PDFOCREngineParameterDescriptor>& getParameterSchema();
 };
 
-bool cancelFunction(void* data, int words)
+bool PDFTesseractOCREngineHelper::cancelFunction(void* data, int words)
 {
     Q_UNUSED(words);
     MonitorContext* context = reinterpret_cast<MonitorContext*>(data);
     return PDFOperationControl::isOperationCancelled(context->operationControl);
 }
 
-bool progressFunction(tesseract::ETEXT_DESC* monitor, int left, int right, int top, int bottom)
+bool PDFTesseractOCREngineHelper::progressFunction(tesseract::ETEXT_DESC* monitor, int left, int right, int top, int bottom)
 {
     Q_UNUSED(left);
     Q_UNUSED(right);
@@ -79,7 +122,7 @@ bool progressFunction(tesseract::ETEXT_DESC* monitor, int left, int right, int t
     return !PDFOperationControl::isOperationCancelled(context ? context->operationControl : nullptr);
 }
 
-tesseract::PageSegMode toPageSegMode(PDFOCRLayout layout)
+tesseract::PageSegMode PDFTesseractOCREngineHelper::toPageSegMode(PDFOCRLayout layout)
 {
     const int value = static_cast<int>(layout);
     if (value >= 0 && value < tesseract::PSM_COUNT)
@@ -89,22 +132,24 @@ tesseract::PageSegMode toPageSegMode(PDFOCRLayout layout)
     return tesseract::PSM_AUTO;
 }
 
-tesseract::OcrEngineMode toEngineMode(int engineMode)
+tesseract::OcrEngineMode PDFTesseractOCREngineHelper::toEngineMode(PDFOCREngineMode engineMode)
 {
     switch (engineMode)
     {
-        case 0:
+        case PDFOCREngineMode::Legacy:
             return tesseract::OEM_TESSERACT_ONLY;
-        case 1:
+        case PDFOCREngineMode::NeuralNetwork:
             return tesseract::OEM_LSTM_ONLY;
-        case 2:
+        case PDFOCREngineMode::Combined:
             return tesseract::OEM_TESSERACT_LSTM_COMBINED;
-        default:
-            return tesseract::OEM_DEFAULT;
+        case PDFOCREngineMode::Default:
+            break;
     }
+
+    return tesseract::OEM_DEFAULT;
 }
 
-QRectF boundingBox(const tesseract::PageIterator* iterator, tesseract::PageIteratorLevel level)
+QRectF PDFTesseractOCREngineHelper::boundingBox(const tesseract::PageIterator* iterator, tesseract::PageIteratorLevel level)
 {
     int left = 0;
     int top = 0;
@@ -117,11 +162,7 @@ QRectF boundingBox(const tesseract::PageIterator* iterator, tesseract::PageItera
     return QRectF();
 }
 
-/// Reads the files for Tesseract. Tesseract opens the files by the narrow character
-/// functions, which use the ANSI code page on Windows, so a path with characters
-/// outside of the code page (user name with diacritics) would not work. Reading
-/// through Qt makes the model loading independent of the code page (AT-22).
-bool readFileForEngine(const char* fileName, std::vector<char>* data)
+bool PDFTesseractOCREngineHelper::readFileForEngine(const char* fileName, std::vector<char>* data)
 {
     if (!fileName || !data)
     {
@@ -145,21 +186,18 @@ bool readFileForEngine(const char* fileName, std::vector<char>* data)
     return size == 0 || file.read(data->data(), size) == size;
 }
 
-/// Initializes the engine with the data path in UTF-8 and the file reader
-int initializeApi(tesseract::TessBaseAPI& api,
-                  const QString& dataPath,
-                  const QByteArray& languages,
-                  tesseract::OcrEngineMode mode,
-                  const std::vector<std::string>& variableNames,
-                  const std::vector<std::string>& variableValues)
+int PDFTesseractOCREngineHelper::initializeApi(tesseract::TessBaseAPI& api,
+                                               const QString& dataPath,
+                                               const QByteArray& languages,
+                                               tesseract::OcrEngineMode mode,
+                                               const std::vector<std::string>& variableNames,
+                                               const std::vector<std::string>& variableValues)
 {
     const QByteArray encodedDataPath = QDir::toNativeSeparators(dataPath).toUtf8();
     return api.Init(encodedDataPath.constData(), 0, languages.constData(), mode, nullptr, 0, &variableNames, &variableValues, false, &readFileForEngine);
 }
 
-/// Encodes the name of a file, which is opened by the engine itself (user words and
-/// patterns). Returns no value, if the name cannot be represented.
-std::optional<QByteArray> encodeFileNameForEngine(const QString& fileName)
+std::optional<QByteArray> PDFTesseractOCREngineHelper::encodeFileNameForEngine(const QString& fileName)
 {
     const QString nativeFileName = QDir::toNativeSeparators(fileName);
 
@@ -175,7 +213,7 @@ std::optional<QByteArray> encodeFileNameForEngine(const QString& fileName)
 #endif
 }
 
-QString takeText(char* text)
+QString PDFTesseractOCREngineHelper::takeText(char* text)
 {
     QString result;
     if (text)
@@ -186,9 +224,7 @@ QString takeText(char* text)
     return result;
 }
 
-/// Formats the validated value of a typed parameter for the engine (REC-03).
-/// Numbers are always formatted with the '.' decimal separator.
-QByteArray formatParameterValue(const PDFOCREngineParameterDescriptor& descriptor, const QVariant& value)
+QByteArray PDFTesseractOCREngineHelper::formatParameterValue(const PDFOCREngineParameterDescriptor& descriptor, const QVariant& value)
 {
     switch (descriptor.type)
     {
@@ -220,10 +256,7 @@ QByteArray formatParameterValue(const PDFOCREngineParameterDescriptor& descripto
     return value.toString().toUtf8();
 }
 
-/// Vetted schema of the Tesseract parameters offered to the user (REC-03). Only
-/// these variables are passed to the engine, everything else is refused by the
-/// validation of the configuration. Names are the names of the Tesseract 5 variables.
-const std::vector<PDFOCREngineParameterDescriptor>& getParameterSchema()
+const std::vector<PDFOCREngineParameterDescriptor>& PDFTesseractOCREngineHelper::getParameterSchema()
 {
     static const std::vector<PDFOCREngineParameterDescriptor> schema = []()
     {
@@ -265,8 +298,6 @@ const std::vector<PDFOCREngineParameterDescriptor>& getParameterSchema()
 
     return schema;
 }
-
-} // anonymous namespace
 
 /// Tesseract engine instance. One instance must not be used by two jobs
 /// at the same time (JOB-09).
@@ -310,10 +341,10 @@ public:
         }
 
         // Legacy and combined engine modes are not supported by the fast/best LSTM models (chapter 3.3)
-        if (configuration.engineMode == 0 || configuration.engineMode == 2)
+        if (configuration.engineMode == PDFOCREngineMode::Legacy || configuration.engineMode == PDFOCREngineMode::Combined)
         {
             return PDFOCRError::create(PDFOCRErrorCode::IncompatibleModel,
-                                       PDFTranslationContext::tr("Engine mode %1 (legacy) is not supported by the LSTM models of the profile '%2'.").arg(configuration.engineMode).arg(PDFOCRConfiguration::getProfileName(models.profile)),
+                                       PDFTranslationContext::tr("Engine mode '%1' is not supported by the LSTM models of the profile '%2'.").arg(PDFOCRConfiguration::getEngineModeName(configuration.engineMode)).arg(PDFOCRConfiguration::getProfileName(models.profile)),
                                        PDFTranslationContext::tr("Configuration"));
         }
 
@@ -325,7 +356,7 @@ public:
         // Engine parameters must match the declared schema (REC-03): unknown names,
         // wrong types and values out of range are refused by name.
         QStringList parameterErrors;
-        PDFOCRConfiguration::validateEngineParameters(configuration.engineParameters, getParameterSchema(), &parameterErrors);
+        PDFOCRConfiguration::validateEngineParameters(configuration.engineParameters, PDFTesseractOCREngineHelper::getParameterSchema(), &parameterErrors);
         if (!parameterErrors.isEmpty())
         {
             return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration, parameterErrors.front(), PDFTranslationContext::tr("Configuration"), parameterErrors.join(QChar('\n')));
@@ -380,7 +411,7 @@ public:
             }
             file.close();
 
-            const std::optional<QByteArray> encodedFileName = encodeFileNameForEngine(fileName);
+            const std::optional<QByteArray> encodedFileName = PDFTesseractOCREngineHelper::encodeFileNameForEngine(fileName);
             if (!encodedFileName)
             {
                 return PDFOCRError::create(PDFOCRErrorCode::InvalidConfiguration,
@@ -407,7 +438,7 @@ public:
         // Typed parameters of the schema (REC-03), validated by validateConfiguration above.
         // Parameters influencing the loading of the models are passed to the initialization.
         std::vector<std::pair<QByteArray, QByteArray>> runtimeParameters;
-        for (const PDFOCREngineParameterDescriptor& descriptor : getParameterSchema())
+        for (const PDFOCREngineParameterDescriptor& descriptor : PDFTesseractOCREngineHelper::getParameterSchema())
         {
             auto it = configuration.engineParameters.find(descriptor.name);
             if (it == configuration.engineParameters.end())
@@ -416,7 +447,7 @@ public:
             }
 
             const QByteArray name = descriptor.name.toLatin1();
-            const QByteArray value = formatParameterValue(descriptor, it.value());
+            const QByteArray value = PDFTesseractOCREngineHelper::formatParameterValue(descriptor, it.value());
             if (descriptor.beforeInitialization)
             {
                 initNames.emplace_back(name.constData());
@@ -428,7 +459,7 @@ public:
             }
         }
 
-        if (initializeApi(*m_api, models.dataPath, languageString, toEngineMode(configuration.engineMode), initNames, initValues) != 0)
+        if (PDFTesseractOCREngineHelper::initializeApi(*m_api, models.dataPath, languageString, PDFTesseractOCREngineHelper::toEngineMode(configuration.engineMode), initNames, initValues) != 0)
         {
             m_api.reset();
             return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
@@ -436,7 +467,7 @@ public:
                                        PDFTranslationContext::tr("Initialization"));
         }
 
-        m_api->SetPageSegMode(toPageSegMode(configuration.layout));
+        m_api->SetPageSegMode(PDFTesseractOCREngineHelper::toPageSegMode(configuration.layout));
 
         // Parameters after the initialization (REC-03)
         QStringList failedParameters;
@@ -487,12 +518,12 @@ public:
 
         // The dictionary information is meaningful only with the word dictionary loaded
         m_isDictionaryLoaded = true;
-        for (const PDFOCREngineParameterDescriptor& descriptor : getParameterSchema())
+        for (const PDFOCREngineParameterDescriptor& descriptor : PDFTesseractOCREngineHelper::getParameterSchema())
         {
             auto it = configuration.engineParameters.find(descriptor.name);
             if (descriptor.name == QLatin1String("load_system_dawg") && it != configuration.engineParameters.end())
             {
-                m_isDictionaryLoaded = formatParameterValue(descriptor, it.value()) != "0";
+                m_isDictionaryLoaded = PDFTesseractOCREngineHelper::formatParameterValue(descriptor, it.value()) != "0";
             }
         }
 
@@ -553,7 +584,7 @@ public:
         if (!m_orientationApi)
         {
             m_orientationApi = std::make_unique<tesseract::TessBaseAPI>();
-            if (initializeApi(*m_orientationApi, m_models.dataPath, QByteArray("osd"), tesseract::OEM_TESSERACT_ONLY, { }, { }) != 0)
+            if (PDFTesseractOCREngineHelper::initializeApi(*m_orientationApi, m_models.dataPath, QByteArray("osd"), tesseract::OEM_TESSERACT_ONLY, { }, { }) != 0)
             {
                 m_orientationApi.reset();
                 if (error)
@@ -707,14 +738,14 @@ public:
             m_api->SetRectangle(region.left(), region.top(), region.width(), region.height());
         }
 
-        MonitorContext context;
+        PDFTesseractOCREngineHelper::MonitorContext context;
         context.operationControl = operationControl;
         context.progressCallback = &progressCallback;
 
         tesseract::ETEXT_DESC monitor;
-        monitor.cancel = &cancelFunction;
+        monitor.cancel = &PDFTesseractOCREngineHelper::cancelFunction;
         monitor.cancel_this = &context;
-        monitor.progress_callback2 = &progressFunction;
+        monitor.progress_callback2 = &PDFTesseractOCREngineHelper::progressFunction;
         if (deadlineMilliseconds > 0)
         {
             monitor.set_deadline_msecs(int(qMin<qint64>(deadlineMilliseconds, std::numeric_limits<int>::max())));
@@ -824,7 +855,7 @@ private:
                 }
 
                 PDFOCRRawBlock block;
-                block.rect = boundingBox(iterator, tesseract::RIL_BLOCK);
+                block.rect = PDFTesseractOCREngineHelper::boundingBox(iterator, tesseract::RIL_BLOCK);
                 block.type = blockType == tesseract::PT_TABLE ? PDFOCRBlockType::Table : PDFOCRBlockType::Text;
                 output.blocks.push_back(std::move(block));
                 currentBlock = &output.blocks.back();
@@ -840,7 +871,7 @@ private:
             if (iterator->IsAtBeginningOf(tesseract::RIL_TEXTLINE))
             {
                 PDFOCRRawLine line;
-                line.rect = boundingBox(iterator, tesseract::RIL_TEXTLINE);
+                line.rect = PDFTesseractOCREngineHelper::boundingBox(iterator, tesseract::RIL_TEXTLINE);
 
                 int x1 = 0;
                 int y1 = 0;
@@ -882,8 +913,8 @@ private:
             if (currentLine && !iterator->Empty(tesseract::RIL_WORD))
             {
                 PDFOCRRawWord word;
-                word.text = takeText(iterator->GetUTF8Text(tesseract::RIL_WORD)).trimmed();
-                word.rect = boundingBox(iterator, tesseract::RIL_WORD);
+                word.text = PDFTesseractOCREngineHelper::takeText(iterator->GetUTF8Text(tesseract::RIL_WORD)).trimmed();
+                word.rect = PDFTesseractOCREngineHelper::boundingBox(iterator, tesseract::RIL_WORD);
                 word.rawConfidence = double(iterator->Confidence(tesseract::RIL_WORD));
 
                 if (const char* language = iterator->WordRecognitionLanguage())
@@ -904,8 +935,8 @@ private:
                 do
                 {
                     PDFOCRRawSymbol symbol;
-                    symbol.text = takeText(symbolIterator.GetUTF8Text(tesseract::RIL_SYMBOL));
-                    symbol.rect = boundingBox(&symbolIterator, tesseract::RIL_SYMBOL);
+                    symbol.text = PDFTesseractOCREngineHelper::takeText(symbolIterator.GetUTF8Text(tesseract::RIL_SYMBOL));
+                    symbol.rect = PDFTesseractOCREngineHelper::boundingBox(&symbolIterator, tesseract::RIL_SYMBOL);
                     symbol.rawConfidence = double(symbolIterator.Confidence(tesseract::RIL_SYMBOL));
                     if (!symbol.text.isEmpty())
                     {
@@ -1003,7 +1034,7 @@ PDFOCREngineCapabilities PDFTesseractOCREngineFactory::getCapabilities() const
     capabilities.providesPolygonGeometry = false;
     capabilities.providesBaselines = true;
     capabilities.supportedLayouts = PDFOCRConfiguration::getLayouts();
-    capabilities.supportedEngineModes = { 1, 3 };
+    capabilities.supportedEngineModes = { PDFOCREngineMode::NeuralNetwork, PDFOCREngineMode::Default };
     capabilities.supportsOrientationDetection = true;
     capabilities.supportsAlternatives = false;
     capabilities.supportsUserWords = true;
@@ -1019,7 +1050,7 @@ PDFOCREngineCapabilities PDFTesseractOCREngineFactory::getCapabilities() const
 
     // DetectOrientationScript has no monitor, see PDFTesseractOCREngine::detectOrientation
     capabilities.orientationDetectionCancellable = false;
-    capabilities.parameters = getParameterSchema();
+    capabilities.parameters = PDFTesseractOCREngineHelper::getParameterSchema();
     return capabilities;
 }
 
@@ -1035,7 +1066,7 @@ PDFOCRError PDFTesseractOCREngineFactory::validateModel(const QString& dataPath,
 
     // Orientation data are legacy only, language models are LSTM
     const tesseract::OcrEngineMode mode = language == QStringLiteral("osd") ? tesseract::OEM_TESSERACT_ONLY : tesseract::OEM_LSTM_ONLY;
-    const int result = initializeApi(api, dataPath, languageCode, mode, { }, { });
+    const int result = PDFTesseractOCREngineHelper::initializeApi(api, dataPath, languageCode, mode, { }, { });
     api.End();
 
     if (result != 0)

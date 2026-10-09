@@ -97,10 +97,10 @@ public:
         bool hasSignatures = false;
         bool isEncrypted = false;
 
-        /// Permissions of the certification signature (DocMDP, value /P of its transform
-        /// parameters): 0 = the document is not certified, 1 = no changes allowed, 2 = form
-        /// filling and signing, 3 = additionally annotations (PDF-12)
-        int certificationPermissions = 0;
+        /// Permissions of the certification signature (PDF-12)
+        pdf::PDFOCRApplyProcessor::CertificationPermissions certificationPermissions = pdf::PDFOCRApplyProcessor::CertificationPermissions::NotCertified;
+
+        bool isCertified() const { return certificationPermissions != pdf::PDFOCRApplyProcessor::CertificationPermissions::NotCertified; }
     };
 
     explicit PDFOCRDocumentDialog(const Context& context, QWidget* parent);
@@ -108,8 +108,13 @@ public:
 
     /// Returns the permissions of the certification signature of the document
     /// (catalog /Perms /DocMDP, the first signature reference, /TransformParams /P).
-    /// Returns 0, if the document is not certified, 2 if /P is missing (PDF-12).
-    static int getCertificationPermissions(const pdf::PDFDocument* document);
+    /// Returns NotCertified, if the document is not certified, FormFilling if /P is
+    /// missing or has an unknown value (PDF-12).
+    static pdf::PDFOCRApplyProcessor::CertificationPermissions getCertificationPermissions(const pdf::PDFDocument* document);
+
+    /// Returns the group of the settings of the dialog (its last configuration and the
+    /// named profiles), which is shared with the batch recognition
+    static QString getSettingsGroup();
 
     /// Returns true, if the dialog produced a modified document, which
     /// should replace the current document of the editor (single undo step).
@@ -249,6 +254,10 @@ private:
     void onCurrentPageChanged();
     const pdf::PDFOCRPageAnalysis* getAnalysis(pdf::PDFInteger pageIndex);
     static QString getPageStateName(pdf::PDFOCRPageState state);
+    static QString getContentClassName(pdf::PDFOCRPageContentClass contentClass);
+
+    /// Returns the language suggested by the language of the user interface (LANG-03)
+    static QString getLanguageSuggestion();
 
     // Recognition
     void onRecognizeClicked();
@@ -360,7 +369,7 @@ private:
     void updateViews();
     void setViewMode(ViewMode mode);
     void updateWorkflowLabel();
-    void showReviewPanel(bool show);
+    void showReviewTab();
     bool isBusy() const;
     pdf::PDFOCRDocumentIdentity createIdentity() const;
 

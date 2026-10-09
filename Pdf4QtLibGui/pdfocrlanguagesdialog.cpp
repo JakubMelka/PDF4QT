@@ -27,6 +27,9 @@
 #include <QPushButton>
 #include <QDir>
 #include <QUrl>
+#include <QLocale>
+#include <QDateTime>
+#include <QRegularExpression>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QInputDialog>
@@ -195,11 +198,8 @@ void PDFOCRLanguagesDialog::fillItem(QTreeWidgetItem* item, const pdf::PDFOCRMod
         state = tr("%1 - %2").arg(state, model.errorMessage);
     }
 
-    QString version = model.installedVersion.isEmpty() ? model.version : model.installedVersion;
-    if (version.size() > 12)
-    {
-        version = version.left(12);
-    }
+    QString versionToolTip;
+    const QString version = formatVersion(model, versionToolTip);
 
     item->setData(ColumnLanguage, Qt::UserRole, model.id);
     item->setText(ColumnLanguage, name);
@@ -207,11 +207,51 @@ void PDFOCRLanguagesDialog::fillItem(QTreeWidgetItem* item, const pdf::PDFOCRMod
     item->setText(ColumnProfile, pdf::PDFOCRConfiguration::getProfileName(model.profile));
     item->setText(ColumnOrigin, pdf::PDFOCRModelInfo::getOriginName(model.origin));
     item->setText(ColumnVersion, version);
+    item->setToolTip(ColumnVersion, versionToolTip);
     item->setText(ColumnSize, formatSize(model.size));
     item->setTextAlignment(ColumnSize, Qt::AlignRight | Qt::AlignVCenter);
     item->setText(ColumnState, state);
     item->setToolTip(ColumnState, state);
     item->setToolTip(ColumnLanguage, model.path.isEmpty() ? model.id : QDir::toNativeSeparators(model.path));
+}
+
+QString PDFOCRLanguagesDialog::formatVersion(const pdf::PDFOCRModelInfo& model, QString& toolTip) const
+{
+    const QString version = model.installedVersion.isEmpty() ? model.version : model.installedVersion;
+    toolTip = version;
+
+    if (model.origin == pdf::PDFOCRModelOrigin::Imported)
+    {
+        // Imported models have no version, the time of the import is recorded instead
+        const QDateTime imported = QDateTime::fromString(version, Qt::ISODate);
+        if (imported.isValid())
+        {
+            const QString importedText = QLocale().toString(imported.toLocalTime(), QLocale::ShortFormat);
+            toolTip = tr("Imported %1").arg(importedText);
+            return QLocale().toString(imported.toLocalTime().date(), QLocale::ShortFormat);
+        }
+        return version;
+    }
+
+    // Catalog models are versioned by the git commit of the source repository
+    static const QRegularExpression commitExpression(QStringLiteral("^[0-9a-fA-F]{40}$"));
+    if (!commitExpression.match(version).hasMatch())
+    {
+        return version;
+    }
+
+    const QString shortCommit = version.left(7).toLower();
+    const std::map<QString, QString>& repositories = m_manager->getCatalog().sourceRepositories;
+    auto it = repositories.find(pdf::PDFOCRConfiguration::getProfileIdentifier(model.profile));
+    if (it == repositories.end() || it->second.isEmpty())
+    {
+        toolTip = tr("Commit %1").arg(version);
+        return shortCommit;
+    }
+
+    const QString repository = QUrl(it->second).fileName();
+    toolTip = tr("Commit %1 of the repository %2").arg(version, it->second);
+    return QStringLiteral("%1@%2").arg(repository, shortCommit);
 }
 
 void PDFOCRLanguagesDialog::updateModels()

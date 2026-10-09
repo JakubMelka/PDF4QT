@@ -25,6 +25,7 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfimage.h"
 
 #include <QImage>
 #include <QString>
@@ -32,6 +33,7 @@
 #include <QStringList>
 
 #include <map>
+#include <set>
 #include <vector>
 
 namespace pdf
@@ -227,6 +229,28 @@ public:
     /// image the pages, which have it in their resources. Form XObjects are searched
     /// recursively. Used to detect the images shared with the other pages.
     static std::map<PDFObjectReference, std::vector<PDFInteger>> getImageUsage(const PDFDocument* document);
+
+private:
+    struct EncodedImage;
+    class ImageCompressionJob;
+
+    /// Returns the name of the encoding shown in the report
+    static QString getEncodingName(PDFImage::ImageCompression compression);
+
+    /// Encodes a black and white image (samples 0 or 255) by the encoding of the settings.
+    /// Returns false, if no encoding succeeded.
+    static bool encodeBitonal(const QImage& bitonal, PDFOCRBitonalEncoding encoding, PDFStream* stream, QString* encodingName, bool* usesJbig2);
+
+    /// Processes the images drawn on the pages by the job. The number of the pages
+    /// processed at once is bounded by the memory budget.
+    static void processPages(const PDFDocument* document, const std::vector<PDFInteger>& pages, ImageCompressionJob& job, qint64 memoryBudget, const PDFOperationControl* operationControl);
+
+    /// Adds the images of the resources to the usage, form XObjects are searched recursively
+    static void collectXObjectImages(const PDFDocument* document,
+                                     const PDFObject& resourcesObject,
+                                     PDFInteger pageIndex,
+                                     std::set<PDFObjectReference>& visitedForms,
+                                     std::map<PDFObjectReference, std::vector<PDFInteger>>& usage);
 };
 
 }   // namespace pdf

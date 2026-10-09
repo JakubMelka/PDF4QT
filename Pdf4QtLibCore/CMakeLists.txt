@@ -73,6 +73,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfjbig2decoder.h
     sources/pdfjbig2encoder.cpp
     sources/pdfjbig2encoder.h
+    sources/pdfjsonhelper.cpp
+    sources/pdfjsonhelper.h
     sources/pdfmeasure.cpp
     sources/pdfmeasure.h
     sources/pdfmultimedia.cpp

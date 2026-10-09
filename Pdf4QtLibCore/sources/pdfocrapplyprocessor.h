@@ -57,6 +57,17 @@ public:
         CreateCopy      ///< A copy of the document is written into a file
     };
 
+    /// Permissions of the certification signature of the document (DocMDP, value /P of
+    /// its transform parameters, ISO 32000-2, 12.8.2.2). The values of the certified
+    /// states equal the value of /P and must not be renumbered (PDF-12).
+    enum class CertificationPermissions
+    {
+        NotCertified = 0,               ///< The document is not certified
+        NoChanges = 1,                  ///< No changes are allowed
+        FormFilling = 2,                ///< Form filling and signing are allowed
+        FormFillingAndAnnotations = 3   ///< Form filling, signing and annotations are allowed
+    };
+
     /// Properties of the document, which decide, whether and how it can be written
     struct Context
     {
@@ -71,10 +82,10 @@ public:
         bool isEncrypted = false;
         bool isTagged = false;
 
-        /// Permissions of the certification signature (DocMDP, value /P of its transform
-        /// parameters): 0 = the document is not certified, 1 = no changes allowed, 2 = form
-        /// filling and signing, 3 = additionally annotations (PDF-12)
-        int certificationPermissions = 0;
+        /// Permissions of the certification signature (PDF-12)
+        CertificationPermissions certificationPermissions = CertificationPermissions::NotCertified;
+
+        bool isCertified() const { return certificationPermissions != CertificationPermissions::NotCertified; }
 
         /// Human readable names of the PDF/A and PDF/UA declarations of the document (PDF-15)
         QStringList conformanceDeclarations;
@@ -88,8 +99,9 @@ public:
 
     /// Returns the permissions of the certification signature of the document
     /// (catalog /Perms /DocMDP, the first signature reference, /TransformParams /P).
-    /// Returns 0, if the document is not certified, 2 if /P is missing (PDF-12).
-    static int getCertificationPermissions(const PDFDocument* document);
+    /// Returns \p NotCertified, if the document is not certified, \p FormFilling if /P
+    /// is missing or has an unknown value (PDF-12).
+    static CertificationPermissions getCertificationPermissions(const PDFDocument* document);
 
     /// Returns true, if the document contains a signed signature field
     static bool hasSignatureFields(const PDFDocument* document);

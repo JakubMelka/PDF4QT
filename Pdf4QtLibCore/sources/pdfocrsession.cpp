@@ -1829,7 +1829,16 @@ bool PDFOCRSession::replaceWord(PDFInteger pageIndex, int wordId, const std::vec
 // Find and replace
 // -------------------------------------------------------------------------
 
-static QRegularExpression createFindExpression(const QString& text, const PDFOCRSession::FindOptions& options)
+/// Search in the recognized text of the session
+class PDFOCRSessionHelper
+{
+public:
+    PDFOCRSessionHelper() = delete;
+
+    static QRegularExpression createFindExpression(const QString& text, const PDFOCRSession::FindOptions& options);
+};
+
+QRegularExpression PDFOCRSessionHelper::createFindExpression(const QString& text, const PDFOCRSession::FindOptions& options)
 {
     QString pattern = QRegularExpression::escape(text);
     if (options.wholeWords)
@@ -1929,7 +1938,7 @@ std::vector<PDFOCRSession::FindHit> PDFOCRSession::find(const std::vector<PDFInt
         return hits;
     }
 
-    const QRegularExpression expression = createFindExpression(text, options);
+    const QRegularExpression expression = PDFOCRSessionHelper::createFindExpression(text, options);
 
     for (PDFInteger pageIndex : pages)
     {
@@ -1962,7 +1971,7 @@ int PDFOCRSession::replaceAll(const std::vector<PDFInteger>& pages, const QStrin
         return 0;
     }
 
-    const QRegularExpression expression = createFindExpression(text, options);
+    const QRegularExpression expression = PDFOCRSessionHelper::createFindExpression(text, options);
     int count = 0;
 
     // Only the pages with hits are part of the undo step and get the modification flag

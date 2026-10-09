@@ -23,6 +23,7 @@
 #include "pdfocrconfiguration.h"
 #include "pdfocrengine.h"
 #include "pdfutils.h"
+#include "pdfjsonhelper.h"
 
 #include <QJsonArray>
 #include <QRegularExpression>
@@ -34,57 +35,6 @@
 
 namespace pdf
 {
-
-// -------------------------------------------------------------------------
-// Helpers
-// -------------------------------------------------------------------------
-
-static QJsonArray stringListToJson(const QStringList& list)
-{
-    QJsonArray array;
-    for (const QString& item : list)
-    {
-        array.append(item);
-    }
-    return array;
-}
-
-static QJsonArray quadToJsonArray(const PDFOCRQuad& quad)
-{
-    QJsonArray array;
-    for (const QPointF& point : quad.points)
-    {
-        array.append(point.x());
-        array.append(point.y());
-    }
-    return array;
-}
-
-static std::optional<PDFOCRQuad> quadFromJsonArray(const QJsonValue& value)
-{
-    const QJsonArray array = value.toArray();
-    if (array.size() != 8)
-    {
-        return std::nullopt;
-    }
-
-    PDFOCRQuad quad;
-    for (int i = 0; i < 4; ++i)
-    {
-        quad.points[size_t(i)] = QPointF(array.at(2 * i).toDouble(), array.at(2 * i + 1).toDouble());
-    }
-    return quad;
-}
-
-static QStringList stringListFromJson(const QJsonValue& value)
-{
-    QStringList list;
-    for (const QJsonValue& item : value.toArray())
-    {
-        list << item.toString();
-    }
-    return list;
-}
 
 // -------------------------------------------------------------------------
 // PDFOCRPreprocessing
@@ -102,7 +52,7 @@ QJsonObject PDFOCRPreprocessing::toJson() const
     object[QStringLiteral("invert")] = invert;
     if (perspective)
     {
-        object[QStringLiteral("perspective")] = quadToJsonArray(*perspective);
+        object[QStringLiteral("perspective")] = PDFJsonHelper::pointsToJson(perspective->points);
     }
     return object;
 }
@@ -121,7 +71,12 @@ PDFOCRPreprocessing PDFOCRPreprocessing::fromJson(const QJsonObject& object)
     }
     result.denoise = object.value(QStringLiteral("denoise")).toBool(result.denoise);
     result.invert = object.value(QStringLiteral("invert")).toBool(result.invert);
-    result.perspective = quadFromJsonArray(object.value(QStringLiteral("perspective")));
+    if (const std::optional<std::array<QPointF, 4>> points = PDFJsonHelper::pointsFromJson<4>(object.value(QStringLiteral("perspective"))))
+    {
+        PDFOCRQuad quad;
+        quad.points = *points;
+        result.perspective = quad;
+    }
     return result;
 }
 
@@ -168,7 +123,8 @@ QStringList PDFOCRConfiguration::validate() const
         errors << PDFTranslationContext::tr("Invalid page layout type.");
     }
 
-    if (engineMode < 0 || engineMode > 3)
+    const int engineModeValue = static_cast<int>(engineMode);
+    if (engineModeValue < 0 || engineModeValue > 3)
     {
         errors << PDFTranslationContext::tr("Invalid engine mode.");
     }
@@ -420,6 +376,23 @@ QString PDFOCRConfiguration::getLayoutDescription(PDFOCRLayout layout)
     return QString();
 }
 
+QString PDFOCRConfiguration::getEngineModeName(PDFOCREngineMode engineMode)
+{
+    switch (engineMode)
+    {
+        case PDFOCREngineMode::Legacy:
+            return PDFTranslationContext::tr("Legacy engine");
+        case PDFOCREngineMode::NeuralNetwork:
+            return PDFTranslationContext::tr("LSTM neural network");
+        case PDFOCREngineMode::Combined:
+            return PDFTranslationContext::tr("Legacy engine and LSTM neural network");
+        case PDFOCREngineMode::Default:
+            return PDFTranslationContext::tr("Default of the available models");
+    }
+
+    return QString();
+}
+
 const std::vector<PDFOCRLayout>& PDFOCRConfiguration::getLayouts()
 {
     static const std::vector<PDFOCRLayout> layouts =
@@ -498,15 +471,15 @@ QJsonObject PDFOCRConfiguration::toJson() const
 {
     QJsonObject object;
     object[QStringLiteral("engineId")] = engineId;
-    object[QStringLiteral("languages")] = stringListToJson(languages);
+    object[QStringLiteral("languages")] = PDFJsonHelper::stringListToJson(languages);
     object[QStringLiteral("profile")] = getProfileIdentifier(profile);
     object[QStringLiteral("modelSetId")] = modelSetId;
     object[QStringLiteral("layout")] = static_cast<int>(layout);
-    object[QStringLiteral("engineMode")] = engineMode;
+    object[QStringLiteral("engineMode")] = static_cast<int>(engineMode);
     object[QStringLiteral("dpi")] = dpi;
     object[QStringLiteral("preprocessing")] = preprocessing.toJson();
-    object[QStringLiteral("userWords")] = stringListToJson(userWords);
-    object[QStringLiteral("userPatterns")] = stringListToJson(userPatterns);
+    object[QStringLiteral("userWords")] = PDFJsonHelper::stringListToJson(userWords);
+    object[QStringLiteral("userPatterns")] = PDFJsonHelper::stringListToJson(userPatterns);
     object[QStringLiteral("characterWhitelist")] = characterWhitelist;
     object[QStringLiteral("characterBlacklist")] = characterBlacklist;
     object[QStringLiteral("reviewThreshold")] = reviewThreshold;
@@ -526,7 +499,7 @@ PDFOCRConfiguration PDFOCRConfiguration::fromJson(const QJsonObject& object)
 {
     PDFOCRConfiguration result;
     result.engineId = object.value(QStringLiteral("engineId")).toString(result.engineId);
-    result.languages = stringListFromJson(object.value(QStringLiteral("languages")));
+    result.languages = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("languages")));
     result.profile = parseProfileIdentifier(object.value(QStringLiteral("profile")).toString());
     result.modelSetId = object.value(QStringLiteral("modelSetId")).toString();
 
@@ -536,11 +509,11 @@ PDFOCRConfiguration PDFOCRConfiguration::fromJson(const QJsonObject& object)
         result.layout = static_cast<PDFOCRLayout>(layout);
     }
 
-    result.engineMode = object.value(QStringLiteral("engineMode")).toInt(result.engineMode);
+    result.engineMode = static_cast<PDFOCREngineMode>(object.value(QStringLiteral("engineMode")).toInt(static_cast<int>(result.engineMode)));
     result.dpi = object.value(QStringLiteral("dpi")).toDouble(result.dpi);
     result.preprocessing = PDFOCRPreprocessing::fromJson(object.value(QStringLiteral("preprocessing")).toObject());
-    result.userWords = stringListFromJson(object.value(QStringLiteral("userWords")));
-    result.userPatterns = stringListFromJson(object.value(QStringLiteral("userPatterns")));
+    result.userWords = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("userWords")));
+    result.userPatterns = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("userPatterns")));
     result.characterWhitelist = object.value(QStringLiteral("characterWhitelist")).toString();
     result.characterBlacklist = object.value(QStringLiteral("characterBlacklist")).toString();
     result.reviewThreshold = object.value(QStringLiteral("reviewThreshold")).toDouble(result.reviewThreshold);
@@ -621,7 +594,7 @@ QJsonObject PDFOCRPageOverride::toJson() const
     QJsonObject object;
     if (languages)
     {
-        object[QStringLiteral("languages")] = stringListToJson(*languages);
+        object[QStringLiteral("languages")] = PDFJsonHelper::stringListToJson(*languages);
     }
     if (layout)
     {
@@ -645,7 +618,7 @@ QJsonObject PDFOCRPageOverride::toJson() const
     }
     if (perspective)
     {
-        object[QStringLiteral("perspective")] = quadToJsonArray(*perspective);
+        object[QStringLiteral("perspective")] = PDFJsonHelper::pointsToJson(perspective->points);
     }
     return object;
 }
@@ -655,7 +628,7 @@ PDFOCRPageOverride PDFOCRPageOverride::fromJson(const QJsonObject& object)
     PDFOCRPageOverride result;
     if (object.contains(QStringLiteral("languages")))
     {
-        result.languages = stringListFromJson(object.value(QStringLiteral("languages")));
+        result.languages = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("languages")));
     }
     if (object.contains(QStringLiteral("layout")))
     {
@@ -681,7 +654,12 @@ PDFOCRPageOverride PDFOCRPageOverride::fromJson(const QJsonObject& object)
     {
         result.deskew = object.value(QStringLiteral("deskew")).toBool();
     }
-    result.perspective = quadFromJsonArray(object.value(QStringLiteral("perspective")));
+    if (const std::optional<std::array<QPointF, 4>> points = PDFJsonHelper::pointsFromJson<4>(object.value(QStringLiteral("perspective"))))
+    {
+        PDFOCRQuad quad;
+        quad.points = *points;
+        result.perspective = quad;
+    }
     return result;
 }
 

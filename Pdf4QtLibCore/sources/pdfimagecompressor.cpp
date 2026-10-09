@@ -23,7 +23,6 @@
 #include "pdfimagecompressor.h"
 
 #include "pdfcatalog.h"
-#include "pdfcms.h"
 #include "pdfconstants.h"
 #include "pdfdocument.h"
 #include "pdfimage.h"
@@ -33,48 +32,31 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdffont.h"
 
-#include <QScopeGuard>
-
 #include <cmath>
 #include <limits>
 #include <map>
 
 namespace pdf
 {
-namespace imagecompressor
-{
-static double updateAxisDpi(double currentValue, double candidate)
-{
-    if (candidate <= 0.0 || !std::isfinite(candidate))
-    {
-        return currentValue;
-    }
 
-    if (!std::isfinite(currentValue) || candidate < currentValue)
-    {
-        return candidate;
-    }
-
-    return currentValue;
-}
-
-class PDFImageCollectorProcessor : public PDFPageContentProcessor
+/// Content processor, which only reports the image XObjects drawn on the page
+class PDFImageCompressor::ImageCollectorProcessor : public PDFPageContentProcessor
 {
 public:
-    PDFImageCollectorProcessor(const PDFPage* page,
-                               const PDFDocument* document,
-                               const PDFFontCache* fontCache,
-                               const PDFCMS* cms,
-                               const PDFOptionalContentActivity* optionalContentActivity,
-                               const PDFMeshQualitySettings& meshQualitySettings,
-                               std::map<PDFObjectReference, PDFImageCompressor::ImageStatistics>* statistics) :
+    ImageCollectorProcessor(const PDFPage* page,
+                            const PDFDocument* document,
+                            const PDFFontCache* fontCache,
+                            const PDFCMS* cms,
+                            const PDFOptionalContentActivity* optionalContentActivity,
+                            const PDFMeshQualitySettings& meshQualitySettings,
+                            const ImageCallback& callback) :
         PDFPageContentProcessor(page, document, fontCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
-        m_statistics(statistics)
+        m_callback(callback)
     {
     }
 
 protected:
-    bool isContentKindSuppressed(ContentKind kind) const override
+    virtual bool isContentKindSuppressed(ContentKind kind) const override
     {
         switch (kind)
         {
@@ -88,22 +70,20 @@ protected:
         }
     }
 
-    bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
+    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
     {
-        if (isContentSuppressed())
+        if (isContentSuppressed() || isProcessingCancelled())
         {
             return true;
         }
 
-        Q_UNUSED(stream);
-
-        if (!reference.isValid())
+        if (!reference.isValid() || !stream)
         {
             // Inline images or direct streams without reference are skipped, as they can't be shared
             return true;
         }
 
-        updateStatistics(image, reference);
+        m_callback(image, stream, reference, calculateDpi(image));
         return true;
     }
 
@@ -135,12 +115,76 @@ private:
         return dpi;
     }
 
-    void updateStatistics(const PDFImage& image, PDFObjectReference reference)
-    {
-        Q_ASSERT(m_statistics);
+    const ImageCallback& m_callback;
+};
 
-        auto [iterator, inserted] = m_statistics->try_emplace(reference);
-        PDFImageCompressor::ImageStatistics& stats = iterator->second;
+PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMSPointer cms) :
+    m_document(document),
+    m_cms(std::move(cms)),
+    m_optionalContentActivity(std::make_unique<PDFOptionalContentActivity>(document, OCUsage::Export, nullptr)),
+    m_fontCache(std::make_unique<PDFFontCache>(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT))
+{
+    if (!m_cms)
+    {
+        PDFCMSManager cmsManager(nullptr);
+        cmsManager.setDocument(document);
+        cmsManager.setSettings(cmsManager.getDefaultSettings());
+        m_cms = cmsManager.getCurrentCMS();
+    }
+
+    PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), m_optionalContentActivity.get());
+    m_fontCache->setDocument(modifiedDocument);
+    m_fontCacheShrinkGuard = std::make_unique<PDFFontCacheShrinkGuard>(m_fontCache.get(), this);
+}
+
+PDFImageCompressor::Environment::~Environment() = default;
+
+void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl) const
+{
+    const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
+    if (!page || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    PDFMeshQualitySettings meshQualitySettings;
+    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, callback);
+    processor.setOperationControl(operationControl);
+    processor.processContents();
+}
+
+double PDFImageCompressor::updateAxisDpi(double currentValue, double candidate)
+{
+    if (candidate <= 0.0 || !std::isfinite(candidate))
+    {
+        return currentValue;
+    }
+
+    if (!std::isfinite(currentValue) || candidate < currentValue)
+    {
+        return candidate;
+    }
+
+    return currentValue;
+}
+
+PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document) const
+{
+    ImageStatisticsList result;
+    if (!document || !document->getCatalog())
+    {
+        return result;
+    }
+
+    Environment environment(document);
+    std::map<PDFObjectReference, ImageStatistics> statistics;
+    PDFRenderErrorReporterDummy reporter;
+
+    auto updateStatistics = [&](const PDFImage& image, const PDFStream*, PDFObjectReference reference, QPointF dpi)
+    {
+        auto [iterator, inserted] = statistics.try_emplace(reference);
+        ImageStatistics& stats = iterator->second;
 
         if (inserted)
         {
@@ -149,67 +193,17 @@ private:
 
         if (stats.image.isNull())
         {
-            stats.image = image.getImage(getCMS(), this, nullptr);
+            stats.image = image.getImage(environment.getCMS(), &reporter, nullptr);
         }
 
-        const QPointF dpi = calculateDpi(image);
         stats.minimalDpi.setX(updateAxisDpi(stats.minimalDpi.x(), dpi.x()));
         stats.minimalDpi.setY(updateAxisDpi(stats.minimalDpi.y(), dpi.y()));
-    }
+    };
 
-    std::map<PDFObjectReference, PDFImageCompressor::ImageStatistics>* m_statistics = nullptr;
-};
-
-}   // namespace imagecompressor
-
-using namespace imagecompressor;
-
-PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document) const
-{
-    ImageStatisticsList result;
-    if (!document)
-    {
-        return result;
-    }
-
-    const PDFCatalog* catalog = document->getCatalog();
-    if (!catalog)
-    {
-        return result;
-    }
-
-    PDFOptionalContentActivity optionalContentActivity(document, OCUsage::Export, nullptr);
-    PDFCMSManager cmsManager(nullptr);
-    cmsManager.setDocument(document);
-    cmsManager.setSettings(cmsManager.getDefaultSettings());
-    PDFCMSPointer cms = cmsManager.getCurrentCMS();
-
-    PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-    PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &optionalContentActivity);
-    fontCache.setDocument(modifiedDocument);
-    fontCache.setCacheShrinkEnabled(nullptr, false);
-    auto fontCacheGuard = qScopeGuard([&fontCache]() { fontCache.setCacheShrinkEnabled(nullptr, true); });
-
-    PDFMeshQualitySettings meshQualitySettings;
-    std::map<PDFObjectReference, ImageStatistics> statistics;
-
-    const size_t pageCount = catalog->getPageCount();
+    const size_t pageCount = document->getCatalog()->getPageCount();
     for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
     {
-        const PDFPage* page = catalog->getPage(pageIndex);
-        if (!page)
-        {
-            continue;
-        }
-
-        PDFImageCollectorProcessor processor(page,
-                                             document,
-                                             &fontCache,
-                                             cms.data(),
-                                             &optionalContentActivity,
-                                             meshQualitySettings,
-                                             &statistics);
-        processor.processContents();
+        environment.processPage(PDFInteger(pageIndex), updateStatistics, nullptr);
     }
 
     result.reserve(statistics.size());

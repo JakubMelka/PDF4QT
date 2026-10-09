@@ -85,9 +85,6 @@ using pdfviewer::PDFOCRPageView;
 #define PDF4QT_OCR_SKIP(message) QSKIP(message)
 #endif
 
-namespace
-{
-
 /// Answers the modal message boxes of the dialog. The preferred buttons are
 /// searched by their text; everything, what was displayed, is recorded.
 class ModalResponder : public QObject
@@ -278,8 +275,6 @@ struct WidgetFixture
         widget.setDocument(PDFModifiedDocument(), {});
     }
 };
-
-} // anonymous namespace
 
 class OCRDialogTest : public QObject
 {
@@ -1099,13 +1094,14 @@ void OCRDialogTest::certifiedDocument()
     setLinesHandler({ { QStringLiteral("Certified"), QStringLiteral("scan") } });
 
     const PDFDocument scan = createScanDocument({ QStringLiteral("Certified scan") });
-    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&scan), 0);
+    using Permissions = pdf::PDFOCRApplyProcessor::CertificationPermissions;
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&scan), Permissions::NotCertified);
     const PDFDocument noChanges = certifyDocument(scan, 1);
-    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&noChanges), 1);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&noChanges), Permissions::NoChanges);
     const PDFDocument annotations = certifyDocument(scan, 3);
-    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&annotations), 3);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&annotations), Permissions::FormFillingAndAnnotations);
     const PDFDocument withoutPermissions = certifyDocument(scan, 0);
-    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&withoutPermissions), 2);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&withoutPermissions), Permissions::FormFilling);
 
     WidgetFixture fixture{ PDFDocument(noChanges) };
     pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
@@ -1149,7 +1145,7 @@ void OCRDialogTest::certifiedDocument()
     }
 
     // Permission 2: the current document is refused, the copy is written with a warning
-    context.certificationPermissions = 2;
+    context.certificationPermissions = pdf::PDFOCRApplyProcessor::CertificationPermissions::FormFilling;
     {
         pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
         dialog.show();
@@ -1570,9 +1566,6 @@ void OCRDialogTest::compressionInDialog()
     QVERIFY(extractText(*modified, 0).contains(QStringLiteral("Compressed")));
 }
 
-namespace
-{
-
 /// Rendering environment of a document created by the test
 class RenderingContext
 {
@@ -1602,8 +1595,21 @@ public:
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 
-/// Content: horizontal bars around the center, rotated clockwise (visually) by the angle
-QByteArray createBars(QPointF center, double angle, double width)
+/// Test documents of the scan preparation in the dialog tests
+class OCRDialogTestHelper
+{
+public:
+    OCRDialogTestHelper() = delete;
+
+    /// Content: horizontal bars around the center, rotated clockwise (visually) by the angle
+    static QByteArray createBars(QPointF center, double angle, double width);
+
+    /// Page 1: a skewed scan (image and dark bars), page 2: a spread without an image,
+    /// page 3: a page with an OCR layer of PDF4QT
+    static PDFDocument createPreparationDocument();
+};
+
+QByteArray OCRDialogTestHelper::createBars(QPointF center, double angle, double width)
 {
     const QTransform matrix = QTransform::fromTranslate(-center.x(), -center.y()) * QTransform().rotate(-angle) * QTransform::fromTranslate(center.x(), center.y());
     QByteArray content = QStringLiteral("q %1 %2 %3 %4 %5 %6 cm 0 g\n").arg(matrix.m11()).arg(matrix.m12()).arg(matrix.m21()).arg(matrix.m22()).arg(matrix.dx()).arg(matrix.dy()).toLatin1();
@@ -1615,9 +1621,7 @@ QByteArray createBars(QPointF center, double angle, double width)
     return content;
 }
 
-/// Page 1: a skewed scan (image and dark bars), page 2: a spread without an image,
-/// page 3: a page with an OCR layer of PDF4QT
-PDFDocument createPreparationDocument()
+PDFDocument OCRDialogTestHelper::createPreparationDocument()
 {
     PDFDocumentBuilder builder;
 
@@ -1696,13 +1700,11 @@ PDFDocument createPreparationDocument()
     return *modifier.getDocument();
 }
 
-} // namespace
-
 void OCRDialogTest::scanPreparationDialog()
 {
     // Phases 4 and 5 of OCR_PLAN.md: detection proposes the values, the user decides,
     // the pages with an OCR layer are skipped by default
-    WidgetFixture fixture(createPreparationDocument());
+    WidgetFixture fixture(OCRDialogTestHelper::createPreparationDocument());
 
     pdfviewer::PDFScanPreparationDialog::Context context;
     context.document = &fixture.document;

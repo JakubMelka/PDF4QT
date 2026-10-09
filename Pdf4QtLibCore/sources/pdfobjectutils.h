@@ -54,8 +54,24 @@ public:
     /// \param type Type
     static QString getObjectTypeName(PDFObject::Type type);
 
+    /// Returns a copy of the dictionary of the object (a reference is dereferenced),
+    /// or an empty dictionary, if the object is not a dictionary.
+    /// \param storage Storage
+    /// \param object Object
+    static PDFDictionary copyDictionary(const PDFObjectStorage* storage, const PDFObject& object);
+
+    /// Reads the entries of a number tree in the order of the tree. The values of the
+    /// entries are not dereferenced. Kids are followed up to the maximal depth, which
+    /// protects against cyclic trees of damaged documents.
+    /// \param storage Storage
+    /// \param root Root node of the number tree
+    /// \param maximumDepth Maximal depth of the kids
+    static std::vector<std::pair<PDFInteger, PDFObject>> readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth = 32);
+
 private:
     PDFObjectUtils() = delete;
+
+    static void readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, int maximumDepth, std::vector<std::pair<PDFInteger, PDFObject>>& entries);
 };
 
 /// Storage, which can mark objects (for example, when we want to mark already visited objects

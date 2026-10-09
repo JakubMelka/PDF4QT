@@ -22,6 +22,7 @@
 
 #include "pdfocrproject.h"
 #include "pdfconstants.h"
+#include "pdfjsonhelper.h"
 
 #include <QFile>
 #include <QSaveFile>
@@ -30,161 +31,6 @@
 
 namespace pdf
 {
-
-// -------------------------------------------------------------------------
-// Helpers
-// -------------------------------------------------------------------------
-
-static QJsonArray toJsonArray(const QStringList& list)
-{
-    QJsonArray array;
-    for (const QString& item : list)
-    {
-        array.append(item);
-    }
-    return array;
-}
-
-static QStringList toStringList(const QJsonValue& value)
-{
-    QStringList list;
-    for (const QJsonValue& item : value.toArray())
-    {
-        list << item.toString();
-    }
-    return list;
-}
-
-static QJsonArray toJsonArray(const std::vector<int>& list)
-{
-    QJsonArray array;
-    for (int item : list)
-    {
-        array.append(item);
-    }
-    return array;
-}
-
-static std::vector<int> toIntVector(const QJsonValue& value)
-{
-    std::vector<int> list;
-    for (const QJsonValue& item : value.toArray())
-    {
-        list.push_back(item.toInt());
-    }
-    return list;
-}
-
-static QJsonArray toJsonArray(const std::vector<PDFInteger>& list)
-{
-    QJsonArray array;
-    for (PDFInteger item : list)
-    {
-        array.append(qint64(item));
-    }
-    return array;
-}
-
-static std::vector<PDFInteger> toIntegerVector(const QJsonValue& value)
-{
-    std::vector<PDFInteger> list;
-    for (const QJsonValue& item : value.toArray())
-    {
-        list.push_back(PDFInteger(item.toDouble()));
-    }
-    return list;
-}
-
-static QJsonArray rectToJson(const QRectF& rect)
-{
-    QJsonArray array;
-    array.append(rect.left());
-    array.append(rect.top());
-    array.append(rect.width());
-    array.append(rect.height());
-    return array;
-}
-
-static QRectF rectFromJson(const QJsonValue& value)
-{
-    const QJsonArray array = value.toArray();
-    if (array.size() >= 4)
-    {
-        return QRectF(array[0].toDouble(), array[1].toDouble(), array[2].toDouble(), array[3].toDouble());
-    }
-    return QRectF();
-}
-
-static QJsonArray lineToJsonArray(const QLineF& line)
-{
-    QJsonArray array;
-    array.append(line.x1());
-    array.append(line.y1());
-    array.append(line.x2());
-    array.append(line.y2());
-    return array;
-}
-
-static QLineF lineFromJsonArray(const QJsonValue& value)
-{
-    const QJsonArray array = value.toArray();
-    if (array.size() >= 4)
-    {
-        return QLineF(array[0].toDouble(), array[1].toDouble(), array[2].toDouble(), array[3].toDouble());
-    }
-    return QLineF();
-}
-
-static QJsonArray transformToJson(const QTransform& transform)
-{
-    QJsonArray array;
-    array.append(transform.m11());
-    array.append(transform.m12());
-    array.append(transform.m21());
-    array.append(transform.m22());
-    array.append(transform.dx());
-    array.append(transform.dy());
-    return array;
-}
-
-static QTransform transformFromJson(const QJsonValue& value)
-{
-    const QJsonArray array = value.toArray();
-    if (array.size() >= 6)
-    {
-        return QTransform(array[0].toDouble(), array[1].toDouble(), array[2].toDouble(), array[3].toDouble(), array[4].toDouble(), array[5].toDouble());
-    }
-    return QTransform();
-}
-
-static QJsonArray sizeToJson(const QSize& size)
-{
-    QJsonArray array;
-    array.append(size.width());
-    array.append(size.height());
-    return array;
-}
-
-static QSize sizeFromJson(const QJsonValue& value)
-{
-    const QJsonArray array = value.toArray();
-    if (array.size() >= 2)
-    {
-        return QSize(array[0].toInt(), array[1].toInt());
-    }
-    return QSize();
-}
-
-static QString dateTimeToJson(const QDateTime& dateTime)
-{
-    return dateTime.isValid() ? dateTime.toUTC().toString(Qt::ISODateWithMs) : QString();
-}
-
-static QDateTime dateTimeFromJson(const QJsonValue& value)
-{
-    const QString text = value.toString();
-    return text.isEmpty() ? QDateTime() : QDateTime::fromString(text, Qt::ISODateWithMs);
-}
 
 // -------------------------------------------------------------------------
 // PDFOCRDocumentIdentity
@@ -298,11 +144,11 @@ QJsonObject PDFOCRProjectSerializer::wordToJson(const PDFOCRWord& word, PDFOCRSe
         object[QStringLiteral("reviewState")] = PDFOCREnumerations::toString(word.reviewState);
         if (word.reviewTime)
         {
-            object[QStringLiteral("reviewTime")] = dateTimeToJson(*word.reviewTime);
+            object[QStringLiteral("reviewTime")] = PDFJsonHelper::dateTimeToJson(*word.reviewTime);
         }
         if (!word.predecessorIds.empty())
         {
-            object[QStringLiteral("predecessors")] = toJsonArray(word.predecessorIds);
+            object[QStringLiteral("predecessors")] = PDFJsonHelper::intListToJson(word.predecessorIds);
         }
         object[QStringLiteral("overlapsExcludedRegion")] = word.overlapsExcludedRegion;
         object[QStringLiteral("hasExtremeScaling")] = word.hasExtremeScaling;
@@ -339,13 +185,13 @@ PDFOCRWord PDFOCRProjectSerializer::wordFromJson(const QJsonObject& object)
     }
     if (object.contains(QStringLiteral("reviewTime")))
     {
-        const QDateTime time = dateTimeFromJson(object.value(QStringLiteral("reviewTime")));
+        const QDateTime time = PDFJsonHelper::dateTimeFromJson(object.value(QStringLiteral("reviewTime")));
         if (time.isValid())
         {
             word.reviewTime = time;
         }
     }
-    word.predecessorIds = toIntVector(object.value(QStringLiteral("predecessors")));
+    word.predecessorIds = PDFJsonHelper::intListFromJson(object.value(QStringLiteral("predecessors")));
     word.overlapsExcludedRegion = object.value(QStringLiteral("overlapsExcludedRegion")).toBool();
     word.hasExtremeScaling = object.value(QStringLiteral("hasExtremeScaling")).toBool();
     const QJsonValue inDictionary = object.value(QStringLiteral("inDictionary"));
@@ -360,7 +206,7 @@ QJsonObject PDFOCRProjectSerializer::lineToJson(const PDFOCRLine& line, PDFOCRSe
 {
     QJsonObject object;
     object[QStringLiteral("id")] = line.id;
-    object[QStringLiteral("baseline")] = lineToJsonArray(line.baseline);
+    object[QStringLiteral("baseline")] = PDFJsonHelper::lineToJson(line.baseline);
     object[QStringLiteral("quad")] = quadToJson(line.quad);
     object[QStringLiteral("direction")] = PDFOCREnumerations::toString(line.direction);
     if (flags.testFlag(PDFOCRSerializationFlag::ReviewData))
@@ -381,7 +227,7 @@ PDFOCRLine PDFOCRProjectSerializer::lineFromJson(const QJsonObject& object)
 {
     PDFOCRLine line;
     line.id = object.value(QStringLiteral("id")).toInt();
-    line.baseline = lineFromJsonArray(object.value(QStringLiteral("baseline")));
+    line.baseline = PDFJsonHelper::lineFromJson(object.value(QStringLiteral("baseline")));
     line.quad = quadFromJson(object.value(QStringLiteral("quad")));
     line.direction = PDFOCREnumerations::toTextDirection(object.value(QStringLiteral("direction")).toString());
     if (object.contains(QStringLiteral("confidence")))
@@ -432,14 +278,14 @@ QJsonObject PDFOCRProjectSerializer::regionToJson(const PDFOCRRegion& region)
     object[QStringLiteral("id")] = region.id;
     object[QStringLiteral("type")] = PDFOCREnumerations::toString(region.type);
     object[QStringLiteral("name")] = region.name;
-    object[QStringLiteral("rect")] = rectToJson(region.rect);
+    object[QStringLiteral("rect")] = PDFJsonHelper::rectToJson(region.rect);
     object[QStringLiteral("order")] = region.order;
     object[QStringLiteral("proposedByAnalysis")] = region.proposedByAnalysis;
 
     QJsonObject configuration;
     if (!region.configuration.languages.isEmpty())
     {
-        configuration[QStringLiteral("languages")] = toJsonArray(region.configuration.languages);
+        configuration[QStringLiteral("languages")] = PDFJsonHelper::stringListToJson(region.configuration.languages);
     }
     configuration[QStringLiteral("segmentation")] = region.configuration.segmentation;
     configuration[QStringLiteral("rotation")] = region.configuration.rotation;
@@ -453,12 +299,12 @@ PDFOCRRegion PDFOCRProjectSerializer::regionFromJson(const QJsonObject& object)
     region.id = object.value(QStringLiteral("id")).toInt();
     region.type = PDFOCREnumerations::toRegionType(object.value(QStringLiteral("type")).toString());
     region.name = object.value(QStringLiteral("name")).toString();
-    region.rect = rectFromJson(object.value(QStringLiteral("rect")));
+    region.rect = PDFJsonHelper::rectFromJson(object.value(QStringLiteral("rect")));
     region.order = object.value(QStringLiteral("order")).toInt();
     region.proposedByAnalysis = object.value(QStringLiteral("proposedByAnalysis")).toBool();
 
     const QJsonObject configuration = object.value(QStringLiteral("configuration")).toObject();
-    region.configuration.languages = toStringList(configuration.value(QStringLiteral("languages")));
+    region.configuration.languages = PDFJsonHelper::stringListFromJson(configuration.value(QStringLiteral("languages")));
     region.configuration.segmentation = configuration.value(QStringLiteral("segmentation")).toInt(-1);
     region.configuration.rotation = configuration.value(QStringLiteral("rotation")).toInt(-1);
     return region;
@@ -467,34 +313,34 @@ PDFOCRRegion PDFOCRProjectSerializer::regionFromJson(const QJsonObject& object)
 QJsonObject PDFOCRProjectSerializer::geometryToJson(const PDFOCRPageGeometry& geometry)
 {
     QJsonObject object;
-    object[QStringLiteral("mediaBox")] = rectToJson(geometry.mediaBox);
-    object[QStringLiteral("cropBox")] = rectToJson(geometry.cropBox);
+    object[QStringLiteral("mediaBox")] = PDFJsonHelper::rectToJson(geometry.mediaBox);
+    object[QStringLiteral("cropBox")] = PDFJsonHelper::rectToJson(geometry.cropBox);
     object[QStringLiteral("rotation")] = geometry.rotation;
     object[QStringLiteral("userUnit")] = geometry.userUnit;
-    object[QStringLiteral("rasterSize")] = sizeToJson(geometry.rasterSize);
+    object[QStringLiteral("rasterSize")] = PDFJsonHelper::sizeToJson(geometry.rasterSize);
     object[QStringLiteral("dpi")] = geometry.dpi;
     object[QStringLiteral("requestedDpi")] = geometry.requestedDpi;
-    object[QStringLiteral("pageToRaster")] = transformToJson(geometry.pageToRaster);
-    object[QStringLiteral("rasterToEngine")] = transformToJson(geometry.rasterToEngine);
-    object[QStringLiteral("engineImageSize")] = sizeToJson(geometry.engineImageSize);
-    object[QStringLiteral("pipeline")] = toJsonArray(geometry.pipeline);
+    object[QStringLiteral("pageToRaster")] = PDFJsonHelper::transformToJson(geometry.pageToRaster);
+    object[QStringLiteral("rasterToEngine")] = PDFJsonHelper::transformToJson(geometry.rasterToEngine);
+    object[QStringLiteral("engineImageSize")] = PDFJsonHelper::sizeToJson(geometry.engineImageSize);
+    object[QStringLiteral("pipeline")] = PDFJsonHelper::stringListToJson(geometry.pipeline);
     return object;
 }
 
 PDFOCRPageGeometry PDFOCRProjectSerializer::geometryFromJson(const QJsonObject& object)
 {
     PDFOCRPageGeometry geometry;
-    geometry.mediaBox = rectFromJson(object.value(QStringLiteral("mediaBox")));
-    geometry.cropBox = rectFromJson(object.value(QStringLiteral("cropBox")));
+    geometry.mediaBox = PDFJsonHelper::rectFromJson(object.value(QStringLiteral("mediaBox")));
+    geometry.cropBox = PDFJsonHelper::rectFromJson(object.value(QStringLiteral("cropBox")));
     geometry.rotation = object.value(QStringLiteral("rotation")).toInt();
     geometry.userUnit = object.value(QStringLiteral("userUnit")).toDouble(1.0);
-    geometry.rasterSize = sizeFromJson(object.value(QStringLiteral("rasterSize")));
+    geometry.rasterSize = PDFJsonHelper::sizeFromJson(object.value(QStringLiteral("rasterSize")));
     geometry.dpi = object.value(QStringLiteral("dpi")).toDouble();
     geometry.requestedDpi = object.value(QStringLiteral("requestedDpi")).toDouble();
-    geometry.pageToRaster = transformFromJson(object.value(QStringLiteral("pageToRaster")));
-    geometry.rasterToEngine = transformFromJson(object.value(QStringLiteral("rasterToEngine")));
-    geometry.engineImageSize = sizeFromJson(object.value(QStringLiteral("engineImageSize")));
-    geometry.pipeline = toStringList(object.value(QStringLiteral("pipeline")));
+    geometry.pageToRaster = PDFJsonHelper::transformFromJson(object.value(QStringLiteral("pageToRaster")));
+    geometry.rasterToEngine = PDFJsonHelper::transformFromJson(object.value(QStringLiteral("rasterToEngine")));
+    geometry.engineImageSize = PDFJsonHelper::sizeFromJson(object.value(QStringLiteral("engineImageSize")));
+    geometry.pipeline = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("pipeline")));
     return geometry;
 }
 
@@ -503,7 +349,7 @@ QJsonObject PDFOCRProjectSerializer::provenanceToJson(const PDFOCRProvenance& pr
     QJsonObject object;
     object[QStringLiteral("engineId")] = provenance.engineId;
     object[QStringLiteral("engineVersion")] = provenance.engineVersion;
-    object[QStringLiteral("modelIds")] = toJsonArray(provenance.modelIds);
+    object[QStringLiteral("modelIds")] = PDFJsonHelper::stringListToJson(provenance.modelIds);
     object[QStringLiteral("modelSetHash")] = provenance.modelSetHash;
     object[QStringLiteral("parameters")] = QJsonObject::fromVariantMap(provenance.parameters);
     return object;
@@ -514,7 +360,7 @@ PDFOCRProvenance PDFOCRProjectSerializer::provenanceFromJson(const QJsonObject& 
     PDFOCRProvenance provenance;
     provenance.engineId = object.value(QStringLiteral("engineId")).toString();
     provenance.engineVersion = object.value(QStringLiteral("engineVersion")).toString();
-    provenance.modelIds = toStringList(object.value(QStringLiteral("modelIds")));
+    provenance.modelIds = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("modelIds")));
     provenance.modelSetHash = object.value(QStringLiteral("modelSetHash")).toString();
     provenance.parameters = object.value(QStringLiteral("parameters")).toObject().toVariantMap();
     return provenance;
@@ -536,28 +382,28 @@ QJsonObject PDFOCRProjectSerializer::analysisToJson(const PDFOCRPageAnalysis& an
     object[QStringLiteral("invisibleCharacterCount")] = analysis.invisibleCharacterCount;
     object[QStringLiteral("imageCount")] = analysis.imageCount;
     object[QStringLiteral("unmappedCharacterCount")] = analysis.unmappedCharacterCount;
-    object[QStringLiteral("ambiguityReasons")] = toJsonArray(analysis.ambiguityReasons);
-    object[QStringLiteral("notes")] = toJsonArray(analysis.notes);
+    object[QStringLiteral("ambiguityReasons")] = PDFJsonHelper::stringListToJson(analysis.ambiguityReasons);
+    object[QStringLiteral("notes")] = PDFJsonHelper::stringListToJson(analysis.notes);
     object[QStringLiteral("ownLayerId")] = analysis.ownLayerId;
 
     QJsonArray annotationRectangles;
     for (const QRectF& rect : analysis.annotationRectangles)
     {
-        annotationRectangles.append(rectToJson(rect));
+        annotationRectangles.append(PDFJsonHelper::rectToJson(rect));
     }
     object[QStringLiteral("annotationRectangles")] = annotationRectangles;
 
     QJsonArray redactionRectangles;
     for (const QRectF& rect : analysis.redactionRectangles)
     {
-        redactionRectangles.append(rectToJson(rect));
+        redactionRectangles.append(PDFJsonHelper::rectToJson(rect));
     }
     object[QStringLiteral("redactionRectangles")] = redactionRectangles;
 
     QJsonArray textRectangles;
     for (const QRectF& rect : analysis.textRectangles)
     {
-        textRectangles.append(rectToJson(rect));
+        textRectangles.append(PDFJsonHelper::rectToJson(rect));
     }
     object[QStringLiteral("textRectangles")] = textRectangles;
     return object;
@@ -579,20 +425,20 @@ PDFOCRPageAnalysis PDFOCRProjectSerializer::analysisFromJson(const QJsonObject& 
     analysis.invisibleCharacterCount = object.value(QStringLiteral("invisibleCharacterCount")).toInt();
     analysis.imageCount = object.value(QStringLiteral("imageCount")).toInt();
     analysis.unmappedCharacterCount = object.value(QStringLiteral("unmappedCharacterCount")).toInt();
-    analysis.ambiguityReasons = toStringList(object.value(QStringLiteral("ambiguityReasons")));
-    analysis.notes = toStringList(object.value(QStringLiteral("notes")));
+    analysis.ambiguityReasons = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("ambiguityReasons")));
+    analysis.notes = PDFJsonHelper::stringListFromJson(object.value(QStringLiteral("notes")));
     analysis.ownLayerId = object.value(QStringLiteral("ownLayerId")).toString();
     for (const QJsonValue& value : object.value(QStringLiteral("annotationRectangles")).toArray())
     {
-        analysis.annotationRectangles.push_back(rectFromJson(value));
+        analysis.annotationRectangles.push_back(PDFJsonHelper::rectFromJson(value));
     }
     for (const QJsonValue& value : object.value(QStringLiteral("redactionRectangles")).toArray())
     {
-        analysis.redactionRectangles.push_back(rectFromJson(value));
+        analysis.redactionRectangles.push_back(PDFJsonHelper::rectFromJson(value));
     }
     for (const QJsonValue& value : object.value(QStringLiteral("textRectangles")).toArray())
     {
-        analysis.textRectangles.push_back(rectFromJson(value));
+        analysis.textRectangles.push_back(PDFJsonHelper::rectFromJson(value));
     }
     return analysis;
 }
@@ -662,7 +508,7 @@ QJsonObject PDFOCRProjectSerializer::pageResultToJson(const PDFOCRPageResult& re
     object[QStringLiteral("skipReason")] = result.skipReason;
     object[QStringLiteral("generation")] = result.generation;
     object[QStringLiteral("nextId")] = result.nextId;
-    object[QStringLiteral("recognitionTime")] = dateTimeToJson(result.recognitionTime);
+    object[QStringLiteral("recognitionTime")] = PDFJsonHelper::dateTimeToJson(result.recognitionTime);
     object[QStringLiteral("elapsedMilliseconds")] = qint64(result.elapsedMilliseconds);
     object[QStringLiteral("blankDetectionOverridden")] = result.blankDetectionOverridden;
     object[QStringLiteral("isModified")] = result.isModified;
@@ -731,7 +577,7 @@ bool PDFOCRProjectSerializer::pageResultFromJson(const QJsonObject& object, PDFO
     result.skipReason = object.value(QStringLiteral("skipReason")).toString();
     result.generation = object.value(QStringLiteral("generation")).toInt();
     result.nextId = object.value(QStringLiteral("nextId")).toInt(1);
-    result.recognitionTime = dateTimeFromJson(object.value(QStringLiteral("recognitionTime")));
+    result.recognitionTime = PDFJsonHelper::dateTimeFromJson(object.value(QStringLiteral("recognitionTime")));
     result.elapsedMilliseconds = qint64(object.value(QStringLiteral("elapsedMilliseconds")).toDouble());
     result.blankDetectionOverridden = object.value(QStringLiteral("blankDetectionOverridden")).toBool();
     result.isModified = object.value(QStringLiteral("isModified")).toBool();
@@ -833,13 +679,13 @@ QJsonObject PDFOCRProjectSerializer::projectToJson(const PDFOCRProject& project)
     object[QStringLiteral("format")] = QLatin1String(PDFOCRProject::FORMAT_IDENTIFIER);
     object[QStringLiteral("version")] = PDFOCRProject::FORMAT_VERSION;
     object[QStringLiteral("application")] = project.application.isEmpty() ? QString::fromLatin1(PDF_LIBRARY_NAME) : project.application;
-    object[QStringLiteral("created")] = dateTimeToJson(project.created);
-    object[QStringLiteral("modified")] = dateTimeToJson(project.modified);
+    object[QStringLiteral("created")] = PDFJsonHelper::dateTimeToJson(project.created);
+    object[QStringLiteral("modified")] = PDFJsonHelper::dateTimeToJson(project.modified);
     object[QStringLiteral("containsOriginalTexts")] = project.containsOriginalTexts;
     object[QStringLiteral("containsPreviews")] = project.containsPreviews;
     object[QStringLiteral("document")] = project.document.toJson();
     object[QStringLiteral("configuration")] = project.configuration.toJson();
-    object[QStringLiteral("selectedPages")] = toJsonArray(project.selectedPages);
+    object[QStringLiteral("selectedPages")] = PDFJsonHelper::integerListToJson(project.selectedPages);
 
     QJsonObject overrides;
     for (const auto& item : project.pageOverrides)
@@ -880,13 +726,13 @@ bool PDFOCRProjectSerializer::projectFromJson(const QJsonObject& object, PDFOCRP
 
     project = PDFOCRProject();
     project.application = object.value(QStringLiteral("application")).toString();
-    project.created = dateTimeFromJson(object.value(QStringLiteral("created")));
-    project.modified = dateTimeFromJson(object.value(QStringLiteral("modified")));
+    project.created = PDFJsonHelper::dateTimeFromJson(object.value(QStringLiteral("created")));
+    project.modified = PDFJsonHelper::dateTimeFromJson(object.value(QStringLiteral("modified")));
     project.containsOriginalTexts = object.value(QStringLiteral("containsOriginalTexts")).toBool(true);
     project.containsPreviews = object.value(QStringLiteral("containsPreviews")).toBool(false);
     project.document = PDFOCRDocumentIdentity::fromJson(object.value(QStringLiteral("document")).toObject());
     project.configuration = PDFOCRConfiguration::fromJson(object.value(QStringLiteral("configuration")).toObject());
-    project.selectedPages = toIntegerVector(object.value(QStringLiteral("selectedPages")));
+    project.selectedPages = PDFJsonHelper::integerListFromJson(object.value(QStringLiteral("selectedPages")));
 
     const QJsonObject overrides = object.value(QStringLiteral("pageOverrides")).toObject();
     for (auto it = overrides.begin(); it != overrides.end(); ++it)
