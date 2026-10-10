@@ -34,6 +34,7 @@
 #include <leptonica/allheaders.h>
 
 #include <memory>
+#include <mutex>
 #include <atomic>
 #include <cstring>
 #include <string>
@@ -73,6 +74,11 @@ public:
     /// outside of the code page (user name with diacritics) would not work. Reading
     /// through Qt makes the model loading independent of the code page (AT-22).
     static bool readFileForEngine(const char* fileName, std::vector<char>* data);
+
+    /// Sets the process global parameters of Tesseract to fixed values. They are
+    /// set exactly once, before the first instance is initialized, and never
+    /// changed afterwards - see initializeApi.
+    static void initializeGlobalParameters();
 
     /// Initializes the engine with the data path in UTF-8 and the file reader
     static int initializeApi(tesseract::TessBaseAPI& api,
@@ -186,6 +192,23 @@ bool PDFTesseractOCREngineHelper::readFileForEngine(const char* fileName, std::v
     return size == 0 || file.read(data->data(), size) == size;
 }
 
+void PDFTesseractOCREngineHelper::initializeGlobalParameters()
+{
+    // Some parameters of Tesseract are process globals, not members of TessBaseAPI:
+    // SetVariable on one instance changes them for all instances, also for those
+    // recognizing in other worker threads. They are not offered in the configuration;
+    // they are set once to fixed values (the defaults of Tesseract, pinned explicitly,
+    // so the recognition doesn't depend on another user of the library in the process).
+    static std::once_flag flag;
+    std::call_once(flag, []()
+    {
+        tesseract::TessBaseAPI api;
+        api.SetVariable("textord_min_linesize", "1.25");        // Minimal line size relative to the median text size
+        api.SetVariable("textord_tabfind_find_tables", "1");    // Detect tables during the layout analysis
+        api.SetVariable("textord_heavy_nr", "0");               // No heavy noise removal (it removes diacritics and punctuation)
+    });
+}
+
 int PDFTesseractOCREngineHelper::initializeApi(tesseract::TessBaseAPI& api,
                                                const QString& dataPath,
                                                const QByteArray& languages,
@@ -193,6 +216,10 @@ int PDFTesseractOCREngineHelper::initializeApi(tesseract::TessBaseAPI& api,
                                                const std::vector<std::string>& variableNames,
                                                const std::vector<std::string>& variableValues)
 {
+    // Every instance is initialized here, so the global parameters are set before any
+    // instance uses them; std::call_once makes the values visible to all threads
+    initializeGlobalParameters();
+
     const QByteArray encodedDataPath = QDir::toNativeSeparators(dataPath).toUtf8();
     return api.Init(encodedDataPath.constData(), 0, languages.constData(), mode, nullptr, 0, &variableNames, &variableValues, false, &readFileForEngine);
 }
@@ -276,17 +303,20 @@ const std::vector<PDFOCREngineParameterDescriptor>& PDFTesseractOCREngineHelper:
             result.push_back(std::move(descriptor));
         };
 
+        // Only parameters, which are members of the TessBaseAPI instance, may be offered. Some
+        // parameters are process globals in Tesseract (for example textord_min_linesize,
+        // textord_tabfind_find_tables and textord_heavy_nr) - SetVariable on one instance changes
+        // them for all instances, also for the instances running in other worker threads, and
+        // the value would leak into later recognitions. Such parameters must never be added,
+        // their fixed values are set by initializeGlobalParameters.
         constexpr double lowest = std::numeric_limits<double>::lowest();
         constexpr double highest = std::numeric_limits<double>::max();
 
         add("preserve_interword_spaces", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Preserve multiple spaces between the words in the text output."), false);
         add("user_defined_dpi", Type::Integer, 0, 70, 2400, PDFTranslationContext::tr("Resolution assumed by the engine, when the image does not declare it (DPI)."), false);
-        add("textord_min_linesize", Type::Double, 1.25, 0.5, 10.0, PDFTranslationContext::tr("Minimal line size relative to the median text size used by the line finder."), false);
         add("tessedit_do_invert", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Try also the inverted image (light text on a dark background)."), false);
         add("lstm_choice_mode", Type::Integer, 0, 0, 2, PDFTranslationContext::tr("Alternative symbol choices of the LSTM recognizer (0 = none, 1 = per symbol, 2 = per timestep)."), false);
         add("classify_bln_numeric_mode", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Numeric only mode of the classifier."), false);
-        add("textord_tabfind_find_tables", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Detect tables during the layout analysis."), false);
-        add("textord_heavy_nr", Type::Boolean, false, lowest, highest, PDFTranslationContext::tr("Heavy noise removal during the layout analysis."), false);
         add("min_characters_to_try", Type::Integer, 50, 1, 10000, PDFTranslationContext::tr("Minimal number of characters required by the orientation and script detection."), false);
         add("load_system_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the system dictionary of the language."), true);
         add("load_freq_dawg", Type::Boolean, true, lowest, highest, PDFTranslationContext::tr("Load the dictionary of the frequent words of the language."), true);
@@ -304,8 +334,8 @@ const std::vector<PDFOCREngineParameterDescriptor>& PDFTesseractOCREngineHelper:
 class PDFTesseractOCREngine : public PDFOCREngine
 {
 public:
-    explicit PDFTesseractOCREngine(const PDFTesseractOCREngineFactory* factory) :
-        m_factory(factory)
+    explicit PDFTesseractOCREngine(std::shared_ptr<const PDFTesseractOCREngineFactory> factory) :
+        m_factory(std::move(factory))
     {
 
     }
@@ -971,7 +1001,7 @@ private:
     /// Maximal longer side of the image passed to the orientation detection
     static constexpr int MaximumOrientationDimension = 2000;
 
-    const PDFTesseractOCREngineFactory* m_factory;
+    std::shared_ptr<const PDFTesseractOCREngineFactory> m_factory;
     std::unique_ptr<tesseract::TessBaseAPI> m_api;
     std::unique_ptr<tesseract::TessBaseAPI> m_orientationApi;
     PDFOCRConfiguration m_configuration;
@@ -1056,7 +1086,13 @@ PDFOCREngineCapabilities PDFTesseractOCREngineFactory::getCapabilities() const
 
 std::unique_ptr<PDFOCREngine> PDFTesseractOCREngineFactory::createEngine() const
 {
-    return std::make_unique<PDFTesseractOCREngine>(this);
+    std::shared_ptr<const PDFTesseractOCREngineFactory> factory = std::static_pointer_cast<const PDFTesseractOCREngineFactory>(weak_from_this().lock());
+    if (!factory)
+    {
+        return nullptr;
+    }
+
+    return std::make_unique<PDFTesseractOCREngine>(std::move(factory));
 }
 
 PDFOCRError PDFTesseractOCREngineFactory::validateModel(const QString& dataPath, const QString& language) const

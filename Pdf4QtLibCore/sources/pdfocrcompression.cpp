@@ -36,6 +36,7 @@
 #include <QScopeGuard>
 
 #include <atomic>
+#include <cmath>
 #include <limits>
 #include <optional>
 
@@ -304,7 +305,9 @@ struct PDFOCRImageCompressor::EncodedImage
     PDFOCRCompressionImageResult result;
     PDFStream stream;
     QImage preview;
-    double encodedDpi = 0.0;
+
+    /// Resolution of the axes, for which the image was encoded (infinity = not limited)
+    QPointF encodedDpi = QPointF(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
     bool usesJbig2 = false;
 };
 
@@ -336,7 +339,23 @@ private:
     std::optional<ImageResult::Action> checkImage(const PDFImage& image, const PDFDictionary* dictionary, PDFObjectReference reference, QString* message) const;
 
     /// Encodes the decoded image. Returns false, if the image is not re-encoded.
-    bool encode(const QImage& decoded, const PDFImage& image, double dpi, EncodedImage& encoded) const;
+    bool encode(const QImage& decoded, const PDFImage& image, QPointF dpi, EncodedImage& encoded) const;
+
+    /// Encodes the decoded image at the resolution encoded.encodedDpi and fills the result
+    void encodeDecodedImage(const QImage& decoded, const PDFImage& image, const PDFDictionary* dictionary, EncodedImage& encoded) const;
+
+    /// Returns true, if the encoded image must be encoded again for a lower resolution
+    bool needsReencoding(const EncodedImage& encoded, QPointF dpi) const;
+
+    /// Returns the smaller resolution of each axis (values, which are not positive or finite, are ignored)
+    static QPointF mergeDpi(QPointF current, QPointF candidate);
+
+    /// Use of an image by a page during the encoding of the image
+    struct PendingUse
+    {
+        std::vector<PDFInteger> pages;
+        QPointF dpi = QPointF(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
+    };
 
     const PDFDocument* m_document;
     PDFOCRCompressionSettings m_settings;
@@ -347,7 +366,7 @@ private:
     QMutex m_mutex;
     std::map<PDFObjectReference, EncodedImage> m_images;
     std::set<PDFObjectReference> m_inProgress;
-    std::map<PDFObjectReference, std::vector<PDFInteger>> m_pendingPages;
+    std::map<PDFObjectReference, PendingUse> m_pendingUses;
     std::atomic<int> m_concurrentImages = 0;
     std::atomic<int> m_maximumConcurrentImages = 0;
 };
@@ -398,7 +417,7 @@ std::optional<PDFOCRCompressionImageResult::Action> PDFOCRImageCompressor::Image
     return std::nullopt;
 }
 
-bool PDFOCRImageCompressor::ImageCompressionJob::encode(const QImage& decoded, const PDFImage& image, double dpi, EncodedImage& encoded) const
+bool PDFOCRImageCompressor::ImageCompressionJob::encode(const QImage& decoded, const PDFImage& image, QPointF dpi, EncodedImage& encoded) const
 {
     const PDFAbstractColorSpace* colorSpace = image.getColorSpace().data();
     const PDFAbstractColorSpace::ColorSpace colorSpaceType = colorSpace->getColorSpace();
@@ -453,7 +472,7 @@ bool PDFOCRImageCompressor::ImageCompressionJob::encode(const QImage& decoded, c
 
         PDFImageOptimizer::ImageInfo info;
         info.image = decoded;
-        info.minimalDpi = QPointF(dpi, dpi);
+        info.minimalDpi = dpi;
         info.pixelSize = decoded.size();
         info.bitsPerComponent = bitsPerComponent;
         info.filterName = filter;
@@ -533,6 +552,73 @@ bool PDFOCRImageCompressor::ImageCompressionJob::encode(const QImage& decoded, c
     return true;
 }
 
+QPointF PDFOCRImageCompressor::ImageCompressionJob::mergeDpi(QPointF current, QPointF candidate)
+{
+    return QPointF(PDFImageCompressor::updateAxisDpi(current.x(), candidate.x()), PDFImageCompressor::updateAxisDpi(current.y(), candidate.y()));
+}
+
+bool PDFOCRImageCompressor::ImageCompressionJob::needsReencoding(const EncodedImage& encoded, QPointF dpi) const
+{
+    // A downsampled image is encoded again, if it is drawn larger elsewhere
+    // (a lower resolution of an axis); otherwise the encoding is final
+    if (m_settings.mode != PDFOCRCompressionMode::Custom || !m_settings.downsample || encoded.result.action != ImageResult::Action::Compressed)
+    {
+        return false;
+    }
+
+    auto isLower = [](double candidate, double encodedValue)
+    {
+        return std::isfinite(candidate) && candidate < encodedValue * 0.99;
+    };
+    return isLower(dpi.x(), encoded.encodedDpi.x()) || isLower(dpi.y(), encoded.encodedDpi.y());
+}
+
+void PDFOCRImageCompressor::ImageCompressionJob::encodeDecodedImage(const QImage& decoded, const PDFImage& image, const PDFDictionary* dictionary, EncodedImage& encoded) const
+{
+    try
+    {
+        if (decoded.isNull())
+        {
+            encoded.result.action = ImageResult::Action::Failed;
+            encoded.result.message = PDFTranslationContext::tr("The image cannot be decoded.");
+        }
+        else if (!encode(decoded, image, encoded.encodedDpi, encoded))
+        {
+            encoded.result.action = ImageResult::Action::SkippedUnsupported;
+            encoded.preview = QImage();
+        }
+        else
+        {
+            encoded.result.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
+            if (encoded.result.newBytes <= 0 || encoded.result.newBytes >= encoded.result.originalBytes)
+            {
+                encoded.result.action = ImageResult::Action::KeptLarger;
+                encoded.stream = PDFStream();
+            }
+            else
+            {
+                encoded.result.action = ImageResult::Action::Compressed;
+
+                PDFDictionary merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *dictionary);
+                const QByteArray* content = encoded.stream.getContent();
+                encoded.stream = PDFStream(std::move(merged), content ? QByteArray(*content) : QByteArray());
+            }
+        }
+    }
+    catch (const PDFException& exception)
+    {
+        encoded.result.action = ImageResult::Action::Failed;
+        encoded.result.message = exception.getMessage();
+        encoded.stream = PDFStream();
+    }
+    catch (const std::exception& exception)
+    {
+        encoded.result.action = ImageResult::Action::Failed;
+        encoded.result.message = QString::fromLocal8Bit(exception.what());
+        encoded.stream = PDFStream();
+    }
+}
+
 void PDFOCRImageCompressor::ImageCompressionJob::processImage(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, PDFInteger pageIndex, QPointF axisDpi, const PDFCMS* cms, const PDFOperationControl* operationControl)
 {
     const PDFDictionary* dictionary = stream ? stream->getDictionary() : nullptr;
@@ -542,8 +628,10 @@ void PDFOCRImageCompressor::ImageCompressionJob::processImage(const PDFImage& im
         return;
     }
 
-    // Resolution of the image in the user space of the page (smaller of the axes)
-    const double dpi = (axisDpi.x() > 0.0 && axisDpi.y() > 0.0) ? qMin(axisDpi.x(), axisDpi.y()) : 0.0;
+    // Resolution of the image in the user space of the page, per axis. Values, which
+    // are not positive or finite (degenerate drawing), don't limit the resolution, so
+    // the result doesn't depend on the order, in which the pages draw the image.
+    QPointF dpi = mergeDpi(QPointF(std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity()), axisDpi);
 
     {
         QMutexLocker lock(&m_mutex);
@@ -557,127 +645,147 @@ void PDFOCRImageCompressor::ImageCompressionJob::processImage(const PDFImage& im
                 existing.result.pages.push_back(pageIndex);
             }
 
-            // A downsampled image is encoded again, if it is drawn larger elsewhere
-            // (a lower resolution); otherwise the first encoding is final
-            const bool needsReencoding = m_settings.mode == PDFOCRCompressionMode::Custom && m_settings.downsample &&
-                                         existing.result.action == ImageResult::Action::Compressed && dpi > 0.0 && dpi < existing.encodedDpi * 0.99;
-            if (!needsReencoding)
+            if (!needsReencoding(existing, dpi))
             {
                 return;
             }
+
+            // Re-encoding must satisfy also the pages encoded before
+            dpi = mergeDpi(existing.encodedDpi, dpi);
         }
 
         if (m_inProgress.count(reference))
         {
-            // The image is being encoded by another page right now, the page is recorded
-            // and added to the pages of the image, when its encoding is stored
-            m_pendingPages[reference].push_back(pageIndex);
+            // The image is being encoded by another page right now. The page and its
+            // resolution are recorded, the encoding thread adds the page to the pages
+            // of the image and encodes the image again, if the resolution is lower.
+            PendingUse& pending = m_pendingUses[reference];
+            pending.pages.push_back(pageIndex);
+            pending.dpi = mergeDpi(pending.dpi, dpi);
             return;
         }
         m_inProgress.insert(reference);
     }
 
+    // Only for the exceptional path - otherwise the image is stored and removed
+    // from the images in progress in one critical section below
     auto inProgressGuard = qScopeGuard([&]()
     {
         QMutexLocker lock(&m_mutex);
         m_inProgress.erase(reference);
+        m_pendingUses.erase(reference);
     });
 
-    EncodedImage encoded;
-    encoded.result.reference = reference;
-    encoded.result.pages = { pageIndex };
-    encoded.result.pixelSize = QSize(int(image.getImageData().getWidth()), int(image.getImageData().getHeight()));
-    encoded.result.originalFilter = PDFImageOptimizer::readFilterName(m_document, dictionary);
-    encoded.result.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
-    encoded.encodedDpi = dpi;
+    EncodedImage base;
+    base.result.reference = reference;
+    base.result.pages = { pageIndex };
+    base.result.pixelSize = QSize(int(image.getImageData().getWidth()), int(image.getImageData().getHeight()));
+    base.result.originalFilter = PDFImageOptimizer::readFilterName(m_document, dictionary);
+    base.result.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
 
     QString message;
-    if (std::optional<ImageResult::Action> action = checkImage(image, dictionary, reference, &message))
+    const std::optional<ImageResult::Action> action = checkImage(image, dictionary, reference, &message);
+
+    // Number of the images decoded at the same time (diagnostics of the memory)
+    const bool decodes = !action.has_value();
+    if (decodes)
     {
-        encoded.result.action = *action;
-        encoded.result.message = message;
-    }
-    else
-    {
-        // Number of the images decoded at the same time (diagnostics of the memory)
         const int concurrent = ++m_concurrentImages;
         int maximum = m_maximumConcurrentImages.load();
         while (concurrent > maximum && !m_maximumConcurrentImages.compare_exchange_weak(maximum, concurrent))
         {
         }
-        auto concurrentGuard = qScopeGuard([this]() { --m_concurrentImages; });
+    }
+    auto concurrentGuard = qScopeGuard([this, decodes]()
+    {
+        if (decodes)
+        {
+            --m_concurrentImages;
+        }
+    });
 
+    QImage decoded;
+    if (decodes)
+    {
         try
         {
             PDFRenderErrorReporterDummy reporter;
-            const QImage decoded = image.getImage(cms, &reporter, operationControl);
-            if (decoded.isNull())
-            {
-                encoded.result.action = ImageResult::Action::Failed;
-                encoded.result.message = PDFTranslationContext::tr("The image cannot be decoded.");
-            }
-            else if (!encode(decoded, image, dpi, encoded))
-            {
-                encoded.result.action = ImageResult::Action::SkippedUnsupported;
-                encoded.preview = QImage();
-            }
-            else
-            {
-                encoded.result.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
-                if (encoded.result.newBytes <= 0 || encoded.result.newBytes >= encoded.result.originalBytes)
-                {
-                    encoded.result.action = ImageResult::Action::KeptLarger;
-                    encoded.stream = PDFStream();
-                }
-                else
-                {
-                    encoded.result.action = ImageResult::Action::Compressed;
-
-                    PDFDictionary merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *dictionary);
-                    const QByteArray* content = encoded.stream.getContent();
-                    encoded.stream = PDFStream(std::move(merged), content ? QByteArray(*content) : QByteArray());
-                }
-            }
-
+            decoded = image.getImage(cms, &reporter, operationControl);
         }
         catch (const PDFException& exception)
         {
-            encoded.result.action = ImageResult::Action::Failed;
-            encoded.result.message = exception.getMessage();
-            encoded.stream = PDFStream();
+            message = exception.getMessage();
         }
     }
 
-    // The decoded image is released here, only the encoded stream is kept (memory)
-    QMutexLocker lock(&m_mutex);
-    auto it = m_images.find(reference);
-    if (it != m_images.end())
+    // The image is decoded once and encoded again, while other pages draw it
+    // at a lower resolution during its encoding
+    for (;;)
     {
-        // Re-encoding at a lower resolution: the pages of the image are kept
-        encoded.result.pages = it->second.result.pages;
-    }
+        EncodedImage encoded = base;
+        encoded.encodedDpi = dpi;
 
-    // Pages, which have drawn the image during its encoding
-    auto pendingIt = m_pendingPages.find(reference);
-    if (pendingIt != m_pendingPages.end())
-    {
-        for (PDFInteger page : pendingIt->second)
+        if (action)
         {
-            if (std::find(encoded.result.pages.begin(), encoded.result.pages.end(), page) == encoded.result.pages.end())
+            encoded.result.action = *action;
+            encoded.result.message = message;
+        }
+        else if (decoded.isNull() && !message.isEmpty())
+        {
+            encoded.result.action = ImageResult::Action::Failed;
+            encoded.result.message = message;
+        }
+        else
+        {
+            encodeDecodedImage(decoded, image, dictionary, encoded);
+        }
+
+        QMutexLocker lock(&m_mutex);
+
+        // Pages, which have drawn the image during its encoding
+        auto pendingIt = m_pendingUses.find(reference);
+        if (pendingIt != m_pendingUses.end())
+        {
+            for (PDFInteger page : pendingIt->second.pages)
             {
-                encoded.result.pages.push_back(page);
+                if (std::find(base.result.pages.begin(), base.result.pages.end(), page) == base.result.pages.end())
+                {
+                    base.result.pages.push_back(page);
+                }
+            }
+
+            const QPointF pendingDpi = mergeDpi(dpi, pendingIt->second.dpi);
+            m_pendingUses.erase(pendingIt);
+
+            if (needsReencoding(encoded, pendingDpi))
+            {
+                dpi = pendingDpi;
+                continue;
             }
         }
-        m_pendingPages.erase(pendingIt);
-    }
 
-    if (it != m_images.end())
-    {
-        it->second = std::move(encoded);
-    }
-    else
-    {
-        m_images.emplace(reference, std::move(encoded));
+        encoded.result.pages = base.result.pages;
+        auto it = m_images.find(reference);
+        if (it != m_images.end())
+        {
+            // Re-encoding at a lower resolution: the pages of the image are kept
+            for (PDFInteger page : it->second.result.pages)
+            {
+                if (std::find(encoded.result.pages.begin(), encoded.result.pages.end(), page) == encoded.result.pages.end())
+                {
+                    encoded.result.pages.push_back(page);
+                }
+            }
+            it->second = std::move(encoded);
+        }
+        else
+        {
+            m_images.emplace(reference, std::move(encoded));
+        }
+
+        m_inProgress.erase(reference);
+        inProgressGuard.dismiss();
+        break;
     }
 }
 

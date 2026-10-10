@@ -434,8 +434,17 @@ void PDFOCRCompressionPreviewDialog::startPreview()
     {
         m_token->cancel();
     }
+    ++m_generation;
 
-    const int generation = ++m_generation;
+    // At most one preview is computed at a time: the cancelled previous computation
+    // finishes first, then the newest request is started. The GUI thread never waits.
+    if (!m_future.isFinished())
+    {
+        m_previewTimer->start();
+        return;
+    }
+
+    const int generation = m_generation;
     m_token = std::make_shared<pdf::PDFOCRCancelToken>();
     std::shared_ptr<pdf::PDFOCRCancelToken> token = m_token;
 
@@ -455,8 +464,6 @@ void PDFOCRCompressionPreviewDialog::startPreview()
     const std::vector<pdf::PDFInteger> pages = m_pages;
     const pdf::PDFOCRCompressionSettings settings = m_settings;
 
-    // The previous computation is waited for, it was cancelled above
-    m_future.waitForFinished();
     m_future = QtConcurrent::run([this, document, page, pages, settings, generation, token]()
     {
         std::vector<pdf::PDFOCRImageCompressor::Preview> previews;

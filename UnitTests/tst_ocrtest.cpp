@@ -75,6 +75,7 @@
 #include <QTemporaryDir>
 #include <QCryptographicHash>
 #include <QThread>
+#include <QSemaphore>
 
 #include <random>
 #include <numbers>
@@ -228,7 +229,7 @@ public:
     /// Creates a document, whose pages draw the images over the whole page
     /// (pageImages[i] is the index of the image drawn on the page i; several
     /// pages can share one image object)
-    static PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version = PDFVersion(1, 7));
+    static PDFDocument createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version = PDFVersion(1, 7), const std::vector<QSizeF>& pageSizes = { });
 
     /// Black and white image with some text-like structure
     static QImage createBitonalTextImage(QSize size, int seed);
@@ -242,6 +243,67 @@ public:
     static QImage renderPage(const PDFDocument& document, PDFInteger pageIndex, double dpi);
 
     static QByteArray getImageFilter(const PDFDocument& document, PDFInteger pageIndex);
+};
+
+/// Engine of the test, which delegates to the test engine and counts its preparations
+class OCRTestCountingEngine : public PDFOCREngine
+{
+public:
+    explicit OCRTestCountingEngine(std::unique_ptr<PDFOCREngine> engine, std::shared_ptr<std::atomic<int>> prepareCount) :
+        m_engine(std::move(engine)),
+        m_prepareCount(std::move(prepareCount))
+    {
+
+    }
+
+    virtual QString getIdentifier() const override { return m_engine->getIdentifier(); }
+    virtual QString getName() const override { return m_engine->getName(); }
+    virtual QString getVersion() const override { return m_engine->getVersion(); }
+    virtual PDFOCREngineCapabilities getCapabilities() const override { return m_engine->getCapabilities(); }
+
+    virtual PDFOCRError validateConfiguration(const PDFOCRConfiguration& configuration, const PDFOCRResolvedModelSet& models) const override
+    {
+        return m_engine->validateConfiguration(configuration, models);
+    }
+
+    virtual PDFOCRError prepare(const PDFOCRConfiguration& configuration, const PDFOCRResolvedModelSet& models) override
+    {
+        ++*m_prepareCount;
+        return m_engine->prepare(configuration, models);
+    }
+
+    virtual PDFOCRRecognitionOutput recognize(const PDFOCRRecognitionInput& input, const PDFOperationControl* operationControl, const PDFOCRProgressCallback& progressCallback) override
+    {
+        return m_engine->recognize(input, operationControl, progressCallback);
+    }
+
+    virtual void release() override { m_engine->release(); }
+
+private:
+    std::unique_ptr<PDFOCREngine> m_engine;
+    std::shared_ptr<std::atomic<int>> m_prepareCount;
+};
+
+/// Factory of the test engine, whose engine creation waits until the test releases it
+class OCRTestBlockingEngineFactory : public PDFOCRTestEngineFactory
+{
+public:
+    virtual std::unique_ptr<PDFOCREngine> createEngine() const override
+    {
+        m_entered.release();
+        m_released.acquire();
+
+        std::unique_ptr<PDFOCREngine> engine = PDFOCRTestEngineFactory::createEngine();
+        if (!engine)
+        {
+            return nullptr;
+        }
+        return std::make_unique<OCRTestCountingEngine>(std::move(engine), m_prepareCount);
+    }
+
+    mutable QSemaphore m_entered;
+    mutable QSemaphore m_released;
+    std::shared_ptr<std::atomic<int>> m_prepareCount = std::make_shared<std::atomic<int>>(0);
 };
 
 class OCRTest : public QObject
@@ -290,7 +352,11 @@ private slots:
     // [tests: engine, controller and models]
     void scriptModelIdentifiers();
     void engineParameterSchema();
+    void engineKeepsFactoryAlive();
     void pageTimeout();
+    void jobProgressIsMonotonic();
+    void stoppedJobDoesNotPrepareEngine();
+    void memoryWaitHonoursPageDeadline();
     void downloadVerificationThread();
     void memoryBudgetAndEngineLimits();
     void regionRotationOverride();
@@ -305,6 +371,7 @@ private slots:
     void compressionLossless();
     void compressionBitonalAndShared();
     void compressionStreaming();
+    void compressionSharedImageResolution();
     void compressionWithTextLayer();
     void optimizeImagesKeepsLayer();
     void tesseractAfterDeskew();
@@ -5225,6 +5292,91 @@ void OCRTest::scriptModelIdentifiers()
 }
 
 // -------------------------------------------------------------------------
+// Engine instance keeps its factory alive
+// -------------------------------------------------------------------------
+
+void OCRTest::engineKeepsFactoryAlive()
+{
+    PDFOCRConfiguration configuration;
+    configuration.engineId = QStringLiteral("test");
+    PDFOCRResolvedModelSet models;
+
+    // Factory released by its owner
+    {
+        std::shared_ptr<PDFOCRTestEngineFactory> factory = std::make_shared<PDFOCRTestEngineFactory>();
+        bool handlerCalled = false;
+        factory->setHandler([&handlerCalled](const PDFOCRRecognitionInput&, const PDFOperationControl*)
+        {
+            handlerCalled = true;
+            return PDFOCRRecognitionOutput();
+        });
+
+        std::weak_ptr<PDFOCRTestEngineFactory> weakFactory = factory;
+        std::unique_ptr<PDFOCREngine> engine = factory->createEngine();
+        QVERIFY(engine);
+        factory.reset();
+        QVERIFY(!weakFactory.expired());
+
+        QCOMPARE(engine->getIdentifier(), QStringLiteral("test"));
+        QCOMPARE(engine->getVersion(), weakFactory.lock()->getVersion());
+        QVERIFY(!engine->prepare(configuration, models));
+
+        PDFOCRRecognitionInput input;
+        input.image = QImage(16, 16, QImage::Format_Grayscale8);
+        input.image.fill(Qt::white);
+        input.dpi = 300.0;
+        input.configuration = configuration;
+        const PDFOCRRecognitionOutput output = engine->recognize(input, nullptr, nullptr);
+        QVERIFY2(output.isSuccess(), qPrintable(output.error.message));
+        QVERIFY(handlerCalled);
+
+        engine.reset();
+        QVERIFY(weakFactory.expired());
+    }
+
+    // Factory replaced and unregistered in the registry while the engine exists
+    {
+        PDFOCREngineRegistry* registry = PDFOCREngineRegistry::getInstance();
+        std::shared_ptr<PDFOCRTestEngineFactory> replacement = std::make_shared<PDFOCRTestEngineFactory>();
+        std::weak_ptr<PDFOCRTestEngineFactory> weakReplacement = replacement;
+        registry->registerFactory(replacement);
+        replacement.reset();
+
+        std::unique_ptr<PDFOCREngine> engine = registry->createEngine(QStringLiteral("test"));
+        QVERIFY(engine);
+        registry->unregisterFactory(QStringLiteral("test"));
+        registry->registerFactory(m_testEngine);
+
+        QVERIFY(!weakReplacement.expired());
+        QCOMPARE(engine->getIdentifier(), QStringLiteral("test"));
+        QVERIFY(!engine->prepare(configuration, models));
+        engine.reset();
+        QVERIFY(weakReplacement.expired());
+    }
+
+    // Factory not owned by std::shared_ptr creates no engine
+    {
+        PDFOCRTestEngineFactory factory;
+        QVERIFY(!factory.createEngine());
+    }
+
+#ifdef PDF4QT_OCR_TESSERACT
+    {
+        std::shared_ptr<PDFTesseractOCREngineFactory> factory = std::make_shared<PDFTesseractOCREngineFactory>();
+        const QString version = factory->getVersion();
+        std::weak_ptr<PDFTesseractOCREngineFactory> weakFactory = factory;
+        std::unique_ptr<PDFOCREngine> engine = factory->createEngine();
+        QVERIFY(engine);
+        factory.reset();
+        QVERIFY(!weakFactory.expired());
+        QCOMPARE(engine->getVersion(), version);
+        engine.reset();
+        QVERIFY(weakFactory.expired());
+    }
+#endif
+}
+
+// -------------------------------------------------------------------------
 // REC-03: typed schema of the engine parameters
 // -------------------------------------------------------------------------
 
@@ -5336,18 +5488,230 @@ void OCRTest::engineParameterSchema()
     }
     configuration.engineParameters[QStringLiteral("user_defined_dpi")] = 300;
     configuration.engineParameters[QStringLiteral("preserve_interword_spaces")] = QStringLiteral("true");
-    configuration.engineParameters[QStringLiteral("textord_min_linesize")] = 2.5;
     error = engine->validateConfiguration(configuration, models);
     QVERIFY2(!error, qPrintable(error.message));
     error = engine->prepare(configuration, models);
     QVERIFY2(!error, qPrintable(error.message));
     engine->release();
+
+    // Process global parameters of Tesseract are not offered - setting them in one
+    // instance would change them for all instances (also in other worker threads)
+    const QStringList globalParameters = { QStringLiteral("textord_min_linesize"), QStringLiteral("textord_tabfind_find_tables"), QStringLiteral("textord_heavy_nr") };
+    for (const QString& globalParameter : globalParameters)
+    {
+        QVERIFY(std::none_of(capabilities.parameters.cbegin(), capabilities.parameters.cend(), [&globalParameter](const PDFOCREngineParameterDescriptor& descriptor) { return descriptor.name == globalParameter; }));
+
+        configuration.engineParameters.clear();
+        configuration.engineParameters[globalParameter] = 1;
+        error = engine->validateConfiguration(configuration, models);
+        QCOMPARE(error.code, PDFOCRErrorCode::InvalidConfiguration);
+        QVERIFY2(error.message.contains(globalParameter), qPrintable(error.message));
+    }
 #endif
 }
 
 // -------------------------------------------------------------------------
 // R12: shared deadline of the page
 // -------------------------------------------------------------------------
+
+void OCRTest::jobProgressIsMonotonic()
+{
+    PageSpec spec;
+    spec.content = "0 0 0 rg 20 100 100 30 re f";
+    PDFDocument document = createDocument({ spec, spec });
+    RenderingContext context(&document);
+
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        return output;
+    });
+
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+
+    PDFOCRJobDescription description;
+    description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    description.configuration.languages = { QStringLiteral("eng") };
+    description.configuration.workerCount = 2;
+    description.configuration.detectBlankPages = false;
+    description.models.dataPath = QStringLiteral("/none");
+    description.models.languages = { QStringLiteral("eng") };
+    for (PDFInteger page : { 0, 1 })
+    {
+        PDFOCRPageTask task;
+        task.pageIndex = page;
+        task.configuration = description.configuration;
+        task.generation = 1;
+        description.pages.push_back(task);
+    }
+
+    // The worker publishing the first finished page is suspended between the signals
+    // pageFinished and jobProgress, until the progress of the other worker arrives (or
+    // a timeout elapses). Progress must be published in the order of the counter.
+    QSemaphore otherProgressPublished;
+    std::atomic<int> pageFinishedCalls = { 0 };
+    QMutex progressMutex;
+    std::vector<int> progress;
+    std::optional<PDFOCRJobSummary> summary;
+    connect(&controller, &PDFOCRJobController::pageFinished, this, [&](int, PDFOCRPageResult)
+    {
+        if (pageFinishedCalls.fetch_add(1) == 0)
+        {
+            otherProgressPublished.tryAcquire(1, 1000);
+        }
+    }, Qt::DirectConnection);
+    connect(&controller, &PDFOCRJobController::jobProgress, this, [&](int, int finished, int)
+    {
+        QMutexLocker lock(&progressMutex);
+        progress.push_back(finished);
+        otherProgressPublished.release();
+    }, Qt::DirectConnection);
+    connect(&controller, &PDFOCRJobController::jobFinished, this, [&](int, PDFOCRJobSummary jobSummary) { summary = jobSummary; });
+
+    int generation = 0;
+    QVERIFY(controller.start(description, &generation));
+    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 20000);
+    controller.waitForFinished();
+
+    QCOMPARE(summary->donePages + summary->noTextPages, 2);
+    QMutexLocker lock(&progressMutex);
+    QCOMPARE(progress, (std::vector<int>{ 1, 2 }));
+}
+
+void OCRTest::stoppedJobDoesNotPrepareEngine()
+{
+    PageSpec spec;
+    spec.content = "0 0 0 rg 20 100 100 30 re f";
+    PDFDocument document = createDocument({ spec, spec });
+    RenderingContext context(&document);
+
+    // The factory replaces the test engine in this test; its engine creation waits for the test
+    std::shared_ptr<OCRTestBlockingEngineFactory> factory = std::make_shared<OCRTestBlockingEngineFactory>();
+    factory->setRecognitionDelay(0);
+    PDFOCREngineRegistry::getInstance()->registerFactory(factory);
+
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+
+    // Declared after the controller: on a failure, the blocked worker is released before
+    // the destructor of the controller waits for it
+    auto restoreFactory = qScopeGuard([this, &factory]()
+    {
+        factory->m_released.release(16);
+        PDFOCREngineRegistry::getInstance()->registerFactory(m_testEngine);
+    });
+
+    PDFOCRJobDescription description;
+    description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    description.configuration.languages = { QStringLiteral("eng") };
+    description.configuration.workerCount = 1;
+    description.configuration.detectBlankPages = false;
+    description.models.dataPath = QStringLiteral("/none");
+    description.models.languages = { QStringLiteral("eng") };
+    for (PDFInteger page : { 0, 1 })
+    {
+        PDFOCRPageTask task;
+        task.pageIndex = page;
+        task.configuration = description.configuration;
+        task.generation = 1;
+        description.pages.push_back(task);
+    }
+
+    std::vector<PDFOCRPageResult> results;
+    std::optional<PDFOCRJobSummary> summary;
+    connect(&controller, &PDFOCRJobController::pageFinished, this, [&](int, PDFOCRPageResult result) { results.push_back(std::move(result)); });
+    connect(&controller, &PDFOCRJobController::jobFinished, this, [&](int, PDFOCRJobSummary jobSummary) { summary = jobSummary; });
+
+    int generation = 0;
+    QVERIFY(controller.start(description, &generation));
+    QVERIFY(factory->m_entered.tryAcquire(1, 10000));
+
+    // Stop during the creation of the engine: the models are not loaded
+    controller.stop();
+    factory->m_released.release();
+
+    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 10000);
+    controller.waitForFinished();
+    QCOMPARE(factory->m_prepareCount->load(), 0);
+    QVERIFY(summary->cancelled);
+    QVERIFY(!summary->criticalError);
+    QCOMPARE(results.size(), size_t(2));
+    for (const PDFOCRPageResult& result : results)
+    {
+        QCOMPARE(result.state, PDFOCRPageState::Cancelled);
+    }
+}
+
+void OCRTest::memoryWaitHonoursPageDeadline()
+{
+    // One A4 page at 200 DPI needs about 46 MB (three copies of the raster), so only one
+    // page fits into the budget of 64 MB. The first page holds the memory in an engine,
+    // which ignores the deadline; the other page waits for the memory only until its
+    // deadline expires, it does not wait for the first page.
+    PageSpec spec;
+    spec.size = QSizeF(595, 842);
+    spec.content = "0 0 0 rg 20 100 100 30 re f";
+    PDFDocument document = createDocument({ spec, spec });
+    RenderingContext context(&document);
+
+    std::atomic<int> calls = { 0 };
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([&calls](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        if (calls.fetch_add(1) == 0)
+        {
+            QThread::msleep(3000);
+        }
+
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        return output;
+    });
+
+    PDFOCRJobController controller(nullptr);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+
+    PDFOCRJobDescription description;
+    description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    description.configuration.languages = { QStringLiteral("eng") };
+    description.configuration.workerCount = 2;
+    description.configuration.detectBlankPages = false;
+    description.configuration.dpi = 200;
+    description.configuration.memoryBudget = qint64(64) << 20;
+    description.configuration.pageTimeoutSeconds = 1;
+    description.models.dataPath = QStringLiteral("/none");
+    description.models.languages = { QStringLiteral("eng") };
+    for (PDFInteger page : { 0, 1 })
+    {
+        PDFOCRPageTask task;
+        task.pageIndex = page;
+        task.configuration = description.configuration;
+        task.generation = 1;
+        description.pages.push_back(task);
+    }
+
+    std::vector<PDFOCRPageResult> results;
+    std::optional<PDFOCRJobSummary> summary;
+    connect(&controller, &PDFOCRJobController::pageFinished, this, [&](int, PDFOCRPageResult result) { results.push_back(std::move(result)); });
+    connect(&controller, &PDFOCRJobController::jobFinished, this, [&](int, PDFOCRJobSummary jobSummary) { summary = jobSummary; });
+
+    int generation = 0;
+    QVERIFY(controller.start(description, &generation));
+    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 20000);
+    controller.waitForFinished();
+    QCOMPARE(summary->workerCount, 2);
+    QCOMPARE(results.size(), size_t(2));
+
+    const auto waitingPage = std::find_if(results.cbegin(), results.cend(), [](const PDFOCRPageResult& result)
+    {
+        return result.error.code == PDFOCRErrorCode::Timeout && result.error.step == PDFTranslationContext::tr("Rendering");
+    });
+    QVERIFY(waitingPage != results.cend());
+    QVERIFY2(waitingPage->elapsedMilliseconds < 2500, qPrintable(QString::number(waitingPage->elapsedMilliseconds)));
+}
 
 void OCRTest::pageTimeout()
 {
@@ -5467,6 +5831,7 @@ void OCRTest::downloadVerificationThread()
     const QByteArray goodModel = QByteArray("TESSDATA-TEST-MODEL-") + QByteArray(5000, 'x');
     const QByteArray goodHash = QCryptographicHash::hash(goodModel, QCryptographicHash::Sha256).toHex();
     server.setResponse(QStringLiteral("/thr.traineddata"), { 200, "application/octet-stream", goodModel, false });
+    server.setResponse(QStringLiteral("/thx.traineddata"), { 200, "application/octet-stream", goodModel, false });
 
     PDFOCRCatalogEntry catalogEntry;
     catalogEntry.id = QStringLiteral("tesseract/fast/thr");
@@ -5486,6 +5851,14 @@ void OCRTest::downloadVerificationThread()
     catalog.engineId = QStringLiteral("tesseract");
     catalog.sourceCommits[QStringLiteral("fast")] = QStringLiteral("0123456789abcdef");
     catalog.entries.push_back(catalogEntry);
+
+    PDFOCRCatalogEntry throwingEntry = catalogEntry;
+    throwingEntry.id = QStringLiteral("tesseract/fast/thx");
+    throwingEntry.language = QStringLiteral("thx");
+    throwingEntry.name = QStringLiteral("thx");
+    throwingEntry.url = server.url(QStringLiteral("/thx.traineddata"));
+    throwingEntry.fileName = QStringLiteral("thx.traineddata");
+    catalog.entries.push_back(throwingEntry);
 
     QTemporaryDir userDirectory;
     QVERIFY(userDirectory.isValid());
@@ -5535,6 +5908,23 @@ void OCRTest::downloadVerificationThread()
     QVERIFY(QFile::exists(model->path));
     QVERIFY(QFile::exists(model->path + QStringLiteral(".sha256")));
     QVERIFY(QFile::exists(model->path + QStringLiteral(".meta.json")));
+
+    // An exception of the validator fails the download: it doesn't stay in the verification
+    // and the temporary directory of the verification is removed
+    manager.setModelValidator([](const QString&, const QString&, const QString&) -> PDFOCRError
+    {
+        throw std::runtime_error("Validator failed");
+    });
+    finished.reset();
+    manager.download({ QStringLiteral("tesseract/fast/thx") });
+    QTRY_VERIFY_WITH_TIMEOUT(finished.has_value(), 15000);
+    QVERIFY(!finished->first);
+    QVERIFY2(finished->second.contains(QStringLiteral("Validator failed")), qPrintable(finished->second));
+    QTRY_VERIFY_WITH_TIMEOUT(!manager.isDownloading(), 5000);
+    std::optional<PDFOCRModelInfo> throwingModel = manager.getModel(QStringLiteral("tesseract/fast/thx"));
+    QVERIFY(throwingModel.has_value());
+    QCOMPARE(throwingModel->state, PDFOCRModelState::Error);
+    QVERIFY(QDir(userDirectory.filePath(QStringLiteral("downloads"))).entryList(QStringList() << QStringLiteral("verify-*"), QDir::Dirs).isEmpty());
 }
 
 // -------------------------------------------------------------------------
@@ -5851,10 +6241,27 @@ void OCRTest::runtimeSetLease()
     QVERIFY(manager.isLanguageUsable(QStringLiteral("tesseract"), QStringLiteral("xyz"), PDFOCRModelProfile::Fast));
 
     PDFOCRError error;
-    const PDFOCRResolvedModelSet set = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
+    PDFOCRResolvedModelSet set = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
     QVERIFY2(set.isValid(), qPrintable(error.message));
     const QString setDirectory = QFileInfo(set.dataPath).absolutePath();
     QVERIFY(QFile::exists(setDirectory + QStringLiteral("/complete.json")));
+
+    // The resolved set is leased already by the resolution (under the lock of the data
+    // directory), so a cleanup of another manager can't remove it before the recognition
+    QVERIFY(set.isManagedRuntimeSet);
+    QVERIFY(set.runtimeSetLease);
+    QVERIFY(PDFOCRModelManager::isRuntimeSetInUse(setDirectory));
+    {
+        PDFOCRModelManager otherManager(nullptr);
+        createManager(otherManager);
+        const PDFOCRError otherCleanError = otherManager.cleanRuntimeSets();
+        QVERIFY2(!otherCleanError, qPrintable(otherCleanError.message));
+        QVERIFY(QFile::exists(set.dataPath + QStringLiteral("/xyz.traineddata")));
+    }
+    PDFOCRResolvedModelSet copy = set;
+    set.runtimeSetLease.reset();
+    QVERIFY(PDFOCRModelManager::isRuntimeSetInUse(setDirectory));
+    copy.runtimeSetLease.reset();
     QVERIFY(!PDFOCRModelManager::isRuntimeSetInUse(setDirectory));
 
     // Data, which are not a runtime set, are not leased
@@ -5878,8 +6285,9 @@ void OCRTest::runtimeSetLease()
     QVERIFY(!QDir(setDirectory).exists());
 
     // A stale lease of a dead process is ignored and removed
-    const PDFOCRResolvedModelSet rebuilt = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
+    PDFOCRResolvedModelSet rebuilt = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
     QVERIFY2(rebuilt.isValid(), qPrintable(error.message));
+    rebuilt.runtimeSetLease.reset();
     {
         QFile staleLease(setDirectory + QStringLiteral("/in-use.999999.1.lock"));
         QVERIFY(staleLease.open(QFile::WriteOnly));
@@ -5911,8 +6319,9 @@ void OCRTest::runtimeSetLease()
     }
 
     // A running job holds the lease of its set until it finishes
-    const PDFOCRResolvedModelSet jobSet = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
+    PDFOCRResolvedModelSet jobSet = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
     QVERIFY2(jobSet.isValid(), qPrintable(error.message));
+    const QString jobDataPath = jobSet.dataPath;
 
     PageSpec spec;
     spec.content = "0 0 0 rg 20 100 100 30 re f";
@@ -5936,6 +6345,7 @@ void OCRTest::runtimeSetLease()
     description.configuration.workerCount = 1;
     description.configuration.detectBlankPages = false;
     description.models = jobSet;
+    jobSet.runtimeSetLease.reset();
     PDFOCRPageTask task;
     task.pageIndex = 0;
     task.configuration = description.configuration;
@@ -5946,19 +6356,34 @@ void OCRTest::runtimeSetLease()
     connect(&controller, &PDFOCRJobController::jobFinished, this, [&](int, PDFOCRJobSummary jobSummary) { summary = jobSummary; });
     int generation = 0;
     QVERIFY(controller.start(description, &generation));
+
+    // The caller drops its copy of the set, the job holds the lease
+    description.models.runtimeSetLease.reset();
     QTest::qWait(300);
     QVERIFY(PDFOCRModelManager::isRuntimeSetInUse(setDirectory));
     cleanError = manager.cleanRuntimeSets();
     QVERIFY2(!cleanError, qPrintable(cleanError.message));
-    QVERIFY(QFile::exists(jobSet.dataPath + QStringLiteral("/xyz.traineddata")));
+    QVERIFY(QFile::exists(jobDataPath + QStringLiteral("/xyz.traineddata")));
 
     QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 10000);
     controller.waitForFinished();
     m_testEngine->setRecognitionDelay(0);
+    QVERIFY(!summary->criticalError);
     QVERIFY(!PDFOCRModelManager::isRuntimeSetInUse(setDirectory));
     cleanError = manager.cleanRuntimeSets();
     QVERIFY2(!cleanError, qPrintable(cleanError.message));
     QVERIFY(!QDir(setDirectory).exists());
+
+    // A managed set without the lease is refused (it could be removed during the recognition)
+    PDFOCRResolvedModelSet unleasedSet = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("xyz") }, PDFOCRModelProfile::Fast, &error);
+    QVERIFY2(unleasedSet.isValid(), qPrintable(error.message));
+    unleasedSet.runtimeSetLease.reset();
+    description.models = unleasedSet;
+    summary.reset();
+    QVERIFY(controller.start(description, &generation));
+    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 10000);
+    controller.waitForFinished();
+    QCOMPARE(summary->criticalError.code, PDFOCRErrorCode::InitializationFailed);
 }
 
 // -------------------------------------------------------------------------
@@ -6817,7 +7242,7 @@ QByteArray OCRTestHelper::getImageSamples(const TestImage& testImage)
     return data;
 }
 
-PDFDocument OCRTestHelper::createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF pageSize, PDFVersion version)
+PDFDocument OCRTestHelper::createImagePagesDocument(const std::vector<TestImage>& images, const std::vector<int>& pageImages, QSizeF defaultPageSize, PDFVersion version, const std::vector<QSizeF>& pageSizes)
 {
     PDFDocumentBuilder builder;
 
@@ -6859,8 +7284,10 @@ PDFDocument OCRTestHelper::createImagePagesDocument(const std::vector<TestImage>
         imageReferences.push_back(builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(data)))));
     }
 
-    for (int imageIndex : pageImages)
+    for (size_t pageIndex = 0; pageIndex < pageImages.size(); ++pageIndex)
     {
+        const int imageIndex = pageImages[pageIndex];
+        const QSizeF pageSize = pageIndex < pageSizes.size() ? pageSizes[pageIndex] : defaultPageSize;
         const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
         QByteArray content = QStringLiteral("q %1 0 0 %2 0 0 cm /Im1 Do Q").arg(pageSize.width()).arg(pageSize.height()).toLatin1();
         PDFDictionary contentDictionary;
@@ -7422,6 +7849,61 @@ void OCRTest::compressionBitonalAndShared()
     QVERIFY(PDFOCRConfiguration::fromJson(configuration.toJson()).compression == configuration.compression);
 }
 
+void OCRTest::compressionSharedImageResolution()
+{
+    // One image drawn at 600 DPI (2 inches) and at 300 DPI (4 inches). Downsampled
+    // to 150 DPI, the image must have the resolution required by the larger drawing,
+    // regardless of the order of the pages and of the threads encoding the image.
+    TestImage photo;
+    photo.image = OCRTestHelper::createPhotoImage(QSize(1200, 1200), true);
+    const QSizeF smallSize(144, 144);
+    const QSizeF largeSize(288, 288);
+
+    PDFOCRCompressionSettings settings;
+    settings.mode = PDFOCRCompressionMode::Custom;
+    settings.downsample = true;
+    settings.downsampleDpi = 150;
+
+    auto check = [&](const std::vector<QSizeF>& pageSizes, qint64 memoryBudget)
+    {
+        const std::vector<int> pageImages(pageSizes.size(), 0);
+        const PDFDocument document = OCRTestHelper::createImagePagesDocument({ photo }, pageImages, smallSize, PDFVersion(1, 7), pageSizes);
+        std::vector<PDFInteger> pages;
+        for (size_t i = 0; i < pageSizes.size(); ++i)
+        {
+            pages.push_back(PDFInteger(i));
+        }
+
+        PDFOCRCompressionReport report;
+        const PDFDocument compressed = PDFOCRImageCompressor::compress(&document, pages, settings, memoryBudget, nullptr, &report);
+        if (report.images.size() != 1 || report.images.front().action != PDFOCRCompressionImageResult::Action::Compressed ||
+            report.images.front().pages.size() != pageSizes.size())
+        {
+            return PDFInteger(-1);
+        }
+
+        const PDFDictionary* resources = compressed.getDictionaryFromObject(compressed.getCatalog()->getPage(0)->getResources());
+        const PDFStream* stream = compressed.getObject(compressed.getDictionaryFromObject(resources->get("XObject"))->get("Im1")).getStream();
+        return stream->getDictionary()->get("Width").getInteger();
+    };
+
+    // Sequential processing (budget for one page), both orders
+    constexpr qint64 SequentialBudget = qint64(128) << 20;
+    QCOMPARE(check({ smallSize, largeSize }, SequentialBudget), PDFInteger(600));
+    QCOMPARE(check({ largeSize, smallSize }, SequentialBudget), PDFInteger(600));
+
+    // The smaller drawing alone allows a quarter of the resolution
+    QCOMPARE(check({ smallSize }, SequentialBudget), PDFInteger(300));
+
+    // Parallel processing, the lower resolution arrives during the encoding
+    constexpr qint64 ParallelBudget = qint64(1) << 40;
+    for (int i = 0; i < 20; ++i)
+    {
+        QCOMPARE(check({ smallSize, smallSize, smallSize, largeSize, smallSize, smallSize, smallSize, smallSize }, ParallelBudget), PDFInteger(600));
+        QCOMPARE(check({ smallSize, smallSize, smallSize, smallSize, smallSize, smallSize, smallSize, largeSize }, ParallelBudget), PDFInteger(600));
+    }
+}
+
 void OCRTest::compressionStreaming()
 {
     // Many pages, each with its own black and white image
@@ -7980,6 +8462,18 @@ void OCRTest::documentRunner()
     QVERIFY(!PDFOCRDocumentRunner::run(&document, settings, nullptr, nullptr).errorMessage.isEmpty());
     settings.pages.clear();
 
+    // An exception of the progress callback doesn't escape through the event loop
+    // of the runner: the job is stopped and the error is reported
+    const PDFOCRDocumentRunner::Result throwingResult = PDFOCRDocumentRunner::run(&document, settings, [](int, int, const PDFOCRPageResult* page)
+    {
+        if (page)
+        {
+            throw std::runtime_error("Progress callback failed");
+        }
+    }, nullptr);
+    QVERIFY(!throwingResult.isSuccess());
+    QVERIFY2(throwingResult.errorMessage.contains(QStringLiteral("Progress callback failed")), qPrintable(throwingResult.errorMessage));
+
     // Project: the corrected results of the unchanged pages are used without a new
     // recognition, a changed page is recognized again
     const PDFOCRPageResult* firstPage = result.session->getPage(0);
@@ -8051,6 +8545,18 @@ void OCRTest::documentRunner()
         QVERIFY(!QFileInfo::exists(task.outputFile));
         QVERIFY(!QFileInfo::exists(task.exportText));
         QVERIFY(!QFileInfo::exists(task.saveProjectFile));
+
+        // An exception of a callback fails the file in its stage
+        const auto configure = task.configure;
+        task.configure = [](const PDFOCRProject*, PDFOCRConfiguration*) -> QString
+        {
+            throw std::runtime_error("Configuration callback failed");
+        };
+        fileResult = PDFOCRDocumentRunner::processFile(task, fileSettings, nullptr, nullptr);
+        QCOMPARE(fileResult.status, PDFOCRDocumentRunner::FileResult::Status::Failed);
+        QCOMPARE(fileResult.stage, PDFOCRDocumentRunner::FileResult::Stage::Configuration);
+        QVERIFY2(fileResult.message.contains(QStringLiteral("Configuration callback failed")), qPrintable(fileResult.message));
+        task.configure = configure;
 
         task.allowPageErrors = true;
         fileResult = PDFOCRDocumentRunner::processFile(task, fileSettings, nullptr, nullptr);

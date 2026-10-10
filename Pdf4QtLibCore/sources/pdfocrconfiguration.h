@@ -190,7 +190,11 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
     /// Number of OCR workers (JOB-09)
     int workerCount = 2;
 
-    /// Memory budget for rasters in bytes (JOB-10, QA-05)
+    /// Memory budget for rasters in bytes (JOB-10, QA-05). It is an estimate used for
+    /// the admission of the pages of a job (the model files of the workers and three
+    /// copies of the page raster), not a hard limit of the memory of the process: the
+    /// internal data of the engine, the decoded images of the renderer and the previews
+    /// of the dialogs are not accounted.
     qint64 memoryBudget = qint64(1) << 30;
 
     /// Page timeout in seconds (0 = no timeout)

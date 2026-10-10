@@ -126,10 +126,8 @@ public:
 signals:
     void pageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis, QByteArray fingerprint);
     void documentFingerprintReady(int generation, QByteArray fingerprint);
-    void recognitionPrepared(int generation);
     void ownLayerLoaded(int generation, pdf::PDFOCRPageResult result);
     void previewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message, bool isLastRecognition);
-    void applyFinished(int generation);
     void compressionEstimateReady(int generation, QString text);
 
 private:
@@ -159,6 +157,9 @@ private:
     {
         int generation = 0;
         std::shared_ptr<pdf::PDFOCRCancelToken> token;
+
+        /// Computation of the last started task (it can still run after its cancellation)
+        QFuture<void> future;
     };
 
     /// Recognition prepared in the GUI thread (all decisions of the user are made),
@@ -263,7 +264,7 @@ private:
     void onRecognizeClicked();
     void onStopClicked();
     bool startRecognition(const std::vector<pdf::PDFInteger>& pages, RunMode runMode);
-    void onRecognitionPrepared(int generation);
+    void onRecognitionPrepared(int generation, PreparedRecognition prepared);
     void cancelRecognitionPreparation();
     void applySkippedPages(const std::vector<std::pair<pdf::PDFInteger, QString>>& pages);
     void onJobPageStateChanged(int generation, qint64 pageIndex, int state, QString phase);
@@ -357,7 +358,7 @@ private:
     // Output
     void onApplyClicked();
     void onRemoveLayerClicked();
-    void onApplyFinished(int generation);
+    void onApplyFinished(int generation, ApplyResult result);
     void onExportClicked();
     void onSaveProject();
     void onOpenProject();
@@ -371,6 +372,11 @@ private:
     void updateWorkflowLabel();
     void showReviewTab();
     bool isBusy() const;
+
+    /// Returns true from the start of the job until its signal jobFinished is processed
+    /// (the workers of the controller can be finished, while their results are queued)
+    bool isJobActive() const { return m_jobActive || m_jobController->isRunning(); }
+
     pdf::PDFOCRDocumentIdentity createIdentity() const;
 
     Ui::PDFOCRDocumentDialog* ui;
@@ -420,8 +426,6 @@ private:
     AsyncTask m_compressionEstimateTask;
     AsyncTask m_prepareTask;
     std::optional<PendingRecognition> m_pendingRecognition;
-    QMutex m_prepareMutex;
-    PreparedRecognition m_preparedRecognition;
     bool m_blockingTaskInProgress = false;
 
     /// Fingerprint of the document is computed by the background page data task (R12)
@@ -445,9 +449,8 @@ private:
     int m_jobFinishedPages = 0;
     int m_jobTotalPages = 0;
 
-    QMutex m_applyMutex;
-    ApplyResult m_applyResult;
     bool m_applyInProgress = false;
+    bool m_jobActive = false;
     pdf::PDFDocumentPointer m_modifiedDocument;
     QString m_projectFileName;
     size_t m_findIndex = 0;

@@ -31,6 +31,7 @@
 #include <QRunnable>
 #include <QDateTime>
 #include <QLockFile>
+#include <QThread>
 #include <QDirIterator>
 #include <QRegularExpression>
 
@@ -60,25 +61,42 @@ void PDFOCRJobController::setEnvironment(const PDFDocument* document,
                                          const PDFMeshQualitySettings* meshQualitySettings,
                                          RendererEngine rendererEngine)
 {
+    Q_ASSERT(QThread::currentThread() == thread());
     Q_ASSERT(!isRunning());
 
-    m_document = document;
-    m_fontCache = fontCache;
-    m_cms = cms;
-    m_optionalContentActivity = optionalContentActivity;
-    m_meshQualitySettings = meshQualitySettings;
-    m_rendererEngine = rendererEngine;
+    if (isRunning())
+    {
+        // The running job uses its own snapshot, but the environment must
+        // stay valid until the job finishes - it is not replaced meanwhile
+        return;
+    }
+
+    m_environment.document = document;
+    m_environment.fontCache = fontCache;
+    m_environment.cms = cms;
+    m_environment.optionalContentActivity = optionalContentActivity;
+    m_environment.meshQualitySettings = meshQualitySettings;
+    m_environment.rendererEngine = rendererEngine;
+}
+
+bool PDFOCRJobController::isStopping() const
+{
+    QMutexLocker lock(&m_mutex);
+    return m_job && isRunning() && m_job->stopRequested.load(std::memory_order_acquire);
 }
 
 bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generation)
 {
-    if (isRunning() || !m_document || !m_fontCache || !m_cms || !m_meshQualitySettings)
+    Q_ASSERT(QThread::currentThread() == thread());
+
+    if (isRunning() || !m_environment.document || !m_environment.fontCache || !m_environment.cms || !m_environment.meshQualitySettings)
     {
         return false;
     }
 
     auto job = std::make_shared<Job>();
     job->description = std::move(description);
+    job->environment = m_environment;
     job->generation = ++m_generation;
     job->cancelToken = std::make_shared<PDFOCRCancelToken>();
     job->summary.generation = job->generation;
@@ -122,8 +140,21 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
     job->activeWorkers = workerCount;
 
     // A running job keeps its runtime model set alive (LANG-07): the housekeeping and
-    // the cache cleanup of the model manager skip the sets in use.
-    job->runtimeSetLease = PDFOCRModelManager::acquireRuntimeSetLease(job->description.models.dataPath);
+    // the cache cleanup of the model manager skip the sets in use. The lease is acquired
+    // by the model manager together with the set; the job takes it over, so the set
+    // is released, when the job finishes.
+    job->runtimeSetLease = std::move(job->description.models.runtimeSetLease);
+    if (job->description.models.isManagedRuntimeSet && !job->runtimeSetLease && !job->criticalErrorReported)
+    {
+        job->criticalErrorReported = true;
+        job->summary.criticalError = PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
+                                                         PDFTranslationContext::tr("The language model set is not leased, it could be removed during the recognition. Prepare the recognition again."),
+                                                         PDFTranslationContext::tr("Initialization"));
+        job->cancelToken->cancel();
+        workerCount = 1;
+        job->summary.workerCount = workerCount;
+        job->activeWorkers = workerCount;
+    }
 
     {
         QMutexLocker lock(&m_mutex);
@@ -133,7 +164,6 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
         m_memoryUsed = m_memoryReserved;
     }
 
-    m_stopping.store(false, std::memory_order_release);
     m_running.store(true, std::memory_order_release);
 
     if (generation)
@@ -152,6 +182,8 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
 
 void PDFOCRJobController::stop()
 {
+    Q_ASSERT(QThread::currentThread() == thread());
+
     std::shared_ptr<Job> job;
     {
         QMutexLocker lock(&m_mutex);
@@ -160,7 +192,7 @@ void PDFOCRJobController::stop()
 
     if (job && isRunning())
     {
-        m_stopping.store(true, std::memory_order_release);
+        job->stopRequested.store(true, std::memory_order_release);
         job->cancelToken->cancel();
         m_memoryCondition.wakeAll();
     }
@@ -168,6 +200,7 @@ void PDFOCRJobController::stop()
 
 void PDFOCRJobController::waitForFinished()
 {
+    Q_ASSERT(QThread::currentThread() == thread());
     m_threadPool.waitForDone();
 }
 
@@ -218,7 +251,7 @@ qint64 PDFOCRJobController::estimateModelBytes(const QString& dataPath)
     return bytes;
 }
 
-bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, PDFOCRError* error)
+bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, QDeadlineTimer deadline, PDFOCRError* error)
 {
     Q_UNUSED(job);
 
@@ -248,7 +281,17 @@ bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperati
             }
             return false;
         }
-        m_memoryCondition.wait(&m_mutex, 100);
+
+        // The page has one shared deadline (JOB-06): waiting for the memory consumes it too
+        if (deadline.hasExpired())
+        {
+            if (error)
+            {
+                *error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition of the page exceeded the time limit while waiting for the memory."), PDFTranslationContext::tr("Rendering"));
+            }
+            return false;
+        }
+        m_memoryCondition.wait(&m_mutex, QDeadlineTimer(qMin<qint64>(100, deadline.isForever() ? 100 : qMax<qint64>(1, deadline.remainingTime()))));
     }
 
     m_memoryUsed += bytes;
@@ -275,10 +318,18 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
 
     std::unique_ptr<PDFOCREngine> engine;
 
+    // A stopped job does not initialize the engine (loading of the models is slow and
+    // it can't be interrupted); without an engine, the pages are finished as cancelled
+    // by the scheduling loop, because the cancellation of the job is permanent.
     auto createEngine = [&]() -> PDFOCRError
     {
         try
         {
+            if (PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                return PDFOCRError::none();
+            }
+
             engine = PDFOCREngineRegistry::getInstance()->createEngine(job->description.configuration.engineId);
 
             if (!engine)
@@ -286,6 +337,11 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
                 return PDFOCRError::create(PDFOCRErrorCode::InitializationFailed,
                                            PDFTranslationContext::tr("OCR engine '%1' is not available.").arg(job->description.configuration.engineId),
                                            PDFTranslationContext::tr("Initialization"));
+            }
+
+            if (PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                return PDFOCRError::none();
             }
 
             PDFOCRError error = engine->validateConfiguration(job->description.configuration, job->description.models);
@@ -458,6 +514,10 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
 
 void PDFOCRJobController::finishPage(Job& job, PDFOCRPageResult result)
 {
+    // Counter update and both signals form one step, otherwise a worker
+    // could publish a lower finished page count after a higher one.
+    QMutexLocker publishLock(&m_publishMutex);
+
     int finished = 0;
     int total = 0;
     {
@@ -509,7 +569,6 @@ void PDFOCRJobController::finishJob(Job& job)
     }
 
     m_running.store(false, std::memory_order_release);
-    m_stopping.store(false, std::memory_order_release);
     Q_EMIT jobFinished(job.generation, summary);
 }
 
@@ -591,7 +650,8 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     // 1. Preparing: rasterization
     Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Rendering"));
 
-    const PDFCatalog* catalog = m_document->getCatalog();
+    const Environment& environment = job.environment;
+    const PDFCatalog* catalog = environment.document->getCatalog();
     if (task.pageIndex < 0 || size_t(task.pageIndex) >= catalog->getPageCount())
     {
         return finishWithError(PDFOCRError::create(PDFOCRErrorCode::RasterizationFailed, PDFTranslationContext::tr("Page %1 does not exist.").arg(task.pageIndex + 1), PDFTranslationContext::tr("Rendering")));
@@ -602,14 +662,15 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     const qint64 rasterBytes = PDFOCRPagePreparer::estimateRasterBytes(page, limitedDpi) * 3;
 
     PDFOCRError memoryError;
-    if (!acquireMemory(job, rasterBytes, operationControl, &memoryError))
+    const QDeadlineTimer memoryDeadline = pageTimeoutMilliseconds < 0 ? QDeadlineTimer(QDeadlineTimer::Forever) : QDeadlineTimer(getRemainingMilliseconds());
+    if (!acquireMemory(job, rasterBytes, operationControl, memoryDeadline, &memoryError))
     {
         return finishWithError(memoryError ? memoryError : cancelledError(PDFTranslationContext::tr("Rendering")));
     }
 
     auto memoryGuard = qScopeGuard([this, rasterBytes]() { releaseMemory(rasterBytes); });
 
-    PDFOCRPagePreparer preparer(m_document, m_fontCache, m_cms, m_optionalContentActivity, *m_meshQualitySettings, m_rendererEngine);
+    PDFOCRPagePreparer preparer(environment.document, environment.fontCache, environment.cms, environment.optionalContentActivity, *environment.meshQualitySettings, environment.rendererEngine);
 
     // Excluded rectangles: masked rectangles + excluded regions
     std::vector<QRectF> excludedRectangles = task.maskedRectangles;
@@ -766,6 +827,12 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     // otherwise the next page would be silently recognized with wrong languages.
     auto restoreGuard = qScopeGuard([&]()
     {
+        // A stopped job processes no further page, the slow loading of the models is skipped
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
         if (preparedConfiguration.languages != job.description.configuration.languages || preparedConfiguration.layout != job.description.configuration.layout)
         {
             try
@@ -863,6 +930,16 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         if (effectiveConfiguration.languages != preparedConfiguration.languages ||
             effectiveConfiguration.layout != preparedConfiguration.layout)
         {
+            // Loading of the models can't be interrupted, it is not started for a stopped job
+            if (PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                return finishWithError(cancelledError(PDFTranslationContext::tr("Recognition")));
+            }
+            if (isDeadlineExceeded())
+            {
+                return finishWithError(timeoutError(PDFTranslationContext::tr("Recognition")));
+            }
+
             const PDFOCRError prepareError = engine->prepare(effectiveConfiguration, job.description.models);
             if (prepareError)
             {

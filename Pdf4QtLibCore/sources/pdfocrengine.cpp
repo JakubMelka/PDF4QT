@@ -156,8 +156,8 @@ bool PDFOCREngineRegistry::hasAvailableEngine() const
 class PDFOCRTestEngine : public PDFOCREngine
 {
 public:
-    explicit PDFOCRTestEngine(const PDFOCRTestEngineFactory* factory) :
-        m_factory(factory)
+    explicit PDFOCRTestEngine(std::shared_ptr<const PDFOCRTestEngineFactory> factory) :
+        m_factory(std::move(factory))
     {
 
     }
@@ -270,7 +270,7 @@ public:
     }
 
 private:
-    const PDFOCRTestEngineFactory* m_factory;
+    std::shared_ptr<const PDFOCRTestEngineFactory> m_factory;
     bool m_prepared = false;
 };
 
@@ -303,7 +303,13 @@ PDFOCREngineCapabilities PDFOCRTestEngineFactory::getCapabilities() const
 
 std::unique_ptr<PDFOCREngine> PDFOCRTestEngineFactory::createEngine() const
 {
-    return std::make_unique<PDFOCRTestEngine>(this);
+    std::shared_ptr<const PDFOCRTestEngineFactory> factory = std::static_pointer_cast<const PDFOCRTestEngineFactory>(weak_from_this().lock());
+    if (!factory)
+    {
+        return nullptr;
+    }
+
+    return std::make_unique<PDFOCRTestEngine>(std::move(factory));
 }
 
 PDFOCRError PDFOCRTestEngineFactory::validateModel(const QString& dataPath, const QString& language) const

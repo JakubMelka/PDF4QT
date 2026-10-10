@@ -815,21 +815,31 @@ void PDFOCRBatchDialog::onStart()
                 }
             };
 
-            const pdf::PDFOCRDocumentRunner::FileResult fileResult = pdf::PDFOCRDocumentRunner::processFile(item.second, settings, progress, cancelToken.get());
-            const pdf::PDFOCRConfidenceStatistics statistics = fileResult.result.getStatistics();
-
+            // Every file gets exactly one terminal row, an exception must not leave the thread
             FileSummary summary;
-            summary.status = fileResult.status;
-            summary.message = fileResult.message;
-            summary.details = fileResult.warnings + fileResult.messages;
-            summary.outputFile = fileResult.writeResult.isSuccess() && fileResult.writeResult.document ? item.second.outputFile : QString();
-            summary.pageCount = fileResult.pageCount;
-            summary.resultPages = fileResult.result.getResultPageCount();
-            summary.failedPages = fileResult.result.getFailedPageCount();
-            summary.wordCount = statistics.wordCount;
-            summary.reviewWords = statistics.reviewRequiredCount;
-            summary.elapsedMilliseconds = fileResult.elapsedMilliseconds;
-            summary.cancelled = fileResult.result.cancelled;
+            try
+            {
+                const pdf::PDFOCRDocumentRunner::FileResult fileResult = pdf::PDFOCRDocumentRunner::processFile(item.second, settings, progress, cancelToken.get());
+                const pdf::PDFOCRConfidenceStatistics statistics = fileResult.result.getStatistics();
+
+                summary.status = fileResult.status;
+                summary.message = fileResult.message;
+                summary.details = fileResult.warnings + fileResult.messages;
+                summary.outputFile = fileResult.writeResult.isSuccess() && fileResult.writeResult.document ? item.second.outputFile : QString();
+                summary.pageCount = fileResult.pageCount;
+                summary.resultPages = fileResult.result.getResultPageCount();
+                summary.failedPages = fileResult.result.getFailedPageCount();
+                summary.wordCount = statistics.wordCount;
+                summary.reviewWords = statistics.reviewRequiredCount;
+                summary.elapsedMilliseconds = fileResult.elapsedMilliseconds;
+                summary.cancelled = fileResult.result.cancelled;
+            }
+            catch (...)
+            {
+                summary = FileSummary();
+                summary.status = pdf::PDFOCRDocumentRunner::FileResult::Status::Failed;
+                summary.message = pdf::PDFOCRDocumentRunner::getCurrentExceptionMessage();
+            }
 
             QMetaObject::invokeMethod(this, [this, row, summary]() { onFileFinished(row, summary); }, Qt::QueuedConnection);
         }

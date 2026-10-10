@@ -42,6 +42,7 @@
 #include <deque>
 
 #include <QElapsedTimer>
+#include <QDeadlineTimer>
 
 class QLockFile;
 
@@ -138,6 +139,13 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRJobSummary
 /// pipeline (rasterization, preprocessing, recognition, conversion) on worker
 /// threads and delivers immutable results via queued signals. The document is
 /// never modified from the worker threads.
+///
+/// Thread affinity: the control functions (setEnvironment, start, stop,
+/// waitForFinished) must be called from the thread of the controller. The query
+/// functions (isRunning, isStopping, getGeneration, getPendingPages, isPageInProgress,
+/// isPagePending) can be called from any thread. isRunning() == false means, that
+/// the workers have finished, not that the receiver has processed all queued results
+/// and the signal jobFinished.
 class PDF4QTLIBCORESHARED_EXPORT PDFOCRJobController : public QObject
 {
     Q_OBJECT
@@ -146,7 +154,8 @@ public:
     explicit PDFOCRJobController(QObject* parent);
     virtual ~PDFOCRJobController() override;
 
-    /// Sets the rendering environment (must be valid during the job)
+    /// Sets the rendering environment (must be valid during the job). The environment
+    /// is taken by the job at its start; it can't be changed, while a job is running.
     void setEnvironment(const PDFDocument* document,
                         const PDFFontCache* fontCache,
                         const PDFCMS* cms,
@@ -165,8 +174,11 @@ public:
     void waitForFinished();
 
     bool isRunning() const { return m_running.load(std::memory_order_acquire); }
-    bool isStopping() const { return m_stopping.load(std::memory_order_acquire); }
-    int getGeneration() const { return m_generation; }
+
+    /// Returns true, if the stop of the running job was requested
+    bool isStopping() const;
+
+    int getGeneration() const { return m_generation.load(std::memory_order_acquire); }
 
     /// Returns page indices, which are still queued or being processed
     std::vector<PDFInteger> getPendingPages() const;
@@ -198,9 +210,21 @@ signals:
     void jobFinished(int generation, pdf::PDFOCRJobSummary summary);
 
 private:
+    /// Rendering environment of a job (a snapshot taken at the start of the job)
+    struct Environment
+    {
+        const PDFDocument* document = nullptr;
+        const PDFFontCache* fontCache = nullptr;
+        const PDFCMS* cms = nullptr;
+        const PDFOptionalContentActivity* optionalContentActivity = nullptr;
+        const PDFMeshQualitySettings* meshQualitySettings = nullptr;
+        RendererEngine rendererEngine = RendererEngine::QPainter;
+    };
+
     struct Job
     {
         PDFOCRJobDescription description;
+        Environment environment;
         int generation = 0;
         std::shared_ptr<PDFOCRCancelToken> cancelToken;
         std::deque<size_t> queue;
@@ -211,8 +235,12 @@ private:
         QElapsedTimer timer;
         bool criticalErrorReported = false;
 
+        /// Stop of this job was requested (the flag belongs to the job, so a finishing
+        /// job can't clear the flag of a newer job)
+        std::atomic<bool> stopRequested = { false };
+
         /// Lease of the runtime model set, held for the lifetime of the job (LANG-07)
-        std::unique_ptr<QLockFile> runtimeSetLease;
+        std::shared_ptr<QLockFile> runtimeSetLease;
     };
 
     void workerMain(std::shared_ptr<Job> job);
@@ -223,24 +251,25 @@ private:
     /// Acquires the memory for the page rasters. A request larger than the budget
     /// available for the rasters is refused with an OutOfMemory error (never waited
     /// for, never let through, R13), otherwise the function waits until the memory
-    /// is released by other workers.
-    bool acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, PDFOCRError* error);
+    /// is released by other workers, the operation is cancelled, or the deadline
+    /// of the page expires (Timeout error).
+    bool acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, QDeadlineTimer deadline, PDFOCRError* error);
     void releaseMemory(qint64 bytes);
 
-    const PDFDocument* m_document = nullptr;
-    const PDFFontCache* m_fontCache = nullptr;
-    const PDFCMS* m_cms = nullptr;
-    const PDFOptionalContentActivity* m_optionalContentActivity = nullptr;
-    const PDFMeshQualitySettings* m_meshQualitySettings = nullptr;
-    RendererEngine m_rendererEngine = RendererEngine::QPainter;
+    Environment m_environment;
 
     QThreadPool m_threadPool;
     mutable QMutex m_mutex;
+
+    /// Serializes the publication of the finished pages, so the signals pageFinished
+    /// and jobProgress are emitted in the order of the finished page counter. It is
+    /// never locked by other code, so a slot connected directly can still call
+    /// the methods of the controller locking m_mutex.
+    QMutex m_publishMutex;
     QWaitCondition m_memoryCondition;
     std::shared_ptr<Job> m_job;
     std::atomic<bool> m_running = { false };
-    std::atomic<bool> m_stopping = { false };
-    int m_generation = 0;
+    std::atomic<int> m_generation = { 0 };
     qint64 m_memoryUsed = 0;
     qint64 m_memoryBudget = qint64(1) << 30;
 

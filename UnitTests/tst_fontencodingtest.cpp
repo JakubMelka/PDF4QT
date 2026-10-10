@@ -25,6 +25,7 @@
 #include "pdffont.h"
 #include "pdfparser.h"
 #include <QFontDatabase>
+#include <QThread>
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfeditorfallbackfont.h"
@@ -42,6 +43,7 @@ private slots:
     void test_type0_dictionary_advances();
     void test_type0_cjk_substitution();
     void test_type0_missing_substitute_glyph();
+    void test_realized_font_concurrent_use();
     void test_type0_cjk_collection_face();
     void test_type0_cjk_collection_coverage_data();
     void test_type0_cjk_collection_coverage();
@@ -399,6 +401,104 @@ void FontEncodingTest::test_type0_missing_substitute_glyph()
     {
         QVERIFY(!item.glyph);
         QCOMPARE(item.advance, -500.0);
+    }
+}
+
+void FontEncodingTest::test_realized_font_concurrent_use()
+{
+    // Realized font is shared by the threads compiling the pages. FreeType face
+    // may be used by one thread at a time, so the character lookups are read from
+    // the face when the font is realized, and the glyph loading is serialized.
+    pdf::FontDescriptor descriptor;
+    descriptor.fontName = "PDF4QTNonexistentCJKFont";
+    pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", descriptor,
+        pdf::PDFFontCMap::createFromName("Identity-H"), pdf::PDFFontCMap(), pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0, {}));
+
+    QByteArray encoded;
+    for (char32_t codePoint = U'ぁ'; codePoint <= U'ゖ'; ++codePoint)
+    {
+        encoded += font->encodeCharacter(codePoint);
+    }
+    for (char32_t codePoint = U'一'; codePoint <= U'俿'; ++codePoint)
+    {
+        encoded += font->encodeCharacter(codePoint);
+    }
+    QVERIFY(!encoded.isEmpty());
+
+    pdf::PDFRenderErrorReporterDummy reporter;
+    pdf::PDFRealizedFontPointer referenceFont;
+    pdf::PDFRealizedFontPointer sharedFont;
+    try
+    {
+        referenceFont = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+        sharedFont = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    }
+    catch (const pdf::PDFException&)
+    {
+        QSKIP("No font covering the Japanese character collection is installed.");
+    }
+
+    struct Item
+    {
+        QChar character;
+        pdf::PDFReal advance = 0.0;
+        int elementCount = -1;
+
+        bool operator==(const Item&) const = default;
+    };
+
+    auto collect = [](const pdf::TextSequence& sequence)
+    {
+        std::vector<Item> items;
+        for (const pdf::TextSequenceItem& item : sequence.items)
+        {
+            items.push_back(Item{ item.character, item.advance, item.glyph ? item.glyph->elementCount() : -1 });
+        }
+        return items;
+    };
+
+    pdf::TextSequence referenceSequence;
+    referenceFont->fillTextSequence(encoded, referenceSequence, &reporter);
+    const std::vector<Item> reference = collect(referenceSequence);
+    QVERIFY(std::any_of(reference.cbegin(), reference.cend(), [](const Item& item) { return item.elementCount > 0; }));
+    const size_t referenceCharacterInfos = referenceFont->getCharacterInfos().size();
+
+    constexpr int threadCount = 8;
+    std::vector<std::vector<Item>> results(threadCount);
+    std::vector<size_t> characterInfos(threadCount, 0);
+    std::vector<std::unique_ptr<QThread>> threads;
+    for (int i = 0; i < threadCount; ++i)
+    {
+        threads.emplace_back(QThread::create([&, i]()
+        {
+            pdf::PDFRenderErrorReporterDummy threadReporter;
+            if (i % 4 == 3)
+            {
+                // Direct access to the face, concurrently with the glyph loading
+                characterInfos[i] = sharedFont->getCharacterInfos().size();
+            }
+
+            pdf::TextSequence sequence;
+            sharedFont->fillTextSequence(encoded, sequence, &threadReporter);
+            results[i] = collect(sequence);
+        }));
+    }
+    for (const auto& thread : threads)
+    {
+        thread->start();
+    }
+    for (const auto& thread : threads)
+    {
+        QVERIFY(thread->wait(60000));
+    }
+
+    for (int i = 0; i < threadCount; ++i)
+    {
+        QVERIFY(results[i] == reference);
+        if (i % 4 == 3)
+        {
+            QCOMPARE(characterInfos[i], referenceCharacterInfos);
+        }
     }
 }
 

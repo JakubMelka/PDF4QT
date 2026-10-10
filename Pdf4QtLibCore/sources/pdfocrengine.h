@@ -37,6 +37,8 @@
 #include <limits>
 #include <functional>
 
+class QLockFile;
+
 namespace pdf
 {
 
@@ -147,6 +149,16 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRResolvedModelSet
 
     /// Orientation and script detection data are available
     bool hasOrientationData = false;
+
+    /// The data path is a runtime set of the model manager, which must be leased
+    /// by the recognition (LANG-07)
+    bool isManagedRuntimeSet = false;
+
+    /// Lease of the runtime set (LANG-07). It is acquired by the model manager under
+    /// the lock of the data directory, when the set is resolved, so the set can't be
+    /// removed by the housekeeping or the cache cleanup (also of another instance)
+    /// before the recognition starts. Copies of the set share the lease.
+    std::shared_ptr<QLockFile> runtimeSetLease;
 
     bool isValid() const { return !dataPath.isEmpty() && !languages.isEmpty(); }
 };
@@ -324,8 +336,10 @@ public:
     virtual void release() = 0;
 };
 
-/// Factory of the engine (registered in the registry)
-class PDF4QTLIBCORESHARED_EXPORT PDFOCREngineFactory
+/// Factory of the engine (registered in the registry). Factory must be owned
+/// by std::shared_ptr - engine instances created by the factory keep the factory
+/// alive, so the factory can be unregistered or replaced while its engines exist.
+class PDF4QTLIBCORESHARED_EXPORT PDFOCREngineFactory : public std::enable_shared_from_this<PDFOCREngineFactory>
 {
 public:
     PDFOCREngineFactory() = default;
@@ -348,7 +362,8 @@ public:
 
     virtual PDFOCREngineCapabilities getCapabilities() const = 0;
 
-    /// Creates the engine instance
+    /// Creates the engine instance. Returns nullptr, if the factory
+    /// is not owned by std::shared_ptr.
     virtual std::unique_ptr<PDFOCREngine> createEngine() const = 0;
 
     /// Validates the model file for the engine (loadability). Data path

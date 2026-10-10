@@ -271,6 +271,9 @@ public:
     /// lock file "<set directory>/in-use.<pid>.<counter>.lock", the set directory is
     /// the parent of the data path ("tessdata"). Returns nullptr, if the data path is
     /// not a runtime set of the manager (for example the data of a test engine).
+    /// The caller must hold the lock of the data directory, otherwise the cleanup can
+    /// remove the set between its decision and the lease. The set returned by
+    /// \p resolveModelSet is already leased this way.
     static std::unique_ptr<QLockFile> acquireRuntimeSetLease(const QString& dataPath);
 
     /// Returns true, if any lease of the runtime set is held by a living process.
@@ -368,7 +371,9 @@ private:
                                                 const QString& engineVersion);
 
     static PDFOCRError validateModelFile(const QString& userDirectory, const ModelValidator& validator, const QString& engineId, const QString& filePath, const QString& language);
-    static PDFOCRError installModelFile(const QString& userDirectory, const QString& temporaryPath, const QString& targetPath);
+
+    /// Activates the model file. The caller must hold the lock of the data directory.
+    static PDFOCRError installModelFileLocked(const QString& temporaryPath, const QString& targetPath);
     QString getModelTargetPath(const PDFOCRCatalogEntry& entry) const;
     void updateModelState(const QString& id, PDFOCRModelState state, const QString& errorMessage, int progress);
     static QString sanitizeIdentifier(const QString& identifier);

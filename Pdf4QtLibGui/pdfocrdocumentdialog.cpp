@@ -475,7 +475,6 @@ void PDFOCRDocumentDialog::initializeUi()
     // Worker signals
     connect(this, &PDFOCRDocumentDialog::pageDataReady, this, &PDFOCRDocumentDialog::onPageDataReady, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::previewReady, this, &PDFOCRDocumentDialog::onPreviewReady, Qt::QueuedConnection);
-    connect(this, &PDFOCRDocumentDialog::applyFinished, this, &PDFOCRDocumentDialog::onApplyFinished, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::compressionEstimateReady, this, &PDFOCRDocumentDialog::onCompressionEstimateReady, Qt::QueuedConnection);
 
     // Compression of the scanned images (phase 3 of OCR_PLAN.md)
@@ -505,7 +504,6 @@ void PDFOCRDocumentDialog::initializeUi()
     connect(ui->compressionPreviewButton, &QPushButton::clicked, this, &PDFOCRDocumentDialog::onCompressionPreviewClicked);
     connect(this, &PDFOCRDocumentDialog::ownLayerLoaded, this, &PDFOCRDocumentDialog::onOwnLayerLoaded, Qt::QueuedConnection);
     connect(this, &PDFOCRDocumentDialog::documentFingerprintReady, this, &PDFOCRDocumentDialog::onDocumentFingerprintReady, Qt::QueuedConnection);
-    connect(this, &PDFOCRDocumentDialog::recognitionPrepared, this, &PDFOCRDocumentDialog::onRecognitionPrepared, Qt::QueuedConnection);
 
     connect(m_jobController, &pdf::PDFOCRJobController::pageStateChanged, this, &PDFOCRDocumentDialog::onJobPageStateChanged, Qt::QueuedConnection);
     connect(m_jobController, &pdf::PDFOCRJobController::pageProgress, this, &PDFOCRDocumentDialog::onJobPageProgress, Qt::QueuedConnection);
@@ -936,7 +934,7 @@ void PDFOCRDocumentDialog::startTask(AsyncTask& task, std::function<void(int, co
     const int generation = task.generation;
     std::shared_ptr<pdf::PDFOCRCancelToken> token = task.token;
 
-    m_futures.push_back(QtConcurrent::run([worker = std::move(worker), generation, token]()
+    task.future = QtConcurrent::run([worker = std::move(worker), generation, token]()
     {
         try
         {
@@ -946,7 +944,8 @@ void PDFOCRDocumentDialog::startTask(AsyncTask& task, std::function<void(int, co
         {
             // No exception is allowed to escape into the future, which is waited in the destructor
         }
-    }));
+    });
+    m_futures.push_back(task.future);
 }
 
 void PDFOCRDocumentDialog::cancelTask(AsyncTask& task)
@@ -1232,6 +1231,15 @@ void PDFOCRDocumentDialog::startPreviewTask()
 {
     if (m_currentPage < 0)
     {
+        return;
+    }
+
+    // At most one preview is computed at a time (the rasters of a preview are large):
+    // the cancelled previous preview finishes first, then the newest request is started.
+    // The GUI thread never waits for it.
+    if (!m_previewTask.future.isFinished())
+    {
+        m_previewTimer.start();
         return;
     }
 
@@ -2421,7 +2429,7 @@ void PDFOCRDocumentDialog::onStopClicked()
         return;
     }
 
-    if (m_jobController->isRunning())
+    if (isJobActive())
     {
         // The state is displayed immediately, the workers finish cooperatively (JOB-06)
         ui->progressLabel->setText(tr("Stopping..."));
@@ -2432,7 +2440,7 @@ void PDFOCRDocumentDialog::onStopClicked()
 
 bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& pages, RunMode runMode)
 {
-    if (m_jobController->isRunning() || m_pendingRecognition || pages.empty())
+    if (isJobActive() || m_pendingRecognition || pages.empty())
     {
         return false;
     }
@@ -2848,11 +2856,9 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             return;
         }
 
-        {
-            QMutexLocker lock(&m_prepareMutex);
-            m_preparedRecognition = std::move(prepared);
-        }
-        Q_EMIT recognitionPrepared(generation);
+        // The result is passed by value together with its generation - a late result
+        // of a cancelled preparation can't be confused with the result of a newer one.
+        QMetaObject::invokeMethod(this, [this, generation, prepared = std::move(prepared)]() mutable { onRecognitionPrepared(generation, std::move(prepared)); }, Qt::QueuedConnection);
     });
 
     updateUi();
@@ -2894,7 +2900,7 @@ void PDFOCRDocumentDialog::cancelRecognitionPreparation()
     updateUi();
 }
 
-void PDFOCRDocumentDialog::onRecognitionPrepared(int generation)
+void PDFOCRDocumentDialog::onRecognitionPrepared(int generation, PreparedRecognition prepared)
 {
     if (generation != m_prepareTask.generation || !m_pendingRecognition)
     {
@@ -2904,13 +2910,6 @@ void PDFOCRDocumentDialog::onRecognitionPrepared(int generation)
 
     PendingRecognition pending = std::move(*m_pendingRecognition);
     m_pendingRecognition.reset();
-
-    PreparedRecognition prepared;
-    {
-        QMutexLocker lock(&m_prepareMutex);
-        prepared = std::move(m_preparedRecognition);
-        m_preparedRecognition = PreparedRecognition();
-    }
 
     ui->progressBar->setRange(0, 1);
     ui->progressBar->setValue(0);
@@ -3082,6 +3081,7 @@ void PDFOCRDocumentDialog::onRecognitionPrepared(int generation)
         return;
     }
 
+    m_jobActive = true;
     ui->progressBar->setRange(0, m_jobTotalPages);
     ui->progressBar->setValue(0);
     ui->progressLabel->setText(tr("Recognition started (%n page(s)).", nullptr, m_jobTotalPages));
@@ -3175,10 +3175,11 @@ void PDFOCRDocumentDialog::onJobProgress(int generation, int finished, int total
         return;
     }
 
-    m_jobFinishedPages = finished;
+    // Progress of one generation never goes back
+    m_jobFinishedPages = qMax(m_jobFinishedPages, finished);
     m_jobTotalPages = total;
     ui->progressBar->setRange(0, total);
-    ui->progressBar->setValue(finished);
+    ui->progressBar->setValue(m_jobFinishedPages);
 }
 
 void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary summary)
@@ -3187,6 +3188,8 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
     {
         return;
     }
+
+    m_jobActive = false;
 
     ui->progressBar->setRange(0, qMax(1, summary.totalPages));
     ui->progressBar->setValue(summary.totalPages);
@@ -3368,7 +3371,7 @@ void PDFOCRDocumentDialog::processCandidates()
 void PDFOCRDocumentDialog::onRerecognizeClicked()
 {
     const pdf::PDFOCRPageResult* page = m_session->getPage(m_currentPage);
-    if (!page || !isPageEditable(m_currentPage) || m_jobController->isRunning())
+    if (!page || !isPageEditable(m_currentPage) || isJobActive())
     {
         return;
     }
@@ -3403,7 +3406,7 @@ void PDFOCRDocumentDialog::onRerecognizeClicked()
 
 bool PDFOCRDocumentDialog::isPageInRunningJob(pdf::PDFInteger pageIndex) const
 {
-    if (!m_jobController->isRunning() || m_runMode != RunMode::Pages)
+    if (!isJobActive() || m_runMode != RunMode::Pages)
     {
         return false;
     }
@@ -3420,7 +3423,7 @@ bool PDFOCRDocumentDialog::isPageInRunningJob(pdf::PDFInteger pageIndex) const
 bool PDFOCRDocumentDialog::isPageEditable(pdf::PDFInteger pageIndex) const
 {
     // The page being processed or scheduled for an overwrite cannot be edited (UI-06)
-    if (pageIndex < 0 || (m_jobController->isRunning() && m_runMode == RunMode::Pages && m_jobController->isPagePending(pageIndex)))
+    if (pageIndex < 0 || (isJobActive() && m_runMode == RunMode::Pages && m_jobController->isPagePending(pageIndex)))
     {
         return false;
     }
@@ -4425,7 +4428,7 @@ void PDFOCRDocumentDialog::showTreeContextMenu(const QPoint& point)
 
     copyPageAction->setEnabled(m_context.canCopyContent);
     copyItemAction->setEnabled(m_context.canCopyContent && ui->resultsTreeWidget->currentItem());
-    recognizeAction->setEnabled(!m_jobController->isRunning() && (m_selectedWordId || m_selectedLineId));
+    recognizeAction->setEnabled(!isJobActive() && (m_selectedWordId || m_selectedLineId));
     recognizeRegionAction->setEnabled(regionId != -1 && canRerecognizeRegion(regionId));
     confirmAction->setEnabled(m_selectedWordId != 0);
     notTextAction->setEnabled(m_selectedWordId != 0);
@@ -4843,7 +4846,7 @@ void PDFOCRDocumentDialog::showRegionContextMenu(int regionId, QPoint globalPosi
     menu.addSeparator();
     QAction* recognizeRegionAction = menu.addAction(tr("Re-recognize Region"));
 
-    const bool running = m_jobController->isRunning();
+    const bool running = isJobActive();
     propertiesAction->setEnabled(!running);
     removeAction->setEnabled(!running);
     recognizeRegionAction->setEnabled(canRerecognizeRegion(regionId));
@@ -5051,11 +5054,7 @@ void PDFOCRDocumentDialog::onApplyClicked()
         result.compressionReport = std::move(processorResult.compressionReport);
         result.fingerprints = std::move(processorResult.fingerprints);
 
-        {
-            QMutexLocker lock(&m_applyMutex);
-            m_applyResult = std::move(result);
-        }
-        Q_EMIT applyFinished(generation);
+        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)]() mutable { onApplyFinished(generation, std::move(result)); }, Qt::QueuedConnection);
     });
 }
 
@@ -5128,26 +5127,15 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
         result.report = std::move(processorResult.report);
         result.errorMessage = std::move(processorResult.errorMessage);
 
-        {
-            QMutexLocker lock(&m_applyMutex);
-            m_applyResult = std::move(result);
-        }
-        Q_EMIT applyFinished(generation);
+        QMetaObject::invokeMethod(this, [this, generation, result = std::move(result)]() mutable { onApplyFinished(generation, std::move(result)); }, Qt::QueuedConnection);
     });
 }
 
-void PDFOCRDocumentDialog::onApplyFinished(int generation)
+void PDFOCRDocumentDialog::onApplyFinished(int generation, ApplyResult result)
 {
     if (generation != m_applyTask.generation)
     {
         return;
-    }
-
-    ApplyResult result;
-    {
-        QMutexLocker lock(&m_applyMutex);
-        result = std::move(m_applyResult);
-        m_applyResult = ApplyResult();
     }
 
     m_applyInProgress = false;
@@ -5646,14 +5634,14 @@ void PDFOCRDocumentDialog::showReviewTab()
 
 bool PDFOCRDocumentDialog::isBusy() const
 {
-    return m_jobController->isRunning() || m_applyInProgress || m_pendingRecognition.has_value() || m_blockingTaskInProgress;
+    return isJobActive() || m_applyInProgress || m_pendingRecognition.has_value() || m_blockingTaskInProgress;
 }
 
 void PDFOCRDocumentDialog::updateWorkflowLabel()
 {
     // Four distinct phases of the workflow (UI-03); the active phase is marked by the text style and by an arrow
     int phase = 0;
-    if (m_jobController->isRunning())
+    if (isJobActive())
     {
         phase = 1;
     }
@@ -5677,7 +5665,7 @@ void PDFOCRDocumentDialog::updateWorkflowLabel()
 
 void PDFOCRDocumentDialog::updateUi()
 {
-    const bool running = m_jobController->isRunning();
+    const bool running = isJobActive();
     const bool busy = isBusy();
     const bool hasEngine = ui->engineComboBox->count() > 0;
     const bool hasResults = !m_session->getPagesWithResults().empty();
@@ -5800,7 +5788,7 @@ void PDFOCRDocumentDialog::done(int result)
 
     cancelRecognitionPreparation();
 
-    if (m_jobController->isRunning())
+    if (isJobActive())
     {
         // The running job is cancelled first; the GUI stays responsive and the dialog is closed after the workers finish (UI-07, JOB-06)
         m_closeRequested = true;

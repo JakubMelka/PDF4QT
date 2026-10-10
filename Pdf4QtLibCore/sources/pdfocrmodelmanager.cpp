@@ -22,6 +22,7 @@
 
 #include "pdfocrmodelmanager.h"
 #include "config.h"
+#include "pdfexception.h"
 
 #include <QDir>
 #include <QFile>
@@ -45,6 +46,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <exception>
 
 namespace pdf
 {
@@ -641,7 +643,7 @@ void PDFOCRModelManager::performHousekeeping()
 
     // Another running instance can be in the middle of an installation
     QLockFile lock(m_userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
-    lock.setStaleLockTime(60 * 1000);
+    lock.setStaleLockTime(0);
     if (!lock.tryLock(0))
     {
         return;
@@ -1032,7 +1034,10 @@ PDFOCRError PDFOCRModelManager::acquireLock(const QString& userDirectory, std::u
     }
 
     lock = std::make_unique<QLockFile>(userDirectory + QStringLiteral("/") + QLatin1String(LOCK_FILE));
-    lock->setStaleLockTime(60 * 1000);
+
+    // The lock is stale only, when its owner process doesn't run. A time limit would
+    // break the lock of a living instance, which copies and hashes large models.
+    lock->setStaleLockTime(0);
     if (!lock->tryLock(10000))
     {
         if (lock->error() == QLockFile::PermissionError || lock->error() == QLockFile::UnknownError)
@@ -1398,9 +1403,37 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
         // A set without the marker is never used: an interrupted build is built again here,
         // or removed by the housekeeping. The directory is never renamed (a new file can be
         // locked for a moment by another process, for example a virus scanner).
-        if (QDir(runtimeDirectory).exists() && !removeRuntimeSet(runtimeDirectory))
+        // The models were selected and hashed before the lock was acquired. Another manager
+        // (also of another instance) could replace or remove a model meanwhile - this is
+        // reported as a change, not as a damaged model.
+        for (const Selected& item : selected)
         {
-            return fail(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the incomplete runtime set directory '%1'.").arg(runtimeDirectory));
+            bool changed = !QFile::exists(item.path);
+            QFile hashFile(item.path + QStringLiteral(".sha256"));
+            if (!changed && !item.sha256.isEmpty() && hashFile.open(QFile::ReadOnly))
+            {
+                changed = QString::fromLatin1(hashFile.readAll()).trimmed().compare(item.sha256, Qt::CaseInsensitive) != 0;
+            }
+
+            if (changed)
+            {
+                return fail(PDFOCRErrorCode::MissingModel, PDFTranslationContext::tr("Language model '%1' was changed or removed during the preparation of the recognition. Try it again.").arg(item.path));
+            }
+        }
+
+        if (QDir(runtimeDirectory).exists())
+        {
+            // A damaged set, which is still used by a running recognition (also of another
+            // instance), is not rebuilt under its hands
+            if (isRuntimeSetInUse(runtimeDirectory))
+            {
+                return fail(PDFOCRErrorCode::InitializationFailed, PDFTranslationContext::tr("The runtime set '%1' is incomplete and it is used by another recognition. Try it again, when the recognition finishes.").arg(runtimeDirectory));
+            }
+
+            if (!removeRuntimeSet(runtimeDirectory))
+            {
+                return fail(PDFOCRErrorCode::WriteFailed, PDFTranslationContext::tr("Cannot remove the incomplete runtime set directory '%1'.").arg(runtimeDirectory));
+            }
         }
         QDir().mkpath(tessdataDirectory);
 
@@ -1456,6 +1489,17 @@ PDFOCRResolvedModelSet PDFOCRModelManager::resolveModelSet(const QString& engine
             return fail(PDFOCRErrorCode::OutOfDiskSpace, PDFTranslationContext::tr("Cannot write into the runtime set directory '%1'.").arg(runtimeDirectory));
         }
     }
+
+    // The lease is acquired still under the lock of the data directory, which is held also
+    // by the decisions of the housekeeping and of the cache cleanup. So the set can't be
+    // removed between its resolution and the start of the recognition (LANG-07).
+    std::unique_ptr<QLockFile> lease = acquireRuntimeSetLease(tessdataDirectory);
+    if (!lease)
+    {
+        return fail(PDFOCRErrorCode::InitializationFailed, PDFTranslationContext::tr("Cannot acquire the lease of the runtime set '%1'.").arg(runtimeDirectory));
+    }
+    set.runtimeSetLease = std::move(lease);
+    set.isManagedRuntimeSet = true;
 
     set.dataPath = tessdataDirectory;
     set.hash = setHash;
@@ -1835,7 +1879,28 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
 
     m_verificationPool.start([this, verifyingDownload, userDirectory, validator, entry, temporaryPath, targetPath, engineVersion]()
     {
-        const VerificationOutcome outcome = verifyAndInstall(userDirectory, validator, entry, temporaryPath, targetPath, engineVersion);
+        // The download must always be completed (exactly once), also when the verification
+        // throws - otherwise it would stay in the verifying state forever
+        VerificationOutcome outcome;
+        try
+        {
+            outcome = verifyAndInstall(userDirectory, validator, entry, temporaryPath, targetPath, engineVersion);
+        }
+        catch (const PDFException& exception)
+        {
+            outcome = VerificationOutcome();
+            outcome.message = exception.getMessage();
+        }
+        catch (const std::exception& exception)
+        {
+            outcome = VerificationOutcome();
+            outcome.message = QString::fromLocal8Bit(exception.what());
+        }
+        catch (...)
+        {
+            outcome = VerificationOutcome();
+            outcome.message = PDFTranslationContext::tr("Unexpected error during the verification of the model.");
+        }
         QMetaObject::invokeMethod(this, [this, verifyingDownload, outcome]() { completeDownload(verifyingDownload, outcome); }, Qt::QueuedConnection);
     });
 }
@@ -1867,8 +1932,24 @@ PDFOCRModelManager::VerificationOutcome PDFOCRModelManager::verifyAndInstall(con
         return outcome;
     }
 
+    // Activation of the model, its hash, its metadata and the removal of the older
+    // versions form one transaction under the lock of the data directory. Otherwise
+    // another manager (also of another instance) could replace the model between the
+    // activation and the metadata, which would then describe a different file.
+    std::unique_ptr<QLockFile> lock;
+    if (PDFOCRError lockError = acquireLock(userDirectory, lock))
+    {
+        outcome.message = lockError.message;
+        return outcome;
+    }
+
+    // Interrupted installation leaves an unverified model, never a model with
+    // the hash and the metadata of its previous version
+    QFile::remove(targetPath + QStringLiteral(".sha256"));
+    QFile::remove(getInstallMetadataPath(targetPath));
+
     // Atomic activation
-    const PDFOCRError installError = installModelFile(userDirectory, temporaryPath, targetPath);
+    const PDFOCRError installError = installModelFileLocked(temporaryPath, targetPath);
     if (installError)
     {
         outcome.message = installError.message;
@@ -1877,10 +1958,10 @@ PDFOCRModelManager::VerificationOutcome PDFOCRModelManager::verifyAndInstall(con
 
     // Record the hash next to the file
     QSaveFile hashFile(targetPath + QStringLiteral(".sha256"));
-    if (hashFile.open(QFile::WriteOnly | QFile::Truncate))
+    if (!hashFile.open(QFile::WriteOnly | QFile::Truncate) || hashFile.write(sha256.toLatin1()) != sha256.size() || !hashFile.commit())
     {
-        hashFile.write(sha256.toLatin1());
-        hashFile.commit();
+        outcome.message = PDFTranslationContext::tr("Cannot write the checksum of the model '%1'. Check the free space and the permissions of the directory.").arg(targetPath);
+        return outcome;
     }
 
     // Installation metadata (LANG-12): the engine version is checked after an upgrade
@@ -1895,11 +1976,13 @@ PDFOCRModelManager::VerificationOutcome PDFOCRModelManager::verifyAndInstall(con
         metadata[QStringLiteral("sha256")] = sha256;
         metadata[QStringLiteral("installed")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 
+        const QByteArray metadataData = QJsonDocument(metadata).toJson(QJsonDocument::Indented);
         QSaveFile metadataFile(getInstallMetadataPath(targetPath));
-        if (metadataFile.open(QFile::WriteOnly | QFile::Truncate))
+        if (!metadataFile.open(QFile::WriteOnly | QFile::Truncate) || metadataFile.write(metadataData) != metadataData.size() || !metadataFile.commit())
         {
-            metadataFile.write(QJsonDocument(metadata).toJson(QJsonDocument::Indented));
-            metadataFile.commit();
+            QFile::remove(targetPath + QStringLiteral(".sha256"));
+            outcome.message = PDFTranslationContext::tr("Cannot write the installation data of the model '%1'. Check the free space and the permissions of the directory.").arg(targetPath);
+            return outcome;
         }
     }
 
@@ -1978,27 +2061,46 @@ PDFOCRError PDFOCRModelManager::validateModelFile(const QString& userDirectory, 
     {
         result = PDFOCRError::create(PDFOCRErrorCode::VerificationFailed, PDFTranslationContext::tr("Cannot prepare the model for verification."), PDFTranslationContext::tr("Model verification"));
     }
-    else if (validator)
+    else
     {
-        result = validator(engineId, temporaryDirectory, languageCode);
-    }
-    else if (std::shared_ptr<PDFOCREngineFactory> factory = PDFOCREngineRegistry::getInstance()->getFactory(engineId))
-    {
-        result = factory->validateModel(temporaryDirectory, languageCode);
+        // The validator loads the model by the engine; its exception means
+        // a failed verification, the temporary directory is removed anyway
+        auto createError = [](const QString& message)
+        {
+            return PDFOCRError::create(PDFOCRErrorCode::VerificationFailed, PDFTranslationContext::tr("Model cannot be verified: %1").arg(message), PDFTranslationContext::tr("Model verification"));
+        };
+
+        try
+        {
+            if (validator)
+            {
+                result = validator(engineId, temporaryDirectory, languageCode);
+            }
+            else if (std::shared_ptr<PDFOCREngineFactory> factory = PDFOCREngineRegistry::getInstance()->getFactory(engineId))
+            {
+                result = factory->validateModel(temporaryDirectory, languageCode);
+            }
+        }
+        catch (const PDFException& exception)
+        {
+            result = createError(exception.getMessage());
+        }
+        catch (const std::exception& exception)
+        {
+            result = createError(QString::fromLocal8Bit(exception.what()));
+        }
+        catch (...)
+        {
+            result = createError(PDFTranslationContext::tr("Unexpected error."));
+        }
     }
 
     QDir(temporaryDirectory).removeRecursively();
     return result;
 }
 
-PDFOCRError PDFOCRModelManager::installModelFile(const QString& userDirectory, const QString& temporaryPath, const QString& targetPath)
+PDFOCRError PDFOCRModelManager::installModelFileLocked(const QString& temporaryPath, const QString& targetPath)
 {
-    std::unique_ptr<QLockFile> lock;
-    if (PDFOCRError lockError = acquireLock(userDirectory, lock))
-    {
-        return lockError;
-    }
-
     QDir().mkpath(QFileInfo(targetPath).absolutePath());
 
     // Existing model is replaced only after the new file is completely in place

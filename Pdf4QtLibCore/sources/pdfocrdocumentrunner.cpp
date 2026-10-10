@@ -83,6 +83,47 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::run(const PDFDocument* docume
                                                        const ProgressCallback& progress,
                                                        const PDFOperationControl* operationControl)
 {
+    // The runner is called from the worker threads of the batch and of the command
+    // line tool, where an escaped exception would terminate the application
+    try
+    {
+        return runImpl(document, settings, progress, operationControl);
+    }
+    catch (...)
+    {
+        Result result;
+        result.session = std::make_shared<PDFOCRSession>(nullptr);
+        result.errorCode = PDFOCRErrorCode::Unknown;
+        result.errorMessage = getCurrentExceptionMessage();
+        return result;
+    }
+}
+
+QString PDFOCRDocumentRunner::getCurrentExceptionMessage()
+{
+    try
+    {
+        throw;
+    }
+    catch (const PDFException& exception)
+    {
+        return exception.getMessage();
+    }
+    catch (const std::exception& exception)
+    {
+        return QString::fromLocal8Bit(exception.what());
+    }
+    catch (...)
+    {
+        return PDFTranslationContext::tr("Unexpected error.");
+    }
+}
+
+PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* document,
+                                                           const Settings& settings,
+                                                           const ProgressCallback& progress,
+                                                           const PDFOperationControl* operationControl)
+{
     Result result;
     result.session = std::make_shared<PDFOCRSession>(nullptr);
 
@@ -581,6 +622,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::run(const PDFDocument* docume
         int generation = 0;
         int finishedPages = 0;
         bool jobFinished = false;
+        QString callbackError;
         const int totalPages = int(description.pages.size());
 
         QObject::connect(&controller, &PDFOCRJobController::pageFinished, &receiver, [&](int pageGeneration, PDFOCRPageResult pageResult)
@@ -590,16 +632,29 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::run(const PDFDocument* docume
                 return;
             }
 
-            const PDFInteger page = pageResult.pageIndex;
-
-            // Permission to write the result is a serialized property of the result (INPUT-04, R03)
-            pageResult.reviewOnly = reviewOnlyPages.count(page) > 0;
-            session->setPageResult(std::move(pageResult));
-            ++finishedPages;
-
-            if (progress)
+            // An exception must not leave the slot through the event loop: the job is
+            // stopped and the error is reported, when the job finishes
+            try
             {
-                progress(finishedPages, totalPages, session->getPage(page));
+                const PDFInteger page = pageResult.pageIndex;
+
+                // Permission to write the result is a serialized property of the result (INPUT-04, R03)
+                pageResult.reviewOnly = reviewOnlyPages.count(page) > 0;
+                session->setPageResult(std::move(pageResult));
+                ++finishedPages;
+
+                if (progress)
+                {
+                    progress(finishedPages, totalPages, session->getPage(page));
+                }
+            }
+            catch (...)
+            {
+                if (callbackError.isEmpty())
+                {
+                    callbackError = getCurrentExceptionMessage();
+                }
+                controller.stop();
             }
         }, Qt::QueuedConnection);
 
@@ -638,7 +693,12 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::run(const PDFDocument* docume
         cancellationTimer.stop();
         controller.waitForFinished();
 
-        if (result.summary.criticalError)
+        if (!callbackError.isEmpty())
+        {
+            result.errorCode = PDFOCRErrorCode::Unknown;
+            result.errorMessage = callbackError;
+        }
+        else if (result.summary.criticalError)
         {
             result.errorCode = result.summary.criticalError.code;
             result.errorMessage = result.summary.criticalError.step.isEmpty() ? result.summary.criticalError.message
@@ -800,6 +860,33 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
                                                                    const ProgressCallback& progress,
                                                                    const PDFOperationControl* operationControl)
 {
+    QElapsedTimer timer;
+    timer.start();
+
+    // Every file ends with exactly one terminal result, also when an exception
+    // is thrown (by a callback, by the reading or by the writing of the file)
+    FileResult::Stage stage = FileResult::Stage::Reading;
+    try
+    {
+        return processFileImpl(task, settings, progress, operationControl, &stage);
+    }
+    catch (...)
+    {
+        FileResult fileResult;
+        fileResult.status = FileResult::Status::Failed;
+        fileResult.stage = stage;
+        fileResult.message = getCurrentExceptionMessage();
+        fileResult.elapsedMilliseconds = timer.elapsed();
+        return fileResult;
+    }
+}
+
+PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFileImpl(const FileTask& task,
+                                                                       const Settings& settings,
+                                                                       const ProgressCallback& progress,
+                                                                       const PDFOperationControl* operationControl,
+                                                                       FileResult::Stage* stage)
+{
     FileResult fileResult;
     QElapsedTimer timer;
     timer.start();
@@ -837,6 +924,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
     fileResult.pageCount = int(document.getCatalog()->getPageCount());
 
     // The permissions are checked before the recognition (PDF-12, PDF-15)
+    *stage = FileResult::Stage::Permissions;
     const bool writesDocument = !task.outputFile.isEmpty();
     if (writesDocument)
     {
@@ -849,6 +937,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
     }
 
     // Project
+    *stage = FileResult::Stage::Project;
     Settings fileSettings = settings;
     if (!task.projectFile.isEmpty())
     {
@@ -862,6 +951,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
     }
 
     // Configuration and pages
+    *stage = FileResult::Stage::Configuration;
     if (task.configure)
     {
         const QString errorMessage = task.configure(fileSettings.project ? &*fileSettings.project : nullptr, &fileSettings.configuration);
@@ -899,6 +989,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
     fileSettings.fileName = task.inputFile;
 
     // Recognition
+    *stage = FileResult::Stage::Recognition;
     fileResult.result = run(&document, fileSettings, progress, operationControl);
     Result& result = fileResult.result;
     fileResult.warnings = result.warnings;
@@ -939,8 +1030,9 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
         return finish(FileResult::Status::Skipped, FileResult::Stage::NothingToWrite, message);
     }
 
+    *stage = FileResult::Stage::Writing;
     FileResult::Status status = FileResult::Status::Success;
-    FileResult::Stage stage = FileResult::Stage::None;
+    FileResult::Stage resultStage = FileResult::Stage::None;
     QString statusMessage;
 
     // Document with the text layer
@@ -963,7 +1055,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
                 // Nothing to write: the results are for the review only, or without text;
                 // the exports are still written
                 status = FileResult::Status::Skipped;
-                stage = FileResult::Stage::NothingToWrite;
+                resultStage = FileResult::Stage::NothingToWrite;
                 statusMessage = writeResult.errorMessage;
             }
             else
@@ -1056,7 +1148,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFile(const FileTas
         statusMessage = PDFTranslationContext::tr("Recognition of %n page(s) failed.", nullptr, failedPages);
     }
 
-    return finish(status, stage, statusMessage);
+    return finish(status, resultStage, statusMessage);
 }
 
 std::vector<const PDFOCRPageResult*> PDFOCRDocumentRunner::getExportResults(const Result& result)

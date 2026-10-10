@@ -168,7 +168,8 @@ public:
     /// recognized pages and the finished page (nullptr for the preparation steps)
     using ProgressCallback = std::function<void(int finished, int total, const PDFOCRPageResult* page)>;
 
-    /// Runs the recognition, see the description of the class
+    /// Runs the recognition, see the description of the class. No exception escapes
+    /// from the function (an unexpected one is reported as the error of the result).
     static Result run(const PDFDocument* document,
                       const Settings& settings,
                       const ProgressCallback& progress,
@@ -292,6 +293,7 @@ public:
     /// Processes the file, see FileTask. The settings give the policy of the decisions,
     /// the model manager and the rendering; the configuration, the pages, the project
     /// and the file name are set from the task. The same requirements as for run apply.
+    /// No exception escapes from the function (an unexpected one fails the file).
     static FileResult processFile(const FileTask& task,
                                   const Settings& settings,
                                   const ProgressCallback& progress,
@@ -299,6 +301,24 @@ public:
 
     /// Returns the translated name of the page state
     static QString getPageStateName(PDFOCRPageState state);
+
+    /// Returns the message of the exception, which is being handled. Must be called
+    /// only from a catch block (the exception is rethrown and classified).
+    static QString getCurrentExceptionMessage();
+
+private:
+    static Result runImpl(const PDFDocument* document,
+                          const Settings& settings,
+                          const ProgressCallback& progress,
+                          const PDFOperationControl* operationControl);
+
+    /// Processes the file, the stage is updated by the steps (it is the stage
+    /// of the failure, when an unexpected exception is thrown)
+    static FileResult processFileImpl(const FileTask& task,
+                                      const Settings& settings,
+                                      const ProgressCallback& progress,
+                                      const PDFOperationControl* operationControl,
+                                      FileResult::Stage* stage);
 };
 
 }   // namespace pdf

@@ -102,12 +102,12 @@ public:
     /// \return Collected statistics for every unique image reference
     ImageStatisticsList collectImages(const PDFDocument* document) const;
 
-private:
-    class ImageCollectorProcessor;
-
     /// Returns the smaller of the resolutions of an axis; values, which are not
     /// positive or finite, are ignored
     static double updateAxisDpi(double currentValue, double candidate);
+
+private:
+    class ImageCollectorProcessor;
 };
 
 }   // namespace pdf
