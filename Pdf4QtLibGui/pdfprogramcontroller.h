@@ -457,6 +457,7 @@ private:
     void readSettings(Settings settings);
 
     void saveDocument(const QString& fileName);
+    void prepareFormFieldAppearancesForSave();
     void savePageLayoutPerDocument();
 
     /// Asks the user, if the changes, which are held by the plugins and are not
