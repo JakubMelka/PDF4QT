@@ -220,7 +220,7 @@ bool PDFOCRTextLayerWriter::isExtremeScaling(double horizontalScaling)
     return horizontalScaling < 20.0 || horizontalScaling > 500.0;
 }
 
-PDFObjectReference PDFOCRTextLayerWriter::createStream(PDFDocumentBuilder* builder, PDFDictionary dictionary, const QByteArray& data, bool compress)
+PDFObjectReference PDFOCRTextLayerWriter::createStream(PDFDocumentBuilder* builder, PDFDictionaryBuilder dictionary, const QByteArray& data, bool compress)
 {
     QByteArray content = data;
     if (compress)
@@ -229,14 +229,14 @@ PDFObjectReference PDFOCRTextLayerWriter::createStream(PDFDocumentBuilder* build
         dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("FlateDecode"));
     }
     dictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(content.size()));
-    return builder->addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(content))));
+    return builder->addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
 }
 
 PDFObjectReference PDFOCRTextLayerWriter::createGlyphlessFont(PDFDocumentBuilder* builder, bool compress)
 {
     // Font program
     const QByteArray fontProgram = getGlyphlessFontProgram();
-    PDFDictionary fontFileDictionary;
+    PDFDictionaryBuilder fontFileDictionary;
     fontFileDictionary.setEntry(PDFInplaceOrMemoryString("Length1"), PDFObject::createInteger(fontProgram.size()));
     const PDFObjectReference fontFileReference = createStream(builder, std::move(fontFileDictionary), fontProgram, compress);
 
@@ -284,10 +284,10 @@ PDFObjectReference PDFOCRTextLayerWriter::createGlyphlessFont(PDFDocumentBuilder
         cidToGidMap[2 * i] = 0;
         cidToGidMap[2 * i + 1] = 1;
     }
-    const PDFObjectReference cidToGidMapReference = createStream(builder, PDFDictionary(), cidToGidMap, compress);
+    const PDFObjectReference cidToGidMapReference = createStream(builder, PDFDictionaryBuilder(), cidToGidMap, compress);
 
     // ToUnicode
-    const PDFObjectReference toUnicodeReference = createStream(builder, PDFDictionary(), getToUnicodeCMap(), compress);
+    const PDFObjectReference toUnicodeReference = createStream(builder, PDFDictionaryBuilder(), getToUnicodeCMap(), compress);
 
     // CIDFontType2
     PDFObjectFactory cidFontFactory;
@@ -703,14 +703,14 @@ public:
                                     PDFInteger pageIndex,
                                     const PDFOCRTextLayerWriter::LayerInfo& info,
                                     std::vector<PDFObjectReference>& contentReferences,
-                                    PDFDictionary& resources,
-                                    PDFDictionary& pieceInfo);
+                                    PDFDictionaryBuilder& resources,
+                                    PDFDictionaryBuilder& pieceInfo);
 
     static void writePageUpdate(PDFDocumentBuilder* builder,
                                 PDFObjectReference pageReference,
                                 const std::vector<PDFObjectReference>& contentReferences,
-                                PDFDictionary resources,
-                                PDFDictionary pieceInfo);
+                                PDFDictionaryBuilder resources,
+                                PDFDictionaryBuilder pieceInfo);
 
     /// Finds the shared objects of the existing own layers, so the repeated writing
     /// does not create new fonts again and again.
@@ -1325,8 +1325,8 @@ bool PDFOCRTextLayerWriterHelper::removeLayerFromPage(PDFDocumentBuilder* builde
                                                       PDFInteger pageIndex,
                                                       const PDFOCRTextLayerWriter::LayerInfo& info,
                                                       std::vector<PDFObjectReference>& contentReferences,
-                                                      PDFDictionary& resources,
-                                                      PDFDictionary& pieceInfo)
+                                                      PDFDictionaryBuilder& resources,
+                                                      PDFDictionaryBuilder& pieceInfo)
 {
     if (!info.isPresent)
     {
@@ -1350,7 +1350,7 @@ bool PDFOCRTextLayerWriterHelper::removeLayerFromPage(PDFDocumentBuilder* builde
 
     // Font. The font resource is removed only together with the own content stream:
     // a stream changed by another tool is a foreign content, which still uses the font.
-    PDFDictionary fonts = PDFObjectUtils::copyDictionary(builder->getStorage(), resources.get("Font"));
+    PDFDictionaryBuilder fonts = PDFObjectUtils::copyDictionary(builder->getStorage(), resources.get("Font"));
     std::vector<QByteArray> keysToRemove;
     for (size_t i = 0; i < fonts.getCount(); ++i)
     {
@@ -1368,7 +1368,7 @@ bool PDFOCRTextLayerWriterHelper::removeLayerFromPage(PDFDocumentBuilder* builde
     }
     if (!keysToRemove.empty())
     {
-        resources.setEntry(PDFInplaceOrMemoryString("Font"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(fonts))));
+        resources.setEntry(PDFInplaceOrMemoryString("Font"), PDFObject::createDictionary(std::move(fonts)));
     }
 
     // Piece info
@@ -1408,13 +1408,13 @@ bool PDFOCRTextLayerWriterHelper::removeLayerFromPage(PDFDocumentBuilder* builde
 void PDFOCRTextLayerWriterHelper::writePageUpdate(PDFDocumentBuilder* builder,
                                                   PDFObjectReference pageReference,
                                                   const std::vector<PDFObjectReference>& contentReferences,
-                                                  PDFDictionary resources,
-                                                  PDFDictionary pieceInfo)
+                                                  PDFDictionaryBuilder resources,
+                                                  PDFDictionaryBuilder pieceInfo)
 {
     // Entries of the page dictionary are replaced, not merged: a recursive merge of
     // the dictionaries would keep the removed keys (font of the removed layer,
     // private data next to the data of another application).
-    PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
+    PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
 
     PDFObjectFactory contentsFactory;
     if (contentReferences.size() == 1)
@@ -1435,7 +1435,7 @@ void PDFOCRTextLayerWriterHelper::writePageUpdate(PDFDocumentBuilder* builder,
             resources.removeEntry("Font");
         }
     }
-    pageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resources))));
+    pageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::move(resources)));
 
     if (pieceInfo.isEmpty())
     {
@@ -1443,10 +1443,10 @@ void PDFOCRTextLayerWriterHelper::writePageUpdate(PDFDocumentBuilder* builder,
     }
     else
     {
-        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pieceInfo))));
+        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::move(pieceInfo)));
     }
 
-    builder->setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+    builder->setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
 }
 
 /// Objects of the own layers, which are shared by the pages of the document
@@ -1595,8 +1595,8 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         const LayerInfo existingLayer = readLayerInfo(originalDocument, pageIndex);
 
         // Font key
-        PDFDictionary resources = PDFObjectUtils::copyDictionary(builder->getStorage(), page->getResources());
-        PDFDictionary fonts = PDFObjectUtils::copyDictionary(builder->getStorage(), resources.get("Font"));
+        PDFDictionaryBuilder resources = PDFObjectUtils::copyDictionary(builder->getStorage(), page->getResources());
+        PDFDictionaryBuilder fonts = PDFObjectUtils::copyDictionary(builder->getStorage(), resources.get("Font"));
         QByteArray fontKey = FONT_RESOURCE_PREFIX;
         int suffix = 1;
         while (fonts.hasKey(fontKey) && fontKey != existingLayer.fontKey)
@@ -1617,7 +1617,7 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
                 // No text is left on the page (all words were discarded): the obsolete
                 // layer must not stay searchable in the document (AT-18)
                 std::vector<PDFObjectReference> contentReferences = PDFOCRTextLayerWriterHelper::getContentReferences(builder, pageDictionary);
-                PDFDictionary pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
+                PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
                 if (PDFOCRTextLayerWriterHelper::removeLayerFromPage(builder, originalDocument, pageIndex, existingLayer, contentReferences, resources, pieceInfo))
                 {
                     PDFOCRTextLayerWriterHelper::writePageUpdate(builder, pageReference, contentReferences, std::move(resources), std::move(pieceInfo));
@@ -1654,7 +1654,7 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
 
         // Remove the existing layer
         std::vector<PDFObjectReference> contentReferences = PDFOCRTextLayerWriterHelper::getContentReferences(builder, pageDictionary);
-        PDFDictionary pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
+        PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
         PDFOCRTextLayerWriterHelper::removeLayerFromPage(builder, originalDocument, pageIndex, existingLayer, contentReferences, resources, pieceInfo);
         fonts = PDFObjectUtils::copyDictionary(builder->getStorage(), resources.get("Font"));
 
@@ -1671,7 +1671,7 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         }
         const PDFObjectReference fontReference = sharedObjects.fontReference;
         fonts.setEntry(PDFInplaceOrMemoryString(fontKey), PDFObject::createReference(fontReference));
-        resources.setEntry(PDFInplaceOrMemoryString("Font"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(fonts))));
+        resources.setEntry(PDFInplaceOrMemoryString("Font"), PDFObject::createDictionary(std::move(fonts)));
 
         // Isolation of the graphic state (PDF-05): foreign content can leave a changed
         // transformation matrix, clipping path or text state behind (scanners often
@@ -1702,16 +1702,16 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
             {
                 if (!sharedObjects.isolationBeginReference.isValid())
                 {
-                    sharedObjects.isolationBeginReference = createStream(builder, PDFDictionary(), beginContent, false);
-                    sharedObjects.isolationEndReference = createStream(builder, PDFDictionary(), endContent, false);
+                    sharedObjects.isolationBeginReference = createStream(builder, PDFDictionaryBuilder(), beginContent, false);
+                    sharedObjects.isolationEndReference = createStream(builder, PDFDictionaryBuilder(), endContent, false);
                 }
                 isolationBeginReference = sharedObjects.isolationBeginReference;
                 isolationEndReference = sharedObjects.isolationEndReference;
             }
             else
             {
-                isolationBeginReference = createStream(builder, PDFDictionary(), beginContent, false);
-                isolationEndReference = createStream(builder, PDFDictionary(), endContent, false);
+                isolationBeginReference = createStream(builder, PDFDictionaryBuilder(), beginContent, false);
+                isolationEndReference = createStream(builder, PDFDictionaryBuilder(), endContent, false);
                 report.messages << PDFTranslationContext::tr("Page %1: the original content is not balanced (graphic state %2, text objects %3, marked content %4), it was enclosed into a balanced isolation.")
                                        .arg(pageIndex + 1).arg(balance.graphicStateDepth).arg(balance.textObjectDepth).arg(balance.markedContentDepth);
             }
@@ -1721,10 +1721,10 @@ PDFOCRTextLayerWriter::Report PDFOCRTextLayerWriter::apply(PDFDocumentBuilder* b
         }
 
         // Content stream object
-        const PDFObjectReference contentReference = createStream(builder, PDFDictionary(), content, options.compress);
+        const PDFObjectReference contentReference = createStream(builder, PDFDictionaryBuilder(), content, options.compress);
         contentReferences.push_back(contentReference);
 
-        const PDFObjectReference dataReference = createStream(builder, PDFDictionary(), layerData, options.compress);
+        const PDFObjectReference dataReference = createStream(builder, PDFDictionaryBuilder(), layerData, options.compress);
         const QByteArray pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(originalDocument, pageIndex);
 
         PDFObjectFactory privateFactory;
@@ -1859,10 +1859,10 @@ std::vector<PDFInteger> PDFOCRTextLayerWriter::rebindFingerprints(PDFDocumentBui
 
         // The private data of the layer are updated (/PieceInfo /PDF4QT_OCR /Private /PageFingerprint)
         const PDFObjectReference pageReference = modifiedCatalog->getPage(i)->getPageReference();
-        PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
-        PDFDictionary pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary.get("PieceInfo"));
-        PDFDictionary entry = PDFObjectUtils::copyDictionary(builder->getStorage(), pieceInfo.get(PIECE_INFO_KEY));
-        PDFDictionary privateData = PDFObjectUtils::copyDictionary(builder->getStorage(), entry.get("Private"));
+        PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
+        PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary.get("PieceInfo"));
+        PDFDictionaryBuilder entry = PDFObjectUtils::copyDictionary(builder->getStorage(), pieceInfo.get(PIECE_INFO_KEY));
+        PDFDictionaryBuilder privateData = PDFObjectUtils::copyDictionary(builder->getStorage(), entry.get("Private"));
         if (!privateData.hasKey("PageFingerprint"))
         {
             continue;
@@ -1871,10 +1871,10 @@ std::vector<PDFInteger> PDFOCRTextLayerWriter::rebindFingerprints(PDFDocumentBui
         PDFObjectFactory fingerprintFactory;
         fingerprintFactory << QString::fromLatin1(newFingerprint.toHex());
         privateData.setEntry(PDFInplaceOrMemoryString("PageFingerprint"), fingerprintFactory.takeObject());
-        entry.setEntry(PDFInplaceOrMemoryString("Private"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(privateData))));
-        pieceInfo.setEntry(PDFInplaceOrMemoryString(PIECE_INFO_KEY), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(entry))));
-        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pieceInfo))));
-        builder->setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+        entry.setEntry(PDFInplaceOrMemoryString("Private"), PDFObject::createDictionary(std::move(privateData)));
+        pieceInfo.setEntry(PDFInplaceOrMemoryString(PIECE_INFO_KEY), PDFObject::createDictionary(std::move(entry)));
+        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::move(pieceInfo)));
+        builder->setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
         reboundPages.push_back(pageIndex);
     }
 
@@ -2069,8 +2069,8 @@ bool PDFOCRTextLayerWriter::removeLayer(PDFDocumentBuilder* builder, const PDFDo
     }
 
     std::vector<PDFObjectReference> contentReferences = PDFOCRTextLayerWriterHelper::getContentReferences(builder, pageDictionary);
-    PDFDictionary resources = PDFObjectUtils::copyDictionary(builder->getStorage(), page->getResources());
-    PDFDictionary pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
+    PDFDictionaryBuilder resources = PDFObjectUtils::copyDictionary(builder->getStorage(), page->getResources());
+    PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary->get("PieceInfo"));
 
     if (!PDFOCRTextLayerWriterHelper::removeLayerFromPage(builder, originalDocument, pageIndex, info, contentReferences, resources, pieceInfo))
     {

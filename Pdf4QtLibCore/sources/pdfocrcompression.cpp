@@ -599,7 +599,7 @@ void PDFOCRImageCompressor::ImageCompressionJob::encodeDecodedImage(const QImage
             {
                 encoded.result.action = ImageResult::Action::Compressed;
 
-                PDFDictionary merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *dictionary);
+                PDFDictionaryBuilder merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *dictionary);
                 const QByteArray* content = encoded.stream.getContent();
                 encoded.stream = PDFStream(std::move(merged), content ? QByteArray(*content) : QByteArray());
             }
@@ -1025,7 +1025,7 @@ PDFDocument PDFOCRImageCompressor::compress(const PDFDocument* document,
         {
             if (encoded.result.action == PDFOCRCompressionImageResult::Action::Compressed)
             {
-                storage.setObject(reference, PDFObject::createStream(std::make_shared<PDFStream>(std::move(encoded.stream))));
+                storage.setObject(reference, PDFObject::createStream(PDFStream(std::move(encoded.stream))));
                 usesJbig2 = usesJbig2 || encoded.usesJbig2;
             }
 

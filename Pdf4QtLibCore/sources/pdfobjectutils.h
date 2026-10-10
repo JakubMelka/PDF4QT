@@ -54,11 +54,11 @@ public:
     /// \param type Type
     static QString getObjectTypeName(PDFObject::Type type);
 
-    /// Returns a copy of the dictionary of the object (a reference is dereferenced),
-    /// or an empty dictionary, if the object is not a dictionary.
+    /// Returns a builder with a copy of the dictionary of the object (a reference is
+    /// dereferenced), or an empty builder, if the object is not a dictionary.
     /// \param storage Storage
     /// \param object Object
-    static PDFDictionary copyDictionary(const PDFObjectStorage* storage, const PDFObject& object);
+    static PDFDictionaryBuilder copyDictionary(const PDFObjectStorage* storage, const PDFObject& object);
 
     /// Reads the entries of a number tree in the order of the tree. The values of the
     /// entries are not dereferenced. Kids are followed up to the maximal depth, which

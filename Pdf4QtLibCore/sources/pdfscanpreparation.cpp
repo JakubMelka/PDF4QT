@@ -687,7 +687,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
             firstOutputIndex[source] = PDFInteger(newPages.size());
 
             // Source page dictionary (after a possible removal of the OCR layer)
-            const PDFDictionary sourceDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(sourceReference));
+            const PDFDictionaryBuilder sourceDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(sourceReference));
             const std::vector<PDFObjectReference> annotations = sourcePage->getAnnotations();
 
             std::vector<PDFObjectReference> outputReferences;
@@ -697,7 +697,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                 const OutputPage& output = pages[i];
 
                 PDFObjectReference reference = sourceReference;
-                PDFDictionary dictionary = sourceDictionary;
+                PDFDictionaryBuilder dictionary = sourceDictionary;
                 if (i > 0)
                 {
                     // Clone sharing the content and the resources; the annotations are
@@ -706,7 +706,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                     dictionary.removeEntry("Thumb");
                     dictionary.removeEntry("B");
                     dictionary.removeEntry("StructParents");
-                    reference = builder.addObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(dictionary)));
+                    reference = builder.addObject(PDFObject::createDictionary(dictionary));
                 }
 
                 // Crop box
@@ -723,7 +723,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                 }
                 const bool isCropped = cropBox != currentCropBox;
 
-                PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(reference));
+                PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(reference));
                 if (isCropped)
                 {
                     PDFObjectFactory boxFactory;
@@ -798,9 +798,9 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
 
                     auto createStream = [&builder](const QByteArray& data)
                     {
-                        PDFDictionary streamDictionary;
+                        PDFDictionaryBuilder streamDictionary;
                         streamDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(data.size()));
-                        return builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(streamDictionary), QByteArray(data))));
+                        return builder.addObject(PDFObject::createStream(PDFStream(std::move(streamDictionary), QByteArray(data))));
                     };
 
                     PDFObjectFactory contentsFactory;
@@ -819,7 +819,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                 if (isCropped || !qFuzzyIsNull(output.deskewAngle) || i > 0)
                 {
                     pageDictionary.removeEntry("Thumb");
-                    builder.setObject(reference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+                    builder.setObject(reference, PDFObject::createDictionary(std::move(pageDictionary)));
                     isChanged = true;
                 }
 
@@ -862,7 +862,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
 
                 for (size_t k = 0; k < outputReferences.size(); ++k)
                 {
-                    PDFDictionary pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(outputReferences[k]));
+                    PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder.getStorage(), builder.getObjectByReference(outputReferences[k]));
                     pageDictionary.removeEntry("Annots");
                     if (!distributed[k].empty())
                     {
@@ -870,7 +870,7 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                         annotationsFactory << distributed[k];
                         pageDictionary.setEntry(PDFInplaceOrMemoryString("Annots"), annotationsFactory.takeObject());
                     }
-                    builder.setObject(outputReferences[k], PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
+                    builder.setObject(outputReferences[k], PDFObject::createDictionary(std::move(pageDictionary)));
                 }
             }
         }
@@ -913,9 +913,9 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
                     labelsFactory.endDictionaryItem();
                     labelsFactory.endDictionary();
 
-                    PDFDictionary newCatalog = *catalogDictionary;
+                    PDFDictionaryBuilder newCatalog(*catalogDictionary);
                     newCatalog.setEntry(PDFInplaceOrMemoryString("PageLabels"), labelsFactory.takeObject());
-                    builder.setObject(builder.getCatalogReference(), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(newCatalog))));
+                    builder.setObject(builder.getCatalogReference(), PDFObject::createDictionary(std::move(newCatalog)));
                 }
             }
         }

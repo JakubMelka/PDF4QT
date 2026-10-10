@@ -337,9 +337,9 @@ QImage OCRDialogTest::renderTextImage(const QString& text, QSizeF pageSize)
     const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
 
     QByteArray content = QStringLiteral("BT /F1 28 Tf 30 50 Td (%1) Tj ET").arg(text).toLatin1();
-    PDFDictionary contentDictionary;
+    PDFDictionaryBuilder contentDictionary;
     contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
-    const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(contentDictionary), std::move(content))));
+    const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
 
     PDFObjectFactory fontFactory;
     fontFactory.beginDictionary();
@@ -431,7 +431,7 @@ PDFDocument OCRDialogTest::createScanDocument(const QStringList& pageTexts, cons
         }
         QByteArray compressed = PDFFlateDecodeFilter::compress(imageData);
 
-        PDFDictionary imageDictionary;
+        PDFDictionaryBuilder imageDictionary;
         imageDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
         imageDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
         imageDictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(image.width()));
@@ -440,7 +440,7 @@ PDFDocument OCRDialogTest::createScanDocument(const QStringList& pageTexts, cons
         imageDictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
         imageDictionary.addEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("FlateDecode"));
         imageDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(compressed.size()));
-        const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(imageDictionary), std::move(compressed))));
+        const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(imageDictionary), std::move(compressed))));
 
         const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
         QByteArray content = QStringLiteral("q %1 0 0 %2 0 0 cm /Im1 Do Q").arg(pageSize.width()).arg(pageSize.height()).toLatin1();
@@ -448,9 +448,9 @@ PDFDocument OCRDialogTest::createScanDocument(const QStringList& pageTexts, cons
         {
             content += " BT /F1 10 Tf 280 10 Td (" + digitalText + ") Tj ET";
         }
-        PDFDictionary contentDictionary;
+        PDFDictionaryBuilder contentDictionary;
         contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
-        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(contentDictionary), std::move(content))));
+        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
 
         PDFObjectFactory factory;
         factory.beginDictionary();
@@ -1636,7 +1636,7 @@ PDFDocument OCRDialogTestHelper::createPreparationDocument()
     PDFDocumentBuilder builder;
 
     QByteArray imageData(32 * 32, '\xE0');
-    PDFDictionary imageDictionary;
+    PDFDictionaryBuilder imageDictionary;
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(32));
@@ -1644,14 +1644,14 @@ PDFDocument OCRDialogTestHelper::createPreparationDocument()
     imageDictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceGray"));
     imageDictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
     imageDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(imageData.size()));
-    const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(imageDictionary), std::move(imageData))));
+    const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(imageDictionary), std::move(imageData))));
 
     auto addPage = [&](QSizeF size, QByteArray content, bool withImage)
     {
         const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), size));
-        PDFDictionary contentDictionary;
+        PDFDictionaryBuilder contentDictionary;
         contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
-        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(contentDictionary), std::move(content))));
+        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
 
         PDFObjectFactory factory;
         factory.beginDictionary();

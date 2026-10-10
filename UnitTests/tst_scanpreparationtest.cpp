@@ -92,7 +92,7 @@ class ScanPreparationTestHelper
 public:
     ScanPreparationTestHelper() = delete;
 
-    static PDFObjectReference addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionary dictionary = PDFDictionary());
+    static PDFObjectReference addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionaryBuilder dictionary = PDFDictionaryBuilder());
 
     static PDFDocument createDocument(const std::vector<TestPage>& pages, const QByteArray& pageLabels = QByteArray());
 
@@ -115,10 +115,10 @@ public:
     static QRectF getCropBox(const PDFDocument& document, PDFInteger pageIndex);
 };
 
-PDFObjectReference ScanPreparationTestHelper::addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionary dictionary)
+PDFObjectReference ScanPreparationTestHelper::addStream(PDFDocumentBuilder& builder, QByteArray data, PDFDictionaryBuilder dictionary)
 {
     dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(data.size()));
-    return builder.addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(data))));
+    return builder.addObject(PDFObject::createStream(PDFStream(std::move(dictionary), std::move(data))));
 }
 
 PDFDocument ScanPreparationTestHelper::createDocument(const std::vector<TestPage>& pages, const QByteArray& pageLabels)
@@ -127,7 +127,7 @@ PDFDocument ScanPreparationTestHelper::createDocument(const std::vector<TestPage
 
     // Gray image shared by the pages, which draw it
     QByteArray imageData(64 * 64, '\x80');
-    PDFDictionary imageDictionary;
+    PDFDictionaryBuilder imageDictionary;
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
     imageDictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(64));
@@ -218,7 +218,7 @@ PDFDocument ScanPreparationTestHelper::createDocument(const std::vector<TestPage
     if (!pageLabels.isEmpty())
     {
         // Page labels are given as "index style; index style", for example "0 D; 2 r"
-        PDFDictionary catalog = *builder.getDictionaryFromObject(builder.getObjectByReference(builder.getCatalogReference()));
+        PDFDictionaryBuilder catalog(*builder.getDictionaryFromObject(builder.getObjectByReference(builder.getCatalogReference())));
         PDFObjectFactory labelsFactory;
         labelsFactory.beginDictionary();
         labelsFactory.beginDictionaryItem("Nums");
@@ -237,7 +237,7 @@ PDFDocument ScanPreparationTestHelper::createDocument(const std::vector<TestPage
         labelsFactory.endDictionaryItem();
         labelsFactory.endDictionary();
         catalog.setEntry(PDFInplaceOrMemoryString("PageLabels"), labelsFactory.takeObject());
-        builder.setObject(builder.getCatalogReference(), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(catalog))));
+        builder.setObject(builder.getCatalogReference(), PDFObject::createDictionary(std::move(catalog)));
     }
 
     return builder.build();

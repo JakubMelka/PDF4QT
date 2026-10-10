@@ -258,7 +258,7 @@ public:
     static QByteArray formatNumber(double value);
 
 private:
-    static PDFObjectReference createStream(PDFDocumentBuilder* builder, PDFDictionary dictionary, const QByteArray& data, bool compress);
+    static PDFObjectReference createStream(PDFDocumentBuilder* builder, PDFDictionaryBuilder dictionary, const QByteArray& data, bool compress);
     static QByteArray serializeLayerData(const PDFOCRPageResult& result, const QString& layerId, bool keepReviewData);
     static bool deserializeLayerData(const QByteArray& data, PDFOCRPageResult& result, bool* hasReviewData);
 };

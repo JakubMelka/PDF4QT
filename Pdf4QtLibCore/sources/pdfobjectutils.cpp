@@ -488,14 +488,14 @@ void PDFObjectClassifier::markDictionary(const PDFDocument* document, PDFObject 
     }
 }
 
-PDFDictionary PDFObjectUtils::copyDictionary(const PDFObjectStorage* storage, const PDFObject& object)
+PDFDictionaryBuilder PDFObjectUtils::copyDictionary(const PDFObjectStorage* storage, const PDFObject& object)
 {
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
-        return *dictionary;
+        return PDFDictionaryBuilder(*dictionary);
     }
 
-    return PDFDictionary();
+    return PDFDictionaryBuilder();
 }
 
 std::vector<std::pair<PDFInteger, PDFObject>> PDFObjectUtils::readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth)

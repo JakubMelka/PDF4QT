@@ -739,7 +739,7 @@ QByteArray PDFOCRPagePreparerHelper::digestObject(const PDFObject& object,
         // limit have different digests (no common constant).
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(QByteArrayLiteral("X"));
-        hash.addData(PDFDocumentWriter::getSerializedObject(object.isStream() ? PDFObject::createDictionary(std::make_shared<PDFDictionary>(*object.getStream()->getDictionary())) : object));
+        hash.addData(PDFDocumentWriter::getSerializedObject(object.isStream() ? PDFObject::createDictionary(PDFDictionaryBuilder(*object.getStream()->getDictionary())) : object));
         if (object.isStream())
         {
             hash.addData(*object.getStream()->getContent());
@@ -754,7 +754,7 @@ QByteArray PDFOCRPagePreparerHelper::digestObject(const PDFObject& object,
         const PDFStream* stream = object.getStream();
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(QByteArrayLiteral("S"));
-        hash.addData(digestObject(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())), storage, depth, visited, skipKey, neutralObjects));
+        hash.addData(digestObject(PDFObject::createDictionary(PDFDictionaryBuilder(*stream->getDictionary())), storage, depth, visited, skipKey, neutralObjects));
         const QByteArray* content = stream->getContent();
         hash.addData(QByteArray::number(content->size()));
         hash.addData(*content);
