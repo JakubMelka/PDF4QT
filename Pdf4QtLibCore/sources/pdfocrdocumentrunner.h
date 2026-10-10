@@ -185,7 +185,7 @@ public:
 
         PDFOCRTextLayerWriter::Options writerOptions;
         PDFOCRCompressionSettings compression;
-        qint64 memoryBudget = qint64(1) << 30;
+        qint64 memoryBudget = PDFOCRConfiguration::DefaultMemoryBudget;
     };
 
     /// Writes the results of the pages into a copy of the document by PDFOCRApplyProcessor

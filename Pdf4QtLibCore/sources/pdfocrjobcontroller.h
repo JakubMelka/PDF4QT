@@ -271,7 +271,7 @@ private:
     std::atomic<bool> m_running = { false };
     std::atomic<int> m_generation = { 0 };
     qint64 m_memoryUsed = 0;
-    qint64 m_memoryBudget = qint64(1) << 30;
+    qint64 m_memoryBudget = PDFOCRConfiguration::DefaultMemoryBudget;
 
     /// Memory reserved for the models of the workers (part of m_memoryUsed)
     qint64 m_memoryReserved = 0;

@@ -272,6 +272,19 @@ private:
     void onJobPageFinished(int generation, pdf::PDFOCRPageResult result);
     void onJobProgress(int generation, int finished, int total);
     void onJobFinished(int generation, pdf::PDFOCRJobSummary summary);
+
+    /// Updates the progress bar of the running job: the finished pages and the
+    /// recognized parts of the pages in progress
+    void updateJobProgressBar();
+
+    /// Updates the text of the progress of the running job. It is a summary of all
+    /// workers (pages finished, in progress, failed, times), refreshed by a timer:
+    /// the events of the single pages would replace each other too quickly to be read.
+    void updateJobProgressText();
+
+    /// Formats the duration as m:ss (h:mm:ss for an hour and more)
+    static QString formatDuration(qint64 milliseconds);
+
     void processCandidates();
     void onRerecognizeClicked();
 
@@ -412,6 +425,12 @@ private:
 
     /// Pages recognized with their existing text masked (scan with a page number, R04)
     std::set<pdf::PDFInteger> m_maskedTextPages;
+
+    /// Pages with the different settings switched on. An exception, which has all its
+    /// values set to the common settings, is not stored in the session, so the state
+    /// of the group box of such a page is remembered here.
+    std::set<pdf::PDFInteger> m_pageOverrideEnabledPages;
+
     std::map<pdf::PDFInteger, pdf::PDFOCRPageResult> m_candidates;
     std::set<pdf::PDFInteger> m_candidatePages;
 
@@ -448,6 +467,13 @@ private:
     QElapsedTimer m_jobTimer;
     int m_jobFinishedPages = 0;
     int m_jobTotalPages = 0;
+
+    /// Pages of the running job, which are being processed by the workers, with the
+    /// recognized part of the page in percent
+    std::map<pdf::PDFInteger, int> m_jobActivePages;
+    int m_jobErrorPages = 0;
+    int m_jobProgressValue = 0;
+    QTimer m_jobProgressTimer;
 
     bool m_applyInProgress = false;
     bool m_jobActive = false;

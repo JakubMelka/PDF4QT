@@ -25,6 +25,7 @@
 #include "pdfutils.h"
 #include "pdfjsonhelper.h"
 
+#include <QThread>
 #include <QJsonArray>
 #include <QRegularExpression>
 
@@ -141,7 +142,7 @@ QStringList PDFOCRConfiguration::validate() const
 
     errors << compression.validate();
 
-    if (workerCount < 1 || workerCount > 64)
+    if (workerCount < 1 || workerCount > MaximumWorkerCount)
     {
         errors << PDFTranslationContext::tr("Number of workers must be in range 1-64.");
     }
@@ -422,6 +423,11 @@ const std::vector<PDFOCRModelProfile>& PDFOCRConfiguration::getProfiles()
         PDFOCRModelProfile::Best
     };
     return profiles;
+}
+
+int PDFOCRConfiguration::getDefaultWorkerCount()
+{
+    return qBound(1, QThread::idealThreadCount() / 2, 16);
 }
 
 QString PDFOCRConfiguration::getProfileName(PDFOCRModelProfile profile)

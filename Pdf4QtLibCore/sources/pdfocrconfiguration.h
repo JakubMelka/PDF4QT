@@ -187,15 +187,26 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
     /// Compression of the scanned images of the pages, where the text layer is written
     PDFOCRCompressionSettings compression;
 
+    /// Maximal number of OCR workers
+    static constexpr int MaximumWorkerCount = 64;
+
+    /// Default memory budget (see memoryBudget)
+    static constexpr qint64 DefaultMemoryBudget = qint64(2) << 30;
+
+    /// Returns the default number of OCR workers. A worker recognizes one page by one
+    /// thread, so it is a half of the logical processors, at most 16 - the default
+    /// memory budget serves about that many pages A4 at 300 DPI at the same time.
+    static int getDefaultWorkerCount();
+
     /// Number of OCR workers (JOB-09)
-    int workerCount = 2;
+    int workerCount = getDefaultWorkerCount();
 
     /// Memory budget for rasters in bytes (JOB-10, QA-05). It is an estimate used for
     /// the admission of the pages of a job (the model files of the workers and three
     /// copies of the page raster), not a hard limit of the memory of the process: the
     /// internal data of the engine, the decoded images of the renderer and the previews
     /// of the dialogs are not accounted.
-    qint64 memoryBudget = qint64(1) << 30;
+    qint64 memoryBudget = DefaultMemoryBudget;
 
     /// Page timeout in seconds (0 = no timeout)
     int pageTimeoutSeconds = 0;

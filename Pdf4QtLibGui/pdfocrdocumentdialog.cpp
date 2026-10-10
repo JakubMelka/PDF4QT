@@ -72,6 +72,8 @@ static constexpr int ITEM_WORD = 2;
 
 static constexpr int TEMPORARY_REGION_ID = 1000000;
 static constexpr int PREVIEW_DELAY_MSECS = 150;
+static constexpr int JOB_PROGRESS_TEXT_INTERVAL_MSECS = 500;
+static constexpr int JOB_PROGRESS_PAGE_UNITS = 100;
 static constexpr double PREVIEW_DPI = 200.0;
 static constexpr qint64 PREVIEW_MAXIMUM_PIXELS = qint64(16) * 1000 * 1000;
 static constexpr pdf::PDFInteger MAXIMUM_DOCUMENT_FINGERPRINT_PAGES = 200;
@@ -471,6 +473,8 @@ void PDFOCRDocumentDialog::initializeUi()
     m_previewTimer.setSingleShot(true);
     m_previewTimer.setInterval(PREVIEW_DELAY_MSECS);
     connect(&m_previewTimer, &QTimer::timeout, this, &PDFOCRDocumentDialog::startPreviewTask);
+    m_jobProgressTimer.setInterval(JOB_PROGRESS_TEXT_INTERVAL_MSECS);
+    connect(&m_jobProgressTimer, &QTimer::timeout, this, &PDFOCRDocumentDialog::updateJobProgressText);
 
     // Worker signals
     connect(this, &PDFOCRDocumentDialog::pageDataReady, this, &PDFOCRDocumentDialog::onPageDataReady, Qt::QueuedConnection);
@@ -734,6 +738,7 @@ void PDFOCRDocumentDialog::initializeUi()
     });
     connect(ui->clearPageOverrideButton, &QPushButton::clicked, this, [this]()
     {
+        m_pageOverrideEnabledPages.erase(m_currentPage);
         m_session->clearPageOverride(m_currentPage);
         updatePageOverrideUi();
         schedulePreview();
@@ -1323,6 +1328,10 @@ void PDFOCRDocumentDialog::startPreviewTask()
                     pageToWorking = preprocessed.geometry.getPageToEngine();
                     working = pdf::PDFOCRPagePreparer::maskRegions(preprocessed.image, pageToWorking, regions);
                 }
+                else if (preprocessed.error.code != pdf::PDFOCRErrorCode::Cancelled)
+                {
+                    message = preprocessed.error.message;
+                }
             }
         }
 
@@ -1474,6 +1483,7 @@ void PDFOCRDocumentDialog::setConfigurationToUi(const pdf::PDFOCRConfiguration& 
     ui->downsampleDpiSpinBox->setValue(configuration.compression.downsampleDpi);
     ui->jpegQualitySpinBox->setValue(configuration.compression.jpegQuality);
     ui->compressSharedImagesCheckBox->setChecked(configuration.compression.compressSharedImages);
+    ui->workerCountSpinBox->setMaximum(pdf::PDFOCRConfiguration::MaximumWorkerCount);
     ui->workerCountSpinBox->setValue(configuration.workerCount);
     ui->memoryBudgetSpinBox->setValue(int(configuration.memoryBudget >> 20));
     ui->pageTimeoutSpinBox->setValue(configuration.pageTimeoutSeconds);
@@ -1894,12 +1904,16 @@ void PDFOCRDocumentDialog::onPageOverrideChanged()
 
     if (!ui->pageOverrideGroupBox->isChecked())
     {
+        m_pageOverrideEnabledPages.erase(m_currentPage);
+
         pdf::PDFOCRPageOverride pageOverride;
         pageOverride.perspective = perspective;
         m_session->setPageOverride(m_currentPage, pageOverride);
     }
     else
     {
+        m_pageOverrideEnabledPages.insert(m_currentPage);
+
         pdf::PDFOCRPageOverride pageOverride;
         pageOverride.perspective = perspective;
         const QStringList languages = ui->overrideLanguagesEdit->text().split(QChar('+'), Qt::SkipEmptyParts);
@@ -1981,7 +1995,8 @@ void PDFOCRDocumentDialog::updatePageOverrideUi()
     m_updatingUi = true;
 
     const std::optional<pdf::PDFOCRPageOverride> pageOverride = m_currentPage >= 0 ? m_session->getPageOverride(m_currentPage) : std::nullopt;
-    ui->pageOverrideGroupBox->setChecked(pageOverride.has_value() && (pageOverride->languages || pageOverride->layout || pageOverride->rotation || pageOverride->dpi || pageOverride->autoOrientation || pageOverride->deskew));
+    const bool hasDifferentSettings = pageOverride.has_value() && (pageOverride->languages || pageOverride->layout || pageOverride->rotation || pageOverride->dpi || pageOverride->autoOrientation || pageOverride->deskew);
+    ui->pageOverrideGroupBox->setChecked(hasDifferentSettings || m_pageOverrideEnabledPages.count(m_currentPage) > 0);
 
     // Perspective correction of the page
     const bool hasPerspective = pageOverride && pageOverride->perspective;
@@ -2432,8 +2447,8 @@ void PDFOCRDocumentDialog::onStopClicked()
     if (isJobActive())
     {
         // The state is displayed immediately, the workers finish cooperatively (JOB-06)
-        ui->progressLabel->setText(tr("Stopping..."));
         m_jobController->stop();
+        updateJobProgressText();
         updateUi();
     }
 }
@@ -3042,6 +3057,9 @@ void PDFOCRDocumentDialog::onRecognitionPrepared(int generation, PreparedRecogni
     m_candidates.clear();
     m_jobFinishedPages = 0;
     m_jobTotalPages = int(description.pages.size());
+    m_jobActivePages.clear();
+    m_jobErrorPages = 0;
+    m_jobProgressValue = 0;
     m_jobTimer.start();
 
     m_previousPageStates.clear();
@@ -3082,14 +3100,16 @@ void PDFOCRDocumentDialog::onRecognitionPrepared(int generation, PreparedRecogni
     }
 
     m_jobActive = true;
-    ui->progressBar->setRange(0, m_jobTotalPages);
-    ui->progressBar->setValue(0);
-    ui->progressLabel->setText(tr("Recognition started (%n page(s)).", nullptr, m_jobTotalPages));
+    updateJobProgressBar();
+    updateJobProgressText();
+    m_jobProgressTimer.start();
     updateUi();
 }
 
 void PDFOCRDocumentDialog::onJobPageStateChanged(int generation, qint64 pageIndex, int state, QString phase)
 {
+    Q_UNUSED(phase);
+
     if (generation != m_jobGeneration)
     {
         return;
@@ -3100,29 +3120,81 @@ void PDFOCRDocumentDialog::onJobPageStateChanged(int generation, qint64 pageInde
         m_session->setPageState(pageIndex, pdf::PDFOCRPageState(state));
     }
 
-    // Phases without a real percentage have an indeterminate progress (JOB-04)
-    ui->progressLabel->setText(tr("Page %1: %2 (%3 of %4 finished)").arg(pageIndex + 1).arg(phase).arg(m_jobFinishedPages).arg(m_jobTotalPages));
+    // The page is processed by a worker; its phase is shown by the list of the pages
+    m_jobActivePages.try_emplace(pageIndex, 0);
 }
 
 void PDFOCRDocumentDialog::onJobPageProgress(int generation, qint64 pageIndex, int percent)
 {
-    if (generation != m_jobGeneration || m_jobController->isStopping())
+    if (generation != m_jobGeneration)
     {
         return;
     }
 
-    QString text = percent >= 0 ? tr("Page %1: recognition %2 % (%3 of %4 finished)").arg(pageIndex + 1).arg(percent).arg(m_jobFinishedPages).arg(m_jobTotalPages)
-                                : tr("Page %1: recognition (%2 of %3 finished)").arg(pageIndex + 1).arg(m_jobFinishedPages).arg(m_jobTotalPages);
-
-    // The remaining time is estimated only after enough samples and is marked as an estimate (JOB-04)
-    if (m_jobFinishedPages >= 3 && m_jobTotalPages > m_jobFinishedPages)
+    // Phases without a real percentage do not move the progress bar (JOB-04)
+    auto it = m_jobActivePages.find(pageIndex);
+    if (it != m_jobActivePages.end() && percent > it->second)
     {
-        const double secondsPerPage = double(m_jobTimer.elapsed()) / 1000.0 / m_jobFinishedPages;
-        const int remaining = qRound(secondsPerPage * (m_jobTotalPages - m_jobFinishedPages));
-        text += tr(", estimated remaining time %1 s").arg(remaining);
+        it->second = qMin(percent, JOB_PROGRESS_PAGE_UNITS);
+        updateJobProgressBar();
+    }
+}
+
+void PDFOCRDocumentDialog::updateJobProgressBar()
+{
+    int value = m_jobFinishedPages * JOB_PROGRESS_PAGE_UNITS;
+    for (const auto& [pageIndex, percent] : m_jobActivePages)
+    {
+        value += percent;
     }
 
-    ui->progressLabel->setText(text);
+    // Progress of one generation never goes back
+    const int maximum = qMax(1, m_jobTotalPages) * JOB_PROGRESS_PAGE_UNITS;
+    m_jobProgressValue = qBound(m_jobProgressValue, value, maximum);
+    ui->progressBar->setRange(0, maximum);
+    ui->progressBar->setValue(m_jobProgressValue);
+}
+
+void PDFOCRDocumentDialog::updateJobProgressText()
+{
+    if (!isJobActive())
+    {
+        return;
+    }
+
+    const int activePages = int(m_jobActivePages.size());
+    if (m_jobController->isStopping())
+    {
+        // The workers finish cooperatively (JOB-06)
+        ui->progressLabel->setText(activePages > 0 ? tr("Stopping, %n page(s) are being finished...", nullptr, activePages) : tr("Stopping..."));
+        return;
+    }
+
+    QStringList parts;
+    parts << tr("%1 of %2 pages finished, %3 in progress.").arg(m_jobFinishedPages).arg(m_jobTotalPages).arg(activePages);
+    if (m_jobErrorPages > 0)
+    {
+        parts << tr("%n page(s) failed.", nullptr, m_jobErrorPages);
+    }
+
+    const qint64 elapsed = m_jobTimer.elapsed();
+    parts << tr("Elapsed time %1.").arg(formatDuration(elapsed));
+
+    // The remaining time is estimated only after enough samples and is marked as an estimate (JOB-04)
+    if (m_jobFinishedPages >= 3 && m_jobTotalPages > m_jobFinishedPages && m_jobProgressValue > 0)
+    {
+        const double remainingUnits = double(m_jobTotalPages) * JOB_PROGRESS_PAGE_UNITS - m_jobProgressValue;
+        parts << tr("Estimated remaining time %1.").arg(formatDuration(qint64(double(elapsed) * remainingUnits / m_jobProgressValue)));
+    }
+
+    ui->progressLabel->setText(parts.join(QChar(' ')));
+}
+
+QString PDFOCRDocumentDialog::formatDuration(qint64 milliseconds)
+{
+    const qint64 seconds = qMax<qint64>(0, (milliseconds + 500) / 1000);
+    const QString minutesAndSeconds = QStringLiteral("%1:%2").arg(seconds / 60 % 60, seconds >= 3600 ? 2 : 1, 10, QChar('0')).arg(seconds % 60, 2, 10, QChar('0'));
+    return seconds >= 3600 ? QStringLiteral("%1:%2").arg(seconds / 3600).arg(minutesAndSeconds) : minutesAndSeconds;
 }
 
 void PDFOCRDocumentDialog::onJobPageFinished(int generation, pdf::PDFOCRPageResult result)
@@ -3134,6 +3206,13 @@ void PDFOCRDocumentDialog::onJobPageFinished(int generation, pdf::PDFOCRPageResu
     }
 
     const pdf::PDFInteger pageIndex = result.pageIndex;
+
+    // The progress bar is updated by the progress of the job, which follows
+    m_jobActivePages.erase(pageIndex);
+    if (result.state == pdf::PDFOCRPageState::Error)
+    {
+        ++m_jobErrorPages;
+    }
 
     if (m_runMode == RunMode::Pages)
     {
@@ -3178,8 +3257,7 @@ void PDFOCRDocumentDialog::onJobProgress(int generation, int finished, int total
     // Progress of one generation never goes back
     m_jobFinishedPages = qMax(m_jobFinishedPages, finished);
     m_jobTotalPages = total;
-    ui->progressBar->setRange(0, total);
-    ui->progressBar->setValue(m_jobFinishedPages);
+    updateJobProgressBar();
 }
 
 void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary summary)
@@ -3190,6 +3268,8 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
     }
 
     m_jobActive = false;
+    m_jobProgressTimer.stop();
+    m_jobActivePages.clear();
 
     ui->progressBar->setRange(0, qMax(1, summary.totalPages));
     ui->progressBar->setValue(summary.totalPages);
@@ -3457,6 +3537,15 @@ void PDFOCRDocumentDialog::updateViews()
 
 void PDFOCRDocumentDialog::setViewMode(ViewMode mode)
 {
+    // The combo box is the state of the mode (the preview task reads it), so a mode
+    // set by the dialog itself goes through it: its signal calls this method again
+    const int index = ui->viewModeComboBox->findData(int(mode));
+    if (index >= 0 && index != ui->viewModeComboBox->currentIndex())
+    {
+        ui->viewModeComboBox->setCurrentIndex(index);
+        return;
+    }
+
     m_originalView->setVisible(mode != ViewMode::Working);
     m_workingView->setVisible(mode != ViewMode::Original);
     schedulePreview();
@@ -5589,6 +5678,7 @@ void PDFOCRDocumentDialog::onOpenProject()
     }
 
     m_session->loadProject(project, pagesToLoad);
+    m_pageOverrideEnabledPages.clear();
 
     // Results of the changed pages must never be written into this document; the flag of
     // the other pages is loaded from the project and is not recomputed (R03, EXPORT-04)

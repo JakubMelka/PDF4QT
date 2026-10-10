@@ -110,7 +110,7 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
 
     // Every worker owns an engine instance with loaded models (JOB-09), so no more
     // workers than pages are started.
-    const int requestedWorkerCount = qBound(1, qMin(job->description.configuration.workerCount, int(qMin<size_t>(job->description.pages.size(), 64))), 64);
+    const int requestedWorkerCount = qBound(1, qMin(job->description.configuration.workerCount, int(qMin<size_t>(job->description.pages.size(), PDFOCRConfiguration::MaximumWorkerCount))), PDFOCRConfiguration::MaximumWorkerCount);
     int workerCount = requestedWorkerCount;
 
     // Memory of the models (JOB-10, R13): every worker loads its own copy of the model

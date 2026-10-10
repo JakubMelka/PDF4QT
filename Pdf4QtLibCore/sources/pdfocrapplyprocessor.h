@@ -26,6 +26,7 @@
 #include "pdfocrmodel.h"
 #include "pdfocrtextlayerwriter.h"
 #include "pdfocrcompression.h"
+#include "pdfocrconfiguration.h"
 #include "pdfdocument.h"
 
 #include <map>
@@ -136,7 +137,7 @@ public:
         PDFOCRCompressionSettings compression;
 
         /// Budget of the decoded images of the compression in bytes
-        qint64 memoryBudget = qint64(1) << 30;
+        qint64 memoryBudget = PDFOCRConfiguration::DefaultMemoryBudget;
 
         /// The results are all results, because no selected page has a result (summary only)
         bool usedAllResults = false;
@@ -150,7 +151,7 @@ public:
         std::map<PDFInteger, QByteArray> knownFingerprints;
         PDFOCRTextLayerWriter::Options writerOptions;
         PDFOCRCompressionSettings compression;
-        qint64 memoryBudget = qint64(1) << 30;
+        qint64 memoryBudget = PDFOCRConfiguration::DefaultMemoryBudget;
         bool removeConformance = false;
         bool usedAllResults = false;
 

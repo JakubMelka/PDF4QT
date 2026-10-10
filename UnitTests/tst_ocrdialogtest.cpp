@@ -67,6 +67,7 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QCheckBox>
+#include <QGroupBox>
 #include <QStackedWidget>
 #include <QPlainTextEdit>
 #include <QTableWidget>
@@ -295,6 +296,7 @@ private slots:
     void compressionInDialog();
     void scanPreparationDialog();
     void perspectiveInDialog();
+    void pageOverrideInDialog();
     void batchDialog();
 
 private:
@@ -820,10 +822,18 @@ void OCRDialogTest::stoppedRerunKeepsResults()
     m_testEngine->setRecognitionDelay(3000);
     recognizeButton->click();
     QVERIFY2(stopButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))));
-    QTest::qWait(200);
+
+    // The progress is a summary of all the workers, not the events of the single pages
+    auto* progressLabel = dialog.findChild<QLabel*>(QStringLiteral("progressLabel"));
+    QVERIFY(progressLabel);
+    const QRegularExpression progressExpression(QStringLiteral("^0 of 3 pages finished, [1-3] in progress\\. Elapsed time \\d+:\\d\\d\\.$"));
+    QTRY_VERIFY2_WITH_TIMEOUT(progressExpression.match(progressLabel->text()).hasMatch(), qPrintable(progressLabel->text()), 10000);
+
     stopButton->click();
+    QVERIFY2(progressLabel->text().startsWith(QStringLiteral("Stopping")), qPrintable(progressLabel->text()));
     QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
     m_testEngine->setRecognitionDelay(0);
+    QVERIFY2(progressLabel->text().startsWith(QStringLiteral("Stopped. Finished in")), qPrintable(progressLabel->text()));
 
     QCOMPARE(countWords(), 3);
     QVERIFY(applyButton->isEnabled());
@@ -1818,17 +1828,26 @@ void OCRDialogTest::perspectiveInDialog()
     auto* perspectiveCopyButton = dialog.findChild<QPushButton*>(QStringLiteral("perspectiveCopyButton"));
     auto* perspectiveInfoLabel = dialog.findChild<QLabel*>(QStringLiteral("perspectiveInfoLabel"));
     auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* viewModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("viewModeComboBox"));
+    auto* perspectivePreviewCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("perspectivePreviewCheckBox"));
     QVERIFY(recognizeButton && stopButton && perspectiveCheckBox && perspectiveResetButton && perspectiveCopyButton && perspectiveInfoLabel && pagesListWidget);
+    QVERIFY(viewModeComboBox && perspectivePreviewCheckBox);
 
     PDFOCRPageView* originalView = nullptr;
+    PDFOCRPageView* workingView = nullptr;
     for (PDFOCRPageView* view : dialog.findChildren<PDFOCRPageView*>())
     {
         if (view->accessibleName() == QStringLiteral("Original page"))
         {
             originalView = view;
         }
+        else if (view->accessibleName() == QStringLiteral("Working image"))
+        {
+            workingView = view;
+        }
     }
-    QVERIFY(originalView);
+    QVERIFY(originalView && workingView);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Original page"));
     QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage(), 30000);
 
     selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
@@ -1838,6 +1857,18 @@ void OCRDialogTest::perspectiveInDialog()
     QVERIFY(!perspectiveResetButton->isEnabled());
     perspectiveCheckBox->setChecked(true);
     QVERIFY(originalView->getPerspective().has_value());
+
+    // Both images are shown for the editing, the working image is computed as well
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Side by side"));
+    QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage() && workingView->hasImage(), 30000);
+
+    // The preview of the correction shows the working image only
+    perspectivePreviewCheckBox->setChecked(true);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Working image"));
+    QTRY_VERIFY_WITH_TIMEOUT(workingView->hasImage(), 30000);
+    perspectivePreviewCheckBox->setChecked(false);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Side by side"));
+    QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage() && workingView->hasImage(), 30000);
 
     // A corner is dragged inwards and the corners are confirmed by Enter
     const std::optional<PDFOCRQuad> initial = originalView->getPerspective();
@@ -1867,6 +1898,65 @@ void OCRDialogTest::perspectiveInDialog()
     perspectiveCheckBox->setChecked(false);
     QVERIFY(!originalView->getPerspective().has_value());
     QVERIFY(!pagesListWidget->item(0)->text().contains(QStringLiteral("Perspective corrected")));
+
+    responder.setPreferredButtons({ QStringLiteral("Discard"), QStringLiteral("OK") });
+    dialog.reject();
+}
+
+void OCRDialogTest::pageOverrideInDialog()
+{
+    // The different settings of a page stay switched on, when another page is shown
+    // in between - also when all their values are still the common settings
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("First page"), QStringLiteral("Second page") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* pageOverrideGroupBox = dialog.findChild<QGroupBox*>(QStringLiteral("pageOverrideGroupBox"));
+    auto* overrideLayoutComboBox = dialog.findChild<QComboBox*>(QStringLiteral("overrideLayoutComboBox"));
+    auto* clearPageOverrideButton = dialog.findChild<QPushButton*>(QStringLiteral("clearPageOverrideButton"));
+    QVERIFY(pagesListWidget && pageOverrideGroupBox && overrideLayoutComboBox && clearPageOverrideButton);
+    QCOMPARE(pagesListWidget->count(), 2);
+
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pageOverrideGroupBox->setChecked(true);
+
+    pagesListWidget->setCurrentRow(1);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), -1);
+
+    // A value of the exception is kept as well
+    QVERIFY(overrideLayoutComboBox->count() > 1);
+    overrideLayoutComboBox->setCurrentIndex(1);
+    const int layout = overrideLayoutComboBox->currentData().toInt();
+    QVERIFY(layout >= 0);
+    pagesListWidget->setCurrentRow(1);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), -1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), layout);
+
+    // The common settings switch the exception off
+    clearPageOverrideButton->click();
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pagesListWidget->setCurrentRow(1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+
+    // And so does the group box itself
+    pageOverrideGroupBox->setChecked(true);
+    pageOverrideGroupBox->setChecked(false);
+    pagesListWidget->setCurrentRow(1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
 
     responder.setPreferredButtons({ QStringLiteral("Discard"), QStringLiteral("OK") });
     dialog.reject();
