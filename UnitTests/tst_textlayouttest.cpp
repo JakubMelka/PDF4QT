@@ -51,6 +51,7 @@
 #include <atomic>
 #include <numeric>
 #include <thread>
+#include <random>
 
 class TextLayoutTest : public QObject
 {
@@ -65,6 +66,7 @@ private slots:
     void selectionByRectangle();
     void storageRoundTrip();
     void storageIsFilledFromMultipleThreads();
+    void linesAreDetectedByNearestCharacters();
     void documentBenchmark();
 
 private:
@@ -102,6 +104,11 @@ private:
     /// Returns a sum of the geometry of the layout, which is used as a fingerprint,
     /// and optionally updates the statistics and the hash of the text.
     static double getGeometrySum(const pdf::PDFTextLayout& textLayout, TextLayoutStatistics* statistics, QCryptographicHash* textHash);
+
+    /// Returns a text description of the structure of the layout (blocks and lines in their
+    /// order, with their geometry and text). Descriptions of two versions of the layout
+    /// algorithm can be compared line by line.
+    static QByteArray getStructureDump(const pdf::PDFTextLayout& textLayout);
 };
 
 qint64 TextLayoutTest::getPrivateMemoryUsage()
@@ -278,6 +285,160 @@ void TextLayoutTest::compareLayouts(const pdf::PDFTextLayout& layout, const pdf:
                 QVERIFY(qAbs(character.fontSize - originalCharacter.fontSize) < TOLERANCE);
                 QVERIFY(qAbs(character.advance - originalCharacter.advance) < TOLERANCE);
             }
+        }
+    }
+}
+
+void TextLayoutTest::linesAreDetectedByNearestCharacters()
+{
+    // Lines are detected by the nearest characters of each character, which are found
+    // by a spatial index. Result is compared with a simple search of nearest characters
+    // among all characters of the page. Characters have random positions, advances and
+    // font sizes (so no two distances are the same), and they are added in random order.
+    // Small numbers of characters test the boundaries of the nodes of the index.
+    const pdf::PDFTextLayoutSettings settings;
+    std::mt19937 generator(20261010);
+
+    struct Character
+    {
+        QPointF position;
+        pdf::PDFReal advance = 0.0;
+        pdf::PDFReal fontSize = 0.0;
+    };
+
+    using Line = std::vector<std::pair<pdf::PDFReal, pdf::PDFReal>>;
+
+    std::vector<size_t> characterCounts = { 1, 2, 5, 6, 7, 15, 16, 17, 31, 32, 33, 100, 500, 3000 };
+    for (const size_t characterCount : characterCounts)
+    {
+        // Rows of characters with random gaps, rows are close to each other,
+        // so the nearest characters are often characters of other rows
+        std::vector<Character> characters;
+        std::uniform_real_distribution<pdf::PDFReal> advanceDistribution(2.0, 9.0);
+        std::uniform_real_distribution<pdf::PDFReal> gapDistribution(0.0, 1.0);
+        std::uniform_real_distribution<pdf::PDFReal> jitterDistribution(-1.5, 1.5);
+        std::uniform_int_distribution<int> fontSizeDistribution(0, 9);
+
+        const size_t rowLength = qMax<size_t>(size_t(std::sqrt(double(characterCount)) * 2.0), 1);
+        pdf::PDFReal x = 50.0;
+        for (size_t i = 0; i < characterCount; ++i)
+        {
+            if (i % rowLength == 0)
+            {
+                x = 50.0 + gapDistribution(generator) * 20.0;
+            }
+
+            Character character;
+            character.advance = advanceDistribution(generator);
+            character.fontSize = (fontSizeDistribution(generator) == 0) ? 24.0 : 9.0 + gapDistribution(generator) * 3.0;
+            character.position = QPointF(x, 700.0 - 7.0 * pdf::PDFReal(i / rowLength) + jitterDistribution(generator));
+            characters.push_back(character);
+
+            // Mostly a small gap, sometimes a gap of a word or of a column
+            const pdf::PDFReal gap = gapDistribution(generator);
+            x += character.advance + ((gap < 0.7) ? 0.0 : (gap < 0.9) ? gap * 8.0 : gap * 40.0);
+        }
+
+        std::shuffle(characters.begin(), characters.end(), generator);
+
+        pdf::PDFTextLayout layout;
+        for (const Character& character : characters)
+        {
+            pdf::PDFTextCharacterInfo info;
+            info.character = 'x';
+            info.advance = character.advance;
+            info.fontSize = character.fontSize;
+            info.outline.addRect(QRectF(0, 0, character.advance, character.fontSize));
+            info.matrix.translate(character.position.x(), character.position.y());
+            layout.addCharacter(info);
+        }
+        layout.perform();
+
+        std::vector<Line> lines;
+        for (const pdf::PDFTextBlock& block : layout.getTextBlocks())
+        {
+            for (const pdf::PDFTextLine& textLine : block.getLines())
+            {
+                Line line;
+                for (const pdf::TextCharacter& character : textLine.getCharacters())
+                {
+                    line.emplace_back(character.position.x(), character.position.y());
+                }
+                std::sort(line.begin(), line.end());
+                lines.push_back(std::move(line));
+            }
+        }
+        std::sort(lines.begin(), lines.end());
+
+        // Expected lines - components of the characters connected with some of their nearest characters
+        std::vector<size_t> components(characterCount);
+        std::iota(components.begin(), components.end(), size_t(0));
+        auto findComponent = [&components](size_t index)
+        {
+            while (components[index] != index)
+            {
+                index = components[index];
+            }
+            return index;
+        };
+
+        size_t connectionCount = 0;
+        for (size_t i = 0; i < characterCount; ++i)
+        {
+            std::vector<std::pair<pdf::PDFReal, size_t>> distances;
+            for (size_t j = 0; j < characterCount; ++j)
+            {
+                if (i != j)
+                {
+                    const pdf::PDFReal dx = characters[j].position.x() - characters[i].position.x();
+                    const pdf::PDFReal dy = characters[j].position.y() - characters[i].position.y();
+                    distances.emplace_back(dx * dx + dy * dy, j);
+                }
+            }
+            std::sort(distances.begin(), distances.end());
+            distances.resize(qMin(distances.size(), settings.samples));
+
+            for (const auto& [squaredDistance, j] : distances)
+            {
+                const pdf::PDFReal maximalDistance = settings.distanceSensitivity * characters[i].advance;
+                const pdf::PDFReal fontSizeMax = qMax(characters[i].fontSize, characters[j].fontSize);
+                const pdf::PDFReal fontSizeMin = qMin(characters[i].fontSize, characters[j].fontSize);
+
+                if (squaredDistance < maximalDistance * maximalDistance &&
+                    std::fabs(characters[i].position.y() - characters[j].position.y()) < fontSizeMin * settings.charactersOnLineSensitivity &&
+                    fontSizeMax / fontSizeMin < settings.fontSensitivity)
+                {
+                    components[findComponent(i)] = findComponent(j);
+                    ++connectionCount;
+                }
+            }
+        }
+
+        std::map<size_t, Line> expectedLineMap;
+        for (size_t i = 0; i < characterCount; ++i)
+        {
+            expectedLineMap[findComponent(i)].emplace_back(characters[i].position.x(), characters[i].position.y());
+        }
+
+        std::vector<Line> expectedLines;
+        for (auto& item : expectedLineMap)
+        {
+            std::sort(item.second.begin(), item.second.end());
+            expectedLines.push_back(std::move(item.second));
+        }
+        std::sort(expectedLines.begin(), expectedLines.end());
+
+        QCOMPARE(lines.size(), expectedLines.size());
+        QVERIFY2(lines == expectedLines, qPrintable(QString("Different lines for %1 characters.").arg(characterCount)));
+
+        if (characterCount >= 100)
+        {
+            // The test is not trivial - characters are connected to lines, but not to a single one,
+            // and a lot of the nearest characters do not belong to the line of the character
+            QVERIFY(lines.size() > characterCount / 20);
+            QVERIFY(lines.size() < characterCount / 2);
+            QVERIFY(connectionCount > characterCount);
+            QVERIFY(connectionCount < characterCount * settings.samples * 3 / 4);
         }
     }
 }
@@ -590,6 +751,39 @@ double TextLayoutTest::getGeometrySum(const pdf::PDFTextLayout& textLayout, Text
     return geometrySum;
 }
 
+QByteArray TextLayoutTest::getStructureDump(const pdf::PDFTextLayout& textLayout)
+{
+    QByteArray dump;
+
+    auto formatRect = [](const QRectF& rect)
+    {
+        return QByteArray::number(rect.x(), 'f', 4) + ' ' + QByteArray::number(rect.y(), 'f', 4) + ' ' +
+               QByteArray::number(rect.width(), 'f', 4) + ' ' + QByteArray::number(rect.height(), 'f', 4);
+    };
+
+    for (const pdf::PDFTextBlock& block : textLayout.getTextBlocks())
+    {
+        dump += "B " + formatRect(block.getBoundingBox().boundingRect()) + '\n';
+
+        for (const pdf::PDFTextLine& line : block.getLines())
+        {
+            // Sum of the positions detects a change of the characters of the line,
+            // even if the text and the bounding box of the line are the same
+            QString text;
+            double positionSum = 0.0;
+            for (const pdf::TextCharacter& character : line.getCharacters())
+            {
+                text += character.character;
+                positionSum += character.position.x() + character.position.y();
+            }
+
+            dump += "L " + formatRect(line.getBoundingBox().boundingRect()) + ' ' + QByteArray::number(positionSum, 'f', 4) + ' ' + text.toUtf8() + '\n';
+        }
+    }
+
+    return dump;
+}
+
 void TextLayoutTest::documentBenchmark()
 {
     // Measures creation of the text layout of a whole document, as it is done
@@ -629,6 +823,9 @@ void TextLayoutTest::documentBenchmark()
 
     pdf::PDFTextLayoutStorage storage(pageCount);
     std::vector<double> directGeometrySums(pageCount, 0.0);
+
+    const QString dumpFileName = qEnvironmentVariable("PDF4QT_TEXT_LAYOUT_BENCHMARK_DUMP");
+    std::vector<QByteArray> structureDumps(dumpFileName.isEmpty() ? 0 : pageCount);
     auto generateTextLayout = [&](pdf::PDFInteger pageIndex)
     {
         const pdf::PDFPage* page = catalog->getPage(pageIndex);
@@ -648,6 +845,11 @@ void TextLayoutTest::documentBenchmark()
         storeTime += timer.nsecsElapsed();
 
         directGeometrySums[pageIndex] = getGeometrySum(textLayout, nullptr, nullptr);
+
+        if (!structureDumps.empty())
+        {
+            structureDumps[pageIndex] = getStructureDump(textLayout);
+        }
     };
 
     auto pageRange = pdf::PDFIntegerRange<pdf::PDFInteger>(0, pageCount);
@@ -656,6 +858,17 @@ void TextLayoutTest::documentBenchmark()
     const qint64 totalTime = totalTimer.nsecsElapsed();
     const qint64 memoryAfter = getPrivateMemoryUsage();
     fontCache.setCacheShrinkEnabled(this, true);
+
+    if (!dumpFileName.isEmpty())
+    {
+        QFile dumpFile(dumpFileName);
+        QVERIFY(dumpFile.open(QFile::WriteOnly | QFile::Truncate));
+        for (pdf::PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+        {
+            dumpFile.write("P " + QByteArray::number(pageIndex) + '\n');
+            dumpFile.write(structureDumps[pageIndex]);
+        }
+    }
 
     // Read everything back - both to measure it, and to get a fingerprint
     // of the result, which can be compared between two implementations.

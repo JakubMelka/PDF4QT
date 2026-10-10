@@ -42,22 +42,43 @@
 namespace pdf
 {
 
+/// Nearest character found by the spatial index of text characters
+struct NearestCharacterInfo
+{
+    size_t index = std::numeric_limits<size_t>::max();
+    PDFReal squaredDistance = std::numeric_limits<PDFReal>::infinity();
+
+    /// Characters are ordered by the distance, characters with the same distance
+    /// by the index, so the result of a search does not depend on its course.
+    inline bool operator<(const NearestCharacterInfo& other) const
+    {
+        return squaredDistance < other.squaredDistance || (squaredDistance == other.squaredDistance && index < other.index);
+    }
+};
+
 /// Spatial 2D index for indexing of text characters. It is a R-tree like structure,
-/// build over an array of text characters. Array is modified (structure is build over
-/// array).
+/// build over positions of text characters. Index has its own order of characters
+/// (characters of a node of the tree are a continuous range of them), and all indices
+/// of characters used by the index are indices in this order.
 class PDFTextCharacterSpatialIndex
 {
 public:
-    explicit PDFTextCharacterSpatialIndex(TextCharacters* characters, size_t leafSize) :
-        m_characters(characters),
+    explicit PDFTextCharacterSpatialIndex(const TextCharacters& characters, size_t leafSize) :
         m_leafSize(leafSize),
         m_epsilon(0.0)
     {
-        m_nodes.reserve(2 * characters->size() / leafSize);
+        std::vector<Item> items;
+        items.reserve(characters.size());
+        for (size_t i = 0, count = characters.size(); i < count; ++i)
+        {
+            items.push_back(Item{ characters[i].position, i });
+        }
+
+        m_nodes.reserve(2 * items.size() / leafSize);
 
         // Calculate epsilon from the bounding box. We must use epsilon to avoid empty
         // rectangles, which can occur, if text is on a single line.
-        QRectF boundingBox = getBoundingBox(characters->begin(), characters->end());
+        QRectF boundingBox = getBoundingBox(items.begin(), items.end());
         if (boundingBox.isValid())
         {
             qreal edge = qMax(boundingBox.width(), boundingBox.height());
@@ -68,141 +89,78 @@ public:
             m_epsilon = 0.01;
         }
 
-        build(characters->begin(), characters->end());
+        build(items.begin(), items.begin(), items.end());
 
-        // Characters have their final order now. Queries test a lot of positions,
-        // so store them in an array, where they are close to each other in the memory.
-        m_positions.reserve(characters->size());
-        for (const TextCharacter& character : *characters)
+        // Items have their final order now. Search tests a lot of positions, so
+        // store them in an array, where they are close to each other in the memory.
+        m_positions.reserve(items.size());
+        m_order.reserve(items.size());
+        for (const Item& item : items)
         {
-            m_positions.push_back(character.position);
+            m_positions.push_back(item.position);
+            m_order.push_back(item.index);
         }
     }
 
-    using Iterator = TextCharacters::iterator;
+    /// Returns the order of characters in the index - for each index of
+    /// the character, an index to the array, from which the index was built.
+    const std::vector<size_t>& getOrder() const { return m_order; }
 
-    /// Builds structure over range of iterators. Array is build in O(n * log^2 (n)) time.
-    /// Index to internal nodes array is returned.
-    /// \param it1 Start iterator
-    /// \param it2 End iterator
-    size_t build(Iterator it1, Iterator it2);
-
-    /// Returns bounding box of character positions over given iterator range.
-    /// If iterator range is empty, then empty bounding box is returned.
-    /// \param it1 Start iterator
-    /// \param it2 End iterator
-    QRectF getBoundingBox(Iterator it1, Iterator it2) const;
-
-    /// Performs query on structure - finds all characters, which are in given
-    /// rectangle. Visitor is called with an index (to the array of characters)
-    /// and a position of each intersected character.
-    /// \param rect Query rectangle
-    /// \param visitor Visitor of intersected characters
-    template<typename Visitor>
-    void query(const QRectF& rect, Visitor&& visitor) const
+    /// Finds nearest characters of the character. Found characters are sorted
+    /// by the distance. If less than \p count characters are found, remaining
+    /// items of the result are not changed.
+    /// \param index Index of the character
+    /// \param count Number of nearest characters to be found
+    /// \param nearest Result, array of \p count default constructed items
+    void findNearest(size_t index, size_t count, NearestCharacterInfo* nearest) const
     {
-        if (!m_nodes.empty())
+        if (count == 0 || m_nodes.empty())
         {
-            queryImpl(0, Rect(rect), visitor);
+            return;
         }
-    }
 
-    /// Returns true, if at least \p minimalSize characters are in given rectangle
-    /// \param rect Query rectangle
-    /// \param minimalSize Minimal size
-    bool hasMinimalSize(const QRectF& rect, size_t minimalSize) const
-    {
-        return !m_nodes.empty() && countImpl(0, Rect(rect), minimalSize) >= minimalSize;
-    }
-
-    /// Finds characters, which contain at least \p minimalSize characters nearest
-    /// to the sample, with some extra characters, which must be filtered out.
-    /// Visitor is called with an index (to the array of characters) and a position
-    /// of each of them.
-    /// \param minimalSize Minimal size
-    /// \param sample Sample character
-    /// \param visitor Visitor of found characters
-    template<typename Visitor>
-    void queryNearestEstimate(size_t minimalSize, const TextCharacter& sample, Visitor&& visitor) const
-    {
-        if (m_positions.size() <= minimalSize)
-        {
-            for (size_t i = 0, count = m_positions.size(); i < count; ++i)
-            {
-                visitor(i, m_positions[i]);
-            }
-        }
-        else
-        {
-            // Query result
-            qreal querySizeEstimate = qMax(qMax(m_nodes[0].boundingBox.width(), m_nodes[0].boundingBox.height()) * 0.01, sample.advance * minimalSize * 0.5);
-
-            QRectF rect(sample.position, QSizeF(querySizeEstimate, querySizeEstimate));
-            rect.translate(-querySizeEstimate * 0.5, -querySizeEstimate * 0.5);
-
-            while (!hasMinimalSize(rect, minimalSize))
-            {
-                qreal expansion = rect.width() * 0.5;
-                rect.adjust(-expansion, -expansion, expansion, expansion);
-            }
-
-            qreal expansion = rect.width() * (qSqrt(2.0) - 1.0);
-            rect.adjust(-expansion, -expansion, expansion, expansion);
-            query(rect, visitor);
-        }
+        Search search;
+        search.position = m_positions[index];
+        search.index = index;
+        search.count = count;
+        search.nearest = nearest;
+        findNearestImpl(0, search);
     }
 
 private:
-    /// Rectangle with precomputed edges. Each character is tested with several
-    /// rectangles and tests of \p QRectF are not inline functions, so they are
-    /// too slow for this purpose. Tests of this rectangle give exactly the same
-    /// results as tests of \p QRectF.
+    struct Item
+    {
+        QPointF position;
+        size_t index = 0;
+    };
+
+    using Iterator = std::vector<Item>::iterator;
+
+    /// Rectangle with precomputed edges
     struct Rect
     {
         inline Rect() = default;
         explicit inline Rect(const QRectF& rect) :
             left(rect.x()),
-            right(rect.x()),
+            right(rect.x() + rect.width()),
             top(rect.y()),
-            bottom(rect.y())
+            bottom(rect.y() + rect.height())
         {
-            if (rect.width() < 0.0)
-            {
-                left += rect.width();
-            }
-            else
-            {
-                right += rect.width();
-            }
 
-            if (rect.height() < 0.0)
-            {
-                top += rect.height();
-            }
-            else
-            {
-                bottom += rect.height();
-            }
-
-            isNull = left == right || top == bottom;
         }
 
-        /// Returns true, if point is in the rectangle, which is not null
-        inline bool contains(const QPointF& point) const
+        /// Returns squared distance of the point from the rectangle (zero, if point is in the rectangle)
+        inline PDFReal getSquaredDistance(const QPointF& point) const
         {
-            return !(point.x() < left || point.x() > right) && !(point.y() < top || point.y() > bottom);
-        }
-
-        inline bool intersects(const Rect& other) const
-        {
-            return !isNull && !other.isNull && !(left >= other.right || other.left >= right) && !(top >= other.bottom || other.top >= bottom);
+            const PDFReal dx = qMax(qMax(left - point.x(), point.x() - right), 0.0);
+            const PDFReal dy = qMax(qMax(top - point.y(), point.y() - bottom), 0.0);
+            return dx * dx + dy * dy;
         }
 
         qreal left = 0.0;
         qreal right = 0.0;
         qreal top = 0.0;
         qreal bottom = 0.0;
-        bool isNull = true;
     };
 
     struct Node
@@ -210,72 +168,46 @@ private:
         bool isLeaf = false;
         size_t index1 = 0;
         size_t index2 = 0;
-        QRectF boundingBox;
-        Rect rect;  ///< Bounding box with precomputed edges
+        Rect rect;
     };
 
-    template<typename Visitor>
-    void queryImpl(size_t nodeIndex, const Rect& rect, Visitor& visitor) const
+    /// State of the search of nearest characters
+    struct Search
     {
-        const Node& node = m_nodes[nodeIndex];
+        QPointF position;
+        size_t index = 0;
+        size_t count = 0;
+        size_t foundCount = 0;
+        NearestCharacterInfo* nearest = nullptr;
 
-        if (!node.rect.intersects(rect))
-        {
-            // Node is not intersected, just return
-            return;
-        }
+        /// Squared distance of the last of the nearest characters, when all of them
+        /// are found. Characters and nodes with a larger distance are skipped.
+        PDFReal squaredDistanceLimit = std::numeric_limits<PDFReal>::infinity();
+    };
 
-        if (!node.isLeaf)
-        {
-            queryImpl(node.index1, rect, visitor);
-            queryImpl(node.index2, rect, visitor);
-        }
-        else
-        {
-            // Jakub Melka: it is a leaf... Rectangle is not null, because it is intersected.
-            for (size_t i = node.index1; i < node.index2; ++i)
-            {
-                const QPointF& position = m_positions[i];
-                if (rect.contains(position))
-                {
-                    visitor(i, position);
-                }
-            }
-        }
-    }
+    /// Builds structure over range of iterators. Array is build in O(n * log^2 (n)) time.
+    /// Index to internal nodes array is returned.
+    /// \param itBegin Iterator to the first item of the index
+    /// \param it1 Start iterator
+    /// \param it2 End iterator
+    size_t build(Iterator itBegin, Iterator it1, Iterator it2);
 
-    /// Returns number of characters in given rectangle. Characters are not counted
-    /// further, when \p limit is reached, so returned number is exact only if it
-    /// is less than the limit.
-    size_t countImpl(size_t nodeIndex, const Rect& rect, size_t limit) const
-    {
-        const Node& node = m_nodes[nodeIndex];
+    /// Returns bounding box of character positions over given iterator range.
+    /// If iterator range is empty, then empty bounding box is returned.
+    /// \param it1 Start iterator
+    /// \param it2 End iterator
+    QRectF getBoundingBox(Iterator it1, Iterator it2) const;
 
-        if (!node.rect.intersects(rect))
-        {
-            // Node is not intersected, just return
-            return 0;
-        }
+    void findNearestImpl(size_t nodeIndex, Search& search) const;
 
-        if (!node.isLeaf)
-        {
-            const size_t count = countImpl(node.index1, rect, limit);
-            return (count >= limit) ? count : count + countImpl(node.index2, rect, limit - count);
-        }
-
-        return std::count_if(std::next(m_positions.cbegin(), node.index1), std::next(m_positions.cbegin(), node.index2), [&rect](const QPointF& position) { return rect.contains(position); });
-    }
-
-    using Nodes = std::vector<Node>;
-
-    TextCharacters* m_characters;
     std::vector<QPointF> m_positions;
-    Nodes m_nodes;
+    std::vector<size_t> m_order;
+    std::vector<Node> m_nodes;
     size_t m_leafSize;
     qreal m_epsilon;
 };
 
-size_t PDFTextCharacterSpatialIndex::build(Iterator it1, Iterator it2)
+size_t PDFTextCharacterSpatialIndex::build(Iterator itBegin, Iterator it1, Iterator it2)
 {
     size_t nodeIndex = m_nodes.size();
 
@@ -284,10 +216,9 @@ size_t PDFTextCharacterSpatialIndex::build(Iterator it1, Iterator it2)
         // Create leaf node
         Node node;
         node.isLeaf = true;
-        node.index1 = std::distance(m_characters->begin(), it1);
-        node.index2 = std::distance(m_characters->begin(), it2);
-        node.boundingBox = getBoundingBox(it1, it2);
-        node.rect = Rect(node.boundingBox);
+        node.index1 = std::distance(itBegin, it1);
+        node.index2 = std::distance(itBegin, it2);
+        node.rect = Rect(getBoundingBox(it1, it2));
         m_nodes.push_back(qMove(node));
     }
     else
@@ -300,25 +231,24 @@ size_t PDFTextCharacterSpatialIndex::build(Iterator it1, Iterator it2)
         if (boundingBox.width() > boundingBox.height())
         {
             // Split using x-axis
-            std::sort(it1, it2, [](const TextCharacter& l, const TextCharacter& r) { return l.position.x() < r.position.x(); });
+            std::sort(it1, it2, [](const Item& l, const Item& r) { return l.position.x() < r.position.x(); });
         }
         else
         {
             // Split using y-axis
-            std::sort(it1, it2, [](const TextCharacter& l, const TextCharacter& r) { return l.position.y() < r.position.y(); });
+            std::sort(it1, it2, [](const Item& l, const Item& r) { return l.position.y() < r.position.y(); });
         }
 
         const size_t distance = std::distance(it1, it2);
         Iterator itMid = std::next(it1, distance / 2);
 
-        const size_t index1 = build(it1, itMid);
-        const size_t index2 = build(itMid, it2);
+        const size_t index1 = build(itBegin, it1, itMid);
+        const size_t index2 = build(itBegin, itMid, it2);
 
         Node& node = m_nodes[nodeIndex];
         node.isLeaf = false;
         node.index1 = index1;
         node.index2 = index2;
-        node.boundingBox = boundingBox;
         node.rect = Rect(boundingBox);
     }
 
@@ -336,17 +266,94 @@ QRectF PDFTextCharacterSpatialIndex::getBoundingBox(Iterator it1, Iterator it2) 
 
         for (Iterator it = it1; it != it2; ++it)
         {
-            const TextCharacter& character = *it;
-            x_min = qMin(x_min, character.position.x() - m_epsilon);
-            x_max = qMax(x_max, character.position.x() + m_epsilon);
-            y_min = qMin(y_min, character.position.y() - m_epsilon);
-            y_max = qMax(y_max, character.position.y() + m_epsilon);
+            const QPointF& position = it->position;
+            x_min = qMin(x_min, position.x() - m_epsilon);
+            x_max = qMax(x_max, position.x() + m_epsilon);
+            y_min = qMin(y_min, position.y() - m_epsilon);
+            y_max = qMax(y_max, position.y() + m_epsilon);
         }
 
         return QRectF(x_min, y_min, x_max - x_min, y_max - y_min);
     }
 
     return QRectF();
+}
+
+void PDFTextCharacterSpatialIndex::findNearestImpl(size_t nodeIndex, Search& search) const
+{
+    const Node& node = m_nodes[nodeIndex];
+
+    if (!node.isLeaf)
+    {
+        // Search the nearer node first, the limit of the distance
+        // then usually excludes the other node.
+        size_t nodeIndices[2] = { node.index1, node.index2 };
+        PDFReal squaredDistances[2] = { m_nodes[node.index1].rect.getSquaredDistance(search.position),
+                                        m_nodes[node.index2].rect.getSquaredDistance(search.position) };
+
+        if (squaredDistances[1] < squaredDistances[0])
+        {
+            std::swap(nodeIndices[0], nodeIndices[1]);
+            std::swap(squaredDistances[0], squaredDistances[1]);
+        }
+
+        for (size_t i = 0; i < 2; ++i)
+        {
+            if (squaredDistances[i] <= search.squaredDistanceLimit)
+            {
+                findNearestImpl(nodeIndices[i], search);
+            }
+        }
+
+        return;
+    }
+
+    // Jakub Melka: it is a leaf...
+    for (size_t i = node.index1; i < node.index2; ++i)
+    {
+        if (i == search.index)
+        {
+            continue;
+        }
+
+        const PDFReal dx = m_positions[i].x() - search.position.x();
+        const PDFReal dy = m_positions[i].y() - search.position.y();
+
+        NearestCharacterInfo info;
+        info.index = i;
+        info.squaredDistance = dx * dx + dy * dy;
+
+        if (!(info.squaredDistance <= search.squaredDistanceLimit))
+        {
+            continue;
+        }
+
+        if (search.foundCount == search.count)
+        {
+            if (!(info < search.nearest[search.count - 1]))
+            {
+                continue;
+            }
+        }
+        else
+        {
+            ++search.foundCount;
+        }
+
+        // Insert character to the sorted array of found characters
+        size_t insertIndex = search.foundCount - 1;
+        while (insertIndex > 0 && info < search.nearest[insertIndex - 1])
+        {
+            search.nearest[insertIndex] = search.nearest[insertIndex - 1];
+            --insertIndex;
+        }
+        search.nearest[insertIndex] = info;
+
+        if (search.foundCount == search.count)
+        {
+            search.squaredDistanceLimit = search.nearest[search.count - 1].squaredDistance;
+        }
+    }
 }
 
 PDFTextBoundingBox::PDFTextBoundingBox(const QRectF& rect)
@@ -831,14 +838,6 @@ QString PDFTextLayout::getTextFromSelection(const PDFTextSelection& selection, P
     return getTextFromSelection(selection.begin(pageIndex), selection.end(pageIndex), pageIndex);
 }
 
-struct NearestCharacterInfo
-{
-    size_t index = std::numeric_limits<size_t>::max();
-    PDFReal distance = std::numeric_limits<PDFReal>::infinity();
-
-    inline bool operator<(const NearestCharacterInfo& other) const { return distance < other.distance; }
-};
-
 void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angles)
 {
     // We will implement variation of 'docstrum' algorithm, we have divided characters by angles,
@@ -868,73 +867,27 @@ void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angl
     angleMatrix.rotate(angle);
     applyTransform(characters, angleMatrix);
 
-    // Create spatial index
-    PDFTextCharacterSpatialIndex spatialIndex(&characters, 16);
+    // Create spatial index, and order the characters by the index,
+    // so the indices of the index are also indices of the characters.
+    const size_t characterCount = characters.size();
+    PDFTextCharacterSpatialIndex spatialIndex(characters, 16);
+    {
+        TextCharacters orderedCharacters;
+        orderedCharacters.reserve(characterCount);
+        for (const size_t index : spatialIndex.getOrder())
+        {
+            orderedCharacters.push_back(characters[index]);
+        }
+        characters = qMove(orderedCharacters);
+    }
 
     // Step 2) - find k-nearest characters
-    const size_t characterCount = characters.size();
-    const size_t bucketSize = m_settings.samples + 1;
-    std::vector<NearestCharacterInfo> nearestCharacters(bucketSize * characters.size(), NearestCharacterInfo());
+    const size_t samples = m_settings.samples;
+    std::vector<NearestCharacterInfo> nearestCharacters(samples * characterCount, NearestCharacterInfo());
 
-    auto findNearestCharacters = [this, bucketSize, &characters, &spatialIndex, &nearestCharacters](size_t currentCharacterIndex)
+    auto findNearestCharacters = [samples, &spatialIndex, &nearestCharacters](size_t currentCharacterIndex)
     {
-        // It will be iterator to the start of the nearest neighbour sequence
-        auto it = std::next(nearestCharacters.begin(), currentCharacterIndex * bucketSize);
-        auto itLast = std::next(it, m_settings.samples);
-        NearestCharacterInfo& insertInfo = *itLast;
-        const QPointF currentPoint = characters[currentCharacterIndex].position;
-
-        auto addSample = [&insertInfo, it, itLast, currentPoint, currentCharacterIndex](size_t sampleIndex, const QPointF& samplePoint)
-        {
-            if (sampleIndex == currentCharacterIndex)
-            {
-                return;
-            }
-
-            // Sample, which is not nearer than the last of the nearest characters found
-            // so far, does not change the result. Most of the samples are like that, and
-            // they are recognized by the squared distance, which is much cheaper than
-            // the distance. Tolerance is much larger than the rounding errors, so samples
-            // with almost the same distance are always compared by the exact distance.
-            const PDFReal dx = samplePoint.x() - currentPoint.x();
-            const PDFReal dy = samplePoint.y() - currentPoint.y();
-            const PDFReal maximalDistance = std::prev(itLast)->distance;
-            if (dx * dx + dy * dy > maximalDistance * maximalDistance * (1.0 + 1e-9))
-            {
-                return;
-            }
-
-            insertInfo.index = sampleIndex;
-            insertInfo.distance = QLineF(currentPoint, samplePoint).length();
-
-            // Now, use insert sort to sort the array of samples + 1 elements (#samples elements
-            // are sorted, we use only insert sort on the last element).
-            auto itLeft = std::prev(itLast);
-            auto itRight = itLast;
-            while (true)
-            {
-                if (*itRight < *itLeft)
-                {
-                    std::swap(*itRight, *itLeft);
-                    itRight = itLeft;
-
-                    if (itLeft == it)
-                    {
-                        // We have reached the end
-                        break;
-                    }
-
-                    --itLeft;
-                }
-                else
-                {
-                    // We have proper order, break the cycle
-                    break;
-                }
-            }
-        };
-
-        spatialIndex.queryNearestEstimate(m_settings.samples, characters[currentCharacterIndex], addSample);
+        spatialIndex.findNearest(currentCharacterIndex, samples, nearestCharacters.data() + currentCharacterIndex * samples);
     };
 
     auto range = PDFIntegerRange<size_t>(0, characterCount);
@@ -944,8 +897,8 @@ void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angl
     PDFUnionFindAlgorithm<size_t> textLinesUF(characterCount);
     for (size_t i = 0; i < characterCount; ++i)
     {
-        auto it = std::next(nearestCharacters.begin(), i * bucketSize);
-        auto itEnd = std::next(it, m_settings.samples);
+        auto it = std::next(nearestCharacters.begin(), i * samples);
+        auto itEnd = std::next(it, samples);
 
         for (; it != itEnd; ++it)
         {
@@ -961,10 +914,11 @@ void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angl
             //   2) Characters are approximately at same line
             //   3) Font size of characters are approximately equal
 
+            PDFReal maximalDistance = m_settings.distanceSensitivity * characters[i].advance;
             PDFReal fontSizeMax = qMax(characters[i].fontSize, characters[info.index].fontSize);
             PDFReal fontSizeMin = qMin(characters[i].fontSize, characters[info.index].fontSize);
 
-            if (info.distance < m_settings.distanceSensitivity * characters[i].advance && // 1)
+            if (info.squaredDistance < maximalDistance * maximalDistance && // 1)
                 std::fabs(characters[i].position.y() - characters[info.index].position.y()) < fontSizeMin * m_settings.charactersOnLineSensitivity && // 2)
                 fontSizeMax / fontSizeMin < m_settings.fontSensitivity) // 3)
             {
