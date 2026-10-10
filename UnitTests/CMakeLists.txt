@@ -366,6 +366,70 @@ set_target_properties(UnitTestsPDFObject PROPERTIES
 )
 add_test(UnitTestsPDFObject "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsPDFObject")
 
+add_executable(UnitTestsScanPreparation tst_scanpreparationtest.cpp)
+target_link_libraries(UnitTestsScanPreparation PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsScanPreparation PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsScanPreparation "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsScanPreparation")
+set_tests_properties(UnitTestsScanPreparation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(UnitTestsOCR tst_ocrtest.cpp)
+target_link_libraries(UnitTestsOCR PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Network Qt6::Test)
+target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_SOURCE_DATA_DIRECTORY="${PDF4QT_OCR_BUILD_DATA_DIR}")
+if(PDF4QT_ENABLE_OCR)
+    target_link_libraries(UnitTestsOCR PRIVATE Pdf4QtOcrTesseract)
+    target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_TESSERACT)
+endif()
+set_target_properties(UnitTestsOCR PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+if(PDF4QT_OCR_REQUIRED)
+    target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_TESTS_REQUIRED)
+endif()
+add_test(UnitTestsOCR "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCR")
+set_tests_properties(UnitTestsOCR PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsOCRDialog tst_ocrdialogtest.cpp)
+    target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtLibGui Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    if(PDF4QT_ENABLE_OCR)
+        target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtOcrTesseract)
+        target_compile_definitions(UnitTestsOCRDialog PRIVATE PDF4QT_OCR_TESSERACT)
+    endif()
+    set_target_properties(UnitTestsOCRDialog PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    if(PDF4QT_OCR_REQUIRED)
+        target_compile_definitions(UnitTestsOCRDialog PRIVATE PDF4QT_OCR_TESTS_REQUIRED)
+    endif()
+    add_test(UnitTestsOCRDialog "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCRDialog")
+    set_tests_properties(UnitTestsOCRDialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
+endif()
+
+# Smoke test of the command 'PdfTool ocr' with the Tesseract engine and the built-in models
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY AND PDF4QT_ENABLE_OCR)
+    if(PDF4QT_OCR_REQUIRED)
+        set(PDF4QT_OCR_SMOKE_REQUIRED ON)
+    else()
+        set(PDF4QT_OCR_SMOKE_REQUIRED OFF)
+    endif()
+    add_test(NAME PdfToolOcrSmoke
+             COMMAND ${CMAKE_COMMAND} -DPDFTOOL=$<TARGET_FILE:PdfTool>
+                                      -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/PdfToolOcrSmoke
+                                      -DOCR_REQUIRED=${PDF4QT_OCR_SMOKE_REQUIRED}
+                                      -P ${CMAKE_CURRENT_SOURCE_DIR}/pdftoolocrsmoke.cmake)
+    set_tests_properties(PdfToolOcrSmoke PROPERTIES
+                         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}"
+                         SKIP_REGULAR_EXPRESSION "PDF4QT_OCR_SKIP")
+endif()
+
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsSignatureAppearance
         tst_signatureappearancetest.cpp

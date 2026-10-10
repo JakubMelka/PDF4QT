@@ -31,6 +31,7 @@
 #include <tuple>
 #include <array>
 #include <cmath>
+#include <compare>
 
 #include <pdf4qtlibcore_export.h>
 
@@ -145,6 +146,9 @@ struct PDFVersion
     uint16_t minor = 0;
 
     bool isValid() const { return major > 0; }
+
+    /// Versions are ordered by the major version, then by the minor version
+    constexpr auto operator<=>(const PDFVersion&) const = default;
 };
 
 struct PDFTranslationContext

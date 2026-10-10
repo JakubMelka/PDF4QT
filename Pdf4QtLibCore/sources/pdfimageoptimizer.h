@@ -199,6 +199,20 @@ public:
     /// \returns List of image infos (empty if none or document is null).
     static std::vector<ImageInfo> collectImageInfos(const PDFDocument* document);
 
+    /// Returns the name of the last filter of the stream (/Filter, or /FFilter of a stream
+    /// stored in an external file), or an empty string, if the stream has no filter.
+    /// \param document Document of the stream
+    /// \param dictionary Dictionary of the stream
+    static QString readFilterName(const PDFDocument* document, const PDFDictionary* dictionary);
+
+    /// Creates the dictionary of a re-encoded image. The entries of the new encoding are
+    /// taken from \p encoded; the other entries of the original image (Interpolate, Intent,
+    /// OC, Metadata, StructParent, ...) are kept, the entries describing the samples and
+    /// the masks of the original image are dropped.
+    /// \param encoded Dictionary of the new encoding of the image
+    /// \param original Dictionary of the original image
+    static PDFDictionaryBuilder mergeImageDictionary(const PDFDictionary& encoded, const PDFDictionary& original);
+
     /// Analyzes an image and classifies its content.
     /// \param image Image to analyze.
     /// \returns Analysis results (default values if image is null).

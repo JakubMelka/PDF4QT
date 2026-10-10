@@ -171,6 +171,8 @@ public:
     const PDFImageData& getImageData() const { return m_imageData; }
     const PDFImageData& getSoftMaskData() const { return m_softMask; }
 
+    /// Returns true, if all pixels of the image are opaque and black or white, so the
+    /// image can be converted to 1-bit monochrome image without a loss of information
     static bool canBeConvertedToMonochromatic(const QImage& image);
 
 private:

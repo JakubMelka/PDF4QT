@@ -45,32 +45,6 @@ namespace pdfpagemaster
 namespace pageitempreviewrenderer
 {
 
-class FontCacheShrinkGuard
-{
-public:
-    FontCacheShrinkGuard(const void* source, std::vector<pdf::PDFFontCache*> fontCaches) :
-        m_source(source),
-        m_fontCaches(std::move(fontCaches))
-    {
-        for (pdf::PDFFontCache* fontCache : m_fontCaches)
-        {
-            fontCache->setCacheShrinkEnabled(m_source, false);
-        }
-    }
-
-    ~FontCacheShrinkGuard()
-    {
-        for (pdf::PDFFontCache* fontCache : m_fontCaches)
-        {
-            fontCache->setCacheShrinkEnabled(m_source, true);
-        }
-    }
-
-private:
-    const void* m_source;
-    std::vector<pdf::PDFFontCache*> m_fontCaches;
-};
-
 QMarginsF mapCropMarginsToRenderedPage(QMarginsF cropMargins, pdf::PageRotation rotation)
 {
     switch (rotation)
@@ -629,7 +603,7 @@ PageItemPreviewRenderer::RenderBatchResult PageItemPreviewRenderer::renderPrevie
         }
     }
 
-    FontCacheShrinkGuard fontCacheShrinkGuard(&requests, std::move(fontCaches));
+    pdf::PDFFontCacheShrinkGuard fontCacheShrinkGuard(std::move(fontCaches), &requests);
 
     RenderBatchResult results;
     results.resize(requests.size());

@@ -1,0 +1,487 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef PDFOCRDOCUMENTDIALOG_H
+#define PDFOCRDOCUMENTDIALOG_H
+
+#include "pdfviewerglobal.h"
+#include "pdfdocument.h"
+#include "pdfocrmodel.h"
+#include "pdfocrsession.h"
+#include "pdfocrjobcontroller.h"
+#include "pdfocrmodelmanager.h"
+#include "pdfocrtextlayerwriter.h"
+#include "pdfocrexport.h"
+#include "pdfocrapplyprocessor.h"
+#include "pdfmeshqualitysettings.h"
+
+#include <QTimer>
+#include <QImage>
+#include <QDialog>
+#include <QTransform>
+#include <QElapsedTimer>
+#include <QFuture>
+#include <QMutex>
+
+#include <set>
+#include <map>
+#include <memory>
+#include <optional>
+#include <functional>
+
+namespace Ui
+{
+class PDFOCRDocumentDialog;
+}
+
+class QSplitter;
+class QListWidgetItem;
+class QTreeWidgetItem;
+
+namespace pdf
+{
+class PDFCMS;
+class PDFProgress;
+class PDFDrawWidgetProxy;
+class PDFOptionalContentActivity;
+}
+
+namespace pdfviewer
+{
+class PDFOCRPageView;
+
+/// Dialog "Recognize Text (OCR)" of the editor (chapter 4 of the OCR
+/// specification). The workflow has four phases: set up, recognize, review
+/// and correct, apply to PDF / export. Recognition itself never modifies
+/// the document; all expensive operations run outside of the GUI thread.
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFOCRDocumentDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    struct Context
+    {
+        const pdf::PDFDocument* document = nullptr;
+        pdf::PDFDrawWidgetProxy* proxy = nullptr;
+        const pdf::PDFCMS* cms = nullptr;
+        pdf::PDFProgress* progress = nullptr;
+
+        /// Pages currently visible in the editor (0-based), the first one is the current page
+        std::vector<pdf::PDFInteger> visiblePages;
+
+        /// Explicit page selection of the editor (0-based), may be empty
+        std::vector<pdf::PDFInteger> selectedPages;
+
+        QString fileName;
+        bool canModify = true;
+        bool canCopyContent = true;
+        bool hasSignatures = false;
+        bool isEncrypted = false;
+
+        /// Permissions of the certification signature (PDF-12)
+        pdf::PDFOCRApplyProcessor::CertificationPermissions certificationPermissions = pdf::PDFOCRApplyProcessor::CertificationPermissions::NotCertified;
+
+        bool isCertified() const { return certificationPermissions != pdf::PDFOCRApplyProcessor::CertificationPermissions::NotCertified; }
+    };
+
+    explicit PDFOCRDocumentDialog(const Context& context, QWidget* parent);
+    virtual ~PDFOCRDocumentDialog() override;
+
+    /// Returns the permissions of the certification signature of the document
+    /// (catalog /Perms /DocMDP, the first signature reference, /TransformParams /P).
+    /// Returns NotCertified, if the document is not certified, FormFilling if /P is
+    /// missing or has an unknown value (PDF-12).
+    static pdf::PDFOCRApplyProcessor::CertificationPermissions getCertificationPermissions(const pdf::PDFDocument* document);
+
+    /// Returns the group of the settings of the dialog (its last configuration and the
+    /// named profiles), which is shared with the batch recognition
+    static QString getSettingsGroup();
+
+    /// Returns true, if the dialog produced a modified document, which
+    /// should replace the current document of the editor (single undo step).
+    bool hasModifiedDocument() const { return !m_modifiedDocument.isNull(); }
+    pdf::PDFDocumentPointer takeModifiedDocument() { return std::move(m_modifiedDocument); }
+
+    virtual void done(int result) override;
+
+signals:
+    void pageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis, QByteArray fingerprint);
+    void documentFingerprintReady(int generation, QByteArray fingerprint);
+    void ownLayerLoaded(int generation, pdf::PDFOCRPageResult result);
+    void previewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message, bool isLastRecognition);
+    void compressionEstimateReady(int generation, QString text);
+
+private:
+    enum class OutputMode
+    {
+        ModifyCurrent,
+        CreateCopy,
+        ExportOnly
+    };
+
+    enum class ViewMode
+    {
+        Original,
+        Working,
+        SideBySide
+    };
+
+    enum class RunMode
+    {
+        Pages,          ///< Standard recognition of the pages
+        Line,           ///< Repeated recognition of a line
+        Word,           ///< Repeated recognition of a word
+        Region          ///< Repeated recognition of a region (REGION-03)
+    };
+
+    struct AsyncTask
+    {
+        int generation = 0;
+        std::shared_ptr<pdf::PDFOCRCancelToken> token;
+
+        /// Computation of the last started task (it can still run after its cancellation)
+        QFuture<void> future;
+    };
+
+    /// Recognition prepared in the GUI thread (all decisions of the user are made),
+    /// waiting for the resolution of the models in the background (R12)
+    struct PendingRecognition
+    {
+        RunMode runMode = RunMode::Pages;
+        pdf::PDFOCRConfiguration configuration;
+        std::vector<pdf::PDFInteger> pagesToRecognize;
+        std::vector<std::pair<pdf::PDFInteger, QString>> pagesToSkip;
+        std::set<pdf::PDFInteger> reviewOnlyPages;
+        std::set<pdf::PDFInteger> maskedPages;
+    };
+
+    /// Result of the background preparation of the recognition
+    struct PreparedRecognition
+    {
+        pdf::PDFOCRResolvedModelSet models;
+        pdf::PDFOCRError error;
+        std::map<pdf::PDFInteger, QByteArray> fingerprints;
+    };
+
+    struct ApplyResult
+    {
+        pdf::PDFDocumentPointer document;
+        pdf::PDFOCRTextLayerWriter::Report report;
+        QString errorMessage;
+        QString copyFileName;
+        bool isRemoval = false;
+        bool conformanceRemoved = false;
+        pdf::PDFOCRCompressionReport compressionReport;
+        std::map<pdf::PDFInteger, QByteArray> fingerprints;
+    };
+
+    // Initialization
+    void initializeUi();
+    void initializePages();
+    void loadSettings();
+    void saveSettings() const;
+
+    // Background tasks
+    void startTask(AsyncTask& task, std::function<void(int, const pdf::PDFOperationControl*)> worker);
+    void cancelTask(AsyncTask& task);
+    void startPageDataTask();
+    void schedulePreview();
+    void startPreviewTask();
+    void onPageDataReady(int generation, qint64 pageIndex, QImage thumbnail, pdf::PDFOCRPageAnalysis analysis, QByteArray fingerprint);
+    void onDocumentFingerprintReady(int generation, QByteArray fingerprint);
+
+    /// Runs the worker outside of the GUI thread and waits for it; the GUI is repainted,
+    /// but the user input is blocked meanwhile (R12). The worker may use references to
+    /// the local variables of the caller.
+    void runBlockingTask(const QString& text, const std::function<void(const pdf::PDFOperationControl*)>& worker);
+
+    /// Computes the missing fingerprints of the pages (and of the document) outside of the GUI thread
+    void ensureFingerprints(const std::vector<pdf::PDFInteger>& pages, bool documentFingerprint);
+    void onPreviewReady(int generation, qint64 pageIndex, QImage original, QTransform pageToOriginal, QImage working, QTransform pageToWorking, QString message, bool isLastRecognition);
+
+    // Configuration
+    pdf::PDFOCRConfiguration getConfigurationFromUi() const;
+    void setConfigurationToUi(const pdf::PDFOCRConfiguration& configuration);
+    void onConfigurationChanged();
+    void updateLanguageList(const QStringList& selectedLanguages);
+    QStringList getSelectedLanguages() const;
+    void updateLayoutCombos();
+    void updateMemoryEstimate();
+    void updatePolicySummary();
+
+    /// Updates the cached capabilities of the selected engine (ARCH-02)
+    void updateEngineCapabilities();
+
+    /// Returns the maximal width and height of the engine image (0 = unlimited)
+    static int getMaximumImageDimension(const pdf::PDFOCREngineCapabilities& capabilities);
+
+    /// Returns true, if the engine provides the text for the export only (ENGINE-01)
+    static bool isExportOnlyEngine(const QString& engineId);
+
+    void updateProfiles();
+    void onSaveProfile();
+    void onLoadProfile();
+    void onDeleteProfile();
+    void onManageLanguages();
+    void onPageOverrideChanged();
+    void updatePageOverrideUi();
+
+    // Pages
+    std::vector<pdf::PDFInteger> getCheckedPages() const;
+    void setCheckedPages(const std::vector<pdf::PDFInteger>& pages);
+    void onApplyPageSelection();
+    void onApplyHelperSelection();
+    void updatePageItem(pdf::PDFInteger pageIndex);
+    void updateSelectionInfo();
+    void onCurrentPageChanged();
+    const pdf::PDFOCRPageAnalysis* getAnalysis(pdf::PDFInteger pageIndex);
+    static QString getPageStateName(pdf::PDFOCRPageState state);
+    static QString getContentClassName(pdf::PDFOCRPageContentClass contentClass);
+
+    /// Returns the language suggested by the language of the user interface (LANG-03)
+    static QString getLanguageSuggestion();
+
+    // Recognition
+    void onRecognizeClicked();
+    void onStopClicked();
+    bool startRecognition(const std::vector<pdf::PDFInteger>& pages, RunMode runMode);
+    void onRecognitionPrepared(int generation, PreparedRecognition prepared);
+    void cancelRecognitionPreparation();
+    void applySkippedPages(const std::vector<std::pair<pdf::PDFInteger, QString>>& pages);
+    void onJobPageStateChanged(int generation, qint64 pageIndex, int state, QString phase);
+    void onJobPageProgress(int generation, qint64 pageIndex, int percent);
+    void onJobPageFinished(int generation, pdf::PDFOCRPageResult result);
+    void onJobProgress(int generation, int finished, int total);
+    void onJobFinished(int generation, pdf::PDFOCRJobSummary summary);
+
+    /// Updates the progress bar of the running job: the finished pages and the
+    /// recognized parts of the pages in progress
+    void updateJobProgressBar();
+
+    /// Updates the text of the progress of the running job. It is a summary of all
+    /// workers (pages finished, in progress, failed, times), refreshed by a timer:
+    /// the events of the single pages would replace each other too quickly to be read.
+    void updateJobProgressText();
+
+    /// Formats the duration as m:ss (h:mm:ss for an hour and more)
+    static QString formatDuration(qint64 milliseconds);
+
+    void processCandidates();
+    void onRerecognizeClicked();
+
+    // Review
+    void updateResultsTree();
+    void updateInspector();
+    void updateStatistics();
+    void selectWord(int wordId, bool fromTree);
+    void onTreeSelectionChanged();
+    void onWordTextEdited();
+    void onLineTextEdited();
+    void onReviewNavigation(bool forward, bool confirm);
+    void onFindNext();
+    void onReplaceAll();
+    void onRectangleDrawn(int mode, QRectF pageRectangle, pdf::PDFOCRQuad pageQuad);
+    void onRegionProperties();
+    void onRemoveRegion();
+    void onMoveItem(bool up);
+    void onInsertWord();
+    void onConfirmAll();
+    void onSessionPageChanged(qint64 pageIndex);
+    void showTreeContextMenu(const QPoint& point);
+    /// Adds the selected word into the user words (accepted by the dictionary review,
+    /// passed to the engine in the next recognition) and confirms it
+    void addSelectedWordToUserWords();
+
+    /// Returns the corners of the visible page in the canonical page space (the corners
+    /// of the perspective correction, which do not change anything)
+    pdf::PDFOCRQuad getPageCorners(pdf::PDFInteger pageIndex) const;
+
+    /// Sets the perspective correction of the page (empty = none); the other settings
+    /// of the page override are kept
+    void setPagePerspective(pdf::PDFInteger pageIndex, const std::optional<pdf::PDFOCRQuad>& perspective);
+
+    /// Starts the editing of the corners in the original view
+    void startPerspectiveEditing();
+
+    /// Returns the context of the writing of the text layer (permissions, certification,
+    /// tagged document, conformance declarations of the document)
+    pdf::PDFOCRApplyProcessor::Context getApplyContext() const;
+
+    /// Returns the settings of the compression from the user interface (including the
+    /// images excluded in the preview)
+    pdf::PDFOCRCompressionSettings getCompressionSettings() const;
+
+    /// Returns true, if the preview of the current (lossy) compression settings was confirmed
+    bool isCompressionPreviewConfirmed() const;
+
+    /// Returns the pages, which are written by the button Apply (checked pages with a
+    /// result, or all pages with a result, if no checked page has one; not review only)
+    std::vector<pdf::PDFInteger> getPagesToWrite() const;
+
+    void updateCompressionUi();
+    void onCompressionSettingsChanged();
+    void onCompressionPreviewClicked();
+    void scheduleCompressionEstimate();
+    void startCompressionEstimate();
+    void onCompressionEstimateReady(int generation, QString text);
+
+    /// Exports the results into a structured format (hOCR, ALTO, TSV), into a single
+    /// file or into a file per page, and reports the missing pages (EXPORT-02)
+    void exportStructured(pdf::PDFOCRStructuredExporter::Format format, const std::vector<const pdf::PDFOCRPageResult*>& results, const QString& title);
+    void showRegionContextMenu(int regionId, QPoint globalPosition);
+
+    /// Returns the region of the block of the selected item in the results tree, or -1
+    int getRegionIdOfSelection() const;
+
+    /// Returns true, if the region of the current page can be recognized again (REGION-03)
+    bool canRerecognizeRegion(int regionId) const;
+
+    /// Recognizes the region of the current page again; the result is a candidate,
+    /// which replaces only the blocks of the region after a confirmation (REGION-03)
+    void rerecognizeRegion(int regionId);
+    std::vector<pdf::PDFInteger> getFindScopePages() const;
+    bool isPageEditable(pdf::PDFInteger pageIndex) const;
+
+    /// Returns true, if the page is processed (or waits for the processing) by the running job,
+    /// so its result will replace the content of the page in the session
+    bool isPageInRunningJob(pdf::PDFInteger pageIndex) const;
+
+    /// Own OCR layer of the document is offered for further corrections without a new recognition (PDF-10)
+    void onOwnLayerLoaded(int generation, pdf::PDFOCRPageResult result);
+
+    // Output
+    void onApplyClicked();
+    void onRemoveLayerClicked();
+    void onApplyFinished(int generation, ApplyResult result);
+    void onExportClicked();
+    void onSaveProject();
+    void onOpenProject();
+    bool confirmReadableTextOutput(const QString& title);
+    bool saveProject();
+
+    // Common
+    void updateUi();
+    void updateViews();
+    void setViewMode(ViewMode mode);
+    void updateWorkflowLabel();
+    void showReviewTab();
+    bool isBusy() const;
+
+    /// Returns true from the start of the job until its signal jobFinished is processed
+    /// (the workers of the controller can be finished, while their results are queued)
+    bool isJobActive() const { return m_jobActive || m_jobController->isRunning(); }
+
+    pdf::PDFOCRDocumentIdentity createIdentity() const;
+
+    Ui::PDFOCRDocumentDialog* ui;
+    Context m_context;
+    pdf::PDFOCRSession* m_session;
+    pdf::PDFOCRJobController* m_jobController;
+    pdf::PDFOCRModelManager* m_modelManager;
+    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
+    pdf::PDFMeshQualitySettings m_meshQualitySettings;
+    QSplitter* m_viewSplitter = nullptr;
+    PDFOCRPageView* m_originalView = nullptr;
+    PDFOCRPageView* m_workingView = nullptr;
+
+    pdf::PDFInteger m_pageCount = 0;
+    pdf::PDFInteger m_currentPage = -1;
+    int m_selectedWordId = 0;
+    int m_selectedLineId = 0;
+    int m_selectedBlockId = 0;
+    bool m_updatingUi = false;
+    bool m_closeRequested = false;
+    bool m_hasConformanceDeclaration = false;
+    bool m_isTagged = false;
+    QStringList m_conformanceDeclarations;
+
+    /// Capabilities of the selected engine (ARCH-02)
+    pdf::PDFOCREngineCapabilities m_engineCapabilities;
+
+    std::map<pdf::PDFInteger, pdf::PDFOCRPageAnalysis> m_analysis;
+    std::map<pdf::PDFInteger, QByteArray> m_fingerprints;
+    /// Pages of the running job, whose results are recognized for the review and
+    /// the export only; the flag is stored in the result itself (INPUT-04, EXPORT-03)
+    std::set<pdf::PDFInteger> m_jobReviewOnlyPages;
+
+    /// Pages recognized with their existing text masked (scan with a page number, R04)
+    std::set<pdf::PDFInteger> m_maskedTextPages;
+
+    /// Pages with the different settings switched on. An exception, which has all its
+    /// values set to the common settings, is not stored in the session, so the state
+    /// of the group box of such a page is remembered here.
+    std::set<pdf::PDFInteger> m_pageOverrideEnabledPages;
+
+    std::map<pdf::PDFInteger, pdf::PDFOCRPageResult> m_candidates;
+    std::set<pdf::PDFInteger> m_candidatePages;
+
+    /// States of the pages before the running job. A repeated recognition, which was
+    /// stopped or failed, must not destroy the existing result of the page (JOB-05).
+    std::map<pdf::PDFInteger, pdf::PDFOCRPageState> m_previousPageStates;
+    int m_keptResultsCount = 0;
+
+    AsyncTask m_pageDataTask;
+    AsyncTask m_previewTask;
+    AsyncTask m_applyTask;
+    AsyncTask m_compressionEstimateTask;
+    AsyncTask m_prepareTask;
+    std::optional<PendingRecognition> m_pendingRecognition;
+    bool m_blockingTaskInProgress = false;
+
+    /// Fingerprint of the document is computed by the background page data task (R12)
+    bool m_documentFingerprintReady = false;
+    std::vector<QFuture<void>> m_futures;
+    QTimer m_previewTimer;
+    QTimer m_compressionEstimateTimer;
+
+    /// Compression settings, whose preview was confirmed by the user (a lossy compression
+    /// is applied only with confirmed settings), and the images excluded in the preview
+    std::optional<pdf::PDFOCRCompressionSettings> m_confirmedCompression;
+    std::vector<pdf::PDFObjectReference> m_compressionExcludedImages;
+
+    int m_jobGeneration = 0;
+    RunMode m_runMode = RunMode::Pages;
+    int m_rerecognizeLineId = 0;
+    int m_rerecognizeWordId = 0;
+    int m_rerecognizeRegionId = 0;
+    pdf::PDFInteger m_rerecognizePage = -1;
+    QElapsedTimer m_jobTimer;
+    int m_jobFinishedPages = 0;
+    int m_jobTotalPages = 0;
+
+    /// Pages of the running job, which are being processed by the workers, with the
+    /// recognized part of the page in percent
+    std::map<pdf::PDFInteger, int> m_jobActivePages;
+    int m_jobErrorPages = 0;
+    int m_jobProgressValue = 0;
+    QTimer m_jobProgressTimer;
+
+    bool m_applyInProgress = false;
+    bool m_jobActive = false;
+    pdf::PDFDocumentPointer m_modifiedDocument;
+    QString m_projectFileName;
+    size_t m_findIndex = 0;
+};
+
+}   // namespace pdfviewer
+
+#endif // PDFOCRDOCUMENTDIALOG_H

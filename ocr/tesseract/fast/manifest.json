@@ -1,0 +1,119 @@
+{
+ "format": "pdf4qt-ocr-builtin-manifest",
+ "version": 1,
+ "engine": "tesseract",
+ "profile": "fast",
+ "setId": "tessdata_fast-874164186573",
+ "license": "Apache-2.0",
+ "licenseFile": "LICENSE",
+ "models": [
+  {
+   "id": "tesseract/fast/ces",
+   "language": "ces",
+   "name": "Czech",
+   "profile": "fast",
+   "fileName": "ces.traineddata",
+   "size": 3795684,
+   "sha256": "934bcaf97ef3348413263331131c9fa7f55f30db333c711929c124fb635f7e1b",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/eng",
+   "language": "eng",
+   "name": "English",
+   "profile": "fast",
+   "fileName": "eng.traineddata",
+   "size": 4113088,
+   "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/slk",
+   "language": "slk",
+   "name": "Slovak",
+   "profile": "fast",
+   "fileName": "slk.traineddata",
+   "size": 4427661,
+   "sha256": "fbcc400a9c74c6a13d922fcb1211b655d1b165387b675ed75cd2dbd756b974a5",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/deu",
+   "language": "deu",
+   "name": "German",
+   "profile": "fast",
+   "fileName": "deu.traineddata",
+   "size": 1525436,
+   "sha256": "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/spa",
+   "language": "spa",
+   "name": "Spanish",
+   "profile": "fast",
+   "fileName": "spa.traineddata",
+   "size": 2294433,
+   "sha256": "6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/rus",
+   "language": "rus",
+   "name": "Russian",
+   "profile": "fast",
+   "fileName": "rus.traineddata",
+   "size": 3861738,
+   "sha256": "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/chi_sim",
+   "language": "chi_sim",
+   "name": "Chinese (Simplified)",
+   "profile": "fast",
+   "fileName": "chi_sim.traineddata",
+   "size": 2469156,
+   "sha256": "a5fcb6f0db1e1d6d8522f39db4e848f05984669172e584e8d76b6b3141e1f730",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/chi_tra",
+   "language": "chi_tra",
+   "name": "Chinese (Traditional)",
+   "profile": "fast",
+   "fileName": "chi_tra.traineddata",
+   "size": 2366642,
+   "sha256": "529c5b5797d64b126065cd55f2bb4c7fd7b15790798091b1ff259941a829330b",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  },
+  {
+   "id": "tesseract/fast/osd",
+   "language": "osd",
+   "name": "Orientation and script detection",
+   "profile": "fast",
+   "fileName": "osd.traineddata",
+   "size": 10562727,
+   "sha256": "9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff",
+   "version": "87416418657359cb625c412a48b6e1d6d41c29bd",
+   "license": "Apache-2.0",
+   "source": "https://github.com/tesseract-ocr/tessdata_fast"
+  }
+ ]
+}

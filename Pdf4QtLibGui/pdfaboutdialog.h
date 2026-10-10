@@ -42,6 +42,8 @@ public:
     virtual ~PDFAboutDialog() override;
 
 private:
+    void onLibraryDoubleClicked(int row, int column);
+
     Ui::PDFAboutDialog* ui;
 };
 

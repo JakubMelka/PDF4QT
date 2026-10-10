@@ -1,0 +1,348 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef PDFOCRCONFIGURATION_H
+#define PDFOCRCONFIGURATION_H
+
+#include "pdfglobal.h"
+#include "pdfocrmodel.h"
+#include "pdfocrcompression.h"
+
+#include <QString>
+#include <QStringList>
+#include <QJsonObject>
+#include <QVariantMap>
+
+#include <optional>
+#include <vector>
+
+namespace pdf
+{
+struct PDFOCREngineParameterDescriptor;
+
+/// Model profile (REC-01, LANG-03). For Tesseract, the profiles are the model
+/// repositories tessdata_fast, tessdata and tessdata_best.
+enum class PDFOCRModelProfile
+{
+    Fast,
+    Standard,
+    Best
+};
+
+/// Layout type of the page (basic offer of the page segmentation, REC-01).
+/// Values are the page segmentation modes of Tesseract (chapter 3.2), other
+/// engines map them to their own capabilities.
+enum class PDFOCRLayout
+{
+    OrientationOnly = 0,
+    AutomaticWithOrientation = 1,
+    SegmentationOnly = 2,
+    Automatic = 3,
+    SingleColumn = 4,
+    VerticalBlock = 5,
+    SingleBlock = 6,
+    SingleLine = 7,
+    SingleWord = 8,
+    CircleWord = 9,
+    SingleCharacter = 10,
+    SparseText = 11,
+    SparseTextWithOrientation = 12,
+    RawLine = 13
+};
+
+/// Engine mode (REC-01). Values are the OCR engine modes (OEM) of Tesseract,
+/// other engines map them to their own capabilities. The values are stored
+/// in the configurations and in the projects, they must not be changed.
+enum class PDFOCREngineMode
+{
+    Legacy = 0,         ///< Legacy engine only
+    NeuralNetwork = 1,  ///< LSTM neural network only
+    Combined = 2,       ///< Legacy engine combined with the LSTM neural network
+    Default = 3         ///< Default mode of the available models
+};
+
+/// Binarization mode (IMAGE-04)
+enum class PDFOCRBinarization
+{
+    Automatic,      ///< Engine internal binarization (default)
+    Otsu,           ///< Global Otsu thresholding performed by PDF4QT
+    AdaptiveOtsu,   ///< Engine adaptive Otsu (if supported)
+    Sauvola         ///< Engine Sauvola (if supported)
+};
+
+/// Policy of the existing text (chapter 6.2)
+enum class PDFOCRExistingTextPolicy
+{
+    OnlyPagesWithoutText,   ///< Skip pages with existing text, mark mixed pages for decision
+    AddInRegions,           ///< Recognize only user defined regions, keep existing text
+    ReplaceOwnLayer,        ///< Replace own OCR layer created by PDF4QT
+    ReviewOnly              ///< Recognize for review/export only, never write into PDF
+};
+
+/// Preprocessing of the working raster (IMAGE-04)
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPreprocessing
+{
+    /// Manual rotation in degrees (0, 90, 180, 270)
+    int rotation = 0;
+
+    /// Automatic orientation detection (with manual override by rotation)
+    bool autoOrientation = false;
+
+    /// Small deskew
+    bool deskew = false;
+
+    /// Convert to grayscale
+    bool grayscale = true;
+
+    PDFOCRBinarization binarization = PDFOCRBinarization::Automatic;
+
+    /// Mild noise removal (median filter)
+    bool denoise = false;
+
+    /// Invert light text on dark background
+    bool invert = false;
+
+    /// Perspective correction of a photographed page (only the working raster, the
+    /// visible page is not changed): the four corners of the document on the photo in
+    /// the canonical page space. The corrected raster is the rectangle of the document.
+    /// Deskew is not applied with the perspective correction.
+    std::optional<PDFOCRQuad> perspective;
+
+    QJsonObject toJson() const;
+    static PDFOCRPreprocessing fromJson(const QJsonObject& object);
+
+    bool operator==(const PDFOCRPreprocessing&) const = default;
+};
+
+/// Complete recognition configuration (REC-01..03). Values are typed,
+/// validated by PDFOCRConfiguration::validate and by the engine.
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCRConfiguration
+{
+    /// Stable engine identifier
+    QString engineId = QStringLiteral("tesseract");
+
+    /// Ordered list of languages (engine specific codes, for Tesseract e.g. "ces", "eng")
+    QStringList languages;
+
+    PDFOCRModelProfile profile = PDFOCRModelProfile::Fast;
+
+    /// Explicitly selected model set identifier (empty = resolve by profile)
+    QString modelSetId;
+
+    PDFOCRLayout layout = PDFOCRLayout::Automatic;
+
+    PDFOCREngineMode engineMode = PDFOCREngineMode::NeuralNetwork;
+
+    /// Raster resolution in DPI
+    double dpi = 300.0;
+
+    PDFOCRPreprocessing preprocessing;
+
+    /// User words (dictionary hints, never automatic replacement)
+    QStringList userWords;
+
+    /// User patterns
+    QStringList userPatterns;
+
+    /// Character whitelist (empty = no restriction)
+    QString characterWhitelist;
+
+    /// Character blacklist
+    QString characterBlacklist;
+
+    /// Review threshold, words with normalized score below this value require review (CONF-03)
+    double reviewThreshold = 80.0;
+
+    /// Words not found in the dictionary of the language model require review.
+    /// Property of the review, it does not influence the recognition.
+    bool reviewOutsideDictionary = true;
+
+    /// Blank page detection
+    bool detectBlankPages = true;
+
+    PDFOCRExistingTextPolicy existingTextPolicy = PDFOCRExistingTextPolicy::OnlyPagesWithoutText;
+
+    /// Store detailed review data (original text, scores) into the document (PDF-10)
+    bool keepReviewDataInDocument = false;
+
+    /// Compression of the scanned images of the pages, where the text layer is written
+    PDFOCRCompressionSettings compression;
+
+    /// Maximal number of OCR workers
+    static constexpr int MaximumWorkerCount = 64;
+
+    /// Default memory budget (see memoryBudget)
+    static constexpr qint64 DefaultMemoryBudget = qint64(2) << 30;
+
+    /// Returns the default number of OCR workers. A worker recognizes one page by one
+    /// thread, so it is a half of the logical processors, at most 16 - the default
+    /// memory budget serves about that many pages A4 at 300 DPI at the same time.
+    static int getDefaultWorkerCount();
+
+    /// Number of OCR workers (JOB-09)
+    int workerCount = getDefaultWorkerCount();
+
+    /// Memory budget for rasters in bytes (JOB-10, QA-05). It is an estimate used for
+    /// the admission of the pages of a job (the model files of the workers and three
+    /// copies of the page raster), not a hard limit of the memory of the process: the
+    /// internal data of the engine, the decoded images of the renderer and the previews
+    /// of the dialogs are not accounted.
+    qint64 memoryBudget = DefaultMemoryBudget;
+
+    /// Page timeout in seconds (0 = no timeout)
+    int pageTimeoutSeconds = 0;
+
+    /// Engine specific parameters (validated by the engine)
+    QVariantMap engineParameters;
+
+    /// Minimal and maximal allowed resolution (IMAGE-01)
+    static constexpr double MinimumDpi = 150.0;
+    static constexpr double MaximumDpi = 1200.0;
+
+    /// Standard offered resolutions (IMAGE-01)
+    static const std::vector<int>& getStandardResolutions();
+
+    /// Validates the configuration (engine independent part). Returns list of errors.
+    QStringList validate() const;
+
+    /// Returns true, if the language identifier is acceptable: "ces", "script/Latin",
+    /// optionally with the import suffix "ces@<import>". Path separators other than
+    /// the "script/" prefix, backslashes and ".." are refused (R11).
+    static bool isValidLanguageIdentifier(const QString& language);
+
+    /// Validates the engine parameters against the typed schema declared by the
+    /// engine (REC-03). Every parameter must be declared, convertible to the declared
+    /// type and inside the declared range. Returns the names of the accepted parameters,
+    /// the errors (translated, one per rejected parameter) are filled, if requested.
+    static QStringList validateEngineParameters(const QVariantMap& parameters,
+                                                const std::vector<PDFOCREngineParameterDescriptor>& descriptors,
+                                                QStringList* errors);
+
+    /// Returns true, if the layout is one of the basic layouts (offered without expert knowledge)
+    static bool isBasicLayout(PDFOCRLayout layout);
+
+    /// Returns human readable, translated name of the layout
+    static QString getLayoutName(PDFOCRLayout layout);
+
+    /// Returns translated description of the layout
+    static QString getLayoutDescription(PDFOCRLayout layout);
+
+    /// Returns all layouts
+    static const std::vector<PDFOCRLayout>& getLayouts();
+
+    /// Returns human readable, translated name of the engine mode
+    static QString getEngineModeName(PDFOCREngineMode engineMode);
+
+    /// Returns all profiles, from the fastest one to the most accurate one
+    static const std::vector<PDFOCRModelProfile>& getProfiles();
+
+    /// Returns translated name of the profile
+    static QString getProfileName(PDFOCRModelProfile profile);
+
+    /// Returns identifier of the profile ("fast", "standard", "best")
+    static QString getProfileIdentifier(PDFOCRModelProfile profile);
+    static PDFOCRModelProfile parseProfileIdentifier(const QString& identifier);
+
+    /// Returns the languages joined with '+' (e.g. "ces+eng")
+    QString getLanguageString() const { return languages.join(QChar('+')); }
+
+    QJsonObject toJson() const;
+    static PDFOCRConfiguration fromJson(const QJsonObject& object);
+
+    /// Returns a variant map with the effective parameters (for the provenance record)
+    QVariantMap toParameterMap() const;
+
+    bool operator==(const PDFOCRConfiguration&) const = default;
+};
+
+/// Per page override of the configuration (PAGE-06). Empty optionals inherit.
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCRPageOverride
+{
+    std::optional<QStringList> languages;
+    std::optional<PDFOCRLayout> layout;
+    std::optional<int> rotation;
+    std::optional<double> dpi;
+    std::optional<bool> autoOrientation;
+    std::optional<bool> deskew;
+
+    /// Perspective correction of the page (see PDFOCRPreprocessing::perspective)
+    std::optional<PDFOCRQuad> perspective;
+
+    bool isEmpty() const;
+
+    /// Applies the override to the configuration
+    PDFOCRConfiguration apply(PDFOCRConfiguration configuration) const;
+
+    QJsonObject toJson() const;
+    static PDFOCRPageOverride fromJson(const QJsonObject& object);
+
+    bool operator==(const PDFOCRPageOverride&) const = default;
+};
+
+/// Named profile (REC-02)
+struct PDF4QTLIBCORESHARED_EXPORT PDFOCRProfile
+{
+    QString name;
+    PDFOCRConfiguration configuration;
+
+    QJsonObject toJson() const;
+    static PDFOCRProfile fromJson(const QJsonObject& object);
+
+    bool operator==(const PDFOCRProfile&) const = default;
+};
+
+/// Resolves effective configuration: profile -> document job -> page -> region (PAGE-06)
+class PDF4QTLIBCORESHARED_EXPORT PDFOCRConfigurationResolver
+{
+public:
+    static PDFOCRConfiguration resolve(const PDFOCRConfiguration& jobConfiguration,
+                                       const PDFOCRPageOverride* pageOverride,
+                                       const PDFOCRRegionOverride* regionOverride);
+};
+
+/// Page selection helper (PAGE-02, PAGE-03). Page ranges are entered as
+/// 1-based physical page numbers, indices are 0-based.
+class PDF4QTLIBCORESHARED_EXPORT PDFOCRPageSelection
+{
+public:
+    enum class Parity
+    {
+        All,
+        Odd,
+        Even
+    };
+
+    /// Parses the range text (for example "1, 3-5, 9"), applies the parity filter and
+    /// returns sorted unique 0-based page indices. On error, empty vector is returned
+    /// and the error message is filled.
+    static std::vector<PDFInteger> parseRange(PDFInteger pageCount, const QString& text, Parity parity, QString* errorMessage);
+
+    /// Filters the 0-based indices by the parity of the physical page numbers
+    static std::vector<PDFInteger> filterParity(std::vector<PDFInteger> indices, Parity parity);
+
+    /// Returns human readable description of the selection (for example "1-3, 7")
+    static QString describe(const std::vector<PDFInteger>& indices);
+};
+
+}   // namespace pdf
+
+#endif // PDFOCRCONFIGURATION_H

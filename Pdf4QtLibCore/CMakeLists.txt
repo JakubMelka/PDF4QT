@@ -73,6 +73,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfjbig2decoder.h
     sources/pdfjbig2encoder.cpp
     sources/pdfjbig2encoder.h
+    sources/pdfjsonhelper.cpp
+    sources/pdfjsonhelper.h
     sources/pdfmeasure.cpp
     sources/pdfmeasure.h
     sources/pdfmultimedia.cpp
@@ -189,7 +191,36 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfapplicationtranslator.cpp
     sources/pdfsettings.h
     sources/pdfsettings.cpp
+    sources/pdfocrmodel.h
+    sources/pdfocrmodel.cpp
+    sources/pdfocrconfiguration.h
+    sources/pdfocrconfiguration.cpp
+    sources/pdfocrengine.h
+    sources/pdfocrengine.cpp
+    sources/pdfocrpagepreparer.h
+    sources/pdfocrpagepreparer.cpp
+    sources/pdfocrproject.h
+    sources/pdfocrproject.cpp
+    sources/pdfocrexport.h
+    sources/pdfocrexport.cpp
+    sources/pdfocrcompression.h
+    sources/pdfocrcompression.cpp
+    sources/pdfocrapplyprocessor.h
+    sources/pdfocrapplyprocessor.cpp
+    sources/pdfocrdocumentrunner.h
+    sources/pdfocrdocumentrunner.cpp
+    sources/pdfscanpreparation.h
+    sources/pdfscanpreparation.cpp
+    sources/pdfocrtextlayerwriter.h
+    sources/pdfocrtextlayerwriter.cpp
+    sources/pdfocrmodelmanager.h
+    sources/pdfocrmodelmanager.cpp
+    sources/pdfocrjobcontroller.h
+    sources/pdfocrjobcontroller.cpp
+    sources/pdfocrsession.h
+    sources/pdfocrsession.cpp
     fonts.qrc
+    ocr.qrc
 )
 
 include(GenerateExportHeader)

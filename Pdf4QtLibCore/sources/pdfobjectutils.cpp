@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfobjectutils.h"
+#include "pdfdocument.h"
 #include "pdfvisitor.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfdocumentwriter.h"
@@ -483,6 +484,55 @@ void PDFObjectClassifier::markDictionary(const PDFDocument* document, PDFObject 
             {
                 mark(item.getReference(), type);
             }
+        }
+    }
+}
+
+PDFDictionaryBuilder PDFObjectUtils::copyDictionary(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
+    {
+        return PDFDictionaryBuilder(*dictionary);
+    }
+
+    return PDFDictionaryBuilder();
+}
+
+std::vector<std::pair<PDFInteger, PDFObject>> PDFObjectUtils::readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth)
+{
+    std::vector<std::pair<PDFInteger, PDFObject>> entries;
+    readNumberTreeNode(storage, root, 0, maximumDepth, entries);
+    return entries;
+}
+
+void PDFObjectUtils::readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, int maximumDepth, std::vector<std::pair<PDFInteger, PDFObject>>& entries)
+{
+    const PDFDictionary* dictionary = storage->getDictionaryFromObject(node);
+    if (!dictionary || depth > maximumDepth)
+    {
+        return;
+    }
+
+    const PDFObject& numbers = storage->getObject(dictionary->get("Nums"));
+    if (numbers.isArray())
+    {
+        const PDFArray* array = numbers.getArray();
+        for (size_t i = 0; i + 1 < array->getCount(); i += 2)
+        {
+            const PDFObject& key = storage->getObject(array->getItem(i));
+            if (key.isInt())
+            {
+                entries.emplace_back(key.getInteger(), array->getItem(i + 1));
+            }
+        }
+    }
+
+    const PDFObject& kids = storage->getObject(dictionary->get("Kids"));
+    if (kids.isArray())
+    {
+        for (size_t i = 0; i < kids.getArray()->getCount(); ++i)
+        {
+            readNumberTreeNode(storage, kids.getArray()->getItem(i), depth + 1, maximumDepth, entries);
         }
     }
 }

@@ -25,8 +25,10 @@
 
 #include "pdfglobal.h"
 
+#include <QRect>
 #include <QRectF>
 #include <QColor>
+#include <QString>
 #include <QByteArray>
 #include <QDataStream>
 
@@ -902,6 +904,75 @@ private:
     std::vector<QColor> m_colorScales;
     PDFReal m_min;
     PDFReal m_max;
+};
+
+/// Geometric utilities
+class PDF4QTLIBCORESHARED_EXPORT PDFGeometryUtils
+{
+public:
+    PDFGeometryUtils() = delete;
+
+    /// Returns the intersection over union (Jaccard index) of two rectangles.
+    /// Returns 0, if the rectangles do not intersect. Unlike the ratio of the
+    /// intersection to the smaller rectangle, a small rectangle inside of a large
+    /// one has a small value.
+    /// \param first First rectangle
+    /// \param second Second rectangle
+    static double getIntersectionOverUnion(const QRectF& first, const QRectF& second);
+
+    /// Returns the smallest rectangle of whole pixels covering the rectangle,
+    /// clamped to the image of the given size
+    /// \param rect Rectangle in pixels
+    /// \param size Size of the image
+    static QRect getPixelRect(const QRectF& rect, QSize size);
+};
+
+/// Conversion of the values of an enumeration to names and back by a table of names
+class PDFEnumerationNames
+{
+public:
+    PDFEnumerationNames() = delete;
+
+    /// Entry of the table of names
+    template<typename Enum>
+    struct Entry
+    {
+        Enum value;
+        const char* name;
+    };
+
+    /// Returns the name of the value, or an empty string, if the value is not in the table
+    /// \param entries Table of names
+    /// \param value Value
+    template<typename Enum, size_t N>
+    static QString toString(const Entry<Enum> (&entries)[N], Enum value)
+    {
+        for (const Entry<Enum>& entry : entries)
+        {
+            if (entry.value == value)
+            {
+                return QLatin1String(entry.name);
+            }
+        }
+        return QString();
+    }
+
+    /// Returns the value of the name, or the first value of the table, if the name
+    /// is not in the table
+    /// \param entries Table of names
+    /// \param name Name
+    template<typename Enum, size_t N>
+    static Enum fromString(const Entry<Enum> (&entries)[N], const QString& name)
+    {
+        for (const Entry<Enum>& entry : entries)
+        {
+            if (name == QLatin1String(entry.name))
+            {
+                return entry.value;
+            }
+        }
+        return entries[0].value;
+    }
 };
 
 }   // namespace pdf

@@ -43,6 +43,7 @@
 #include <QDataStream>
 
 #include <limits>
+#include <algorithm>
 #include <map>
 
 #include "pdfdbgheap.h"
@@ -1508,14 +1509,38 @@ private:
     /// .notdef, but some embedded PDF fonts use it as a real glyph.
     bool canRenderGlyphIndex(GID glyphIndex, QChar character) const;
 
+    /// Returns glyph index of the unicode character in the face (using
+    /// the lookup table created by \p initializeLookupTables), or 0,
+    /// if the face doesn't contain the character.
+    GID getUnicodeGlyphIndex(QChar character) const;
+
+    /// Reads from the face all data needed by the text sequence creation, so
+    /// only the glyph outline loading accesses the face after the font has been
+    /// realized. Must be called during the font creation, before the font
+    /// is shared by more threads.
+    void initializeLookupTables();
+
     /// Function checks, if error occured, and if yes, then exception is thrown
     static void checkFreeTypeError(FT_Error error);
 
-    /// Read/write lock for accessing the glyph data
-    QReadWriteLock m_readWriteLock;
+    /// Read/write lock for accessing the glyph data. FreeType face may be used
+    /// by one thread at a time, so every access to the face after the font
+    /// has been realized must hold the write lock.
+    mutable QReadWriteLock m_readWriteLock;
 
     /// Glyph cache, must be protected by the mutex above
     std::unordered_map<unsigned int, Glyph> m_glyphCache;
+
+    /// Glyph indices of the character codes of simple fonts (glyph indices
+    /// of the font completed by the unicode charmap of the face)
+    GlyphIndices m_simpleFontGlyphIndices = { };
+
+    /// Sorted unicode charmap of the face (characters of the basic multilingual
+    /// plane), used for substituted (non-embedded) composite fonts
+    std::vector<std::pair<QChar, GID>> m_unicodeGlyphIndices;
+
+    /// True, if glyph index 0 is a real glyph (not a .notdef)
+    bool m_isGlyphZeroRenderable = false;
 
     /// For embedded fonts, this byte array contains embedded font data
     QByteArray m_embeddedFontData;
@@ -1586,22 +1611,12 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
             // We can use encoding
             Q_ASSERT(dynamic_cast<PDFSimpleFont*>(m_parentFont.get()));
             const PDFSimpleFont* font = static_cast<PDFSimpleFont*>(m_parentFont.get());
-            const GlyphIndices* glyphIndices = font->getGlyphIndices();
 
             textSequence.items.reserve(textSequence.items.size() + byteArray.size());
             for (int i = 0, count = byteArray.size(); i < count; ++i)
             {
                 const CID cid = static_cast<uint8_t>(byteArray[i]);
-                GID glyphIndex = (*glyphIndices)[cid];
-
-                if (!glyphIndex)
-                {
-                    // Try to obtain glyph index from unicode
-                    if (m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
-                    {
-                        glyphIndex = FT_Get_Char_Index(m_face, font->getUnicode(cid).unicode());
-                    }
-                }
+                const GID glyphIndex = m_simpleFontGlyphIndices[cid];
 
                 const PDFReal glyphWidth = font->getGlyphAdvance(cid);
 
@@ -1653,9 +1668,9 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 }
 
                 std::optional<GID> glyphIndex;
-                if (!m_isEmbedded && !character.isNull() && m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
+                if (!m_isEmbedded && !character.isNull())
                 {
-                    const GID unicodeGlyphIndex = FT_Get_Char_Index(m_face, character.unicode());
+                    const GID unicodeGlyphIndex = getUnicodeGlyphIndex(character);
                     if (unicodeGlyphIndex)
                     {
                         glyphIndex = unicodeGlyphIndex;
@@ -1731,20 +1746,10 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
             // We can use encoding
             Q_ASSERT(dynamic_cast<PDFSimpleFont*>(m_parentFont.get()));
             const PDFSimpleFont* font = static_cast<PDFSimpleFont*>(m_parentFont.get());
-            const GlyphIndices* glyphIndices = font->getGlyphIndices();
 
-            for (size_t i = 0; i < glyphIndices->size(); ++i)
+            for (size_t i = 0; i < m_simpleFontGlyphIndices.size(); ++i)
             {
-                GID glyphIndex = (*glyphIndices)[static_cast<uint8_t>(i)];
-
-                if (!glyphIndex)
-                {
-                    // Try to obtain glyph index from unicode
-                    if (m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
-                    {
-                        glyphIndex = FT_Get_Char_Index(m_face, font->getUnicode(static_cast<CID>(i)).unicode());
-                    }
-                }
+                const GID glyphIndex = m_simpleFontGlyphIndices[i];
 
                 if (glyphIndex)
                 {
@@ -1765,6 +1770,9 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
 
             const PDFFontCMap* toUnicode = font->getToUnicode();
             const PDFCIDtoGIDMapper* CIDtoGIDmapper = font->getCIDtoGIDMapper();
+
+            // Face is accessed directly, so the face must not be used by another thread
+            QWriteLocker writeLock(&m_readWriteLock);
 
             FT_UInt index = 0;
             FT_ULong character = FT_Get_First_Char(m_face, &index);
@@ -2005,16 +2013,63 @@ bool PDFRealizedFontImpl::canRenderGlyphIndex(GID glyphIndex, QChar character) c
         return false;
     }
 
-    if (m_face && FT_Has_PS_Glyph_Names(m_face))
+    return m_isGlyphZeroRenderable;
+}
+
+GID PDFRealizedFontImpl::getUnicodeGlyphIndex(QChar character) const
+{
+    auto it = std::lower_bound(m_unicodeGlyphIndices.cbegin(), m_unicodeGlyphIndices.cend(), character, [](const auto& item, QChar value) { return item.first < value; });
+    if (it != m_unicodeGlyphIndices.cend() && it->first == character)
     {
-        char glyphName[128] = { };
-        if (!FT_Get_Glyph_Name(m_face, glyphIndex, glyphName, static_cast<FT_ULong>(std::size(glyphName))))
+        return it->second;
+    }
+
+    return 0;
+}
+
+void PDFRealizedFontImpl::initializeLookupTables()
+{
+    const bool hasUnicodeCharmap = m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE;
+
+    if (const PDFSimpleFont* simpleFont = dynamic_cast<const PDFSimpleFont*>(m_parentFont.get()))
+    {
+        m_simpleFontGlyphIndices = *simpleFont->getGlyphIndices();
+
+        if (hasUnicodeCharmap)
         {
-            return qstrcmp(glyphName, ".notdef") != 0;
+            for (size_t i = 0; i < m_simpleFontGlyphIndices.size(); ++i)
+            {
+                if (!m_simpleFontGlyphIndices[i])
+                {
+                    // Try to obtain glyph index from unicode
+                    m_simpleFontGlyphIndices[i] = FT_Get_Char_Index(m_face, simpleFont->getUnicode(static_cast<CID>(i)).unicode());
+                }
+            }
         }
     }
 
-    return m_isEmbedded;
+    if (!m_isEmbedded && hasUnicodeCharmap && m_parentFont->getFontType() == FontType::Type0)
+    {
+        // Charmap is iterated in the order of increasing character codes
+        FT_UInt index = 0;
+        FT_ULong character = FT_Get_First_Char(m_face, &index);
+        while (index != 0 && character <= (std::numeric_limits<char16_t>::max)())
+        {
+            m_unicodeGlyphIndices.emplace_back(QChar(static_cast<char16_t>(character)), index);
+            character = FT_Get_Next_Char(m_face, character, &index);
+        }
+        m_unicodeGlyphIndices.shrink_to_fit();
+    }
+
+    m_isGlyphZeroRenderable = m_isEmbedded;
+    if (FT_Has_PS_Glyph_Names(m_face))
+    {
+        char glyphName[128] = { };
+        if (!FT_Get_Glyph_Name(m_face, 0, glyphName, static_cast<FT_ULong>(std::size(glyphName))))
+        {
+            m_isGlyphZeroRenderable = qstrcmp(glyphName, ".notdef") != 0;
+        }
+    }
 }
 
 void PDFRealizedFontImpl::checkFreeTypeError(FT_Error error)
@@ -2099,6 +2154,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             PDFRealizedFontImpl::checkFreeTypeError(FT_Set_Pixel_Sizes(impl->m_face, 0, qRound(pixelSize * PDFRealizedFontImpl::PIXEL_SIZE_MULTIPLIER)));
             impl->m_isVertical = cmap ? cmap->isVertical() : false;
             impl->m_isEmbedded = true;
+            impl->initializeLookupTables();
             result.reset(new PDFRealizedFont(implPtr.release()));
         }
         else
@@ -2133,6 +2189,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             {
                 impl->m_postScriptName = QString::fromLatin1(postScriptName);
             }
+            impl->initializeLookupTables();
             result.reset(new PDFRealizedFont(implPtr.release()));
         }
     }

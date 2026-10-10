@@ -539,6 +539,47 @@ private:
     mutable std::vector<int> m_textDrawingApplicationFontIds;
 };
 
+/// Disables the shrinking of the font caches for its lifetime and enables it again,
+/// whatever happens (for example, while the pages are processed concurrently)
+class PDFFontCacheShrinkGuard
+{
+public:
+    /// \param fontCache Font cache
+    /// \param source Source object, which disables the shrinking
+    explicit PDFFontCacheShrinkGuard(PDFFontCache* fontCache, const void* source = nullptr) :
+        PDFFontCacheShrinkGuard(std::vector<PDFFontCache*>{ fontCache }, source)
+    {
+
+    }
+
+    /// \param fontCaches Font caches
+    /// \param source Source object, which disables the shrinking
+    explicit PDFFontCacheShrinkGuard(std::vector<PDFFontCache*> fontCaches, const void* source = nullptr) :
+        m_fontCaches(std::move(fontCaches)),
+        m_source(source)
+    {
+        for (PDFFontCache* fontCache : m_fontCaches)
+        {
+            fontCache->setCacheShrinkEnabled(m_source, false);
+        }
+    }
+
+    ~PDFFontCacheShrinkGuard()
+    {
+        for (PDFFontCache* fontCache : m_fontCaches)
+        {
+            fontCache->setCacheShrinkEnabled(m_source, true);
+        }
+    }
+
+    PDFFontCacheShrinkGuard(const PDFFontCacheShrinkGuard&) = delete;
+    PDFFontCacheShrinkGuard& operator=(const PDFFontCacheShrinkGuard&) = delete;
+
+private:
+    std::vector<PDFFontCache*> m_fontCaches;
+    const void* m_source;
+};
+
 /// Performs mapping from CID to GID (even identity mapping, if byte array is empty)
 class PDFCIDtoGIDMapper
 {

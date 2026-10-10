@@ -1,0 +1,2111 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include "pdfocrdocumentdialog.h"
+#include "pdfocrbatchdialog.h"
+#include "pdfdocumentwriter.h"
+#include "pdfdocumentreader.h"
+#include "pdfocrengine.h"
+#include "pdfocrtextlayerwriter.h"
+#include "pdfocrpagepreparer.h"
+#include "pdfocrproject.h"
+#include "pdfocrexport.h"
+#include "pdfscanpreparation.h"
+#include "pdfscanpreparationdialog.h"
+#include "pdfocrpageview.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfdocumenttextflow.h"
+#include "pdfdrawwidget.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfcompiler.h"
+#include "pdfstreamfilters.h"
+#include "pdfconstants.h"
+#include "pdfprogress.h"
+#include "pdfcatalog.h"
+#include "pdfcms.h"
+#include "pdffont.h"
+#include "pdfoptionalcontent.h"
+#include "pdfmeshqualitysettings.h"
+
+#ifdef PDF4QT_OCR_TESSERACT
+#include "pdftesseractocrengine.h"
+#endif
+
+#include <QtTest>
+#include <QTimer>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QTreeWidget>
+#include <QMenu>
+#include <QPushButton>
+#include <QToolButton>
+#include <QMessageBox>
+#include <QFileDialog>
+#include <QInputDialog>
+#include <QStandardPaths>
+#include <QTemporaryDir>
+#include <QSpinBox>
+#include <QLabel>
+#include <QCheckBox>
+#include <QGroupBox>
+#include <QStackedWidget>
+#include <QPlainTextEdit>
+#include <QTableWidget>
+#include <QRadioButton>
+#include <QJsonDocument>
+
+using namespace pdf;
+using pdfviewer::PDFOCRPageView;
+
+// A release build (PDF4QT_OCR_REQUIRED) must test the real engine and the built-in
+// models: a missing prerequisite is a failure there, not a skip, so a green ctest
+// is a release gate of the OCR package
+#ifdef PDF4QT_OCR_TESTS_REQUIRED
+#define PDF4QT_OCR_SKIP(message) QFAIL(message)
+#else
+#define PDF4QT_OCR_SKIP(message) QSKIP(message)
+#endif
+
+/// Answers the modal message boxes of the dialog. The preferred buttons are
+/// searched by their text; everything, what was displayed, is recorded.
+class ModalResponder : public QObject
+{
+public:
+    explicit ModalResponder(QStringList preferredButtons) :
+        m_preferredButtons(std::move(preferredButtons))
+    {
+        m_timer.setInterval(25);
+        connect(&m_timer, &QTimer::timeout, this, &ModalResponder::onTimeout);
+        m_timer.start();
+    }
+
+    QStringList messages;
+
+    /// File name selected in the file dialogs (empty = the file dialogs are rejected)
+    QString fileName;
+
+    /// Item selected in the input dialogs with a list of items (empty = rejected)
+    QString inputItem;
+
+    /// Buttons clicked in the other dialogs (for example the preview of the compression);
+    /// the other dialogs are rejected, if none of the buttons is found
+    QStringList dialogButtons;
+
+    void setPreferredButtons(QStringList preferredButtons) { m_preferredButtons = std::move(preferredButtons); }
+
+private:
+    void onTimeout()
+    {
+        if (QMenu* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()))
+        {
+            // Context menu: the first preferred action is triggered, otherwise the menu is closed
+            for (const QString& preferred : m_preferredButtons)
+            {
+                for (QAction* action : menu->actions())
+                {
+                    if (action->text().remove(QChar('&')) == preferred && action->isEnabled())
+                    {
+                        messages << QStringLiteral("menu: ") + preferred;
+                        menu->setActiveAction(action);
+                        QTest::keyClick(menu, Qt::Key_Return);
+                        return;
+                    }
+                }
+            }
+
+            QStringList actions;
+            for (QAction* action : menu->actions())
+            {
+                actions << action->text() + (action->isEnabled() ? QString() : QStringLiteral(" (disabled)"));
+            }
+            messages << QStringLiteral("menu closed: ") + actions.join(QStringLiteral(", "));
+            menu->close();
+            return;
+        }
+
+        QWidget* widget = QApplication::activeModalWidget();
+        if (!widget)
+        {
+            return;
+        }
+
+        if (QFileDialog* fileDialog = qobject_cast<QFileDialog*>(widget))
+        {
+            messages << QStringLiteral("file dialog: ") + fileDialog->windowTitle();
+            if (fileName.isEmpty())
+            {
+                fileDialog->reject();
+            }
+            else
+            {
+                // The name is typed, the model of the dialog loads the directories asynchronously
+                fileDialog->setDirectory(QFileInfo(fileName).absolutePath());
+                if (QLineEdit* fileNameEdit = fileDialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")))
+                {
+                    fileNameEdit->setText(QFileInfo(fileName).fileName());
+                }
+                else
+                {
+                    fileDialog->selectFile(fileName);
+                }
+                static_cast<QDialog*>(fileDialog)->accept();
+            }
+            return;
+        }
+
+        if (QInputDialog* inputDialog = qobject_cast<QInputDialog*>(widget))
+        {
+            messages << QStringLiteral("input dialog: ") + inputDialog->labelText();
+            if (!inputItem.isEmpty() && inputDialog->comboBoxItems().contains(inputItem))
+            {
+                inputDialog->setTextValue(inputItem);
+                inputDialog->accept();
+            }
+            else
+            {
+                inputDialog->reject();
+            }
+            return;
+        }
+
+        if (QMessageBox* messageBox = qobject_cast<QMessageBox*>(widget))
+        {
+            messages << messageBox->text() + QChar('\n') + messageBox->informativeText() + QChar('\n') + messageBox->detailedText();
+
+            for (const QString& preferred : m_preferredButtons)
+            {
+                for (QAbstractButton* button : messageBox->buttons())
+                {
+                    if (button->text().remove(QChar('&')) == preferred)
+                    {
+                        button->click();
+                        return;
+                    }
+                }
+            }
+
+            if (QAbstractButton* button = messageBox->defaultButton())
+            {
+                button->click();
+            }
+            else if (!messageBox->buttons().isEmpty())
+            {
+                messageBox->buttons().front()->click();
+            }
+            return;
+        }
+
+        if (QDialog* dialog = qobject_cast<QDialog*>(widget))
+        {
+            for (const QString& preferred : dialogButtons)
+            {
+                for (QAbstractButton* button : dialog->findChildren<QAbstractButton*>())
+                {
+                    if (button->text().remove(QChar('&')) == preferred && button->isEnabled() && button->isVisible())
+                    {
+                        messages << QStringLiteral("dialog: ") + dialog->windowTitle() + QStringLiteral(" -> ") + preferred;
+                        button->click();
+                        return;
+                    }
+                }
+            }
+
+            messages << QStringLiteral("dialog: ") + dialog->windowTitle();
+            dialog->reject();
+        }
+    }
+
+    QTimer m_timer;
+    QStringList m_preferredButtons;
+};
+
+struct WidgetFixture
+{
+    PDFDocument document;
+    PDFCMSManager cms{nullptr};
+    PDFProgress progress{nullptr};
+    PDFWidget widget{&cms, RendererEngine::QPainter, nullptr};
+
+    PDFCMSPointer cmsPointer;
+
+    explicit WidgetFixture(PDFDocument doc) :
+        document(std::move(doc))
+    {
+        widget.resize(800, 800);
+        widget.getDrawWidget()->getWidget()->resize(800, 800);
+        widget.getDrawWidgetProxy()->setProgress(&progress);
+        PDFModifiedDocument modified(&document, nullptr);
+        widget.setDocument(modified, {});
+        cmsPointer = cms.getCurrentCMS();
+    }
+
+    pdfviewer::PDFOCRDocumentDialog::Context createContext()
+    {
+        pdfviewer::PDFOCRDocumentDialog::Context context;
+        context.document = &document;
+        context.proxy = widget.getDrawWidgetProxy();
+        context.cms = cmsPointer.data();
+        context.progress = &progress;
+        context.visiblePages = { 0 };
+        context.fileName = QStringLiteral("scan.pdf");
+        return context;
+    }
+
+    ~WidgetFixture()
+    {
+        widget.setDocument(PDFModifiedDocument(), {});
+    }
+};
+
+class OCRDialogTest : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void initTestCase();
+    void workflowWithTestEngine();
+    void stoppedRerunKeepsResults();
+    void workflowWithTesseract();
+    void reviewOnlySurvivesProject();
+    void existingTextMasked();
+    void certifiedDocument();
+    void limitedResolution();
+    void rerecognizeRegion();
+    void mergeAndSplitLines();
+    void dictionaryReviewAndExport();
+    void compressionInDialog();
+    void scanPreparationDialog();
+    void perspectiveInDialog();
+    void pageOverrideInDialog();
+    void batchDialog();
+
+private:
+    static PDFDocument createScanDocument(const QStringList& pageTexts, const QByteArray& digitalText = QByteArray());
+    static PDFDocument certifyDocument(const PDFDocument& document, int permissions);
+    static QTreeWidgetItem* findTreeItem(QTreeWidget* tree, int type, const QString& text);
+    static void selectComboData(pdfviewer::PDFOCRDocumentDialog& dialog, const char* name, const QVariant& data);
+    void setLinesHandler(const std::vector<QStringList>& lines);
+    static QImage renderTextImage(const QString& text, QSizeF pageSize);
+    static QString extractText(const PDFDocument& document, PDFInteger pageIndex);
+    static QString getLayoutText(PDFDrawWidgetProxy* proxy, PDFInteger pageIndex);
+    void runWorkflow(const QString& engineId, const QString& expectedWord);
+
+    std::shared_ptr<PDFOCRTestEngineFactory> m_testEngine;
+    QTemporaryDir m_settingsDirectory;
+};
+
+void OCRDialogTest::initTestCase()
+{
+    // Neither the settings nor the application data of the user are touched by the test
+    QStandardPaths::setTestModeEnabled(true);
+    QCoreApplication::setOrganizationName(QStringLiteral("PDF4QT-UnitTests"));
+    QCoreApplication::setApplicationName(QStringLiteral("UnitTestsOCRDialog"));
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDirectory.path());
+
+    m_testEngine = std::make_shared<PDFOCRTestEngineFactory>();
+    PDFOCREngineRegistry::getInstance()->registerFactory(m_testEngine);
+
+#ifdef PDF4QT_OCR_TESSERACT
+    PDFTesseractOCREngineFactory::registerEngine();
+#endif
+}
+
+QImage OCRDialogTest::renderTextImage(const QString& text, QSizeF pageSize)
+{
+    // The text is rendered by the PDF renderer with the standard font Helvetica
+    PDFDocumentBuilder builder;
+    const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
+
+    QByteArray content = QStringLiteral("BT /F1 28 Tf 30 50 Td (%1) Tj ET").arg(text).toLatin1();
+    PDFDictionaryBuilder contentDictionary;
+    contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
+    const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
+
+    PDFObjectFactory fontFactory;
+    fontFactory.beginDictionary();
+    fontFactory.beginDictionaryItem("Type");
+    fontFactory << WrapName("Font");
+    fontFactory.endDictionaryItem();
+    fontFactory.beginDictionaryItem("Subtype");
+    fontFactory << WrapName("Type1");
+    fontFactory.endDictionaryItem();
+    fontFactory.beginDictionaryItem("BaseFont");
+    fontFactory << WrapName("Helvetica");
+    fontFactory.endDictionaryItem();
+    fontFactory.beginDictionaryItem("Encoding");
+    fontFactory << WrapName("WinAnsiEncoding");
+    fontFactory.endDictionaryItem();
+    fontFactory.endDictionary();
+    const PDFObjectReference fontReference = builder.addObject(fontFactory.takeObject());
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Contents");
+    factory << contentReference;
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Resources");
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Font");
+    factory.beginDictionary();
+    factory.beginDictionaryItem("F1");
+    factory << fontReference;
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder.mergeTo(pageReference, factory.takeObject());
+
+    PDFDocument document = builder.build();
+    PDFOptionalContentActivity activity(&document, OCUsage::Export, nullptr);
+    PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    PDFModifiedDocument modifiedDocument(&document, &activity);
+    fontCache.setDocument(modifiedDocument);
+    fontCache.setCacheShrinkEnabled(nullptr, false);
+    PDFCMSGeneric cms;
+    PDFMeshQualitySettings meshQualitySettings;
+
+    PDFOCRPagePreparer preparer(&document, &fontCache, &cms, &activity, meshQualitySettings, RendererEngine::QPainter);
+    PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(0, 300.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr);
+    fontCache.setCacheShrinkEnabled(nullptr, true);
+    return raster.image;
+}
+
+PDFDocument OCRDialogTest::createScanDocument(const QStringList& pageTexts, const QByteArray& digitalText)
+{
+    // Every page is an image of a rendered text, so the expected transcript is not hidden in the PDF.
+    // An optional short digital text (a page number) is drawn over the image with Helvetica.
+    PDFDocumentBuilder builder;
+    const QSizeF pageSize(400, 120);
+
+    PDFObjectReference fontReference;
+    if (!digitalText.isEmpty())
+    {
+        PDFObjectFactory fontFactory;
+        fontFactory.beginDictionary();
+        fontFactory.beginDictionaryItem("Type");
+        fontFactory << WrapName("Font");
+        fontFactory.endDictionaryItem();
+        fontFactory.beginDictionaryItem("Subtype");
+        fontFactory << WrapName("Type1");
+        fontFactory.endDictionaryItem();
+        fontFactory.beginDictionaryItem("BaseFont");
+        fontFactory << WrapName("Helvetica");
+        fontFactory.endDictionaryItem();
+        fontFactory.beginDictionaryItem("Encoding");
+        fontFactory << WrapName("WinAnsiEncoding");
+        fontFactory.endDictionaryItem();
+        fontFactory.endDictionary();
+        fontReference = builder.addObject(fontFactory.takeObject());
+    }
+
+    for (const QString& pageText : pageTexts)
+    {
+        const QImage image = renderTextImage(pageText, pageSize).convertToFormat(QImage::Format_RGB888);
+
+        QByteArray imageData;
+        for (int y = 0; y < image.height(); ++y)
+        {
+            imageData.append(reinterpret_cast<const char*>(image.constScanLine(y)), image.width() * 3);
+        }
+        QByteArray compressed = PDFFlateDecodeFilter::compress(imageData);
+
+        PDFDictionaryBuilder imageDictionary;
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(image.width()));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(image.height()));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceRGB"));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createName("FlateDecode"));
+        imageDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(compressed.size()));
+        const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(imageDictionary), std::move(compressed))));
+
+        const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
+        QByteArray content = QStringLiteral("q %1 0 0 %2 0 0 cm /Im1 Do Q").arg(pageSize.width()).arg(pageSize.height()).toLatin1();
+        if (!digitalText.isEmpty())
+        {
+            content += " BT /F1 10 Tf 280 10 Td (" + digitalText + ") Tj ET";
+        }
+        PDFDictionaryBuilder contentDictionary;
+        contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
+        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Contents");
+        factory << contentReference;
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("Resources");
+        factory.beginDictionary();
+        factory.beginDictionaryItem("XObject");
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Im1");
+        factory << imageReference;
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        factory.endDictionaryItem();
+        if (fontReference.isValid())
+        {
+            factory.beginDictionaryItem("Font");
+            factory.beginDictionary();
+            factory.beginDictionaryItem("F1");
+            factory << fontReference;
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            factory.endDictionaryItem();
+        }
+        factory.endDictionary();
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(pageReference, factory.takeObject());
+    }
+
+    return builder.build();
+}
+
+QString OCRDialogTest::extractText(const PDFDocument& document, PDFInteger pageIndex)
+{
+    PDFDocumentTextFlowFactory factory;
+    return factory.create(&document, { pageIndex }, PDFDocumentTextFlowFactory::Algorithm::Layout).getText();
+}
+
+QString OCRDialogTest::getLayoutText(PDFDrawWidgetProxy* proxy, PDFInteger pageIndex)
+{
+    QString text;
+    const PDFTextLayout layout = proxy->getTextLayoutCompiler()->createTextLayout(pageIndex);
+    for (const PDFTextBlock& block : layout.getTextBlocks())
+    {
+        for (const PDFTextLine& line : block.getLines())
+        {
+            for (const TextCharacter& character : line.getCharacters())
+            {
+                text += character.character;
+            }
+            text += QChar(' ');
+        }
+    }
+    return text;
+}
+
+void OCRDialogTest::runWorkflow(const QString& engineId, const QString& expectedWord)
+{
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Hello world"), QStringLiteral("Second page") }));
+
+    pdfviewer::PDFOCRDocumentDialog::Context context;
+    context.document = &fixture.document;
+    context.proxy = fixture.widget.getDrawWidgetProxy();
+    PDFCMSPointer cms = fixture.cms.getCurrentCMS();
+    context.cms = cms.data();
+    context.progress = &fixture.progress;
+    context.visiblePages = { 0 };
+    context.fileName = QStringLiteral("scan.pdf");
+
+    ModalResponder responder({ QStringLiteral("Apply"), QStringLiteral("No"), QStringLiteral("Discard"), QStringLiteral("Continue"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* engineComboBox = dialog.findChild<QComboBox*>(QStringLiteral("engineComboBox"));
+    auto* languagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("languagesListWidget"));
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    auto* undoButton = dialog.findChild<QPushButton*>(QStringLiteral("undoButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    auto* wordTextEdit = dialog.findChild<QLineEdit*>(QStringLiteral("wordTextEdit"));
+    QVERIFY(pagesListWidget && engineComboBox && languagesListWidget && recognizeButton && stopButton && applyButton && undoButton && resultsTreeWidget && wordTextEdit);
+
+    // All pages are listed and checked by default (PAGE-01)
+    QCOMPARE(pagesListWidget->count(), 2);
+    QCOMPARE(pagesListWidget->item(0)->checkState(), Qt::Checked);
+    QCOMPARE(pagesListWidget->item(1)->checkState(), Qt::Checked);
+
+    const int engineIndex = engineComboBox->findData(engineId);
+    QVERIFY2(engineIndex >= 0, qPrintable(engineId));
+    engineComboBox->setCurrentIndex(engineIndex);
+
+    if (engineId == QStringLiteral("tesseract"))
+    {
+        // Built-in languages are offered without any download (LANG-01)
+        QStringList languages;
+        for (int i = 0; i < languagesListWidget->count(); ++i)
+        {
+            QListWidgetItem* item = languagesListWidget->item(i);
+            languages << item->data(Qt::UserRole + 3).toString();
+            item->setCheckState(item->data(Qt::UserRole + 3).toString() == QStringLiteral("eng") ? Qt::Checked : Qt::Unchecked);
+        }
+        QVERIFY2(languages.contains(QStringLiteral("ces")) && languages.contains(QStringLiteral("eng")) && languages.contains(QStringLiteral("deu")) && languages.contains(QStringLiteral("slk")), qPrintable(languages.join(QChar(','))));
+        QVERIFY(!languages.contains(QStringLiteral("osd")));
+    }
+
+    // Recognition itself does not modify the document (UI-03)
+    QVERIFY(recognizeButton->isEnabled());
+    QVERIFY(!applyButton->isEnabled());
+    recognizeButton->click();
+    QVERIFY2(stopButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))));
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 180000);
+    QVERIFY(!dialog.hasModifiedDocument());
+    QVERIFY2(applyButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))));
+
+    // Results of the current page are displayed; any word can be corrected (EDIT-01)
+    pagesListWidget->setCurrentRow(0);
+    QTreeWidgetItem* wordItem = nullptr;
+    QTreeWidgetItemIterator it(resultsTreeWidget);
+    while (*it)
+    {
+        if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2)
+        {
+            wordItem = *it;
+            break;
+        }
+        ++it;
+    }
+    QVERIFY(wordItem);
+    QCOMPARE(wordItem->text(0), expectedWord);
+    resultsTreeWidget->setCurrentItem(wordItem);
+    QCOMPARE(wordTextEdit->text(), expectedWord);
+    QVERIFY(wordTextEdit->isEnabled());
+
+    wordTextEdit->setText(QStringLiteral("Corrected"));
+    QMetaObject::invokeMethod(wordTextEdit, "editingFinished");
+    QVERIFY(undoButton->isEnabled());
+
+    // Optional screenshot of the dialog for a manual check of the layout
+    const QByteArray screenshotFile = qgetenv("PDF4QT_OCR_DIALOG_SCREENSHOT");
+    if (!screenshotFile.isEmpty())
+    {
+        QTest::qWait(1500);
+        qInfo() << "Dialog size" << dialog.size() << "minimum size hint" << dialog.minimumSizeHint();
+        dialog.grab().save(QString::fromLocal8Bit(screenshotFile) + QStringLiteral("_") + engineId + QStringLiteral(".png"));
+    }
+
+    // Local undo and redo of the correction (EDIT-06)
+    undoButton->click();
+    QCOMPARE(wordTextEdit->text(), expectedWord);
+    auto* redoButton = dialog.findChild<QPushButton*>(QStringLiteral("redoButton"));
+    redoButton->click();
+    QCOMPARE(wordTextEdit->text(), QStringLiteral("Corrected"));
+
+    // Application is a separate step with a summary; the dialog is accepted after the commit is prepared
+    responder.messages.clear();
+    applyButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(dialog.result() == QDialog::Accepted && !dialog.isVisible(), 60000);
+    QVERIFY2(dialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))));
+    QVERIFY(responder.messages.join(QChar('|')).contains(QStringLiteral("Pages: 1-2")));
+
+    PDFDocumentPointer modified = dialog.takeModifiedDocument();
+    QVERIFY(modified);
+    QCOMPARE(modified->getCatalog()->getPageCount(), size_t(2));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 0).isPresent);
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 1).isPresent);
+
+    const QString text = extractText(*modified, 0);
+    QVERIFY2(text.contains(QStringLiteral("Corrected")), qPrintable(text));
+    QVERIFY2(!text.contains(expectedWord), qPrintable(text));
+
+    // AT-16: the modification with the page contents flag invalidates the text layouts of the
+    // editor widget, so the search corresponds to every version of the document
+    PDFDrawWidgetProxy* proxy = fixture.widget.getDrawWidgetProxy();
+    QVERIFY(!getLayoutText(proxy, 0).contains(QStringLiteral("Corrected")));
+
+    PDFModifiedDocument modifiedDocument(modified, nullptr, PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::PageContents));
+    fixture.widget.setDocument(modifiedDocument, {});
+    QVERIFY2(getLayoutText(proxy, 0).contains(QStringLiteral("Corrected")), qPrintable(getLayoutText(proxy, 0)));
+
+    // Undo of the document step returns the original document
+    PDFModifiedDocument originalDocument(&fixture.document, nullptr, PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::PageContents));
+    fixture.widget.setDocument(originalDocument, {});
+    QVERIFY(!getLayoutText(proxy, 0).contains(QStringLiteral("Corrected")));
+
+    // The dialog opened on the modified document offers the own layer for further corrections
+    // without a new recognition (PDF-10)
+    std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(modified.data(), 0);
+    QVERIFY(layer.has_value());
+    QCOMPARE(layer->getWords().front()->text, QStringLiteral("Corrected"));
+
+    {
+        WidgetFixture reopenedFixture{ PDFDocument(*modified) };
+
+        pdfviewer::PDFOCRDocumentDialog::Context reopenedContext = context;
+        reopenedContext.document = &reopenedFixture.document;
+        reopenedContext.proxy = reopenedFixture.widget.getDrawWidgetProxy();
+        reopenedContext.progress = &reopenedFixture.progress;
+
+        pdfviewer::PDFOCRDocumentDialog reopenedDialog(reopenedContext, nullptr);
+        reopenedDialog.show();
+
+        auto* reopenedPages = reopenedDialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* reopenedTree = reopenedDialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+        auto* reopenedWordEdit = reopenedDialog.findChild<QLineEdit*>(QStringLiteral("wordTextEdit"));
+        auto* reopenedApply = reopenedDialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        QVERIFY(reopenedPages && reopenedTree && reopenedWordEdit && reopenedApply);
+
+        auto findWordItem = [reopenedTree](const QString& text) -> QTreeWidgetItem*
+        {
+            QTreeWidgetItemIterator it(reopenedTree);
+            while (*it)
+            {
+                if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2 && (*it)->text(0) == text)
+                {
+                    return *it;
+                }
+                ++it;
+            }
+            return nullptr;
+        };
+
+        // The layer is loaded by the background analysis, no recognition is started
+        reopenedPages->setCurrentRow(0);
+        QTRY_VERIFY_WITH_TIMEOUT(findWordItem(QStringLiteral("Corrected")) != nullptr, 60000);
+        QTRY_VERIFY_WITH_TIMEOUT(reopenedApply->isEnabled(), 60000);
+
+        // The text can be corrected further
+        reopenedTree->setCurrentItem(findWordItem(QStringLiteral("Corrected")));
+        QVERIFY(reopenedWordEdit->isEnabled());
+        reopenedWordEdit->setText(QStringLiteral("Twice"));
+        QMetaObject::invokeMethod(reopenedWordEdit, "editingFinished");
+
+        responder.messages.clear();
+        reopenedApply->click();
+        QTRY_VERIFY_WITH_TIMEOUT(reopenedDialog.result() == QDialog::Accepted && !reopenedDialog.isVisible(), 60000);
+        QVERIFY2(reopenedDialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))));
+        PDFDocumentPointer twice = reopenedDialog.takeModifiedDocument();
+        QVERIFY(twice);
+        const QString twiceText = extractText(*twice, 0);
+        QVERIFY2(twiceText.contains(QStringLiteral("Twice")) && !twiceText.contains(QStringLiteral("Corrected")), qPrintable(twiceText));
+        QCOMPARE(PDFOCRTextLayerWriter::readLayerInfo(twice.data(), 0).layerId, PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 0).layerId);
+    }
+}
+
+void OCRDialogTest::workflowWithTestEngine()
+{
+    m_testEngine->setRecognitionDelay(50);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        const double scale = input.dpi / 72.0;
+        PDFOCRRawBlock block;
+        PDFOCRRawLine line;
+        PDFOCRRawWord first;
+        first.text = QStringLiteral("Deterministic");
+        first.rect = QRectF(30 * scale, 40 * scale, 150 * scale, 30 * scale);
+        first.rawConfidence = 55.0;
+        PDFOCRRawWord second;
+        second.text = QStringLiteral("result");
+        second.rect = QRectF(190 * scale, 40 * scale, 80 * scale, 30 * scale);
+        second.rawConfidence = 97.0;
+        line.rect = first.rect.united(second.rect);
+        line.words = { first, second };
+        block.rect = line.rect;
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        return output;
+    });
+
+    runWorkflow(QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER), QStringLiteral("Deterministic"));
+}
+
+void OCRDialogTest::stoppedRerunKeepsResults()
+{
+    m_testEngine->setRecognitionDelay(20);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        const double scale = input.dpi / 72.0;
+        PDFOCRRawBlock block;
+        PDFOCRRawLine line;
+        PDFOCRRawWord word;
+        word.text = QStringLiteral("Stable");
+        word.rect = QRectF(30 * scale, 40 * scale, 150 * scale, 30 * scale);
+        word.rawConfidence = 90.0;
+        line.rect = word.rect;
+        line.words = { word };
+        block.rect = line.rect;
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        return output;
+    });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("First page"), QStringLiteral("Second page"), QStringLiteral("Third page") }));
+
+    pdfviewer::PDFOCRDocumentDialog::Context context;
+    context.document = &fixture.document;
+    context.proxy = fixture.widget.getDrawWidgetProxy();
+    PDFCMSPointer cms = fixture.cms.getCurrentCMS();
+    context.cms = cms.data();
+    context.progress = &fixture.progress;
+    context.visiblePages = { 0 };
+    context.fileName = QStringLiteral("scan.pdf");
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("No"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* engineComboBox = dialog.findChild<QComboBox*>(QStringLiteral("engineComboBox"));
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    auto* findEdit = dialog.findChild<QLineEdit*>(QStringLiteral("findEdit"));
+    QVERIFY(pagesListWidget && engineComboBox && recognizeButton && stopButton && applyButton && resultsTreeWidget && findEdit);
+
+    engineComboBox->setCurrentIndex(engineComboBox->findData(QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER)));
+
+    // No button of the dialog is the default one: Enter in an edit box does not click "All"
+    for (QPushButton* button : dialog.findChildren<QPushButton*>())
+    {
+        QVERIFY2(!button->isDefault() && !button->autoDefault(), qPrintable(button->objectName()));
+    }
+    pagesListWidget->item(2)->setCheckState(Qt::Unchecked);
+    findEdit->setText(QStringLiteral("nothing"));
+    QTest::keyClick(findEdit, Qt::Key_Return);
+    QCOMPARE(pagesListWidget->item(2)->checkState(), Qt::Unchecked);
+    pagesListWidget->item(2)->setCheckState(Qt::Checked);
+
+    auto countWords = [&]()
+    {
+        int count = 0;
+        for (int row = 0; row < pagesListWidget->count(); ++row)
+        {
+            pagesListWidget->setCurrentRow(row);
+            QTreeWidgetItemIterator it(resultsTreeWidget);
+            while (*it)
+            {
+                if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2 && (*it)->text(0) == QStringLiteral("Stable"))
+                {
+                    ++count;
+                }
+                ++it;
+            }
+        }
+        return count;
+    };
+
+    // First recognition of all pages
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY(applyButton->isEnabled());
+    QCOMPARE(countWords(), 3);
+
+    // Repeated recognition is stopped before it finishes: no result may be lost (JOB-05)
+    m_testEngine->setRecognitionDelay(3000);
+    recognizeButton->click();
+    QVERIFY2(stopButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))));
+
+    // The progress is a summary of all the workers, not the events of the single pages
+    auto* progressLabel = dialog.findChild<QLabel*>(QStringLiteral("progressLabel"));
+    QVERIFY(progressLabel);
+    const QRegularExpression progressExpression(QStringLiteral("^0 of 3 pages finished, [1-3] in progress\\. Elapsed time \\d+:\\d\\d\\.$"));
+    QTRY_VERIFY2_WITH_TIMEOUT(progressExpression.match(progressLabel->text()).hasMatch(), qPrintable(progressLabel->text()), 10000);
+
+    stopButton->click();
+    QVERIFY2(progressLabel->text().startsWith(QStringLiteral("Stopping")), qPrintable(progressLabel->text()));
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    m_testEngine->setRecognitionDelay(0);
+    QVERIFY2(progressLabel->text().startsWith(QStringLiteral("Stopped. Finished in")), qPrintable(progressLabel->text()));
+
+    QCOMPARE(countWords(), 3);
+    QVERIFY(applyButton->isEnabled());
+
+    dialog.reject();
+}
+
+void OCRDialogTest::workflowWithTesseract()
+{
+#ifndef PDF4QT_OCR_TESSERACT
+    PDF4QT_OCR_SKIP("Tesseract engine is not compiled in.");
+#else
+    if (!QFile::exists(PDFOCRModelManager::getDefaultBuiltInDirectory() + QStringLiteral("/tesseract/fast/tessdata/eng.traineddata")))
+    {
+        PDF4QT_OCR_SKIP("Built-in OCR language models are not available (ocr/tesseract/fast/tessdata).");
+    }
+
+    runWorkflow(QStringLiteral("tesseract"), QStringLiteral("Hello"));
+#endif
+}
+
+QTreeWidgetItem* OCRDialogTest::findTreeItem(QTreeWidget* tree, int type, const QString& text)
+{
+    QTreeWidgetItemIterator it(tree);
+    while (*it)
+    {
+        if ((*it)->data(0, Qt::UserRole + 1).toInt() == type && (text.isEmpty() || (*it)->text(0) == text))
+        {
+            return *it;
+        }
+        ++it;
+    }
+    return nullptr;
+}
+
+void OCRDialogTest::selectComboData(pdfviewer::PDFOCRDocumentDialog& dialog, const char* name, const QVariant& data)
+{
+    QComboBox* comboBox = dialog.findChild<QComboBox*>(QLatin1String(name));
+    QVERIFY(comboBox);
+    const int index = comboBox->findData(data);
+    QVERIFY2(index >= 0, name);
+    comboBox->setCurrentIndex(index);
+}
+
+void OCRDialogTest::setLinesHandler(const std::vector<QStringList>& lines)
+{
+    // Every line of words is placed into the image given to the engine (the whole page,
+    // or the sub-image of a region), so the words are always inside the recognized area
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([lines](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        const double width = input.image.width();
+        const double height = input.image.height();
+        const double lineHeight = height * 0.7 / qMax<size_t>(1, lines.size());
+
+        PDFOCRRawBlock block;
+        for (size_t lineIndex = 0; lineIndex < lines.size(); ++lineIndex)
+        {
+            PDFOCRRawLine line;
+            const double y = height * 0.1 + lineHeight * lineIndex;
+            double x = width * 0.08;
+            for (const QString& text : lines[lineIndex])
+            {
+                PDFOCRRawWord word;
+                word.text = text;
+                word.rect = QRectF(x, y, width * 0.18, lineHeight * 0.8);
+                word.rawConfidence = 95.0;
+                line.words.push_back(word);
+                line.rect = line.rect.isNull() ? word.rect : line.rect.united(word.rect);
+                x += width * 0.21;
+            }
+            block.lines.push_back(line);
+            block.rect = block.rect.isNull() ? line.rect : block.rect.united(line.rect);
+        }
+        output.blocks.push_back(block);
+        return output;
+    });
+}
+
+void OCRDialogTest::reviewOnlySurvivesProject()
+{
+    // R03: the result recognized for the review and the export only must not become
+    // writable after the project is saved and opened again over the same document
+    setLinesHandler({ { QStringLiteral("Review"), QStringLiteral("only") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Review only") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+    const QString projectFile = QDir(m_settingsDirectory.path()).filePath(QStringLiteral("review.") + QLatin1String(PDFOCRProject::FILE_EXTENSION));
+    QFile::remove(projectFile);
+
+    ModalResponder responder({ QStringLiteral("Continue"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+
+        auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+        auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+        auto* saveProjectButton = dialog.findChild<QPushButton*>(QStringLiteral("saveProjectButton"));
+        QVERIFY(pagesListWidget && recognizeButton && stopButton && saveProjectButton);
+
+        selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+        selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::ReviewOnly));
+
+        recognizeButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+        QVERIFY2(pagesListWidget->item(0)->text().contains(QStringLiteral("Review/export only")), qPrintable(pagesListWidget->item(0)->text()));
+
+        responder.fileName = projectFile;
+        saveProjectButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(projectFile), 10000);
+
+        // The next dialogs start with the default policy
+        selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+        dialog.reject();
+    }
+
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+
+        auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        auto* openProjectButton = dialog.findChild<QPushButton*>(QStringLiteral("openProjectButton"));
+        QVERIFY(pagesListWidget && applyButton && openProjectButton);
+
+        responder.fileName = projectFile;
+        openProjectButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(applyButton->isEnabled(), 10000);
+        QVERIFY2(pagesListWidget->item(0)->text().contains(QStringLiteral("Review/export only")), qPrintable(pagesListWidget->item(0)->text()));
+
+        // Even with a writing policy, the review-only result is excluded from the PDF
+        selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+        responder.messages.clear();
+        applyButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("recognized for review/export only")), 10000);
+        QVERIFY(!dialog.hasModifiedDocument());
+        QVERIFY(dialog.isVisible());
+
+        responder.fileName.clear();
+        dialog.reject();
+    }
+}
+
+void OCRDialogTest::existingTextMasked()
+{
+    // R04: a scan with a short digital text (page number) is not accepted automatically as
+    // a page without text. It can be recognized with the existing text masked (the text
+    // layer is written), or for the review only (the result is never written).
+    setLinesHandler({ { QStringLiteral("Scanned"), QStringLiteral("text") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Scanned text") }, QByteArrayLiteral("12")));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Recognize with Existing Text Masked"), QStringLiteral("Apply"), QStringLiteral("No"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+
+        auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+        auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        QVERIFY(pagesListWidget && recognizeButton && stopButton && applyButton);
+
+        selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+        selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+
+        recognizeButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+        const QString messages = responder.messages.join(QChar('|'));
+        QVERIFY2(messages.contains(QStringLiteral("Pages requiring your decision: 1")), qPrintable(messages));
+        QVERIFY2(pagesListWidget->item(0)->toolTip().contains(QStringLiteral("Existing text masked")), qPrintable(pagesListWidget->item(0)->toolTip()));
+        QVERIFY(!pagesListWidget->item(0)->text().contains(QStringLiteral("Review/export only")));
+        QVERIFY(applyButton->isEnabled());
+
+        responder.messages.clear();
+        applyButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(dialog.result() == QDialog::Accepted && !dialog.isVisible(), 60000);
+        QVERIFY2(dialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))));
+
+        PDFDocumentPointer modified = dialog.takeModifiedDocument();
+        const QString text = extractText(*modified, 0);
+        QVERIFY2(text.contains(QStringLiteral("Scanned")) && text.contains(QStringLiteral("12")), qPrintable(text));
+    }
+
+    responder.setPreferredButtons({ QStringLiteral("Recognize Them for Review Only"), QStringLiteral("No"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+
+        auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+        auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+        auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        QVERIFY(pagesListWidget && recognizeButton && stopButton && applyButton);
+
+        recognizeButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+        QVERIFY2(pagesListWidget->item(0)->text().contains(QStringLiteral("Review/export only")), qPrintable(pagesListWidget->item(0)->text()));
+        QVERIFY(!pagesListWidget->item(0)->toolTip().contains(QStringLiteral("Existing text masked")));
+
+        responder.messages.clear();
+        applyButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("recognized for review/export only")), 10000);
+        QVERIFY(!dialog.hasModifiedDocument());
+        dialog.reject();
+    }
+}
+
+PDFDocument OCRDialogTest::certifyDocument(const PDFDocument& document, int permissions)
+{
+    // Fake certification: /Perms /DocMDP << /Reference [ << /TransformParams << /P n >> >> ] >>
+    // (permissions 0 = the transform parameters without /P)
+    PDFDocumentBuilder builder(&document);
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Perms");
+    factory.beginDictionary();
+    factory.beginDictionaryItem("DocMDP");
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Type");
+    factory << WrapName("Sig");
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Reference");
+    factory.beginArray();
+    factory.beginDictionary();
+    factory.beginDictionaryItem("TransformMethod");
+    factory << WrapName("DocMDP");
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("TransformParams");
+    factory.beginDictionary();
+    if (permissions > 0)
+    {
+        factory.beginDictionaryItem("P");
+        factory << PDFInteger(permissions);
+        factory.endDictionaryItem();
+    }
+    factory.beginDictionaryItem("V");
+    factory << WrapName("1.2");
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endArray();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder.mergeTo(builder.getCatalogReference(), factory.takeObject());
+
+    return builder.build();
+}
+
+void OCRDialogTest::certifiedDocument()
+{
+    // PDF-12: the certification (DocMDP) is parsed from the catalog and enforced
+    setLinesHandler({ { QStringLiteral("Certified"), QStringLiteral("scan") } });
+
+    const PDFDocument scan = createScanDocument({ QStringLiteral("Certified scan") });
+    using Permissions = pdf::PDFOCRApplyProcessor::CertificationPermissions;
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&scan), Permissions::NotCertified);
+    const PDFDocument noChanges = certifyDocument(scan, 1);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&noChanges), Permissions::NoChanges);
+    const PDFDocument annotations = certifyDocument(scan, 3);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&annotations), Permissions::FormFillingAndAnnotations);
+    const PDFDocument withoutPermissions = certifyDocument(scan, 0);
+    QCOMPARE(pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&withoutPermissions), Permissions::FormFilling);
+
+    WidgetFixture fixture{ PDFDocument(noChanges) };
+    pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+    context.certificationPermissions = pdfviewer::PDFOCRDocumentDialog::getCertificationPermissions(&fixture.document);
+
+    ModalResponder responder({ QStringLiteral("Apply"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    auto recognize = [](pdfviewer::PDFOCRDocumentDialog& dialog)
+    {
+        auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+        auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        QVERIFY(recognizeButton && stopButton && applyButton);
+        selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+        selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+        recognizeButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+        QVERIFY(applyButton->isEnabled());
+    };
+
+    // Permission 1: no output mode writes the text layer
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+        recognize(dialog);
+
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        auto* removeLayerButton = dialog.findChild<QPushButton*>(QStringLiteral("removeLayerButton"));
+        QVERIFY(!removeLayerButton->isEnabled());
+
+        for (int outputMode : { 0, 1 })
+        {
+            dialog.findChild<QComboBox*>(QStringLiteral("outputModeComboBox"))->setCurrentIndex(outputMode);
+            responder.messages.clear();
+            applyButton->click();
+            QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("does not allow any change")), 10000);
+            QVERIFY(!dialog.hasModifiedDocument());
+        }
+        dialog.findChild<QComboBox*>(QStringLiteral("outputModeComboBox"))->setCurrentIndex(0);
+        dialog.reject();
+    }
+
+    // Permission 2: the current document is refused, the copy is written with a warning
+    context.certificationPermissions = pdf::PDFOCRApplyProcessor::CertificationPermissions::FormFilling;
+    {
+        pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+        dialog.show();
+        recognize(dialog);
+
+        auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+        auto* outputModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("outputModeComboBox"));
+
+        outputModeComboBox->setCurrentIndex(0);
+        responder.messages.clear();
+        applyButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("the current document cannot be modified")), 10000);
+        QVERIFY(!dialog.hasModifiedDocument());
+
+        const QString copyFile = QDir(m_settingsDirectory.path()).filePath(QStringLiteral("certified_copy.pdf"));
+        QFile::remove(copyFile);
+        responder.fileName = copyFile;
+        outputModeComboBox->setCurrentIndex(1);
+        responder.messages.clear();
+        applyButton->click();
+        QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("was saved to")), 30000);
+        QVERIFY2(responder.messages.join(QChar('|')).contains(QStringLiteral("certification of the copy is not valid")), qPrintable(responder.messages.join(QChar('|'))));
+        QVERIFY(!dialog.hasModifiedDocument());
+
+        responder.fileName.clear();
+        outputModeComboBox->setCurrentIndex(0);
+        dialog.reject();
+    }
+}
+
+void OCRDialogTest::limitedResolution()
+{
+    // IMAGE-01, ARCH-02: the resolution limited by the image size of the engine is used only
+    // with an explicit consent of the user
+    setLinesHandler({ { QStringLiteral("Large") } });
+    m_testEngine->setMaximumImageSize(QSize(1000, 1000));
+    auto restoreLimit = qScopeGuard([this]() { m_testEngine->setMaximumImageSize(QSize()); });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Large page") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Cancel"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    QVERIFY(pagesListWidget && recognizeButton && stopButton && applyButton);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+    selectComboData(dialog, "dpiComboBox", 300);
+
+    // Cancelled: nothing is recognized
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("too large for the requested resolution")), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY(!applyButton->isEnabled());
+
+    // Confirmed: the page is recognized at the reduced resolution
+    responder.setPreferredButtons({ QStringLiteral("Continue with Reduced Resolution"), QStringLiteral("Discard"), QStringLiteral("OK") });
+    responder.messages.clear();
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled() && applyButton->isEnabled(), 60000);
+    QVERIFY2(responder.messages.join(QChar('|')).contains(QStringLiteral("Page 1: ")), qPrintable(responder.messages.join(QChar('|'))));
+    QVERIFY2(pagesListWidget->item(0)->toolTip().contains(QStringLiteral("(requested 300 DPI)")), qPrintable(pagesListWidget->item(0)->toolTip()));
+    QVERIFY(!pagesListWidget->item(0)->toolTip().contains(QStringLiteral("at 300 DPI")));
+
+    dialog.reject();
+}
+
+void OCRDialogTest::rerecognizeRegion()
+{
+    // REGION-03: a single region is recognized again and replaces only the blocks of the region
+    setLinesHandler({ { QStringLiteral("First"), QStringLiteral("region") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Region text") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Re-recognize Region"), QStringLiteral("Yes"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* regionsFromBlocksButton = dialog.findChild<QToolButton*>(QStringLiteral("regionsFromBlocksButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    QVERIFY(recognizeButton && stopButton && regionsFromBlocksButton && resultsTreeWidget);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY(findTreeItem(resultsTreeWidget, 2, QStringLiteral("First")));
+
+    // The detected block becomes a region
+    QVERIFY(regionsFromBlocksButton->isEnabled());
+    regionsFromBlocksButton->click();
+    QTreeWidgetItem* blockItem = findTreeItem(resultsTreeWidget, 0, QString());
+    QVERIFY(blockItem);
+    QVERIFY2(blockItem->text(0).contains(QStringLiteral("region")), qPrintable(blockItem->text(0)));
+    resultsTreeWidget->setCurrentItem(blockItem);
+
+    setLinesHandler({ { QStringLiteral("Again"), QStringLiteral("recognized") } });
+    responder.messages.clear();
+    Q_EMIT resultsTreeWidget->customContextMenuRequested(QPoint(5, 5));
+    QTRY_VERIFY2_WITH_TIMEOUT(findTreeItem(resultsTreeWidget, 2, QStringLiteral("Again")) != nullptr, qPrintable(responder.messages.join(QChar('|'))), 60000);
+    QVERIFY(responder.messages.join(QChar('|')).contains(QStringLiteral("menu: Re-recognize Region")));
+    QVERIFY(!findTreeItem(resultsTreeWidget, 2, QStringLiteral("First")));
+
+    // The replaced block still belongs to the region
+    blockItem = findTreeItem(resultsTreeWidget, 0, QString());
+    QVERIFY(blockItem && blockItem->text(0).contains(QStringLiteral("region")));
+
+    dialog.reject();
+}
+
+void OCRDialogTest::mergeAndSplitLines()
+{
+    // EDIT-02: lines are merged and split in the context menu of the results
+    setLinesHandler({ { QStringLiteral("Alpha"), QStringLiteral("beta") }, { QStringLiteral("Gamma") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Two lines") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Merge with Next Line"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* undoButton = dialog.findChild<QPushButton*>(QStringLiteral("undoButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    QVERIFY(recognizeButton && stopButton && undoButton && resultsTreeWidget);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+
+    QTreeWidgetItem* firstLine = findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha beta"));
+    QVERIFY(firstLine);
+    QVERIFY(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Gamma")));
+
+    // Merge
+    resultsTreeWidget->setCurrentItem(firstLine);
+    Q_EMIT resultsTreeWidget->customContextMenuRequested(QPoint(5, 5));
+    QTRY_VERIFY2_WITH_TIMEOUT(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha beta Gamma")) != nullptr, qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QVERIFY(!findTreeItem(resultsTreeWidget, 1, QStringLiteral("Gamma")));
+    QVERIFY(undoButton->isEnabled());
+
+    // Split after the word "beta"
+    responder.setPreferredButtons({ QStringLiteral("Split Line After Word"), QStringLiteral("Discard"), QStringLiteral("OK") });
+    QTreeWidgetItem* wordItem = findTreeItem(resultsTreeWidget, 2, QStringLiteral("beta"));
+    QVERIFY(wordItem);
+    resultsTreeWidget->setCurrentItem(wordItem);
+    Q_EMIT resultsTreeWidget->customContextMenuRequested(QPoint(5, 5));
+    QTRY_VERIFY2_WITH_TIMEOUT(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Gamma")) != nullptr, qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QVERIFY(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha beta")));
+    QVERIFY(!findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha beta Gamma")));
+
+    // The last word of a line cannot be split off
+    responder.messages.clear();
+    wordItem = findTreeItem(resultsTreeWidget, 2, QStringLiteral("Gamma"));
+    QVERIFY(wordItem);
+    resultsTreeWidget->setCurrentItem(wordItem);
+    Q_EMIT resultsTreeWidget->customContextMenuRequested(QPoint(5, 5));
+    QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("Split Line After Word (disabled)")), 10000);
+
+    // Undo restores the merged line
+    undoButton->click();
+    QVERIFY(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha beta Gamma")));
+
+    // EDIT-05: the preview of a phrase over more words shows the text of the line
+    auto* findEdit = dialog.findChild<QLineEdit*>(QStringLiteral("findEdit"));
+    auto* replaceEdit = dialog.findChild<QLineEdit*>(QStringLiteral("replaceEdit"));
+    auto* replaceAllButton = dialog.findChild<QPushButton*>(QStringLiteral("replaceAllButton"));
+    QVERIFY(findEdit && replaceEdit && replaceAllButton);
+    findEdit->setText(QStringLiteral("beta Gamma"));
+    replaceEdit->setText(QStringLiteral("Delta"));
+    responder.setPreferredButtons({ QStringLiteral("Yes"), QStringLiteral("Discard"), QStringLiteral("OK") });
+    responder.messages.clear();
+    replaceAllButton->setEnabled(true);
+    replaceAllButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("Alpha beta Gamma -> Alpha Delta")), qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QVERIFY(findTreeItem(resultsTreeWidget, 1, QStringLiteral("Alpha Delta")));
+
+    dialog.reject();
+}
+
+void OCRDialogTest::dictionaryReviewAndExport()
+{
+    // Words with the dictionary information of the engine: the second one is not a dictionary word
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+
+        const double width = input.image.width();
+        const double height = input.image.height();
+        PDFOCRRawBlock block;
+        PDFOCRRawLine line;
+        const std::vector<std::pair<QString, bool>> words = { { QStringLiteral("Alpha"), true }, { QStringLiteral("Qzxv"), false }, { QStringLiteral("beta"), true } };
+        double x = width * 0.08;
+        for (const auto& [text, dictionary] : words)
+        {
+            PDFOCRRawWord word;
+            word.text = text;
+            word.rect = QRectF(x, height * 0.3, width * 0.2, height * 0.3);
+            word.rawConfidence = 95.0;
+            word.isDictionaryWord = dictionary;
+            line.words.push_back(word);
+            line.rect = line.rect.isNull() ? word.rect : line.rect.united(word.rect);
+            x += width * 0.25;
+        }
+        block.lines.push_back(line);
+        block.rect = line.rect;
+        output.blocks.push_back(block);
+        return output;
+    });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Alpha Qzxv beta") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Add to User Words"), QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* exportButton = dialog.findChild<QPushButton*>(QStringLiteral("exportButton"));
+    auto* resultsTreeWidget = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+    auto* reviewFilterComboBox = dialog.findChild<QComboBox*>(QStringLiteral("reviewFilterComboBox"));
+    auto* reviewDictionaryCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("reviewDictionaryCheckBox"));
+    auto* statisticsLabel = dialog.findChild<QLabel*>(QStringLiteral("statisticsLabel"));
+    auto* userWordsEdit = dialog.findChild<QPlainTextEdit*>(QStringLiteral("userWordsEdit"));
+    auto* exportFormatComboBox = dialog.findChild<QComboBox*>(QStringLiteral("exportFormatComboBox"));
+    auto* exportOptionsStack = dialog.findChild<QStackedWidget*>(QStringLiteral("exportOptionsStack"));
+    auto* exportPerPageCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("exportPerPageCheckBox"));
+    auto* exportDpiSpinBox = dialog.findChild<QSpinBox*>(QStringLiteral("exportDpiSpinBox"));
+    QVERIFY(recognizeButton && stopButton && exportButton && resultsTreeWidget && reviewFilterComboBox && reviewDictionaryCheckBox && statisticsLabel && userWordsEdit);
+    QVERIFY(exportFormatComboBox && exportOptionsStack && exportPerPageCheckBox && exportDpiSpinBox);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+    userWordsEdit->clear();
+
+    // The dictionary criterion is on by default
+    QVERIFY(reviewDictionaryCheckBox->isChecked());
+
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+
+    // The word outside the dictionary requires the review, it is marked in the state and in the column
+    QTreeWidgetItem* unknownItem = findTreeItem(resultsTreeWidget, 2, QStringLiteral("Qzxv"));
+    QVERIFY(unknownItem);
+    QCOMPARE(unknownItem->text(3), QStringLiteral("no"));
+    QVERIFY2(unknownItem->text(2).contains(QStringLiteral("To review")), qPrintable(unknownItem->text(2)));
+    QVERIFY2(unknownItem->text(2).contains(QStringLiteral("not in dictionary")), qPrintable(unknownItem->text(2)));
+    QCOMPARE(findTreeItem(resultsTreeWidget, 2, QStringLiteral("Alpha"))->text(3), QStringLiteral("yes"));
+    QVERIFY2(statisticsLabel->text().contains(QStringLiteral("not in dictionary: 1")), qPrintable(statisticsLabel->text()));
+    QVERIFY2(statisticsLabel->text().contains(QStringLiteral("to review: 1")), qPrintable(statisticsLabel->text()));
+
+    // The filter shows only the words outside the dictionary
+    reviewFilterComboBox->setCurrentIndex(reviewFilterComboBox->findText(QStringLiteral("Words not found in the dictionary")));
+    QVERIFY(findTreeItem(resultsTreeWidget, 2, QStringLiteral("Qzxv")));
+    QVERIFY(!findTreeItem(resultsTreeWidget, 2, QStringLiteral("Alpha")));
+
+    // The criterion switched off: the word is only an information, no review is required
+    reviewDictionaryCheckBox->setChecked(false);
+    QTRY_VERIFY2_WITH_TIMEOUT(statisticsLabel->text().contains(QStringLiteral("to review: 0")), qPrintable(statisticsLabel->text()), 5000);
+    reviewDictionaryCheckBox->setChecked(true);
+    QTRY_VERIFY2_WITH_TIMEOUT(statisticsLabel->text().contains(QStringLiteral("to review: 1")), qPrintable(statisticsLabel->text()), 5000);
+
+    // Add to User Words: the word is accepted and confirmed, it disappears from the filter
+    unknownItem = findTreeItem(resultsTreeWidget, 2, QStringLiteral("Qzxv"));
+    QVERIFY(unknownItem);
+    resultsTreeWidget->setCurrentItem(unknownItem);
+    Q_EMIT resultsTreeWidget->customContextMenuRequested(QPoint(5, 5));
+    QTRY_VERIFY2_WITH_TIMEOUT(userWordsEdit->toPlainText().split(QChar('\n')).contains(QStringLiteral("Qzxv")), qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(!findTreeItem(resultsTreeWidget, 2, QStringLiteral("Qzxv")), 5000);
+    QVERIFY2(statisticsLabel->text().contains(QStringLiteral("not in dictionary: 0")), qPrintable(statisticsLabel->text()));
+
+    // Export into ALTO: the options of the structured formats are offered
+    QTemporaryDir exportDirectory;
+    QVERIFY(exportDirectory.isValid());
+    exportFormatComboBox->setCurrentIndex(exportFormatComboBox->findData(int(PDFOCRStructuredExporter::Format::Alto)));
+    QCOMPARE(exportOptionsStack->currentIndex(), 1);
+    exportDpiSpinBox->setValue(150);
+
+    responder.setPreferredButtons({ QStringLiteral("OK") });
+    responder.inputItem = QStringLiteral("Current page");
+    responder.fileName = exportDirectory.filePath(QStringLiteral("export.xml"));
+    responder.messages.clear();
+    exportButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("were exported")), qPrintable(responder.messages.join(QChar('|'))), 10000);
+
+    QFile altoFile(exportDirectory.filePath(QStringLiteral("export.xml")));
+    QVERIFY(altoFile.open(QFile::ReadOnly));
+    const QByteArray alto = altoFile.readAll();
+    QVERIFY(alto.contains("http://www.loc.gov/standards/alto/ns-v4#"));
+    QVERIFY(alto.contains("CONTENT=\"Qzxv\""));
+    QVERIFY(alto.contains("<MeasurementUnit>pixel</MeasurementUnit>"));
+    altoFile.close();
+
+    // One file per page: the physical page number is appended to the name
+    exportFormatComboBox->setCurrentIndex(exportFormatComboBox->findData(int(PDFOCRStructuredExporter::Format::Hocr)));
+    exportPerPageCheckBox->setChecked(true);
+    responder.fileName = exportDirectory.filePath(QStringLiteral("pages.hocr"));
+    responder.messages.clear();
+    exportButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("were exported")), qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QVERIFY(QFile::exists(exportDirectory.filePath(QStringLiteral("pages_p001.hocr"))));
+    QVERIFY(!QFile::exists(exportDirectory.filePath(QStringLiteral("pages.hocr"))));
+
+    // The plain text keeps its own options
+    exportFormatComboBox->setCurrentIndex(exportFormatComboBox->findData(-1));
+    QCOMPARE(exportOptionsStack->currentIndex(), 0);
+
+    responder.setPreferredButtons({ QStringLiteral("Discard"), QStringLiteral("OK") });
+    responder.fileName.clear();
+    responder.inputItem.clear();
+    dialog.reject();
+}
+
+void OCRDialogTest::compressionInDialog()
+{
+    // Phase 3 of OCR_PLAN.md: the scanned images are compressed together with the text layer.
+    // The lossy mode requires the confirmed preview, a change of its settings requires it again.
+    setLinesHandler({ { QStringLiteral("Compressed"), QStringLiteral("scan") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Compressed scan") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    auto* compressionModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("compressionModeComboBox"));
+    auto* bitonalThresholdComboBox = dialog.findChild<QComboBox*>(QStringLiteral("bitonalThresholdComboBox"));
+    auto* bitonalThresholdSpinBox = dialog.findChild<QSpinBox*>(QStringLiteral("bitonalThresholdSpinBox"));
+    auto* compressionPreviewButton = dialog.findChild<QPushButton*>(QStringLiteral("compressionPreviewButton"));
+    auto* compressionEstimateLabel = dialog.findChild<QLabel*>(QStringLiteral("compressionEstimateLabel"));
+    auto* compressionDescriptionLabel = dialog.findChild<QLabel*>(QStringLiteral("compressionDescriptionLabel"));
+    QVERIFY(recognizeButton && stopButton && applyButton && compressionModeComboBox && bitonalThresholdComboBox && bitonalThresholdSpinBox);
+    QVERIFY(compressionPreviewButton && compressionEstimateLabel && compressionDescriptionLabel);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY(applyButton->isEnabled());
+
+    // Lossy mode: the text layer cannot be written until the preview is confirmed
+    compressionModeComboBox->setCurrentIndex(compressionModeComboBox->findData(int(PDFOCRCompressionMode::BitonalTextScans)));
+    QVERIFY(compressionDescriptionLabel->text().contains(QStringLiteral("LOSSY")));
+    QVERIFY(!bitonalThresholdComboBox->isHidden());
+    QVERIFY(!applyButton->isEnabled());
+    QVERIFY(applyButton->toolTip().contains(QStringLiteral("preview")));
+
+    // The estimate of the size is computed in the background
+    QTRY_VERIFY2_WITH_TIMEOUT(compressionEstimateLabel->text().contains(QStringLiteral("->")), qPrintable(compressionEstimateLabel->text()), 30000);
+
+    // A rejected preview does not confirm anything
+    compressionPreviewButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("dialog: Preview of the Compression")), qPrintable(responder.messages.join(QChar('|'))), 10000);
+    QVERIFY(!applyButton->isEnabled());
+
+    // Confirmed preview enables the writing
+    responder.dialogButtons = { QStringLiteral("Confirm") };
+    compressionPreviewButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(applyButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))), 10000);
+
+    // Any change of the settings requires a new confirmation
+    responder.dialogButtons.clear();
+    bitonalThresholdComboBox->setCurrentIndex(bitonalThresholdComboBox->findData(int(PDFOCRThresholdMethod::Manual)));
+    QVERIFY(bitonalThresholdSpinBox->isEnabled());
+    QVERIFY(!applyButton->isEnabled());
+    responder.dialogButtons = { QStringLiteral("Confirm") };
+    compressionPreviewButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(applyButton->isEnabled(), qPrintable(responder.messages.join(QChar('|'))), 10000);
+
+    // Writing: the summary names the compression, the result reports it
+    responder.setPreferredButtons({ QStringLiteral("Apply"), QStringLiteral("No"), QStringLiteral("OK") });
+    responder.messages.clear();
+    applyButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(dialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))), 60000);
+    const QString messages = responder.messages.join(QChar('|'));
+    QVERIFY2(messages.contains(QStringLiteral("Compression of the scanned images: Black and white text scans")), qPrintable(messages));
+    QVERIFY2(messages.contains(QStringLiteral("LOSSY")), qPrintable(messages));
+    QVERIFY2(messages.contains(QStringLiteral("1 compressed")), qPrintable(messages));
+
+    // The scanned image is black and white now, the text layer is bound to the compressed page
+    PDFDocumentPointer modified = dialog.takeModifiedDocument();
+    const PDFDictionary* resources = modified->getDictionaryFromObject(modified->getCatalog()->getPage(0)->getResources());
+    const PDFDictionary* xobjects = modified->getDictionaryFromObject(resources->get("XObject"));
+    QVERIFY(xobjects && xobjects->getCount() == 1);
+    const PDFObject& image = modified->getObject(xobjects->getValue(0));
+    QVERIFY(image.isStream());
+    QCOMPARE(modified->getObject(image.getStream()->getDictionary()->get("BitsPerComponent")).getInteger(), PDFInteger(1));
+    const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 0);
+    QVERIFY(info.isPresent && info.fingerprintMatches);
+    QVERIFY(extractText(*modified, 0).contains(QStringLiteral("Compressed")));
+}
+
+/// Rendering environment of a document created by the test
+class RenderingContext
+{
+public:
+    explicit RenderingContext(const PDFDocument* document) :
+        m_optionalContentActivity(document, OCUsage::Export, nullptr),
+        m_fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT)
+    {
+        PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &m_optionalContentActivity);
+        m_fontCache.setDocument(modifiedDocument);
+        m_fontCache.setCacheShrinkEnabled(nullptr, false);
+    }
+
+    ~RenderingContext()
+    {
+        m_fontCache.setCacheShrinkEnabled(nullptr, true);
+    }
+
+    PDFOCRPagePreparer createPreparer(const PDFDocument* document)
+    {
+        return PDFOCRPagePreparer(document, &m_fontCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
+    }
+
+    PDFOptionalContentActivity m_optionalContentActivity;
+    PDFCMSGeneric m_cms;
+    PDFFontCache m_fontCache;
+    PDFMeshQualitySettings m_meshQualitySettings;
+};
+
+/// Test documents of the scan preparation in the dialog tests
+class OCRDialogTestHelper
+{
+public:
+    OCRDialogTestHelper() = delete;
+
+    /// Content: horizontal bars around the center, rotated clockwise (visually) by the angle
+    static QByteArray createBars(QPointF center, double angle, double width);
+
+    /// Page 1: a skewed scan (image and dark bars), page 2: a spread without an image,
+    /// page 3: a page with an OCR layer of PDF4QT
+    static PDFDocument createPreparationDocument();
+};
+
+QByteArray OCRDialogTestHelper::createBars(QPointF center, double angle, double width)
+{
+    const QTransform matrix = QTransform::fromTranslate(-center.x(), -center.y()) * QTransform().rotate(-angle) * QTransform::fromTranslate(center.x(), center.y());
+    QByteArray content = QStringLiteral("q %1 %2 %3 %4 %5 %6 cm 0 g\n").arg(matrix.m11()).arg(matrix.m12()).arg(matrix.m21()).arg(matrix.m22()).arg(matrix.dx()).arg(matrix.dy()).toLatin1();
+    for (int i = 0; i < 9; ++i)
+    {
+        content += QStringLiteral("%1 %2 %3 6 re\n").arg(center.x() - width * 0.5).arg(center.y() - 90 + i * 22).arg(width).toLatin1();
+    }
+    content += "f Q\n";
+    return content;
+}
+
+PDFDocument OCRDialogTestHelper::createPreparationDocument()
+{
+    PDFDocumentBuilder builder;
+
+    QByteArray imageData(32 * 32, '\xE0');
+    PDFDictionaryBuilder imageDictionary;
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(32));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(32));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceGray"));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
+    imageDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(imageData.size()));
+    const PDFObjectReference imageReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(imageDictionary), std::move(imageData))));
+
+    auto addPage = [&](QSizeF size, QByteArray content, bool withImage)
+    {
+        const PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), size));
+        PDFDictionaryBuilder contentDictionary;
+        contentDictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_LENGTH), PDFObject::createInteger(content.size()));
+        const PDFObjectReference contentReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(contentDictionary), std::move(content))));
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Contents");
+        factory << contentReference;
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("Resources");
+        factory.beginDictionary();
+        if (withImage)
+        {
+            factory.beginDictionaryItem("XObject");
+            factory.beginDictionary();
+            factory.beginDictionaryItem("Im1");
+            factory << imageReference;
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            factory.endDictionaryItem();
+        }
+        factory.endDictionary();
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(pageReference, factory.takeObject());
+    };
+
+    addPage(QSizeF(420, 320), "q 420 0 0 320 0 0 cm /Im1 Do Q\n" + createBars(QPointF(210, 160), 3.0, 260.0), true);
+    addPage(QSizeF(840, 320), createBars(QPointF(210, 160), 0.0, 240.0) + createBars(QPointF(630, 160), 0.0, 240.0), false);
+    addPage(QSizeF(420, 320), createBars(QPointF(210, 160), 0.0, 260.0), false);
+    PDFDocument document = builder.build();
+
+    // OCR layer of PDF4QT on the page 3
+    PDFOCRPageResult result;
+    result.pageIndex = 2;
+    result.state = PDFOCRPageState::Done;
+    result.provenance.engineId = QStringLiteral("test");
+    PDFOCRBlock block;
+    block.id = result.allocateId();
+    PDFOCRLine line;
+    line.id = result.allocateId();
+    PDFOCRWord word;
+    word.id = result.allocateId();
+    word.text = QStringLiteral("Layer");
+    word.originalText = word.text;
+    word.quad = PDFOCRQuad::fromRect(QRectF(40, 40, 60, 20));
+    line.words.push_back(word);
+    line.updateGeometryFromWords();
+    block.lines.push_back(line);
+    block.updateGeometryFromLines();
+    result.blocks.push_back(block);
+
+    PDFDocumentModifier modifier(&document);
+    PDFOCRTextLayerWriter::PageRequest request;
+    request.pageIndex = 2;
+    request.result = result;
+    PDFOCRTextLayerWriter::apply(modifier.getBuilder(), &document, { request }, PDFOCRTextLayerWriter::Options());
+    modifier.finalize();
+    return *modifier.getDocument();
+}
+
+void OCRDialogTest::scanPreparationDialog()
+{
+    // Phases 4 and 5 of OCR_PLAN.md: detection proposes the values, the user decides,
+    // the pages with an OCR layer are skipped by default
+    WidgetFixture fixture(OCRDialogTestHelper::createPreparationDocument());
+
+    pdfviewer::PDFScanPreparationDialog::Context context;
+    context.document = &fixture.document;
+    context.proxy = fixture.widget.getDrawWidgetProxy();
+    context.cms = fixture.cmsPointer.data();
+    context.currentPage = 0;
+
+    ModalResponder responder({ QStringLiteral("Skip These Pages"), QStringLiteral("Apply"), QStringLiteral("OK") });
+
+    pdfviewer::PDFScanPreparationDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* analyzeButton = dialog.findChild<QPushButton*>(QStringLiteral("analyzeButton"));
+    auto* pageListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pageListWidget"));
+    auto* deskewCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("deskewCheckBox"));
+    auto* deskewDetectedLabel = dialog.findChild<QLabel*>(QStringLiteral("deskewDetectedLabel"));
+    auto* splitModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("splitModeComboBox"));
+    auto* cropModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("cropModeComboBox"));
+    auto* summaryLabel = dialog.findChild<QLabel*>(QStringLiteral("summaryLabel"));
+    auto* warningLabel = dialog.findChild<QLabel*>(QStringLiteral("warningLabel"));
+    auto* tableViewButton = dialog.findChild<QToolButton*>(QStringLiteral("tableViewButton"));
+    auto* resultViewButton = dialog.findChild<QToolButton*>(QStringLiteral("resultViewButton"));
+    auto* tableWidget = dialog.findChild<QTableWidget*>(QStringLiteral("tableWidget"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    QVERIFY(analyzeButton && pageListWidget && deskewCheckBox && deskewDetectedLabel && splitModeComboBox && cropModeComboBox);
+    QVERIFY(summaryLabel && warningLabel && tableViewButton && resultViewButton && tableWidget && applyButton);
+    QCOMPARE(pageListWidget->count(), 3);
+
+    // Nothing to do before the detection
+    QVERIFY(!applyButton->isEnabled());
+
+    analyzeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(dialog.hasAnalysis(0) && dialog.hasAnalysis(1) && dialog.hasAnalysis(2), 30000);
+    QTRY_VERIFY_WITH_TIMEOUT(analyzeButton->isEnabled(), 30000);
+
+    // The skewed scan is proposed for the straightening, with the detected angle
+    const pdfviewer::PDFScanPreparationDialog::PageSettings& scanSettings = dialog.getPageSettings(0);
+    QVERIFY(scanSettings.deskew);
+    QVERIFY2(std::abs(scanSettings.deskewAngle - 3.0) < 0.3, qPrintable(QString::number(scanSettings.deskewAngle)));
+    QVERIFY(deskewCheckBox->isChecked());
+    QVERIFY(deskewDetectedLabel->text().contains(QStringLiteral("Detected")));
+
+    // A page, which is not a scan, is not straightened by default
+    QVERIFY(!dialog.getPageSettings(1).deskew);
+
+    // The spread is split at the detected spine and cropped to its content
+    pageListWidget->setCurrentRow(1);
+    splitModeComboBox->setCurrentIndex(splitModeComboBox->findData(int(pdfviewer::PDFScanPreparationDialog::SplitMode::SideBySide)));
+    QVERIFY2(std::abs(dialog.getPageSettings(1).splitPosition - 420.0) < 30.0, qPrintable(QString::number(dialog.getPageSettings(1).splitPosition)));
+    cropModeComboBox->setCurrentIndex(cropModeComboBox->findData(int(pdfviewer::PDFScanPreparationDialog::CropMode::Automatic)));
+
+    // The page with the OCR layer is changed too: the user will be asked
+    pageListWidget->setCurrentRow(2);
+    cropModeComboBox->setCurrentIndex(cropModeComboBox->findData(int(pdfviewer::PDFScanPreparationDialog::CropMode::Automatic)));
+    QVERIFY2(warningLabel->text().contains(QStringLiteral("OCR layer")), qPrintable(warningLabel->text()));
+
+    const pdf::PDFScanPreparation::Plan plan = dialog.createPlan();
+    QCOMPARE(plan.pages.size(), size_t(4));
+    QVERIFY2(summaryLabel->text().contains(QStringLiteral("4 pages")), qPrintable(summaryLabel->text()));
+    QVERIFY(applyButton->isEnabled());
+
+    // Table of all pages and the result view
+    tableViewButton->click();
+    QCOMPARE(tableWidget->rowCount(), 3);
+    tableViewButton->click();
+    pageListWidget->setCurrentRow(1);
+    resultViewButton->click();
+    QTest::qWait(300);
+    resultViewButton->click();
+
+    // Applied: the page with the OCR layer is skipped (default of the question)
+    applyButton->click();
+    QTRY_VERIFY2_WITH_TIMEOUT(dialog.hasResultDocument(), qPrintable(responder.messages.join(QChar('|'))), 30000);
+    const QString messages = responder.messages.join(QChar('|'));
+    QVERIFY2(messages.contains(QStringLiteral("OCR of PDF4QT")), qPrintable(messages));
+    QVERIFY2(messages.contains(QStringLiteral("Pages split: 1")), qPrintable(messages));
+
+    PDFDocumentPointer result = dialog.takeResultDocument();
+    QCOMPARE(result->getCatalog()->getPageCount(), size_t(4));
+
+    // The scan is straight, the spread has two halves, the page with the layer is unchanged
+    RenderingContext renderingContext(result.data());
+    PDFOCRPagePreparer preparer = renderingContext.createPreparer(result.data());
+    double confidence = 0.0;
+    const QImage straightened = preparer.rasterize(0, 100.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image;
+    QVERIFY(std::abs(PDFOCRPagePreparer::estimateSkewAngle(straightened, &confidence, nullptr, 10.0, true)) < 0.3);
+    QVERIFY(result->getCatalog()->getPage(1)->getCropBox().right() <= 421.0);
+    QVERIFY(result->getCatalog()->getPage(2)->getCropBox().left() >= 419.0);
+    QCOMPARE(result->getCatalog()->getPage(3)->getCropBox(), QRectF(0, 0, 420, 320));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(result.data(), 3).fingerprintMatches);
+}
+
+void OCRDialogTest::perspectiveInDialog()
+{
+    // Phase 6 of OCR_PLAN.md: the corners of a photographed page are set in the original
+    // view, the recognition uses the corrected working image
+    setLinesHandler({ { QStringLiteral("Photo"), QStringLiteral("page") } });
+
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("Photo page"), QStringLiteral("Second page") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* perspectiveCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("perspectiveCheckBox"));
+    auto* perspectiveResetButton = dialog.findChild<QPushButton*>(QStringLiteral("perspectiveResetButton"));
+    auto* perspectiveCopyButton = dialog.findChild<QPushButton*>(QStringLiteral("perspectiveCopyButton"));
+    auto* perspectiveInfoLabel = dialog.findChild<QLabel*>(QStringLiteral("perspectiveInfoLabel"));
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* viewModeComboBox = dialog.findChild<QComboBox*>(QStringLiteral("viewModeComboBox"));
+    auto* perspectivePreviewCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("perspectivePreviewCheckBox"));
+    QVERIFY(recognizeButton && stopButton && perspectiveCheckBox && perspectiveResetButton && perspectiveCopyButton && perspectiveInfoLabel && pagesListWidget);
+    QVERIFY(viewModeComboBox && perspectivePreviewCheckBox);
+
+    PDFOCRPageView* originalView = nullptr;
+    PDFOCRPageView* workingView = nullptr;
+    for (PDFOCRPageView* view : dialog.findChildren<PDFOCRPageView*>())
+    {
+        if (view->accessibleName() == QStringLiteral("Original page"))
+        {
+            originalView = view;
+        }
+        else if (view->accessibleName() == QStringLiteral("Working image"))
+        {
+            workingView = view;
+        }
+    }
+    QVERIFY(originalView && workingView);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Original page"));
+    QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage(), 30000);
+
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
+
+    // The correction starts the editing of the corners in the original view
+    QVERIFY(!perspectiveResetButton->isEnabled());
+    perspectiveCheckBox->setChecked(true);
+    QVERIFY(originalView->getPerspective().has_value());
+
+    // Both images are shown for the editing, the working image is computed as well
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Side by side"));
+    QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage() && workingView->hasImage(), 30000);
+
+    // The preview of the correction shows the working image only
+    perspectivePreviewCheckBox->setChecked(true);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Working image"));
+    QTRY_VERIFY_WITH_TIMEOUT(workingView->hasImage(), 30000);
+    perspectivePreviewCheckBox->setChecked(false);
+    QCOMPARE(viewModeComboBox->currentText(), QStringLiteral("Side by side"));
+    QTRY_VERIFY_WITH_TIMEOUT(originalView->hasImage() && workingView->hasImage(), 30000);
+
+    // A corner is dragged inwards and the corners are confirmed by Enter
+    const std::optional<PDFOCRQuad> initial = originalView->getPerspective();
+    QTest::keyClick(originalView, Qt::Key_Return);
+    QVERIFY(originalView->getPerspective().has_value());
+    QCOMPARE(*originalView->getPerspective(), *initial);
+    QVERIFY(perspectiveResetButton->isEnabled());
+    QVERIFY(perspectiveCopyButton->isEnabled());
+    QVERIFY2(perspectiveInfoLabel->text().contains(QStringLiteral("rectangle of the document")), qPrintable(perspectiveInfoLabel->text()));
+    QVERIFY(pagesListWidget->item(0)->text().contains(QStringLiteral("Perspective corrected")));
+
+    // The same corners for the checked pages of the same size
+    perspectiveCopyButton->click();
+    QVERIFY2(perspectiveInfoLabel->text().contains(QStringLiteral("1 page")), qPrintable(perspectiveInfoLabel->text()));
+    QVERIFY(pagesListWidget->item(1)->text().contains(QStringLiteral("Perspective corrected")));
+
+    // The recognition uses the corrected working image
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QVERIFY2(pagesListWidget->item(0)->toolTip().contains(QStringLiteral("perspective(")), qPrintable(pagesListWidget->item(0)->toolTip()));
+
+    // Escape cancels the editing, the unchecked correction is removed
+    pagesListWidget->setCurrentRow(0);
+    originalView->setMode(PDFOCRPageView::Mode::EditPerspective);
+    QTest::keyClick(originalView, Qt::Key_Escape);
+    QCOMPARE(*originalView->getPerspective(), *initial);
+    perspectiveCheckBox->setChecked(false);
+    QVERIFY(!originalView->getPerspective().has_value());
+    QVERIFY(!pagesListWidget->item(0)->text().contains(QStringLiteral("Perspective corrected")));
+
+    responder.setPreferredButtons({ QStringLiteral("Discard"), QStringLiteral("OK") });
+    dialog.reject();
+}
+
+void OCRDialogTest::pageOverrideInDialog()
+{
+    // The different settings of a page stay switched on, when another page is shown
+    // in between - also when all their values are still the common settings
+    WidgetFixture fixture(createScanDocument({ QStringLiteral("First page"), QStringLiteral("Second page") }));
+    const pdfviewer::PDFOCRDocumentDialog::Context context = fixture.createContext();
+
+    ModalResponder responder({ QStringLiteral("Discard"), QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRDocumentDialog dialog(context, nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* pageOverrideGroupBox = dialog.findChild<QGroupBox*>(QStringLiteral("pageOverrideGroupBox"));
+    auto* overrideLayoutComboBox = dialog.findChild<QComboBox*>(QStringLiteral("overrideLayoutComboBox"));
+    auto* clearPageOverrideButton = dialog.findChild<QPushButton*>(QStringLiteral("clearPageOverrideButton"));
+    QVERIFY(pagesListWidget && pageOverrideGroupBox && overrideLayoutComboBox && clearPageOverrideButton);
+    QCOMPARE(pagesListWidget->count(), 2);
+
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pageOverrideGroupBox->setChecked(true);
+
+    pagesListWidget->setCurrentRow(1);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), -1);
+
+    // A value of the exception is kept as well
+    QVERIFY(overrideLayoutComboBox->count() > 1);
+    overrideLayoutComboBox->setCurrentIndex(1);
+    const int layout = overrideLayoutComboBox->currentData().toInt();
+    QVERIFY(layout >= 0);
+    pagesListWidget->setCurrentRow(1);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), -1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(pageOverrideGroupBox->isChecked());
+    QCOMPARE(overrideLayoutComboBox->currentData().toInt(), layout);
+
+    // The common settings switch the exception off
+    clearPageOverrideButton->click();
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+    pagesListWidget->setCurrentRow(1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+
+    // And so does the group box itself
+    pageOverrideGroupBox->setChecked(true);
+    pageOverrideGroupBox->setChecked(false);
+    pagesListWidget->setCurrentRow(1);
+    pagesListWidget->setCurrentRow(0);
+    QVERIFY(!pageOverrideGroupBox->isChecked());
+
+    responder.setPreferredButtons({ QStringLiteral("Discard"), QStringLiteral("OK") });
+    dialog.reject();
+}
+
+void OCRDialogTest::batchDialog()
+{
+    // Phase 7b of OCR_PLAN.md: several files are recognized into copies by the batch dialog
+    setLinesHandler({ { QStringLiteral("Batch"), QStringLiteral("text") } });
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString inputDirectory = directory.filePath(QStringLiteral("input"));
+    const QString outputDirectory = directory.filePath(QStringLiteral("output"));
+    QVERIFY(QDir().mkpath(inputDirectory));
+
+    for (const QString& name : { QStringLiteral("first"), QStringLiteral("second") })
+    {
+        const PDFDocument document = createScanDocument({ QStringLiteral("Batch text") });
+        PDFDocumentWriter writer(nullptr);
+        QVERIFY(writer.write(inputDirectory + QStringLiteral("/") + name + QStringLiteral(".pdf"), &document, true));
+    }
+    {
+        QFile brokenFile(inputDirectory + QStringLiteral("/third.pdf"));
+        QVERIFY(brokenFile.open(QFile::WriteOnly));
+        brokenFile.write("not a PDF document");
+    }
+
+    // The settings are taken from the dialog Recognize Text
+    {
+        PDFOCRConfiguration configuration;
+        configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+        configuration.languages = { QStringLiteral("eng") };
+        configuration.detectBlankPages = false;
+        configuration.workerCount = 1;
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        settings.beginGroup(QStringLiteral("OCRDialog"));
+        settings.setValue(QStringLiteral("configuration"), QJsonDocument(configuration.toJson()).toJson(QJsonDocument::Compact));
+        settings.endGroup();
+        settings.remove(QStringLiteral("OCRBatchDialog"));
+    }
+
+    ModalResponder responder({ QStringLiteral("OK") });
+
+    pdfviewer::PDFOCRBatchDialog dialog(nullptr);
+    dialog.show();
+
+    auto* startButton = dialog.findChild<QPushButton*>(QStringLiteral("startButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* openResultButton = dialog.findChild<QPushButton*>(QStringLiteral("openResultButton"));
+    auto* filesTable = dialog.findChild<QTableWidget*>(QStringLiteral("filesTable"));
+    auto* languagesEdit = dialog.findChild<QLineEdit*>(QStringLiteral("languagesEdit"));
+    auto* outputDirectoryRadioButton = dialog.findChild<QRadioButton*>(QStringLiteral("outputDirectoryRadioButton"));
+    auto* outputDirectoryEdit = dialog.findChild<QLineEdit*>(QStringLiteral("outputDirectoryEdit"));
+    auto* suffixEdit = dialog.findChild<QLineEdit*>(QStringLiteral("suffixEdit"));
+    auto* exportTextCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("exportTextCheckBox"));
+    auto* skipExistingCheckBox = dialog.findChild<QCheckBox*>(QStringLiteral("skipExistingCheckBox"));
+    auto* nextToOriginalRadioButton = dialog.findChild<QRadioButton*>(QStringLiteral("nextToOriginalRadioButton"));
+    QVERIFY(startButton && stopButton && openResultButton && filesTable && languagesEdit && outputDirectoryRadioButton && outputDirectoryEdit && suffixEdit && exportTextCheckBox && skipExistingCheckBox && nextToOriginalRadioButton);
+
+    QCOMPARE(languagesEdit->text(), QStringLiteral("eng"));
+    QVERIFY(!startButton->isEnabled());
+
+    // A folder adds its PDF files, a file already in the list is not added again
+    dialog.addFiles({ inputDirectory });
+    dialog.addFiles({ inputDirectory + QStringLiteral("/first.pdf") });
+    QCOMPARE(filesTable->rowCount(), 3);
+    QVERIFY(startButton->isEnabled());
+
+    // An empty suffix next to the originals would overwrite them
+    nextToOriginalRadioButton->setChecked(true);
+    suffixEdit->setText(QString());
+    startButton->click();
+    QVERIFY(!dialog.isRunning());
+    QVERIFY2(!responder.messages.isEmpty() && responder.messages.last().contains(QStringLiteral("overwrite")), qPrintable(responder.messages.join(QChar('\n'))));
+
+    // Languages are required
+    suffixEdit->setText(QStringLiteral("_ocr"));
+    languagesEdit->setText(QString());
+    startButton->click();
+    QVERIFY(!dialog.isRunning());
+    QVERIFY(responder.messages.last().contains(QStringLiteral("languages")));
+    languagesEdit->setText(QStringLiteral("eng"));
+
+    // Recognition into the output folder
+    outputDirectoryRadioButton->setChecked(true);
+    outputDirectoryEdit->setText(outputDirectory);
+    exportTextCheckBox->setChecked(true);
+    startButton->click();
+    QVERIFY(dialog.isRunning());
+    QVERIFY(stopButton->isEnabled());
+    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isRunning(), 60000);
+
+    QCOMPARE(filesTable->item(0, 1)->text(), QStringLiteral("Done"));
+    QCOMPARE(filesTable->item(1, 1)->text(), QStringLiteral("Done"));
+    QCOMPARE(filesTable->item(2, 1)->text(), QStringLiteral("Failed"));
+    QVERIFY(filesTable->item(2, 8)->text().contains(QStringLiteral("cannot be read")));
+    QCOMPARE(filesTable->item(0, 2)->text(), QStringLiteral("1"));
+
+    const QString firstOutput = outputDirectory + QStringLiteral("/first_ocr.pdf");
+    QVERIFY(QFileInfo::exists(firstOutput));
+    QVERIFY(QFileInfo::exists(outputDirectory + QStringLiteral("/second_ocr.pdf")));
+    QVERIFY(!QFileInfo::exists(outputDirectory + QStringLiteral("/third_ocr.pdf")));
+    QCOMPARE(dialog.getOutputFiles(inputDirectory + QStringLiteral("/first.pdf")), QStringList({ firstOutput, outputDirectory + QStringLiteral("/first_ocr.txt") }));
+    {
+        QFile textFile(outputDirectory + QStringLiteral("/first_ocr.txt"));
+        QVERIFY(textFile.open(QFile::ReadOnly));
+        QVERIFY(QString::fromUtf8(textFile.readAll()).contains(QStringLiteral("Batch text")));
+    }
+    {
+        PDFDocumentReader reader(nullptr, nullptr, false, false);
+        const PDFDocument output = reader.readFromFile(firstOutput);
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QVERIFY(PDFOCRTextLayerWriter::readLayer(&output, 0).has_value());
+    }
+
+    // The existing outputs are skipped
+    skipExistingCheckBox->setChecked(true);
+    startButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isRunning(), 60000);
+    QCOMPARE(filesTable->item(0, 1)->text(), QStringLiteral("Skipped"));
+    QCOMPARE(filesTable->item(1, 1)->text(), QStringLiteral("Skipped"));
+    QCOMPARE(filesTable->item(2, 1)->text(), QStringLiteral("Failed"));
+
+    // Stop: the file being recognized is not written, the other files are not started
+    skipExistingCheckBox->setChecked(false);
+    responder.setPreferredButtons({ QStringLiteral("Yes") });
+    m_testEngine->setRecognitionDelay(400);
+    startButton->click();
+    QVERIFY(dialog.isRunning());
+    QTRY_VERIFY_WITH_TIMEOUT(filesTable->item(0, 1)->text().startsWith(QStringLiteral("Recognizing")), 30000);
+    stopButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isRunning(), 60000);
+    m_testEngine->setRecognitionDelay(0);
+    QCOMPARE(filesTable->item(0, 1)->text(), QStringLiteral("Stopped"));
+    QCOMPARE(filesTable->item(1, 1)->text(), QStringLiteral("Stopped"));
+
+    // The result is opened in the editor after the dialog is closed
+    skipExistingCheckBox->setChecked(false);
+    startButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!dialog.isRunning(), 60000);
+    QCOMPARE(filesTable->item(0, 1)->text(), QStringLiteral("Done"));
+    filesTable->selectRow(0);
+    QVERIFY(openResultButton->isEnabled());
+    openResultButton->click();
+    QCOMPARE(dialog.result(), int(QDialog::Accepted));
+    QCOMPARE(QFileInfo(dialog.getDocumentToOpen()).absoluteFilePath(), QFileInfo(firstOutput).absoluteFilePath());
+}
+
+QTEST_MAIN(OCRDialogTest)
+
+#include "tst_ocrdialogtest.moc"

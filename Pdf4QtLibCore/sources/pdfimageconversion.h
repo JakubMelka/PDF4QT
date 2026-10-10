@@ -157,6 +157,18 @@ public:
     /// \param size Size of the image
     static QImage createBitonalImage(QSize size);
 
+    /// Returns the image composited onto the white background, so the transparent
+    /// pixels become white. The result has the format QImage::Format_RGB32.
+    /// \param image Source image
+    static QImage compositeOntoWhite(const QImage& image);
+
+    /// Calculates the threshold of Otsu's method from the histogram of the gray image.
+    /// The pixels, whose value is less than or equal to the threshold, form the dark
+    /// class. Unlike the automatic conversion, the threshold is calculated directly
+    /// from the samples of the image, without the lightness buffers of the conversion.
+    /// \param grayImage Image in the format QImage::Format_Grayscale8
+    static int calculateOtsuThreshold(const QImage& grayImage);
+
 private:
     /// Decomposes the source image (with the transparent pixels composited onto the
     /// white background) into the lightness buffer, the grayscale buffer and the

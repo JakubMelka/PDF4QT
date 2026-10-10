@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <?define MyInstallDir="${WIX_INSTALL_PREFIX}" ?>
+  <!-- 1 when the OCR support is built (PDF4QT_ENABLE_OCR of CMake), otherwise 0: the OCR components are left out -->
+  <?define PDF4QT_ENABLE_OCR="${PDF4QT_WIX_OCR}" ?>
 
   <Product Id="*" Name="PDF4QT" Language="1033" Version="${PDF4QT_VERSION}" Manufacturer="Jakub Melka" UpgradeCode="26336d8a-b2e7-44fc-9a73-68aa99900c7a">
     <Package Id="*" InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Manufacturer="Jakub Melka" Keywords="pdf,editor,viewer" />
@@ -247,6 +249,13 @@
         <File Id="filturbojpeg" KeyPath="yes" Source="$(var.MyInstallDir)\jpeg62.dll" />
       </Component>
 
+      <!-- OCR: the Tesseract engine adapter, the engine with its runtime libraries, the built-in
+           language models and the license texts. The components are generated at configure time
+           by WixInstaller/CMakeLists.txt from the built tree and from the manifests of the built-in
+           model sets, so the installer carries what was built. Left out without the OCR support. -->
+<?if $(var.PDF4QT_ENABLE_OCR) = 1 ?>
+${PDF4QT_WIX_OCR_COMPONENTS}<?endif?>
+
     </ComponentGroup>
   </Fragment>
 
@@ -350,6 +359,10 @@
       <Directory Id="dir_imageformats" Name="imageformats" />
     </DirectoryRef>
   </Fragment>
+
+  <!-- Directories of the OCR data, generated with the OCR components -->
+<?if $(var.PDF4QT_ENABLE_OCR) = 1 ?>
+${PDF4QT_WIX_OCR_DIRECTORIES}<?endif?>
 
   <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
