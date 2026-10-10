@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcms.h"
+#include "pdfcolorspaces.h"
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
@@ -134,6 +135,8 @@ private slots:
     void test_shading_composite_color_space_from_form_resources_is_preserved();
     void test_transparency_group_color_space_is_preserved();
     void test_shading_icc_alternate_color_space_from_form_resources_is_preserved();
+    void test_color_spaces_of_the_same_name_are_not_mixed();
+    void test_icc_profile_is_shared_by_color_spaces();
     void test_clip_path_curves_are_preserved();
 
 private:
@@ -2311,6 +2314,121 @@ void ContentEditorTest::test_shading_icc_alternate_color_space_from_form_resourc
     QImage originalImage = renderPage(&document);
     QVERIFY(getPageColor(originalImage, QPointF(100, 100)) != QColor(Qt::white));
     QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_color_spaces_of_the_same_name_are_not_mixed()
+{
+    // Color spaces selected by a name are cached during processing of the page content.
+    // The page and the form XObject have a color space of the same name in their own
+    // resources, but each of them is a different color space. The page selects its
+    // color space again, when the form is painted.
+    QByteArray pageContent = "/CS0 cs 1 0 0 sc 0 0 100 100 re f /Fm1 Do /CS0 cs 0 0 1 sc 100 100 100 100 re f";
+    QByteArray formContent = "/CS0 cs 0.5 sc 100 0 100 100 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject formResources = createDictionaryObject({ { "ColorSpace", createDictionaryObject({ { "CS0", pdf::PDFObject::createName("DeviceGray") } }) } });
+
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", formResources } }, formContent);
+
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "CS0", pdf::PDFObject::createName("DeviceRGB") } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QList<pdf::PDFRenderError> errors = processPageContent(&document, &content);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+
+    const QImage image = renderPage(&document);
+
+    const QColor pageColor1 = getPageColor(image, QPointF(50, 50));
+    QVERIFY2(pageColor1.red() > 200 && pageColor1.green() < 50 && pageColor1.blue() < 50, qPrintable(pageColor1.name()));
+
+    const QColor formColor = getPageColor(image, QPointF(150, 50));
+    QVERIFY2(formColor.red() == formColor.green() && formColor.green() == formColor.blue() && formColor.red() > 80 && formColor.red() < 180, qPrintable(formColor.name()));
+
+    const QColor pageColor2 = getPageColor(image, QPointF(150, 150));
+    QVERIFY2(pageColor2.red() < 50 && pageColor2.green() < 50 && pageColor2.blue() > 200, qPrintable(pageColor2.name()));
+}
+
+void ContentEditorTest::test_icc_profile_is_shared_by_color_spaces()
+{
+    // Decoded ICC profiles are cached, because a single profile is usually referenced
+    // by the color spaces of all pages. The cache must not mix the profiles: color spaces
+    // created from the same stream are equal (they have the same profile), also when they
+    // are created repeatedly, and color space of another profile is different.
+    const QByteArray iccProfile = QColorSpace(QColorSpace::SRgb).iccProfile();
+    const QByteArray otherIccProfile = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    QVERIFY(!iccProfile.isEmpty());
+    QVERIFY(!otherIccProfile.isEmpty());
+    QVERIFY(iccProfile != otherIccProfile);
+
+    QByteArray pageContent = "/CS0 cs 1 0 0 sc 0 0 100 100 re f /CS1 cs 0 1 0 sc 100 0 100 100 re f /CS2 cs 0 0 1 sc 0 100 100 100 re f /CS0 cs 1 0 0 sc 100 100 100 100 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&iccProfile, &otherIccProfile](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject profileObject = addStreamObject(builder, { { "N", pdf::PDFObject::createInteger(3) } }, iccProfile);
+        pdf::PDFObject otherProfileObject = addStreamObject(builder, { { "N", pdf::PDFObject::createInteger(3) } }, otherIccProfile);
+
+        auto createColorSpaceObject = [](const pdf::PDFObject& profile)
+        {
+            pdf::PDFArrayBuilder colorSpace;
+            colorSpace.appendItem(pdf::PDFObject::createName("ICCBased"));
+            colorSpace.appendItem(profile);
+            return pdf::PDFObject::createArray(std::move(colorSpace));
+        };
+
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "CS0", createColorSpaceObject(profileObject) },
+                                                                                                 { "CS1", createColorSpaceObject(profileObject) },
+                                                                                                 { "CS2", createColorSpaceObject(otherProfileObject) } }));
+        return resources;
+    });
+
+    const pdf::PDFObject& resources = document.getObject(document.getCatalog()->getPage(0)->getResources());
+    QVERIFY(resources.isDictionary());
+    const pdf::PDFDictionary* colorSpaceDictionary = document.getDictionaryFromObject(resources.getDictionary()->get("ColorSpace"));
+    QVERIFY(colorSpaceDictionary);
+
+    auto createColorSpace = [&document, colorSpaceDictionary](const char* name)
+    {
+        return pdf::PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, &document, pdf::PDFObject::createName(name));
+    };
+
+    pdf::PDFColorSpacePointer colorSpace0 = createColorSpace("CS0");
+    pdf::PDFColorSpacePointer colorSpace0Again = createColorSpace("CS0");
+    pdf::PDFColorSpacePointer colorSpace1 = createColorSpace("CS1");
+    pdf::PDFColorSpacePointer colorSpace2 = createColorSpace("CS2");
+    QVERIFY(colorSpace0 && colorSpace0Again && colorSpace1 && colorSpace2);
+
+    QCOMPARE(colorSpace0->getColorSpace(), pdf::PDFAbstractColorSpace::ColorSpace::ICCBased);
+    QCOMPARE(colorSpace2->getColorSpace(), pdf::PDFAbstractColorSpace::ColorSpace::ICCBased);
+    QVERIFY(colorSpace0->equals(colorSpace0Again.data()));
+    QVERIFY(colorSpace0->equals(colorSpace1.data()));
+    QVERIFY(!colorSpace0->equals(colorSpace2.data()));
+    QVERIFY(colorSpace2->equals(createColorSpace("CS2").data()));
+
+    // The same profile stream in another document (copy of the document shares the objects)
+    pdf::PDFDocument documentCopy = document;
+    QVERIFY(colorSpace0->equals(pdf::PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, &documentCopy, pdf::PDFObject::createName("CS0")).data()));
+
+    const QImage image = renderPage(&document);
+
+    const QColor color0 = getPageColor(image, QPointF(50, 50));
+    QVERIFY2(color0.red() > 200 && color0.green() < 80 && color0.blue() < 80, qPrintable(color0.name()));
+
+    const QColor color1 = getPageColor(image, QPointF(150, 50));
+    QVERIFY2(color1.red() < 80 && color1.green() > 200 && color1.blue() < 80, qPrintable(color1.name()));
+
+    const QColor color2 = getPageColor(image, QPointF(50, 150));
+    QVERIFY2(color2.red() < 80 && color2.green() < 80 && color2.blue() > 200, qPrintable(color2.name()));
+
+    QCOMPARE(getPageColor(image, QPointF(150, 150)), color0);
 }
 
 void ContentEditorTest::test_clip_path_curves_are_preserved()

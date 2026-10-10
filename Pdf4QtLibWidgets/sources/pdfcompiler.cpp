@@ -666,13 +666,12 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
     auto createTextLayout = [this, cms, catalog]() -> PDFTextLayoutStorage
     {
         PDFTextLayoutStorage result(catalog->getPageCount());
-        QMutex mutex;
-        auto generateTextLayout = [this, &result, &mutex, cms, catalog](PDFInteger pageIndex)
+        auto generateTextLayout = [this, &result, cms, catalog](PDFInteger pageIndex)
         {
             if (!catalog->getPage(pageIndex))
             {
                 // Invalid page index
-                result.setTextLayout(pageIndex, PDFTextLayout(), &mutex);
+                result.setTextLayout(pageIndex, PDFTextLayout());
                 return;
             }
 
@@ -681,7 +680,7 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
 
             PDFTextLayoutGenerator generator(m_proxy->getFeatures(), page, m_proxy->getDocument(), m_proxy->getFontCache(), cms.data(), m_proxy->getOptionalContentActivity(), QTransform(), m_proxy->getMeshQualitySettings());
             generator.processContents();
-            result.setTextLayout(pageIndex, generator.createTextLayout(), &mutex);
+            result.setTextLayout(pageIndex, generator.createTextLayout());
             m_proxy->getProgress()->step();
         };
 

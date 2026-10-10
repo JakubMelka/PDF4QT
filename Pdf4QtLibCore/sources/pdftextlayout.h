@@ -32,9 +32,8 @@
 
 #include <set>
 #include <list>
+#include <array>
 #include <compare>
-
-class QMutex;
 
 namespace pdf
 {
@@ -98,9 +97,44 @@ struct PDFTextLayoutSettings
     /// by some producers), would otherwise be split into several independent
     /// layout groups and it would not be possible to select it as a single text.
     PDFReal angleSensitivity = 2.0;
+};
 
-    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settings);
-    friend QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings);
+/// Bounding box of a character, text line or text block. It is a quadrilateral
+/// defined by four points, because text can have an arbitrary angle. Box is created
+/// from a rectangle, first point is the top left corner of that rectangle, next points
+/// are top right, bottom right and bottom left corner. It is a lightweight replacement
+/// of a painter path - text layout of a document consists of millions of these boxes.
+class PDF4QTLIBCORESHARED_EXPORT PDFTextBoundingBox
+{
+public:
+    using Points = std::array<QPointF, 4>;
+
+    explicit inline PDFTextBoundingBox() = default;
+    explicit inline PDFTextBoundingBox(const Points& points) : m_points(points) { }
+
+    /// Constructs the box from the rectangle. Null rectangle
+    /// means no box, all points are then in the origin.
+    /// \param rect Rectangle
+    explicit PDFTextBoundingBox(const QRectF& rect);
+
+    const Points& getPoints() const { return m_points; }
+
+    /// Returns the smallest rectangle (with edges parallel to the axes), which contains the box
+    QRectF boundingRect() const;
+
+    /// Returns true, if the point lies in the box
+    /// \param point Point
+    bool contains(const QPointF& point) const;
+
+    /// Applies transform to the points of the box
+    /// \param matrix Transform matrix
+    void applyTransform(const QTransform& matrix);
+
+    /// Returns the box as a closed path
+    QPainterPath toPath() const;
+
+private:
+    Points m_points;
 };
 
 /// Represents character in device space coordinates. All values (dimensions,
@@ -112,14 +146,9 @@ struct TextCharacter
     PDFReal angle = 0.0;
     PDFReal fontSize = 0.0;
     PDFReal advance = 0.0;
-    QPainterPath boundingBox;
-
-    size_t index = 0; // Just temporary index, it is not serialized, just for text layout algorithm
+    PDFTextBoundingBox boundingBox;
 
     void applyTransform(const QTransform& matrix);
-
-    friend QDataStream& operator<<(QDataStream& stream, const TextCharacter& character);
-    friend QDataStream& operator>>(QDataStream& stream, TextCharacter& character);
 };
 
 using TextCharacters = std::vector<TextCharacter>;
@@ -135,8 +164,15 @@ public:
     /// \param characters
     explicit PDFTextLine(TextCharacters characters);
 
+    /// Construct line from characters, which are already sorted, and from
+    /// its known bounding box. Nothing is computed.
+    /// \param characters Characters
+    /// \param boundingBox Bounding box of the line
+    /// \param topLeft Top left point of the line
+    explicit PDFTextLine(TextCharacters characters, const PDFTextBoundingBox& boundingBox, const QPointF& topLeft);
+
     const TextCharacters& getCharacters() const { return m_characters; }
-    const QPainterPath& getBoundingBox() const { return m_boundingBox; }
+    const PDFTextBoundingBox& getBoundingBox() const { return m_boundingBox; }
     const QPointF& getTopLeft() const { return m_topLeft; }
 
     /// Get angle inclination of block
@@ -144,12 +180,9 @@ public:
 
     void applyTransform(const QTransform& matrix);
 
-    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLine& line);
-    friend QDataStream& operator>>(QDataStream& stream, PDFTextLine& line);
-
 private:
     TextCharacters m_characters;
-    QPainterPath m_boundingBox;
+    PDFTextBoundingBox m_boundingBox;
     QPointF m_topLeft;
 };
 
@@ -160,10 +193,17 @@ class PDFTextBlock
 {
 public:
     explicit inline PDFTextBlock() = default;
-    explicit inline PDFTextBlock(PDFTextLines textLines);
+    explicit PDFTextBlock(PDFTextLines textLines);
+
+    /// Construct block from lines, which are already sorted, and from
+    /// its known bounding box. Nothing is computed.
+    /// \param textLines Lines
+    /// \param boundingBox Bounding box of the block
+    /// \param topLeft Top left point of the block
+    explicit PDFTextBlock(PDFTextLines textLines, const PDFTextBoundingBox& boundingBox, const QPointF& topLeft);
 
     const PDFTextLines& getLines() const { return m_lines; }
-    const QPainterPath& getBoundingBox() const { return m_boundingBox; }
+    const PDFTextBoundingBox& getBoundingBox() const { return m_boundingBox; }
     const QPointF& getTopLeft() const { return m_topLeft; }
 
     /// Get angle inclination of block
@@ -183,12 +223,9 @@ public:
                                                const QTransform& matrix,
                                                PDFReal heightIncreaseFactor) const;
 
-    friend QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block);
-    friend QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block);
-
 private:
     PDFTextLines m_lines;
-    QPainterPath m_boundingBox;
+    PDFTextBoundingBox m_boundingBox;
     QPointF m_topLeft;
 };
 
@@ -372,16 +409,21 @@ class PDF4QTLIBCORESHARED_EXPORT PDFTextLayout
 public:
     explicit PDFTextLayout();
 
+    /// Constructs layout from text blocks, which are already laid out
+    /// \param blocks Text blocks
+    explicit PDFTextLayout(PDFTextBlocks blocks);
+
     /// Adds character to the layout
     void addCharacter(const PDFTextCharacterInfo& info);
 
-    /// Performs text layout algorithm
+    /// Performs text layout algorithm. Added characters are moved
+    /// to the text blocks, layout does not hold them twice.
     void perform();
 
     /// Optimizes layout memory allocation to contain less space
     void optimize();
 
-    /// Returns estimate of number of bytes, which this mesh occupies in memory
+    /// Returns estimate of number of bytes, which this layout occupies in memory
     qint64 getMemoryConsumptionEstimate() const;
 
     /// Returns recognized text blocks
@@ -427,9 +469,6 @@ public:
     /// \param pageIndex pageIndex
     /// \param color Selection color
     PDFTextSelection selectLineInBlock(const size_t blockIndex, const size_t lineIndex, PDFInteger pageIndex, QColor color) const;
-
-    friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayout& layout);
-    friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
 
 private:
     /// Makes layout for a group of characters with a similar angle
@@ -573,38 +612,49 @@ private:
     const PDFTextSelection* m_selection;
 };
 
-/// Storage for text layouts. For reading and writing, this object is thread safe.
-/// For writing, mutex is used to synchronize asynchronous writes, for reading
-/// no mutex is used at all. For this reason, both reading/writing at the same time
-/// is prohibited, it is not thread safe.
+/// Storage for text layouts of all pages of a document. Layouts are stored
+/// in a compact form, which occupies only a fraction of the memory of \p PDFTextLayout,
+/// so the storage of a document with thousands of pages of text is still small,
+/// and layouts do not have to be compressed. Compact form uses single precision
+/// for the geometry, which is stored relative to the first character of the page
+/// (so it has about seven valid digits of the distance from this character,
+/// wherever the page lies in the coordinate system), and data, which are the same
+/// for many characters of the page (character, font size, advance and bounding
+/// box relative to the position of the character), are stored only once. Layout
+/// must be a result of the layout algorithm - all characters of a line have
+/// the same angle and bounding box of a character is a parallelogram.
+///
+/// Each page has its own data, so layouts of different pages can be set from
+/// multiple threads at once, and no locking is needed. Reading is thread safe,
+/// too. Reading of a page, which is being set by another thread, is prohibited.
 class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutStorage
 {
 public:
     explicit inline PDFTextLayoutStorage() = default;
     explicit inline PDFTextLayoutStorage(PDFInteger pageCount) :
-        m_offsets(pageCount, 0)
+        m_pages(pageCount)
     {
 
     }
 
     /// Returns text layout for particular page. If page index is invalid,
     /// then empty text layout is returned. Function is not thread safe, if
-    /// function \p setTextLayout is called from another thread.
+    /// function \p setTextLayout is called for the same page from another thread.
     /// \param pageIndex Page index
     PDFTextLayout getTextLayout(PDFInteger pageIndex) const;
 
     /// Returns text layout for particular page. If page index is invalid,
     /// then empty text layout is returned. Function is not thread safe, if
-    /// function \p setTextLayout is called from another thread.
+    /// function \p setTextLayout is called for the same page from another thread.
     /// \param pageIndex Page index
     PDFTextLayoutStorageGetter getTextLayoutLazy(PDFInteger pageIndex) const { return PDFTextLayoutStorageGetter(this, pageIndex); }
 
     /// Sets text layout to the particular index. Index must be valid and from
-    /// range 0 to \p pageCount - 1. Function is not thread safe.
+    /// range 0 to \p pageCount - 1. Function can be called from multiple threads
+    /// at once, if each thread sets a different page.
     /// \param pageIndex Page index
     /// \param layout Text layout
-    /// \param mutex Mutex for locking (calls of setTextLayout from multiple threads)
-    void setTextLayout(PDFInteger pageIndex, const PDFTextLayout& layout, QMutex* mutex);
+    void setTextLayout(PDFInteger pageIndex, const PDFTextLayout& layout);
 
     /// Finds simple text in all pages. All text occurences are returned.
     /// \param text Text to be found
@@ -618,11 +668,14 @@ public:
     PDFFindResults find(const QRegularExpression& expression, PDFTextFlow::FlowFlags flowFlags) const;
 
     /// Returns number of pages
-    size_t getCount() const { return m_offsets.size(); }
+    size_t getCount() const { return m_pages.size(); }
+
+    /// Returns estimate of number of bytes, which this storage occupies in memory
+    qint64 getMemoryConsumptionEstimate() const;
 
 private:
-    std::vector<int> m_offsets;
-    QByteArray m_textLayouts;
+    /// Compact text layouts of the pages (empty array for a page without a text)
+    std::vector<QByteArray> m_pages;
 };
 
 }   // namespace pdf

@@ -30,10 +30,13 @@
 #include "pdfexecutionpolicy.h"
 
 #include <QCryptographicHash>
+#include <QMutex>
+#include <QMutexLocker>
 
 #include "pdfdbgheap.h"
 
 #include <execution>
+#include <list>
 
 namespace pdf
 {
@@ -44,6 +47,95 @@ namespace pdf
 static thread_local std::vector<float> s_rowInputColors;
 static thread_local std::vector<unsigned char> s_rowOutputColors;
 static thread_local std::vector<unsigned char> s_rowAlphaValues;
+
+/// Cache of the decoded ICC profiles and their checksums. A single ICC profile
+/// is often used by a large number of color spaces (for example, each page of
+/// a document has its own color space dictionary, which refers to the same stream
+/// with the profile). Decoding of the profile and computing of its checksum for
+/// each of these color spaces is expensive, so recently used profiles are stored
+/// here. Cache is shared by all documents and it is thread safe.
+class PDFICCProfileCache
+{
+public:
+    PDFICCProfileCache() = delete;
+
+    struct Profile
+    {
+        QByteArray data;
+        QByteArray checksum;
+    };
+
+    /// Returns the decoded ICC profile of the stream
+    /// \param document Document
+    /// \param streamObject Object with the stream of the ICC profile
+    static Profile getProfile(const PDFDocument* document, const PDFObject& streamObject);
+
+private:
+    struct Item
+    {
+        /// Stream is the key of the cache. The object is stored, so the stream
+        /// lives at least as long as the item, and its address cannot be reused
+        /// by another stream. Streams are immutable, so the same stream always
+        /// has the same decoded data.
+        PDFObject streamObject;
+        Profile profile;
+    };
+
+    /// Maximal number of stored profiles
+    static constexpr size_t CACHE_SIZE = 16;
+
+    static QMutex s_mutex;
+
+    /// Stored profiles, most recently used one is at the front of the list
+    static std::list<Item> s_items;
+};
+
+QMutex PDFICCProfileCache::s_mutex;
+std::list<PDFICCProfileCache::Item> PDFICCProfileCache::s_items;
+
+PDFICCProfileCache::Profile PDFICCProfileCache::getProfile(const PDFDocument* document, const PDFObject& streamObject)
+{
+    Q_ASSERT(streamObject.isStream());
+    const PDFStream* stream = streamObject.getStream();
+
+    auto findItem = [stream]()
+    {
+        return std::find_if(s_items.begin(), s_items.end(), [stream](const Item& item) { return item.streamObject.getStream() == stream; });
+    };
+
+    {
+        QMutexLocker lock(&s_mutex);
+        auto it = findItem();
+        if (it != s_items.end())
+        {
+            s_items.splice(s_items.begin(), s_items, it);
+            return s_items.front().profile;
+        }
+    }
+
+    // Decode the profile without the lock, it is an expensive operation. If more threads
+    // need the same new profile at the same time, then each of them decodes it.
+    Item item;
+    item.streamObject = streamObject;
+    item.profile.data = document->getDecodedStream(stream);
+    item.profile.checksum = QCryptographicHash::hash(item.profile.data, QCryptographicHash::Md5);
+    Profile profile = item.profile;
+
+    // Items removed from the cache are destroyed after the lock is released
+    std::list<Item> removedItems;
+
+    QMutexLocker lock(&s_mutex);
+    if (findItem() == s_items.end())
+    {
+        s_items.push_front(qMove(item));
+        if (s_items.size() > CACHE_SIZE)
+        {
+            removedItems.splice(removedItems.begin(), s_items, std::prev(s_items.end()));
+        }
+    }
+
+    return profile;
+}
 
 namespace colorspaces
 {
@@ -1397,7 +1489,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                 QByteArray name = colorSpaceIdentifier.getString();
 
                 const PDFDictionary* dictionary = nullptr;
-                const PDFStream* stream = nullptr;
+                const PDFObject* streamObject = nullptr;
                 if (count > 1)
                 {
                     const PDFObject& colorSpaceSettings = document->getObject(array->getItem(1));
@@ -1407,7 +1499,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     }
                     if (colorSpaceSettings.isStream())
                     {
-                        stream = colorSpaceSettings.getStream();
+                        streamObject = &colorSpaceSettings;
                     }
                 }
 
@@ -1438,9 +1530,9 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     }
                 }
 
-                if (stream && name == COLOR_SPACE_NAME_ICCBASED)
+                if (streamObject && name == COLOR_SPACE_NAME_ICCBASED)
                 {
-                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, stream, recursion, usedNames);
+                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, *streamObject, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_INDEXED && count == 4)
@@ -1960,6 +2052,16 @@ PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColor
     m_iccProfileDataChecksum = QCryptographicHash::hash(m_iccProfileData, QCryptographicHash::Md5);
 }
 
+PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, QByteArray iccProfileDataChecksum, PDFObjectReference metadata) :
+    m_alternateColorSpace(qMove(alternateColorSpace)),
+    m_range(range),
+    m_iccProfileData(qMove(iccProfileData)),
+    m_iccProfileDataChecksum(qMove(iccProfileDataChecksum)),
+    m_metadata(metadata)
+{
+
+}
+
 PDFColor PDFICCBasedColorSpace::getDefaultColorOriginal() const
 {
     PDFColor color;
@@ -2047,13 +2149,18 @@ bool PDFICCBasedColorSpace::equals(const PDFAbstractColorSpace* other) const
 
 PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                      const PDFDocument* document,
-                                                                     const PDFStream* stream,
+                                                                     const PDFObject& streamObject,
                                                                      int recursion,
                                                                      std::set<QByteArray>& usedNames)
 {
+    if (!streamObject.isStream())
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid color space."));
+    }
+
     // First, try to load alternate color space, if it is present
-    const PDFDictionary* dictionary = stream->getDictionary();
-    QByteArray iccProfileData = document->getDecodedStream(stream);
+    const PDFDictionary* dictionary = streamObject.getStream()->getDictionary();
+    PDFICCProfileCache::Profile profile = PDFICCProfileCache::getProfile(document, streamObject);
 
     PDFDocumentDataLoaderDecorator loader(document);
     PDFColorSpacePointer alternateColorSpace;
@@ -2114,7 +2221,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     auto itEnd = std::next(itStart, rangeSize);
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
-    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData), loader.readReferenceFromDictionary(dictionary, "Metadata")));
+    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(profile.data), qMove(profile.checksum), loader.readReferenceFromDictionary(dictionary, "Metadata")));
 }
 
 const PDFICCBasedColorSpace::Ranges& PDFICCBasedColorSpace::getRange() const

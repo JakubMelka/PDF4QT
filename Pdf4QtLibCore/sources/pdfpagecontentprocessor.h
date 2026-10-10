@@ -38,6 +38,7 @@
 #include <QPainterPath>
 #include <QSharedPointer>
 
+#include <map>
 #include <stack>
 #include <tuple>
 #include <type_traits>
@@ -816,6 +817,13 @@ private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
 
+    /// Returns the color space of the given name from the current color space
+    /// dictionary. Color spaces are cached, because content streams usually
+    /// select the same color space many times, and its creation can be expensive
+    /// (for example, ICC profile must be decoded).
+    /// \param name Name of the color space
+    PDFColorSpacePointer getColorSpaceByName(const QByteArray& name);
+
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
 
@@ -1110,6 +1118,18 @@ private:
     PDFColorSpacePointer m_deviceGrayColorSpace;
     PDFColorSpacePointer m_deviceRGBColorSpace;
     PDFColorSpacePointer m_deviceCMYKColorSpace;
+
+    /// Color spaces created by name from a single color space dictionary
+    struct PDFColorSpaceCacheItem
+    {
+        /// Holds the dictionary, so its address (which is the key of the cache)
+        /// cannot be reused by another dictionary during processing.
+        PDFObject dictionaryObject;
+        std::map<QByteArray, PDFColorSpacePointer> colorSpaces;
+    };
+
+    /// Cache of the named color spaces, for each color space dictionary used
+    std::map<const PDFDictionary*, PDFColorSpaceCacheItem> m_colorSpaceCache;
 
     /// Array with current operand arguments
     PDFFlatArray<PDFLexicalAnalyzer::Token, 33> m_operands;

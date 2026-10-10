@@ -714,6 +714,9 @@ public:
     using Ranges = std::array<PDFColorComponent, MAX_COLOR_COMPONENTS * 2>;
 
     explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, PDFObjectReference metadata);
+
+    /// Constructs the color space from the ICC profile data, of which the checksum is already known
+    explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, QByteArray iccProfileDataChecksum, PDFObjectReference metadata);
     virtual ~PDFICCBasedColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::ICCBased; }
@@ -728,12 +731,12 @@ public:
     /// Creates ICC based color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
-    /// \param stream Stream with ICC profile
+    /// \param streamObject Object with the stream of the ICC profile
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                          const PDFDocument* document,
-                                                         const PDFStream* stream,
+                                                         const PDFObject& streamObject,
                                                          int recursion,
                                                          std::set<QByteArray>& usedNames);
 

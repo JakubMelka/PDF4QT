@@ -183,6 +183,11 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     };
 
     m_colorSpaceDictionary = getDictionary(COLOR_SPACE_DICTIONARY);
+    if (m_colorSpaceDictionary && !m_colorSpaceCache.count(m_colorSpaceDictionary))
+    {
+        m_colorSpaceCache[m_colorSpaceDictionary].dictionaryObject = m_document->getObject(resources.getDictionary()->get(COLOR_SPACE_DICTIONARY));
+    }
+
     m_fontDictionary = getDictionary("Font");
     m_xobjectDictionary = getDictionary("XObject");
     m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
@@ -226,6 +231,27 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
             m_procedureSets = newProcSet;
         }
     }
+}
+
+PDFColorSpacePointer PDFPageContentProcessor::getColorSpaceByName(const QByteArray& name)
+{
+    std::map<QByteArray, PDFColorSpacePointer>& colorSpaces = m_colorSpaceCache[m_colorSpaceDictionary].colorSpaces;
+
+    auto it = colorSpaces.find(name);
+    if (it != colorSpaces.end())
+    {
+        return it->second;
+    }
+
+    // Color spaces are immutable, so the same instance can be used repeatedly.
+    // If the color space cannot be created, exception is thrown and nothing is cached.
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name));
+    if (colorSpace)
+    {
+        colorSpaces[name] = colorSpace;
+    }
+
+    return colorSpace;
 }
 
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
@@ -2461,7 +2487,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
+    PDFColorSpacePointer colorSpace = getColorSpaceByName(name.name);
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)
@@ -2484,7 +2510,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
+    PDFColorSpacePointer colorSpace = getColorSpaceByName(name.name);
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)
