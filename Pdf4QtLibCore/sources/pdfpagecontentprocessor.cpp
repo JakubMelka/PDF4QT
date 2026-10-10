@@ -3373,8 +3373,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
                         if (!glyphPath.isEmpty())
                         {
-                            QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-
                             bool handledAsRealText = false;
                             if (fill && !stroke && isHorizontalWritingSystem && !item.character.isNull() &&
                                 !getGraphicState()->getFillColorSpace()->asPatternColorSpace())
@@ -3383,8 +3381,13 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                                 handledAsRealText = performTextCharacterDrawing(realTextDrawInfo);
                             }
 
-                            if (!handledAsRealText)
+                            // Transformation of the glyph allocates memory, so the glyph is transformed
+                            // only if it is going to be painted (it is not, for example, when only the text
+                            // layout is created, or if the text is invisible). Conditions are the same
+                            // as the conditions, for which the path painting does nothing.
+                            if (!handledAsRealText && (stroke || fill) && !isContentSuppressed() && !isContentKindSuppressed(ContentKind::Text))
                             {
+                                QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
                                 processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
                             }
 

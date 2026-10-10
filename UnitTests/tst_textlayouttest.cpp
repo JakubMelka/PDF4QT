@@ -794,8 +794,14 @@ void TextLayoutTest::documentBenchmark()
         QSKIP("Set PDF4QT_TEXT_LAYOUT_BENCHMARK to a PDF file to run the benchmark.");
     }
 
-    const bool isSingleThreaded = qEnvironmentVariable("PDF4QT_TEXT_LAYOUT_BENCHMARK_THREADS") == QLatin1String("single");
-    pdf::PDFExecutionPolicy::setStrategy(isSingleThreaded ? pdf::PDFExecutionPolicy::Strategy::SingleThreaded : pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+    // Strategy "always" is the default strategy of the applications - parallel
+    // loops inside of the processing of a page are executed in threads too.
+    const QString threads = qEnvironmentVariable("PDF4QT_TEXT_LAYOUT_BENCHMARK_THREADS");
+    const bool isSingleThreaded = threads == QLatin1String("single");
+    const bool isAlwaysMultithreaded = threads == QLatin1String("always");
+    pdf::PDFExecutionPolicy::setStrategy(isSingleThreaded ? pdf::PDFExecutionPolicy::Strategy::SingleThreaded :
+                                         isAlwaysMultithreaded ? pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded :
+                                                                 pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
 
     pdf::PDFDocumentReader reader(nullptr, nullptr, false, false);
     pdf::PDFDocument document = reader.readFromFile(fileName);
@@ -893,7 +899,7 @@ void TextLayoutTest::documentBenchmark()
     auto toMegabytes = [](qint64 bytes) { return double(bytes) / (1024.0 * 1024.0); };
 
     qInfo().noquote() << QString("Pages: %1, blocks: %2, lines: %3, characters: %4").arg(pageCount).arg(statistics.blockCount).arg(statistics.lineCount).arg(statistics.characterCount);
-    qInfo().noquote() << QString("Total wall time: %1 ms (%2)").arg(toMilliseconds(totalTime), 0, 'f', 1).arg(isSingleThreaded ? QString("single threaded") : QString("multithreaded"));
+    qInfo().noquote() << QString("Total wall time: %1 ms (%2)").arg(toMilliseconds(totalTime), 0, 'f', 1).arg(isSingleThreaded ? QString("single threaded") : isAlwaysMultithreaded ? QString("multithreaded, also inside of a page") : QString("multithreaded"));
     qInfo().noquote() << QString("  content processing (summed over threads): %1 ms").arg(toMilliseconds(processTime), 0, 'f', 1);
     qInfo().noquote() << QString("  layout algorithm (summed over threads):   %1 ms").arg(toMilliseconds(layoutTime), 0, 'f', 1);
     qInfo().noquote() << QString("  setTextLayout (summed over threads):      %1 ms").arg(toMilliseconds(storeTime), 0, 'f', 1);

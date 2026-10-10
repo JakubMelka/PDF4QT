@@ -885,13 +885,14 @@ void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angl
     const size_t samples = m_settings.samples;
     std::vector<NearestCharacterInfo> nearestCharacters(samples * characterCount, NearestCharacterInfo());
 
-    auto findNearestCharacters = [samples, &spatialIndex, &nearestCharacters](size_t currentCharacterIndex)
+    // Nearest characters are searched in this thread. Search of all characters of a page
+    // takes less than a millisecond, which is less than the price of dividing it into
+    // hundreds of tasks of a thread pool. Moreover, layouts of the pages are created in
+    // parallel, and all these threads would wait for the lock of the queue of the pool.
+    for (size_t i = 0; i < characterCount; ++i)
     {
-        spatialIndex.findNearest(currentCharacterIndex, samples, nearestCharacters.data() + currentCharacterIndex * samples);
-    };
-
-    auto range = PDFIntegerRange<size_t>(0, characterCount);
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Content, range.begin(), range.end(), findNearestCharacters);
+        spatialIndex.findNearest(i, samples, nearestCharacters.data() + i * samples);
+    }
 
     // Step 3) - detect lines
     PDFUnionFindAlgorithm<size_t> textLinesUF(characterCount);

@@ -409,6 +409,8 @@ void FontEncodingTest::test_realized_font_concurrent_use()
     // Realized font is shared by the threads compiling the pages. FreeType face
     // may be used by one thread at a time, so the character lookups are read from
     // the face when the font is realized, and the glyph loading is serialized.
+    // Loaded glyphs are found without a lock, and each glyph exists only once,
+    // so all threads must get the same glyph for the same character.
     pdf::FontDescriptor descriptor;
     descriptor.fontName = "PDF4QTNonexistentCJKFont";
     pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", descriptor,
@@ -463,8 +465,26 @@ void FontEncodingTest::test_realized_font_concurrent_use()
     QVERIFY(std::any_of(reference.cbegin(), reference.cend(), [](const Item& item) { return item.elementCount > 0; }));
     const size_t referenceCharacterInfos = referenceFont->getCharacterInfos().size();
 
+    auto collectGlyphs = [](const pdf::TextSequence& sequence)
+    {
+        std::vector<const QPainterPath*> glyphs;
+        for (const pdf::TextSequenceItem& item : sequence.items)
+        {
+            glyphs.push_back(item.glyph);
+        }
+        return glyphs;
+    };
+
+    // Number of different glyphs of the text (glyphs are published in blocks of 256 glyphs)
+    std::vector<const QPainterPath*> referenceGlyphs = collectGlyphs(referenceSequence);
+    std::sort(referenceGlyphs.begin(), referenceGlyphs.end());
+    referenceGlyphs.erase(std::unique(referenceGlyphs.begin(), referenceGlyphs.end()), referenceGlyphs.end());
+    qInfo().noquote() << QString("Different glyphs: %1").arg(referenceGlyphs.size());
+
     constexpr int threadCount = 8;
     std::vector<std::vector<Item>> results(threadCount);
+    std::vector<std::vector<const QPainterPath*>> glyphs(threadCount);
+    std::vector<std::vector<const QPainterPath*>> repeatedGlyphs(threadCount);
     std::vector<size_t> characterInfos(threadCount, 0);
     std::vector<std::unique_ptr<QThread>> threads;
     for (int i = 0; i < threadCount; ++i)
@@ -481,6 +501,12 @@ void FontEncodingTest::test_realized_font_concurrent_use()
             pdf::TextSequence sequence;
             sharedFont->fillTextSequence(encoded, sequence, &threadReporter);
             results[i] = collect(sequence);
+            glyphs[i] = collectGlyphs(sequence);
+
+            // All glyphs are loaded now
+            pdf::TextSequence repeatedSequence;
+            sharedFont->fillTextSequence(encoded, repeatedSequence, &threadReporter);
+            repeatedGlyphs[i] = collectGlyphs(repeatedSequence);
         }));
     }
     for (const auto& thread : threads)
@@ -495,6 +521,8 @@ void FontEncodingTest::test_realized_font_concurrent_use()
     for (int i = 0; i < threadCount; ++i)
     {
         QVERIFY(results[i] == reference);
+        QVERIFY(glyphs[i] == glyphs[0]);
+        QVERIFY(repeatedGlyphs[i] == glyphs[0]);
         if (i % 4 == 3)
         {
             QCOMPARE(characterInfos[i], referenceCharacterInfos);
