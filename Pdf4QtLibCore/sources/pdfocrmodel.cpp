@@ -977,6 +977,11 @@ bool PDFOCRReview::isBelowThreshold(const PDFOCRConfidence& confidence, double t
 // PDFOCRValidator
 // -------------------------------------------------------------------------
 
+QStringList PDFOCRValidator::validate(const PDFOCRPageResult& page)
+{
+    return validate(page, Limits());
+}
+
 QStringList PDFOCRValidator::validate(const PDFOCRPageResult& page, const Limits& limits)
 {
     QStringList errors;

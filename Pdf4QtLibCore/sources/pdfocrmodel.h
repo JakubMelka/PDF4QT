@@ -822,7 +822,11 @@ public:
     };
 
     /// Validates the page result. Returns list of errors (empty, if valid).
-    static QStringList validate(const PDFOCRPageResult& page, const Limits& limits = Limits());
+    /// The overload without the limits uses the default limits (a default argument
+    /// Limits() cannot be used here, the default member initializers of a nested
+    /// class are not available before the end of the enclosing class).
+    static QStringList validate(const PDFOCRPageResult& page);
+    static QStringList validate(const PDFOCRPageResult& page, const Limits& limits);
 
     /// Returns true, if the text is valid unicode (no unpaired surrogates, no NUL characters)
     static bool isValidText(const QString& text);
