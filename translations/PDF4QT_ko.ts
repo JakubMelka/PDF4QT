@@ -515,7 +515,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="14"/>
         <source>Insert Page Numbers</source>
-        <translation type="unfinished"></translation>
+        <translation>페이지 번호 삽입</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="20"/>
@@ -535,12 +535,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="50"/>
         <source>Start number</source>
-        <translation type="unfinished"></translation>
+        <translation>시작 번호</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="70"/>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>미리 보기</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="87"/>
