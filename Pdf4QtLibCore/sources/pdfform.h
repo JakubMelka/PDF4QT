@@ -303,7 +303,9 @@ public:
     const QStringList& getOptions() const { return m_options; }
 
     /// Returns appearance state, which corresponds to the checked
-    /// state of checkbox or radio button. If error occurs, then
+    /// state of checkbox or radio button. Check box without the
+    /// appearance of the checked state is checked by the value
+    /// of the field, or by the state 'Yes'. If error occurs, then
     /// empty byte array is returned.
     /// \param formManager Form manager
     /// \param widget Widget
@@ -321,6 +323,12 @@ public:
 
 private:
     friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+
+    /// Returns true, if widget has a normal appearance stream of the appearance state
+    /// \param formManager Form manager
+    /// \param widget Widget
+    /// \param state Appearance state
+    static bool hasNormalAppearance(const PDFFormManager* formManager, const PDFFormWidget* widget, const QByteArray& state);
 
     /// List of export names of 'On' state for radio buttons. In widget annotation's appearance
     /// dictionaries, state names are computer generated numbers (for example /1, /3, ...),
@@ -386,6 +394,7 @@ public:
     const Options& getOptions() const { return m_options; }
     PDFInteger getTopIndex() const { return m_topIndex; }
     const PDFObject& getSelection() const { return m_selection; }
+    const QByteArray& getDefaultAppearance() const { return m_defaultAppearance; }
 
     virtual bool setValue(const SetValueParameters& parameters) override;
     virtual void resetValue(const ResetValueParameters& parameters) override;
@@ -397,6 +406,9 @@ private:
     Options m_options;
     PDFInteger m_topIndex;
     PDFObject m_selection;
+
+    /// Default appearance
+    QByteArray m_defaultAppearance;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFFormFieldSignature : public PDFFormField

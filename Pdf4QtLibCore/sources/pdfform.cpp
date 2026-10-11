@@ -302,46 +302,6 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
 
         formField->m_fieldNames[FullyQualified] = names.join(".");
 
-        std::vector<PDFObjectReference> kids = loader.readReferenceArrayFromDictionary(fieldDictionary, "Kids");
-        if (kids.empty())
-        {
-            // This means, that field's dictionary is merged with annotation's dictionary,
-            // so, we will add pointer to self to the form widgets. But we must test, if we
-            // really have merged annotation's dictionary - we test it by checking for 'Subtype'
-            // presence.
-            if (loader.readNameFromDictionary(fieldDictionary, "Subtype") == "Widget")
-            {
-                formField->m_widgets.emplace_back(PDFFormWidget::parse(storage, reference, formField));
-            }
-        }
-        else
-        {
-            // Otherwise we must scan all references, and determine, if kid is another form field,
-            // or it is a widget annotation. Widget annotations has required field 'Subtype', which
-            // has value 'Widget', form field has required field 'Parent' (for non-root fields).
-
-            for (const PDFObjectReference& kid : kids)
-            {
-                if (const PDFDictionary* childDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(kid)))
-                {
-                    const bool isWidget = loader.readNameFromDictionary(childDictionary, "Subtype") == "Widget";
-                    const bool isField = loader.readReferenceFromDictionary(childDictionary, "Parent").isValid();
-
-                    if (isField)
-                    {
-                        // This is form field (potentially merged with widget)
-                        formField->m_childFields.emplace_back(PDFFormField::parse(storage, kid, formField));
-                    }
-                    else if (isWidget)
-                    {
-                        // This is pure widget (with no form field)
-                        formField->m_widgets.emplace_back(PDFFormWidget::parse(storage, kid, formField));
-                    }
-                }
-            }
-
-        }
-
         if (formFieldButton)
         {
             formFieldButton->m_options = loader.readTextStringList(fieldDictionary->get("Opt"));
@@ -429,11 +389,62 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
 
             formFieldChoice->m_topIndex = loader.readIntegerFromDictionary(fieldDictionary, "TI", 0);
             formFieldChoice->m_selection = fieldDictionary->get("I");
+
+            // Default appearance is inherited from the parent field, as in the text field
+            if (const PDFFormFieldChoice* parentChoiceField = dynamic_cast<const PDFFormFieldChoice*>(parentField))
+            {
+                formFieldChoice->m_defaultAppearance = parentChoiceField->getDefaultAppearance();
+            }
+            if (fieldDictionary->hasKey("DA"))
+            {
+                formFieldChoice->m_defaultAppearance = loader.readStringFromDictionary(fieldDictionary, "DA");
+            }
         }
 
         if (formFieldSignature)
         {
             formFieldSignature->m_signature = PDFSignature::parse(storage, fieldDictionary->get("V"));
+        }
+
+        // Jakub Melka: kids are parsed as the last ones, because they inherit the attributes
+        // of this field (for example the default appearance), which must be already loaded.
+        std::vector<PDFObjectReference> kids = loader.readReferenceArrayFromDictionary(fieldDictionary, "Kids");
+        if (kids.empty())
+        {
+            // This means, that field's dictionary is merged with annotation's dictionary,
+            // so, we will add pointer to self to the form widgets. But we must test, if we
+            // really have merged annotation's dictionary - we test it by checking for 'Subtype'
+            // presence.
+            if (loader.readNameFromDictionary(fieldDictionary, "Subtype") == "Widget")
+            {
+                formField->m_widgets.emplace_back(PDFFormWidget::parse(storage, reference, formField));
+            }
+        }
+        else
+        {
+            // Otherwise we must scan all references, and determine, if kid is another form field,
+            // or it is a widget annotation. Widget annotations has required field 'Subtype', which
+            // has value 'Widget', form field has required field 'Parent' (for non-root fields).
+
+            for (const PDFObjectReference& kid : kids)
+            {
+                if (const PDFDictionary* childDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(kid)))
+                {
+                    const bool isWidget = loader.readNameFromDictionary(childDictionary, "Subtype") == "Widget";
+                    const bool isField = loader.readReferenceFromDictionary(childDictionary, "Parent").isValid();
+
+                    if (isField)
+                    {
+                        // This is form field (potentially merged with widget)
+                        formField->m_childFields.emplace_back(PDFFormField::parse(storage, kid, formField));
+                    }
+                    else if (isWidget)
+                    {
+                        // This is pure widget (with no form field)
+                        formField->m_widgets.emplace_back(PDFFormWidget::parse(storage, kid, formField));
+                    }
+                }
+            }
         }
     }
 
@@ -514,7 +525,40 @@ QByteArray PDFFormFieldButton::getOnAppearanceState(const PDFFormManager* formMa
         }
     }
 
+    // Jakub Melka: check box doesn't have to have an appearance stream of the checked
+    // state, so the name of this state can't be found in the appearance dictionary.
+    // Such check box is checked by its value (if it is checked), otherwise by the name
+    // 'Yes', which is the name of the checked state defined by the PDF specification.
+    // Radio buttons are distinguished only by these names, so they have no default.
+    const PDFFormFieldButton* button = dynamic_cast<const PDFFormFieldButton*>(widget->getParent());
+    if (button && button->getButtonType() == ButtonType::CheckBox)
+    {
+        PDFDocumentDataLoaderDecorator loader(document);
+        for (const PDFObject& value : { button->getValue(), button->getDefaultValue() })
+        {
+            QByteArray state = loader.readName(value);
+            if (!state.isEmpty() && state != "Off")
+            {
+                return state;
+            }
+        }
+
+        return "Yes";
+    }
+
     return QByteArray();
+}
+
+bool PDFFormFieldButton::hasNormalAppearance(const PDFFormManager* formManager, const PDFFormWidget* widget, const QByteArray& state)
+{
+    const PDFDocument* document = formManager->getDocument();
+    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(widget->getWidget())))
+    {
+        PDFAppeareanceStreams streams = PDFAppeareanceStreams::parse(&document->getStorage(), dictionary->get("AP"));
+        return streams.getAppearanceStates(PDFAppeareanceStreams::Appearance::Normal).contains(state);
+    }
+
+    return false;
 }
 
 QByteArray PDFFormFieldButton::getOffAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget)
@@ -563,6 +607,17 @@ bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
     for (const PDFFormWidget& formWidget : getWidgets())
     {
         QByteArray onState = PDFFormFieldButton::getOnAppearanceState(parameters.formManager, &formWidget);
+
+        // Jakub Melka: check box without the appearance stream of the checked state would be
+        // displayed as unchecked. The name of its checked state can be also known only from
+        // the value of the field, so it would be lost, when the check box is being unchecked.
+        // The missing appearance streams of the unchecked state and of the checked state are
+        // created (so the name is stored in the appearance dictionary), existing ones are kept.
+        if (!isRadio && !hasNormalAppearance(parameters.formManager, &formWidget, onState))
+        {
+            builder->setAnnotationAppearanceState(formWidget.getWidget(), onState);
+            builder->updateAnnotationAppearanceStreams(formWidget.getWidget(), true);
+        }
 
         // We set appearance to 'On' if following two conditions both hold:
         //  1) State equals to widget's "On" state

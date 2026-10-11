@@ -53,6 +53,7 @@ private slots:
     void test_type0_cjk_collection_coverage_data();
     void test_type0_cjk_collection_coverage();
     void test_simple_font_encode();
+    void test_standard_font_zapf_dingbats();
     void test_type3_font_encode();
     void test_fallback_font_generator();
     void test_nested_stream_extraction();
@@ -759,6 +760,56 @@ void FontEncodingTest::test_simple_font_encode()
     pdf::PDFEncodedText encodedText = font.encodeText(QString(QChar(0x00C1)) + QChar('B'));
     QVERIFY(encodedText.isValid);
     QCOMPARE(encodedText.encodedText, QByteArray("\x41\x42"));
+}
+
+void FontEncodingTest::test_standard_font_zapf_dingbats()
+{
+    // Font ZapfDingbats is one of the standard fonts, so it is usually not embedded, and
+    // the marks of the check boxes in the forms are its characters. The substituted system
+    // font must have the glyphs of the dingbats - the font Symbol has none of them.
+    bool hasDingbatsFont = false;
+    for (const QString& candidate : { QStringLiteral("ZapfDingbats"), QStringLiteral("Zapf Dingbats"), QStringLiteral("D050000L"),
+                                      QStringLiteral("Dingbats"), QStringLiteral("Segoe UI Symbol"), QStringLiteral("DejaVu Sans") })
+    {
+        hasDingbatsFont = hasDingbatsFont || QFontDatabase::families().contains(candidate);
+    }
+    if (!hasDingbatsFont)
+    {
+        QSKIP("No font with the dingbats is installed.");
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFDocument document = builder.build();
+
+    pdf::PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Type");
+    factory << pdf::WrapName("Font");
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Subtype");
+    factory << pdf::WrapName("Type1");
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("BaseFont");
+    factory << pdf::WrapName("ZapfDingbats");
+    factory.endDictionaryItem();
+    factory.endDictionary();
+
+    const pdf::PDFFontPointer font = pdf::PDFFont::createFont(factory.takeObject(), "ZaDb", &document);
+    pdf::PDFRenderErrorReporterDummy reporter;
+    const pdf::PDFRealizedFontPointer realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+
+    // Check mark, cross, circle, square, diamond and star - the marks of the check boxes and radio buttons
+    pdf::TextSequence sequence;
+    realized->fillTextSequence("48lnuH", sequence, &reporter);
+    QCOMPARE(sequence.items.size(), size_t(6));
+    QCOMPARE(sequence.items[0].character, QChar(0x2714));
+    QCOMPARE(sequence.items[1].character, QChar(0x2718));
+    for (const pdf::TextSequenceItem& item : sequence.items)
+    {
+        QVERIFY2(item.glyph && !item.glyph->isEmpty(),
+                 qPrintable(QStringLiteral("Substituted font %1 has no glyph of the character U+%2").arg(realized->getPostScriptName()).arg(int(item.character.unicode()), 4, 16, QChar('0'))));
+    }
 }
 
 void FontEncodingTest::test_type3_font_encode()

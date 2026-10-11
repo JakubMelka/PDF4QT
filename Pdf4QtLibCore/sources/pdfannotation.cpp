@@ -1705,6 +1705,27 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
         }
     }
 
+    // Jakub Melka: producer of the form, which asks the viewer to construct the appearance
+    // streams (entry NeedAppearances), usually writes just a placeholder without the text
+    // of the field (for example '/Tx BMC EMC'). Appearance streams of the document are not
+    // constructed, but the text of such field is drawn over the placeholder, by the same
+    // way as the text of the field, which has no appearance stream.
+    if (isContentVisible && isFormFieldTextMissing(annotation, content))
+    {
+        PDFPainterStateGuard guard(painter);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setWorldTransform(userSpaceToDeviceSpace);
+
+        AnnotationDrawParameters parameters;
+        parameters.painter = painter;
+        parameters.annotation = annotation.annotation.data();
+        parameters.formManager = m_formManager;
+        parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
+        parameters.colorConvertor = getAnnotationColorConvertor(cms);
+
+        annotation.annotation->draw(parameters);
+    }
+
     // Draw highlighting of fields, but only, if target is View,
     // we do not want to render form field highlight, when we are
     // printing to the printer.
@@ -1714,6 +1735,59 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
         painter->resetTransform();
         drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, userSpaceToDeviceSpace);
     }
+}
+
+bool PDFAnnotationManager::isFormFieldTextMissing(const PageAnnotation& annotation, const QByteArray& content) const
+{
+    if (!m_formManager ||
+        annotation.annotation->getType() != AnnotationType::Widget ||
+        !m_formManager->getForm()->isAppearanceUpdateNeeded())
+    {
+        return false;
+    }
+
+    const PDFFormField* formField = m_formManager->getFormFieldForWidget(annotation.annotation->getSelfReference());
+    if (!formField ||
+        (formField->getFieldType() != PDFFormField::FieldType::Text &&
+         formField->getFieldType() != PDFFormField::FieldType::Choice))
+    {
+        return false;
+    }
+
+    try
+    {
+        // Text is drawn by the text showing operators, which have a string with some
+        // characters among their operands (an empty string draws nothing, as the numbers
+        // in the array of the operator TJ). The text can be also in a form, or in an inline
+        // image, which is drawn by the stream.
+        bool hasTextOperand = false;
+        PDFLexicalAnalyzer analyzer(content.constData(), content.constData() + content.size());
+        for (PDFLexicalAnalyzer::Token token = analyzer.fetch(); token.type != PDFLexicalAnalyzer::TokenType::EndOfFile; token = analyzer.fetch())
+        {
+            if (token.type == PDFLexicalAnalyzer::TokenType::String)
+            {
+                hasTextOperand = hasTextOperand || !token.data.toByteArray().isEmpty();
+            }
+            else if (token.type == PDFLexicalAnalyzer::TokenType::Command)
+            {
+                const QByteArray command = token.data.toByteArray();
+                const bool isTextShown = command == "Tj" || command == "TJ" || command == "'" || command == "\"";
+                if ((isTextShown && hasTextOperand) || command == "Do" || command == "BI")
+                {
+                    return false;
+                }
+
+                hasTextOperand = false;
+            }
+        }
+    }
+    catch (const PDFException&)
+    {
+        // Content of the appearance stream is unknown, so it is not complemented
+        return false;
+    }
+
+    return true;
 }
 
 PDFColorConvertor PDFAnnotationManager::getAnnotationColorConvertor(const PDFCMS* cms) const
@@ -3535,11 +3609,22 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
                         rectangle.setWidth(rectangle.height());
 
-                        painter->setPen(parameters.colorConvertor.convert(QColor(Qt::black), false, true));
+                        // Jakub Melka: check box is drawn also to its appearance stream, where
+                        // the cosmetic pen is just a hairline, so the pen has a width in the page
+                        // units (one pixel in the 100% zoom) and the border is drawn inside
+                        // of the annotation rectangle.
+                        constexpr PDFReal lineWidth = 0.75;
+                        rectangle.adjust(lineWidth * 0.5, lineWidth * 0.5, -lineWidth * 0.5, -lineWidth * 0.5);
+
+                        QPen pen(parameters.colorConvertor.convert(QColor(Qt::black), false, true));
+                        pen.setWidthF(lineWidth);
+                        painter->setPen(pen);
                         painter->setBrush(Qt::NoBrush);
                         painter->drawRect(rectangle);
+                        parameters.boundingRectangle = getRectangle();
 
-                        if (parameters.key.second != "Off")
+                        // Check box without the appearance state is not checked
+                        if (!parameters.key.second.isEmpty() && parameters.key.second != "Off")
                         {
                             QRectF rectangleMark = rectangle;
                             rectangleMark.setWidth(rectangle.width() * 0.75);
@@ -3613,11 +3698,18 @@ std::vector<pdf::PDFAppeareanceStreams::Key> PDFWidgetAnnotation::getDrawKeys(co
                 case PDFFormFieldButton::ButtonType::RadioButton:
                 case PDFFormFieldButton::ButtonType::CheckBox:
                 {
+                    // Normal appearance streams are named by the appearance states, both
+                    // unchecked state and actual state of the button are drawn.
                     result = getAppearanceStreams().getAppearanceKeys();
-                    PDFAppeareanceStreams::Key offKey{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() };
-                    if (std::find(result.cbegin(), result.cend(), offKey) == result.cend())
+                    result.erase(std::remove_if(result.begin(), result.end(), [](const PDFAppeareanceStreams::Key& key) { return key.first != PDFAppeareanceStreams::Appearance::Normal || key.second.isEmpty(); }), result.end());
+
+                    for (const QByteArray& state : { QByteArray("Off"), getAppearanceState() })
                     {
-                        result.push_back(qMove(offKey));
+                        PDFAppeareanceStreams::Key key{ PDFAppeareanceStreams::Appearance::Normal, state };
+                        if (!state.isEmpty() && std::find(result.cbegin(), result.cend(), key) == result.cend())
+                        {
+                            result.push_back(qMove(key));
+                        }
                     }
                     break;
                 }

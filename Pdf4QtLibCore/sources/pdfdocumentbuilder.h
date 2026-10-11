@@ -384,7 +384,9 @@ public:
     /// If reference \p annotationReference points to supported annotation,
     /// then this function updates annotation's appearance streams.
     /// \param annotationReference Reference to the annotation
-    void updateAnnotationAppearanceStreams(PDFObjectReference annotationReference);
+    /// \param missingOnly Only the missing appearance streams are created,
+    ///        the appearance streams, which the annotation has, are kept
+    void updateAnnotationAppearanceStreams(PDFObjectReference annotationReference, bool missingOnly = false);
 
     const PDFFormManager* getFormManager() const;
     void setFormManager(const PDFFormManager* formManager);

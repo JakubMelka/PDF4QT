@@ -80,6 +80,10 @@ Section 12: Issues
    enabled in the application options.
  - 12.6.4 Some action are not executed in viewer
  - 12.6.4.8 URI actions doesn't use IsMap
+ - 12.7.3 Appearance streams are not constructed, if the entry
+   NeedAppearances is set. Only the text of a text field, or of a choice
+   field, whose appearance stream draws no text, is drawn from the value
+   of the field (by the form manager of the editor).
  - 12.7.4.3 Variable text is implemented by Qt's QTextLayout
    and drawing, pdf's specific default appearance strings,
    and rich text is not implemented. This doesn't conform

@@ -723,6 +723,22 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
         }
     }
 
+    if (standardFontType == StandardFontType::ZapfDingbats)
+    {
+        // Jakub Melka: font Symbol has no glyphs of the font ZapfDingbats, so for example
+        // the marks of the check boxes in the forms (they are usually characters of this font)
+        // would not be displayed. Fonts with these glyphs are tried first - the font itself,
+        // its clone and the common fonts covering the unicode block Dingbats.
+        for (const char* dingbatsFontName : { "ZapfDingbats", "D050000L", "Dingbats", "Segoe UI Symbol", "DejaVu Sans" })
+        {
+            SystemFontData dingbatsFontData = loadFontImpl(descriptor, dingbatsFontName, StandardFontType::Invalid, reporter, true);
+            if (!dingbatsFontData.isEmpty())
+            {
+                return dingbatsFontData;
+            }
+        }
+    }
+
     // A fuzzy match can return a latin font before the CJK candidates are tried.
     // Preserve exact installed font names, then substitute by character collection.
     const ECjkDefaultFontType cjkDefaultFontType = getCjkDefaultFontType(cidSystemInfo);

@@ -1664,6 +1664,15 @@ protected:
                                              const PDFCMS* cms,
                                              QPainter* painter) const;
 
+    /// Returns true, if text of the form field is missing in the appearance stream
+    /// of its widget - appearance streams of the form have to be constructed (entry
+    /// NeedAppearances) and the appearance stream of the text field, or the choice
+    /// field, draws no text at all (text showing operators with the empty strings
+    /// draw no text).
+    /// \param annotation Page annotation
+    /// \param content Content of the appearance stream
+    bool isFormFieldTextMissing(const PageAnnotation& annotation, const QByteArray& content) const;
+
     /// Returns color convertor, which should be applied to the drawn annotations.
     /// If color adjustment of annotations is turned off (feature ColorAdjust_Annotations),
     /// or no color adjustment is active at all, then inactive convertor is returned,
