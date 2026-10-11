@@ -183,12 +183,14 @@ public:
     /// Create pattern from the object. If error occurs, exception is thrown
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document, owning the pdf object
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param object Object defining the pattern
     /// \param cms Color management system
     /// \param intent Rendering intent
     /// \param reporter Error reporter
     static PDFPatternPtr createPattern(const PDFDictionary* colorSpaceDictionary,
                                        const PDFDocument* document,
+                                       const PDFICCProfileCache* iccProfileCache,
                                        const PDFObject& object,
                                        const PDFCMS* cms,
                                        RenderingIntent intent,
@@ -197,6 +199,7 @@ public:
     /// Create shading pattern from the object. If error occurs, exception is thrown
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document, owning the pdf object
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param object Object defining the shading
     /// \param matrix Matrix converting reference coordinate system to the device coordinate system
     /// \param patternGraphicState Pattern graphic state
@@ -206,6 +209,7 @@ public:
     /// \param ignoreBackgroundColor If set, then ignores background color, even if it is present
     static PDFPatternPtr createShadingPattern(const PDFDictionary* colorSpaceDictionary,
                                               const PDFDocument* document,
+                                              const PDFICCProfileCache* iccProfileCache,
                                               const PDFObject& shadingObject,
                                               const QTransform& matrix,
                                               const PDFObject& patternGraphicState,

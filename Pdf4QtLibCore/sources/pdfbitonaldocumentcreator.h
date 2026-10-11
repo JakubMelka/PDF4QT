@@ -401,6 +401,9 @@ private:
     const PDFDocument* m_document;
     PDFRasterizerPool* m_rasterizerPool;
     PDFProgress* m_progress;
+
+    /// Decoded ICC profiles of the color spaces of the images of the document
+    PDFICCProfileCache m_iccProfileCache;
     PDFDocument m_bitonalDocument;
     size_t m_convertedItemCount = 0;
     size_t m_failedItemCount = 0;

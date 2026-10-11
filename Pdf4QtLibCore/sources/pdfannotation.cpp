@@ -1331,6 +1331,7 @@ PDFAnnotationAdditionalActions PDFAnnotationAdditionalActions::parse(const PDFOb
 }
 
 PDFAnnotationManager::PDFAnnotationManager(PDFFontCache* fontCache,
+                                           const PDFICCProfileCache* iccProfileCache,
                                            const PDFCMSManager* cmsManager,
                                            const PDFOptionalContentActivity* optionalActivity,
                                            PDFMeshQualitySettings meshQualitySettings,
@@ -1340,6 +1341,7 @@ PDFAnnotationManager::PDFAnnotationManager(PDFFontCache* fontCache,
     BaseClass(parent),
     m_document(nullptr),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cmsManager(cmsManager),
     m_optionalActivity(optionalActivity),
     m_formManager(nullptr),
@@ -1595,7 +1597,7 @@ void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation
     if (!m_features.testFlag(PDFRenderer::IgnoreOptionalContent) &&
         annotation.annotation->getOptionalContent().isValid())
     {
-        PDFPainter pdfPainter(painter, m_features, pagePointToDevicePointMatrix, page, m_document, m_fontCache, cms, m_optionalActivity, m_meshQualitySettings);
+        PDFPainter pdfPainter(painter, m_features, pagePointToDevicePointMatrix, page, m_document, m_fontCache, m_iccProfileCache, cms, m_optionalActivity, m_meshQualitySettings);
         if (pdfPainter.isContentSuppressedByOC(annotation.annotation->getOptionalContent()))
         {
             return;
@@ -1689,7 +1691,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     // Draw annotation
     {
         PDFPainterStateGuard guard(painter);
-        PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms, m_optionalActivity, m_meshQualitySettings);
+        PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, m_iccProfileCache, cms, m_optionalActivity, m_meshQualitySettings);
         pdfPainter.setColorConvertor(getAnnotationColorConvertor(cms));
         pdfPainter.initializeProcessor();
 
@@ -1851,6 +1853,16 @@ PDFFontCache* PDFAnnotationManager::getFontCache() const
 void PDFAnnotationManager::setFontCache(PDFFontCache* fontCache)
 {
     m_fontCache = fontCache;
+}
+
+const PDFICCProfileCache* PDFAnnotationManager::getIccProfileCache() const
+{
+    return m_iccProfileCache;
+}
+
+void PDFAnnotationManager::setIccProfileCache(const PDFICCProfileCache* iccProfileCache)
+{
+    m_iccProfileCache = iccProfileCache;
 }
 
 const PDFOptionalContentActivity* PDFAnnotationManager::getOptionalActivity() const

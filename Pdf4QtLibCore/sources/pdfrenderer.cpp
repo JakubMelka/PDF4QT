@@ -44,12 +44,14 @@ namespace pdf
 
 PDFRenderer::PDFRenderer(const PDFDocument* document,
                          const PDFFontCache* fontCache,
+                         const PDFICCProfileCache* iccProfileCache,
                          const PDFCMS* cms,
                          const PDFOptionalContentActivity* optionalContentActivity,
                          Features features,
                          const PDFMeshQualitySettings& meshQualitySettings) :
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cms(cms),
     m_optionalContentActivity(optionalContentActivity),
     m_operationControl(nullptr),
@@ -192,7 +194,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QRectF& recta
 
     QTransform matrix = createPagePointToDevicePointMatrix(page, rectangle);
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_iccProfileCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     processor.setOperationControl(m_operationControl);
     return processor.processContents();
 }
@@ -209,7 +211,7 @@ QList<PDFRenderError> PDFRenderer::render(QPainter* painter, const QTransform& m
     const PDFPage* page = catalog->getPage(pageIndex);
     Q_ASSERT(page);
 
-    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    PDFPainter processor(painter, m_features, matrix, page, m_document, m_fontCache, m_iccProfileCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     processor.setOperationControl(m_operationControl);
     return processor.processContents();
 }
@@ -230,7 +232,7 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
     QElapsedTimer timer;
     timer.start();
 
-    PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    PDFPrecompiledPageGenerator generator(precompiledPage, m_features, page, m_document, m_fontCache, m_iccProfileCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     generator.setOperationControl(m_operationControl);
     QList<PDFRenderError> errors = generator.processContents();
 
@@ -447,7 +449,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         // Precompile the page
         PDFPrecompiledPage precompiledPage;
         PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
-        PDFRenderer renderer(m_document, m_fontCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
+        PDFRenderer renderer(m_document, m_fontCache, m_iccProfileCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
         renderer.setOperationControl(operationControl);
         renderer.compile(&precompiledPage, pageIndex);
 
@@ -470,7 +472,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(m_document), const_cast<PDFOptionalContentActivity*>(m_optionalContentActivity));
 
         // Annotation manager
-        PDFAnnotationManager annotationManager(m_fontCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
+        PDFAnnotationManager annotationManager(m_fontCache, m_iccProfileCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
         annotationManager.setDocument(modifiedDocument);
 
         // Render page to image
@@ -912,6 +914,7 @@ QString PDFPageImageExportSettings::getOutputFileName(PDFInteger pageIndex, cons
 
 PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
                                      PDFFontCache* fontCache,
+                                     const PDFICCProfileCache* iccProfileCache,
                                      const PDFCMSManager* cmsManager,
                                      const PDFOptionalContentActivity* optionalContentActivity,
                                      PDFRenderer::Features features,
@@ -922,6 +925,7 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
     BaseClass(parent),
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cmsManager(cmsManager),
     m_optionalContentActivity(optionalContentActivity),
     m_features(features),

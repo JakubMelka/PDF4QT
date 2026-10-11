@@ -62,10 +62,12 @@ public:
 
         pdf::PDFModifiedDocument modifiedDocument(document, &m_optionalContentActivity);
         m_fontCache.setDocument(modifiedDocument);
+        m_iccProfileCache.setDocument(modifiedDocument);
         m_fontCache.setCacheShrinkEnabled(nullptr, false);
 
         m_rasterizerPool = std::make_unique<pdf::PDFRasterizerPool>(document,
                                                                     &m_fontCache,
+                                                                    &m_iccProfileCache,
                                                                     &m_cmsManager,
                                                                     &m_optionalContentActivity,
                                                                     pdf::PDFBitonalDocumentCreator::getPageRasterizationFeatures(),
@@ -87,6 +89,7 @@ private:
     pdf::PDFOptionalContentActivity m_optionalContentActivity;
     pdf::PDFCMSManager m_cmsManager;
     pdf::PDFFontCache m_fontCache;
+    pdf::PDFICCProfileCache m_iccProfileCache;
     pdf::PDFMeshQualitySettings m_meshQualitySettings;
     std::unique_ptr<pdf::PDFRasterizerPool> m_rasterizerPool;
 };

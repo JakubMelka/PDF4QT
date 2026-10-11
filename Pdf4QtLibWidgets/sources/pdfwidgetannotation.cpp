@@ -173,7 +173,7 @@ bool PDFAnnotationDragDataHelper::deserialize(const QMimeData* data, Payload& pa
 }
 
 PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
-    BaseClass(proxy->getFontCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),
+    BaseClass(proxy->getFontCache(), proxy->getIccProfileCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),
     m_proxy(proxy),
     m_dragSourceId(QUuid::createUuid())
 {

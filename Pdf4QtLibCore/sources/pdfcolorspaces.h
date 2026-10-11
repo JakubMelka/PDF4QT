@@ -25,14 +25,17 @@
 
 #include "pdfflatarray.h"
 #include "pdffunction.h"
+#include "pdfobject.h"
 #include "pdfutils.h"
 #include "pdfoperationcontrol.h"
 
 #include <QColor>
 #include <QImage>
+#include <QMutex>
 #include <QSharedPointer>
 
 #include <set>
+#include <vector>
 
 namespace pdf
 {
@@ -311,6 +314,76 @@ static inline PDFColorComponentMatrix<i, j> operator*(const PDFColorComponentMat
 
 using PDFColorComponentMatrix_3x3 = PDFColorComponentMatrix<3, 3>;
 
+/// Decoded ICC profile of a stream
+struct PDFDecodedICCProfile
+{
+    QByteArray data;        ///< Decoded data of the profile
+    QByteArray checksum;    ///< MD5 checksum of the decoded data
+};
+
+/// Cache of the decoded ICC profiles of a document and of their checksums. A single
+/// ICC profile is often used by a large number of color spaces (for example, each page
+/// of a document has its own color space dictionary, which refers to the same stream
+/// with the profile). Decoding of the profile and computing of its checksum for each
+/// of these color spaces is expensive, so recently used profiles are stored here.
+/// The cache is created at the place, where the pages of a document are processed (next
+/// to the font cache), and it is passed to the content processors of all the pages,
+/// so a profile is decoded only once. The cache is thread safe.
+///
+/// The cache belongs to a single version of a document. Decoded data depend not only
+/// on the stream, but also on the objects of the document, to which the stream refers
+/// (filters and their parameters), and these objects can be different in another version
+/// of the document, which shares the stream. So \p setDocument must be called for each
+/// new version of the document, before its pages are processed.
+class PDF4QTLIBCORESHARED_EXPORT PDFICCProfileCache
+{
+public:
+    explicit PDFICCProfileCache() = default;
+
+    /// Sets the document, whose profiles are stored in the cache. Stored profiles are
+    /// removed, also when the same pointer is set again (a pointer cannot tell two versions
+    /// of a document apart, a new version can be created at the address of the old one).
+    /// \param document Document
+    void setDocument(const PDFDocument* document);
+
+    /// Returns the decoded ICC profile of the stream. If the document is not the document
+    /// of the cache, then the profile is decoded, and it is not stored in the cache.
+    /// \param document Document, which contains the stream
+    /// \param streamObject Object with the stream of the ICC profile (not a reference)
+    PDFDecodedICCProfile getProfile(const PDFDocument* document, const PDFObject& streamObject) const;
+
+    /// Decodes the ICC profile of the stream and computes its checksum
+    /// \param document Document, which contains the stream
+    /// \param streamObject Object with the stream of the ICC profile (not a reference)
+    static PDFDecodedICCProfile decodeProfile(const PDFDocument* document, const PDFObject& streamObject);
+
+private:
+    struct Item
+    {
+        /// Stream is the key of the cache. The object is stored, so the stream
+        /// lives at least as long as the item, and its address cannot be reused
+        /// by another stream. Streams and the objects of a document are immutable,
+        /// so the same stream always has the same decoded data in the document.
+        PDFObject streamObject;
+        PDFDecodedICCProfile profile;
+    };
+
+    /// Maximal number of stored profiles
+    static constexpr size_t CACHE_SIZE = 16;
+
+    mutable QMutex m_mutex;
+
+    /// Document of the stored profiles
+    const PDFDocument* m_document = nullptr;
+
+    /// Number of calls of \p setDocument, a profile decoded
+    /// for the previous document must not be stored
+    size_t m_documentChangeCount = 0;
+
+    /// Stored profiles, most recently used one is the first
+    mutable std::vector<Item> m_items;
+};
+
 /// Represents PDF's color space (abstract class). Contains functions for parsing
 /// color spaces.
 class PDF4QTLIBCORESHARED_EXPORT PDFAbstractColorSpace
@@ -412,18 +485,22 @@ public:
     /// If everything is OK, then shared pointer to the new color space is returned.
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
     /// \param document Document (for loading objects)
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param colorSpace Identification of color space (either name or array), must be a direct object
     static PDFColorSpacePointer createColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                  const PDFDocument* document,
+                                                 const PDFICCProfileCache* iccProfileCache,
                                                  const PDFObject& colorSpace);
 
     /// Creates device color space by name. Color space can be created by this function only, if
     /// it is simple - one of the basic device color spaces (gray, RGB or CMYK).
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
     /// \param document Document (for loading objects)
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param name Name of the color space
     static PDFColorSpacePointer createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
                                                              const PDFDocument* document,
+                                                             const PDFICCProfileCache* iccProfileCache,
                                                              const QByteArray& name);
 
     /// Converts a vector of real numbers to the PDFColor
@@ -483,11 +560,13 @@ protected:
     /// If everything is OK, then shared pointer to the new color space is returned.
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
     /// \param document Document (for loading objects)
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param colorSpace Identification of color space (either name or array), must be a direct object
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                      const PDFDocument* document,
+                                                     const PDFICCProfileCache* iccProfileCache,
                                                      const PDFObject& colorSpace,
                                                      int recursion,
                                                      std::set<QByteArray>& usedNames);
@@ -496,10 +575,12 @@ protected:
     /// it is simple - one of the basic device color spaces (gray, RGB or CMYK).
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page
     /// \param document Document (for loading objects)
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param name Name of the color space
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
+                                                                 const PDFICCProfileCache* iccProfileCache,
                                                                  const QByteArray& name,
                                                                  int recursion,
                                                                  std::set<QByteArray>& usedNames);
@@ -714,6 +795,9 @@ public:
     using Ranges = std::array<PDFColorComponent, MAX_COLOR_COMPONENTS * 2>;
 
     explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, PDFObjectReference metadata);
+
+    /// Constructs the color space from the ICC profile data, of which the checksum is already known
+    explicit PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, QByteArray iccProfileDataChecksum, PDFObjectReference metadata);
     virtual ~PDFICCBasedColorSpace() = default;
 
     virtual ColorSpace getColorSpace() const override { return ColorSpace::ICCBased; }
@@ -728,12 +812,14 @@ public:
     /// Creates ICC based color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
-    /// \param stream Stream with ICC profile
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
+    /// \param streamObject Object with the stream of the ICC profile
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                          const PDFDocument* document,
-                                                         const PDFStream* stream,
+                                                         const PDFICCProfileCache* iccProfileCache,
+                                                         const PDFObject& streamObject,
                                                          int recursion,
                                                          std::set<QByteArray>& usedNames);
 
@@ -771,11 +857,13 @@ public:
     /// Creates indexed color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param array Array with indexed color space definition
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                         const PDFDocument* document,
+                                                        const PDFICCProfileCache* iccProfileCache,
                                                         const PDFArray* array,
                                                         int recursion,
                                                         std::set<QByteArray>& usedNames);
@@ -815,11 +903,13 @@ public:
     /// Creates separation color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param array Array with separation color space definition
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                            const PDFDocument* document,
+                                                           const PDFICCProfileCache* iccProfileCache,
                                                            const PDFArray* array,
                                                            int recursion,
                                                            std::set<QByteArray>& usedNames);
@@ -886,11 +976,13 @@ public:
     /// Creates DeviceN color space from provided values.
     /// \param colorSpaceDictionary Color space dictionary
     /// \param document Document
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param array Array with DeviceN color space definition
     /// \param recursion Recursion guard
     /// \param usedNames Names, which were already parsed
     static PDFColorSpacePointer createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                         const PDFDocument* document,
+                                                        const PDFICCProfileCache* iccProfileCache,
                                                         const PDFArray* array,
                                                         int recursion,
                                                         std::set<QByteArray>& usedNames);

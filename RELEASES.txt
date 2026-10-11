@@ -1,5 +1,5 @@
 CURRENT:
- - Issue #252: select elements (annotations)
+ - Issue #430: Text layout optimization
  - Issue #417: Allow Digital Signature support with visible signatures
  - Issue #427: Bitonal scans lose thin strokes: precompiled page images are downsampled bilinearly instead of area-averaged
  - Issue #425: Update bitonal document feature
@@ -27,6 +27,7 @@ CURRENT:
  - Issue #299: PDF element display error
  - Issue #278: PDF4QT Diff
  - Issue #258: feat: Insert page number
+ - Issue #252: select elements (annotations)
  - Issue #238: Pdf Editor: "Edit page content" makes image disappear
  - Issue #231: PDF4Qt Diff does not open files on Linux
  - Issue #223: Page corrupted

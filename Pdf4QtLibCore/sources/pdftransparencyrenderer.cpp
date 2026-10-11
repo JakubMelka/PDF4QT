@@ -1015,12 +1015,13 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
 PDFTransparencyRenderer::PDFTransparencyRenderer(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
+                                                 const PDFICCProfileCache* iccProfileCache,
                                                  const PDFCMS* cms,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
                                                  const PDFInkMapper* inkMapper,
                                                  PDFTransparencyRendererSettings settings,
                                                  QTransform pagePointToDevicePointMatrix) :
-    BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
+    BaseClass(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
     m_inkMapper(inkMapper),
     m_active(false),
     m_settings(settings)
@@ -2107,7 +2108,7 @@ void PDFTransparencyRenderer::processSoftMask(const PDFDictionary* softMask)
         }
 
         PDFInkMapper inkMapper(nullptr, getDocument());
-        PDFTransparencyRenderer softMaskRenderer(getPage(), getDocument(), getFontCache(), getCMS(), getOptionalContentActivity(), &inkMapper, m_settings, getPagePointToDevicePointMatrix());
+        PDFTransparencyRenderer softMaskRenderer(getPage(), getDocument(), getFontCache(), getIccProfileCache(), getCMS(), getOptionalContentActivity(), &inkMapper, m_settings, getPagePointToDevicePointMatrix());
         softMaskRenderer.initializeProcessor();
 
         PDFPageContentProcessorState graphicState = *getGraphicState();
@@ -3325,7 +3326,7 @@ void PDFInkMapper::createSpotColors(bool activate)
                     PDFColorSpacePointer colorSpacePointer;
                     try
                     {
-                        colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, m_document->getObject(colorSpaceDictionary->getValue(csIndex)));
+                        colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, nullptr, m_document->getObject(colorSpaceDictionary->getValue(csIndex)));
                     }
                     catch (const PDFException&)
                     {
@@ -3656,6 +3657,7 @@ void PDFTransparencyRenderer::PDFTransparencySoftMask::makeOpaque()
 
 PDFInkCoverageCalculator::PDFInkCoverageCalculator(const PDFDocument* document,
                                                    const PDFFontCache* fontCache,
+                                                   const PDFICCProfileCache* iccProfileCache,
                                                    const PDFCMSManager* cmsManager,
                                                    const PDFOptionalContentActivity* optionalContentActivity,
                                                    const PDFInkMapper* inkMapper,
@@ -3663,6 +3665,7 @@ PDFInkCoverageCalculator::PDFInkCoverageCalculator(const PDFDocument* document,
                                                    PDFTransparencyRendererSettings settings) :
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cmsManager(cmsManager),
     m_optionalContentActivity(optionalContentActivity),
     m_inkMapper(inkMapper),
@@ -3726,7 +3729,7 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
 
         QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
         pdf::PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
-        pdf::PDFTransparencyRenderer renderer(page, m_document, m_fontCache, cms.data(), m_optionalContentActivity,
+        pdf::PDFTransparencyRenderer renderer(page, m_document, m_fontCache, m_iccProfileCache, cms.data(), m_optionalContentActivity,
                                               m_inkMapper, settings, pagePointToDevicePoint);
 
         renderer.beginPaint(imageSize);

@@ -874,7 +874,7 @@ void PDFProgramController::performPrint()
         pdf::PDFDrawWidgetProxy* proxy = m_pdfWidget->getDrawWidgetProxy();
         pdf::PDFOptionalContentActivity optionalContentActivity(m_pdfDocument.data(), pdf::OCUsage::Print, nullptr);
         pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
-        pdf::PDFRenderer renderer(m_pdfDocument.get(), proxy->getFontCache(), cms.data(), &optionalContentActivity, proxy->getFeatures(), proxy->getMeshQualitySettings());
+        pdf::PDFRenderer renderer(m_pdfDocument.get(), proxy->getFontCache(), proxy->getIccProfileCache(), cms.data(), &optionalContentActivity, proxy->getFeatures(), proxy->getMeshQualitySettings());
 
         const pdf::PDFInteger lastPage = pageIndices.back();
         for (const pdf::PDFInteger pageIndex : pageIndices)

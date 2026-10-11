@@ -81,6 +81,7 @@ void InkCoverageDialog::updateInkCoverage()
 
         pdf::PDFInkCoverageCalculator calculator(m_document,
                                                  m_widget->getDrawWidgetProxy()->getFontCache(),
+                                                 m_widget->getDrawWidgetProxy()->getIccProfileCache(),
                                                  m_widget->getCMSManager(),
                                                  m_widget->getDrawWidgetProxy()->getOptionalContentActivity(),
                                                  &m_inkMapper,

@@ -38,13 +38,15 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QMutex>
-#include <QReadWriteLock>
 #include <QPainterPath>
 #include <QDataStream>
 
 #include <limits>
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <map>
+#include <memory>
 
 #include "pdfdbgheap.h"
 
@@ -1493,8 +1495,24 @@ private:
 
     struct Glyph
     {
-        QPainterPath glyph;
+        PDFGlyphOutline outline;
         PDFReal advance = 0.0;
+    };
+
+    /// Glyph is looked up for each character of a text, by all threads, which
+    /// process the pages. So a glyph, which is already loaded, must be found without
+    /// a lock - a lock shared by the threads is acquired and released for each
+    /// character, and the threads spend most of the time waiting for it. Loaded
+    /// glyphs are published in a table of atomic pointers. The table is divided
+    /// into blocks, which are created on demand, because a font can have up to
+    /// 65536 glyphs, and usually only a few of them are used.
+    static constexpr unsigned int GLYPH_BLOCK_BITS = 8;
+    static constexpr unsigned int GLYPH_BLOCK_SIZE = 1 << GLYPH_BLOCK_BITS;
+    static constexpr FT_Long GLYPH_TABLE_MAX_GLYPHS = 65536;
+
+    struct GlyphBlock
+    {
+        std::array<std::atomic<const Glyph*>, GLYPH_BLOCK_SIZE> glyphs{ };
     };
 
     static int outlineMoveTo(const FT_Vector* to, void* user);
@@ -1523,13 +1541,24 @@ private:
     /// Function checks, if error occured, and if yes, then exception is thrown
     static void checkFreeTypeError(FT_Error error);
 
-    /// Read/write lock for accessing the glyph data. FreeType face may be used
+    /// Mutex for accessing the glyph data. FreeType face may be used
     /// by one thread at a time, so every access to the face after the font
-    /// has been realized must hold the write lock.
-    mutable QReadWriteLock m_readWriteLock;
+    /// has been realized must hold the mutex.
+    mutable QMutex m_mutex;
 
-    /// Glyph cache, must be protected by the mutex above
+    /// Glyph cache, must be protected by the mutex above. It owns the glyphs,
+    /// a glyph is never removed (or moved), until the font is destroyed.
     std::unordered_map<unsigned int, Glyph> m_glyphCache;
+
+    /// Blocks of the table of the published glyphs, must be protected by the mutex above
+    std::vector<std::unique_ptr<GlyphBlock>> m_glyphBlockStorage;
+
+    /// Table of the published glyphs (glyphs of the glyph cache), indexed by the
+    /// glyph index divided by the size of the block. It is read without the mutex,
+    /// and written with the mutex. Glyph indices outside of the table are always
+    /// searched in the glyph cache. Created by \p initializeLookupTables, its size
+    /// doesn't change later (a vector of atomic values can't be resized).
+    std::vector<std::atomic<GlyphBlock*>> m_glyphBlocks;
 
     /// Glyph indices of the character codes of simple fonts (glyph indices
     /// of the font completed by the unicode charmap of the face)
@@ -1572,6 +1601,86 @@ private:
     /// Postscript name of the font
     QString m_postScriptName;
 };
+
+// Identifier of the last created outline of a glyph
+static std::atomic<quint64> s_lastGlyphOutlineId = 0;
+
+PDFGlyphOutline::PDFGlyphOutline(const QPainterPath& path) :
+    m_boundingRect(path.boundingRect()),
+    m_id(++s_lastGlyphOutlineId),
+    m_fillRule(path.fillRule()),
+    m_isEmpty(path.isEmpty())
+{
+    const int elementCount = path.elementCount();
+    m_elements.reserve(elementCount);
+    for (int i = 0; i < elementCount; ++i)
+    {
+        m_elements.push_back(path.elementAt(i));
+    }
+}
+
+QPainterPath PDFGlyphOutline::createPath(const QTransform& matrix) const
+{
+    if (!matrix.isAffine())
+    {
+        // Projective transformation doesn't map a curve to a curve
+        // given by the transformed control points
+        return matrix.map(createPath(QTransform()));
+    }
+
+    QPainterPath path;
+
+    const size_t elementCount = m_elements.size();
+    if (elementCount == 0)
+    {
+        return path;
+    }
+
+    // Path is built from the transformed elements. Transformation is affine,
+    // so a curve is transformed by the transformation of its control points.
+    path.reserve(int(elementCount));
+    for (size_t i = 0; i < elementCount; ++i)
+    {
+        const QPainterPath::Element& element = m_elements[i];
+        switch (element.type)
+        {
+            case QPainterPath::MoveToElement:
+                path.moveTo(matrix.map(QPointF(element.x, element.y)));
+                break;
+
+            case QPainterPath::LineToElement:
+                path.lineTo(matrix.map(QPointF(element.x, element.y)));
+                break;
+
+            case QPainterPath::CurveToElement:
+            {
+                // Curve is followed by two elements with the second control point and the end point
+                Q_ASSERT(i + 2 < elementCount);
+                const QPainterPath::Element& control = m_elements[i + 1];
+                const QPainterPath::Element& end = m_elements[i + 2];
+                path.cubicTo(matrix.map(QPointF(element.x, element.y)),
+                             matrix.map(QPointF(control.x, control.y)),
+                             matrix.map(QPointF(end.x, end.y)));
+                i += 2;
+                break;
+            }
+
+            case QPainterPath::CurveToDataElement:
+            {
+                // Data of a curve are consumed together with the curve
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
+
+    if (path.fillRule() != m_fillRule)
+    {
+        path.setFillRule(m_fillRule);
+    }
+
+    return path;
+}
 
 PDFRealizedFontImpl::PDFRealizedFontImpl() :
     m_systemFontFaceIndex(0),
@@ -1623,15 +1732,15 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 if (glyphIndex)
                 {
                     const Glyph& glyph = getGlyph(glyphIndex);
-                    textSequence.items.emplace_back(&glyph.glyph, font->getUnicode(cid), glyph.advance, cid);
+                    textSequence.items.emplace_back(&glyph.outline, font->getUnicode(cid), glyph.advance, cid);
                 }
                 else
                 {
                     reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for simple font character code '%1' not found.").arg(cid));
                     if (glyphWidth > 0)
                     {
-                        const QPainterPath* nullpath = nullptr;
-                        textSequence.items.emplace_back(nullpath, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER, cid);
+                        const PDFGlyphOutline* nullOutline = nullptr;
+                        textSequence.items.emplace_back(nullOutline, QChar(), glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER, cid);
                     }
                 }
             }
@@ -1701,7 +1810,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     // spaced using metrics of an unrelated font and characters would overlap.
                     const PDFReal advance = m_isEmbedded ? glyph.advance
                                                          : glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER;
-                    textSequence.items.emplace_back(&glyph.glyph, character, advance, cid);
+                    textSequence.items.emplace_back(&glyph.outline, character, advance, cid);
                 }
                 else
                 {
@@ -1715,8 +1824,8 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                     {
                         // We do not multiply advance with font size and FONT_WIDTH_MULTIPLIER, because in the code,
                         // "advance" is treated as in font space.
-                        const QPainterPath* nullpath = nullptr;
-                        textSequence.items.emplace_back(nullpath, QChar(), -glyphWidth, cid);
+                        const PDFGlyphOutline* nullOutline = nullptr;
+                        textSequence.items.emplace_back(nullOutline, QChar(), -glyphWidth, cid);
                     }
                 }
             }
@@ -1772,7 +1881,7 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
             const PDFCIDtoGIDMapper* CIDtoGIDmapper = font->getCIDtoGIDMapper();
 
             // Face is accessed directly, so the face must not be used by another thread
-            QWriteLocker writeLock(&m_readWriteLock);
+            QMutexLocker lock(&m_mutex);
 
             FT_UInt index = 0;
             FT_ULong character = FT_Get_First_Char(m_face, &index);
@@ -1937,67 +2046,92 @@ void PDFRealizedFontImpl::dumpFontToTreeItem(ITreeFactory* treeFactory) const
 
 int PDFRealizedFontImpl::outlineMoveTo(const FT_Vector* to, void* user)
 {
-    Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.moveTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
+    QPainterPath* path = reinterpret_cast<QPainterPath*>(user);
+    path->moveTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineLineTo(const FT_Vector* to, void* user)
 {
-    Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.lineTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
+    QPainterPath* path = reinterpret_cast<QPainterPath*>(user);
+    path->lineTo(to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineConicTo(const FT_Vector* control, const FT_Vector* to, void* user)
 {
-    Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.quadTo(control->x * FONT_MULTIPLIER, control->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
+    QPainterPath* path = reinterpret_cast<QPainterPath*>(user);
+    path->quadTo(control->x * FONT_MULTIPLIER, control->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 int PDFRealizedFontImpl::outlineCubicTo(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to, void* user)
 {
-    Glyph* glyph = reinterpret_cast<Glyph*>(user);
-    glyph->glyph.cubicTo(control1->x * FONT_MULTIPLIER, control1->y * FONT_MULTIPLIER, control2->x * FONT_MULTIPLIER, control2->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
+    QPainterPath* path = reinterpret_cast<QPainterPath*>(user);
+    path->cubicTo(control1->x * FONT_MULTIPLIER, control1->y * FONT_MULTIPLIER, control2->x * FONT_MULTIPLIER, control2->y * FONT_MULTIPLIER, to->x * FONT_MULTIPLIER, to->y * FONT_MULTIPLIER);
     return 0;
 }
 
 const PDFRealizedFontImpl::Glyph& PDFRealizedFontImpl::getGlyph(unsigned int glyphIndex)
 {
-    {
-        QReadLocker readLock(&m_readWriteLock);
+    const size_t blockIndex = glyphIndex >> GLYPH_BLOCK_BITS;
+    const size_t indexInBlock = glyphIndex & (GLYPH_BLOCK_SIZE - 1);
 
-        // First look into cache
-        auto it = m_glyphCache.find(glyphIndex);
-        if (it != m_glyphCache.cend())
+    if (blockIndex < m_glyphBlocks.size())
+    {
+        // First look into the table of the published glyphs, without a lock
+        if (const GlyphBlock* block = m_glyphBlocks[blockIndex].load(std::memory_order_acquire))
         {
-            return it->second;
+            if (const Glyph* glyph = block->glyphs[indexInBlock].load(std::memory_order_acquire))
+            {
+                return *glyph;
+            }
         }
     }
 
-    QWriteLocker writeLock(&m_readWriteLock);
-    Glyph glyph;
-
-    FT_Outline_Funcs glyphOutlineInterface;
-    glyphOutlineInterface.delta = 0;
-    glyphOutlineInterface.shift = 0;
-    glyphOutlineInterface.move_to = PDFRealizedFontImpl::outlineMoveTo;
-    glyphOutlineInterface.line_to = PDFRealizedFontImpl::outlineLineTo;
-    glyphOutlineInterface.conic_to = PDFRealizedFontImpl::outlineConicTo;
-    glyphOutlineInterface.cubic_to = PDFRealizedFontImpl::outlineCubicTo;
-
-    checkFreeTypeError(FT_Load_Glyph(m_face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING));
-    checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &glyphOutlineInterface, &glyph));
-    glyph.glyph.closeSubpath();
-    glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
-    glyph.advance *= FONT_MULTIPLIER;
+    QMutexLocker lock(&m_mutex);
 
     auto it = m_glyphCache.find(glyphIndex);
     if (it == m_glyphCache.cend())
     {
+        // Outline is decomposed into a painter path, which is used only here, by this
+        // thread. Glyph holds an immutable outline created from the path, because
+        // the glyph is read by more threads at once, and a painter path must not be.
+        QPainterPath path;
+
+        FT_Outline_Funcs glyphOutlineInterface;
+        glyphOutlineInterface.delta = 0;
+        glyphOutlineInterface.shift = 0;
+        glyphOutlineInterface.move_to = PDFRealizedFontImpl::outlineMoveTo;
+        glyphOutlineInterface.line_to = PDFRealizedFontImpl::outlineLineTo;
+        glyphOutlineInterface.conic_to = PDFRealizedFontImpl::outlineConicTo;
+        glyphOutlineInterface.cubic_to = PDFRealizedFontImpl::outlineCubicTo;
+
+        checkFreeTypeError(FT_Load_Glyph(m_face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING));
+        checkFreeTypeError(FT_Outline_Decompose(&m_face->glyph->outline, &glyphOutlineInterface, &path));
+        path.closeSubpath();
+
+        Glyph glyph;
+        glyph.outline = PDFGlyphOutline(path);
+        glyph.advance = !m_isVertical ? m_face->glyph->advance.x : m_face->glyph->advance.y;
+        glyph.advance *= FONT_MULTIPLIER;
+
         it = m_glyphCache.insert(std::make_pair(glyphIndex, qMove(glyph))).first;
     }
+
+    if (blockIndex < m_glyphBlocks.size())
+    {
+        // Publish the glyph, so it is found without a lock next time
+        GlyphBlock* block = m_glyphBlocks[blockIndex].load(std::memory_order_relaxed);
+        if (!block)
+        {
+            m_glyphBlockStorage.push_back(std::make_unique<GlyphBlock>());
+            block = m_glyphBlockStorage.back().get();
+            m_glyphBlocks[blockIndex].store(block, std::memory_order_release);
+        }
+        block->glyphs[indexInBlock].store(&it->second, std::memory_order_release);
+    }
+
     return it->second;
 }
 
@@ -2060,6 +2194,11 @@ void PDFRealizedFontImpl::initializeLookupTables()
         }
         m_unicodeGlyphIndices.shrink_to_fit();
     }
+
+    // Table of the published glyphs
+    const FT_Long glyphCount = qBound<FT_Long>(0, m_face->num_glyphs, GLYPH_TABLE_MAX_GLYPHS);
+    const size_t glyphBlockCount = (size_t(glyphCount) + GLYPH_BLOCK_SIZE - 1) >> GLYPH_BLOCK_BITS;
+    m_glyphBlocks = std::vector<std::atomic<GlyphBlock*>>(glyphBlockCount);
 
     m_isGlyphZeroRenderable = m_isEmbedded;
     if (FT_Has_PS_Glyph_Names(m_face))
@@ -3365,8 +3504,17 @@ PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject, const QByteArr
     }
     else
     {
-        // Object is not a reference. Create font directly and return it.
-        return PDFFont::createFont(fontObject, fontId, m_document);
+        // Object is not a reference. Create font directly and return it. Such font is not
+        // cached, it is created for each use, so it is created without the lock (otherwise
+        // all threads would wait for it). Only the pointer to the document, which can be
+        // changed by another thread, is read with the lock.
+        const PDFDocument* document = nullptr;
+        {
+            QMutexLocker lock(&m_mutex);
+            document = m_document;
+        }
+
+        return PDFFont::createFont(fontObject, fontId, document);
     }
 }
 
@@ -3409,10 +3557,12 @@ void PDFFontCache::setCacheShrinkEnabled(const void* source, bool enabled)
 
 void PDFFontCache::setCacheLimits(std::size_t fontCacheLimit, std::size_t instancedFontCacheLimit)
 {
+    QMutexLocker lock(&m_mutex);
     if (m_fontCacheLimit != fontCacheLimit || m_realizedFontCacheLimit != instancedFontCacheLimit)
     {
         m_fontCacheLimit = fontCacheLimit;
         m_realizedFontCacheLimit = instancedFontCacheLimit;
+        lock.unlock();
         shrink();
     }
 }

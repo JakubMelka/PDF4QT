@@ -368,6 +368,7 @@ public:
     PDFPageContentEditorProcessor(const PDFPage* page,
                                   const PDFDocument* document,
                                   const PDFFontCache* fontCache,
+                                  const PDFICCProfileCache* iccProfileCache,
                                   const PDFCMS* CMS,
                                   const PDFOptionalContentActivity* optionalContentActivity,
                                   QTransform pagePointToDevicePointMatrix,

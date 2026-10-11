@@ -121,14 +121,16 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
     cmsManager.setSettings(options.cmsSettings);
     pdf::PDFMeshQualitySettings meshQualitySettings;
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFModifiedDocument modifiedDocument(&document, &optionalContentActivity);
     fontCache.setDocument(modifiedDocument);
+    iccProfileCache.setDocument(modifiedDocument);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
     // Renderer features are not configurable - the conversion needs its own fixed set
     // of them. The software rasterizer works everywhere, which is what a command line
     // tool needs.
-    pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &cmsManager, &optionalContentActivity,
+    pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &iccProfileCache, &cmsManager, &optionalContentActivity,
                                           pdf::PDFBitonalDocumentCreator::getPageRasterizationFeatures(),
                                           meshQualitySettings,
                                           pdf::PDFRasterizerPool::getDefaultRasterizerCount(),

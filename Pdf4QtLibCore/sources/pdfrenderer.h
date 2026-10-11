@@ -42,6 +42,7 @@ namespace pdf
 class PDFCMS;
 class PDFProgress;
 class PDFFontCache;
+class PDFICCProfileCache;
 class PDFCMSManager;
 class PDFPrecompiledPage;
 class PDFAnnotationManager;
@@ -82,6 +83,7 @@ public:
 
     explicit PDFRenderer(const PDFDocument* document,
                          const PDFFontCache* fontCache,
+                         const PDFICCProfileCache* iccProfileCache,
                          const PDFCMS* cms,
                          const PDFOptionalContentActivity* optionalContentActivity,
                          Features features,
@@ -148,6 +150,7 @@ public:
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMS* m_cms;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFOperationControl* m_operationControl;
@@ -240,6 +243,7 @@ public:
     /// Creates new rasterizer pool
     /// \param document Document
     /// \param fontCache Font cache
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param cmsManager Color management system manager
     /// \param optionalContentActivity Optional content activity
     /// \param features Renderer features
@@ -249,6 +253,7 @@ public:
     /// \param parent Parent object
     explicit PDFRasterizerPool(const PDFDocument* document,
                                PDFFontCache* fontCache,
+                               const PDFICCProfileCache* iccProfileCache,
                                const PDFCMSManager* cmsManager,
                                const PDFOptionalContentActivity* optionalContentActivity,
                                PDFRenderer::Features features,
@@ -304,6 +309,7 @@ signals:
 private:
     const PDFDocument* m_document;
     PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     PDFRenderer::Features m_features;

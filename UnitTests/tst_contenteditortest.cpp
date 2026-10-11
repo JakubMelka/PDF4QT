@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcms.h"
+#include "pdfcolorspaces.h"
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
@@ -44,6 +45,8 @@
 #include <QRegularExpression>
 
 #include <array>
+#include <barrier>
+#include <thread>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -119,6 +122,9 @@ private slots:
     void test_inserted_image_keeps_the_alpha_channel();
     void test_text_positions_are_preserved();
     void test_text_matrix_is_discarded_at_text_end();
+    void test_shared_font_identity_transform();
+    void test_fonts_removed_from_cache_are_released_data();
+    void test_fonts_removed_from_cache_are_released();
     void test_minus_sign_in_the_middle_of_number_is_ignored();
     void test_invalid_token_keeps_previous_operands();
     void test_invalid_token_invalidates_operator();
@@ -134,6 +140,9 @@ private slots:
     void test_shading_composite_color_space_from_form_resources_is_preserved();
     void test_transparency_group_color_space_is_preserved();
     void test_shading_icc_alternate_color_space_from_form_resources_is_preserved();
+    void test_color_spaces_of_the_same_name_are_not_mixed();
+    void test_icc_profile_is_shared_by_color_spaces();
+    void test_icc_profile_of_another_document_version();
     void test_clip_path_curves_are_preserved();
 
 private:
@@ -616,10 +625,12 @@ pdf::PDFEditedPageContent ContentEditorTest::processPageContent(const pdf::PDFDo
 
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
 
-    pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &cms, &activity,
+    pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &iccProfileCache, &cms, &activity,
                                                  QTransform(), pdf::PDFMeshQualitySettings());
     processor.processContents();
 
@@ -794,10 +805,12 @@ QImage ContentEditorTest::renderPage(const pdf::PDFDocument* document)
 {
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
 
-    pdf::PDFRenderer renderer(document, &fontCache, &cms, &activity,
+    pdf::PDFRenderer renderer(document, &fontCache, &iccProfileCache, &cms, &activity,
                               pdf::PDFRenderer::Features(), pdf::PDFMeshQualitySettings());
 
     QImage image(400, 400, QImage::Format_RGB888);
@@ -815,14 +828,16 @@ QImage ContentEditorTest::renderPageWithTransparency(const pdf::PDFDocument* doc
 
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
 
     const QSize imageSize(400, 400);
     pdf::PDFInkMapper inkMapper(nullptr, document);
     pdf::PDFTransparencyRendererSettings settings;
     QTransform pagePointToDevicePointMatrix = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
-    pdf::PDFTransparencyRenderer renderer(page, document, &fontCache, &cms, &activity, &inkMapper, settings, pagePointToDevicePointMatrix);
+    pdf::PDFTransparencyRenderer renderer(page, document, &fontCache, &iccProfileCache, &cms, &activity, &inkMapper, settings, pagePointToDevicePointMatrix);
 
     renderer.beginPaint(imageSize);
     renderer.processContents();
@@ -1013,10 +1028,12 @@ void ContentEditorTest::test_complex_tiling_pattern_is_not_processed()
 
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
 
-    pdf::PDFPageContentEditorProcessor processor(page, &document, &fontCache, &cms, &activity,
+    pdf::PDFPageContentEditorProcessor processor(page, &document, &fontCache, &iccProfileCache, &cms, &activity,
                                                  QTransform(), pdf::PDFMeshQualitySettings());
     QList<pdf::PDFRenderError> errors = processor.processContents();
     pdf::PDFEditedPageContent content = processor.takeEditedPageContent();
@@ -1415,10 +1432,12 @@ void ContentEditorTest::test_text_matrix_is_discarded_at_text_end()
 
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
 
-    TextMatrixRecordingProcessor processor(page, &document, &fontCache, &cms, &activity,
+    TextMatrixRecordingProcessor processor(page, &document, &fontCache, &iccProfileCache, &cms, &activity,
                                            QTransform(), pdf::PDFMeshQualitySettings());
     QList<pdf::PDFRenderError> errors = processor.processContents();
     QVERIFY(errors.isEmpty());
@@ -1435,6 +1454,217 @@ void ContentEditorTest::test_text_matrix_is_discarded_at_text_end()
     QCOMPARE(processor.textMatrixUpdatesOutsideTextObject, 0);
 }
 
+void ContentEditorTest::test_shared_font_identity_transform()
+{
+    // Both text matrices are identity. Glyph is shared by the threads, but each painted
+    // or clipped path must be a path of the thread, which shares no data with the glyph -
+    // painting writes into the data of a path (also on Qt versions before 6.10, where an
+    // identity transformation of a path returns a path sharing the data with the original).
+    class GlyphProcessor : public pdf::PDFPageContentProcessor
+    {
+    public:
+        using PDFPageContentProcessor::PDFPageContentProcessor;
+        QImage image{64, 64, QImage::Format_ARGB32_Premultiplied};
+        int paintedGlyphs = 0;
+        int clippedPaths = 0;
+
+    protected:
+        void performPathPainting(const QPainterPath& path, bool, bool, bool text, Qt::FillRule) override
+        {
+            QPainter painter(&image);
+            painter.translate(10, 10);
+            painter.fillPath(path, Qt::black);
+            if (text)
+            {
+                ++paintedGlyphs;
+            }
+        }
+
+        void performClipping(const QPainterPath& path, Qt::FillRule) override
+        {
+            QPainter painter(&image);
+            painter.translate(10, 10);
+            painter.setClipPath(path);
+            ++clippedPaths;
+        }
+    };
+
+    pdf::PDFDocument document = createDocumentWithText("BT /F1 24 Tf 4 Tr (A) Tj ET");
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+    pdf::PDFFontCache referenceCache(32, 32);
+    pdf::PDFFontCache sharedCache(32, 32);
+    referenceCache.setDocument(pdf::PDFModifiedDocument(&document, nullptr));
+    sharedCache.setDocument(pdf::PDFModifiedDocument(&document, nullptr));
+
+    auto render = [&](pdf::PDFFontCache& cache, QString& error)
+    {
+        pdf::PDFCMSGeneric cms;
+        pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
+        GlyphProcessor processor(page, &document, &cache, nullptr, &cms, &activity,
+                                 QTransform(), pdf::PDFMeshQualitySettings());
+        processor.image.fill(Qt::white);
+        const auto errors = processor.processContents();
+        if (!errors.isEmpty() || processor.paintedGlyphs != 1 || processor.clippedPaths != 1)
+        {
+            error = QStringLiteral("Render errors: %1, painted glyphs: %2, clipped paths: %3")
+                        .arg(errors.size()).arg(processor.paintedGlyphs).arg(processor.clippedPaths);
+        }
+        return processor.image;
+    };
+
+    QString referenceError;
+    const QImage reference = render(referenceCache, referenceError);
+    QVERIFY2(referenceError.isEmpty(), qPrintable(referenceError));
+    QImage blank(reference.size(), reference.format());
+    blank.fill(Qt::white);
+    QVERIFY(reference != blank);
+
+    constexpr int threadCount = 8;
+    std::barrier start(threadCount);
+    std::vector<QString> errors(threadCount);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < threadCount; ++i)
+    {
+        threads.emplace_back([&, i]()
+        {
+            start.arrive_and_wait();
+            for (int iteration = 0; iteration < 64; ++iteration)
+            {
+                const QImage image = render(sharedCache, errors[i]);
+                if (image != reference)
+                {
+                    errors[i] = QStringLiteral("Concurrent glyph rendering differs from the reference");
+                }
+                if (!errors[i].isEmpty())
+                {
+                    break;
+                }
+            }
+        });
+    }
+    for (std::thread& thread : threads)
+    {
+        thread.join();
+    }
+    for (const QString& error : errors)
+    {
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+    }
+}
+
+void ContentEditorTest::test_fonts_removed_from_cache_are_released_data()
+{
+    QTest::addColumn<QByteArray>("textRenderingMode");
+    QTest::addColumn<bool>("isPainted");
+
+    // Painted text creates the painter paths of the glyphs in the processor
+    QTest::newRow("fill") << QByteArray("0 Tr") << true;
+    QTest::newRow("invisible") << QByteArray("3 Tr") << false;
+    QTest::newRow("clip") << QByteArray("7 Tr") << false;
+}
+
+void ContentEditorTest::test_fonts_removed_from_cache_are_released()
+{
+    // A content processor must not own the realized fonts of the texts it has drawn.
+    // The page content switches between more font sizes, than the font cache can hold,
+    // so the cache removes the fonts again and again, and a removed font must be released.
+    // Otherwise a short page content holds one instance of the font for each change
+    // of the font (about a half of megabyte each). Painter paths of the glyphs, which
+    // the processor stores, must not hold the fonts, and paths of a released font must
+    // not be used for a font created later.
+    QFETCH(QByteArray, textRenderingMode);
+    QFETCH(bool, isPainted);
+
+    class FontProcessor : public pdf::PDFPageContentProcessor
+    {
+    public:
+        using PDFPageContentProcessor::PDFPageContentProcessor;
+
+        const pdf::PDFFontCache* fontCache = nullptr;
+        std::vector<QWeakPointer<pdf::PDFRealizedFont>> fonts;
+        std::vector<pdf::PDFReal> outlineHeights;
+        std::vector<pdf::PDFReal> pathHeights;
+
+    protected:
+        void performOutputCharacter(const pdf::PDFTextCharacterInfo& info) override
+        {
+            const pdf::PDFPageContentProcessorState* state = getGraphicState();
+            fonts.emplace_back(fontCache->getRealizedFont(state->getTextFont(), state->getTextFontSize(), this));
+            outlineHeights.push_back(info.outline ? info.outline->getBoundingRect().height() / state->getTextFontSize() : 0.0);
+        }
+
+        void performPathPainting(const QPainterPath& path, bool, bool, bool text, Qt::FillRule) override
+        {
+            if (text)
+            {
+                pathHeights.push_back(path.boundingRect().height() / getGraphicState()->getTextFontSize());
+            }
+        }
+    };
+
+    constexpr int characterCount = 256;
+    constexpr int fontSizeCount = 64;
+    constexpr size_t cacheLimit = 8;
+
+    QByteArray pageContent = "BT " + textRenderingMode + " ";
+    for (int i = 0; i < characterCount; ++i)
+    {
+        pageContent += "/F1 " + QByteArray::number(12 + i % fontSizeCount) + " Tf (A) Tj\n";
+    }
+    pageContent += "ET";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+    pdf::PDFFontCache fontCache(cacheLimit, cacheLimit);
+    pdf::PDFICCProfileCache iccProfileCache;
+    fontCache.setDocument(pdf::PDFModifiedDocument(&document, nullptr));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(&document, nullptr));
+
+    pdf::PDFCMSGeneric cms;
+    pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
+    FontProcessor processor(document.getCatalog()->getPage(0), &document, &fontCache, &iccProfileCache, &cms, &activity,
+                            QTransform(), pdf::PDFMeshQualitySettings());
+    processor.fontCache = &fontCache;
+    const QList<pdf::PDFRenderError> errors = processor.processContents();
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+    QCOMPARE(processor.fonts.size(), size_t(characterCount));
+
+    // The processor still exists, but only the fonts stored in the cache are living
+    std::set<const pdf::PDFRealizedFont*> livingFonts;
+    for (const QWeakPointer<pdf::PDFRealizedFont>& font : processor.fonts)
+    {
+        if (pdf::PDFRealizedFontPointer livingFont = font.toStrongRef())
+        {
+            livingFonts.insert(livingFont.data());
+        }
+    }
+    QVERIFY(!livingFonts.empty());
+    QVERIFY2(livingFonts.size() <= cacheLimit + 1, qPrintable(QString("Living fonts: %1").arg(livingFonts.size())));
+
+    // Glyphs are valid, when they are used: the same glyph has the same shape for each size
+    // of the font. A path created for a font of another size would have a different height.
+    auto verifyHeights = [](const std::vector<pdf::PDFReal>& heights)
+    {
+        QVERIFY(heights.front() > 0.5 && heights.front() < 1.0);
+        for (const pdf::PDFReal height : heights)
+        {
+            QVERIFY2(qAbs(height - heights.front()) < 0.01 * heights.front(), qPrintable(QString("Height %1, expected %2").arg(height).arg(heights.front())));
+        }
+    };
+
+    QCOMPARE(processor.outlineHeights.size(), size_t(characterCount));
+    verifyHeights(processor.outlineHeights);
+    if (QTest::currentTestFailed())
+    {
+        return;
+    }
+
+    QCOMPARE(processor.pathHeights.size(), isPainted ? size_t(characterCount) : size_t(0));
+    if (isPainted)
+    {
+        verifyHeights(processor.pathHeights);
+    }
+}
+
 QColor ContentEditorTest::getPageColor(const QImage& image, QPointF point)
 {
     // The page 200 x 200 is rendered into the image 400 x 400 and
@@ -1448,10 +1678,12 @@ QList<pdf::PDFRenderError> ContentEditorTest::processPageContent(const pdf::PDFD
 
     pdf::PDFCMSGeneric cms;
     pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
     fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+    iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
 
-    pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &cms, &activity,
+    pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &iccProfileCache, &cms, &activity,
                                                  QTransform(), pdf::PDFMeshQualitySettings());
     QList<pdf::PDFRenderError> errors = processor.processContents();
     *content = processor.takeEditedPageContent();
@@ -2311,6 +2543,228 @@ void ContentEditorTest::test_shading_icc_alternate_color_space_from_form_resourc
     QImage originalImage = renderPage(&document);
     QVERIFY(getPageColor(originalImage, QPointF(100, 100)) != QColor(Qt::white));
     QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_color_spaces_of_the_same_name_are_not_mixed()
+{
+    // Color spaces selected by a name are cached during processing of the page content.
+    // The page and the form XObject have a color space of the same name in their own
+    // resources, but each of them is a different color space. The page selects its
+    // color space again, when the form is painted.
+    QByteArray pageContent = "/CS0 cs 1 0 0 sc 0 0 100 100 re f /Fm1 Do /CS0 cs 0 0 1 sc 100 100 100 100 re f";
+    QByteArray formContent = "/CS0 cs 0.5 sc 100 0 100 100 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject formResources = createDictionaryObject({ { "ColorSpace", createDictionaryObject({ { "CS0", pdf::PDFObject::createName("DeviceGray") } }) } });
+
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", formResources } }, formContent);
+
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "CS0", pdf::PDFObject::createName("DeviceRGB") } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QList<pdf::PDFRenderError> errors = processPageContent(&document, &content);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+
+    const QImage image = renderPage(&document);
+
+    const QColor pageColor1 = getPageColor(image, QPointF(50, 50));
+    QVERIFY2(pageColor1.red() > 200 && pageColor1.green() < 50 && pageColor1.blue() < 50, qPrintable(pageColor1.name()));
+
+    const QColor formColor = getPageColor(image, QPointF(150, 50));
+    QVERIFY2(formColor.red() == formColor.green() && formColor.green() == formColor.blue() && formColor.red() > 80 && formColor.red() < 180, qPrintable(formColor.name()));
+
+    const QColor pageColor2 = getPageColor(image, QPointF(150, 150));
+    QVERIFY2(pageColor2.red() < 50 && pageColor2.green() < 50 && pageColor2.blue() > 200, qPrintable(pageColor2.name()));
+}
+
+void ContentEditorTest::test_icc_profile_is_shared_by_color_spaces()
+{
+    // Decoded ICC profiles are cached, because a single profile is usually referenced
+    // by the color spaces of all pages. The cache must not mix the profiles: color spaces
+    // created from the same stream are equal (they have the same profile), also when they
+    // are created repeatedly, and color space of another profile is different.
+    const QByteArray iccProfile = QColorSpace(QColorSpace::SRgb).iccProfile();
+    const QByteArray otherIccProfile = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    QVERIFY(!iccProfile.isEmpty());
+    QVERIFY(!otherIccProfile.isEmpty());
+    QVERIFY(iccProfile != otherIccProfile);
+
+    QByteArray pageContent = "/CS0 cs 1 0 0 sc 0 0 100 100 re f /CS1 cs 0 1 0 sc 100 0 100 100 re f /CS2 cs 0 0 1 sc 0 100 100 100 re f /CS0 cs 1 0 0 sc 100 100 100 100 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&iccProfile, &otherIccProfile](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject profileObject = addStreamObject(builder, { { "N", pdf::PDFObject::createInteger(3) } }, iccProfile);
+        pdf::PDFObject otherProfileObject = addStreamObject(builder, { { "N", pdf::PDFObject::createInteger(3) } }, otherIccProfile);
+
+        auto createColorSpaceObject = [](const pdf::PDFObject& profile)
+        {
+            pdf::PDFArrayBuilder colorSpace;
+            colorSpace.appendItem(pdf::PDFObject::createName("ICCBased"));
+            colorSpace.appendItem(profile);
+            return pdf::PDFObject::createArray(std::move(colorSpace));
+        };
+
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "CS0", createColorSpaceObject(profileObject) },
+                                                                                                 { "CS1", createColorSpaceObject(profileObject) },
+                                                                                                 { "CS2", createColorSpaceObject(otherProfileObject) } }));
+        return resources;
+    });
+
+    const pdf::PDFObject& resources = document.getObject(document.getCatalog()->getPage(0)->getResources());
+    QVERIFY(resources.isDictionary());
+    const pdf::PDFDictionary* colorSpaceDictionary = document.getDictionaryFromObject(resources.getDictionary()->get("ColorSpace"));
+    QVERIFY(colorSpaceDictionary);
+
+    pdf::PDFICCProfileCache iccProfileCache;
+    iccProfileCache.setDocument(&document);
+
+    auto createColorSpace = [&document, &iccProfileCache, colorSpaceDictionary](const char* name)
+    {
+        return pdf::PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, &document, &iccProfileCache, pdf::PDFObject::createName(name));
+    };
+
+    pdf::PDFColorSpacePointer colorSpace0 = createColorSpace("CS0");
+    pdf::PDFColorSpacePointer colorSpace0Again = createColorSpace("CS0");
+    pdf::PDFColorSpacePointer colorSpace1 = createColorSpace("CS1");
+    pdf::PDFColorSpacePointer colorSpace2 = createColorSpace("CS2");
+    QVERIFY(colorSpace0 && colorSpace0Again && colorSpace1 && colorSpace2);
+
+    QCOMPARE(colorSpace0->getColorSpace(), pdf::PDFAbstractColorSpace::ColorSpace::ICCBased);
+    QCOMPARE(colorSpace2->getColorSpace(), pdf::PDFAbstractColorSpace::ColorSpace::ICCBased);
+    QVERIFY(colorSpace0->equals(colorSpace0Again.data()));
+    QVERIFY(colorSpace0->equals(colorSpace1.data()));
+    QVERIFY(!colorSpace0->equals(colorSpace2.data()));
+    QVERIFY(colorSpace2->equals(createColorSpace("CS2").data()));
+
+    // The same profile stream in another document (copy of the document shares the objects),
+    // with the cache of the first document and without a cache
+    pdf::PDFDocument documentCopy = document;
+    QVERIFY(colorSpace0->equals(pdf::PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, &documentCopy, &iccProfileCache, pdf::PDFObject::createName("CS0")).data()));
+    QVERIFY(colorSpace0->equals(pdf::PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, &documentCopy, nullptr, pdf::PDFObject::createName("CS0")).data()));
+
+    const QImage image = renderPage(&document);
+
+    const QColor color0 = getPageColor(image, QPointF(50, 50));
+    QVERIFY2(color0.red() > 200 && color0.green() < 80 && color0.blue() < 80, qPrintable(color0.name()));
+
+    const QColor color1 = getPageColor(image, QPointF(150, 50));
+    QVERIFY2(color1.red() < 80 && color1.green() > 200 && color1.blue() < 80, qPrintable(color1.name()));
+
+    const QColor color2 = getPageColor(image, QPointF(50, 150));
+    QVERIFY2(color2.red() < 80 && color2.green() < 80 && color2.blue() > 200, qPrintable(color2.name()));
+
+    QCOMPARE(getPageColor(image, QPointF(150, 150)), color0);
+}
+
+void ContentEditorTest::test_icc_profile_of_another_document_version()
+{
+    // Decoded data of a stream depend also on the objects of the document, to which the
+    // stream refers. Filter of the stream with the profile is an indirect object here,
+    // and the second version of the document changes the filter, while the stream itself
+    // is shared by both versions. Decoded profiles are stored in a cache, and the second
+    // version must not get the profile decoded by the first one (and vice versa). The data
+    // are not a valid ICC profile, only the decoding is tested.
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFObjectReference filterReference = builder.addObject(pdf::PDFObject::createName("ASCIIHexDecode"));
+
+    pdf::PDFDictionaryBuilder dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(3));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createReference(filterReference));
+    const pdf::PDFObjectReference streamReference = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray("4142>"))));
+    pdf::PDFDocument firstDocument = builder.build();
+
+    pdf::PDFDocumentBuilder editor(&firstDocument);
+    editor.setObject(filterReference, pdf::PDFObject());
+    pdf::PDFDocument secondDocument = editor.build();
+
+    const pdf::PDFObject& firstStreamObject = firstDocument.getObjectByReference(streamReference);
+    const pdf::PDFObject& secondStreamObject = secondDocument.getObjectByReference(streamReference);
+    QVERIFY(firstStreamObject.isStream() && secondStreamObject.isStream());
+    QCOMPARE(firstStreamObject.getStream(), secondStreamObject.getStream());
+
+    const QByteArray firstData("AB");
+    const QByteArray secondData("4142>");
+    QCOMPARE(firstDocument.getDecodedStream(firstStreamObject.getStream()), firstData);
+    QCOMPARE(secondDocument.getDecodedStream(secondStreamObject.getStream()), secondData);
+    QCOMPARE(pdf::PDFICCProfileCache::decodeProfile(&firstDocument, firstStreamObject).data, firstData);
+    QCOMPARE(pdf::PDFICCProfileCache::decodeProfile(&secondDocument, secondStreamObject).data, secondData);
+
+    // The cache belongs to the first version. Its profile is stored (the same data are
+    // returned), profile of another document is decoded by its own document.
+    pdf::PDFICCProfileCache iccProfileCache;
+    iccProfileCache.setDocument(&firstDocument);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        const pdf::PDFDecodedICCProfile firstProfile = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+        const pdf::PDFDecodedICCProfile firstProfileAgain = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+        const pdf::PDFDecodedICCProfile secondProfile = iccProfileCache.getProfile(&secondDocument, secondStreamObject);
+        QCOMPARE(firstProfile.data, firstData);
+        QCOMPARE(secondProfile.data, secondData);
+        QCOMPARE(firstProfile.checksum, QCryptographicHash::hash(firstData, QCryptographicHash::Md5));
+        QCOMPARE(secondProfile.checksum, QCryptographicHash::hash(secondData, QCryptographicHash::Md5));
+        QCOMPARE(firstProfileAgain.data.constData(), firstProfile.data.constData());
+    }
+
+    // The same pointer is set again (a new version of a document can be created at the address
+    // of the old one, so the pointer cannot tell them apart) - stored profiles are removed too
+    const pdf::PDFDecodedICCProfile storedFirstProfile = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+    iccProfileCache.setDocument(&firstDocument);
+    const pdf::PDFDecodedICCProfile decodedFirstProfile = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+    QCOMPARE(decodedFirstProfile.data, firstData);
+    QVERIFY(decodedFirstProfile.data.constData() != storedFirstProfile.data.constData());
+    QCOMPARE(iccProfileCache.getProfile(&firstDocument, firstStreamObject).data.constData(), decodedFirstProfile.data.constData());
+
+    // The cache is set to the second version: profiles of the first version are removed,
+    // and a profile of the first version is not stored anymore (it is decoded for each call)
+    iccProfileCache.setDocument(&secondDocument);
+    QCOMPARE(iccProfileCache.getProfile(&secondDocument, secondStreamObject).data, secondData);
+    QCOMPARE(iccProfileCache.getProfile(&secondDocument, secondStreamObject).data, secondData);
+
+    const pdf::PDFDecodedICCProfile foreignProfile = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+    const pdf::PDFDecodedICCProfile foreignProfileAgain = iccProfileCache.getProfile(&firstDocument, firstStreamObject);
+    QCOMPARE(foreignProfile.data, firstData);
+    QCOMPARE(foreignProfileAgain.data, firstData);
+    QVERIFY(foreignProfileAgain.data.constData() != foreignProfile.data.constData());
+    QCOMPARE(iccProfileCache.getProfile(&secondDocument, secondStreamObject).data, secondData);
+
+    // Color spaces created from the shared stream by a single cache, which is set to each
+    // version of the document, before the version is processed
+    auto createColorSpace = [](const pdf::PDFDocument& document, const pdf::PDFICCProfileCache* cache, pdf::PDFObject profile)
+    {
+        pdf::PDFArrayBuilder colorSpace;
+        colorSpace.appendItem(pdf::PDFObject::createName("ICCBased"));
+        colorSpace.appendItem(std::move(profile));
+        return pdf::PDFAbstractColorSpace::createColorSpace(nullptr, &document, cache, pdf::PDFObject::createArray(std::move(colorSpace)));
+    };
+
+    iccProfileCache.setDocument(&firstDocument);
+    pdf::PDFColorSpacePointer firstColorSpace = createColorSpace(firstDocument, &iccProfileCache, pdf::PDFObject::createReference(streamReference));
+
+    // The cache of the first version used for the second version by mistake
+    pdf::PDFColorSpacePointer secondColorSpaceOfForeignCache = createColorSpace(secondDocument, &iccProfileCache, pdf::PDFObject::createReference(streamReference));
+
+    iccProfileCache.setDocument(&secondDocument);
+    pdf::PDFColorSpacePointer secondColorSpace = createColorSpace(secondDocument, &iccProfileCache, pdf::PDFObject::createReference(streamReference));
+
+    // Color space created without a cache from a copy of the stream
+    pdf::PDFColorSpacePointer expectedSecondColorSpace = createColorSpace(secondDocument, nullptr, pdf::PDFObject::createStream(pdf::PDFStream(*secondStreamObject.getStream())));
+    QVERIFY(firstColorSpace && secondColorSpace && secondColorSpaceOfForeignCache && expectedSecondColorSpace);
+
+    QVERIFY(!secondColorSpace->equals(firstColorSpace.data()));
+    QVERIFY(secondColorSpace->equals(expectedSecondColorSpace.data()));
+    QVERIFY(secondColorSpaceOfForeignCache->equals(expectedSecondColorSpace.data()));
+    QVERIFY(firstColorSpace->equals(createColorSpace(firstDocument, nullptr, pdf::PDFObject::createReference(streamReference)).data()));
 }
 
 void ContentEditorTest::test_clip_path_curves_are_preserved()

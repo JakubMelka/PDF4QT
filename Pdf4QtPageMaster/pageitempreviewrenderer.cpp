@@ -320,15 +320,18 @@ bool PageItemPreviewRenderer::ensureDocumentContext(int documentIndex)
     auto context = std::make_unique<DocumentRenderContext>();
     context->document = &it->second.document;
     context->fontCache = std::make_unique<pdf::PDFFontCache>(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    context->iccProfileCache = std::make_unique<pdf::PDFICCProfileCache>();
     context->cmsManager = std::make_unique<pdf::PDFCMSManager>(nullptr);
     context->optionalContentActivity = std::make_unique<pdf::PDFOptionalContentActivity>(context->document, pdf::OCUsage::View, nullptr);
     context->fontCache->setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(context->document), context->optionalContentActivity.get()));
+    context->iccProfileCache->setDocument(context->document);
     context->cmsManager->setDocument(context->document);
 
     const int threadHint = pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page);
     const int rasterizerCount = pdf::PDFRasterizerPool::getCorrectedRasterizerCount(threadHint);
     context->rasterizerPool = std::make_unique<pdf::PDFRasterizerPool>(context->document,
                                                                         context->fontCache.get(),
+                                                                        context->iccProfileCache.get(),
                                                                         context->cmsManager.get(),
                                                                         context->optionalContentActivity.get(),
                                                                         context->features,
@@ -472,6 +475,7 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
             pdf::PDFPrecompiledPage compiledPage;
             pdf::PDFRenderer renderer(context->document,
                                       context->fontCache.get(),
+                                      context->iccProfileCache.get(),
                                       cms.data(),
                                       context->optionalContentActivity.get(),
                                       context->features,

@@ -63,10 +63,11 @@ public:
     explicit PDFOCRPageContentAnalyzer(const PDFPage* page,
                                        const PDFDocument* document,
                                        const PDFFontCache* fontCache,
+                                       const PDFICCProfileCache* iccProfileCache,
                                        const PDFCMS* cms,
                                        const PDFOptionalContentActivity* optionalContentActivity,
                                        const PDFMeshQualitySettings& meshQualitySettings) :
-        PDFPageContentProcessor(page, document, fontCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
+        PDFPageContentProcessor(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
         m_cropBox(page->getCropBox())
     {
 
@@ -144,7 +145,7 @@ protected:
     /// (invisible OCR text) has no outline, the advance and the font size are used.
     static QRectF getCharacterRect(const PDFTextCharacterInfo& info)
     {
-        QRectF boundingRect = info.outline.boundingRect();
+        QRectF boundingRect = info.outline ? info.outline->getBoundingRect() : QRectF();
         if (boundingRect.isEmpty())
         {
             boundingRect = QRectF(0.0, 0.0, info.advance, info.fontSize);
@@ -296,12 +297,14 @@ std::vector<QRectF> PDFOCRPagePreparerHelper::clusterTextRectangles(std::vector<
 
 PDFOCRPagePreparer::PDFOCRPagePreparer(const PDFDocument* document,
                                        const PDFFontCache* fontCache,
+                                       const PDFICCProfileCache* iccProfileCache,
                                        const PDFCMS* cms,
                                        const PDFOptionalContentActivity* optionalContentActivity,
                                        const PDFMeshQualitySettings& meshQualitySettings,
                                        RendererEngine rendererEngine) :
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cms(cms),
     m_optionalContentActivity(optionalContentActivity),
     m_meshQualitySettings(meshQualitySettings),
@@ -435,7 +438,7 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
     const PDFObjectStorage* storage = &m_document->getStorage();
 
     // Content analysis
-    PDFOCRPageContentAnalyzer analyzer(page, m_document, m_fontCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
+    PDFOCRPageContentAnalyzer analyzer(page, m_document, m_fontCache, m_iccProfileCache, m_cms, m_optionalContentActivity, m_meshQualitySettings);
     analyzer.setOperationControl(operationControl);
     analyzer.processContents();
 
@@ -1076,7 +1079,7 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
     // Compile the page
     const PDFRenderer::Features features = getRasterizationFeatures();
     PDFPrecompiledPage compiledPage;
-    PDFRenderer renderer(m_document, m_fontCache, m_cms, m_optionalContentActivity, features, m_meshQualitySettings);
+    PDFRenderer renderer(m_document, m_fontCache, m_iccProfileCache, m_cms, m_optionalContentActivity, features, m_meshQualitySettings);
     renderer.setOperationControl(operationControl);
     renderer.compile(&compiledPage, size_t(pageIndex));
 

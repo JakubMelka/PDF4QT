@@ -567,6 +567,7 @@ public:
     PDFTransparencyRenderer(const PDFPage* page,
                             const PDFDocument* document,
                             const PDFFontCache* fontCache,
+                            const PDFICCProfileCache* iccProfileCache,
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             const PDFInkMapper* inkMapper,
@@ -882,6 +883,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFInkCoverageCalculator
 public:
     PDFInkCoverageCalculator(const PDFDocument* document,
                              const PDFFontCache* fontCache,
+                             const PDFICCProfileCache* iccProfileCache,
                              const PDFCMSManager* cmsManager,
                              const PDFOptionalContentActivity* optionalContentActivity,
                              const PDFInkMapper* inkMapper,
@@ -930,6 +932,7 @@ public:
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFInkMapper* m_inkMapper;

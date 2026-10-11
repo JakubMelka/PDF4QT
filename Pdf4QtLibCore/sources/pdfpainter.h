@@ -50,6 +50,7 @@ public:
                             const PDFPage* page,
                             const PDFDocument* document,
                             const PDFFontCache* fontCache,
+                            const PDFICCProfileCache* iccProfileCache,
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             QTransform pagePointToDevicePointMatrix,
@@ -122,6 +123,7 @@ public:
     /// \param page Page, which will be drawn
     /// \param document Document owning the page
     /// \param fontCache Font cache
+    /// \param iccProfileCache Cache of the decoded ICC profiles of the document (can be nullptr)
     /// \param cms Color management system
     /// \param optionalContentActivity Activity of optional content
     /// \param meshQualitySettings Mesh quality settings
@@ -131,6 +133,7 @@ public:
                         const PDFPage* page,
                         const PDFDocument* document,
                         const PDFFontCache* fontCache,
+                        const PDFICCProfileCache* iccProfileCache,
                         const PDFCMS* cms,
                         const PDFOptionalContentActivity* optionalContentActivity,
                         const PDFMeshQualitySettings& meshQualitySettings);
@@ -405,6 +408,7 @@ public:
                                          const PDFPage* page,
                                          const PDFDocument* document,
                                          const PDFFontCache* fontCache,
+                                         const PDFICCProfileCache* iccProfileCache,
                                          const PDFCMS* cms,
                                          const PDFOptionalContentActivity* optionalContentActivity,
                                          const PDFMeshQualitySettings& meshQualitySettings);

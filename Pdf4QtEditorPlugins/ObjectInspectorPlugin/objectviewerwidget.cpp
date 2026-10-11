@@ -223,7 +223,7 @@ void ObjectViewerWidget::updateUi()
                     if (colorSpaceObject.isName() || colorSpaceObject.isArray())
                     {
                         pdf::PDFDictionaryBuilder dummyColorSpaceDictionary;
-                        colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(dummyColorSpaceDictionary.getDictionary(), m_document, colorSpaceObject);
+                        colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(dummyColorSpaceDictionary.getDictionary(), m_document, nullptr, colorSpaceObject);
                     }
                     else if (!colorSpaceObject.isNull())
                     {

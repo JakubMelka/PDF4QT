@@ -817,6 +817,7 @@ void PDFSidebarWidget::updateNotes()
         QIcon userIcon(":/resources/user.svg");
 
         pdf::PDFAnnotationManager annotationManager(m_proxy->getFontCache(),
+                                                    m_proxy->getIccProfileCache(),
                                                     m_proxy->getCMSManager(),
                                                     m_optionalContentActivity,
                                                     pdf::PDFMeshQualitySettings(),

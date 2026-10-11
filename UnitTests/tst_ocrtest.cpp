@@ -102,6 +102,7 @@ public:
     {
         PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &m_optionalContentActivity);
         m_fontCache.setDocument(modifiedDocument);
+        m_iccProfileCache.setDocument(modifiedDocument);
         m_fontCache.setCacheShrinkEnabled(nullptr, false);
     }
 
@@ -112,12 +113,13 @@ public:
 
     PDFOCRPagePreparer createPreparer(const PDFDocument* document)
     {
-        return PDFOCRPagePreparer(document, &m_fontCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
+        return PDFOCRPagePreparer(document, &m_fontCache, &m_iccProfileCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
     }
 
     PDFOptionalContentActivity m_optionalContentActivity;
     PDFCMSGeneric m_cms;
     PDFFontCache m_fontCache;
+    PDFICCProfileCache m_iccProfileCache;
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 
@@ -583,7 +585,7 @@ PDFTextLayout OCRTest::extractLayout(const PDFDocument& document, PDFInteger pag
 {
     RenderingContext context(&document);
     const PDFPage* page = document.getCatalog()->getPage(pageIndex);
-    PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, &document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, QTransform(), context.m_meshQualitySettings);
+    PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, &document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, QTransform(), context.m_meshQualitySettings);
     generator.processContents();
     return generator.createTextLayout();
 }
@@ -2217,7 +2219,7 @@ void OCRTest::jobCancellation()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -2333,7 +2335,7 @@ void OCRTest::pageErrorAndRetry()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRSession session(nullptr);
     session.setDocument(&document, PDFOCRDocumentIdentity());
@@ -2594,7 +2596,7 @@ void OCRTest::genericAdapter()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -2700,7 +2702,7 @@ void OCRTest::invalidEngineOutput()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     // Exception thrown by the engine must end as an error of the page, and the
     // worker must stay usable for the following pages (the last run succeeds).
@@ -3207,7 +3209,7 @@ void OCRTest::tesseractRecognition()
     QVERIFY2(models.isValid(), qPrintable(error.message));
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QStringLiteral("tesseract");
@@ -3487,7 +3489,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         QVERIFY2(models.isValid(), qPrintable(error.message));
 
         PDFOCRJobController controller(nullptr);
-        controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+        controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
         PDFOCRJobDescription description;
         description.configuration.engineId = QStringLiteral("tesseract");
@@ -3635,7 +3637,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         PDFOCRError error;
         PDFOCRResolvedModelSet models = manager.resolveModelSet(QStringLiteral("tesseract"), { QStringLiteral("eng") }, profile, &error);
         PDFOCRJobController controller(nullptr);
-        controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+        controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
         PDFOCRJobDescription description;
         description.configuration.engineId = QStringLiteral("tesseract");
         description.configuration.languages = { QStringLiteral("eng") };
@@ -5193,7 +5195,7 @@ void OCRTest::scriptModelIdentifiers()
         });
 
         PDFOCRJobController controller(nullptr);
-        controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+        controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
         PDFOCRJobDescription description;
         description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -5530,7 +5532,7 @@ void OCRTest::jobProgressIsMonotonic()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -5594,7 +5596,7 @@ void OCRTest::stoppedJobDoesNotPrepareEngine()
     PDFOCREngineRegistry::getInstance()->registerFactory(factory);
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     // Declared after the controller: on a failure, the blocked worker is released before
     // the destructor of the controller waits for it
@@ -5672,7 +5674,7 @@ void OCRTest::memoryWaitHonoursPageDeadline()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -5747,7 +5749,7 @@ void OCRTest::pageTimeout()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -5958,7 +5960,7 @@ void OCRTest::memoryBudgetAndEngineLimits()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     std::map<PDFInteger, PDFOCRPageResult> results;
     std::optional<PDFOCRJobSummary> summary;
@@ -6129,7 +6131,7 @@ void OCRTest::regionRotationOverride()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -6337,7 +6339,7 @@ void OCRTest::runtimeSetLease()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -6622,7 +6624,7 @@ std::optional<PDFOCRPageResult> OCRTest::recognizeWithTesseract(const PDFDocumen
 
     RenderingContext context(&document);
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration = configuration;
@@ -6707,7 +6709,7 @@ void OCRTest::dictionaryInformation()
     RenderingContext context(&document);
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
 
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
@@ -8203,7 +8205,7 @@ void OCRTest::perspectiveCorrection()
     });
 
     PDFOCRJobController controller(nullptr);
-    controller.setEnvironment(&document, &context.m_fontCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
+    controller.setEnvironment(&document, &context.m_fontCache, &context.m_iccProfileCache, &context.m_cms, &context.m_optionalContentActivity, &context.m_meshQualitySettings, RendererEngine::QPainter);
     PDFOCRJobDescription description;
     description.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
     description.configuration.languages = { QStringLiteral("eng") };

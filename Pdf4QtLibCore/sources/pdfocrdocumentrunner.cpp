@@ -190,8 +190,10 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
     const PDFCMS* cms = settings.cms ? settings.cms : &genericCms;
     PDFMeshQualitySettings meshQualitySettings;
     PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    PDFICCProfileCache iccProfileCache;
     PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &optionalContentActivity);
     fontCache.setDocument(modifiedDocument);
+    iccProfileCache.setDocument(modifiedDocument);
     PDFFontCacheShrinkGuard fontCacheGuard(&fontCache);
 
     // Session: identity of the document and the configuration
@@ -322,7 +324,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
                 return;
             }
 
-            PDFOCRPagePreparer preparer(document, &fontCache, cms, &optionalContentActivity, meshQualitySettings, settings.rendererEngine);
+            PDFOCRPagePreparer preparer(document, &fontCache, &iccProfileCache, cms, &optionalContentActivity, meshQualitySettings, settings.rendererEngine);
             PDFOCRPageAnalysis analysis = preparer.analyze(page, operationControl);
 
             QMutexLocker lock(&mutex);
@@ -615,7 +617,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
 
         // The controller delivers the results by queued signals into this thread
         PDFOCRJobController controller(nullptr);
-        controller.setEnvironment(document, &fontCache, cms, &optionalContentActivity, &meshQualitySettings, settings.rendererEngine);
+        controller.setEnvironment(document, &fontCache, &iccProfileCache, cms, &optionalContentActivity, &meshQualitySettings, settings.rendererEngine);
 
         QEventLoop eventLoop;
         QObject receiver;

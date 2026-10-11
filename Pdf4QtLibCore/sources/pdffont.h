@@ -30,9 +30,11 @@
 #include <QFont>
 #include <QMutex>
 #include <QTransform>
+#include <QPainterPath>
 #include <QSharedPointer>
 
 #include <set>
+#include <vector>
 #include <mutex>
 #include <optional>
 #include <functional>
@@ -75,11 +77,57 @@ public:
     virtual void popItem() = 0;
 };
 
+/// Outline of a glyph of a realized font. The outline is immutable - it is created,
+/// when the glyph is loaded, and it is never changed. It consists of plain data only,
+/// it holds no object with shared or lazily evaluated data (such as a painter path,
+/// whose functions marked as const store bounding rectangles and data of the paint
+/// engine into the data, which can be shared with other painter paths). So a single
+/// outline can be read by more threads at once. Painter path is not shared - each
+/// user creates its own painter path from the outline, see function \createPath.
+class PDF4QTLIBCORESHARED_EXPORT PDFGlyphOutline
+{
+public:
+    explicit PDFGlyphOutline() = default;
+
+    /// Creates the outline from a painter path. Path is not stored
+    /// in the outline, only its elements are copied.
+    /// \param path Path
+    explicit PDFGlyphOutline(const QPainterPath& path);
+
+    /// Returns true, if the outline has nothing to paint (the same
+    /// condition, as for the empty painter path).
+    bool isEmpty() const { return m_isEmpty; }
+
+    /// Returns the bounding rectangle of the outline (in the coordinate system
+    /// of the outline). Rectangle is computed, when the outline is created.
+    const QRectF& getBoundingRect() const { return m_boundingRect; }
+
+    /// Returns the identifier of the outline. Each outline created from a painter path
+    /// gets its own identifier, which is never used again (also when the outline does
+    /// not exist anymore), so it can be a key of data created from the outline - unlike
+    /// the address of the outline. Copies of the outline have the same shape and the same
+    /// identifier. Outline created without a path has the identifier zero.
+    quint64 getId() const { return m_id; }
+
+    /// Creates a new painter path with the outline transformed by the matrix.
+    /// Created path shares no data with the outline, or with other paths created
+    /// by this function, so it can be freely used by the calling thread.
+    /// \param matrix Transformation of the outline
+    QPainterPath createPath(const QTransform& matrix) const;
+
+private:
+    std::vector<QPainterPath::Element> m_elements;
+    QRectF m_boundingRect;
+    quint64 m_id = 0;
+    Qt::FillRule m_fillRule = Qt::OddEvenFill;
+    bool m_isEmpty = true;
+};
+
 /// Item of the text sequence (either single character, or advance)
 struct TextSequenceItem
 {
     inline explicit TextSequenceItem() = default;
-    inline explicit TextSequenceItem(const QPainterPath* glyph, QChar character, PDFReal advance, CID cid) : glyph(glyph), character(character), advance(advance), cid(cid) { }
+    inline explicit TextSequenceItem(const PDFGlyphOutline* glyph, QChar character, PDFReal advance, CID cid) : glyph(glyph), character(character), advance(advance), cid(cid) { }
     inline explicit TextSequenceItem(PDFReal advance) : character(), advance(advance) { }
     inline explicit TextSequenceItem(const QByteArray* characterContentStream, QChar character, PDFReal advance, uint cid) : characterContentStream(characterContentStream), character(character), advance(advance), cid(cid) { }
 
@@ -88,7 +136,10 @@ struct TextSequenceItem
     inline bool isAdvance() const { return advance != 0.0; }
     inline bool isNull() const { return !isCharacter() && !isAdvance(); }
 
-    const QPainterPath* glyph = nullptr;
+    /// Outline of the glyph. It is owned by the realized font, which created the text
+    /// sequence, so the font must be alive, while this pointer is used. Outline is
+    /// shared by all threads, which use the font.
+    const PDFGlyphOutline* glyph = nullptr;
     const QByteArray* characterContentStream = nullptr;
     QChar character;
     PDFReal advance = 0;

@@ -51,6 +51,7 @@ namespace pdf
 class PDFCMS;
 class PDFDocument;
 class PDFFontCache;
+class PDFICCProfileCache;
 class PDFOptionalContentActivity;
 struct PDFMeshQualitySettings;
 
@@ -158,6 +159,7 @@ public:
     /// is taken by the job at its start; it can't be changed, while a job is running.
     void setEnvironment(const PDFDocument* document,
                         const PDFFontCache* fontCache,
+                        const PDFICCProfileCache* iccProfileCache,
                         const PDFCMS* cms,
                         const PDFOptionalContentActivity* optionalContentActivity,
                         const PDFMeshQualitySettings* meshQualitySettings,
@@ -215,6 +217,7 @@ private:
     {
         const PDFDocument* document = nullptr;
         const PDFFontCache* fontCache = nullptr;
+        const PDFICCProfileCache* iccProfileCache = nullptr;
         const PDFCMS* cms = nullptr;
         const PDFOptionalContentActivity* optionalContentActivity = nullptr;
         const PDFMeshQualitySettings* meshQualitySettings = nullptr;

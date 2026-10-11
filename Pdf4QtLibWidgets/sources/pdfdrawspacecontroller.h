@@ -29,6 +29,7 @@
 #include "pdfdocument.h"
 #include "pdfrenderer.h"
 #include "pdffont.h"
+#include "pdfcolorspaces.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfwidgetsnapshot.h"
 #include "pdfimagescaling.h"
@@ -123,6 +124,9 @@ public:
     /// Returns the font cache
     PDFFontCache* getFontCache() { return &m_fontCache; }
 
+    /// Returns the cache of the decoded ICC profiles of the document
+    const PDFICCProfileCache* getIccProfileCache() const { return &m_iccProfileCache; }
+
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
@@ -182,6 +186,7 @@ private:
 
     /// Font cache
     PDFFontCache m_fontCache;
+    PDFICCProfileCache m_iccProfileCache;
 };
 
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
@@ -344,6 +349,7 @@ public:
 
     const PDFDocument* getDocument() const { return m_controller->getDocument(); }
     PDFFontCache* getFontCache() const { return m_controller->getFontCache(); }
+    const PDFICCProfileCache* getIccProfileCache() const { return m_controller->getIccProfileCache(); }
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_controller->getOptionalContentActivity(); }
     PDFRenderer::Features getFeatures() const;
     const PDFMeshQualitySettings& getMeshQualitySettings() const { return m_meshQualitySettings; }

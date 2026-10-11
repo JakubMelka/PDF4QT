@@ -54,6 +54,7 @@ public:
     {
         PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &m_optionalContentActivity);
         m_fontCache.setDocument(modifiedDocument);
+        m_iccProfileCache.setDocument(modifiedDocument);
         m_fontCache.setCacheShrinkEnabled(nullptr, false);
     }
 
@@ -64,12 +65,13 @@ public:
 
     PDFOCRPagePreparer createPreparer(const PDFDocument* document)
     {
-        return PDFOCRPagePreparer(document, &m_fontCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
+        return PDFOCRPagePreparer(document, &m_fontCache, &m_iccProfileCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
     }
 
     PDFOptionalContentActivity m_optionalContentActivity;
     PDFCMSGeneric m_cms;
     PDFFontCache m_fontCache;
+    PDFICCProfileCache m_iccProfileCache;
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 

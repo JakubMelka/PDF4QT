@@ -40,6 +40,7 @@ namespace pdf
 class PDFImage;
 class PDFDocument;
 class PDFFontCache;
+class PDFICCProfileCache;
 class PDFFontCacheShrinkGuard;
 class PDFOperationControl;
 class PDFOptionalContentActivity;
@@ -93,6 +94,7 @@ public:
         PDFCMSPointer m_cms;
         std::unique_ptr<PDFOptionalContentActivity> m_optionalContentActivity;
         std::unique_ptr<PDFFontCache> m_fontCache;
+        std::unique_ptr<PDFICCProfileCache> m_iccProfileCache;
         std::unique_ptr<PDFFontCacheShrinkGuard> m_fontCacheShrinkGuard;
     };
 

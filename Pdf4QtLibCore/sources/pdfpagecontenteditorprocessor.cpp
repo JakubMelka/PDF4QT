@@ -43,11 +43,12 @@ static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObjec
 PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page,
                                                              const PDFDocument* document,
                                                              const PDFFontCache* fontCache,
+                                                             const PDFICCProfileCache* iccProfileCache,
                                                              const PDFCMS* CMS,
                                                              const PDFOptionalContentActivity* optionalContentActivity,
                                                              QTransform pagePointToDevicePointMatrix,
                                                              const PDFMeshQualitySettings& meshQualitySettings) :
-    BaseClass(page, document, fontCache, CMS, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings)
+    BaseClass(page, document, fontCache, iccProfileCache, CMS, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings)
 {
     m_clippingPaths.push(QPainterPath());
 

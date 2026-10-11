@@ -46,11 +46,12 @@ public:
     ImageCollectorProcessor(const PDFPage* page,
                             const PDFDocument* document,
                             const PDFFontCache* fontCache,
+                            const PDFICCProfileCache* iccProfileCache,
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             const PDFMeshQualitySettings& meshQualitySettings,
                             const ImageCallback& callback) :
-        PDFPageContentProcessor(page, document, fontCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
+        PDFPageContentProcessor(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
         m_callback(callback)
     {
     }
@@ -122,7 +123,8 @@ PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMS
     m_document(document),
     m_cms(std::move(cms)),
     m_optionalContentActivity(std::make_unique<PDFOptionalContentActivity>(document, OCUsage::Export, nullptr)),
-    m_fontCache(std::make_unique<PDFFontCache>(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT))
+    m_fontCache(std::make_unique<PDFFontCache>(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT)),
+    m_iccProfileCache(std::make_unique<PDFICCProfileCache>())
 {
     if (!m_cms)
     {
@@ -134,6 +136,7 @@ PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMS
 
     PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), m_optionalContentActivity.get());
     m_fontCache->setDocument(modifiedDocument);
+    m_iccProfileCache->setDocument(modifiedDocument);
     m_fontCacheShrinkGuard = std::make_unique<PDFFontCacheShrinkGuard>(m_fontCache.get(), this);
 }
 
@@ -149,7 +152,7 @@ void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const Im
     }
 
     PDFMeshQualitySettings meshQualitySettings;
-    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, callback);
+    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, callback);
     processor.setOperationControl(operationControl);
     processor.processContents();
 }

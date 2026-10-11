@@ -73,6 +73,7 @@ ShadingType PDFAxialShading::getShadingType() const
 
 PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionary,
                                         const PDFDocument* document,
+                                        const PDFICCProfileCache* iccProfileCache,
                                         const PDFObject& object,
                                         const PDFCMS* cms,
                                         RenderingIntent intent,
@@ -145,7 +146,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
             {
                 PDFObject patternGraphicState = document->getObject(patternDictionary->get("ExtGState"));
                 QTransform matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QTransform());
-                return createShadingPattern(colorSpaceDictionary, document, patternDictionary->get("Shading"), matrix, patternGraphicState, cms, intent, reporter, false);
+                return createShadingPattern(colorSpaceDictionary, document, iccProfileCache, patternDictionary->get("Shading"), matrix, patternGraphicState, cms, intent, reporter, false);
             }
 
             default:
@@ -158,6 +159,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
 
 PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDictionary,
                                                const PDFDocument* document,
+                                               const PDFICCProfileCache* iccProfileCache,
                                                const PDFObject& shadingObject,
                                                const QTransform& matrix,
                                                const PDFObject& patternGraphicState,
@@ -187,7 +189,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
     }
 
     // Parse common data for all shadings
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, document->getObject(shadingDictionary->get("ColorSpace")));
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, document, iccProfileCache, document->getObject(shadingDictionary->get("ColorSpace")));
 
     if (colorSpace->asPatternColorSpace())
     {

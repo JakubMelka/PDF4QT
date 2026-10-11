@@ -40,13 +40,14 @@ public:
     explicit PDFImageContentExtractorProcessor(const pdf::PDFPage* page,
                                                const pdf::PDFDocument* document,
                                                const pdf::PDFFontCache* fontCache,
+                                               const pdf::PDFICCProfileCache* iccProfileCache,
                                                const pdf::PDFCMS* cms,
                                                const pdf::PDFOptionalContentActivity* optionalContentActivity,
                                                QTransform pagePointToDevicePointMatrix,
                                                const pdf::PDFMeshQualitySettings& meshQualitySettings,
                                                pdf::PDFInteger pageIndex,
                                                PDFToolFetchImages* tool) :
-        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+        BaseClass(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
         m_pageIndex(pageIndex),
         m_order(0),
         m_tool(tool)
@@ -161,8 +162,10 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
     pdf::PDFMeshQualitySettings meshQualitySettings;
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
     fontCache.setDocument(md);
+    iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
     auto processPageContents = [&, this](pdf::PDFInteger pageIndex)
@@ -177,7 +180,7 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
         const pdf::PDFPage* page = catalog->getPage(pageIndex);
         Q_ASSERT(page);
 
-        PDFImageContentExtractorProcessor processor(page, &document, &fontCache, cms.data(), &optionalContentActivity,
+        PDFImageContentExtractorProcessor processor(page, &document, &fontCache, &iccProfileCache, cms.data(), &optionalContentActivity,
                                                     QTransform(), meshQualitySettings, pageIndex, this);
         processor.processContents();
     };

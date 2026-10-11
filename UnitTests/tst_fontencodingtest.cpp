@@ -26,6 +26,9 @@
 #include "pdfparser.h"
 #include <QFontDatabase>
 #include <QThread>
+
+#include <barrier>
+#include <tuple>
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfeditorfallbackfont.h"
@@ -43,7 +46,9 @@ private slots:
     void test_type0_dictionary_advances();
     void test_type0_cjk_substitution();
     void test_type0_missing_substitute_glyph();
+    void test_glyph_outline();
     void test_realized_font_concurrent_use();
+    void test_font_cache_concurrent_updates();
     void test_type0_cjk_collection_face();
     void test_type0_cjk_collection_coverage_data();
     void test_type0_cjk_collection_coverage();
@@ -404,11 +409,111 @@ void FontEncodingTest::test_type0_missing_substitute_glyph()
     }
 }
 
+void FontEncodingTest::test_glyph_outline()
+{
+    // Outline of a glyph is shared by the threads, so it holds a copy of the elements
+    // of a painter path. Path created from the outline must be the same, as the original
+    // path transformed by the matrix, and it must be a new path for each call.
+    auto getElements = [](const QPainterPath& path)
+    {
+        std::vector<std::tuple<int, qreal, qreal>> elements;
+        for (int i = 0; i < path.elementCount(); ++i)
+        {
+            const QPainterPath::Element element = path.elementAt(i);
+            elements.emplace_back(int(element.type), element.x, element.y);
+        }
+        return elements;
+    };
+
+    // Two contours with lines and curves, as they are created from the outline of a font
+    QPainterPath path;
+    path.moveTo(1.0, 2.0);
+    path.lineTo(11.0, 2.5);
+    path.quadTo(14.0, 9.0, 8.0, 12.0);
+    path.cubicTo(6.0, 15.0, 2.0, 13.0, 1.5, 7.0);
+    path.lineTo(1.0, 2.0);
+    path.moveTo(4.0, 5.0);
+    path.lineTo(7.0, 5.0);
+    path.cubicTo(8.0, 6.0, 8.0, 8.0, 5.0, 9.0);
+    path.closeSubpath();
+    QVERIFY(path.elementCount() > 12);
+
+    const pdf::PDFGlyphOutline outline(path);
+    QVERIFY(!outline.isEmpty());
+    QCOMPARE(outline.getBoundingRect(), path.boundingRect());
+
+    // The curve bulges out of the polygon of the end points, and the control points
+    // lie outside of the curve - the rectangle is the exact one
+    QVERIFY(outline.getBoundingRect().right() > 11.0);
+    QVERIFY(outline.getBoundingRect() != path.controlPointRect());
+
+    QTransform rotation;
+    rotation.translate(120.0, -35.0);
+    rotation.rotate(33.0);
+    rotation.scale(0.7, 1.9);
+
+    const std::vector<QTransform> matrices = { QTransform(),
+                                               QTransform::fromTranslate(250.5, 700.25),
+                                               QTransform::fromScale(0.012, -0.012),
+                                               QTransform(1.0, 0.0, 0.3, 1.0, 5.0, 6.0),
+                                               rotation,
+                                               QTransform(1.0, 0.0, 0.001, 0.0, 1.0, 0.002, 10.0, 20.0, 1.0) };
+
+    for (const QTransform& matrix : matrices)
+    {
+        const QPainterPath expected = matrix.map(path);
+        const QPainterPath created = outline.createPath(matrix);
+        QVERIFY(getElements(created) == getElements(expected));
+        QCOMPARE(created.fillRule(), expected.fillRule());
+        QCOMPARE(created.boundingRect(), expected.boundingRect());
+        QCOMPARE(created.controlPointRect(), expected.controlPointRect());
+    }
+    QVERIFY(!matrices.back().isAffine());
+
+    // Created path is independent of the outline, and of the other created paths
+    QPainterPath first = outline.createPath(QTransform());
+    const QPainterPath second = outline.createPath(QTransform());
+    first.translate(100.0, 100.0);
+    first.lineTo(0.0, 0.0);
+    QVERIFY(getElements(second) == getElements(path));
+    QVERIFY(getElements(outline.createPath(QTransform())) == getElements(path));
+    QCOMPARE(outline.getBoundingRect(), path.boundingRect());
+
+    // Fill rule is a part of the outline
+    QPainterPath windingPath = path;
+    windingPath.setFillRule(Qt::WindingFill);
+    QCOMPARE(pdf::PDFGlyphOutline(windingPath).createPath(rotation).fillRule(), Qt::WindingFill);
+
+    // Each outline created from a path has its own identifier, also if the path
+    // is the same. A copy of an outline is the same outline.
+    const pdf::PDFGlyphOutline otherOutline(path);
+    const pdf::PDFGlyphOutline outlineCopy = outline;
+    QVERIFY(outline.getId() != 0);
+    QVERIFY(otherOutline.getId() != 0);
+    QVERIFY(otherOutline.getId() != outline.getId());
+    QCOMPARE(outlineCopy.getId(), outline.getId());
+    QCOMPARE(pdf::PDFGlyphOutline().getId(), quint64(0));
+
+    // Outline of a glyph, which has nothing to paint (a space)
+    const pdf::PDFGlyphOutline emptyOutline{ QPainterPath() };
+    QVERIFY(emptyOutline.isEmpty());
+    QVERIFY(emptyOutline.createPath(rotation).isEmpty());
+    QCOMPARE(emptyOutline.createPath(rotation).elementCount(), 0);
+    QCOMPARE(emptyOutline.getBoundingRect(), QRectF());
+    QVERIFY(pdf::PDFGlyphOutline().isEmpty());
+
+    QPainterPath singlePointPath;
+    singlePointPath.moveTo(3.0, 4.0);
+    QVERIFY(pdf::PDFGlyphOutline(singlePointPath).isEmpty());
+}
+
 void FontEncodingTest::test_realized_font_concurrent_use()
 {
     // Realized font is shared by the threads compiling the pages. FreeType face
     // may be used by one thread at a time, so the character lookups are read from
     // the face when the font is realized, and the glyph loading is serialized.
+    // Loaded glyphs are found without a lock, and each glyph exists only once,
+    // so all threads must get the same glyph for the same character.
     pdf::FontDescriptor descriptor;
     descriptor.fontName = "PDF4QTNonexistentCJKFont";
     pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", descriptor,
@@ -443,6 +548,9 @@ void FontEncodingTest::test_realized_font_concurrent_use()
         QChar character;
         pdf::PDFReal advance = 0.0;
         int elementCount = -1;
+        QRectF bounds;
+        QRectF controlBounds;
+        std::vector<std::tuple<int, qreal, qreal>> outline;
 
         bool operator==(const Item&) const = default;
     };
@@ -452,7 +560,23 @@ void FontEncodingTest::test_realized_font_concurrent_use()
         std::vector<Item> items;
         for (const pdf::TextSequenceItem& item : sequence.items)
         {
-            items.push_back(Item{ item.character, item.advance, item.glyph ? item.glyph->elementCount() : -1 });
+            Item result;
+            result.character = item.character;
+            result.advance = item.advance;
+            if (item.glyph)
+            {
+                // Each thread has its own path created from the outline shared by the threads
+                const QPainterPath path = item.glyph->createPath(QTransform());
+                result.elementCount = path.elementCount();
+                result.bounds = item.glyph->getBoundingRect();
+                result.controlBounds = path.controlPointRect();
+                for (int index = 0; index < result.elementCount; ++index)
+                {
+                    const QPainterPath::Element element = path.elementAt(index);
+                    result.outline.emplace_back(int(element.type), element.x, element.y);
+                }
+            }
+            items.push_back(std::move(result));
         }
         return items;
     };
@@ -463,8 +587,27 @@ void FontEncodingTest::test_realized_font_concurrent_use()
     QVERIFY(std::any_of(reference.cbegin(), reference.cend(), [](const Item& item) { return item.elementCount > 0; }));
     const size_t referenceCharacterInfos = referenceFont->getCharacterInfos().size();
 
+    auto collectGlyphs = [](const pdf::TextSequence& sequence)
+    {
+        std::vector<const pdf::PDFGlyphOutline*> glyphs;
+        for (const pdf::TextSequenceItem& item : sequence.items)
+        {
+            glyphs.push_back(item.glyph);
+        }
+        return glyphs;
+    };
+
+    // Number of different glyphs of the text (glyphs are published in blocks of 256 glyphs)
+    std::vector<const pdf::PDFGlyphOutline*> referenceGlyphs = collectGlyphs(referenceSequence);
+    std::sort(referenceGlyphs.begin(), referenceGlyphs.end());
+    referenceGlyphs.erase(std::unique(referenceGlyphs.begin(), referenceGlyphs.end()), referenceGlyphs.end());
+    qInfo().noquote() << QString("Different glyphs: %1").arg(referenceGlyphs.size());
+
     constexpr int threadCount = 8;
+    std::barrier start(threadCount);
     std::vector<std::vector<Item>> results(threadCount);
+    std::vector<std::vector<const pdf::PDFGlyphOutline*>> glyphs(threadCount);
+    std::vector<std::vector<const pdf::PDFGlyphOutline*>> repeatedGlyphs(threadCount);
     std::vector<size_t> characterInfos(threadCount, 0);
     std::vector<std::unique_ptr<QThread>> threads;
     for (int i = 0; i < threadCount; ++i)
@@ -472,6 +615,7 @@ void FontEncodingTest::test_realized_font_concurrent_use()
         threads.emplace_back(QThread::create([&, i]()
         {
             pdf::PDFRenderErrorReporterDummy threadReporter;
+            start.arrive_and_wait();
             if (i % 4 == 3)
             {
                 // Direct access to the face, concurrently with the glyph loading
@@ -481,6 +625,12 @@ void FontEncodingTest::test_realized_font_concurrent_use()
             pdf::TextSequence sequence;
             sharedFont->fillTextSequence(encoded, sequence, &threadReporter);
             results[i] = collect(sequence);
+            glyphs[i] = collectGlyphs(sequence);
+
+            // All glyphs are loaded now
+            pdf::TextSequence repeatedSequence;
+            sharedFont->fillTextSequence(encoded, repeatedSequence, &threadReporter);
+            repeatedGlyphs[i] = collectGlyphs(repeatedSequence);
         }));
     }
     for (const auto& thread : threads)
@@ -495,11 +645,84 @@ void FontEncodingTest::test_realized_font_concurrent_use()
     for (int i = 0; i < threadCount; ++i)
     {
         QVERIFY(results[i] == reference);
+        QVERIFY(glyphs[i] == glyphs[0]);
+        QVERIFY(repeatedGlyphs[i] == glyphs[0]);
         if (i % 4 == 3)
         {
             QCOMPARE(characterInfos[i], referenceCharacterInfos);
         }
     }
+}
+
+void FontEncodingTest::test_font_cache_concurrent_updates()
+{
+    pdf::PDFDictionaryBuilder fontDictionary;
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Font"));
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Type1"));
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("BaseFont"), pdf::PDFObject::createName("Helvetica"));
+    const pdf::PDFObject directFont = pdf::PDFObject::createDictionary(std::move(fontDictionary));
+
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFObject indirectFont = pdf::PDFObject::createReference(builder.addObject(directFont));
+    pdf::PDFDocument firstDocument = builder.build();
+    pdf::PDFDocument secondDocument = firstDocument;
+    pdf::PDFFontCache cache(4, 4);
+    cache.setDocument(pdf::PDFModifiedDocument(&firstDocument, nullptr));
+
+    constexpr int threadCount = 6;
+    std::barrier start(threadCount);
+    std::vector<QString> errors(threadCount);
+    std::vector<std::unique_ptr<QThread>> threads;
+    for (int i = 0; i < threadCount; ++i)
+    {
+        threads.emplace_back(QThread::create([&, i]()
+        {
+            start.arrive_and_wait();
+            try
+            {
+                pdf::PDFRenderErrorReporterDummy reporter;
+                for (int iteration = 0; iteration < 100; ++iteration)
+                {
+                    if (i == 0)
+                    {
+                        cache.setCacheLimits(size_t(iteration % 5), size_t(iteration % 3));
+                        cache.shrink();
+                    }
+                    else if (i == 1)
+                    {
+                        cache.setDocument(pdf::PDFModifiedDocument(
+                            iteration % 2 ? &firstDocument : &secondDocument, nullptr));
+                    }
+                    else
+                    {
+                        const auto font = cache.getFont(i % 2 ? directFont : indirectFont, "F1");
+                        const auto realized = cache.getRealizedFont(font, 20.0, &reporter);
+                        pdf::TextSequence sequence;
+                        realized->fillTextSequence("A", sequence, &reporter);
+                        // The local shared pointer must retain the glyph after a cache eviction.
+                        QThread::yieldCurrentThread();
+                        if (sequence.items.size() != 1 || !sequence.items.front().glyph ||
+                            sequence.items.front().glyph->getBoundingRect().isEmpty())
+                        {
+                            errors[i] = QStringLiteral("Invalid glyph after a cache update");
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (const pdf::PDFException& exception)
+            {
+                errors[i] = exception.getMessage();
+            }
+        }));
+    }
+    for (const auto& thread : threads)
+        thread->start();
+    for (const auto& thread : threads)
+        QVERIFY(thread->wait(60000));
+    for (const QString& error : errors)
+        QVERIFY2(error.isEmpty(), qPrintable(error));
 }
 
 void FontEncodingTest::test_simple_font_encode()

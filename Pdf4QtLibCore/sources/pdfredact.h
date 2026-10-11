@@ -37,6 +37,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFRedact
 public:
     explicit PDFRedact(const PDFDocument* document,
                        const PDFFontCache* fontCache,
+                       const PDFICCProfileCache* iccProfileCache,
                        const PDFCMS* cms,
                        const PDFOptionalContentActivity* optionalContentActivity,
                        const PDFMeshQualitySettings* meshQualitySettings,
@@ -57,6 +58,7 @@ public:
 private:
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMS* m_cms;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFMeshQualitySettings* m_meshQualitySettings;

@@ -1180,6 +1180,7 @@ void PDFScanPreparationDialog::startAnalysis()
 
     const pdf::PDFDocument* document = m_context.document;
     const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+    const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
     const pdf::PDFCMS* cms = m_context.cms;
     const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
     const pdf::PDFMeshQualitySettings meshQualitySettings = m_meshQualitySettings;
@@ -1193,9 +1194,9 @@ void PDFScanPreparationDialog::startAnalysis()
         std::rotate(order.begin(), currentIt, currentIt + 1);
     }
 
-    m_futures.push_back(QtConcurrent::run([this, document, fontCache, cms, activity, meshQualitySettings, rendererEngine, order, generation, token]()
+    m_futures.push_back(QtConcurrent::run([this, document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine, order, generation, token]()
     {
-        pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, meshQualitySettings, rendererEngine);
+        pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine);
         for (pdf::PDFInteger page : order)
         {
             if (token->isOperationCancelled())
@@ -1317,17 +1318,18 @@ void PDFScanPreparationDialog::requestRender(pdf::PDFInteger pageIndex)
     m_pendingRenders.insert(pageIndex);
     const pdf::PDFDocument* document = m_context.document;
     const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+    const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
     const pdf::PDFCMS* cms = m_context.cms;
     const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
     const pdf::PDFMeshQualitySettings meshQualitySettings = m_meshQualitySettings;
     const pdf::RendererEngine rendererEngine = m_context.proxy->getRendererEngine();
 
-    m_futures.push_back(QtConcurrent::run([this, document, fontCache, cms, activity, meshQualitySettings, rendererEngine, pageIndex]()
+    m_futures.push_back(QtConcurrent::run([this, document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine, pageIndex]()
     {
         QImage image;
         try
         {
-            pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, meshQualitySettings, rendererEngine);
+            pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine);
             image = preparer.rasterize(pageIndex, VIEW_DPI, { }, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, nullptr).image;
         }
         catch (...)
@@ -1394,13 +1396,14 @@ void PDFScanPreparationDialog::startResult()
     const pdf::PDFDocument* document = m_context.document;
     const pdf::PDFInteger currentPage = m_currentPage;
     const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+    const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
     const pdf::PDFCMS* cms = m_context.cms;
     const pdf::PDFMeshQualitySettings meshQualitySettings = m_meshQualitySettings;
     const pdf::RendererEngine rendererEngine = m_context.proxy->getRendererEngine();
     const size_t outputCount = outputs.size();
 
     m_view->setResult({ }, QString());
-    m_futures.push_back(QtConcurrent::run([this, document, plan, currentPage, fontCache, cms, meshQualitySettings, rendererEngine, outputCount, generation, token]()
+    m_futures.push_back(QtConcurrent::run([this, document, plan, currentPage, fontCache, iccProfileCache, cms, meshQualitySettings, rendererEngine, outputCount, generation, token]()
     {
         std::vector<QImage> images;
         QString message;
@@ -1412,13 +1415,15 @@ void PDFScanPreparationDialog::startResult()
 
             // The prepared document has its own font cache (its objects differ)
             pdf::PDFFontCache resultFontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+            pdf::PDFICCProfileCache resultIccProfileCache;
             pdf::PDFOptionalContentActivity resultActivity(resultDocument, pdf::OCUsage::View, nullptr);
             pdf::PDFModifiedDocument modifiedDocument(const_cast<pdf::PDFDocument*>(resultDocument), &resultActivity);
             resultFontCache.setDocument(modifiedDocument);
+            resultIccProfileCache.setDocument(modifiedDocument);
             resultFontCache.setCacheShrinkEnabled(nullptr, false);
             Q_UNUSED(fontCache);
 
-            pdf::PDFOCRPagePreparer preparer(resultDocument, &resultFontCache, cms, &resultActivity, meshQualitySettings, rendererEngine);
+            pdf::PDFOCRPagePreparer preparer(resultDocument, &resultFontCache, &resultIccProfileCache, cms, &resultActivity, meshQualitySettings, rendererEngine);
             for (size_t i = 0; i < outputCount && !token->isOperationCancelled(); ++i)
             {
                 images.push_back(preparer.rasterize(currentPage + pdf::PDFInteger(i), 72.0, { }, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, token.get()).image);

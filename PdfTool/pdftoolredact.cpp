@@ -75,11 +75,13 @@ int PDFToolRedact::execute(const PDFToolOptions& options)
     pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
     pdf::PDFMeshQualitySettings meshQualitySettings;
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
     fontCache.setDocument(md);
+    iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
-    pdf::PDFRedact redactor(&document, &fontCache, cms.get(), &optionalContentActivity, &meshQualitySettings, Qt::black);
+    pdf::PDFRedact redactor(&document, &fontCache, &iccProfileCache, cms.get(), &optionalContentActivity, &meshQualitySettings, Qt::black);
     pdf::PDFDocument redactedDocument = redactor.perform(options.redactOptions);
 
     pdf::PDFDocumentWriter writer(nullptr);

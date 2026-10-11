@@ -190,6 +190,7 @@ void RedactPlugin::onCreateRedactedDocumentTriggered()
         pdf::PDFCMSPointer cms = m_widget->getCMSManager()->getCurrentCMS();
         pdf::PDFRedact redactProcessor(m_document,
                                        m_widget->getDrawWidgetProxy()->getFontCache(),
+                                       m_widget->getDrawWidgetProxy()->getIccProfileCache(),
                                        cms.data(),
                                        m_widget->getDrawWidgetProxy()->getOptionalContentActivity(),
                                        &m_widget->getDrawWidgetProxy()->getMeshQualitySettings(),

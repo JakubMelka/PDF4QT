@@ -183,6 +183,11 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     };
 
     m_colorSpaceDictionary = getDictionary(COLOR_SPACE_DICTIONARY);
+    if (m_colorSpaceDictionary && !m_colorSpaceCache.count(m_colorSpaceDictionary))
+    {
+        m_colorSpaceCache[m_colorSpaceDictionary].dictionaryObject = m_document->getObject(resources.getDictionary()->get(COLOR_SPACE_DICTIONARY));
+    }
+
     m_fontDictionary = getDictionary("Font");
     m_xobjectDictionary = getDictionary("XObject");
     m_extendedGraphicStateDictionary = getDictionary(PDF_RESOURCE_EXTGSTATE);
@@ -228,9 +233,31 @@ void PDFPageContentProcessor::initDictionaries(const PDFObject& resourcesObject)
     }
 }
 
+PDFColorSpacePointer PDFPageContentProcessor::getColorSpaceByName(const QByteArray& name)
+{
+    std::map<QByteArray, PDFColorSpacePointer>& colorSpaces = m_colorSpaceCache[m_colorSpaceDictionary].colorSpaces;
+
+    auto it = colorSpaces.find(name);
+    if (it != colorSpaces.end())
+    {
+        return it->second;
+    }
+
+    // Color spaces are immutable, so the same instance can be used repeatedly.
+    // If the color space cannot be created, exception is thrown and nothing is cached.
+    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, PDFObject::createName(name));
+    if (colorSpace)
+    {
+        colorSpaces[name] = colorSpace;
+    }
+
+    return colorSpace;
+}
+
 PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFDocument* document,
                                                  const PDFFontCache* fontCache,
+                                                 const PDFICCProfileCache* iccProfileCache,
                                                  const PDFCMS* CMS,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
                                                  QTransform pagePointToDevicePointMatrix,
@@ -238,6 +265,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
     m_page(page),
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_CMS(CMS),
     m_optionalContentActivity(optionalContentActivity),
     m_operationControl(nullptr),
@@ -284,9 +312,9 @@ void PDFPageContentProcessor::initializeProcessor()
     // Initialize default color spaces (gray, RGB, CMYK)
     try
     {
-        m_deviceGrayColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_GRAY);
-        m_deviceRGBColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_RGB);
-        m_deviceCMYKColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, COLOR_SPACE_NAME_DEVICE_CMYK);
+        m_deviceGrayColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, m_iccProfileCache, COLOR_SPACE_NAME_DEVICE_GRAY);
+        m_deviceRGBColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, m_iccProfileCache, COLOR_SPACE_NAME_DEVICE_RGB);
+        m_deviceCMYKColorSpace = PDFAbstractColorSpace::createDeviceColorSpaceByName(m_colorSpaceDictionary, m_document, m_iccProfileCache, COLOR_SPACE_NAME_DEVICE_CMYK);
     }
     catch (const PDFException& exception)
     {
@@ -531,7 +559,7 @@ PDFPageContentProcessor::PDFTransparencyGroup PDFPageContentProcessor::parseTran
         const PDFObject& colorSpaceObject = m_document->getObject(transparencyDictionary->get("CS"));
         if (!colorSpaceObject.isNull())
         {
-            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, colorSpaceObject);
             group.colorSpaceObject = transparencyDictionary->get("CS");
 
             if (group.colorSpacePointer && !group.colorSpacePointer->isBlendColorSpace())
@@ -692,7 +720,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                             {
                                 try
                                 {
-                                    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_document->getObject(dictionary->get("ColorSpace")));
+                                    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_document->getObject(dictionary->get("ColorSpace")));
                                     if (colorSpace)
                                     {
                                         componentCount = qMax<PDFInteger>(1, PDFInteger(colorSpace->getColorComponentCount()));
@@ -830,7 +858,7 @@ void PDFPageContentProcessor::processForm(const QTransform& matrix,
         const PDFObject& colorSpaceObject = m_document->getObject(transparencyDictionary->get("CS"));
         if (!colorSpaceObject.isNull())
         {
-            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+            group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, colorSpaceObject);
             group.colorSpaceObject = transparencyDictionary->get("CS");
         }
         group.isolated = loader.readBooleanFromDictionary(transparencyDictionary, "I", false);
@@ -2461,7 +2489,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorSpace(PDFPageContentP
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
+    PDFColorSpacePointer colorSpace = getColorSpaceByName(name.name);
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)
@@ -2484,7 +2512,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorSpace(PDFOperandName n
         return;
     }
 
-    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, PDFObject::createName(name.name));
+    PDFColorSpacePointer colorSpace = getColorSpaceByName(name.name);
     if (colorSpace)
     {
         // We must also set default color (it can depend on the color space)
@@ -2558,7 +2586,7 @@ void PDFPageContentProcessor::operatorColorSetStrokingColorN()
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
-                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
                 m_graphicState.setStrokeColorSpace(PDFColorSpacePointer(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
@@ -2636,7 +2664,7 @@ void PDFPageContentProcessor::operatorColorSetFillingColorN()
             if (m_patternDictionary && m_patternDictionary->hasKey(name.name))
             {
                 // Create the pattern
-                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
+                PDFPatternPtr pattern = PDFPattern::createPattern(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_patternDictionary->get(name.name), m_CMS, m_graphicState.getRenderingIntent(), this);
                 m_graphicState.setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFPatternColorSpace(qMove(pattern), qMove(uncoloredColorSpace), qMove(uncoloredPatternColor))));
                 updateGraphicState();
                 return;
@@ -2916,8 +2944,10 @@ void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
 {
     if (m_graphicState.getTextFont())
     {
-        // Get the realized font
-        const PDFRealizedFontPointer& realizedFont = getRealizedFont();
+        // Get the realized font. Font is held, until the text is drawn: text sequence
+        // refers to the outlines of its glyphs, and the font can be removed from the font
+        // cache meanwhile (for example, by a pattern, which draws a text).
+        const PDFRealizedFontPointer realizedFont = getRealizedFont();
         if (!realizedFont)
         {
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
@@ -2928,7 +2958,7 @@ void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
         // We use simple heuristic to ensure reallocation doesn't occur too often
         textSequence.items.reserve(m_operands.size());
         realizedFont->fillTextSequence(text.string, textSequence, this);
-        drawText(textSequence);
+        drawText(realizedFont, textSequence);
     }
     else
     {
@@ -2959,8 +2989,10 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
         // We use simple heuristic to ensure reallocation doesn't occur too often
         textSequence.items.reserve(m_operands.size() * 4);
 
-        // Get the realized font
-        const PDFRealizedFontPointer& realizedFont = getRealizedFont();
+        // Get the realized font. Font is held, until the text is drawn: text sequence
+        // refers to the outlines of its glyphs, and the font can be removed from the font
+        // cache meanwhile (for example, by a pattern, which draws a text).
+        const PDFRealizedFontPointer realizedFont = getRealizedFont();
         if (!realizedFont)
         {
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid font, text can't be printed."));
@@ -2996,7 +3028,7 @@ void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
             }
         }
 
-        drawText(textSequence);
+        drawText(realizedFont, textSequence);
     }
     else
     {
@@ -3036,7 +3068,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading '%1' not found.").arg(QString::fromLatin1(name.name)));
     }
 
-    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QTransform(), PDFObject(), m_CMS, m_graphicState.getRenderingIntent(), this, true);
+    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_iccProfileCache, m_shadingDictionary->get(name.name), QTransform(), PDFObject(), m_CMS, m_graphicState.getRenderingIntent(), this, true);
 
     // We will do a trick: we will set current fill color space, and then paint
     // bounding rectangle in the color pattern.
@@ -3069,7 +3101,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream, PDFObje
         const PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
         if (colorSpaceObject.isName() || colorSpaceObject.isArray())
         {
-            colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+            colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_iccProfileCache, colorSpaceObject);
         }
         else if (!colorSpaceObject.isNull())
         {
@@ -3281,7 +3313,7 @@ void PDFPageContentProcessor::operatorCompatibilityEnd()
     }
 }
 
-void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
+void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const TextSequence& textSequence)
 {
     if (textSequence.items.empty())
     {
@@ -3291,7 +3323,6 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
 
     performProcessTextSequence(textSequence, ProcessOrder::BeforeOperation);
 
-    const PDFRealizedFontPointer& font = getRealizedFont();
     if (font)
     {
         const bool isType3Font = m_graphicState.getTextFont()->getFontType() == FontType::Type3;
@@ -3337,18 +3368,17 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     }
                     advance.rx() *= horizontalScaling * fontFactor;
 
-                    // Then get the glyph path and paint it
+                    // Then get the glyph outline and paint it. Outline is shared by the threads,
+                    // which use the font, painter paths of the glyphs belong to this processor.
                     if (item.glyph)
                     {
-                        const QPainterPath& glyphPath = *item.glyph;
+                        const PDFGlyphOutline& glyphOutline = *item.glyph;
 
                         QTransform textRenderingMatrix = adjustMatrix * textMatrix;
                         QTransform toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
 
-                        if (!glyphPath.isEmpty())
+                        if (!glyphOutline.isEmpty())
                         {
-                            QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-
                             bool handledAsRealText = false;
                             if (fill && !stroke && isHorizontalWritingSystem && !item.character.isNull() &&
                                 !getGraphicState()->getFillColorSpace()->asPatternColorSpace())
@@ -3357,15 +3387,20 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                                 handledAsRealText = performTextCharacterDrawing(realTextDrawInfo);
                             }
 
-                            if (!handledAsRealText)
+                            // Transformation of the path of the glyph allocates memory, so the path is
+                            // transformed only if it is going to be painted (it is not, for example, when only
+                            // the text layout is created, or if the text is invisible). Conditions are the same
+                            // as the conditions, for which the path painting does nothing.
+                            if (!handledAsRealText && (stroke || fill) && !isContentSuppressed() && !isContentKindSuppressed(ContentKind::Text))
                             {
+                                QPainterPath transformedGlyph = textRenderingMatrix.map(getGlyphPath(glyphOutline));
                                 processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
                             }
 
                             if (clipped)
                             {
                                 // Clipping is enabled, we must transform to the device coordinates
-                                m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(glyphPath));
+                                m_textClippingPath = m_textClippingPath.united(toDeviceSpaceTransform.map(getGlyphPath(glyphOutline)));
                             }
                         }
 
@@ -3377,7 +3412,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                             info.isVerticalWritingSystem = !isHorizontalWritingSystem;
                             info.advance = item.advance;
                             info.fontSize = fontSize;
-                            info.outline = glyphPath;
+                            info.outline = &glyphOutline;
                             info.matrix = toDeviceSpaceTransform;
                             performOutputCharacter(info);
                         }
@@ -3480,6 +3515,22 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
     }
 
     performProcessTextSequence(textSequence, ProcessOrder::AfterOperation);
+}
+
+const QPainterPath& PDFPageContentProcessor::getGlyphPath(const PDFGlyphOutline& outline)
+{
+    auto it = m_glyphPaths.find(outline.getId());
+    if (it == m_glyphPaths.end())
+    {
+        if (m_glyphPaths.size() >= GLYPH_PATH_LIMIT)
+        {
+            m_glyphPaths.clear();
+        }
+
+        it = m_glyphPaths.emplace(outline.getId(), outline.createPath(QTransform())).first;
+    }
+
+    return it->second;
 }
 
 PDFRealizedFontPointer PDFPageContentProcessor::getRealizedFontImpl()

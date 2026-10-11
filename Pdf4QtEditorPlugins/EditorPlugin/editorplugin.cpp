@@ -1004,6 +1004,7 @@ void EditorPlugin::updateEditedPages()
         pdf::PDFPageContentEditorProcessor processor(page,
                                                      m_document,
                                                      m_widget->getDrawWidgetProxy()->getFontCache(),
+                                                     m_widget->getDrawWidgetProxy()->getIccProfileCache(),
                                                      cms.data(),
                                                      m_widget->getDrawWidgetProxy()->getOptionalContentActivity(),
                                                      QTransform(),
@@ -1055,9 +1056,11 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
         const pdf::PDFPage* page = document->getCatalog()->getPage(element->getPageIndex());
         auto cms = m_widget->getDrawWidgetProxy()->getCMSManager()->getCurrentCMS();
         pdf::PDFFontCache fontCache(64, 64);
+        pdf::PDFICCProfileCache iccProfileCache;
         pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
         fontCache.setDocument(pdf::PDFModifiedDocument(document, &activity));
-        pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, cms.data(), &activity, QTransform(), pdf::PDFMeshQualitySettings());
+        iccProfileCache.setDocument(pdf::PDFModifiedDocument(document, &activity));
+        pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &iccProfileCache, cms.data(), &activity, QTransform(), pdf::PDFMeshQualitySettings());
 
         QList<pdf::PDFRenderError> errors = processor.processContents();
         Q_UNUSED(errors);

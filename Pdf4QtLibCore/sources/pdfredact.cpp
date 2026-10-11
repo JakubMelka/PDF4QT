@@ -32,12 +32,14 @@ namespace pdf
 
 PDFRedact::PDFRedact(const PDFDocument* document,
                      const PDFFontCache* fontCache,
+                     const PDFICCProfileCache* iccProfileCache,
                      const PDFCMS* cms,
                      const PDFOptionalContentActivity* optionalContentActivity,
                      const PDFMeshQualitySettings* meshQualitySettings,
                      QColor redactFillColor) :
     m_document(document),
     m_fontCache(fontCache),
+    m_iccProfileCache(iccProfileCache),
     m_cms(cms),
     m_optionalContentActivity(optionalContentActivity),
     m_meshQualitySettings(meshQualitySettings),
@@ -53,6 +55,7 @@ PDFDocument PDFRedact::perform(Options options)
 
     PDFRenderer renderer(m_document,
                          m_fontCache,
+                         m_iccProfileCache,
                          m_cms,
                          m_optionalContentActivity,
                          PDFRenderer::None,

@@ -157,6 +157,7 @@ private:
     {
         const pdf::PDFDocument* document = nullptr;
         std::unique_ptr<pdf::PDFFontCache> fontCache;
+        std::unique_ptr<pdf::PDFICCProfileCache> iccProfileCache;
         std::unique_ptr<pdf::PDFCMSManager> cmsManager;
         std::unique_ptr<pdf::PDFOptionalContentActivity> optionalContentActivity;
         pdf::PDFMeshQualitySettings meshQualitySettings;

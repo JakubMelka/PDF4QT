@@ -202,6 +202,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::Export, this);
     m_rasterizerPool = new pdf::PDFRasterizerPool(m_document,
                                                   m_proxy->getFontCache(),
+                                                  m_proxy->getIccProfileCache(),
                                                   m_proxy->getCMSManager(),
                                                   m_optionalContentActivity,
                                                   pdf::PDFBitonalDocumentCreator::getPageRasterizationFeatures(),

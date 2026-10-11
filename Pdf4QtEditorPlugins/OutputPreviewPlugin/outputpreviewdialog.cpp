@@ -371,7 +371,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
     QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
     pdf::PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
-    pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(),
+    pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), proxy->getIccProfileCache(), cms.data(), proxy->getOptionalContentActivity(),
                                           &m_inkMapperForRendering, settings, pagePointToDevicePoint);
 
     renderer.beginPaint(imageSize);

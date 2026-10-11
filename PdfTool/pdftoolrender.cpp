@@ -181,12 +181,14 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
     cmsManager.setSettings(options.cmsSettings);
     pdf::PDFMeshQualitySettings meshQualitySettings;
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
     fontCache.setDocument(md);
+    iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
     m_pageInfo.resize(document.getCatalog()->getPageCount());
-    pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &cmsManager,
+    pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &iccProfileCache, &cmsManager,
                                           &optionalContentActivity, options.renderFeatures, meshQualitySettings,
                                           pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount),
                                           options.renderEngine, nullptr);

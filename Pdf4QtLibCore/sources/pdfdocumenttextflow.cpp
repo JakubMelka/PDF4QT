@@ -186,6 +186,7 @@ public:
                                                   const PDFPage* page,
                                                   const PDFDocument* document,
                                                   const PDFFontCache* fontCache,
+                                                  const PDFICCProfileCache* iccProfileCache,
                                                   const PDFCMS* cms,
                                                   const PDFOptionalContentActivity* optionalContentActivity,
                                                   QTransform pagePointToDevicePointMatrix,
@@ -193,7 +194,7 @@ public:
                                                   const PDFStructureTree* tree,
                                                   const std::map<PDFObjectReference, const PDFStructureItem*>* mapping,
                                                   PDFStructureTreeTextExtractor::Options extractorOptions) :
-        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
+        BaseClass(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
         m_features(features),
         m_tree(tree),
         m_mapping(mapping),
@@ -403,7 +404,7 @@ void PDFStructureTreeTextContentProcessor::performOutputCharacter(const PDFTextC
         {
             m_currentText.push_back(info.character);
 
-            QPainterPath worldPath = info.matrix.map(info.outline);
+            QPainterPath worldPath = info.outline ? info.outline->createPath(info.matrix) : QPainterPath();
             if (!worldPath.isEmpty())
             {
                 QRectF boundingRect = worldPath.controlPointRect();
@@ -433,6 +434,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
     m_tree->accept(&referenceCollector);
 
     PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    PDFICCProfileCache iccProfileCache;
 
     QMutex mutex;
     PDFCMSGeneric cms;
@@ -440,6 +442,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
     PDFOptionalContentActivity oca(m_document, OCUsage::Export, nullptr);
     pdf::PDFModifiedDocument md(const_cast<PDFDocument*>(m_document), &oca);
     fontCache.setDocument(md);
+    iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
     auto generateTextLayout = [&, this](PDFInteger pageIndex)
@@ -454,7 +457,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
         const PDFPage* page = catalog->getPage(pageIndex);
         Q_ASSERT(page);
 
-        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
+        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
         QList<PDFRenderError> errors = processor.processContents();
 
         QMutexLocker lock(&mutex);
@@ -679,6 +682,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
         case Algorithm::Layout:
         {
             PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+            PDFICCProfileCache iccProfileCache;
 
             std::map<PDFInteger, PDFDocumentTextFlow::Items> items;
 
@@ -688,9 +692,10 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             PDFOptionalContentActivity oca(document, OCUsage::Export, nullptr);
             pdf::PDFModifiedDocument md(const_cast<PDFDocument*>(document), &oca);
             fontCache.setDocument(md);
+            iccProfileCache.setDocument(md);
             fontCache.setCacheShrinkEnabled(nullptr, false);
 
-            auto generateTextLayout = [this, &items, &mutex, &fontCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
+            auto generateTextLayout = [this, &items, &mutex, &fontCache, &iccProfileCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
             {
                 if (!catalog->getPage(pageIndex))
                 {
@@ -701,7 +706,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 const PDFPage* page = catalog->getPage(pageIndex);
                 Q_ASSERT(page);
 
-                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &cms, &oca, QTransform(), mqs);
+                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs);
                 QList<PDFRenderError> errors = generator.processContents();
                 PDFTextLayout textLayout = generator.createTextLayout();
                 PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);

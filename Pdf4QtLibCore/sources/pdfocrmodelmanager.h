@@ -167,7 +167,10 @@ public:
     /// location is replaced by the name of the editor.
     static QString getApplicationDataRoot();
 
-    /// Returns the OCR data directory of the user (<AppDataLocation>/ocr)
+    /// Returns the OCR data directory of the user (<AppDataLocation>/ocr). The directory
+    /// can be changed by the environment variable PDF4QT_OCR_USER_DIRECTORY (for example,
+    /// a test of a dialog, which creates its own manager, keeps the data in a temporary
+    /// directory).
     static QString getDefaultUserDirectory();
 
     /// Returns the default built-in data directory (distribution data)

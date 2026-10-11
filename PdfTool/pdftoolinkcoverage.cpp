@@ -74,8 +74,10 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
     cmsManager.setSettings(options.cmsSettings);
 
     pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFICCProfileCache iccProfileCache;
     pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
     fontCache.setDocument(md);
+    iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
     pdf::PDFInkMapper inkMapper(&cmsManager, &document);
@@ -83,6 +85,7 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
 
     pdf::PDFInkCoverageCalculator calculator(&document,
                                              &fontCache,
+                                             &iccProfileCache,
                                              &cmsManager,
                                              &optionalContentActivity,
                                              &inkMapper,

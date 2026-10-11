@@ -312,6 +312,10 @@ private:
 
     std::shared_ptr<PDFOCRTestEngineFactory> m_testEngine;
     QTemporaryDir m_settingsDirectory;
+
+    /// OCR data of the user (the runtime sets of the language models
+    /// created by the dialogs), the directory is removed after the test
+    QTemporaryDir m_userDataDirectory;
 };
 
 void OCRDialogTest::initTestCase()
@@ -321,6 +325,12 @@ void OCRDialogTest::initTestCase()
     QCoreApplication::setOrganizationName(QStringLiteral("PDF4QT-UnitTests"));
     QCoreApplication::setApplicationName(QStringLiteral("UnitTestsOCRDialog"));
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDirectory.path());
+
+    // The dialogs create their own managers of the models, so the directory
+    // with the OCR data of the user is redirected by the environment variable
+    QVERIFY(m_userDataDirectory.isValid());
+    qputenv("PDF4QT_OCR_USER_DIRECTORY", m_userDataDirectory.path().toLocal8Bit());
+    QCOMPARE(PDFOCRModelManager::getDefaultUserDirectory(), QDir(m_userDataDirectory.path()).absolutePath());
 
     m_testEngine = std::make_shared<PDFOCRTestEngineFactory>();
     PDFOCREngineRegistry::getInstance()->registerFactory(m_testEngine);
@@ -380,13 +390,15 @@ QImage OCRDialogTest::renderTextImage(const QString& text, QSizeF pageSize)
     PDFDocument document = builder.build();
     PDFOptionalContentActivity activity(&document, OCUsage::Export, nullptr);
     PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    PDFICCProfileCache iccProfileCache;
     PDFModifiedDocument modifiedDocument(&document, &activity);
     fontCache.setDocument(modifiedDocument);
+    iccProfileCache.setDocument(modifiedDocument);
     fontCache.setCacheShrinkEnabled(nullptr, false);
     PDFCMSGeneric cms;
     PDFMeshQualitySettings meshQualitySettings;
 
-    PDFOCRPagePreparer preparer(&document, &fontCache, &cms, &activity, meshQualitySettings, RendererEngine::QPainter);
+    PDFOCRPagePreparer preparer(&document, &fontCache, &iccProfileCache, &cms, &activity, meshQualitySettings, RendererEngine::QPainter);
     PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(0, 300.0, { }, PDFOCRPagePreparer::DefaultMaximumPixels, nullptr);
     fontCache.setCacheShrinkEnabled(nullptr, true);
     return raster.image;
@@ -1586,6 +1598,7 @@ public:
     {
         PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &m_optionalContentActivity);
         m_fontCache.setDocument(modifiedDocument);
+        m_iccProfileCache.setDocument(modifiedDocument);
         m_fontCache.setCacheShrinkEnabled(nullptr, false);
     }
 
@@ -1596,12 +1609,13 @@ public:
 
     PDFOCRPagePreparer createPreparer(const PDFDocument* document)
     {
-        return PDFOCRPagePreparer(document, &m_fontCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
+        return PDFOCRPagePreparer(document, &m_fontCache, &m_iccProfileCache, &m_cms, &m_optionalContentActivity, m_meshQualitySettings, RendererEngine::QPainter);
     }
 
     PDFOptionalContentActivity m_optionalContentActivity;
     PDFCMSGeneric m_cms;
     PDFFontCache m_fontCache;
+    PDFICCProfileCache m_iccProfileCache;
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 

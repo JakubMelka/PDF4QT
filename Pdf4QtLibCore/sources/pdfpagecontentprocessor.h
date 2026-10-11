@@ -38,9 +38,12 @@
 #include <QPainterPath>
 #include <QSharedPointer>
 
+#include <map>
 #include <stack>
 #include <tuple>
+#include <vector>
 #include <type_traits>
+#include <unordered_map>
 
 namespace pdf
 {
@@ -359,6 +362,7 @@ public:
     explicit PDFPageContentProcessor(const PDFPage* page,
                                      const PDFDocument* document,
                                      const PDFFontCache* fontCache,
+                                     const PDFICCProfileCache* iccProfileCache,
                                      const PDFCMS* CMS,
                                      const PDFOptionalContentActivity* optionalContentActivity,
                                      QTransform pagePointToDevicePointMatrix,
@@ -785,6 +789,9 @@ protected:
     /// Returns font cache
     const PDFFontCache* getFontCache() const { return m_fontCache; }
 
+    /// Returns the cache of the decoded ICC profiles of the document (can be nullptr)
+    const PDFICCProfileCache* getIccProfileCache() const { return m_iccProfileCache; }
+
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
@@ -815,6 +822,13 @@ protected:
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);
+
+    /// Returns the color space of the given name from the current color space
+    /// dictionary. Color spaces are cached, because content streams usually
+    /// select the same color space many times, and its creation can be expensive
+    /// (for example, ICC profile must be decoded).
+    /// \param name Name of the color space
+    PDFColorSpacePointer getColorSpaceByName(const QByteArray& name);
 
     /// Process the content stream
     void processContentStream(const PDFStream* stream);
@@ -1061,14 +1075,29 @@ private:
     void operatorCompatibilityBegin();   ///< BX, Compatibility mode begin (unrecognized operators are ignored)
     void operatorCompatibilityEnd();     ///< EX, Compatibility mode end
 
-    // Draws the text using the text sequence
-    void drawText(const TextSequence& textSequence);
+    /// Draws the text using the text sequence
+    /// \param font Realized font, which created the text sequence. It owns the outlines
+    ///        of the glyphs of the sequence, so the caller must hold the font (not only
+    ///        a reference to a pointer, which can be changed by a nested content stream),
+    ///        until the function returns.
+    /// \param textSequence Text sequence
+    void drawText(const PDFRealizedFontPointer& font, const TextSequence& textSequence);
 
     /// Returns realized font
     const PDFRealizedFontPointer& getRealizedFont() { return m_realizedFont.get(this, &PDFPageContentProcessor::getRealizedFontImpl); }
 
     /// Returns realized font (or empty font, if font can't be realized)
     PDFRealizedFontPointer getRealizedFontImpl();
+
+    /// Returns the painter path of the glyph (in the coordinate system of the glyph).
+    /// Outline of the glyph is shared by the threads, which use the font, but a painter
+    /// path must not be (its functions marked as const write into its data, and the data
+    /// can be shared by the copies of the path). So the processor creates its own path
+    /// from the outline, when the glyph is painted for the first time, and the path and
+    /// its copies are used only by the thread of the processor. Returned reference is
+    /// valid, until the function is called again.
+    /// \param outline Outline of the glyph
+    const QPainterPath& getGlyphPath(const PDFGlyphOutline& outline);
 
     /// Checks, if stroking color is valid
     void checkStrokingColor();
@@ -1094,6 +1123,7 @@ private:
     const PDFPage* m_page;
     const PDFDocument* m_document;
     const PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMS* m_CMS;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFOperationControl* m_operationControl;
@@ -1110,6 +1140,18 @@ private:
     PDFColorSpacePointer m_deviceGrayColorSpace;
     PDFColorSpacePointer m_deviceRGBColorSpace;
     PDFColorSpacePointer m_deviceCMYKColorSpace;
+
+    /// Color spaces created by name from a single color space dictionary
+    struct PDFColorSpaceCacheItem
+    {
+        /// Holds the dictionary, so its address (which is the key of the cache)
+        /// cannot be reused by another dictionary during processing.
+        PDFObject dictionaryObject;
+        std::map<QByteArray, PDFColorSpacePointer> colorSpaces;
+    };
+
+    /// Cache of the named color spaces, for each color space dictionary used
+    std::map<const PDFDictionary*, PDFColorSpaceCacheItem> m_colorSpaceCache;
 
     /// Array with current operand arguments
     PDFFlatArray<PDFLexicalAnalyzer::Token, 33> m_operands;
@@ -1143,6 +1185,16 @@ private:
 
     /// Actually realized physical font
     PDFCachedItem<PDFRealizedFontPointer> m_realizedFont;
+
+    /// Maximal number of stored painter paths of the glyphs. If it is reached (by a page
+    /// content, which switches between a large number of fonts), all the paths are removed.
+    static constexpr size_t GLYPH_PATH_LIMIT = 4096;
+
+    /// Painter paths of the glyphs painted by this processor, see \p getGlyphPath. The key
+    /// is the identifier of the outline, not its address: the processor does not own the fonts
+    /// (a font removed from the font cache must be released), and the address of an outline
+    /// of a released font can be used by another outline, while the identifier cannot.
+    std::unordered_map<quint64, QPainterPath> m_glyphPaths;
 
     /// Actual clipping path obtained from text. Clipping path
     /// is in device space coordinates.

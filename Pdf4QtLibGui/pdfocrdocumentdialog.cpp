@@ -183,7 +183,7 @@ PDFOCRDocumentDialog::PDFOCRDocumentDialog(const Context& context, QWidget* pare
 
     m_documentFingerprintReady = m_pageCount > MAXIMUM_DOCUMENT_FINGERPRINT_PAGES;
     m_session->setDocument(m_context.document, createIdentity());
-    m_jobController->setEnvironment(m_context.document, m_context.proxy->getFontCache(), m_context.cms, m_optionalContentActivity, &m_meshQualitySettings, m_context.proxy->getRendererEngine());
+    m_jobController->setEnvironment(m_context.document, m_context.proxy->getFontCache(), m_context.proxy->getIccProfileCache(), m_context.cms, m_optionalContentActivity, &m_meshQualitySettings, m_context.proxy->getRendererEngine());
 
     initializeUi();
     initializePages();
@@ -967,6 +967,7 @@ void PDFOCRDocumentDialog::startPageDataTask()
 {
     const pdf::PDFDocument* document = m_context.document;
     const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+    const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
     const pdf::PDFCMS* cms = m_context.cms;
     const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
     const pdf::PDFMeshQualitySettings* meshQualitySettings = &m_meshQualitySettings;
@@ -982,9 +983,9 @@ void PDFOCRDocumentDialog::startPageDataTask()
 
     const bool computeDocumentFingerprint = !m_documentFingerprintReady;
 
-    startTask(m_pageDataTask, [this, document, fontCache, cms, activity, meshQualitySettings, rendererEngine, order, thumbnailSize, computeDocumentFingerprint](int generation, const pdf::PDFOperationControl* operationControl)
+    startTask(m_pageDataTask, [this, document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine, order, thumbnailSize, computeDocumentFingerprint](int generation, const pdf::PDFOperationControl* operationControl)
     {
-        pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, *meshQualitySettings, rendererEngine);
+        pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, *meshQualitySettings, rendererEngine);
 
         for (pdf::PDFInteger pageIndex : order)
         {
@@ -1250,6 +1251,7 @@ void PDFOCRDocumentDialog::startPreviewTask()
 
     const pdf::PDFDocument* document = m_context.document;
     const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+    const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
     const pdf::PDFCMS* cms = m_context.cms;
     const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
     const pdf::PDFMeshQualitySettings* meshQualitySettings = &m_meshQualitySettings;
@@ -1291,7 +1293,7 @@ void PDFOCRDocumentDialog::startPreviewTask()
 
     startTask(m_previewTask, [=, this](int generation, const pdf::PDFOperationControl* operationControl)
     {
-        pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, *meshQualitySettings, rendererEngine);
+        pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, *meshQualitySettings, rendererEngine);
 
         QImage original;
         QTransform pageToOriginal;
@@ -2531,13 +2533,14 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             std::map<pdf::PDFInteger, pdf::PDFOCRPageAnalysis> analyses;
             const pdf::PDFDocument* document = m_context.document;
             const pdf::PDFFontCache* fontCache = m_context.proxy->getFontCache();
+            const pdf::PDFICCProfileCache* iccProfileCache = m_context.proxy->getIccProfileCache();
             const pdf::PDFCMS* cms = m_context.cms;
             const pdf::PDFOptionalContentActivity* activity = m_optionalContentActivity;
             const pdf::PDFMeshQualitySettings& meshQualitySettings = m_meshQualitySettings;
             const pdf::RendererEngine rendererEngine = m_context.proxy->getRendererEngine();
             runBlockingTask(tr("Analyzing the pages..."), [&](const pdf::PDFOperationControl* operationControl)
             {
-                pdf::PDFOCRPagePreparer preparer(document, fontCache, cms, activity, meshQualitySettings, rendererEngine);
+                pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine);
                 for (pdf::PDFInteger page : pagesToAnalyze)
                 {
                     analyses[page] = preparer.analyze(page, operationControl);

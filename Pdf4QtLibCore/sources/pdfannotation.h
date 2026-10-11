@@ -50,6 +50,7 @@ namespace pdf
 class PDFWidget;
 class PDFObjectStorage;
 class PDFFontCache;
+class PDFICCProfileCache;
 class PDFFormManager;
 class PDFModifiedDocument;
 class PDFOptionalContentActivity;
@@ -1497,6 +1498,7 @@ public:
     };
 
     explicit PDFAnnotationManager(PDFFontCache* fontCache,
+                                  const PDFICCProfileCache* iccProfileCache,
                                   const PDFCMSManager* cmsManager,
                                   const PDFOptionalContentActivity* optionalActivity,
                                   PDFMeshQualitySettings meshQualitySettings,
@@ -1525,6 +1527,9 @@ public:
 
     PDFFontCache* getFontCache() const;
     void setFontCache(PDFFontCache* fontCache);
+
+    const PDFICCProfileCache* getIccProfileCache() const;
+    void setIccProfileCache(const PDFICCProfileCache* iccProfileCache);
 
     PDFMeshQualitySettings getMeshQualitySettings() const;
     void setMeshQualitySettings(const PDFMeshQualitySettings& meshQualitySettings);
@@ -1669,6 +1674,7 @@ protected:
     const PDFDocument* m_document;
 
     PDFFontCache* m_fontCache;
+    const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalActivity;
     PDFFormManager* m_formManager;

@@ -357,8 +357,10 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     if (!m_cancelled)
     {
         PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        PDFICCProfileCache iccProfileCache;
         PDFOptionalContentActivity optionalContentActivity(m_leftDocument, pdf::OCUsage::View, nullptr);
         fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_leftDocument), &optionalContentActivity));
+        iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_leftDocument), &optionalContentActivity));
 
         PDFCMSManager cmsManager(nullptr);
         cmsManager.setDocument(m_leftDocument);
@@ -368,7 +370,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
         {
             PDFPrecompiledPage compiledPage;
             constexpr PDFRenderer::Features features = PDFRenderer::IgnoreOptionalContent;
-            PDFRenderer renderer(m_leftDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
+            PDFRenderer renderer(m_leftDocument, &fontCache, &iccProfileCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
             renderer.compile(&compiledPage, context.pageIndex);
 
             auto page = m_leftDocument->getCatalog()->getPage(context.pageIndex);
@@ -385,8 +387,10 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     if (!m_cancelled)
     {
         PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        PDFICCProfileCache iccProfileCache;
         PDFOptionalContentActivity optionalContentActivity(m_rightDocument, pdf::OCUsage::View, nullptr);
         fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_rightDocument), &optionalContentActivity));
+        iccProfileCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_rightDocument), &optionalContentActivity));
 
         PDFCMSManager cmsManager(nullptr);
         cmsManager.setDocument(m_rightDocument);
@@ -396,7 +400,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
         {
             PDFPrecompiledPage compiledPage;
             constexpr PDFRenderer::Features features = PDFRenderer::IgnoreOptionalContent;
-            PDFRenderer renderer(m_rightDocument, &fontCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
+            PDFRenderer renderer(m_rightDocument, &fontCache, &iccProfileCache, cms.data(), &optionalContentActivity, features, pdf::PDFMeshQualitySettings());
             renderer.compile(&compiledPage, context.pageIndex);
 
             const PDFPage* page = m_rightDocument->getCatalog()->getPage(context.pageIndex);

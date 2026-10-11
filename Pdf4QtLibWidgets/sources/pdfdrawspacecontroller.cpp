@@ -65,6 +65,10 @@ PDFDrawSpaceController::~PDFDrawSpaceController()
 
 void PDFDrawSpaceController::setDocument(const PDFModifiedDocument& document)
 {
+    // Decoded ICC profiles belong to a single version of the document. They are removed
+    // always, the pointer cannot tell, if the document is another version of the old one.
+    m_iccProfileCache.setDocument(document);
+
     if (document != m_document)
     {
         m_document = document;
@@ -892,7 +896,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     {
                         QString blockNumber = QString::number(blockIndex++);
 
-                        painter->drawPath(matrix.map(block.getBoundingBox()));
+                        painter->drawPath(matrix.map(block.getBoundingBox().toPath()));
                         painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
                     }
 
@@ -917,7 +921,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                         {
                             QString lineNumber = QString::number(lineIndex++);
 
-                            painter->drawPath(matrix.map(line.getBoundingBox()));
+                            painter->drawPath(matrix.map(line.getBoundingBox().toPath()));
                             painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
                         }
                     }

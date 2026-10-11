@@ -97,6 +97,7 @@ PDFBitonalDocumentCreator::PDFBitonalDocumentCreator(const PDFDocument* document
     m_progress(progress)
 {
     Q_ASSERT(m_document);
+    m_iccProfileCache.setDocument(m_document);
 }
 
 PDFRenderer::Features PDFBitonalDocumentCreator::getPageRasterizationFeatures()
@@ -1857,7 +1858,7 @@ std::optional<PDFImage> PDFBitonalDocumentCreator::getImageFromReference(PDFObje
             if (colorSpaceObject.isName() || colorSpaceObject.isArray())
             {
                 PDFDictionaryBuilder dummyDictionary;
-                colorSpace = PDFAbstractColorSpace::createColorSpace(dummyDictionary.getDictionary(), m_document, colorSpaceObject);
+                colorSpace = PDFAbstractColorSpace::createColorSpace(dummyDictionary.getDictionary(), m_document, &m_iccProfileCache, colorSpaceObject);
             }
         }
         pdfImage.emplace(PDFImage::createImage(m_document,

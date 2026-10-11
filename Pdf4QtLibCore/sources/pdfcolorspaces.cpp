@@ -30,6 +30,8 @@
 #include "pdfexecutionpolicy.h"
 
 #include <QCryptographicHash>
+#include <QMutex>
+#include <QMutexLocker>
 
 #include "pdfdbgheap.h"
 
@@ -44,6 +46,83 @@ namespace pdf
 static thread_local std::vector<float> s_rowInputColors;
 static thread_local std::vector<unsigned char> s_rowOutputColors;
 static thread_local std::vector<unsigned char> s_rowAlphaValues;
+
+void PDFICCProfileCache::setDocument(const PDFDocument* document)
+{
+    // Removed profiles are destroyed after the lock is released
+    std::vector<Item> removedItems;
+    removedItems.reserve(CACHE_SIZE + 1);
+
+    QMutexLocker lock(&m_mutex);
+    m_document = document;
+    ++m_documentChangeCount;
+    removedItems.swap(m_items);
+}
+
+PDFDecodedICCProfile PDFICCProfileCache::getProfile(const PDFDocument* document, const PDFObject& streamObject) const
+{
+    Q_ASSERT(streamObject.isStream());
+    const PDFStream* stream = streamObject.getStream();
+
+    auto findItem = [this, stream]()
+    {
+        return std::find_if(m_items.begin(), m_items.end(), [stream](const Item& item) { return item.streamObject.getStream() == stream; });
+    };
+
+    size_t documentChangeCount = 0;
+
+    {
+        QMutexLocker lock(&m_mutex);
+        if (m_document != document)
+        {
+            // Profile of another document
+            lock.unlock();
+            return decodeProfile(document, streamObject);
+        }
+
+        auto it = findItem();
+        if (it != m_items.end())
+        {
+            std::rotate(m_items.begin(), it, std::next(it));
+            return m_items.front().profile;
+        }
+
+        documentChangeCount = m_documentChangeCount;
+    }
+
+    // Decode the profile without the lock, it is an expensive operation. If more threads
+    // need the same new profile at the same time, then each of them decodes it.
+    Item item;
+    item.streamObject = streamObject;
+    item.profile = decodeProfile(document, streamObject);
+    PDFDecodedICCProfile profile = item.profile;
+
+    // Item removed from the cache is destroyed after the lock is released
+    Item removedItem;
+
+    QMutexLocker lock(&m_mutex);
+    if (m_documentChangeCount == documentChangeCount && findItem() == m_items.end())
+    {
+        m_items.insert(m_items.begin(), qMove(item));
+        if (m_items.size() > CACHE_SIZE)
+        {
+            removedItem = qMove(m_items.back());
+            m_items.pop_back();
+        }
+    }
+
+    return profile;
+}
+
+PDFDecodedICCProfile PDFICCProfileCache::decodeProfile(const PDFDocument* document, const PDFObject& streamObject)
+{
+    Q_ASSERT(streamObject.isStream());
+
+    PDFDecodedICCProfile profile;
+    profile.data = document->getDecodedStream(streamObject.getStream());
+    profile.checksum = QCryptographicHash::hash(profile.data, QCryptographicHash::Md5);
+    return profile;
+}
 
 namespace colorspaces
 {
@@ -739,18 +818,20 @@ QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                              const PDFDocument* document,
+                                                             const PDFICCProfileCache* iccProfileCache,
                                                              const PDFObject& colorSpace)
 {
     std::set<QByteArray> usedNames;
-    return createColorSpaceImpl(colorSpaceDictionary, document, colorSpace, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
+    return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, colorSpace, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByName(const PDFDictionary* colorSpaceDictionary,
                                                                          const PDFDocument* document,
+                                                                         const PDFICCProfileCache* iccProfileCache,
                                                                          const QByteArray& name)
 {
     std::set<QByteArray> usedNames;
-    return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
+    return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, iccProfileCache, name, COLOR_SPACE_MAX_LEVEL_OF_RECURSION, usedNames);
 }
 
 PDFColor PDFAbstractColorSpace::convertToColor(const std::vector<PDFReal>& components)
@@ -1369,6 +1450,7 @@ QSize PDFAbstractColorSpace::getLargerSizeByArea(QSize s1, QSize s2)
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
                                                                  const PDFDocument* document,
+                                                                 const PDFICCProfileCache* iccProfileCache,
                                                                  const PDFObject& colorSpace,
                                                                  int recursion,
                                                                  std::set<QByteArray>& usedNames)
@@ -1380,7 +1462,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
     if (colorSpace.isName())
     {
-        return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, colorSpace.getString(), recursion, usedNames);
+        return createDeviceColorSpaceByNameImpl(colorSpaceDictionary, document, iccProfileCache, colorSpace.getString(), recursion, usedNames);
     }
     else if (colorSpace.isArray())
     {
@@ -1397,7 +1479,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                 QByteArray name = colorSpaceIdentifier.getString();
 
                 const PDFDictionary* dictionary = nullptr;
-                const PDFStream* stream = nullptr;
+                const PDFObject* streamObject = nullptr;
                 if (count > 1)
                 {
                     const PDFObject& colorSpaceSettings = document->getObject(array->getItem(1));
@@ -1407,7 +1489,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     }
                     if (colorSpaceSettings.isStream())
                     {
-                        stream = colorSpaceSettings.getStream();
+                        streamObject = &colorSpaceSettings;
                     }
                 }
 
@@ -1416,7 +1498,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     PDFColorSpacePointer uncoloredPatternColorSpace;
                     if (count == 2)
                     {
-                        uncoloredPatternColorSpace = createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion, usedNames);
+                        uncoloredPatternColorSpace = createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(array->getItem(1)), recursion, usedNames);
                     }
 
                     return PDFColorSpacePointer(new PDFPatternColorSpace(std::make_shared<PDFInvalidPattern>(), qMove(uncoloredPatternColorSpace), PDFColor()));
@@ -1438,28 +1520,28 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
                     }
                 }
 
-                if (stream && name == COLOR_SPACE_NAME_ICCBASED)
+                if (streamObject && name == COLOR_SPACE_NAME_ICCBASED)
                 {
-                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, stream, recursion, usedNames);
+                    return PDFICCBasedColorSpace::createICCBasedColorSpace(colorSpaceDictionary, document, iccProfileCache, *streamObject, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_INDEXED && count == 4)
                 {
-                    return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
+                    return PDFIndexedColorSpace::createIndexedColorSpace(colorSpaceDictionary, document, iccProfileCache, array, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_SEPARATION && count == 4)
                 {
-                    return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
+                    return PDFSeparationColorSpace::createSeparationColorSpace(colorSpaceDictionary, document, iccProfileCache, array, recursion, usedNames);
                 }
 
                 if (name == COLOR_SPACE_NAME_DEVICE_N && count >= 4)
                 {
-                    return PDFDeviceNColorSpace::createDeviceNColorSpace(colorSpaceDictionary, document, array, recursion, usedNames);
+                    return PDFDeviceNColorSpace::createDeviceNColorSpace(colorSpaceDictionary, document, iccProfileCache, array, recursion, usedNames);
                 }
 
                 // Try to just load by standard way - we can have "standard" color space stored in array
-                return createColorSpaceImpl(colorSpaceDictionary, document, colorSpaceIdentifier, recursion, usedNames);
+                return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, colorSpaceIdentifier, recursion, usedNames);
             }
         }
     }
@@ -1469,6 +1551,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictio
 
 PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(const PDFDictionary* colorSpaceDictionary,
                                                                              const PDFDocument* document,
+                                                                             const PDFICCProfileCache* iccProfileCache,
                                                                              const QByteArray& name,
                                                                              int recursion,
                                                                              std::set<QByteArray>& usedNames)
@@ -1495,7 +1578,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     {
         if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_GRAY) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion, usedNames);
+            return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_GRAY)), recursion, usedNames);
         }
         else
         {
@@ -1506,7 +1589,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     {
         if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_RGB) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion, usedNames);
+            return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_RGB)), recursion, usedNames);
         }
         else
         {
@@ -1517,7 +1600,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     {
         if (colorSpaceDictionary && colorSpaceDictionary->hasKey(COLOR_SPACE_NAME_DEFAULT_CMYK) && !isNameAlreadyProcessed)
         {
-            return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion, usedNames);
+            return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(colorSpaceDictionary->get(COLOR_SPACE_NAME_DEFAULT_CMYK)), recursion, usedNames);
         }
         else
         {
@@ -1526,7 +1609,7 @@ PDFColorSpacePointer PDFAbstractColorSpace::createDeviceColorSpaceByNameImpl(con
     }
     else if (colorSpaceDictionary && colorSpaceDictionary->hasKey(name))
     {
-        return createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorSpaceDictionary->get(name)), recursion, usedNames);
+        return createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(colorSpaceDictionary->get(name)), recursion, usedNames);
     }
 
     throw PDFException(PDFTranslationContext::tr("Invalid color space."));
@@ -1960,6 +2043,16 @@ PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColor
     m_iccProfileDataChecksum = QCryptographicHash::hash(m_iccProfileData, QCryptographicHash::Md5);
 }
 
+PDFICCBasedColorSpace::PDFICCBasedColorSpace(PDFColorSpacePointer alternateColorSpace, Ranges range, QByteArray iccProfileData, QByteArray iccProfileDataChecksum, PDFObjectReference metadata) :
+    m_alternateColorSpace(qMove(alternateColorSpace)),
+    m_range(range),
+    m_iccProfileData(qMove(iccProfileData)),
+    m_iccProfileDataChecksum(qMove(iccProfileDataChecksum)),
+    m_metadata(metadata)
+{
+
+}
+
 PDFColor PDFICCBasedColorSpace::getDefaultColorOriginal() const
 {
     PDFColor color;
@@ -2047,19 +2140,25 @@ bool PDFICCBasedColorSpace::equals(const PDFAbstractColorSpace* other) const
 
 PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                      const PDFDocument* document,
-                                                                     const PDFStream* stream,
+                                                                     const PDFICCProfileCache* iccProfileCache,
+                                                                     const PDFObject& streamObject,
                                                                      int recursion,
                                                                      std::set<QByteArray>& usedNames)
 {
+    if (!streamObject.isStream())
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid color space."));
+    }
+
     // First, try to load alternate color space, if it is present
-    const PDFDictionary* dictionary = stream->getDictionary();
-    QByteArray iccProfileData = document->getDecodedStream(stream);
+    const PDFDictionary* dictionary = streamObject.getStream()->getDictionary();
+    PDFDecodedICCProfile profile = iccProfileCache ? iccProfileCache->getProfile(document, streamObject) : PDFICCProfileCache::decodeProfile(document, streamObject);
 
     PDFDocumentDataLoaderDecorator loader(document);
     PDFColorSpacePointer alternateColorSpace;
     if (dictionary->hasKey(ICCBASED_ALTERNATE))
     {
-        alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(dictionary->get(ICCBASED_ALTERNATE)), recursion, usedNames);
+        alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(dictionary->get(ICCBASED_ALTERNATE)), recursion, usedNames);
     }
     else
     {
@@ -2070,19 +2169,19 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
         {
             case 1:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_GRAY), recursion, usedNames);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_GRAY), recursion, usedNames);
                 break;
             }
 
             case 3:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_RGB), recursion, usedNames);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_RGB), recursion, usedNames);
                 break;
             }
 
             case 4:
             {
-                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_CMYK), recursion, usedNames);
+                alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, PDFObject::createName(COLOR_SPACE_NAME_DEVICE_CMYK), recursion, usedNames);
                 break;
             }
 
@@ -2114,7 +2213,7 @@ PDFColorSpacePointer PDFICCBasedColorSpace::createICCBasedColorSpace(const PDFDi
     auto itEnd = std::next(itStart, rangeSize);
     loader.readNumberArrayFromDictionary(dictionary, ICCBASED_RANGE, itStart, itEnd);
 
-    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(iccProfileData), loader.readReferenceFromDictionary(dictionary, "Metadata")));
+    return PDFColorSpacePointer(new PDFICCBasedColorSpace(qMove(alternateColorSpace), ranges, qMove(profile.data), qMove(profile.checksum), loader.readReferenceFromDictionary(dictionary, "Metadata")));
 }
 
 const PDFICCBasedColorSpace::Ranges& PDFICCBasedColorSpace::getRange() const
@@ -2414,6 +2513,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
 PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                    const PDFDocument* document,
+                                                                   const PDFICCProfileCache* iccProfileCache,
                                                                    const PDFArray* array,
                                                                    int recursion,
                                                                    std::set<QByteArray>& usedNames)
@@ -2421,7 +2521,7 @@ PDFColorSpacePointer PDFIndexedColorSpace::createIndexedColorSpace(const PDFDict
     Q_ASSERT(array->getCount() == 4);
 
     // Read base color space
-    PDFColorSpacePointer baseColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(1)), recursion, usedNames);
+    PDFColorSpacePointer baseColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(array->getItem(1)), recursion, usedNames);
 
     if (!baseColorSpace)
     {
@@ -2625,6 +2725,7 @@ std::vector<PDFColorComponent> PDFSeparationColorSpace::transformColorsToBaseCol
 
 PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                          const PDFDocument* document,
+                                                                         const PDFICCProfileCache* iccProfileCache,
                                                                          const PDFArray* array,
                                                                          int recursion,
                                                                          std::set<QByteArray>& usedNames)
@@ -2640,7 +2741,7 @@ PDFColorSpacePointer PDFSeparationColorSpace::createSeparationColorSpace(const P
     QByteArray colorName = colorNameObject.getString();
 
     // Read alternate color space
-    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion, usedNames);
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(array->getItem(2)), recursion, usedNames);
     if (!alternateColorSpace)
     {
         throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for separation color space."));
@@ -2854,6 +2955,7 @@ std::vector<PDFColorComponent> PDFDeviceNColorSpace::transformColorsToBaseColorS
 
 PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDictionary* colorSpaceDictionary,
                                                                    const PDFDocument* document,
+                                                                   const PDFICCProfileCache* iccProfileCache,
                                                                    const PDFArray* array,
                                                                    int recursion,
                                                                    std::set<QByteArray>& usedNames)
@@ -2876,7 +2978,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
     }
 
     // Read alternate color space
-    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(array->getItem(2)), recursion, usedNames);
+    PDFColorSpacePointer alternateColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(array->getItem(2)), recursion, usedNames);
     if (!alternateColorSpace)
     {
         throw PDFException(PDFTranslationContext::tr("Can't determine alternate color space for DeviceN color space."));
@@ -2916,7 +3018,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
                 {
                     if (colorantsDictionary->hasKey(colorantInfo.name))
                     {
-                        colorantInfo.separationColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, document->getObject(colorantsDictionary->get(colorantInfo.name)), recursion, usedNames);
+                        colorantInfo.separationColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, document->getObject(colorantsDictionary->get(colorantInfo.name)), recursion, usedNames);
                     }
                 }
             }
@@ -2965,7 +3067,7 @@ PDFColorSpacePointer PDFDeviceNColorSpace::createDeviceNColorSpace(const PDFDict
                 const PDFObject& processColorSpaceObject = document->getObject(processDictionary->get("ColorSpace"));
                 if (!processColorSpaceObject.isNull())
                 {
-                    processColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, processColorSpaceObject, recursion, usedNames);
+                    processColorSpace = PDFAbstractColorSpace::createColorSpaceImpl(colorSpaceDictionary, document, iccProfileCache, processColorSpaceObject, recursion, usedNames);
                     processColorSpaceComponents = loader.readNameArrayFromDictionary(processDictionary, "Components");
                 }
             }

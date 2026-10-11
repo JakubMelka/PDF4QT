@@ -264,6 +264,12 @@ QString PDFOCRModelManager::getApplicationDataRoot()
 
 QString PDFOCRModelManager::getDefaultUserDirectory()
 {
+    const QByteArray environmentDirectory = qgetenv("PDF4QT_OCR_USER_DIRECTORY");
+    if (!environmentDirectory.isEmpty())
+    {
+        return QDir(QString::fromLocal8Bit(environmentDirectory)).absolutePath();
+    }
+
     return QDir(getApplicationDataRoot() + QStringLiteral("/ocr")).absolutePath();
 }
 

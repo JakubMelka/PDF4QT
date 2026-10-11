@@ -56,6 +56,7 @@ PDFOCRJobController::~PDFOCRJobController()
 
 void PDFOCRJobController::setEnvironment(const PDFDocument* document,
                                          const PDFFontCache* fontCache,
+                                         const PDFICCProfileCache* iccProfileCache,
                                          const PDFCMS* cms,
                                          const PDFOptionalContentActivity* optionalContentActivity,
                                          const PDFMeshQualitySettings* meshQualitySettings,
@@ -73,6 +74,7 @@ void PDFOCRJobController::setEnvironment(const PDFDocument* document,
 
     m_environment.document = document;
     m_environment.fontCache = fontCache;
+    m_environment.iccProfileCache = iccProfileCache;
     m_environment.cms = cms;
     m_environment.optionalContentActivity = optionalContentActivity;
     m_environment.meshQualitySettings = meshQualitySettings;
@@ -670,7 +672,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
 
     auto memoryGuard = qScopeGuard([this, rasterBytes]() { releaseMemory(rasterBytes); });
 
-    PDFOCRPagePreparer preparer(environment.document, environment.fontCache, environment.cms, environment.optionalContentActivity, *environment.meshQualitySettings, environment.rendererEngine);
+    PDFOCRPagePreparer preparer(environment.document, environment.fontCache, environment.iccProfileCache, environment.cms, environment.optionalContentActivity, *environment.meshQualitySettings, environment.rendererEngine);
 
     // Excluded rectangles: masked rectangles + excluded regions
     std::vector<QRectF> excludedRectangles = task.maskedRectangles;
