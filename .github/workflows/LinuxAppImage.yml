@@ -70,6 +70,9 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
           cd vcpkg
+          # vcpkg.json pins the versions of the dependencies by builtin-baseline, the shallow clone
+          # has to contain that commit
+          git fetch --depth=1 origin "$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' ../pdf4qt/vcpkg.json)"
           ./bootstrap-vcpkg.sh
           ./vcpkg integrate install
         
