@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon/pages">
+<g id="glyph">
+<path d="M9.5 3H5C4.44772 3 4 3.44772 4 4V10C4 10.5523 4.44772 11 5 11H9.5C10.0523 11 10.5 10.5523 10.5 10V4C10.5 3.44772 10.0523 3 9.5 3Z" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M19 3H14.5C13.9477 3 13.5 3.44772 13.5 4V10C13.5 10.5523 13.9477 11 14.5 11H19C19.5523 11 20 10.5523 20 10V4C20 3.44772 19.5523 3 19 3Z" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M9.5 13H5C4.44772 13 4 13.4477 4 14V20C4 20.5523 4.44772 21 5 21H9.5C10.0523 21 10.5 20.5523 10.5 20V14C10.5 13.4477 10.0523 13 9.5 13Z" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M19 13H14.5C13.9477 13 13.5 13.4477 13.5 14V20C13.5 20.5523 13.9477 21 14.5 21H19C19.5523 21 20 20.5523 20 20V14C20 13.4477 19.5523 13 19 13Z" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</svg>

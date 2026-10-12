@@ -481,3 +481,22 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsDiffOverlay "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDiffOverlay")
     set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # The pages of the gallery are compiled into the test, which checks them for leaks of the palette
+    add_executable(UnitTestsWidgetStyle
+        tst_widgetstyletest.cpp
+        ../Pdf4QtFluentGallery/gallerypages.cpp
+        ../Pdf4QtFluentGallery/gallerypages.h
+    )
+    target_include_directories(UnitTestsWidgetStyle PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery)
+    target_link_libraries(UnitTestsWidgetStyle PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsWidgetStyle PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsWidgetStyle "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsWidgetStyle")
+    set_tests_properties(UnitTestsWidgetStyle PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
