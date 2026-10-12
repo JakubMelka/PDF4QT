@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthemeiconengine.h"
 
@@ -987,7 +1009,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
     const bool isAutoRaise = option->state.testFlag(QStyle::State_AutoRaise) || PDFWidgetStyleImpl::inherits(widget ? widget->parentWidget() : nullptr, "QToolBar") || isSidebarTab(widget);
     const bool hasArrow = option->features.testFlag(QStyleOptionToolButton::Arrow) && option->arrowType != Qt::NoArrow;
     const bool hasIcon = hasArrow || !option->icon.isNull();
-    const bool hasIndicator = hasMenuIndicator(option, widget);
+    bool hasIndicator = hasMenuIndicator(option, widget);
 
     Qt::ToolButtonStyle buttonStyle = option->toolButtonStyle;
     if (option->text.isEmpty() || (buttonStyle == Qt::ToolButtonFollowStyle))
@@ -997,6 +1019,11 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
     if (!hasIcon && buttonStyle != Qt::ToolButtonIconOnly)
     {
         buttonStyle = Qt::ToolButtonTextOnly;
+    }
+    if (buttonStyle == Qt::ToolButtonTextBesideIcon)
+    {
+        // The menu button of a toolbar (an icon with a text) has no chevron
+        hasIndicator = false;
     }
     if (!hasIcon && option->text.isEmpty())
     {
@@ -1248,7 +1275,8 @@ QSize PDFWidgetStyleButtons::getToolButtonSize(const QStyleOptionToolButton* opt
         case Qt::ToolButtonTextBesideIcon:
         {
             const int textWidth = PDFWidgetStyleImpl::getTextWidth(option->text, PDFWidgetStyleImpl::getFont(widget, Font::BodyMedium));
-            return QSize(10 + TOOL_BUTTON_TEXT_ICON + 8 + textWidth + indicatorWidth + 12 + splitWidth, TOOL_BUTTON);
+            // The menu button of a toolbar (an icon with a text) has no chevron
+            return QSize(10 + TOOL_BUTTON_TEXT_ICON + 8 + textWidth + 12 + splitWidth, TOOL_BUTTON);
         }
 
         case Qt::ToolButtonTextOnly:

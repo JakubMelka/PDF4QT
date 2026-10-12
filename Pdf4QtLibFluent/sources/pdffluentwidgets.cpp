@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
@@ -479,6 +501,145 @@ void PDFPlainTextEdit::changeEvent(QEvent* event)
     }
 }
 
+void PDFPlainTextEdit::paintEvent(QPaintEvent* event)
+{
+    // The editor draws the selection in the height of the lines of the font.
+    // The selection of the design fills the whole line, so it is completed here
+    // below the text.
+    const QTextCursor cursor = textCursor();
+
+    if (cursor.hasSelection())
+    {
+        QPainter painter(viewport());
+        const QColor color = palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::Highlight);
+        const int selectionStart = cursor.selectionStart();
+        const int selectionEnd = cursor.selectionEnd();
+        const QPointF offset = contentOffset();
+
+        for (QTextBlock block = firstVisibleBlock(); block.isValid(); block = block.next())
+        {
+            const QRectF geometry = blockBoundingGeometry(block).translated(offset);
+            if (geometry.top() > event->rect().bottom())
+            {
+                break;
+            }
+
+            const QTextLayout* layout = block.layout();
+            if (!block.isVisible() || !layout || block.position() >= selectionEnd || block.position() + block.length() <= selectionStart)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < layout->lineCount(); ++i)
+            {
+                const QTextLine line = layout->lineAt(i);
+                const int from = qMax(selectionStart, block.position() + line.textStart());
+                const int to = qMin(selectionEnd, block.position() + line.textStart() + line.textLength());
+
+                if (from >= to || line.height() > PDFPlainTextLayout::LINE_HEIGHT)
+                {
+                    continue;
+                }
+
+                const qreal x1 = line.cursorToX(from - block.position());
+                const qreal x2 = line.cursorToX(to - block.position());
+                const qreal top = geometry.top() + line.y() - qFloor((PDFPlainTextLayout::LINE_HEIGHT - line.height()) / 2.0);
+                painter.fillRect(QRectF(geometry.left() + qMin(x1, x2), top, qAbs(x2 - x1), PDFPlainTextLayout::LINE_HEIGHT), color);
+            }
+        }
+    }
+
+    QPlainTextEdit::paintEvent(event);
+}
+
+void PDFPlainTextEdit::mousePressEvent(QMouseEvent* event)
+{
+    handleMouseEvent(event);
+}
+
+void PDFPlainTextEdit::mouseMoveEvent(QMouseEvent* event)
+{
+    handleMouseEvent(event);
+}
+
+void PDFPlainTextEdit::mouseReleaseEvent(QMouseEvent* event)
+{
+    handleMouseEvent(event);
+}
+
+void PDFPlainTextEdit::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    handleMouseEvent(event);
+}
+
+void PDFPlainTextEdit::handleMouseEvent(QMouseEvent* event)
+{
+    // The editor gets the event with the pointer moved into a line of the text, see getLinePosition
+    QMouseEvent lineEvent(event->type(), getLinePosition(event->position()), event->scenePosition(), event->globalPosition(),
+                          event->button(), event->buttons(), event->modifiers(), event->pointingDevice());
+
+    switch (event->type())
+    {
+        case QEvent::MouseButtonPress:
+            QPlainTextEdit::mousePressEvent(&lineEvent);
+            break;
+
+        case QEvent::MouseMove:
+            QPlainTextEdit::mouseMoveEvent(&lineEvent);
+            break;
+
+        case QEvent::MouseButtonRelease:
+            QPlainTextEdit::mouseReleaseEvent(&lineEvent);
+            break;
+
+        case QEvent::MouseButtonDblClick:
+            QPlainTextEdit::mouseDoubleClickEvent(&lineEvent);
+            break;
+
+        default:
+            break;
+    }
+
+    event->setAccepted(lineEvent.isAccepted());
+}
+
+QPointF PDFPlainTextEdit::getLinePosition(const QPointF& position) const
+{
+    // The lines of the font are lower than the lines of the design, in which they
+    // are centered. The editor takes a point between two lines as a point behind
+    // the end of the upper line, so the caret would jump to the end of a line in
+    // the gaps. The point is moved into the line, in whose line of the design it lies.
+    const QPointF offset = contentOffset();
+
+    for (QTextBlock block = firstVisibleBlock(); block.isValid(); block = block.next())
+    {
+        const QRectF geometry = blockBoundingGeometry(block).translated(offset);
+        if (geometry.top() > position.y())
+        {
+            break;
+        }
+
+        const QTextLayout* layout = block.layout();
+        if (!block.isVisible() || !layout || layout->lineCount() == 0 || position.y() >= geometry.bottom())
+        {
+            continue;
+        }
+
+        QTextLine line = layout->lineAt(0);
+        for (int i = 1; i < layout->lineCount() && geometry.top() + layout->lineAt(i).y() - 1.0 <= position.y(); ++i)
+        {
+            line = layout->lineAt(i);
+        }
+
+        // The editor tests the rectangle of the text of the line, which is lower
+        // than the rounded height of the line
+        const QRectF lineRect = line.naturalTextRect().translated(0.0, geometry.top());
+        return QPointF(position.x(), qBound(lineRect.top(), position.y(), qMax(lineRect.top(), lineRect.bottom() - 0.5)));
+    }
+
+    return position;
+}
+
 void PDFPlainTextEdit::init()
 {
     // The editor remembers the layout of its document, so the layout with the
@@ -584,6 +745,12 @@ PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
         m_viewport = view->viewport();
         m_viewport->setMouseTracking(true);
         m_viewport->installEventFilter(this);
+    }
+
+    if (QWidget* navigationBar = findChild<QWidget*>(QStringLiteral("qt_calendar_navigationbar")))
+    {
+        // The navigation is 32 px high, its buttons of 28 px are centered in it
+        navigationBar->setFixedHeight(32);
     }
 
     for (const char* name : { "qt_calendar_prevmonth", "qt_calendar_nextmonth" })
@@ -1244,11 +1411,13 @@ QWidget* PDFItemEditorFactory::createEditor(int userType, QWidget* parent) const
 
     // Other editors are created by the default factory. The default factory can
     // be a factory of this class (installed by the application for all views),
-    // then only the editors registered to it are left.
+    // then a value of another type is edited as a text, as the factory of Qt does.
     const QItemEditorFactory* factory = QItemEditorFactory::defaultFactory();
     if (factory == this || dynamic_cast<const PDFItemEditorFactory*>(factory))
     {
-        return QItemEditorFactory::createEditor(userType, parent);
+        PDFLineEdit* editor = new PDFLineEdit(parent);
+        editor->setFrame(false);
+        return editor;
     }
 
     return factory->createEditor(userType, parent);
@@ -1286,7 +1455,7 @@ QByteArray PDFItemEditorFactory::valuePropertyName(int userType) const
     const QItemEditorFactory* factory = QItemEditorFactory::defaultFactory();
     if (factory == this || dynamic_cast<const PDFItemEditorFactory*>(factory))
     {
-        return QItemEditorFactory::valuePropertyName(userType);
+        return QByteArrayLiteral("text");
     }
 
     return factory->valuePropertyName(userType);

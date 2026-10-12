@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthememanager.h"
 #include "pdfthemeiconengine.h"
@@ -188,8 +210,9 @@ bool PDFWidgetStyleImpl::isFocusVisible(const QStyleOption* option, const QWidge
     // Qt follows only the tab key and shortcuts and it keeps its flag until the
     // focus is changed. The style follows each key and each click, the same
     // condition decides about the focus frame outside of the widget. The flag
-    // of Qt is used only for an option without a widget.
-    return widget ? m_keyboardModality : option->state.testFlag(QStyle::State_KeyboardFocusChange);
+    // of Qt is used only for an option without a widget, or with a widget,
+    // which is not shown (a control drawn into a picture).
+    return (widget && widget->isVisible()) ? m_keyboardModality : option->state.testFlag(QStyle::State_KeyboardFocusChange);
 }
 
 bool PDFWidgetStyleImpl::isApplicationStyle()
@@ -850,7 +873,9 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
         {
             // The toolbar computes the margins of its layout from the metrics again
             QToolBar* toolBar = qobject_cast<QToolBar*>(watched);
-            if (toolBar && toolBar->style() == m_style && toolBar->testAttribute(Qt::WA_WState_Polished))
+            // The style of the application can be wrapped by a style sheet or by a
+            // proxy style, only a toolbar with a style of its own is left alone
+            if (toolBar && !toolBar->testAttribute(Qt::WA_SetStyle) && toolBar->testAttribute(Qt::WA_WState_Polished))
             {
                 QMetaObject::invokeMethod(toolBar, [toolBar]() { applyToolBarMargins(toolBar); }, Qt::QueuedConnection);
             }
@@ -861,7 +886,8 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
         case QEvent::Resize:
         {
             QWidget* extension = qobject_cast<QWidget*>(watched);
-            if (extension && extension->inherits("QToolBarExtension") && extension->style() == m_style)
+            if (extension && extension->inherits("QToolBarExtension") && !extension->testAttribute(Qt::WA_SetStyle) &&
+                extension->parentWidget() && !extension->parentWidget()->testAttribute(Qt::WA_SetStyle))
             {
                 placeToolBarExtension(extension);
             }
@@ -913,7 +939,7 @@ void PDFWidgetStyleImpl::resetAlt(QObject* watched)
 bool PDFWidgetStyleImpl::handlePopupMarginEvent(QObject* watched, QMouseEvent* event)
 {
     QWidget* popup = qobject_cast<QWidget*>(watched);
-    if (!popup || !popup->isWindow() || m_isForwardingMouseEvent)
+    if (!popup || !popup->isWindow() || event == m_forwardedMouseEvent)
     {
         return false;
     }
@@ -975,9 +1001,12 @@ bool PDFWidgetStyleImpl::handlePopupMarginEvent(QObject* watched, QMouseEvent* e
         const QPointF scenePosition = target->window()->mapFromGlobal(event->globalPosition());
         QMouseEvent forwardedEvent(event->type(), targetPosition, scenePosition, event->globalPosition(), event->button(), event->buttons(), event->modifiers(), event->pointingDevice());
 
-        m_isForwardingMouseEvent = true;
+        // The forwarded event is recognized by its address: its handler can
+        // run a nested event loop (an action, which opens a dialog)
+        const QEvent* previousEvent = m_forwardedMouseEvent;
+        m_forwardedMouseEvent = &forwardedEvent;
         QCoreApplication::sendEvent(target, &forwardedEvent);
-        m_isForwardingMouseEvent = false;
+        m_forwardedMouseEvent = previousEvent;
         return true;
     }
 
@@ -1046,6 +1075,13 @@ void PDFWidgetStyleImpl::onThemeChanged()
         QEvent styleChange(QEvent::StyleChange);
         QCoreApplication::sendEvent(widget, &styleChange);
         widget->update();
+
+        QToolBar* toolBar = qobject_cast<QToolBar*>(widget);
+        if (toolBar && !toolBar->testAttribute(Qt::WA_SetStyle) && toolBar->testAttribute(Qt::WA_WState_Polished))
+        {
+            // The toolbar has computed its margins from the metrics, see the event filter
+            applyToolBarMargins(toolBar);
+        }
     }
 }
 
@@ -1319,15 +1355,33 @@ void PDFWidgetStyleImpl::movePopup(QWidget* widget)
     }
     const QRect available = screen ? screen->availableGeometry() : QRect();
 
+    // Anchors: the pointer, the widget with the focus (a button opened by the
+    // keyboard), the parent of the popup (the editor of a calendar) and the
+    // widget below the pointer (a button, which does not take the focus). The
+    // anchor of a menu bar is its open item.
     QList<QRect> anchors;
     anchors << QRect(QCursor::pos(), QSize(1, 1));
 
-    for (const QWidget* anchorWidget : { static_cast<const QWidget*>(QApplication::focusWidget()), static_cast<const QWidget*>(widget->parentWidget()) })
+    for (const QWidget* anchorWidget : { static_cast<const QWidget*>(QApplication::focusWidget()), static_cast<const QWidget*>(widget->parentWidget()),
+                                         static_cast<const QWidget*>(QApplication::widgetAt(QCursor::pos())) })
     {
-        if (anchorWidget && anchorWidget != widget && anchorWidget->isVisible())
+        if (!anchorWidget || anchorWidget == widget || anchorWidget->window() == widget || !anchorWidget->isVisible())
         {
-            anchors << QRect(anchorWidget->mapToGlobal(QPoint(0, 0)), anchorWidget->size());
+            continue;
         }
+
+        QRect anchor(anchorWidget->mapToGlobal(QPoint(0, 0)), anchorWidget->size());
+
+        if (const QMenuBar* menuBar = qobject_cast<const QMenuBar*>(anchorWidget))
+        {
+            if (menuBar->activeAction())
+            {
+                const QRect actionRect = menuBar->actionGeometry(menuBar->activeAction());
+                anchor = QRect(menuBar->mapToGlobal(actionRect.topLeft()), actionRect.size());
+            }
+        }
+
+        anchors << anchor;
     }
 
     bool isAnchoredByRight = screen && window.right() >= available.right() - 1;
@@ -1336,16 +1390,19 @@ void PDFWidgetStyleImpl::movePopup(QWidget* widget)
     for (const QRect& anchor : anchors)
     {
         const bool isPoint = anchor.size() == QSize(1, 1);
+        const bool isAbove = qAbs(window.bottom() + 1 - anchor.top()) <= 2;
+        const bool isBelow = qAbs(window.top() - (anchor.bottom() + 1)) <= 2;
 
         // The window ends at the top of the anchor and it does not start below it
-        if (qAbs(window.bottom() + 1 - anchor.top()) <= 2 && qAbs(window.top() - (anchor.bottom() + 1)) > 2)
+        if (isAbove && !isBelow)
         {
             isAnchoredByBottom = true;
         }
 
-        // The window ends at the pointer, or it is aligned with the right edge of a widget
+        // The window ends at the pointer, or it lies above or below a widget
+        // and it is aligned with its right edge
         const int anchorRight = isPoint ? anchor.left() : anchor.right() + 1;
-        if (qAbs(window.right() + 1 - anchorRight) <= 2 && qAbs(window.left() - anchor.left()) > 2)
+        if (qAbs(window.right() + 1 - anchorRight) <= 2 && qAbs(window.left() - anchor.left()) > 2 && (isPoint || isAbove || isBelow))
         {
             isAnchoredByRight = true;
         }

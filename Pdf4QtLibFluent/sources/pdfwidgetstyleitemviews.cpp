@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthemeiconengine.h"
 
@@ -63,7 +85,16 @@ private:
 
     static bool isComboPopup(const QWidget* widget);
     static bool isTreeBranchColumn(const QStyleOptionViewItem* option, const QWidget* widget);
-    static bool isTreeBranchArea(const QRect& rect, const QWidget* widget);
+    /// Part of the tree column, for which the panel of a row is drawn
+    enum class TreeArea
+    {
+        None,       ///< Another column, or an item without the slot of a branch
+        Branch,     ///< Area of the branches before the item
+        Item        ///< Item, which follows the area of the branches
+    };
+
+    static int getTreeColumn(const QTreeView* treeView);
+    static TreeArea getTreeArea(const QRect& rect, const QWidget* widget);
     static QRect getDisclosureRect(const QStyleOption* option);
     static QSize getDecorationSize(const QStyleOptionViewItem* option);
     static QFont getItemFont(const QStyleOptionViewItem* option, const QWidget* widget, bool isSelected);
@@ -98,7 +129,7 @@ bool PDFWidgetStyleItemViews::isTreeBranchColumn(const QStyleOptionViewItem* opt
         return false;
     }
 
-    if (option->index.column() != treeView->treePosition() && !(treeView->treePosition() < 0 && option->index.column() == 0))
+    if (option->index.column() != getTreeColumn(treeView))
     {
         return false;
     }
@@ -106,24 +137,38 @@ bool PDFWidgetStyleItemViews::isTreeBranchColumn(const QStyleOptionViewItem* opt
     return treeView->rootIsDecorated() || option->index.parent().isValid();
 }
 
-bool PDFWidgetStyleItemViews::isTreeBranchArea(const QRect& rect, const QWidget* widget)
+int PDFWidgetStyleItemViews::getTreeColumn(const QTreeView* treeView)
+{
+    // The tree lies in the first visual column, unless the view says another one
+    if (treeView->treePosition() >= 0)
+    {
+        return treeView->treePosition();
+    }
+
+    return treeView->header() ? treeView->header()->logicalIndex(0) : 0;
+}
+
+PDFWidgetStyleItemViews::TreeArea PDFWidgetStyleItemViews::getTreeArea(const QRect& rect, const QWidget* widget)
 {
     const QTreeView* treeView = qobject_cast<const QTreeView*>(widget);
     if (!treeView || rect.isEmpty())
     {
-        return false;
+        return TreeArea::None;
     }
 
-    // The area of the branches belongs to the tree column and it lies outside
-    // of the rectangle of its item
     const QModelIndex index = treeView->indexAt(rect.center());
-    if (!index.isValid())
+    if (!index.isValid() || index.column() != getTreeColumn(treeView))
     {
-        return false;
+        return TreeArea::None;
     }
 
-    const int treeColumn = treeView->treePosition() < 0 ? 0 : treeView->treePosition();
-    return index.column() == treeColumn && !treeView->visualRect(index).intersects(rect);
+    // The area of the branches lies outside of the rectangle of the item
+    if (!treeView->visualRect(index).intersects(rect))
+    {
+        return TreeArea::Branch;
+    }
+
+    return (treeView->rootIsDecorated() || index.parent().isValid()) ? TreeArea::Item : TreeArea::None;
 }
 
 QRect PDFWidgetStyleItemViews::getDisclosureRect(const QStyleOption* option)
@@ -370,22 +415,17 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
 
             QRectF rect(option->rect);
 
-            if (viewItem->features.testFlag(QStyleOptionViewItem::Alternate))
-            {
-                PDFStylePainter::fillRect(painter, rect, Color::BgSubtle);
-            }
-
             // The area of the branches of a tree starts the shape of the selected
             // row. The tree view draws this primitive also below each item (for
-            // the alternating rows), where the fill belongs to the item.
-            const bool isBranchArea = isTreeBranchArea(option->rect, widget);
-            const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
+            // the alternating rows), where the fill belongs to the item. The fill
+            // of the area of the branches continues below the chevron, which
+            // reaches into the item, so the start of the item belongs to it.
+            const TreeArea treeArea = getTreeArea(option->rect, widget);
+            const bool isBranchArea = treeArea == TreeArea::Branch;
+            const bool isRightToLeft = option->direction == Qt::RightToLeft;
 
-            if (isBranchArea && isEnabled)
+            if (treeArea == TreeArea::Branch)
             {
-                const bool isRightToLeft = option->direction == Qt::RightToLeft;
-
-                // The fill continues below the chevron, which reaches into the item
                 if (isRightToLeft)
                 {
                     rect.setLeft(rect.left() - TREE_BRANCH_SHIFT);
@@ -394,6 +434,28 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
                 {
                     rect.setRight(rect.right() + TREE_BRANCH_SHIFT);
                 }
+            }
+            else if (treeArea == TreeArea::Item)
+            {
+                if (isRightToLeft)
+                {
+                    rect.setRight(rect.right() - TREE_BRANCH_SHIFT);
+                }
+                else
+                {
+                    rect.setLeft(rect.left() + TREE_BRANCH_SHIFT);
+                }
+            }
+
+            if (viewItem->features.testFlag(QStyleOptionViewItem::Alternate))
+            {
+                PDFStylePainter::fillRect(painter, rect, Color::BgSubtle);
+            }
+
+            const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
+
+            if (isBranchArea && isEnabled)
+            {
                 const Radii radii = isRightToLeft ? Radii(0.0, ROW_RADIUS, ROW_RADIUS, 0.0) : Radii(ROW_RADIUS, 0.0, 0.0, ROW_RADIUS);
                 const bool isHovered = option->state.testFlag(QStyle::State_MouseOver);
 

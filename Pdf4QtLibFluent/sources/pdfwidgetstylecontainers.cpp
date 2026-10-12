@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthemeiconengine.h"
 
@@ -168,7 +190,7 @@ bool PDFWidgetStyleContainers::drawPrimitive(QStyle::PrimitiveElement element, c
         case QStyle::PE_FrameFocusRect:
         {
             // Generic focus rectangle: ring of 2 px inside, only after the keyboard
-            if (widget ? m_impl->isKeyboardModality() : option->state.testFlag(QStyle::State_KeyboardFocusChange))
+            if ((widget && widget->isVisible()) ? m_impl->isKeyboardModality() : option->state.testFlag(QStyle::State_KeyboardFocusChange))
             {
                 PDFStylePainter::strokeInside(painter, QRectF(option->rect), Radii(6.0), Color::BorderFocus, 2.0);
             }
@@ -849,16 +871,7 @@ void PDFWidgetStyleContainers::drawFocusFrame(const QStyleOption* option, QPaint
         return;
     }
 
-    if (PDFWidgetStyleImpl::isFocusRingShapeAccent(target) && color == PDFWidgetStyleImpl::color(Color::BgAccent))
-    {
-        // The ring and the shape have the same color and they are one shape in
-        // the design. The ring reaches 1 px into the shape, so no lighter seam
-        // of two antialiased edges is left between them.
-        PDFStylePainter::strokeInside(painter, shape.adjusted(-2.0, -2.0, 2.0, 2.0), radii.adjusted(2.0), color, 3.0);
-        return;
-    }
-
-    PDFStylePainter::strokeOutside(painter, shape, radii, color, 2.0);
+    PDFStylePainter::focusRing(painter, shape, radii, PDFWidgetStyleImpl::isFocusRingShapeAccent(target));
 }
 
 void PDFWidgetStyleContainers::drawSplitter(const QStyleOption* option, QPainter* painter, const QWidget* widget) const

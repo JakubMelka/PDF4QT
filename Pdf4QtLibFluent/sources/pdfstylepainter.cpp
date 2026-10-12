@@ -247,6 +247,19 @@ void PDFStylePainter::strokeOutside(QPainter* painter, const QRectF& rect, const
     strokeInside(painter, rect.adjusted(-width, -width, width, width), radii.adjusted(-width), color, width);
 }
 
+void PDFStylePainter::focusRing(QPainter* painter, const QRectF& shape, const Radii& radii, bool isAccentShape)
+{
+    const QColor ringColor = color(PDFThemeColors::BorderFocus);
+
+    if (isAccentShape && ringColor == color(PDFThemeColors::BgAccent))
+    {
+        strokeInside(painter, shape.adjusted(-2.0, -2.0, 2.0, 2.0), radii.adjusted(-2.0), ringColor, 3.0);
+        return;
+    }
+
+    strokeOutside(painter, shape, radii, ringColor, 2.0);
+}
+
 void PDFStylePainter::fillRect(QPainter* painter, const QRectF& rect, const QColor& color)
 {
     if (!painter || rect.isEmpty() || color.alpha() == 0)

@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdfwidgetstyleimpl.h"
 
 #include <QDial>
@@ -663,8 +685,9 @@ void PDFWidgetStyleRanges::drawSlider(const QStyleOptionSlider* option, QPainter
     {
         if (state.focusVisible)
         {
-            // The focus ring touches the handle from the outside
-            PDFStylePainter::strokeEllipseInside(painter, handle.adjusted(-2.0, -2.0, 2.0, 2.0), PDFWidgetStyleImpl::color(Color::BorderFocus), 2.0);
+            // The focus ring touches the handle from the outside. It reaches 1 px
+            // below the handle, which is drawn over it, so no seam is left between them.
+            PDFStylePainter::strokeEllipseInside(painter, handle.adjusted(-2.0, -2.0, 2.0, 2.0), PDFWidgetStyleImpl::color(Color::BorderFocus), 3.0);
         }
 
         drawHandle(painter, handle, state, option->activeSubControls.testFlag(QStyle::SC_SliderHandle));
@@ -743,7 +766,8 @@ void PDFWidgetStyleRanges::drawDial(const QStyleOptionSlider* option, QPainter* 
 
     if (state.focusVisible)
     {
-        PDFStylePainter::strokeEllipseInside(painter, handle.adjusted(-2.0, -2.0, 2.0, 2.0), PDFWidgetStyleImpl::color(Color::BorderFocus), 2.0);
+        // The ring reaches 1 px below the handle, see the handle of a slider
+        PDFStylePainter::strokeEllipseInside(painter, handle.adjusted(-2.0, -2.0, 2.0, 2.0), PDFWidgetStyleImpl::color(Color::BorderFocus), 3.0);
     }
 
     drawHandle(painter, handle, state, true);

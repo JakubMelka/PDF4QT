@@ -83,6 +83,16 @@ public:
     /// Draws a stroke, which lies whole outside of the rounded rectangle and touches it
     static void strokeOutside(QPainter* painter, const QRectF& rect, const Radii& radii, const QColor& color, qreal width);
 
+    /// Draws the focus ring of 2 px around the shape of a control
+    /// \param painter Painter
+    /// \param shape Shape of the control
+    /// \param radii Radii of the shape
+    /// \param isAccentShape The shape is filled with the accent color. When the
+    ///        ring has the same color, they are one shape in the design: the
+    ///        ring reaches 1 px into the shape, so no lighter seam of two
+    ///        antialiased edges is left between them.
+    static void focusRing(QPainter* painter, const QRectF& shape, const Radii& radii, bool isAccentShape);
+
     /// Fills a rectangle without antialiasing (dividers, separators, grooves)
     static void fillRect(QPainter* painter, const QRectF& rect, const QColor& color);
     static void fillRect(QPainter* painter, const QRectF& rect, PDFThemeColors::Color color);

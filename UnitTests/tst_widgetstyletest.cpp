@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -1276,6 +1298,12 @@ void WidgetStyleTest::widgets()
 
     pdf::PDFCalendarWidget calendar;
     QCOMPARE(calendar.sizeHint(), QSize(210, 240));
+
+    // Navigation of 32 px with buttons of 28 px
+    QWidget* navigationBar = calendar.findChild<QWidget*>(QStringLiteral("qt_calendar_navigationbar"));
+    QVERIFY(navigationBar);
+    QCOMPARE(navigationBar->minimumHeight(), 32);
+    QCOMPARE(navigationBar->maximumHeight(), 32);
     QVERIFY(!calendar.isGridVisible());
 
     // Combo box variants
@@ -1548,6 +1576,29 @@ void WidgetStyleTest::toolBarPaddings()
     QCOMPARE(sidebarTabs.sizeHint().height(), 48);
     QCOMPARE(sidebarTabs.widgetForAction(tabAction)->geometry(), QRect(12, 10, 32, 32));
 
+    // The menu button of a toolbar (an icon with a text) has no chevron: 10 + 18 + 8 + text + 12
+    QToolButton menuButton;
+    QMenu buttonMenu;
+    buttonMenu.addAction(QStringLiteral("Open"));
+    menuButton.setIcon(pdf::PDFThemeIcons::getIcon(QStringLiteral("file")));
+    menuButton.setText(QStringLiteral("File"));
+    menuButton.setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    menuButton.setPopupMode(QToolButton::InstantPopup);
+    menuButton.setMenu(&buttonMenu);
+    const int menuButtonTextWidth = menuButton.sizeHint().width() - 10 - 18 - 8 - 12;
+    QVERIFY2(menuButtonTextWidth >= 20 && menuButtonTextWidth <= 24, qPrintable(QString::number(menuButton.sizeHint().width())));
+
+    // An icon button with a menu has the chevron: 8 + 20 + 2 + 12 + 8
+    QToolBar menuToolBar;
+    QToolButton* iconMenuButton = new QToolButton(&menuToolBar);
+    iconMenuButton->setIcon(pdf::PDFThemeIcons::getIcon(QStringLiteral("file")));
+    iconMenuButton->setPopupMode(QToolButton::InstantPopup);
+    iconMenuButton->setMenu(&buttonMenu);
+    menuToolBar.addWidget(iconMenuButton);
+    menuToolBar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&menuToolBar));
+    QCOMPARE(iconMenuButton->sizeHint(), QSize(50, 36));
+
     // The size of the icons can be chosen by the user of the application
     QToolBar largeToolBar;
     largeToolBar.setIconSize(QSize(32, 32));
@@ -1716,6 +1767,7 @@ void WidgetStyleTest::messageBoxButtons()
     QCOMPARE(run(QDialogButtonBox::Yes | QDialogButtonBox::No, Qt::Key_Escape, defaultButton), QDialogButtonBox::No);
     QCOMPARE(defaultButton, QDialogButtonBox::Yes);
     QCOMPARE(run(QDialogButtonBox::Ok, Qt::Key_Escape, defaultButton), QDialogButtonBox::Ok);
+    QCOMPARE(run(QDialogButtonBox::Abort | QDialogButtonBox::Cancel, Qt::Key_Escape, defaultButton), QDialogButtonBox::Cancel);
 
     // Each button closes the message box
     pdf::PDFMessageBox messageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok);
@@ -1797,6 +1849,34 @@ void WidgetStyleTest::plainTextLines()
 
     QCOMPARE(getLineTop(1) - getLineTop(0), 18);
     QCOMPARE(getLineTop(2) - getLineTop(1), 18);
+
+    // A click into the gap between two lines of the font belongs to the line,
+    // in whose line of the design it lies - the caret does not jump to an end of a line
+    const QRect secondLine = edit.cursorRect(QTextCursor(edit.document()->findBlockByNumber(1)));
+    const int secondLineStart = edit.document()->findBlockByNumber(1).position();
+    for (int y = secondLine.top() - 1; y <= secondLine.top() + 16; ++y)
+    {
+        QTest::mouseClick(edit.viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(secondLine.left() + 16, y));
+        const int position = edit.textCursor().position();
+        QVERIFY2(position > secondLineStart && position < secondLineStart + 6, qPrintable(QStringLiteral("y=%1 position=%2").arg(y).arg(position)));
+    }
+
+    // The selection fills the whole lines of the design
+    QTextCursor selection(edit.document());
+    selection.select(QTextCursor::Document);
+    edit.setTextCursor(selection);
+    {
+        const QImage image = edit.viewport()->grab().toImage();
+        const QColor highlight = edit.palette().color(QPalette::Active, QPalette::Highlight);
+
+        // Rows above and below the line of the font, and the row between two lines
+        for (int x = secondLine.left() + 1; x < secondLine.left() + 30; x += 4)
+        {
+            QVERIFY2(isNear(image.pixelColor(x, secondLine.top() - 1), highlight), qPrintable(QString::number(x)));
+            QVERIFY2(isNear(image.pixelColor(x, secondLine.top() + 16), highlight), qPrintable(QString::number(x)));
+            QVERIFY2(isNear(image.pixelColor(x, secondLine.top() + 17), highlight), qPrintable(QString::number(x)));
+        }
+    }
 
     // A wrapped paragraph has the same lines
     edit.setPlainText(QString(QStringLiteral("word ")).repeated(60));
@@ -1937,10 +2017,13 @@ void WidgetStyleTest::itemEditorFactory()
     // The factory can be the default factory of the application: it does not ask itself
     QItemEditorFactory::setDefaultFactory(new pdf::PDFItemEditorFactory());
     QVERIFY(qobject_cast<pdf::PDFComboBox*>(QItemEditorFactory::defaultFactory()->createEditor(QMetaType::Bool, &parent)));
-    QVERIFY(!QItemEditorFactory::defaultFactory()->createEditor(QMetaType::QBitArray, &parent));
-    QVERIFY(QItemEditorFactory::defaultFactory()->valuePropertyName(QMetaType::QBitArray).isEmpty());
-    QVERIFY(!factory.createEditor(QMetaType::QBitArray, &parent));
+
+    // Values of other types are edited as a text, as the factory of Qt edits them
+    QVERIFY(qobject_cast<pdf::PDFLineEdit*>(QItemEditorFactory::defaultFactory()->createEditor(QMetaType::LongLong, &parent)));
+    QVERIFY(qobject_cast<pdf::PDFLineEdit*>(factory.createEditor(QMetaType::QUrl, &parent)));
+    QCOMPARE(QItemEditorFactory::defaultFactory()->valuePropertyName(QMetaType::LongLong), QByteArray("text"));
     QItemEditorFactory::setDefaultFactory(nullptr);
+    QVERIFY(factory.createEditor(QMetaType::LongLong, &parent));
 }
 
 void WidgetStyleTest::pointerTargets()

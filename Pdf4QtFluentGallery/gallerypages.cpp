@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 #include "gallerypages.h"
 
 #include "pdffluentwidgets.h"
@@ -575,7 +597,8 @@ GalleryPages::Page GalleryPages::createButtonsPage(QWidget* parent)
             if (hasFocus)
             {
                 // The ring, which the focus frame of the style draws around a button
-                Painter::strokeOutside(&painter, QRectF(rect), 8.0, Painter::color(Color::BorderFocus), 2.0);
+                const bool isPrimary = option.features.testFlag(QStyleOptionButton::DefaultButton) || pdf::PDFWidgetStyleProperties::isSet(prototype, Properties::PRIMARY);
+                Painter::focusRing(&painter, QRectF(rect), 8.0, isPrimary);
             }
         }, node);
     };
@@ -707,7 +730,7 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
 
             if (hasFocus)
             {
-                Painter::strokeOutside(&painter, QRectF(rect), radius, Painter::color(Color::BorderFocus), 2.0);
+                Painter::focusRing(&painter, QRectF(rect), radius, false);
             }
         }, node);
     };
@@ -856,7 +879,7 @@ GalleryPages::Page GalleryPages::createCheckBoxesPage(QWidget* parent)
             {
                 // Checked indicator has its ring outside, the focus frame of the style draws it
                 const QRect indicator = style->subElementRect(isRadio ? QStyle::SE_RadioButtonIndicator : QStyle::SE_CheckBoxIndicator, &option, nullptr);
-                Painter::strokeOutside(&painter, QRectF(indicator), isRadio ? 9.0 : 5.0, Painter::color(Color::BorderFocus), 2.0);
+                Painter::focusRing(&painter, QRectF(indicator), isRadio ? 9.0 : 5.0, true);
             }
         }, node);
     };
