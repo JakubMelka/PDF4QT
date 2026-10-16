@@ -55,7 +55,8 @@ public:
 
     // Geometry of the design
     static constexpr int RING = 2;                      ///< Margin of a tab for its focus ring
-    static constexpr int SEGMENT_PADDING = 6;
+    static constexpr int SEGMENT_PADDING = 14;              ///< Natural padding of a segment
+    static constexpr int SEGMENT_MIN_PADDING = 6;           ///< Padding of a segment of a control of a given width
     static constexpr int CHIP_HEIGHT = 32;
     static constexpr int CHIP_RADIUS = 16;
     static constexpr int CHIP_PADDING = 14;
@@ -76,7 +77,7 @@ public:
     static constexpr int TAB_CLOSE_BUTTON = 20;
     static constexpr int TAB_BUTTON = 28;
     static constexpr int SEGMENT_HEIGHT = 32;
-    static constexpr int SEGMENT_RADIUS = 14;
+    static constexpr int SEGMENT_RADIUS = 16;
     static constexpr int PANE_GAP = 16;
     static constexpr int CARD_GAP = 12;
     static constexpr int CARD_PADDING = 16;
@@ -98,6 +99,7 @@ private:
     static TabKind getTabKind(const QStyleOptionTab* option, const QWidget* widget);
     static bool isSegment(const QWidget* widget);
     static bool isChip(const QWidget* widget);
+    static bool isOptionChip(const QWidget* widget);
     static bool isTabBarButton(const QWidget* widget);
     static int getCount(const QStyleOptionTab* option, const QWidget* widget);
     static int getButtonChipCount(const QWidget* widget);
@@ -141,6 +143,12 @@ bool PDFWidgetStyleTabs::isSegment(const QWidget* widget)
 bool PDFWidgetStyleTabs::isChip(const QWidget* widget)
 {
     return PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::CHIP);
+}
+
+bool PDFWidgetStyleTabs::isOptionChip(const QWidget* widget)
+{
+    // Chip, which is an on / off option (Whole words, Regular expression, Sync zoom)
+    return isChip(widget) && PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::OPTION);
 }
 
 bool PDFWidgetStyleTabs::isTabBarButton(const QWidget* widget)
@@ -672,8 +680,9 @@ bool PDFWidgetStyleTabs::sizeFromContents(QStyle::ContentsType type, const QStyl
 
             if (isSegment(widget))
             {
-                // Paddings 6, icon 14, gap 6, label of 11 px (three segments of 61 px
-                // fit into the theme switch of the sidebar)
+                // Natural size: paddings 14, icon 14, gap 6, label of 11 px. All segments
+                // of a control have the width of the widest one; a control of a given
+                // width (the theme switch of the sidebar) divides it equally.
                 int width = 2 * SEGMENT_PADDING;
                 if (toolButton)
                 {
@@ -690,7 +699,7 @@ bool PDFWidgetStyleTabs::sizeFromContents(QStyle::ContentsType type, const QStyl
             if (isChip(widget))
             {
                 const bool isChecked = option && option->state.testFlag(QStyle::State_On);
-                size = QSize(toolButton ? getChipWidth(toolButton->text, !toolButton->icon.isNull(), getButtonChipCount(widget), !isChecked, widget) : CHIP_MIN_WIDTH, CHIP_HEIGHT);
+                size = QSize(toolButton ? getChipWidth(toolButton->text, !toolButton->icon.isNull() || isOptionChip(widget), getButtonChipCount(widget), !isChecked, widget) : CHIP_MIN_WIDTH, CHIP_HEIGHT);
                 return true;
             }
 
@@ -711,7 +720,7 @@ bool PDFWidgetStyleTabs::sizeFromContents(QStyle::ContentsType type, const QStyl
 
             const QStyleOptionButton* button = qstyleoption_cast<const QStyleOptionButton*>(option);
             const bool isChecked = option && option->state.testFlag(QStyle::State_On);
-            size = QSize(button ? getChipWidth(button->text, !button->icon.isNull(), getButtonChipCount(widget), !isChecked, widget) : CHIP_MIN_WIDTH, CHIP_HEIGHT);
+            size = QSize(button ? getChipWidth(button->text, !button->icon.isNull() || isOptionChip(widget), getButtonChipCount(widget), !isChecked, widget) : CHIP_MIN_WIDTH, CHIP_HEIGHT);
             return true;
         }
 
@@ -787,23 +796,30 @@ void PDFWidgetStyleTabs::drawChip(QPainter* painter, const QRectF& rect, const P
 
     if (isSelected)
     {
-        // Selected chip is filled with the accent color and it has no border
-        Color fill = Color::BgAccent;
+        // Selected chip has the subtle accent of an active toolbar button over its own
+        // surface and no border; the full accent belongs only to the primary button
         if (!state.enabled)
         {
-            fill = Color::BgMuted;
+            PDFStylePainter::fill(painter, rect, radii, Color::BgMuted);
         }
-        else if (state.pressed)
+        else
         {
-            fill = Color::BgAccentPressed;
-        }
-        else if (state.hover)
-        {
-            fill = Color::BgAccentHover;
+            Color overlay = Color::BgAccentSubtle;
+            if (state.pressed)
+            {
+                overlay = Color::BgAccentSubtlePressed;
+            }
+            else if (state.hover)
+            {
+                overlay = Color::BgAccentSubtleHover;
+            }
+
+            PDFStylePainter::fill(painter, rect, radii, Color::BgSurface);
+            PDFStylePainter::fill(painter, rect, radii, overlay);
         }
 
-        PDFStylePainter::fill(painter, rect, radii, fill);
-        textColor = iconColor = countColor = Color::IconOnAccent;
+        textColor = countColor = Color::TextAccent;
+        iconColor = Color::IconAccent;
     }
     else
     {
@@ -825,14 +841,19 @@ void PDFWidgetStyleTabs::drawChip(QPainter* painter, const QRectF& rect, const P
 
     if (state.focusVisible)
     {
-        PDFStylePainter::focusRing(painter, rect, radii, state.selected && state.enabled && !state.hover && !state.pressed);
+        PDFStylePainter::focusRing(painter, rect, radii, false);
     }
+
+    // An on / off option shows the check mark instead of its icon, when it is on
+    const bool isOption = isOptionChip(widget);
+    const bool isCheckShown = isOption && isSelected;
+    const bool hasIcon = !icon.isNull() || isOption;
 
     // Icon 14, label Semi Bold 12 and the count Medium 11 are centered as a group
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::SmallSemiBold);
     const QFont countFont = PDFThemeFonts::getFont(Font::Caption);
     const QString countText = count >= 0 ? QString::number(count) : QString();
-    const qreal iconWidth = icon.isNull() ? 0.0 : CHIP_ICON + (text.isEmpty() ? 0.0 : CHIP_GAP);
+    const qreal iconWidth = !hasIcon ? 0.0 : CHIP_ICON + (text.isEmpty() ? 0.0 : CHIP_GAP);
     const qreal countWidth = countText.isEmpty() ? 0.0 : CHIP_GAP + PDFWidgetStyleImpl::getTextWidth(countText, countFont);
     const qreal available = qMax(0.0, rect.width() - 2 * CHIP_PADDING);
 
@@ -852,11 +873,15 @@ void PDFWidgetStyleTabs::drawChip(QPainter* painter, const QRectF& rect, const P
         return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
     };
 
-    if (!icon.isNull())
+    if (isCheckShown)
+    {
+        PDFStylePainter::icon(painter, place(x, CHIP_ICON, CHIP_ICON), QStringLiteral("check"), iconColor);
+    }
+    else if (!icon.isNull())
     {
         PDFWidgetStyleImpl::drawIcon(painter, place(x, CHIP_ICON, CHIP_ICON), icon, PDFWidgetStyleImpl::color(iconColor), state);
-        x += iconWidth;
     }
+    x += iconWidth;
 
     m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, shownText, font, PDFWidgetStyleImpl::color(textColor), widget);
     x += textWidth;
@@ -1005,8 +1030,8 @@ void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPain
 
     if (state.on)
     {
-        // Selected segment lies on the track as a raised plate
-        PDFStylePainter::shadow(painter, rect, radii, QPointF(0.0, 1.0), 3.0, PDFWidgetStyleImpl::color(Color::EffectShadow));
+        // Selected segment lies on the track as a raised plate (its shadow is painted
+        // by the segmented control, the segment would clip it)
         PDFStylePainter::fill(painter, rect, radii, Color::BgSurface);
         textColor = Color::TextSecondary;
         iconColor = Color::IconDefault;
@@ -1033,7 +1058,7 @@ void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPain
 
     const QFont font = PDFWidgetStyleImpl::getFont(widget, state.on ? Font::CaptionSemiBold : Font::Caption);
     const qreal iconWidth = option->icon.isNull() ? 0.0 : 14.0 + (option->text.isEmpty() ? 0.0 : 6.0);
-    const qreal available = qMax(0.0, rect.width() - 2 * SEGMENT_PADDING);
+    const qreal available = qMax(0.0, rect.width() - 2 * SEGMENT_MIN_PADDING);
 
     qreal textWidth = PDFWidgetStyleImpl::getTextWidth(option->text, font);
     QString text = option->text;
@@ -1043,7 +1068,7 @@ void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPain
         text = PDFWidgetStyleImpl::getElidedText(option->text, font, textWidth);
     }
 
-    qreal x = qRound(rect.left() + SEGMENT_PADDING + (available - iconWidth - textWidth) / 2.0);
+    qreal x = qRound(rect.left() + SEGMENT_MIN_PADDING + (available - iconWidth - textWidth) / 2.0);
 
     auto place = [&rect, &state](qreal left, qreal width, qreal height)
     {

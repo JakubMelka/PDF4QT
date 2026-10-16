@@ -110,6 +110,11 @@ public:
     /// (Medium 11), the count is not shown, when the property is not set
     static constexpr const char* CHIP_COUNT = "chipCount";
 
+    /// QToolButton, QPushButton: checkable filter chip, which is an on / off option
+    /// (Whole words, Regular expression). When it is on, it shows the check mark
+    /// instead of its icon; it has always the place of the icon, so it keeps its width.
+    static constexpr const char* OPTION = "option";
+
     /// QToolButton, QLabel: item of the status bar
     static constexpr const char* STATUS_ITEM = "statusItem";
 

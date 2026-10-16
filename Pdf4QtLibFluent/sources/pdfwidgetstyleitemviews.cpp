@@ -22,7 +22,6 @@
 
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthemeiconengine.h"
-#include "pdffluentwidgets.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -30,14 +29,10 @@
 #include <QFontMetrics>
 #include <QHeaderView>
 #include <QPainter>
-#include <QPointer>
-#include <QStyledItemDelegate>
 #include <QStyleOptionHeader>
 #include <QStyleOptionViewItem>
 #include <QTextLayout>
 #include <QTreeView>
-
-#include <typeinfo>
 
 namespace pdf
 {
@@ -81,7 +76,6 @@ public:
 
     static constexpr const char* SAVED_HEADER_ALIGNMENT = "_pdf4qt_savedHeaderAlignment";
     static constexpr const char* SAVED_TREE_ANIMATED = "_pdf4qt_savedTreeAnimated";
-    static constexpr const char* SAVED_ITEM_DELEGATE = "_pdf4qt_savedItemDelegate";
 
 private:
     struct ItemLayout
@@ -894,22 +888,6 @@ bool PDFWidgetStyleItemViews::sizeFromContents(QStyle::ContentsType type, const 
 
 void PDFWidgetStyleItemViews::polish(QWidget* widget)
 {
-    QAbstractItemView* view = qobject_cast<QAbstractItemView*>(widget);
-    QAbstractItemDelegate* delegate = view ? view->itemDelegate() : nullptr;
-
-    // The default delegate of Qt places the editor of a cell into the rectangle of
-    // its text: the ring of the edited cell and the ring of the frameless editor
-    // would be two frames. The delegate of the library places the editor over the
-    // whole cell. Only the default delegate itself is replaced (not its subclasses,
-    // which are delegates of the application or private delegates of Qt).
-    if (delegate && typeid(*delegate) == typeid(QStyledItemDelegate) && !view->property(SAVED_ITEM_DELEGATE).isValid())
-    {
-        PDFItemDelegate* itemDelegate = new PDFItemDelegate(view);
-        view->setProperty(SAVED_ITEM_DELEGATE, QVariant::fromValue(QPointer<QObject>(delegate)));
-        view->setItemDelegate(itemDelegate);
-        itemDelegate->setProperty(SAVED_ITEM_DELEGATE, true);
-    }
-
     if (QTreeView* treeView = qobject_cast<QTreeView*>(widget))
     {
         // The tree view animates the expanding of its branches, when the style
@@ -936,24 +914,6 @@ void PDFWidgetStyleItemViews::polish(QWidget* widget)
 
 void PDFWidgetStyleItemViews::unpolish(QWidget* widget)
 {
-    QAbstractItemView* view = qobject_cast<QAbstractItemView*>(widget);
-    const QVariant savedDelegate = view ? view->property(SAVED_ITEM_DELEGATE) : QVariant();
-
-    if (savedDelegate.isValid())
-    {
-        // The default delegate of Qt is used again, unless the application has set
-        // its own delegate meanwhile
-        view->setProperty(SAVED_ITEM_DELEGATE, QVariant());
-        QAbstractItemDelegate* delegate = view->itemDelegate();
-        QAbstractItemDelegate* originalDelegate = qobject_cast<QAbstractItemDelegate*>(savedDelegate.value<QPointer<QObject>>().data());
-
-        if (delegate && delegate->property(SAVED_ITEM_DELEGATE).isValid() && originalDelegate)
-        {
-            view->setItemDelegate(originalDelegate);
-            delegate->deleteLater();
-        }
-    }
-
     if (QTreeView* treeView = qobject_cast<QTreeView*>(widget))
     {
         const QVariant savedAnimated = treeView->property(SAVED_TREE_ANIMATED);
@@ -1002,6 +962,14 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
     const bool isHovered = isEnabled && metrics.hasHover && option->state.testFlag(QStyle::State_MouseOver);
     const bool isPopup = isComboPopup(widget);
     const Radii radii = getItemRadii(option, widget);
+
+    if (isEdited(option, widget))
+    {
+        // The edited cell is a field: bg/surface below the frameless editor, the focus
+        // ring is painted over the item (drawItem)
+        PDFStylePainter::fill(painter, QRectF(layout.shape), Radii(metrics.radius), Color::BgSurface);
+        return;
+    }
 
     if (option->backgroundBrush.style() != Qt::NoBrush)
     {

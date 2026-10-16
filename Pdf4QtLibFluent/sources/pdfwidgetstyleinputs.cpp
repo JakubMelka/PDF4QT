@@ -194,12 +194,9 @@ bool PDFWidgetStyleInputs::drawPrimitive(QStyle::PrimitiveElement element, const
 
             if (!hasFrame)
             {
-                if (isItemViewEditor(widget))
-                {
-                    // Editor of a cell of a view: the cell with the focus ring
-                    PDFStylePainter::fill(painter, rect, Radii(6.0), Color::BgSurface);
-                    PDFStylePainter::strokeInside(painter, rect, Radii(6.0), Color::BorderFocus, 2.0);
-                }
+                // Editor of a cell of a view paints nothing: the view paints the edited
+                // cell (bg/surface and the focus ring) below the editor, so the cell has
+                // one ring, whatever part of the cell the delegate gives to the editor
                 return true;
             }
 

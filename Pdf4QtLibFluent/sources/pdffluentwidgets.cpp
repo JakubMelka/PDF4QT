@@ -1223,8 +1223,8 @@ PDFSegmentedControl::PDFSegmentedControl(QWidget* parent) :
     }
 #endif
 
-    // Track with the padding 2, segments follow each other without a gap
-    m_layout->setContentsMargins(2, 2, 2, 2);
+    // Track without padding, segments follow each other without a gap
+    m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->setSpacing(0);
     m_group->setExclusive(true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -1245,15 +1245,16 @@ int PDFSegmentedControl::addSegment(const QString& text, const QString& iconName
     segment->setCheckable(true);
     segment->setText(text);
     segment->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    segment->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    // Segments share the width of the control equally (three segments of 61 px
+    // in the theme switch of 182 px), their own widths are not used by the layout
+    segment->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
     if (!iconName.isEmpty())
     {
         segment->setIcon(PDFThemeIcons::getIcon(iconName));
     }
 
-    // Segments share the width of the control equally (two segments of 91 px
-    // in the control of 186 px)
     const int index = getCount();
     m_group->addButton(segment, index);
     m_layout->addWidget(segment, 1);
@@ -1263,7 +1264,35 @@ int PDFSegmentedControl::addSegment(const QString& text, const QString& iconName
         segment->setChecked(true);
     }
 
+    updateGeometry();
     return index;
+}
+
+QSize PDFSegmentedControl::sizeHint() const
+{
+    int width = 0;
+    int height = 0;
+    int count = 0;
+    for (const QAbstractButton* button : m_group->buttons())
+    {
+        if (button->isHidden())
+        {
+            continue;
+        }
+
+        const QSize hint = button->sizeHint();
+        width = qMax(width, hint.width());
+        height = qMax(height, hint.height());
+        ++count;
+    }
+
+    const QMargins margins = contentsMargins();
+    return QSize(width * count + margins.left() + margins.right(), height + margins.top() + margins.bottom());
+}
+
+QSize PDFSegmentedControl::minimumSizeHint() const
+{
+    return sizeHint();
 }
 
 int PDFSegmentedControl::getCount() const
@@ -1298,6 +1327,13 @@ void PDFSegmentedControl::paintEvent(QPaintEvent* event)
 
     QPainter painter(this);
     PDFStylePainter::fill(&painter, QRectF(rect()), PDFStylePainter::Radii(16.0), PDFThemeColors::BgTrack);
+
+    // Shadow of the raised plate of the selected segment lies on the track
+    QAbstractButton* button = m_group->checkedButton();
+    if (button && button->isVisible() && button->isEnabled())
+    {
+        PDFStylePainter::shadow(&painter, QRectF(button->geometry()), PDFStylePainter::Radii(16.0), QPointF(0.0, 1.0), 3.0, PDFStylePainter::color(PDFThemeColors::EffectShadow));
+    }
 }
 
 PDFListView::PDFListView(QWidget* parent) :

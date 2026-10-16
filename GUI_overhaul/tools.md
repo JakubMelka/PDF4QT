@@ -44,6 +44,7 @@ Zdroje: zdrojový kód větve `master` (Editor, Viewer, PageMaster, Diff, všech
 | 13 | **Karta *Assembly*** (sestava stránek z více zdrojů) a **karta Compare** (vstupy *Original* a *Revised*, prohození, výběr z otevřených tabů, stavy *not compared yet*, *no differences*, *error*). | nové rámce | A6, E1, H6 | §5.1, §5.6 | **částečně** – sestava (*Assembly*) je nakreslená na stránce *Tools - Organize Pages* v řádku Manage Pages (zdroje, náhledy, skupiny, kontrolní body, odebrané stránky, otevření a uložení sestavy, chybějící zdroje, výstup do jednoho nebo více souborů). Merge a Interleave Pages mají vlastní kartu bez sestavy. Karta Compare je nakreslená na stránce *Tools - Review and Inspect* v řádku Compare (26 rámců `review-compare-*`) |
 | 14 | **Stavový řádek:** položka s počtem podpisů a jejich chybami („2 signatures · 1 needs attention“), kliknutím otevře panel Signatures. | `pdf4qt-document` | H3 | – | **hotovo** – položka `status-signatures` (*Status bar item*, tón Warning, ikona shield-check) před položkou rendering issues |
 | 15 | **Kolekce:** sedm vestavěných kolekcí (Prepare for sharing, Scan to searchable PDF, Fix a scan, Sign a contract, Archive documents, Prepare for print, Extract content) a správa vlastních kolekcí. | `pdf4qt-tools`, nový rámec | J2 | §9.1 | **hotovo** – kolekce v panelu Collections katalogu na *Tools Overview*; rámec `pdf4qt-manage-collections` (seznam vestavěných a vlastních kolekcí, editor: název, ikona, tooly s přesunem a odebráním, přidání toolu hledáním s návrhy, *Reset to default* u vestavěných, *Delete* jen u vlastních) |
+| 16 | **Nabídka Annotate** (zvýraznění textu jedním až dvěma kliknutími, lišta nad vybraným textem) a **volba jedné z několika možností jako segmentovaný přepínač** (vybraný Filter chip už nemá plnou modrou). | `pdf4qt-document-panel-annotate`, `pdf4qt-document-tool-highlight`, `pdf4qt-document-selection-bar`, *Components* | Q-9, Q-14 (review komponent) | §9.8, §10 bod 48 | **hotovo** 16. 10. 2026 – popis v [components_fixes.md](components_fixes.md), kapitola 16 |
 
 ---
 
@@ -704,7 +705,7 @@ Viewer je podmnožina Editoru. Akce, které má i Viewer, jsou označené **V**.
 | Insert | Inline text | Režim: Annotate |
 | Insert | Straight Line, Polyline, Rectangle, Polygon, Ellipse, Freehand Curve | Režim: Annotate |
 | Insert | Stamp (14 razítek) | Režim: Annotate |
-| Insert | Text Highlight: Highlight, Underline, Strikeout, Squiggly | Režim: Annotate |
+| Insert | Text Highlight: Highlight, Underline, Strikeout, Squiggly | Příkaz: nabídka *Annotate* a lišta nad vybraným textem (9.8), bez výběru Režim: Annotate. V panelu Insert nezůstávají |
 | Insert | Delete Annotations | Režim: Annotate |
 | Insert | Insert Page Numbers | Tool `edit.page-numbers` |
 | Go To | Document start, Document end, Next page, Previous page, Next line, Previous line **V** | Příkaz: panel Go To |
@@ -1238,6 +1239,7 @@ Pluginy v nové aplikaci nebudou. Všechny tooly jsou vestavěné a registr je j
 Všechny tooly, které pracují s částí dokumentu, používají **jednu společnou komponentu pro výběr stránek** (E3). Dnes má každý dialog vlastní výběr.
 
 - Volby: aktuální stránka, vybrané stránky (z panelu Thumbnails), vše, rozsah (`1-3, 8, 10-12`). K tomu filtry sudé, liché, na výšku, na šířku.
+- Volba režimu (All / Current / Selected / Range) je segmentovaný přepínač (komponenta *Segment*), ne řada chipů: vybírá se jedna z několika možností (Q-9).
 - Komponenta vždy ukazuje počet vybraných stránek.
 - Rozsahy se počítají ve fyzickém pořadí stránek. Popisky stránek se zobrazují vedle čísla („7 (iii)“).
 - Výběr „viditelné stránky“ se při otevření toolu zafixuje, posun dokumentu ho už nemění.
@@ -1253,7 +1255,7 @@ Celý základní postup musí jít ovládat klávesnicí (I1). Přístupnost roz
 
 **Taby.** Ctrl+Tab a Ctrl+Shift+Tab přepínají taby, Ctrl+W zavře aktivní tab.
 
-**Rozbalovací panely hlavní lišty (File, View, Insert, Tools, režim výběru).** Enter, mezerník nebo šipka dolů panel otevře a fokus přejde na první položku. Šipky se pohybují mezi položkami, Enter položku spustí. Esc panel zavře a fokus vrátí na tlačítko, které ho otevřelo.
+**Rozbalovací panely hlavní lišty (File, View, Annotate, Insert, Tools, režim výběru).** Enter, mezerník nebo šipka dolů panel otevře a fokus přejde na první položku. Šipky se pohybují mezi položkami, Enter položku spustí. Esc panel zavře a fokus vrátí na tlačítko, které ho otevřelo.
 
 **Esc postupně ruší, co je navrchu:** otevřený panel nebo nabídku, potom aktivní režim myši (anotace, Redact, Measure), potom stránku toolu. Stránka toolu se zavře bez změny dokumentu a vrátí stránku, zoom a výběr (9.3).
 
@@ -1274,6 +1276,54 @@ Celý základní postup musí jít ovládat klávesnicí (I1). Přístupnost roz
 **Stránka toolu.** Po otevření je fokus na prvním prvku, který vyžaduje rozhodnutí (výběr souboru, jinak první volba). Potvrzovací tlačítko je výchozí, takže ho spustí Ctrl+Enter odkudkoli ze stránky. Prostý Enter v textovém poli tool nespustí, aby nedošlo k nechtěné změně.
 
 **Seznam zkratek.** Všechny zkratky jsou na stránce Settings → Shortcuts a jdou změnit. Tooltip tlačítka ukazuje i jeho zkratku.
+
+### 9.8 Nabídka Annotate a lišta nad výběrem
+
+Rozhodnuto 16. 10. 2026 (Q-14 z review komponent), ve Figmě nakresleno. Cíl: zvýraznit text jedním klikem (lišta nad výběrem), nejvýš dvěma (nabídka), bez hledání v panelu Insert.
+
+**Umístění.** Tlačítko *Annotate* (Toolbar menu button, ikona `icon/highlighter`) v liště dokumentu mezi *View* a *Insert*: File, View, **Annotate**, Insert, Go to, Tools. Panel se otevírá pod tlačítkem jako panel Insert a má stejné dlaždice (`pdf4qt-document-panel-annotate`).
+
+**Obsah panelu.**
+
+1. **Zvýraznění textu.** Dlaždice Highlight, Underline, Strikeout a Squiggly s ikonami ze seznamu anotací v Notes. Z panelu Insert se přesunuly, funkce je jen na jednom místě. Sekce Text v Insert by měla jen Text box, proto je spojená se Sticky note do sekce „Text and notes“. Aktivní dlaždice (*Action tile* `Active=True`) je naposledy použitý typ.
+2. **Highlight and comment.** Pátá, širší dlaždice s novou ikonou `icon/highlight-comment`. Zvýrazní text a hned otevře okno poznámky (popup) pro text komentáře. Vznikne jedna anotace Highlight s obsahem, ne zvláštní Sticky note.
+3. **Barva.** Řada kulatých *Color swatch* z palety anotací (`annotation/*`) a tlačítko dalších barev, přímo v panelu, bez popoveru. Barva patří aktivnímu typu. Každý typ si pamatuje svou poslední barvu, výchozí jsou Highlight `annotation/yellow`, Underline `annotation/blue`, Strikeout a Squiggly `annotation/red`. Barva platí pro další zvýraznění, existující anotace se přebarví ve svých vlastnostech, ne v nabídce.
+4. **Show all comments (N).** Řádek dole, jako Delete annotations v Insert. Otevře záložku Notes v postranním panelu. Je to navigace v dokumentu, ne odkaz na tool.
+
+**Dva způsoby použití.**
+
+- **Výběr napřed:** je-li vybraný text, klik na typ ho hned označí a nástroj se nezapne.
+- **Nástroj napřed:** bez výběru se zapne režim (`pdf4qt-document-tool-highlight`). Tažení přes text označuje. Nad stránkou je plovoucí lišta nástroje jako u tvarů (název typu, barvy, zavření) a ve stavovém řádku „Highlight: drag over text. Press Esc to finish.“. Nástroj zůstává aktivní až do Esc, stejně jako tvary. Přepínač „po jednom použití vypnout“ se nepřidává.
+
+**Lišta nad vybraným textem** (`pdf4qt-document-selection-bar`).
+- **Kdy se ukáže:** po výběru textu nástrojem výběru, nad výběrem.
+- **Obsah:** Highlight (poslední barva), Underline, Strikeout, Squiggly, Highlight and comment, oddělovač, Copy. Ikony (Icon button 28) jsou bez popisků, s tooltipem a zkratkou.
+- **Kdy zmizí:** po Esc, kliknutí mimo nebo posunu stránky.
+- **Vypnutí:** v Nastavení → Editing, skupina *Annotations*: „Show markup bar when text is selected“, výchozí zapnuto.
+- **Stavba:** skládá se z existujících prvků: panel s výplní, obrysem a stínem plovoucí lišty nástroje, kompaktní (poloměr 10, okraj 4), Icon button 28 a oddělovač.
+
+**Zámek a oprávnění.** Zamčený dokument nebo dokument bez oprávnění k anotacím:
+- tlačítko *Annotate* je ve stavu Disabled s tooltipem s důvodem,
+- lišta nad výběrem nabídne jen Copy.
+
+**Klávesové zkratky.** Každý ze čtyř typů a Highlight and comment má akci v Nastavení → Shortcuts. Zkratka se ukazuje v tooltipu.
+
+| Akce | Zkratka |
+| --- | --- |
+| Highlight | Ctrl+Shift+H |
+| Underline | Ctrl+Shift+L |
+| Strikeout | Ctrl+Shift+K |
+| Squiggly | Ctrl+Shift+Q |
+| Highlight and Comment | Ctrl+Shift+M |
+
+Zkratky nekolidují s dnešními v aplikaci ani v návrhu (Ctrl+Shift+E, F, R, S, I, A, G, O, + a −). Ctrl+Shift+U se pro Underline nepoužívá, na Linuxu ji zachytává vstupní metoda IBus.
+
+**Co se nemění.** Sticky notes, Text box, tvary, odkazy, razítka a Delete annotations zůstávají v Insert. Show annotations zůstává v panelu View.
+
+**Qt.**
+- **Tlačítko a panel:** jako Insert.
+- **Zvýraznění:** vytváří existující `PDFCreateHighlightTextTool` ([pdfadvancedtools.h](../Pdf4QtLibWidgets/sources/pdfadvancedtools.h)), který umí všechny čtyři typy. Nové je označení existujícího výběru bez tažení a otevření popupu u Highlight and comment.
+- **Lišta nad výběrem:** popup ukotvený k obdélníku výběru, s okraji pro stín jako ostatní popupy stylu.
 
 ---
 
@@ -1374,5 +1424,8 @@ Rozhodnutí z návrhu stránek toolů Organize Pages (4. 10. 2026):
 45. **Nabídka Settings – historie toolů.** Skupina *Tools* na stránce General: *Suggest tools I often use next* (Enable, při vypnutí se nabízejí jen výchozí návrhy a nic se nepočítá) a *Clear history (37)* s počtem zaznamenaných běhů.
 46. **Stop u všech toolů stejně.** Během běhu nahradí potvrzovací tlačítko v liště toolu tlačítko *Stop (n/N)*, karta průběhu je nahoře v pravém panelu a ostatní ovládání je zakázané (stav Disabled, bez krytí); slovo *Cancel* se pro zastavení operace nepoužívá (sjednoceno po revizi 6. 10. 2026: OCR příprava, rozpoznání i zápis, detekce v Prepare Scanned Pages, číslování stránek, dávka).
 47. **Z revize 6. 10. 2026 nepřijato:** změna komponenty *Page selection* (čtyři nezávislá zaškrtávátka filtrů, chybějící *Visible pages* – odpovídá *Current*), vzhled vybraného chipu jako primárního tlačítka a odkaz *Another tool…* v komponentě *Continue with* (schválené dříve), hromadná úprava vzhledu více vybraných prvků v Edit Content (dnes se mění po jednom), výběr jazyků pro jednu stránku či oblast jako zaškrtávací seznam (zůstává textové pole `deu+eng`), sloučení dvou řad chipů v pravém panelu OCR po rozpoznání. Nové proti dnešku: předvolby pozice čísla stránky včetně *outside* (vnější okraj podle sudé/liché stránky), písma pro nový text jen systémová.
+48. **Plná modrá jen pro primární tlačítko (Q-9, 16. 10. 2026).** Mění bod 47 v části o vybraném chipu. Vybraný Filter chip má jemný akcent `bg/surface` + `bg/accent-subtle` s textem `text/accent`, jako aktivní tlačítko lišty. Plnou výplň `bg/accent` má na obrazovce jen potvrzovací (primární) tlačítko. Volba jedné z několika možností je segmentovaný přepínač (komponenta *Segment* na dráze `bg/track`): předvolby Compress, výběr stránek, zarovnání, Fit / 100 %, Thumbnails / Details, Marks / Preview result, profil OCR. Volby zapnuto / vypnuto (Whole words, Regular expression, Sync zoom) jsou chipy, které zapnuté ukazují zatržítko. Filtry seznamů a záložky panelů zůstávají chipy.
 
+49. **Nabídka Annotate (Q-14, 16. 10. 2026).** Zvýraznění textu se přesunulo z panelu Insert do nové nabídky *Annotate* s lištou nad vybraným textem, podrobně v 9.8.
+
 Otevřené otázky ke katalogu: zařazení *Prepare Scanned Pages* a *Batch Recognize Text* (bod 44).

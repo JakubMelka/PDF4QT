@@ -45,6 +45,7 @@
 #include <QMenu>
 #include <QMetaEnum>
 #include <QPainter>
+#include <QButtonGroup>
 #include <QDialogButtonBox>
 #include <QTabWidget>
 #include <QAbstractItemView>
@@ -78,11 +79,12 @@
 #include <QStyleOptionTab>
 #include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
-#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#include <memory>
 
 using Color = pdf::PDFThemeColors::Color;
 
@@ -134,6 +136,7 @@ private slots:
     void framePrimitive();
     void itemEditorFactory();
     void itemEditing();
+    void chipsAndSegments();
     void pointerTargets();
     void subMenuMargin();
     void popupPlacement();
@@ -1396,7 +1399,7 @@ void WidgetStyleTest::widgets()
     QCOMPARE(segmentedControl.getCurrentIndex(), 1);
     QVERIFY(spy.count() >= 1);
     QCOMPARE(spy.last().at(0).toInt(), 1);
-    QCOMPARE(segmentedControl.sizeHint().height(), 36);
+    QCOMPARE(segmentedControl.sizeHint().height(), 32);
 
     // Editors of items
     pdf::PDFItemEditorFactory factory;
@@ -2168,12 +2171,20 @@ void WidgetStyleTest::itemEditorFactory()
     QVERIFY(!dynamic_cast<const pdf::PDFItemEditorFactory*>(QItemEditorFactory::defaultFactory()));
 
     // A factory of the application is kept
-    pdf::PDFItemEditorFactory* applicationFactory = new pdf::PDFItemEditorFactory();
+    QItemEditorFactory* applicationFactory = new QItemEditorFactory();
     QItemEditorFactory::setDefaultFactory(applicationFactory);
     m_style->polish(qApp);
     QCOMPARE(QItemEditorFactory::defaultFactory(), applicationFactory);
     m_style->unpolish(qApp);
     QCOMPARE(QItemEditorFactory::defaultFactory(), applicationFactory);
+
+    // A factory, which the application sets after the style has prepared it, is kept too
+    QItemEditorFactory::setDefaultFactory(nullptr);
+    m_style->polish(qApp);
+    QItemEditorFactory* laterFactory = new QItemEditorFactory();
+    QItemEditorFactory::setDefaultFactory(laterFactory);
+    m_style->unpolish(qApp);
+    QCOMPARE(QItemEditorFactory::defaultFactory(), laterFactory);
 
     // The state of the other tests: the factory of Qt replaced by the style
     QItemEditorFactory::setDefaultFactory(nullptr);
@@ -2184,7 +2195,8 @@ void WidgetStyleTest::itemEditorFactory()
 void WidgetStyleTest::itemEditing()
 {
     // A cell of a table edited by the delegate of the library and by the default delegate
-    // of Qt: one frame (the ring of the editor), text and selection in the colors of the theme
+    // of Qt: the view paints the edited cell (bg/surface and one focus ring), the frameless
+    // editor paints only its text; text and selection in the colors of the theme
     for (const bool isLibraryDelegate : { true, false })
     {
         QStandardItemModel model(3, 2);
@@ -2206,8 +2218,8 @@ void WidgetStyleTest::itemEditing()
         view.activateWindow();
         QVERIFY(QTest::qWaitForWindowExposed(&view));
 
-        // The default delegate of Qt is replaced by the delegate of the library
-        QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
+        // The style never replaces the delegate of a view
+        QCOMPARE(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()) != nullptr, isLibraryDelegate);
 
         const QModelIndex index = model.index(1, 0);
         view.setCurrentIndex(index);
@@ -2218,7 +2230,7 @@ void WidgetStyleTest::itemEditing()
         editor->selectAll();
         QCoreApplication::processEvents();
 
-        const QImage image = view.grab().toImage();
+        QImage image = view.grab().toImage();
         const QByteArray dumpDirectory = qgetenv("PDF4QT_TEST_DUMP");
         if (!dumpDirectory.isEmpty())
         {
@@ -2230,32 +2242,220 @@ void WidgetStyleTest::itemEditing()
         QVERIFY(editor->palette().color(QPalette::Highlight) != pdf::PDFThemeColors::getLeakColor());
         QVERIFY(editor->palette().color(QPalette::HighlightedText) != pdf::PDFThemeColors::getLeakColor());
 
-        // The editor covers the whole cell, its ring is the only frame of the cell
-        QCOMPARE(editor->geometry(), view.visualRect(index));
+        // One ring: along the middle line of the edited cell the color of the ring
+        // is found only at its two edges
+        // (a read-only editor has no text cursor, which is drawn in the color of the ring)
+        editor->deselect();
+        editor->setReadOnly(true);
+        QCoreApplication::processEvents();
+        image = view.grab().toImage();
+        const QRect cell = view.visualRect(index).translated(view.viewport()->geometry().topLeft());
+        int runs = 0;
+        bool isInRun = false;
+        for (int x = cell.left(); x <= cell.right(); ++x)
+        {
+            const bool isRing = isNear(pixel(image, x, cell.center().y()), token(Color::BorderFocus), 24);
+            runs += isRing && !isInRun ? 1 : 0;
+            isInRun = isRing;
+        }
+        QCOMPARE(runs, 2);
+        QVERIFY(isNear(pixel(image, cell.left() + 4, cell.top() + 4), token(Color::BgSurface), 3));
     }
 
-    // The default delegate is used again, when the style releases the view;
-    // a delegate of the application (a subclass) is never replaced
+    // A persistent editor opened before the view is shown saves its value, also after
+    // a change of the theme of the platform (the view is polished again)
+    QStandardItemModel model(1, 1);
+    model.setItem(0, 0, new QStandardItem(QStringLiteral("Draft")));
     QTableView view;
-    QStyledItemDelegate* defaultDelegate = qobject_cast<QStyledItemDelegate*>(view.itemDelegate());
-    QVERIFY(defaultDelegate);
-    view.ensurePolished();
-    QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
-    m_style->unpolish(&view);
-    QCOMPARE(view.itemDelegate(), defaultDelegate);
-    m_style->polish(&view);
-    QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
+    view.setModel(&model);
+    QAbstractItemDelegate* delegate = view.itemDelegate();
+    view.openPersistentEditor(model.index(0, 0));
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QEvent themeChange(QEvent::ThemeChange);
+    QCoreApplication::sendEvent(&view, &themeChange);
+    QCOMPARE(view.itemDelegate(), delegate);
+    QLineEdit* editor = view.viewport()->findChild<QLineEdit*>();
+    QVERIFY(editor);
+    editor->setFocus();
+    editor->setText(QStringLiteral("Final"));
+    QTest::keyClick(editor, Qt::Key_Return);
+    QTRY_COMPARE(model.data(model.index(0, 0)).toString(), QStringLiteral("Final"));
+}
 
-    struct ApplicationDelegate : public QStyledItemDelegate
+void WidgetStyleTest::chipsAndSegments()
+{
+    // Selected chip of a single choice: bg/surface + bg/accent-subtle, no border, text/accent
+    // (decision of Q-9, the full accent belongs only to the primary button)
+    QWidget row;
+    QHBoxLayout* rowLayout = new QHBoxLayout(&row);
+    QButtonGroup group;
+    QPushButton* selected = new QPushButton(QStringLiteral("Recognition"), &row);
+    QPushButton* other = new QPushButton(QStringLiteral("Output"), &row);
+    for (QPushButton* chip : { selected, other })
     {
-        using QStyledItemDelegate::QStyledItemDelegate;
-    };
+        chip->setProperty(pdf::PDFWidgetStyleProperties::CHIP, true);
+        chip->setCheckable(true);
+        chip->setFocusPolicy(Qt::NoFocus);
+        group.addButton(chip);
+        rowLayout->addWidget(chip);
+    }
+    selected->setChecked(true);
+    row.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&row));
+    QCOMPARE(countLeakPixels(row.grab().toImage()), 0);
+    QImage image = row.grab(selected->geometry()).toImage();
+    const QColor subtle = blend(token(Color::BgAccentSubtle), token(Color::BgSurface));
+    const int middle = selected->height() / 2;
+    QVERIFY(isNear(pixel(image, 3, middle), subtle, 3));
 
-    QTableView applicationView;
-    ApplicationDelegate* applicationDelegate = new ApplicationDelegate(&applicationView);
-    applicationView.setItemDelegate(applicationDelegate);
-    applicationView.ensurePolished();
-    QCOMPARE(applicationView.itemDelegate(), applicationDelegate);
+    // No border: the first column of the chip, which is not the background, is the fill
+    const QColor background = row.grab().toImage().pixelColor(0, 0);
+    int firstColumn = 0;
+    while (firstColumn < selected->width() && isNear(pixel(image, firstColumn, middle), background, 2))
+    {
+        ++firstColumn;
+    }
+    QVERIFY(firstColumn < 6);
+
+    // The antialiased first column is a mix of the background and of the fill; a border
+    // (border/default) would not lie on the line between them
+    const QColor edge = pixel(image, firstColumn, middle);
+    const qreal coverage = qreal(background.red() - edge.red()) / qreal(background.red() - subtle.red());
+    const QColor mixed = QColor::fromRgbF(background.redF() + coverage * (subtle.redF() - background.redF()),
+                                          background.greenF() + coverage * (subtle.greenF() - background.greenF()),
+                                          background.blueF() + coverage * (subtle.blueF() - background.blueF()));
+    QVERIFY2(isNear(edge, mixed, 4), qPrintable(edge.name() + QStringLiteral(" ") + mixed.name()));
+    QVERIFY(isNear(pixel(image, firstColumn + 1, middle), subtle, 3));
+    int accentPixels = 0;
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            accentPixels += isNear(image.pixelColor(x, y), token(Color::TextAccent), 24) ? 1 : 0;
+            QVERIFY(!isNear(image.pixelColor(x, y), token(Color::BgAccent), 2));
+        }
+    }
+    QVERIFY(accentPixels > 10);
+
+    // Selected tab of a chip tab bar has the same look
+    QTabBar tabBar;
+    tabBar.addTab(QStringLiteral("Settings"));
+    tabBar.addTab(QStringLiteral("Review"));
+    tabBar.resize(tabBar.sizeHint());
+    image = tabBar.grab().toImage();
+    QVERIFY(isNear(pixel(image, tabBar.tabRect(0).center().x(), tabBar.tabRect(0).center().y() + 10), subtle, 3));
+
+    // On / off option (chip with the property "option"): the check mark replaces its icon
+    // when it is on, it has always the place of the icon, so it keeps its width
+    auto makeChip = [](const QString& text, bool isOption, bool isChecked, const QIcon& icon)
+    {
+        std::unique_ptr<QPushButton> chip = std::make_unique<QPushButton>(icon, text);
+        chip->setProperty(pdf::PDFWidgetStyleProperties::CHIP, true);
+        if (isOption)
+        {
+            chip->setProperty(pdf::PDFWidgetStyleProperties::OPTION, true);
+        }
+        chip->setCheckable(true);
+        chip->setChecked(isChecked);
+        chip->resize(chip->sizeHint());
+        return chip;
+    };
+    const QIcon matchCase = pdf::PDFThemeIcons::getIcon(QStringLiteral("match-case"));
+    const std::unique_ptr<QPushButton> plain = makeChip(QStringLiteral("Whole words"), false, false, QIcon());
+    const std::unique_ptr<QPushButton> optionOff = makeChip(QStringLiteral("Whole words"), true, false, QIcon());
+    const std::unique_ptr<QPushButton> optionOn = makeChip(QStringLiteral("Whole words"), true, true, QIcon());
+    const std::unique_ptr<QPushButton> optionOnWithIcon = makeChip(QStringLiteral("Whole words"), true, true, matchCase);
+    QCOMPARE(optionOff->sizeHint().width(), plain->sizeHint().width() + 20);
+    QCOMPARE(optionOn->sizeHint().width(), optionOff->sizeHint().width());
+    QCOMPARE(optionOnWithIcon->sizeHint().width(), optionOn->sizeHint().width());
+    const QImage withoutIcon = optionOn->grab().toImage();
+    const QImage withIcon = optionOnWithIcon->grab().toImage();
+    const int iconColumns = qRound(34 * withIcon.devicePixelRatio());
+    QCOMPARE(withIcon.copy(0, 0, iconColumns, withIcon.height()), withoutIcon.copy(0, 0, iconColumns, withoutIcon.height()));
+    int checkPixels = 0;
+    for (int y = 0; y < withIcon.height(); ++y)
+    {
+        for (int x = 0; x < iconColumns; ++x)
+        {
+            checkPixels += isNear(withIcon.pixelColor(x, y), token(Color::IconAccent), 24) ? 1 : 0;
+        }
+    }
+    QVERIFY(checkPixels > 6);
+
+    // A chip of a single choice (filter, tab) shows no check mark and has no place for it
+    const std::unique_ptr<QPushButton> filterOn = makeChip(QStringLiteral("Whole words"), false, true, QIcon());
+    QCOMPARE(filterOn->sizeHint().width(), plain->sizeHint().width());
+    const QImage filterImage = filterOn->grab().toImage();
+    int filterAccentPixels = 0;
+    for (int y = 0; y < filterImage.height(); ++y)
+    {
+        for (int x = 0; x < qRound(14 * filterImage.devicePixelRatio()); ++x)
+        {
+            filterAccentPixels += isNear(filterImage.pixelColor(x, y), token(Color::IconAccent), 24) ? 1 : 0;
+        }
+    }
+    QCOMPARE(filterAccentPixels, 0);
+
+    // Segmented control (Q-16): bg/track without padding, all segments as wide as the widest
+    pdf::PDFSegmentedControl presets;
+    for (const char* name : { "Smaller file", "Balanced", "Best quality", "Custom\xE2\x80\xA6" })
+    {
+        presets.addSegment(QString::fromUtf8(name));
+    }
+    presets.setCurrentIndex(1);
+    const QSize hint = presets.sizeHint();
+    QCOMPARE(hint.height(), 32);
+    QCOMPARE(hint.width() % 4, 0);
+    int widest = 0;
+    for (const QToolButton* segment : presets.findChildren<QToolButton*>())
+    {
+        widest = qMax(widest, segment->sizeHint().width());
+    }
+    QVERIFY(qAbs(widest - qCeil(pdf::PDFStylePainter::textWidth(QStringLiteral("Best quality"), pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionSemiBold))) - 28) <= 1);
+    QCOMPARE(hint.width(), 4 * widest);
+    presets.resize(hint);
+    presets.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&presets));
+    const QList<QToolButton*> segments = presets.findChildren<QToolButton*>();
+    QCOMPARE(segments.size(), 4);
+    QCOMPARE(segments.first()->geometry(), QRect(0, 0, widest, 32));
+    for (const QToolButton* segment : segments)
+    {
+        QCOMPARE(segment->width(), widest);
+    }
+    image = presets.grab().toImage();
+    QVERIFY(isNear(pixel(image, 2 * widest + widest / 2, 2), token(Color::BgTrack), 3));
+
+    // The plate of the selected segment has the radius of the track (16): its corner
+    // does not reach out of the corner of the track
+    // (dark theme: the background of the window differs from the plate; the bottom
+    // corners are covered by the shadow of the plate, as in the design)
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("dark")));
+    const QImage unselectedCorner = presets.grab().toImage();
+    presets.setCurrentIndex(0);
+    image = presets.grab().toImage();
+    QVERIFY(isNear(pixel(image, 3, 16), token(Color::BgSurface), 3));
+    for (const QPoint& point : { QPoint(5, 3), QPoint(3, 5), QPoint(7, 1) })
+    {
+        QVERIFY2(isNear(pixel(image, point.x(), point.y()), pixel(unselectedCorner, point.x(), point.y()), 6), qPrintable(QStringLiteral("%1,%2").arg(point.x()).arg(point.y())));
+    }
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
+    QCOMPARE(countLeakPixels(image), 0);
+
+    // A control of a given width (the theme switch of the sidebar, 182) divides it equally
+    pdf::PDFSegmentedControl theme;
+    theme.addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
+    theme.addSegment(QStringLiteral("Dark"), QStringLiteral("moon"));
+    theme.addSegment(QStringLiteral("Auto"), QStringLiteral("monitor"));
+    theme.setFixedWidth(182);
+    theme.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&theme));
+    for (const QToolButton* segment : theme.findChildren<QToolButton*>())
+    {
+        QVERIFY2(qAbs(segment->width() - 61) <= 1, qPrintable(QString::number(segment->width())));
+        QCOMPARE(segment->height(), 32);
+    }
 }
 
 void WidgetStyleTest::pointerTargets()
@@ -2650,7 +2850,7 @@ void WidgetStyleTest::disabledAndSelect()
     segmented.addSegment(QStringLiteral("Auto"), QStringLiteral("monitor"));
     segmented.setSegmentIconColor(light, Color::IconSun);
     segmented.setCurrentIndex(1);
-    segmented.resize(186, 36);
+    segmented.resize(182, 32);
     image = segmented.grab().toImage();
     int sunPixels = 0;
     for (int y = 0; y < image.height(); ++y)

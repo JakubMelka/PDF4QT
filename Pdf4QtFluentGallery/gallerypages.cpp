@@ -82,6 +82,7 @@
 #include <QVBoxLayout>
 
 #include <array>
+#include <utility>
 
 // Widgets of Qt, which are shown only on the page of the leaks of the palette
 #include <QCalendarWidget>
@@ -1829,7 +1830,7 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     const int autoSegment = segmented->addSegment(QStringLiteral("Auto"), QStringLiteral("monitor"));
     segmented->setSegmentIconColor(lightSegment, Color::IconSun);
     segmented->setCurrentIndex(autoSegment);
-    segmented->setFixedWidth(186);
+    segmented->setFixedWidth(182);
     builder.live(QStringLiteral("Segmented control (theme toggle)"), segmented, QStringLiteral("47:157"));
 
     pdf::PDFSegmentedControl* twoSegments = new pdf::PDFSegmentedControl(builder.page());
@@ -1837,25 +1838,55 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     const int selectedLight = twoSegments->addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
     twoSegments->addSegment(QStringLiteral("Dark"), QStringLiteral("moon"));
     twoSegments->setSegmentIconColor(selectedLight, Color::IconSun);
-    twoSegments->setFixedWidth(186);
+    twoSegments->setFixedWidth(182);
     builder.live(QStringLiteral("Segmented control with two segments"), twoSegments, QStringLiteral("620:1544"));
+
+    // A single choice of a few options is a segmented control of segments without icons,
+    // all as wide as the widest one (Compress presets of the Optimize tool)
+    pdf::PDFSegmentedControl* presets = new pdf::PDFSegmentedControl(builder.page());
+    presets->setAccessibleName(QStringLiteral("Preset"));
+    for (const char* name : { "Smaller file", "Balanced", "Best quality", "Custom\xE2\x80\xA6" })
+    {
+        presets->addSegment(QString::fromUtf8(name));
+    }
+    presets->setCurrentIndex(1);
+    builder.live(QStringLiteral("Segmented control of options (presets)"), presets, QStringLiteral("47:157"));
 
     QWidget* chipRow = new QWidget(builder.page());
     QHBoxLayout* chipLayout = new QHBoxLayout(chipRow);
     chipLayout->setContentsMargins(2, 2, 2, 2);
     chipLayout->setSpacing(6);
     QButtonGroup* chipGroup = new QButtonGroup(chipRow);
-    for (const char* name : { "Thumbnails", "Details" })
+    for (const char* name : { "All", "Files", "Folders" })
     {
         QPushButton* chip = new QPushButton(QString::fromLatin1(name), chipRow);
         chip->setProperty(Properties::CHIP, true);
         chip->setCheckable(true);
         chip->setAutoDefault(false);
-        chip->setChecked(qstrcmp(name, "Thumbnails") == 0);
+        chip->setChecked(qstrcmp(name, "All") == 0);
         chipGroup->addButton(chip);
         chipLayout->addWidget(chip);
     }
     builder.live(QStringLiteral("Filter chips (checkable buttons with property \"chip\")"), chipRow, QStringLiteral("620:1556"));
+
+    // On / off options: chips with the property "option" show the check mark instead
+    // of their icon, when they are on
+    QWidget* optionRow = new QWidget(builder.page());
+    QHBoxLayout* optionLayout = new QHBoxLayout(optionRow);
+    optionLayout->setContentsMargins(2, 2, 2, 2);
+    optionLayout->setSpacing(6);
+    for (const auto& option : { std::pair<const char*, const char*>{ "Match case", "match-case" }, { "Whole words", "whole-word" } })
+    {
+        QPushButton* chip = new QPushButton(QString::fromLatin1(option.first), optionRow);
+        chip->setProperty(Properties::CHIP, true);
+        chip->setProperty(Properties::OPTION, true);
+        chip->setCheckable(true);
+        chip->setAutoDefault(false);
+        chip->setIcon(pdf::PDFThemeIcons::getIcon(QString::fromLatin1(option.second)));
+        chip->setChecked(qstrcmp(option.first, "Whole words") == 0);
+        optionLayout->addWidget(chip);
+    }
+    builder.live(QStringLiteral("Option chips (Whole words on)"), optionRow, QStringLiteral("198:4934"));
 
     return builder.finish();
 }

@@ -349,6 +349,11 @@ public:
     /// segment has the icon icon/disabled.
     void setSegmentIconColor(int index, PDFThemeColors::Color color);
 
+    /// All segments have the width of the widest one, a control of a given
+    /// width (the theme switch of the sidebar) divides it equally
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+
 Q_SIGNALS:
     void currentIndexChanged(int index);
 

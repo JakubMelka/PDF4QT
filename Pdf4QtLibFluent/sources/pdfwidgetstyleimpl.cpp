@@ -757,8 +757,10 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     }
 
     // The factory of Qt is used again (Qt deletes the installed factory), unless
-    // the application has replaced it meanwhile
-    if (m_installedItemEditorFactory && QItemEditorFactory::defaultFactory() == m_installedItemEditorFactory)
+    // the application has replaced it meanwhile (its factory could even have
+    // got the address of ours, so the type is compared too)
+    const QItemEditorFactory* currentFactory = QItemEditorFactory::defaultFactory();
+    if (m_installedItemEditorFactory && currentFactory == m_installedItemEditorFactory && typeid(*currentFactory) == typeid(PDFItemEditorFactory))
     {
         QItemEditorFactory::setDefaultFactory(nullptr);
     }
