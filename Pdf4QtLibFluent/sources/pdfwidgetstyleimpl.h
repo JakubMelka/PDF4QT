@@ -332,6 +332,9 @@ private:
     QPalette m_savedToolTipPalette;
     QFont m_savedFont;
     bool m_savedEffects[6] = { };
+
+    /// Default item editor factory installed by the style (owned by Qt, only compared)
+    const void* m_installedItemEditorFactory = nullptr;
 };
 
 /// Factory functions of the areas of the style (each area is implemented in its file)

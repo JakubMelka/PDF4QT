@@ -37,6 +37,7 @@
 #include <QFontMetricsF>
 #include <QGroupBox>
 #include <QHelpEvent>
+#include <QItemEditorFactory>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMenuBar>
@@ -55,6 +56,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <typeinfo>
 
 namespace pdf
 {
@@ -698,6 +700,19 @@ void PDFWidgetStyleImpl::polish(QApplication* application)
     QGuiApplication::styleHints()->setColorScheme(theme.isDark() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
     applyLeakPalette();
 
+    // Default delegates of item views (QStyledItemDelegate without a factory of its own)
+    // take the editors from the default factory of the application. The factory of Qt
+    // creates stock widgets drawn from the palette (violet text and selection) and a line
+    // edit with its own frame inside of the ring of the cell. A factory set by the
+    // application is kept; Qt's own factory is the private QDefaultItemEditorFactory.
+    const QItemEditorFactory* itemEditorFactory = QItemEditorFactory::defaultFactory();
+    if (QByteArray(typeid(*itemEditorFactory).name()).contains("QDefaultItemEditorFactory"))
+    {
+        PDFItemEditorFactory* factory = new PDFItemEditorFactory();
+        QItemEditorFactory::setDefaultFactory(factory);
+        m_installedItemEditorFactory = factory;
+    }
+
     application->installEventFilter(this);
 }
 
@@ -740,6 +755,14 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     {
         QApplication::setFont(m_savedFont, className);
     }
+
+    // The factory of Qt is used again (Qt deletes the installed factory), unless
+    // the application has replaced it meanwhile
+    if (m_installedItemEditorFactory && QItemEditorFactory::defaultFactory() == m_installedItemEditorFactory)
+    {
+        QItemEditorFactory::setDefaultFactory(nullptr);
+    }
+    m_installedItemEditorFactory = nullptr;
 }
 
 bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)

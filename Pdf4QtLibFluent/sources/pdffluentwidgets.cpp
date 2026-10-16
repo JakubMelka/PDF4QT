@@ -401,15 +401,8 @@ void PDFLineEdit::updatePasswordButton()
     m_passwordButton->setAccessibleName(buttonText);
     m_passwordButton->setToolTip(buttonText);
 
-    // The toggle of an empty field is muted, of a filled field icon/default in all its states
-    if (text().isEmpty())
-    {
-        m_passwordButton->resetIconColor();
-    }
-    else
-    {
-        m_passwordButton->setIconColor(PDFThemeColors::IconDefault);
-    }
+    // The toggle is a plain icon button in every content of the field (icon/muted at rest,
+    // icon/default on hover, icon/strong when pressed), its color is not overridden
 }
 
 void PDFLineEdit::placePasswordButton()

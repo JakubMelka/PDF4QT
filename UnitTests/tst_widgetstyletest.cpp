@@ -78,6 +78,7 @@
 #include <QStyleOptionTab>
 #include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
+#include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QToolBar>
 #include <QToolButton>
@@ -132,6 +133,7 @@ private slots:
     void progressBarThickness();
     void framePrimitive();
     void itemEditorFactory();
+    void itemEditing();
     void pointerTargets();
     void subMenuMargin();
     void popupPlacement();
@@ -912,12 +914,44 @@ void WidgetStyleTest::indicatorPixels()
     image = draw(QStyle::PE_IndicatorCheckBox, QStyle::State_Active | QStyle::State_On);
     QVERIFY(isNear(pixel(image, 2, 9), token(pdf::PDFThemeColors::BorderStrong)));
 
-    // Checked indicator: border bg/accent-pressed under the pointer, fill bg/accent-pressed when pressed
-    image = draw(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_On | QStyle::State_MouseOver);
-    QVERIFY(isNear(pixel(image, 0, 9), token(pdf::PDFThemeColors::BgAccentPressed)));
-    QVERIFY(isNear(pixel(image, 3, 9), token(pdf::PDFThemeColors::BgAccent)));
-    image = draw(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_On | QStyle::State_MouseOver | QStyle::State_Sunken);
-    QVERIFY(isNear(pixel(image, 2, 9), token(pdf::PDFThemeColors::BgAccentPressed)));
+    // Hover and pressed (decision 23 of components.md), both themes and fractional scales:
+    // unchecked bg/surface + bg/hover / bg/pressed with a border icon/muted 1.5 px,
+    // checked bg/accent-hover without a border, pressed bg/accent-pressed
+    for (const QString& theme : { QStringLiteral("light"), QStringLiteral("dark") })
+    {
+        QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            auto drawScaled = [this, size, scale](QStyle::PrimitiveElement element, QStyle::State state)
+            {
+                QStyleOptionButton option;
+                option.rect = QRect(QPoint(0, 0), size);
+                option.state = state;
+                return render([this, &option, element](QPainter& painter) { m_style->drawPrimitive(element, &option, &painter, nullptr); }, size, scale);
+            };
+
+            const QColor surface = token(pdf::PDFThemeColors::BgSurface);
+            for (const QStyle::PrimitiveElement element : { QStyle::PE_IndicatorCheckBox, QStyle::PE_IndicatorRadioButton })
+            {
+                image = drawScaled(element, enabled | QStyle::State_Off | QStyle::State_MouseOver);
+                QVERIFY(isNear(pixel(image, 5, 9), blend(token(pdf::PDFThemeColors::BgHover), surface), 3));
+                image = drawScaled(element, enabled | QStyle::State_Off | QStyle::State_MouseOver | QStyle::State_Sunken);
+                QVERIFY(isNear(pixel(image, 5, 9), blend(token(pdf::PDFThemeColors::BgPressed), surface), 3));
+
+                image = drawScaled(element, enabled | QStyle::State_On | QStyle::State_MouseOver);
+                QVERIFY(isNear(pixel(image, 0.5, 9), token(pdf::PDFThemeColors::BgAccentHover), 3));
+                QVERIFY(isNear(pixel(image, 3, 9), token(pdf::PDFThemeColors::BgAccentHover), 3));
+                image = drawScaled(element, enabled | QStyle::State_On | QStyle::State_MouseOver | QStyle::State_Sunken);
+                QVERIFY(isNear(pixel(image, 3, 9), token(pdf::PDFThemeColors::BgAccentPressed), 3));
+            }
+
+            image = drawScaled(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_Off | QStyle::State_MouseOver);
+            QVERIFY(isNear(pixel(image, 0, 9), token(pdf::PDFThemeColors::IconMuted), 3));
+            image = drawScaled(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_Off | QStyle::State_MouseOver | QStyle::State_Sunken);
+            QVERIFY(isNear(pixel(image, 0, 9), token(pdf::PDFThemeColors::IconMuted), 3));
+        }
+    }
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
 
     // Unchecked disabled indicator: bg/muted with border/default
     image = draw(QStyle::PE_IndicatorCheckBox, QStyle::State_Active | QStyle::State_Off);
@@ -2096,6 +2130,10 @@ void WidgetStyleTest::itemEditorFactory()
     QWidget parent;
     pdf::PDFItemEditorFactory factory;
 
+    // The style has installed the factory as the default factory of the application
+    // (default delegates of the views create the editors of the library)
+    QVERIFY(dynamic_cast<const pdf::PDFItemEditorFactory*>(QItemEditorFactory::defaultFactory()));
+
     // Editors of all basic types are widgets of the library
     QWidget* boolEditor = factory.createEditor(QMetaType::Bool, &parent);
     QVERIFY(qobject_cast<pdf::PDFComboBox*>(boolEditor));
@@ -2120,6 +2158,104 @@ void WidgetStyleTest::itemEditorFactory()
     QCOMPARE(QItemEditorFactory::defaultFactory()->valuePropertyName(QMetaType::LongLong), QByteArray("text"));
     QItemEditorFactory::setDefaultFactory(nullptr);
     QVERIFY(factory.createEditor(QMetaType::LongLong, &parent));
+
+    // The factory of Qt is replaced, when the style prepares the application, and it is
+    // restored, when the style releases the application
+    m_style->unpolish(qApp);
+    m_style->polish(qApp);
+    QVERIFY(dynamic_cast<const pdf::PDFItemEditorFactory*>(QItemEditorFactory::defaultFactory()));
+    m_style->unpolish(qApp);
+    QVERIFY(!dynamic_cast<const pdf::PDFItemEditorFactory*>(QItemEditorFactory::defaultFactory()));
+
+    // A factory of the application is kept
+    pdf::PDFItemEditorFactory* applicationFactory = new pdf::PDFItemEditorFactory();
+    QItemEditorFactory::setDefaultFactory(applicationFactory);
+    m_style->polish(qApp);
+    QCOMPARE(QItemEditorFactory::defaultFactory(), applicationFactory);
+    m_style->unpolish(qApp);
+    QCOMPARE(QItemEditorFactory::defaultFactory(), applicationFactory);
+
+    // The state of the other tests: the factory of Qt replaced by the style
+    QItemEditorFactory::setDefaultFactory(nullptr);
+    m_style->polish(qApp);
+    QVERIFY(dynamic_cast<const pdf::PDFItemEditorFactory*>(QItemEditorFactory::defaultFactory()));
+}
+
+void WidgetStyleTest::itemEditing()
+{
+    // A cell of a table edited by the delegate of the library and by the default delegate
+    // of Qt: one frame (the ring of the editor), text and selection in the colors of the theme
+    for (const bool isLibraryDelegate : { true, false })
+    {
+        QStandardItemModel model(3, 2);
+        for (int row = 0; row < 3; ++row)
+        {
+            model.setItem(row, 0, new QStandardItem(QStringLiteral("Annual report %1.pdf").arg(row + 1)));
+            model.setItem(row, 1, new QStandardItem(QStringLiteral("2.4 MB")));
+        }
+
+        QTableView view;
+        view.setModel(&model);
+        if (isLibraryDelegate)
+        {
+            view.setItemDelegate(new pdf::PDFItemDelegate(&view));
+        }
+        view.setColumnWidth(0, 220);
+        view.resize(420, 160);
+        view.show();
+        view.activateWindow();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+
+        // The default delegate of Qt is replaced by the delegate of the library
+        QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
+
+        const QModelIndex index = model.index(1, 0);
+        view.setCurrentIndex(index);
+        view.edit(index);
+        QLineEdit* editor = view.viewport()->findChild<QLineEdit*>();
+        QVERIFY(editor);
+        editor->setFocus();
+        editor->selectAll();
+        QCoreApplication::processEvents();
+
+        const QImage image = view.grab().toImage();
+        const QByteArray dumpDirectory = qgetenv("PDF4QT_TEST_DUMP");
+        if (!dumpDirectory.isEmpty())
+        {
+            image.save(QDir(QString::fromLocal8Bit(dumpDirectory)).filePath(QStringLiteral("itemEditing_%1.png").arg(isLibraryDelegate ? QStringLiteral("library") : QStringLiteral("qt"))));
+        }
+
+        QCOMPARE(countLeakPixels(image), 0);
+        QCOMPARE(editor->palette().color(QPalette::Text), token(pdf::PDFThemeColors::TextPrimary));
+        QVERIFY(editor->palette().color(QPalette::Highlight) != pdf::PDFThemeColors::getLeakColor());
+        QVERIFY(editor->palette().color(QPalette::HighlightedText) != pdf::PDFThemeColors::getLeakColor());
+
+        // The editor covers the whole cell, its ring is the only frame of the cell
+        QCOMPARE(editor->geometry(), view.visualRect(index));
+    }
+
+    // The default delegate is used again, when the style releases the view;
+    // a delegate of the application (a subclass) is never replaced
+    QTableView view;
+    QStyledItemDelegate* defaultDelegate = qobject_cast<QStyledItemDelegate*>(view.itemDelegate());
+    QVERIFY(defaultDelegate);
+    view.ensurePolished();
+    QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
+    m_style->unpolish(&view);
+    QCOMPARE(view.itemDelegate(), defaultDelegate);
+    m_style->polish(&view);
+    QVERIFY(qobject_cast<pdf::PDFItemDelegate*>(view.itemDelegate()));
+
+    struct ApplicationDelegate : public QStyledItemDelegate
+    {
+        using QStyledItemDelegate::QStyledItemDelegate;
+    };
+
+    QTableView applicationView;
+    ApplicationDelegate* applicationDelegate = new ApplicationDelegate(&applicationView);
+    applicationView.setItemDelegate(applicationDelegate);
+    applicationView.ensurePolished();
+    QCOMPARE(applicationView.itemDelegate(), applicationDelegate);
 }
 
 void WidgetStyleTest::pointerTargets()
@@ -2424,7 +2560,8 @@ void WidgetStyleTest::components()
     QCOMPARE(countLeakPixels(password.grab().toImage()), 0);
     QCOMPARE(password.getPasswordButton()->geometry(), QRect(285, 6, 28, 28));
     QCOMPARE(password.property(pdf::PDFWidgetStyleProperties::FIELD_TEXT_INSETS).value<QMargins>(), QMargins(37, 0, 43, 0));
-    QCOMPARE(password.getPasswordButton()->getCurrentIconColor(), Color::IconDefault);
+    // The toggle is a plain icon button also in a filled field (decision 22 of components.md)
+    QCOMPARE(password.getPasswordButton()->getCurrentIconColor(), Color::IconMuted);
     password.getPasswordButton()->click();
     QCOMPARE(password.echoMode(), QLineEdit::Normal);
     QCOMPARE(password.getPasswordButton()->getIconName(), QStringLiteral("eye-off"));

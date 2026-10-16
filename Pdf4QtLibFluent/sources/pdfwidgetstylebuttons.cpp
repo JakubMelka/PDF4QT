@@ -818,17 +818,14 @@ void PDFWidgetStyleButtons::drawIndicator(const QStyleOption* option, QPainter* 
 
     if (!isChecked)
     {
-        Color fill = Color::BgSurface;
-        if (!state.enabled || state.pressed)
+        // Hover and pressed lay the translucent overlay over the surface of the box,
+        // so the box keeps its own surface also on a colored background
+        const bool isActive = state.enabled && (state.hover || state.pressed);
+        PDFStylePainter::fill(painter, rect, radii, state.enabled ? Color::BgSurface : Color::BgMuted);
+        if (isActive)
         {
-            fill = Color::BgMuted;
+            PDFStylePainter::fill(painter, rect, radii, state.pressed ? Color::BgPressed : Color::BgHover);
         }
-        else if (state.hover)
-        {
-            fill = Color::BgSubtle;
-        }
-
-        PDFStylePainter::fill(painter, rect, radii, fill);
 
         if (!state.enabled)
         {
@@ -839,11 +836,14 @@ void PDFWidgetStyleButtons::drawIndicator(const QStyleOption* option, QPainter* 
             // Unchecked indicator has the focus ring inside of its box
             PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderFocus, 2.0);
         }
+        else if (isActive)
+        {
+            PDFStylePainter::strokeInside(painter, rect, radii, Color::IconMuted, 1.5);
+        }
         else
         {
             // The radio button at rest has a thinner border
-            const bool isThin = isRadio && !state.hover && !state.pressed;
-            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderStrong, isThin ? 1.0 : 1.5);
+            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderStrong, isRadio ? 1.0 : 1.5);
         }
         return;
     }
@@ -857,13 +857,12 @@ void PDFWidgetStyleButtons::drawIndicator(const QStyleOption* option, QPainter* 
     {
         fill = Color::BgAccentPressed;
     }
+    else if (state.hover)
+    {
+        fill = Color::BgAccentHover;
+    }
 
     PDFStylePainter::fill(painter, rect, radii, fill);
-
-    if (state.enabled && state.hover && !state.pressed)
-    {
-        PDFStylePainter::strokeInside(painter, rect, radii, Color::BgAccentPressed, 1.5);
-    }
 
     if (isRadio)
     {
