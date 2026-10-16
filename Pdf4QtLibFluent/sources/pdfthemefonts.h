@@ -52,7 +52,11 @@ public:
         CaptionSemiBold,    ///< Semi Bold 11 - checked segments
         Tiny,               ///< Regular 10
         Title,              ///< Bold 15 - titles of sections and cards
-        DialogTitle         ///< Semi Bold 16 - titles of dialogs
+        DialogTitle,        ///< Semi Bold 16 - titles of dialogs
+        TinySemiBold,       ///< Semi Bold 10 - name of the reading theme under its sample
+        BodyBold,           ///< Bold 13 - title of a resource card
+        TileTitle,          ///< Bold 14 - title of a quick action tile and of a highlight card
+        Display             ///< Bold 22 - sample letters of a reading theme card
     };
 
     /// Loads the fonts of the library into the font database of the application.

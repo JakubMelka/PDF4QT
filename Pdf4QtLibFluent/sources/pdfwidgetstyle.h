@@ -82,6 +82,11 @@ public:
     /// (directly, or wrapped by a style of a style sheet).
     static bool isActive();
 
+    /// Returns true, if the widget, which draws its focus ring by itself (rows
+    /// of lists, fields), shows the ring: it has the focus and the last input of
+    /// the user was the keyboard. The widget is repainted, when it changes.
+    static bool isFocusRingVisible(const QWidget* widget);
+
     /// Sets the time of the animations of the style (busy progress bars). It is
     /// used by the tests, a negative time returns the real clock.
     void setAnimationTime(qint64 milliseconds);

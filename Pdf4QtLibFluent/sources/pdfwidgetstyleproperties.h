@@ -50,6 +50,15 @@ public:
     /// QLineEdit: pill shaped field (search field)
     static constexpr const char* PILL = "pill";
 
+    /// QLineEdit: height of the field in pixels (34 by default; password field 40,
+    /// toolbar field 32)
+    static constexpr const char* FIELD_HEIGHT = "fieldHeight";
+
+    /// QLineEdit: distances of the text from the left and from the right edge of the
+    /// field (QMargins, the border is included), when the field holds icons or
+    /// buttons of its own beside the text (password field, toolbar field)
+    static constexpr const char* FIELD_TEXT_INSETS = "fieldTextInsets";
+
     /// QLineEdit, QTextEdit, QComboBox, QSpinBox: the value is invalid
     static constexpr const char* INVALID = "error";
 
@@ -83,7 +92,9 @@ public:
     /// QToolBar: row of the icon tabs of a sidebar
     static constexpr const char* SIDEBAR_TABS = "sidebarTabs";
 
-    /// QTabBar: tabs of the documents
+    /// QTabBar: tabs of the documents (they scroll, their labels are not elided).
+    /// Other widgets: the top bar of the application holding the tabs of the
+    /// documents and the button of a new tab (background bg/titlebar).
     static constexpr const char* DOCUMENT_TABS = "documentTabs";
 
     /// QToolButton: button of a new tab of the document tabs
@@ -95,6 +106,10 @@ public:
     /// QToolButton, QPushButton: filter chip
     static constexpr const char* CHIP = "chip";
 
+    /// QToolButton, QPushButton: number shown after the label of a filter chip
+    /// (Medium 11), the count is not shown, when the property is not set
+    static constexpr const char* CHIP_COUNT = "chipCount";
+
     /// QToolButton, QLabel: item of the status bar
     static constexpr const char* STATUS_ITEM = "statusItem";
 
@@ -103,6 +118,14 @@ public:
 
     /// QDialog, QWidget: dialog shown inside of a tab over a scrim
     static constexpr const char* OVERLAY = "overlay";
+
+    /// QTreeView, QTableView, QListView: look of the rows of the view, a row of a
+    /// component of the design: "outline" (Outline row: radius 8, paddings 6 / 8,
+    /// chevron 14 in the slot of 16, indentation 18, focus ring 2 px inside),
+    /// "certificate" (Certificate row: height 34, padding 10, focus ring 2 px inside,
+    /// the selection keeps the colors of the texts), "library" (Library row: height
+    /// 30, padding 10, no hover). Set it by PDFTreeView::setRowStyle.
+    static constexpr const char* ROW_STYLE = "rowStyle";
 
     /// QProgressBar: thin progress line
     static constexpr const char* THIN = "thin";
@@ -118,6 +141,10 @@ public:
 
     /// QWidget: radius of the shape of the widget (used by the focus frame)
     static constexpr const char* RADIUS = "radius";
+
+    /// QToolButton: color of the icon of a segment in all enabled states, the value
+    /// of PDFThemeColors::Color (the sun of the Light segment of the theme switch)
+    static constexpr const char* ICON_COLOR = "iconColor";
 
     /// QToolButton: the button shows the chevron of a menu, although it has
     /// no menu (it opens a popup of its own)

@@ -176,7 +176,14 @@ public:
         Token{ "diff/removed", "#ff3232", "#ff3232" },
         Token{ "diff/added", "#7dfa00", "#7dfa00" },
         Token{ "diff/replaced", "#ff781e", "#ff781e" },
-        Token{ "diff/moved", "#2391ff", "#2391ff" }
+        Token{ "diff/moved", "#2391ff", "#2391ff" },
+        Token{ "bg/accent-hover", "#1d4ed8", "#2563eb" },
+        Token{ "bg/accent-pressed", "#0f4796", "#1d4ed8" },
+        Token{ "text/disabled", "#94a3b8", "#525e72" },
+        Token{ "icon/disabled", "#94a3b8", "#525e72" },
+        Token{ "search/match", "#a5f3fc", "#a5f3fc" },
+        Token{ "search/match-current", "#22d3ee", "#22d3ee" },
+        Token{ "search/match-border", "#0891b2", "#0891b2" }
     };
 };
 

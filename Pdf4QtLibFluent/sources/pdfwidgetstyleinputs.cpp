@@ -87,6 +87,7 @@ private:
     void drawSpinBox(const QStyleOptionSpinBox* option, QPainter* painter, const QWidget* widget) const;
     void drawComboBox(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const;
     void drawComboBoxLabel(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const;
+    void drawSelectFrame(QPainter* painter, const QRectF& rect, const PDFFieldState& state) const;
     QRect getSpinBoxRect(const QStyleOptionSpinBox* option, QStyle::SubControl subControl, const QWidget* widget) const;
     QRect getComboBoxRect(const QStyleOptionComboBox* option, QStyle::SubControl subControl, const QWidget* widget) const;
 };
@@ -232,7 +233,7 @@ bool PDFWidgetStyleInputs::drawPrimitive(QStyle::PrimitiveElement element, const
                 name = QStringLiteral("minus");
             }
 
-            PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(option->rect), QSizeF(12.0, 12.0)), name, isEnabled ? Color::IconDefault : Color::IconMuted);
+            PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(option->rect), QSizeF(12.0, 12.0)), name, isEnabled ? Color::IconDefault : Color::IconDisabled);
             return true;
         }
 
@@ -313,6 +314,15 @@ bool PDFWidgetStyleInputs::subElementRect(QStyle::SubElement element, const QSty
             {
                 // The position of the editor is given by the combo box or by the spin box
                 rect = option->rect;
+                return true;
+            }
+
+            const QVariant textInsets = widget ? widget->property(PDFWidgetStyleProperties::FIELD_TEXT_INSETS) : QVariant();
+            if (textInsets.canConvert<QMargins>())
+            {
+                // The field places its own icons and buttons beside the text
+                const QMargins insets = textInsets.value<QMargins>();
+                rect = option->rect.adjusted(qMax(0, insets.left() - LINE_EDIT_MARGIN), 0, -qMax(0, insets.right() - LINE_EDIT_MARGIN), 0);
                 return true;
             }
 
@@ -423,8 +433,27 @@ bool PDFWidgetStyleInputs::sizeFromContents(QStyle::ContentsType type, const QSt
 
             const bool pill = isPill(widget);
             const int inset = (pill ? FIELD_TEXT_LEFT_PILL : FIELD_TEXT_LEFT) - LINE_EDIT_MARGIN;
+            int horizontal = 2 * inset;
+            int height = pill ? FIELD_HEIGHT_PILL : FIELD_HEIGHT;
+
+            const QVariant textInsets = widget ? widget->property(PDFWidgetStyleProperties::FIELD_TEXT_INSETS) : QVariant();
+            if (textInsets.canConvert<QMargins>())
+            {
+                const QMargins insets = textInsets.value<QMargins>();
+                horizontal = qMax(0, insets.left() - LINE_EDIT_MARGIN) + qMax(0, insets.right() - LINE_EDIT_MARGIN);
+            }
+
+            bool hasHeight = false;
+            const int ownHeight = widget ? widget->property(PDFWidgetStyleProperties::FIELD_HEIGHT).toInt(&hasHeight) : 0;
+            if (hasHeight && ownHeight > 0)
+            {
+                // The field of its own height keeps it (its font does not change)
+                size = QSize(contentsSize.width() + horizontal, ownHeight);
+                return true;
+            }
+
             // A larger font set by the application makes the field higher
-            size = QSize(contentsSize.width() + 2 * inset, qMax(pill ? FIELD_HEIGHT_PILL : FIELD_HEIGHT, contentsSize.height() + 12));
+            size = QSize(contentsSize.width() + horizontal, qMax(height, contentsSize.height() + 12));
             return true;
         }
 
@@ -687,7 +716,15 @@ void PDFWidgetStyleInputs::drawComboBox(const QStyleOptionComboBox* option, QPai
         PDFFieldState fieldState = PDFWidgetStyleImpl::getFieldState(option, widget);
         fieldState.open = isOpen;
         fieldState.readOnly = false;
-        PDFWidgetStyleImpl::drawFieldFrame(painter, rect, Radii(FIELD_RADIUS), fieldState);
+
+        if (getComboKind(widget) == ComboKind::Select && !option->editable && !isCalendar)
+        {
+            drawSelectFrame(painter, rect, fieldState);
+        }
+        else
+        {
+            PDFWidgetStyleImpl::drawFieldFrame(painter, rect, Radii(FIELD_RADIUS), fieldState);
+        }
     }
 
     if (!option->subControls.testFlag(QStyle::SC_ComboBoxArrow))
@@ -697,7 +734,7 @@ void PDFWidgetStyleInputs::drawComboBox(const QStyleOptionComboBox* option, QPai
 
     if (isCalendar)
     {
-        PDFStylePainter::icon(painter, QRectF(arrow), QStringLiteral("calendar"), isEnabled ? Color::IconDefault : Color::IconMuted);
+        PDFStylePainter::icon(painter, QRectF(arrow), QStringLiteral("calendar"), isEnabled ? Color::IconDefault : Color::IconDisabled);
         return;
     }
 
@@ -716,17 +753,39 @@ void PDFWidgetStyleInputs::drawComboBox(const QStyleOptionComboBox* option, QPai
             PDFStylePainter::fill(painter, QRectF(arrow), Radii(6.0), Color::BgHover);
         }
 
-        PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(arrow), QSizeF(COMBO_CHEVRON, COMBO_CHEVRON)), QStringLiteral("chevron-down"), isEnabled ? Color::IconDefault : Color::IconMuted);
+        PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(arrow), QSizeF(COMBO_CHEVRON, COMBO_CHEVRON)), QStringLiteral("chevron-down"), isEnabled ? Color::IconDefault : Color::IconDisabled);
         return;
     }
 
-    Color chevronColor = isEnabled ? Color::IconDefault : Color::IconMuted;
-    if (getComboKind(widget) == ComboKind::Select)
+    const Color chevronColor = isEnabled ? Color::IconDefault : Color::IconDisabled;
+    PDFStylePainter::icon(painter, QRectF(arrow), QStringLiteral("chevron-down"), chevronColor);
+}
+
+void PDFWidgetStyleInputs::drawSelectFrame(QPainter* painter, const QRectF& rect, const PDFFieldState& state) const
+{
+    // Compact select: the state is the fill (bg/hover, bg/pressed), not the border
+    // of the combo box. The focus ring of 2 px lies inside in place of the border.
+    const Radii radii(FIELD_RADIUS);
+    PDFStylePainter::fill(painter, rect, radii, state.enabled ? Color::BgSurface : Color::BgMuted);
+
+    const bool isPressed = state.enabled && state.open;
+    if (isPressed)
     {
-        chevronColor = Color::IconMuted;
+        PDFStylePainter::fill(painter, rect, radii, Color::BgPressed);
+    }
+    else if (state.enabled && state.hover)
+    {
+        PDFStylePainter::fill(painter, rect, radii, Color::BgHover);
     }
 
-    PDFStylePainter::icon(painter, QRectF(arrow), QStringLiteral("chevron-down"), chevronColor);
+    if (state.enabled && state.focus)
+    {
+        PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderFocus, 2.0);
+    }
+    else
+    {
+        PDFStylePainter::strokeInside(painter, rect, radii, isPressed ? Color::BorderStrong : Color::BorderDefault, 1.0);
+    }
 }
 
 void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const
@@ -770,12 +829,12 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
         {
             const QFont prefixFont = PDFWidgetStyleImpl::getFont(widget, Font::Small);
             const QRectF prefixRect = takeLeft(PDFWidgetStyleImpl::getTextWidth(prefix, prefixFont), FIELD_GAP);
-            PDFStylePainter::text(painter, prefixRect, alignment | Qt::TextSingleLine, prefix, prefixFont, PDFWidgetStyleImpl::color(Color::TextMuted));
+            PDFStylePainter::text(painter, prefixRect, alignment | Qt::TextSingleLine, prefix, prefixFont, PDFWidgetStyleImpl::color(state.enabled ? Color::TextMuted : Color::TextDisabled));
         }
 
         const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::SmallSemiBold);
         const QString text = PDFWidgetStyleImpl::getElidedText(option->currentText, font, rect.width());
-        PDFStylePainter::text(painter, rect, alignment | Qt::TextSingleLine, text, font, PDFWidgetStyleImpl::color(state.enabled ? Color::TextSecondary : Color::TextMuted));
+        PDFStylePainter::text(painter, rect, alignment | Qt::TextSingleLine, text, font, PDFWidgetStyleImpl::color(state.enabled ? Color::TextSecondary : Color::TextDisabled));
         return;
     }
 
@@ -783,14 +842,18 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
     {
         const qreal extent = kind == ComboKind::Compact ? 14.0 : 16.0;
         const QRectF iconRect = PDFStylePainter::centered(takeLeft(extent, kind == ComboKind::Compact ? 6.0 : FIELD_GAP), QSizeF(extent, extent));
-        PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->currentIcon, PDFWidgetStyleImpl::color(state.enabled ? Color::IconDefault : Color::IconMuted), PDFStyleState{ state.enabled });
+        PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->currentIcon, PDFWidgetStyleImpl::color(state.enabled ? Color::IconDefault : Color::IconDisabled), PDFStyleState{ state.enabled });
     }
 
     const QFont font = PDFWidgetStyleImpl::getFont(widget, kind == ComboKind::Compact ? Font::Small : Font::Body);
     const QString text = PDFWidgetStyleImpl::getElidedText(option->currentText, font, rect.width());
 
     Color textColor = Color::TextPrimary;
-    if (!state.enabled || isPlaceholder)
+    if (!state.enabled)
+    {
+        textColor = Color::TextDisabled;
+    }
+    else if (isPlaceholder)
     {
         textColor = Color::TextMuted;
     }

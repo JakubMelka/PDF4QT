@@ -51,6 +51,8 @@ class QToolButton;
 namespace pdf
 {
 
+class PDFIconButton;
+
 // Widgets of Qt, which draw their text by themselves, take its colors from the
 // palette of the widget. The palette of the application is filled with the leak
 // color, so such a widget would be violet. The widgets below are their
@@ -69,11 +71,11 @@ public:
     /// leak color.
     /// \param text Color of the text
     /// \param disabledText Color of the text of a disabled widget
-    static QPalette createTextPalette(PDFThemeColors::Color text, PDFThemeColors::Color disabledText = PDFThemeColors::TextMuted);
+    static QPalette createTextPalette(PDFThemeColors::Color text, PDFThemeColors::Color disabledText = PDFThemeColors::TextDisabled);
 
     /// Sets the palette of the text to the widget and keeps it updated, when
     /// the theme is changed. It can be called again with other colors.
-    static void bindTextPalette(QWidget* widget, PDFThemeColors::Color text = PDFThemeColors::TextPrimary, PDFThemeColors::Color disabledText = PDFThemeColors::TextMuted);
+    static void bindTextPalette(QWidget* widget, PDFThemeColors::Color text = PDFThemeColors::TextPrimary, PDFThemeColors::Color disabledText = PDFThemeColors::TextDisabled);
 };
 
 /// Label. Font and color are given by the roles of the design. Rich text and
@@ -133,18 +135,31 @@ public:
     /// Turns the field into a search field: pill shape with the icon of the search
     void setSearchField();
 
-    /// Turns the field into a password field with a button, which shows the password
+    /// Turns the field into a password field (component Password field): 40 px
+    /// high, the lock of 16 px at the left, the button of 28 px, which shows the
+    /// password, at the right (an Icon button with its own states), the bullets
+    /// of the hidden password 2 px apart. The lock is red, when the field is invalid.
     void setPasswordField();
+
+    /// Returns true, if the field is a password field
+    bool isPasswordField() const { return m_passwordButton != nullptr; }
+
+    /// Returns the button, which shows the password, nullptr, if the field is not a password field
+    PDFIconButton* getPasswordButton() const { return m_passwordButton; }
 
 protected:
     virtual void changeEvent(QEvent* event) override;
+    virtual void paintEvent(QPaintEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
 
 private:
     void init();
     void updateColors();
     void updatePasswordFont();
+    void updatePasswordButton();
+    void placePasswordButton();
 
-    QAction* m_passwordAction = nullptr;
+    PDFIconButton* m_passwordButton = nullptr;
     QString m_invalidMessage;
 };
 
@@ -329,6 +344,11 @@ public:
     int getCurrentIndex() const;
     void setCurrentIndex(int index);
 
+    /// Sets the color of the icon of the segment in all its enabled states
+    /// (the sun of the Light segment of the theme switch is icon/sun). A disabled
+    /// segment has the icon icon/disabled.
+    void setSegmentIconColor(int index, PDFThemeColors::Color color);
+
 Q_SIGNALS:
     void currentIndexChanged(int index);
 
@@ -377,11 +397,24 @@ class PDF4QTLIBFLUENTSHARED_EXPORT PDFTreeView : public QTreeView
 public:
     explicit PDFTreeView(QWidget* parent = nullptr);
 
+    /// Look of the rows of the view (components of the design)
+    enum class RowStyle
+    {
+        Default,        ///< Rows of the page Widgets: height 30, radius 6, padding 8
+        Outline,        ///< Outline row: radius 8, paddings 6 / 8, indentation 18
+        Certificate,    ///< Certificate row: height 34, padding 10, the selection keeps the texts
+        Library         ///< Library row: height 30, padding 10, no hover
+    };
+
+    RowStyle getRowStyle() const { return m_rowStyle; }
+    void setRowStyle(RowStyle rowStyle);
+
 protected:
     virtual void updateGeometries() override;
 
 private:
     bool m_isUpdatingMargins = false;
+    RowStyle m_rowStyle = RowStyle::Default;
 };
 
 /// Creates the editors of items of views from the widgets of the library. It

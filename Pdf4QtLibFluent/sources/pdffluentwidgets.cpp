@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdffluentwidgets.h"
+#include "pdfcomponentbuttons.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -64,6 +65,22 @@ public:
     static constexpr const char* TEXT_COLOR = "_pdf4qt_textColor";
     static constexpr const char* DISABLED_TEXT_COLOR = "_pdf4qt_disabledTextColor";
     static constexpr const char* BOUND = "_pdf4qt_textPaletteBound";
+
+    // Geometry of the password field
+    static constexpr int PASSWORD_HEIGHT = 40;
+    static constexpr int PASSWORD_LOCK = 16;
+    static constexpr int PASSWORD_LOCK_LEFT = 13;       ///< Border 1 and padding 12
+    static constexpr int PASSWORD_BUTTON = 28;
+    static constexpr int PASSWORD_BUTTON_RIGHT = 7;     ///< Border 1 and padding 6
+    static constexpr int PASSWORD_GAP = 8;
+
+    /// Returns the physical distances of the text of a password field from its edges
+    static QMargins getPasswordInsets(Qt::LayoutDirection direction)
+    {
+        const int start = PASSWORD_LOCK_LEFT + PASSWORD_LOCK + PASSWORD_GAP;
+        const int end = PASSWORD_BUTTON_RIGHT + PASSWORD_BUTTON + PASSWORD_GAP;
+        return direction == Qt::RightToLeft ? QMargins(end, 0, start, 0) : QMargins(start, 0, end, 0);
+    }
 
     static void applyTextPalette(QWidget* widget)
     {
@@ -269,7 +286,7 @@ void PDFLabel::paintEvent(QPaintEvent* event)
     }
 
     painter.setFont(font());
-    painter.setPen(PDFStylePainter::color(isEnabled() ? m_color : PDFThemeColors::TextMuted));
+    painter.setPen(PDFStylePainter::color(isEnabled() ? m_color : PDFThemeColors::TextDisabled));
     painter.drawText(rect, flags, text());
 }
 
@@ -343,30 +360,107 @@ void PDFLineEdit::setPasswordField()
 {
     setEchoMode(QLineEdit::Password);
 
-    if (!m_passwordAction)
+    if (!m_passwordButton)
     {
-        m_passwordAction = addIconAction(QStringLiteral("eye"), QLineEdit::TrailingPosition, tr("Show password"));
-        m_passwordAction->setCheckable(true);
-        m_passwordAction->setToolTip(tr("Show password"));
+        // Height 40; the lock 16 px at 13 px from the left edge and the gap 8 before the
+        // text; the button of 28 px at 7 px from the right edge and the gap 8 after the text
+        setProperty(PDFWidgetStyleProperties::FIELD_HEIGHT, PDFFluentWidgetsHelper::PASSWORD_HEIGHT);
+        setProperty(PDFWidgetStyleProperties::FIELD_TEXT_INSETS, QVariant::fromValue(PDFFluentWidgetsHelper::getPasswordInsets(layoutDirection())));
 
-        connect(m_passwordAction, &QAction::toggled, this, [this](bool isShown)
+        m_passwordButton = new PDFIconButton(QStringLiteral("eye"), PDFIconButton::Size::Medium, this);
+        m_passwordButton->setCheckable(true);
+        m_passwordButton->setCursor(Qt::ArrowCursor);
+
+        connect(m_passwordButton, &QAbstractButton::toggled, this, [this](bool isShown)
         {
             setEchoMode(isShown ? QLineEdit::Normal : QLineEdit::Password);
-            m_passwordAction->setIcon(PDFThemeIcons::getIcon(isShown ? QStringLiteral("eye-off") : QStringLiteral("eye")));
-            m_passwordAction->setText(isShown ? tr("Hide password") : tr("Show password"));
-            m_passwordAction->setToolTip(m_passwordAction->text());
+            updatePasswordButton();
             updatePasswordFont();
         });
+        connect(this, &QLineEdit::textChanged, this, &PDFLineEdit::updatePasswordButton);
+        connect(this, &QLineEdit::textChanged, this, &PDFLineEdit::updatePasswordFont);
+
+        updatePasswordButton();
+        updateGeometry();
+        placePasswordButton();
     }
 
     updatePasswordFont();
 }
 
+void PDFLineEdit::updatePasswordButton()
+{
+    if (!m_passwordButton)
+    {
+        return;
+    }
+
+    const bool isShown = m_passwordButton->isChecked();
+    const QString buttonText = isShown ? tr("Hide password") : tr("Show password");
+    m_passwordButton->setIconName(isShown ? QStringLiteral("eye-off") : QStringLiteral("eye"));
+    m_passwordButton->setAccessibleName(buttonText);
+    m_passwordButton->setToolTip(buttonText);
+
+    // The toggle of an empty field is muted, of a filled field icon/default in all its states
+    if (text().isEmpty())
+    {
+        m_passwordButton->resetIconColor();
+    }
+    else
+    {
+        m_passwordButton->setIconColor(PDFThemeColors::IconDefault);
+    }
+}
+
+void PDFLineEdit::placePasswordButton()
+{
+    if (!m_passwordButton)
+    {
+        return;
+    }
+
+    const QSize buttonSize = m_passwordButton->sizeHint();
+    const QRect logical(width() - PDFFluentWidgetsHelper::PASSWORD_BUTTON_RIGHT - buttonSize.width(), (height() - buttonSize.height()) / 2, buttonSize.width(), buttonSize.height());
+    m_passwordButton->setGeometry(QStyle::visualRect(layoutDirection(), rect(), logical));
+}
+
+void PDFLineEdit::resizeEvent(QResizeEvent* event)
+{
+    QLineEdit::resizeEvent(event);
+    placePasswordButton();
+}
+
+void PDFLineEdit::paintEvent(QPaintEvent* event)
+{
+    QLineEdit::paintEvent(event);
+
+    if (!m_passwordButton)
+    {
+        return;
+    }
+
+    // Lock of 16 px: muted, red in an invalid field, icon/disabled in a disabled field
+    PDFThemeColors::Color color = PDFThemeColors::IconMuted;
+    if (!isEnabled())
+    {
+        color = PDFThemeColors::IconDisabled;
+    }
+    else if (isInvalid())
+    {
+        color = PDFThemeColors::IconDanger;
+    }
+
+    const int extent = PDFFluentWidgetsHelper::PASSWORD_LOCK;
+    const QRect logical(PDFFluentWidgetsHelper::PASSWORD_LOCK_LEFT, (height() - extent) / 2, extent, extent);
+    QPainter painter(this);
+    PDFStylePainter::icon(&painter, QRectF(QStyle::visualRect(layoutDirection(), rect(), logical)), QStringLiteral("lock"), color);
+}
+
 void PDFLineEdit::updatePasswordFont()
 {
-    // The bullets of a hidden password are 2 px apart
+    // The bullets of a hidden password are 2 px apart, the placeholder has no spacing
     QFont passwordFont = font();
-    const qreal spacing = echoMode() == QLineEdit::Password ? 2.0 : 0.0;
+    const qreal spacing = (echoMode() == QLineEdit::Password && !text().isEmpty()) ? 2.0 : 0.0;
 
     if (passwordFont.letterSpacing() != spacing || passwordFont.letterSpacingType() != QFont::AbsoluteSpacing)
     {
@@ -382,6 +476,11 @@ void PDFLineEdit::changeEvent(QEvent* event)
     if (event->type() == QEvent::ReadOnlyChange)
     {
         updateColors();
+    }
+    else if (event->type() == QEvent::LayoutDirectionChange && m_passwordButton)
+    {
+        setProperty(PDFWidgetStyleProperties::FIELD_TEXT_INSETS, QVariant::fromValue(PDFFluentWidgetsHelper::getPasswordInsets(layoutDirection())));
+        placePasswordButton();
     }
 }
 
@@ -830,7 +929,11 @@ void PDFCalendarWidget::paintCell(QPainter* painter, const QRect& rect, QDate da
         {
             PDFStylePainter::strokeInside(painter, shape, radii, PDFThemeColors::BorderFocus, 1.0);
         }
-        if (isOtherMonth || !isDateEnabled)
+        if (!isDateEnabled)
+        {
+            textColor = PDFThemeColors::TextDisabled;
+        }
+        else if (isOtherMonth)
         {
             textColor = PDFThemeColors::TextMuted;
         }
@@ -1188,6 +1291,14 @@ void PDFSegmentedControl::setCurrentIndex(int index)
     }
 }
 
+void PDFSegmentedControl::setSegmentIconColor(int index, PDFThemeColors::Color color)
+{
+    if (QAbstractButton* button = m_group->button(index))
+    {
+        PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::ICON_COLOR, static_cast<int>(color));
+    }
+}
+
 void PDFSegmentedControl::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
@@ -1207,6 +1318,38 @@ PDFTreeView::PDFTreeView(QWidget* parent) :
     QTreeView(parent)
 {
     setViewportMargins(6, 6, 6, 6);
+}
+
+void PDFTreeView::setRowStyle(RowStyle rowStyle)
+{
+    if (m_rowStyle == rowStyle)
+    {
+        return;
+    }
+
+    m_rowStyle = rowStyle;
+
+    QString name;
+    switch (rowStyle)
+    {
+        case RowStyle::Default:
+            break;
+        case RowStyle::Outline:
+            name = QStringLiteral("outline");
+            break;
+        case RowStyle::Certificate:
+            name = QStringLiteral("certificate");
+            break;
+        case RowStyle::Library:
+            name = QStringLiteral("library");
+            break;
+    }
+
+    PDFWidgetStyleProperties::set(this, PDFWidgetStyleProperties::ROW_STYLE, name.isEmpty() ? QVariant() : QVariant(name));
+
+    // The indentation is taken from the style only, when the view is created
+    setIndentation(style()->pixelMetric(QStyle::PM_TreeViewIndentation, nullptr, this));
+    scheduleDelayedItemsLayout();
 }
 
 void PDFTreeView::updateGeometries()

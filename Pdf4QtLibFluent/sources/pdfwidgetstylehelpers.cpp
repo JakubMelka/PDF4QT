@@ -189,7 +189,9 @@ bool PDFWidgetStyleImpl::getFocusRingShape(const QStyle* style, const QWidget* t
             return true;
         }
 
-        radii = Radii(8.0);
+        // Other buttons (the buttons of the library) say the radius of their shape
+        const QVariant buttonRadius = target->property(PDFWidgetStyleProperties::RADIUS);
+        radii = Radii(buttonRadius.isValid() ? buttonRadius.toReal() : 8.0);
         return true;
     }
 
@@ -449,7 +451,7 @@ bool PDFWidgetStyleImpl::paintLineEditButton(QObject* watched)
     QPainter painter(button);
     painter.setOpacity(opacity);
 
-    Color color = Color::IconMuted;
+    Color color = button->isEnabled() ? Color::IconMuted : Color::IconDisabled;
     if (button->isEnabled() && (button->underMouse() || button->isDown()))
     {
         color = Color::IconDefault;

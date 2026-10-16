@@ -146,6 +146,10 @@ public:
     /// (also below a style sheet or a proxy style)
     static bool isApplicationStyle();
 
+    /// Returns true, if the focus ring of the control is to be shown by the
+    /// style of the application (the flag of the option without such style)
+    static bool isApplicationFocusVisible(const QStyleOption* option, const QWidget* widget);
+
     /// Asks the style of the application to place its focus frame again
     static void requestFocusFrameUpdate();
 

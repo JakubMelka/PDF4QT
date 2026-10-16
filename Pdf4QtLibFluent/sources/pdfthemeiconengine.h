@@ -73,11 +73,24 @@ public:
     /// otherwise an empty string.
     static QString getIconName(const QIcon& icon);
 
+    /// Returns the name of the icon of the design, which replaces an icon of the
+    /// icon theme of the system (QIcon::fromTheme, for example the icons of the
+    /// standard context menus of the text widgets). The system draws such icons
+    /// by the colors of the palette. An empty string is returned, if the icon
+    /// is not an icon of the icon theme or if the design has no replacement.
+    static QString getReplacementName(const QIcon& icon);
+
     /// Returns the color, by which an icon is drawn in the given mode
     static PDFThemeColors::Color getModeColor(QIcon::Mode mode, QIcon::State state = QIcon::Off);
 
     /// Draws the icon into the rectangle (in logical pixels) by the given color
     static void paint(QPainter* painter, const QRectF& rect, const QString& name, const QColor& color);
+
+    /// Draws a filled icon: the inside of the shape of the icon by the fill color
+    /// and the strokes over it by the stroke color (the filled bookmark of
+    /// Bookmark row, the amber lock of a document tab). The icons of the design
+    /// have a single color, the fill is the area enclosed by their strokes.
+    static void paintFilled(QPainter* painter, const QRectF& rect, const QString& name, const QColor& strokeColor, const QColor& fillColor);
 
     /// Returns the pixmap of the icon
     /// \param name Name of the icon
@@ -85,6 +98,10 @@ public:
     /// \param devicePixelRatio Device pixel ratio of the pixmap
     /// \param color Color of the icon
     static QPixmap getPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color);
+
+    /// Returns the pixmap of the area enclosed by the strokes of the icon
+    /// filled by the color (without the strokes)
+    static QPixmap getFillPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color);
 };
 
 /// Engine of the icons returned by \p PDFThemeIcons::getIcon

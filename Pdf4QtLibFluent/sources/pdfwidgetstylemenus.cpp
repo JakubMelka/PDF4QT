@@ -127,7 +127,7 @@ bool PDFWidgetStyleMenus::drawPrimitive(QStyle::PrimitiveElement element, const 
             const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
             const QStyleOptionMenuItem* menuItem = qstyleoption_cast<const QStyleOptionMenuItem*>(option);
             const QRectF rect(option->rect);
-            const Color color = isEnabled ? Color::IconDefault : Color::IconMuted;
+            const Color color = isEnabled ? Color::IconDefault : Color::IconDisabled;
 
             if (menuItem && menuItem->checkType == QStyleOptionMenuItem::Exclusive)
             {
@@ -327,6 +327,12 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     {
         PDFStylePainter::fill(painter, rect, Radii(ITEM_RADIUS), Color::BgPressed);
     }
+    else if (isSelected && m_impl->isKeyboardModality())
+    {
+        // Item selected by the keyboard has the focus ring of 2 px inside and no fill,
+        // the item under the pointer has the fill of the hover
+        PDFStylePainter::strokeInside(painter, rect, Radii(ITEM_RADIUS), Color::BorderFocus, 2.0);
+    }
     else if (isSelected)
     {
         PDFStylePainter::fill(painter, rect, Radii(ITEM_RADIUS), Color::BgHover);
@@ -338,8 +344,8 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     Color iconColor = Color::IconDefault;
     if (!isEnabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
     else if (destructive)
     {
@@ -359,7 +365,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
 
     if (isExclusiveChecked)
     {
-        PDFStylePainter::fillEllipse(painter, PDFStylePainter::centered(iconRect, QSizeF(6.0, 6.0)), PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconMuted));
+        PDFStylePainter::fillEllipse(painter, PDFStylePainter::centered(iconRect, QSizeF(6.0, 6.0)), PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconDisabled));
     }
     else if (!option->icon.isNull())
     {
@@ -373,12 +379,12 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
 
     if (option->menuItemType == QStyleOptionMenuItem::SubMenu)
     {
-        PDFStylePainter::icon(painter, place(right - 14.0, 14.0, 14.0), isRightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right"), Color::IconMuted);
+        PDFStylePainter::icon(painter, place(right - 14.0, 14.0, 14.0), isRightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right"), isEnabled ? Color::IconMuted : Color::IconDisabled);
         right -= ITEM_ICON + ITEM_GAP;
     }
     else if (option->checkType == QStyleOptionMenuItem::NonExclusive && option->checked)
     {
-        PDFStylePainter::icon(painter, place(right - ITEM_ICON, ITEM_ICON, ITEM_ICON), QStringLiteral("check"), isEnabled ? Color::IconDefault : Color::IconMuted);
+        PDFStylePainter::icon(painter, place(right - ITEM_ICON, ITEM_ICON, ITEM_ICON), QStringLiteral("check"), isEnabled ? Color::IconDefault : Color::IconDisabled);
         right -= ITEM_ICON + ITEM_GAP;
     }
 
@@ -390,7 +396,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
         const QFont shortcutFont = PDFThemeFonts::getFont(Font::Small);
         const qreal shortcutWidth = PDFWidgetStyleImpl::getTextWidth(shortcut, shortcutFont);
         PDFStylePainter::text(painter, place(right - shortcutWidth, shortcutWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine | Qt::TextHideMnemonic,
-                              shortcut, shortcutFont, PDFWidgetStyleImpl::color(Color::TextMuted));
+                              shortcut, shortcutFont, PDFWidgetStyleImpl::color(isEnabled ? Color::TextMuted : Color::TextDisabled));
         right -= shortcutWidth + ITEM_GAP;
     }
 
@@ -412,7 +418,7 @@ void PDFWidgetStyleMenus::drawMenuBarItem(const QStyleOptionMenuItem* option, QP
     PDFStylePainter::fillRect(painter, rect, Color::BgSubtle);
 
     const QRectF shape = PDFStylePainter::centered(rect, QSizeF(rect.width(), qMin<qreal>(MENUBAR_ITEM_HEIGHT, rect.height())));
-    Color textColor = isEnabled ? Color::TextSecondary : Color::TextMuted;
+    Color textColor = isEnabled ? Color::TextSecondary : Color::TextDisabled;
 
     if (isOpen)
     {
@@ -436,7 +442,7 @@ void PDFWidgetStyleMenus::drawMenuBarItem(const QStyleOptionMenuItem* option, QP
         PDFStyleState iconState;
         iconState.enabled = isEnabled;
         PDFWidgetStyleImpl::drawIcon(painter, PDFStylePainter::centered(shape, QSizeF(ITEM_ICON, ITEM_ICON)), option->icon,
-                                     PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconMuted), iconState);
+                                     PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconDisabled), iconState);
         return;
     }
 

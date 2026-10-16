@@ -22,6 +22,9 @@
 
 #include "gallerypages.h"
 
+#include "pdfcomponentbuttons.h"
+#include "pdfcomponentpanels.h"
+#include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -77,6 +80,8 @@
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
+
+#include <array>
 
 // Widgets of Qt, which are shown only on the page of the leaks of the palette
 #include <QCalendarWidget>
@@ -485,6 +490,7 @@ std::vector<GalleryPages::Page> GalleryPages::createPages(QWidget* parent)
     pages.push_back(createContainersPage(parent));
     pages.push_back(createDialogsPage(parent));
     pages.push_back(createIconsPage(parent));
+    pages.push_back(createComponentsPage(parent));
     return pages;
 }
 
@@ -523,7 +529,9 @@ GalleryPages::Page GalleryPages::createOverviewPage(QWidget* parent)
         { "Body - Regular 13", Font::Body }, { "Body Medium - Medium 13", Font::BodyMedium }, { "Body Semi Bold - Semi Bold 13", Font::BodySemiBold },
         { "Small - Regular 12", Font::Small }, { "Small Medium - Medium 12", Font::SmallMedium }, { "Small Semi Bold - Semi Bold 12", Font::SmallSemiBold },
         { "Caption - Medium 11", Font::Caption }, { "Caption Regular - Regular 11", Font::CaptionRegular }, { "Caption Semi Bold - Semi Bold 11", Font::CaptionSemiBold },
-        { "Tiny - Regular 10", Font::Tiny }, { "Title - Bold 15", Font::Title }, { "Dialog title - Semi Bold 16", Font::DialogTitle }
+        { "Tiny - Regular 10", Font::Tiny }, { "Title - Bold 15", Font::Title }, { "Dialog title - Semi Bold 16", Font::DialogTitle },
+        { "Tiny Semi Bold - Semi Bold 10", Font::TinySemiBold }, { "Body Bold - Bold 13", Font::BodyBold }, { "Tile title - Bold 14", Font::TileTitle },
+        { "Display - Bold 22", Font::Display }
     };
     int fontIndex = 0;
     for (const FontSample& sample : fontSamples)
@@ -1665,6 +1673,84 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     }
 
     builder.block(QStringLiteral("Live tab bars"), QStringLiteral("636:1968"));
+
+    // Top bar of the application (app-top-bar of the document view): the home
+    // tab, the tabs of the documents and the button of a new tab, which follows
+    // the last tab. The tabs switch the document shown below the bar.
+    QWidget* application = new QWidget(builder.page());
+    QVBoxLayout* applicationLayout = new QVBoxLayout(application);
+    applicationLayout->setContentsMargins(0, 0, 0, 0);
+    applicationLayout->setSpacing(0);
+
+    QWidget* topBar = new QWidget(application);
+    topBar->setProperty(Properties::DOCUMENT_TABS, true);
+    topBar->setFixedHeight(38);
+    QHBoxLayout* topBarLayout = new QHBoxLayout(topBar);
+    topBarLayout->setContentsMargins(16, 6, 16, 0);
+    topBarLayout->setSpacing(8);
+
+    QTabBar* documentTabs = new QTabBar(topBar);
+    documentTabs->setProperty(Properties::DOCUMENT_TABS, true);
+    documentTabs->setAccessibleName(QStringLiteral("Documents"));
+    documentTabs->setTabsClosable(true);
+    documentTabs->setMovable(true);
+
+    // The tab bar is not wider than its tabs, the button of a new tab follows the last tab
+    documentTabs->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+    documentTabs->addTab(GalleryHelper::icon("home"), QStringLiteral("Home"));
+    for (const char* name : { "Project_Report.pdf", "Invoice.pdf", "Tender_2026.pdf", "Annex_A.pdf", "Contract_final_signed.pdf", "Minutes_2026-10-14.pdf" })
+    {
+        documentTabs->addTab(GalleryHelper::icon("file-text"), QString::fromLatin1(name));
+    }
+
+    // The home tab can not be closed
+    if (QWidget* closeButton = documentTabs->tabButton(0, QTabBar::RightSide))
+    {
+        documentTabs->setTabButton(0, QTabBar::RightSide, nullptr);
+        closeButton->deleteLater();
+    }
+    documentTabs->setCurrentIndex(1);
+    topBarLayout->addWidget(documentTabs, 0, Qt::AlignBottom);
+
+    QToolButton* newTabButton = new QToolButton(topBar);
+    newTabButton->setProperty(Properties::NEW_TAB, true);
+    newTabButton->setIcon(GalleryHelper::icon("plus"));
+    newTabButton->setAccessibleName(QStringLiteral("New tab"));
+    newTabButton->setToolTip(QStringLiteral("New tab"));
+    topBarLayout->addWidget(newTabButton, 0, Qt::AlignBottom);
+    topBarLayout->addStretch(1);
+    applicationLayout->addWidget(topBar);
+
+    QFrame* documentView = new QFrame(application);
+    documentView->setProperty(Properties::CANVAS, true);
+    QVBoxLayout* documentLayout = new QVBoxLayout(documentView);
+    documentLayout->setContentsMargins(24, 20, 24, 20);
+    documentLayout->setSpacing(4);
+    pdf::PDFLabel* documentTitle = new pdf::PDFLabel(QString(), Font::Title, Color::TextPrimary, documentView);
+    pdf::PDFLabel* documentHint = new pdf::PDFLabel(QStringLiteral("Switch the documents by the tabs, drag the tabs, close them or open a new tab by the plus button. Tabs, which do not fit, are scrolled."),
+                                                    Font::Body, Color::TextSecondary, documentView);
+    documentHint->setWordWrap(true);
+    documentLayout->addWidget(documentTitle);
+    documentLayout->addWidget(documentHint);
+    documentLayout->addStretch(1);
+    applicationLayout->addWidget(documentView, 1);
+
+    auto showDocument = [documentTabs, documentTitle]()
+    {
+        documentTitle->setText(documentTabs->tabText(documentTabs->currentIndex()));
+    };
+    QObject::connect(documentTabs, &QTabBar::currentChanged, documentTitle, showDocument);
+    QObject::connect(documentTabs, &QTabBar::tabCloseRequested, documentTabs, [documentTabs](int index) { documentTabs->removeTab(index); });
+    QObject::connect(newTabButton, &QToolButton::clicked, documentTabs, [documentTabs, counter = 0]() mutable
+    {
+        documentTabs->setCurrentIndex(documentTabs->addTab(GalleryHelper::icon("file-text"), QStringLiteral("Untitled %1.pdf").arg(++counter)));
+    });
+    showDocument();
+
+    application->setFixedSize(860, 170);
+    builder.live(QStringLiteral("Top bar of the application - Home, document tabs (closable, movable, scrolled) and the New tab button"), application, QStringLiteral("620:1455"));
+
+    builder.row();
     QTabWidget* chipsWidget = new QTabWidget(builder.page());
     for (const char* name : { "Summary", "Details", "Warnings", "Certificates" })
     {
@@ -1734,39 +1820,25 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     builder.live(QStringLiteral("QTabWidget South"), southWidget, QStringLiteral("636:1968"));
 
     builder.row();
-    QTabBar* documentTabs = new QTabBar(builder.page());
-    documentTabs->setProperty(Properties::DOCUMENT_TABS, true);
-    documentTabs->setTabsClosable(true);
-    documentTabs->setMovable(true);
-    documentTabs->setExpanding(false);
-    for (const char* name : { "Project_Report.pdf", "Invoice.pdf", "Tender_2026.pdf", "Annex_A.pdf", "Contract_final_signed.pdf" })
-    {
-        documentTabs->addTab(GalleryHelper::icon("file-text"), QString::fromLatin1(name));
-    }
-    documentTabs->setFixedWidth(620);
-    builder.live(QStringLiteral("Document tabs (closable, movable, scroll buttons)"), documentTabs, QStringLiteral("620:1455"));
-
-    QToolButton* newTabButton = new QToolButton(builder.page());
-    newTabButton->setProperty(Properties::NEW_TAB, true);
-    newTabButton->setIcon(GalleryHelper::icon("plus"));
-    newTabButton->setAccessibleName(QStringLiteral("New tab"));
-    builder.live(QStringLiteral("New tab button"), newTabButton, QStringLiteral("620:1538"));
-
-    builder.row();
-    // The theme toggle of the design: two segments of 91 px in the track of 186 px
+    // The theme toggle of the design: segments Light / Dark / Auto of equal width,
+    // the sun of the Light segment has the color icon/sun in every state
     pdf::PDFSegmentedControl* segmented = new pdf::PDFSegmentedControl(builder.page());
     segmented->setAccessibleName(QStringLiteral("Theme"));
-    segmented->addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
+    const int lightSegment = segmented->addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
     segmented->addSegment(QStringLiteral("Dark"), QStringLiteral("moon"));
+    const int autoSegment = segmented->addSegment(QStringLiteral("Auto"), QStringLiteral("monitor"));
+    segmented->setSegmentIconColor(lightSegment, Color::IconSun);
+    segmented->setCurrentIndex(autoSegment);
     segmented->setFixedWidth(186);
-    builder.live(QStringLiteral("Segmented control (theme toggle)"), segmented, QStringLiteral("620:1544"));
+    builder.live(QStringLiteral("Segmented control (theme toggle)"), segmented, QStringLiteral("47:157"));
 
-    pdf::PDFSegmentedControl* wideSegmented = new pdf::PDFSegmentedControl(builder.page());
-    wideSegmented->setAccessibleName(QStringLiteral("Theme with the system"));
-    wideSegmented->addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
-    wideSegmented->addSegment(QStringLiteral("Dark"), QStringLiteral("moon"));
-    wideSegmented->addSegment(QStringLiteral("System"), QStringLiteral("monitor"));
-    builder.live(QStringLiteral("Segmented control with three segments"), wideSegmented);
+    pdf::PDFSegmentedControl* twoSegments = new pdf::PDFSegmentedControl(builder.page());
+    twoSegments->setAccessibleName(QStringLiteral("Theme, light selected"));
+    const int selectedLight = twoSegments->addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
+    twoSegments->addSegment(QStringLiteral("Dark"), QStringLiteral("moon"));
+    twoSegments->setSegmentIconColor(selectedLight, Color::IconSun);
+    twoSegments->setFixedWidth(186);
+    builder.live(QStringLiteral("Segmented control with two segments"), twoSegments, QStringLiteral("620:1544"));
 
     QWidget* chipRow = new QWidget(builder.page());
     QHBoxLayout* chipLayout = new QHBoxLayout(chipRow);
@@ -2233,6 +2305,324 @@ GalleryPages::Page GalleryPages::createIconsPage(QWidget* parent)
             Painter::icon(&painter, QRectF(rect.left() + 2, rect.top() + 2, 24, 24), name, Color::IconDefault);
         });
     }
+
+    return builder.finish();
+}
+
+GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
+{
+    GalleryBuilder builder(parent, QStringLiteral("18-components"), QStringLiteral("Components"), QStringLiteral("layers"));
+
+    // Hover and press of a live widget are forced for the samples
+    auto setState = [](QAbstractButton* button, const GalleryHelper::NamedState& state)
+    {
+        button->setAttribute(Qt::WA_UnderMouse, (state.flags & GalleryPages::Hover) != 0);
+        button->setDown((state.flags & GalleryPages::Pressed) != 0);
+        button->setEnabled((state.flags & GalleryPages::Disabled) == 0);
+    };
+
+    builder.block(QStringLiteral("Icon button (PDFIconButton) - Size 24 and 28"), QStringLiteral("706:147674"));
+    for (const pdf::PDFIconButton::Size size : { pdf::PDFIconButton::Size::Small, pdf::PDFIconButton::Size::Medium })
+    {
+        for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+        {
+            if (state.flags == GalleryPages::Focus)
+            {
+                continue;
+            }
+
+            pdf::PDFIconButton* button = new pdf::PDFIconButton(QStringLiteral("more-horizontal"), size, builder.page());
+            button->setAccessibleName(QStringLiteral("More"));
+            setState(button, state);
+            builder.live(QStringLiteral("%1 %2").arg(pdf::PDFIconButton::getExtent(size)).arg(QString::fromLatin1(state.name)), button);
+        }
+        builder.row();
+    }
+
+    pdf::PDFIconButton* confirmButton = new pdf::PDFIconButton(QStringLiteral("check"), pdf::PDFIconButton::Size::Small, builder.page());
+    confirmButton->setAccessibleName(QStringLiteral("Confirm"));
+    confirmButton->setIconColor(Color::IconAccent);
+    builder.live(QStringLiteral("Own color icon/accent (confirm)"), confirmButton);
+
+    pdf::PDFIconButton* hoveredConfirmButton = new pdf::PDFIconButton(QStringLiteral("check"), pdf::PDFIconButton::Size::Small, builder.page());
+    hoveredConfirmButton->setAccessibleName(QStringLiteral("Confirm"));
+    hoveredConfirmButton->setIconColor(Color::IconAccent);
+    hoveredConfirmButton->setAttribute(Qt::WA_UnderMouse, true);
+    builder.live(QStringLiteral("Own color, Hover"), hoveredConfirmButton);
+
+    builder.block(QStringLiteral("Tab close button (PDFIconButton, Size TabClose)"), QStringLiteral("48:110"));
+    for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+    {
+        if (state.flags == GalleryPages::Focus || state.flags == GalleryPages::Disabled)
+        {
+            continue;
+        }
+
+        pdf::PDFIconButton* button = new pdf::PDFIconButton(QStringLiteral("x"), pdf::PDFIconButton::Size::TabClose, builder.page());
+        button->setAccessibleName(QStringLiteral("Close tab"));
+        setState(button, state);
+        builder.live(QString::fromLatin1(state.name), button);
+    }
+
+    builder.block(QStringLiteral("Stamp chip (PDFStampChip)"), QStringLiteral("190:779"));
+    struct Stamp
+    {
+        const char* text;
+        pdf::PDFAccentHue hue;
+    };
+    static constexpr Stamp stamps[] =
+    {
+        { "Approved", pdf::PDFAccentHue::Green }, { "Confidential", pdf::PDFAccentHue::Red },
+        { "Draft", pdf::PDFAccentHue::Blue }, { "Experimental", pdf::PDFAccentHue::Amber }
+    };
+    for (const Stamp& stamp : stamps)
+    {
+        builder.live(QString::fromLatin1(stamp.text), new pdf::PDFStampChip(QString::fromLatin1(stamp.text), stamp.hue, builder.page()));
+    }
+    builder.row();
+    for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+    {
+        if (state.flags == GalleryPages::Focus || state.flags == GalleryPages::Disabled)
+        {
+            continue;
+        }
+
+        pdf::PDFStampChip* chip = new pdf::PDFStampChip(QStringLiteral("Approved"), pdf::PDFAccentHue::Green, builder.page());
+        setState(chip, state);
+        builder.live(QStringLiteral("Green %1").arg(QString::fromLatin1(state.name)), chip);
+    }
+
+    builder.block(QStringLiteral("Filter chip with a count and an icon (QPushButton, properties chip and chipCount)"), QStringLiteral("78:836"));
+    for (const bool isSelected : { false, true })
+    {
+        for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+        {
+            if (state.flags == GalleryPages::Focus)
+            {
+                continue;
+            }
+
+            QPushButton* chip = new QPushButton(QStringLiteral("All"), builder.page());
+            chip->setProperty(Properties::CHIP, true);
+            chip->setProperty(Properties::CHIP_COUNT, 12);
+            chip->setCheckable(true);
+            chip->setChecked(isSelected);
+            chip->setAutoDefault(false);
+            setState(chip, state);
+            builder.live(QStringLiteral("%1 %2").arg(isSelected ? QStringLiteral("Selected") : QStringLiteral("Unselected"), QString::fromLatin1(state.name)), chip);
+        }
+        builder.row();
+    }
+    QPushButton* iconChip = new QPushButton(GalleryHelper::icon("match-case"), QStringLiteral("Match case"), builder.page());
+    iconChip->setProperty(Properties::CHIP, true);
+    iconChip->setCheckable(true);
+    iconChip->setAutoDefault(false);
+    builder.live(QStringLiteral("With an icon"), iconChip);
+    QPushButton* selectedIconChip = new QPushButton(GalleryHelper::icon("match-case"), QStringLiteral("Match case"), builder.page());
+    selectedIconChip->setProperty(Properties::CHIP, true);
+    selectedIconChip->setCheckable(true);
+    selectedIconChip->setChecked(true);
+    selectedIconChip->setAutoDefault(false);
+    builder.live(QStringLiteral("With an icon, selected"), selectedIconChip);
+
+    builder.block(QStringLiteral("Navigation of Home (PDFNavList, Nav item)"), QStringLiteral("47:123"));
+    pdf::PDFNavList* homeNavigation = new pdf::PDFNavList(pdf::PDFNavItem::Kind::Home, builder.page());
+    homeNavigation->setAccessibleName(QStringLiteral("Navigation"));
+    homeNavigation->addItem(QStringLiteral("Home"), QStringLiteral("home"));
+    homeNavigation->addItem(QStringLiteral("Open"), QStringLiteral("folder"));
+    homeNavigation->addItem(QStringLiteral("Recent"), QStringLiteral("clock"));
+    homeNavigation->addItem(QStringLiteral("Tools"), QStringLiteral("tools"));
+    homeNavigation->addItem(QStringLiteral("AI"), QStringLiteral("ai"));
+    homeNavigation->addGroup();
+    homeNavigation->addItem(QStringLiteral("What's New"), QStringLiteral("gift"));
+    homeNavigation->addItem(QStringLiteral("About"), QStringLiteral("info"));
+    homeNavigation->addItem(QStringLiteral("Support"), QStringLiteral("headphones"));
+    homeNavigation->addItem(QStringLiteral("Sponsor"), QStringLiteral("heart"));
+    homeNavigation->addGroup();
+    homeNavigation->addItem(QStringLiteral("Settings"), QStringLiteral("settings"));
+    homeNavigation->setFixedWidth(190);
+    builder.live(QStringLiteral("Three groups, Home selected"), homeNavigation, QStringLiteral("28:4"));
+
+    QWidget* itemColumn = new QWidget(builder.page());
+    QVBoxLayout* itemLayout = new QVBoxLayout(itemColumn);
+    itemLayout->setContentsMargins(0, 0, 0, 0);
+    itemLayout->setSpacing(6);
+    for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+    {
+        if (state.flags == GalleryPages::Focus)
+        {
+            continue;
+        }
+
+        for (const bool isSelected : { false, true })
+        {
+            if (isSelected && state.flags == GalleryPages::Disabled)
+            {
+                continue;
+            }
+
+            pdf::PDFNavItem* item = new pdf::PDFNavItem(QStringLiteral("%1 %2").arg(isSelected ? QStringLiteral("Selected") : QStringLiteral("Open"), QString::fromLatin1(state.name)),
+                                                        QStringLiteral("folder"), pdf::PDFNavItem::Kind::Home, itemColumn);
+            item->setChecked(isSelected);
+            setState(item, state);
+            item->setFixedWidth(190);
+            itemLayout->addWidget(item);
+        }
+    }
+    builder.live(QStringLiteral("Nav item - states"), itemColumn);
+
+    pdf::PDFNavList* settingsNavigation = new pdf::PDFNavList(pdf::PDFNavItem::Kind::Settings, builder.page());
+    settingsNavigation->setAccessibleName(QStringLiteral("Settings"));
+    settingsNavigation->addItem(QStringLiteral("General"), QStringLiteral("settings"), QStringLiteral("Language, theme, documents"));
+    settingsNavigation->addItem(QStringLiteral("Viewing"), QStringLiteral("eye"), QStringLiteral("Page display, scrolling, magnifier"));
+    settingsNavigation->addItem(QStringLiteral("Color modes"), QStringLiteral("droplet"), QStringLiteral("Reading colors, contrast"));
+    settingsNavigation->addItem(QStringLiteral("Editing"), QStringLiteral("edit"), QStringLiteral("Undo, author, forms"));
+    settingsNavigation->addItem(QStringLiteral("Security"), QStringLiteral("lock"), QStringLiteral("Links, signatures, certificates"));
+    settingsNavigation->setFixedWidth(300);
+    builder.live(QStringLiteral("Settings nav item"), settingsNavigation, QStringLiteral("145:2879"));
+
+    builder.block(QStringLiteral("Toolbar field (PDFToolBarField)"), QStringLiteral("190:593"));
+    builder.live(QStringLiteral("Default"), new pdf::PDFToolBarField(QStringLiteral("308"), QStringLiteral("/ 1592"), builder.page()));
+    pdf::PDFToolBarField* hoveredField = new pdf::PDFToolBarField(QStringLiteral("308"), QStringLiteral("/ 1592"), builder.page());
+    hoveredField->setAttribute(Qt::WA_UnderMouse, true);
+    builder.live(QStringLiteral("Hover"), hoveredField);
+    pdf::PDFToolBarField* disabledField = new pdf::PDFToolBarField(QStringLiteral("308"), QStringLiteral("/ 1592"), builder.page());
+    disabledField->setEnabled(false);
+    builder.live(QStringLiteral("Disabled"), disabledField);
+    builder.live(QStringLiteral("Zoom"), new pdf::PDFToolBarField(QStringLiteral("151"), QStringLiteral("%"), builder.page()));
+    builder.live(QStringLiteral("Without a suffix (min. 64)"), new pdf::PDFToolBarField(QStringLiteral("12"), QString(), builder.page()));
+
+    builder.block(QStringLiteral("Password field (PDFLineEdit::setPasswordField)"), QStringLiteral("225:870"));
+    auto passwordField = [&builder](const QString& caption, const QString& text)
+    {
+        pdf::PDFLineEdit* field = builder.live(caption, new pdf::PDFLineEdit(text, builder.page()));
+        field->setPasswordField();
+        field->setPlaceholderText(QStringLiteral("Password"));
+        field->setFixedWidth(320);
+        return field;
+    };
+    passwordField(QStringLiteral("Empty"), QString());
+    passwordField(QStringLiteral("Masked"), QStringLiteral("Report-2025!"));
+    passwordField(QStringLiteral("Visible"), QStringLiteral("Report-2025!"))->getPasswordButton()->setChecked(true);
+    builder.row();
+    passwordField(QStringLiteral("Hover"), QStringLiteral("Report-2025!"))->setAttribute(Qt::WA_UnderMouse, true);
+    passwordField(QStringLiteral("Error"), QStringLiteral("Report-2025!"))->setInvalid(true, QStringLiteral("Wrong password"));
+    passwordField(QStringLiteral("Disabled"), QStringLiteral("Report-2025!"))->setEnabled(false);
+
+    builder.block(QStringLiteral("Document tabs (PDFDocumentTabBar)"), QStringLiteral("48:170"));
+    QWidget* topBar = new QWidget(builder.page());
+    topBar->setProperty(Properties::DOCUMENT_TABS, true);
+    QHBoxLayout* topBarLayout = new QHBoxLayout(topBar);
+    topBarLayout->setContentsMargins(8, 0, 8, 0);
+    pdf::PDFDocumentTabBar* tabBar = new pdf::PDFDocumentTabBar(topBar);
+    tabBar->setAccessibleName(QStringLiteral("Documents"));
+    const int homeTab = tabBar->addTab(GalleryHelper::icon("home"), QStringLiteral("Home"));
+    const int reportTab = tabBar->addTab(GalleryHelper::icon("file"), QStringLiteral("Project_Report.pdf"));
+    const int invoiceTab = tabBar->addTab(GalleryHelper::icon("file"), QStringLiteral("Invoice.pdf"));
+    const int scanTab = tabBar->addTab(GalleryHelper::icon("file"), QStringLiteral("Scan_0042.pdf"));
+    tabBar->setTabClosable(homeTab, false);
+    tabBar->setTabClosable(reportTab, true);
+    tabBar->setTabClosable(invoiceTab, true);
+    tabBar->setTabClosable(scanTab, true);
+    tabBar->setTabUnsaved(reportTab, true);
+    tabBar->setTabLocked(invoiceTab, true);
+    tabBar->setTabUnsaved(invoiceTab, true);
+    tabBar->setTabProgress(scanTab, 0.55);
+    tabBar->setCurrentIndex(reportTab);
+    topBarLayout->addWidget(tabBar);
+    topBarLayout->addStretch(1);
+    topBar->setFixedSize(860, 38);
+    builder.live(QStringLiteral("Home, unsaved, locked and unsaved, progress"), topBar);
+
+    builder.block(QStringLiteral("Rows of views (PDFTreeView::setRowStyle)"), QStringLiteral("191:840"));
+    QStandardItemModel* outlineModel = new QStandardItemModel(builder.page());
+    QStandardItem* chapter = new QStandardItem(QStringLiteral("Market Analysis"));
+    QStandardItem* section = new QStandardItem(QStringLiteral("4.1 Regional revenue"));
+    section->appendRow(new QStandardItem(QStringLiteral("Central Europe")));
+    section->appendRow(new QStandardItem(QStringLiteral("Nordic countries")));
+    chapter->appendRow(section);
+    chapter->appendRow(new QStandardItem(QStringLiteral("4.2 Customer segments")));
+    outlineModel->appendRow(new QStandardItem(QStringLiteral("Introduction")));
+    outlineModel->appendRow(chapter);
+    outlineModel->appendRow(new QStandardItem(QStringLiteral("Conclusion")));
+    pdf::PDFTreeView* outlineView = new pdf::PDFTreeView(builder.page());
+    outlineView->setModel(outlineModel);
+    outlineView->setHeaderHidden(true);
+    outlineView->setRowStyle(pdf::PDFTreeView::RowStyle::Outline);
+    outlineView->expandAll();
+    outlineView->setCurrentIndex(outlineModel->index(0, 0, chapter->index()));
+    outlineView->setFixedSize(300, 230);
+    builder.live(QStringLiteral("Outline row"), outlineView, QStringLiteral("191:840"));
+
+    QStandardItemModel* certificateModel = new QStandardItemModel(builder.page());
+    certificateModel->setHorizontalHeaderLabels({ QStringLiteral("Type"), QStringLiteral("Certificate"), QStringLiteral("Organization"), QStringLiteral("Valid from"), QStringLiteral("Valid to") });
+    struct Certificate
+    {
+        const char* type;
+        const char* name;
+        const char* organization;
+        const char* from;
+        const char* to;
+    };
+    static constexpr Certificate certificates[] =
+    {
+        { "System", "ISRG Root X1", "Internet Security Research Group", "2015-06-04", "2035-06-04" },
+        { "System", "DigiCert Global Root G2", "DigiCert Inc", "2013-08-01", "2038-01-15" },
+        { "User", "Jakub Melka", "PDF4QT", "2026-01-10", "2028-01-10" }
+    };
+    for (const Certificate& certificate : certificates)
+    {
+        QList<QStandardItem*> row;
+        for (const char* text : { certificate.type, certificate.name, certificate.organization, certificate.from, certificate.to })
+        {
+            QStandardItem* item = new QStandardItem(QString::fromLatin1(text));
+            row << item;
+        }
+        QFont nameFont = pdf::PDFThemeFonts::getFont(Font::SmallSemiBold);
+        row[1]->setFont(nameFont);
+        certificateModel->appendRow(row);
+    }
+    pdf::PDFTreeView* certificateView = new pdf::PDFTreeView(builder.page());
+    certificateView->setModel(certificateModel);
+    certificateView->setRootIsDecorated(false);
+    certificateView->setRowStyle(pdf::PDFTreeView::RowStyle::Certificate);
+    certificateView->setCurrentIndex(certificateModel->index(1, 0));
+    certificateView->header()->resizeSection(0, 84);
+    certificateView->header()->resizeSection(1, 200);
+    certificateView->header()->resizeSection(2, 240);
+    certificateView->setFixedSize(720, 150);
+    builder.live(QStringLiteral("Certificate row"), certificateView, QStringLiteral("145:2929"));
+
+    builder.row();
+    QStandardItemModel* libraryModel = new QStandardItemModel(builder.page());
+    libraryModel->setHorizontalHeaderLabels({ QStringLiteral("Library"), QStringLiteral("Version"), QStringLiteral("Purpose"), QStringLiteral("License") });
+    for (const auto& library : { std::array<const char*, 4>{ "Qt", "6.9.0", "Application framework", "LGPL v3" }, { "OpenSSL", "3.4.0", "Cryptography", "Apache 2.0" }, { "Blend2D", "0.12", "2D rendering", "Zlib" } })
+    {
+        QList<QStandardItem*> row;
+        for (const char* text : library)
+        {
+            row << new QStandardItem(QString::fromLatin1(text));
+        }
+        row[0]->setFont(pdf::PDFThemeFonts::getFont(Font::SmallSemiBold));
+        libraryModel->appendRow(row);
+    }
+    pdf::PDFTreeView* libraryView = new pdf::PDFTreeView(builder.page());
+    libraryView->setModel(libraryModel);
+    libraryView->setRootIsDecorated(false);
+    libraryView->setSelectionMode(QAbstractItemView::NoSelection);
+    libraryView->setRowStyle(pdf::PDFTreeView::RowStyle::Library);
+    libraryView->setFixedSize(620, 140);
+    builder.live(QStringLiteral("Library row"), libraryView, QStringLiteral("110:2158"));
+
+    builder.block(QStringLiteral("Key value rows (PDFKeyValueList)"), QStringLiteral("110:2155"));
+    pdf::PDFKeyValueList* facts = new pdf::PDFKeyValueList(builder.page());
+    facts->addRow(QStringLiteral("Input"), QStringLiteral("One open PDF"));
+    facts->addRow(QStringLiteral("Result"), QStringLiteral("A smaller PDF"));
+    facts->addRow(QStringLiteral("Signatures"), QStringLiteral("Kept (incremental save)"));
+    facts->addRow(QStringLiteral("Command line"), QStringLiteral("pdftool optimize"));
+    facts->addRow(QStringLiteral("Build date"), QStringLiteral("Sep 14, 2026 14:32 (a long value, which is elided)"));
+    facts->setFixedWidth(360);
+    builder.live(QStringLiteral("Facts of a card, 360 px"), facts);
 
     return builder.finish();
 }

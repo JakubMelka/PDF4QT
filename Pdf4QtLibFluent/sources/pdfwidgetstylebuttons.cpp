@@ -692,11 +692,11 @@ void PDFWidgetStyleButtons::drawButtonPanel(const QStyleOptionButton* option, QP
             }
             else if (state.pressed)
             {
-                fill = Color::TextAccentPressed;
+                fill = Color::BgAccentPressed;
             }
             else if (state.hover)
             {
-                fill = Color::AccentBlueIcon;
+                fill = Color::BgAccentHover;
             }
 
             PDFStylePainter::fill(painter, rect, radii, fill);
@@ -736,8 +736,8 @@ void PDFWidgetStyleButtons::drawButtonLabel(const QStyleOptionButton* option, QP
 
     if (!state.enabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
     else if (state.on)
     {
@@ -855,14 +855,14 @@ void PDFWidgetStyleButtons::drawIndicator(const QStyleOption* option, QPainter* 
     }
     else if (state.pressed)
     {
-        fill = Color::TextAccentPressed;
+        fill = Color::BgAccentPressed;
     }
 
     PDFStylePainter::fill(painter, rect, radii, fill);
 
     if (state.enabled && state.hover && !state.pressed)
     {
-        PDFStylePainter::strokeInside(painter, rect, radii, Color::TextAccentPressed, 1.5);
+        PDFStylePainter::strokeInside(painter, rect, radii, Color::BgAccentPressed, 1.5);
     }
 
     if (isRadio)
@@ -886,7 +886,7 @@ void PDFWidgetStyleButtons::drawIndicatorLabel(const QStyleOptionButton* option,
         const qreal extent = option->iconSize.width() > 0 ? option->iconSize.width() : BUTTON_ICON;
         const QRectF iconRect(rect.left(), rect.top() + (rect.height() - extent) / 2.0, extent, extent);
         PDFWidgetStyleImpl::drawIcon(painter, PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, iconRect), option->icon,
-                                     PDFWidgetStyleImpl::color(state.enabled ? Color::IconDefault : Color::IconMuted), state);
+                                     PDFWidgetStyleImpl::color(state.enabled ? Color::IconDefault : Color::IconDisabled), state);
 
         if (state.rightToLeft)
         {
@@ -902,7 +902,7 @@ void PDFWidgetStyleButtons::drawIndicatorLabel(const QStyleOptionButton* option,
     {
         const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, rect.width());
         m_impl->drawText(painter, rect, Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
-                         PDFWidgetStyleImpl::color(state.enabled ? Color::TextPrimary : Color::TextMuted), widget);
+                         PDFWidgetStyleImpl::color(state.enabled ? Color::TextPrimary : Color::TextDisabled), widget);
     }
 }
 
@@ -997,7 +997,7 @@ void PDFWidgetStyleButtons::drawToolButton(const QStyleOptionToolButton* option,
 
     if (isSplit)
     {
-        const Color chevronColor = state.enabled ? Color::IconDefault : Color::IconMuted;
+        const Color chevronColor = state.enabled ? Color::IconDefault : Color::IconDisabled;
         PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(menuRect), QSizeF(TOOL_BUTTON_CHEVRON, TOOL_BUTTON_CHEVRON)), QStringLiteral("chevron-down"), chevronColor);
     }
 }
@@ -1039,8 +1039,8 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
 
     if (!state.enabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
     else if (state.on)
     {
@@ -1071,7 +1071,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
     };
 
     const qreal indicatorWidth = hasIndicator ? TOOL_BUTTON_CHEVRON_GAP + TOOL_BUTTON_CHEVRON : 0.0;
-    const Color indicatorColor = !state.enabled ? Color::IconMuted : (state.on ? Color::IconAccent : Color::IconMuted);
+    const Color indicatorColor = !state.enabled ? Color::IconDisabled : (state.on ? Color::IconAccent : Color::IconMuted);
 
     switch (buttonStyle)
     {
@@ -1210,7 +1210,7 @@ void PDFWidgetStyleButtons::drawArrow(QStyle::PrimitiveElement element, const QS
 
     const QRectF rect(option->rect);
     const qreal extent = qMin(14.0, qMin(rect.width(), rect.height()));
-    PDFStylePainter::icon(painter, PDFStylePainter::centered(rect, QSizeF(extent, extent)), name, state.enabled ? Color::IconDefault : Color::IconMuted);
+    PDFStylePainter::icon(painter, PDFStylePainter::centered(rect, QSizeF(extent, extent)), name, state.enabled ? Color::IconDefault : Color::IconDisabled);
 }
 
 QSize PDFWidgetStyleButtons::getButtonSize(const QStyleOptionButton* option, const QWidget* widget) const

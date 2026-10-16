@@ -145,6 +145,7 @@ private:
     static Page createContainersPage(QWidget* parent);
     static Page createDialogsPage(QWidget* parent);
     static Page createIconsPage(QWidget* parent);
+    static Page createComponentsPage(QWidget* parent);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(GalleryPages::StateFlags)

@@ -33,6 +33,7 @@
 class QAbstractButton;
 class QCheckBox;
 class QFrame;
+class QVBoxLayout;
 
 namespace pdf
 {
@@ -42,7 +43,9 @@ class PDFPlainTextEdit;
 
 /// Message box of the design: a badge with an icon, a title, a text, optional
 /// details in a note box, an optional check box and the buttons. It replaces
-/// QMessageBox, whose texts take their colors from a palette.
+/// QMessageBox, whose texts take their colors from a palette. The message box
+/// is a frameless card (radius 16, shadow 0 / 8 / 24) without the title bar of
+/// the system, centered over its parent widget, which is covered by a scrim.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFMessageBox : public QDialog
 {
     Q_OBJECT
@@ -88,7 +91,15 @@ public:
 
     QDialogButtonBox* getButtonBox() const { return m_buttonBox; }
 
+    virtual ~PDFMessageBox() override;
+
     virtual void reject() override;
+    virtual void setVisible(bool visible) override;
+
+    /// Returns the transparent margins of the window around the card, where
+    /// its shadow is drawn. Margins are empty for a message box shown inside
+    /// of another widget or, if windows can not be translucent.
+    QMargins getShadowMargins() const;
 
     static QDialogButtonBox::StandardButton information(QWidget* parent, const QString& title, const QString& text,
                                                         QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok,
@@ -105,9 +116,16 @@ public:
 
 protected:
     virtual void showEvent(QShowEvent* event) override;
+    virtual void hideEvent(QHideEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void paintEvent(QPaintEvent* event) override;
 
 private:
+    void updateMargins();
+    void moveOverParent();
+    void showScrim();
+    void hideScrim();
+
     static QDialogButtonBox::StandardButton showMessage(PDFThemeIcons::Badge badge, QWidget* parent, const QString& title, const QString& text,
                                                         QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton);
     void onButtonClicked(QAbstractButton* button);
@@ -118,7 +136,11 @@ private:
     static constexpr int DETAILS_HEIGHT = 150;
     static constexpr int DETAILS_LONG_SIZE = 600;
     static constexpr int DETAILS_LONG_LINES = 8;
+    static constexpr int PADDING_H = 22;
+    static constexpr int PADDING_V = 20;
+    static constexpr qreal CARD_RADIUS = 16.0;
 
+    QVBoxLayout* m_mainLayout;
     PDFLabel* m_titleLabel;
     PDFLabel* m_textLabel;
     PDFLabel* m_detailsLabel;
@@ -130,6 +152,7 @@ private:
     QDialogButtonBox* m_buttonBox;
     QAbstractButton* m_clickedButton = nullptr;
     QDialogButtonBox::StandardButton m_clickedStandardButton = QDialogButtonBox::NoButton;
+    QPointer<QWidget> m_scrim;
 };
 
 }   // namespace pdf

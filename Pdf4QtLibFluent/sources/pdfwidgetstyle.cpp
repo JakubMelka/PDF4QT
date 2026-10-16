@@ -327,7 +327,7 @@ void PDFWidgetStyle::drawItemText(QPainter* painter, const QRect& rect, int flag
 
     if (hasColor)
     {
-        painter->setPen(PDFStylePainter::color(enabled ? color : PDFThemeColors::TextMuted));
+        painter->setPen(PDFStylePainter::color(enabled ? color : PDFThemeColors::TextDisabled));
     }
 
     painter->drawText(rect, flags, text);
@@ -372,6 +372,18 @@ bool PDFWidgetStyle::isActive()
 {
     // The style of the application can be wrapped by a style sheet or by a proxy style
     return PDFWidgetStyleImpl::isApplicationStyle();
+}
+
+bool PDFWidgetStyle::isFocusRingVisible(const QWidget* widget)
+{
+    if (!widget || !widget->hasFocus() || !widget->isEnabled())
+    {
+        return false;
+    }
+
+    QStyleOption option;
+    option.initFrom(widget);
+    return PDFWidgetStyleImpl::isApplicationFocusVisible(&option, widget);
 }
 
 void PDFWidgetStyle::setAnimationTime(qint64 milliseconds)

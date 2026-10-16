@@ -20,6 +20,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "pdfaccenthue.h"
+#include "pdfcomponentbuttons.h"
+#include "pdfcomponentpanels.h"
+#include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
@@ -36,6 +40,7 @@
 #include <QtTest>
 
 #include <QCheckBox>
+#include <QContextMenuEvent>
 #include <QFocusFrame>
 #include <QMenu>
 #include <QMetaEnum>
@@ -130,6 +135,10 @@ private slots:
     void pointerTargets();
     void subMenuMargin();
     void popupPlacement();
+    void contextMenus();
+    void components();
+    void disabledAndSelect();
+    void rowStyles();
 
 private:
     static QImage render(const std::function<void(QPainter&)>& paint, QSize size, qreal scale = 1.0);
@@ -213,7 +222,7 @@ void WidgetStyleTest::cleanup()
 
 void WidgetStyleTest::themeTokens()
 {
-    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 133);
+    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 140);
 
     // The name of each enumeration value is derived from the name of the variable of the design
     const QMetaEnum metaEnum = QMetaEnum::fromType<pdf::PDFThemeColors::Color>();
@@ -287,8 +296,8 @@ void WidgetStyleTest::themeTokensChecksum()
         hash *= 0x01000193u;
     }
 
-    QCOMPARE(text.size(), qsizetype(4410));
-    QCOMPARE(hash, quint32(0x5dffe938u));
+    QCOMPARE(text.size(), qsizetype(4638));
+    QCOMPARE(hash, quint32(0x17c678beu));
 }
 
 void WidgetStyleTest::themeManager()
@@ -420,7 +429,7 @@ void WidgetStyleTest::icons()
 
     // Modes of the icon are colors of the theme
     QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Normal), pdf::PDFThemeColors::IconDefault);
-    QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Disabled), pdf::PDFThemeColors::IconMuted);
+    QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Disabled), pdf::PDFThemeColors::IconDisabled);
     QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Active), pdf::PDFThemeColors::IconStrong);
     QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Selected), pdf::PDFThemeColors::IconAccent);
 
@@ -712,8 +721,9 @@ void WidgetStyleTest::sizesFromContents()
     const int chipText = qCeil(pdf::PDFStylePainter::textWidth(tab.text, pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallSemiBold)));
     QCOMPARE(m_style->sizeFromContents(QStyle::CT_TabBarTab, &tab, QSize(), nullptr), QSize(qMax(64, chipText + 28 + 2) + 6, 36));
 
+    // The selected chip keeps the width (padding 15 instead of the border 1 and the padding 14)
     tab.state |= QStyle::State_Selected;
-    QCOMPARE(m_style->sizeFromContents(QStyle::CT_TabBarTab, &tab, QSize(), nullptr), QSize(qMax(64, chipText + 28) + 6, 36));
+    QCOMPARE(m_style->sizeFromContents(QStyle::CT_TabBarTab, &tab, QSize(), nullptr), QSize(qMax(64, chipText + 28 + 2) + 6, 36));
 
     tab.shape = QTabBar::RoundedWest;
     QCOMPARE(m_style->sizeFromContents(QStyle::CT_TabBarTab, &tab, QSize(), nullptr), QSize(240, 40));
@@ -782,9 +792,9 @@ void WidgetStyleTest::pushButtonPixels()
     QCOMPARE(pixel(image, 8, 0).alpha(), 255);
 
     image = draw(primary, enabled | QStyle::State_MouseOver);
-    QVERIFY(isNear(pixel(image, 74, 18), token(pdf::PDFThemeColors::AccentBlueIcon)));
+    QVERIFY(isNear(pixel(image, 74, 18), token(pdf::PDFThemeColors::BgAccentHover)));
     image = draw(primary, enabled | QStyle::State_MouseOver | QStyle::State_Sunken);
-    QVERIFY(isNear(pixel(image, 74, 18), token(pdf::PDFThemeColors::TextAccentPressed)));
+    QVERIFY(isNear(pixel(image, 74, 18), token(pdf::PDFThemeColors::BgAccentPressed)));
     image = draw(primary, QStyle::State_Active);
     QVERIFY(isNear(pixel(image, 74, 18), token(pdf::PDFThemeColors::BgMuted)));
 
@@ -901,6 +911,18 @@ void WidgetStyleTest::indicatorPixels()
 
     image = draw(QStyle::PE_IndicatorCheckBox, QStyle::State_Active | QStyle::State_On);
     QVERIFY(isNear(pixel(image, 2, 9), token(pdf::PDFThemeColors::BorderStrong)));
+
+    // Checked indicator: border bg/accent-pressed under the pointer, fill bg/accent-pressed when pressed
+    image = draw(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_On | QStyle::State_MouseOver);
+    QVERIFY(isNear(pixel(image, 0, 9), token(pdf::PDFThemeColors::BgAccentPressed)));
+    QVERIFY(isNear(pixel(image, 3, 9), token(pdf::PDFThemeColors::BgAccent)));
+    image = draw(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_On | QStyle::State_MouseOver | QStyle::State_Sunken);
+    QVERIFY(isNear(pixel(image, 2, 9), token(pdf::PDFThemeColors::BgAccentPressed)));
+
+    // Unchecked disabled indicator: bg/muted with border/default
+    image = draw(QStyle::PE_IndicatorCheckBox, QStyle::State_Active | QStyle::State_Off);
+    QVERIFY(isNear(pixel(image, 9, 9), token(pdf::PDFThemeColors::BgMuted)));
+    QVERIFY(isNear(pixel(image, 0, 9), token(pdf::PDFThemeColors::BorderDefault)));
 
     // Unchecked indicator with the focus has the ring inside
     image = draw(QStyle::PE_IndicatorCheckBox, enabled | QStyle::State_Off | QStyle::State_HasFocus | QStyle::State_KeyboardFocusChange);
@@ -1270,10 +1292,10 @@ void WidgetStyleTest::widgets()
     pdf::PDFLineEdit passwordEdit;
     passwordEdit.setPasswordField();
     QCOMPARE(passwordEdit.echoMode(), QLineEdit::Password);
-    QCOMPARE(passwordEdit.actions().size(), qsizetype(1));
-    passwordEdit.actions().front()->toggle();
+    QVERIFY(passwordEdit.getPasswordButton());
+    passwordEdit.getPasswordButton()->toggle();
     QCOMPARE(passwordEdit.echoMode(), QLineEdit::Normal);
-    QVERIFY(!passwordEdit.actions().front()->text().isEmpty());
+    QVERIFY(!passwordEdit.getPasswordButton()->accessibleName().isEmpty());
 
     // Spin boxes reserve the space of the prefix and of the suffix
     pdf::PDFSpinBox spinBox;
@@ -1781,8 +1803,55 @@ void WidgetStyleTest::messageBoxButtons()
     longBox.setDetailedText(QString(QStringLiteral("Line of a trace\n")).repeated(400));
     longBox.show();
     QVERIFY(QTest::qWaitForWindowExposed(&longBox));
-    QVERIFY2(longBox.height() < 420, qPrintable(QString::number(longBox.height())));
+    QVERIFY2(longBox.height() - longBox.getShadowMargins().top() - longBox.getShadowMargins().bottom() < 420, qPrintable(QString::number(longBox.height())));
     QCOMPARE(countLeakPixels(longBox.grab().toImage()), 0);
+    longBox.hide();
+
+    // The message box is a card without the title bar of the system, centered
+    // over its parent, which is covered by a scrim while the message is shown
+    QWidget parent;
+    parent.resize(800, 600);
+    parent.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&parent));
+
+    pdf::PDFMessageBox cardBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Some fonts are not embedded"), QStringLiteral("The document may look different on another computer."), QDialogButtonBox::Ok, &parent);
+    QVERIFY(cardBox.windowFlags().testFlag(Qt::FramelessWindowHint));
+
+    auto findScrims = [&parent]()
+    {
+        QList<QWidget*> scrims;
+        for (QWidget* child : parent.findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+        {
+            if (child->isVisible() && child->geometry() == parent.rect())
+            {
+                scrims << child;
+            }
+        }
+        return scrims;
+    };
+
+    bool hasScrim = false;
+    QPoint cardCenter;
+    QTimer::singleShot(0, &cardBox, [&]()
+    {
+        hasScrim = findScrims().size() == 1;
+        cardCenter = cardBox.mapToGlobal(cardBox.rect().marginsRemoved(cardBox.getShadowMargins()).center());
+        cardBox.getButtonBox()->button(QDialogButtonBox::Ok)->click();
+    });
+    cardBox.exec();
+
+    QVERIFY(hasScrim);
+    QVERIFY(findScrims().isEmpty());
+    const QPoint parentCenter = parent.mapToGlobal(parent.rect().center());
+    QVERIFY2((cardCenter - parentCenter).manhattanLength() <= 2, qPrintable(QStringLiteral("%1 %2 / %3 %4").arg(cardCenter.x()).arg(cardCenter.y()).arg(parentCenter.x()).arg(parentCenter.y())));
+
+    // Inside of another widget the card has no shadow
+    pdf::PDFMessageBox embeddedBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, &parent);
+    embeddedBox.setWindowFlags(Qt::Widget);
+    embeddedBox.show();
+    QVERIFY(embeddedBox.getShadowMargins().isNull());
+    QCOMPARE(embeddedBox.layout()->contentsMargins(), QMargins(22, 20, 22, 20));
+    QCOMPARE(countLeakPixels(embeddedBox.grab().toImage()), 0);
 }
 
 void WidgetStyleTest::toolTipOfQt()
@@ -1949,6 +2018,33 @@ void WidgetStyleTest::tabBarScrolls()
     QVERIFY(QTest::qWaitForWindowExposed(&tabBar));
     QVERIFY(tabBar.usesScrollButtons());
     QVERIFY2(tabBar.minimumSizeHint().width() < 400, qPrintable(QString::number(tabBar.minimumSizeHint().width())));
+
+    // Tabs of the documents keep their labels and scroll, the top bar of the
+    // application holding them has the background of the strip
+    QWidget topBar;
+    topBar.setProperty(pdf::PDFWidgetStyleProperties::DOCUMENT_TABS, true);
+    QHBoxLayout* topBarLayout = new QHBoxLayout(&topBar);
+    topBarLayout->setContentsMargins(16, 6, 16, 0);
+    QTabBar* documentTabs = new QTabBar(&topBar);
+    documentTabs->setProperty(pdf::PDFWidgetStyleProperties::DOCUMENT_TABS, true);
+    documentTabs->setTabsClosable(true);
+    const QString label = QStringLiteral("Contract_final_signed.pdf");
+    for (int i = 0; i < 10; ++i)
+    {
+        documentTabs->addTab(label);
+    }
+    topBarLayout->addWidget(documentTabs);
+    topBar.resize(500, 38);
+    topBar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&topBar));
+    QVERIFY(documentTabs->usesScrollButtons());
+    QCOMPARE(documentTabs->elideMode(), Qt::ElideNone);
+    const int labelWidth = QFontMetrics(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold)).horizontalAdvance(label);
+    QVERIFY2(documentTabs->tabRect(0).width() > labelWidth, qPrintable(QStringLiteral("%1 / %2").arg(documentTabs->tabRect(0).width()).arg(labelWidth)));
+
+    const QImage image = topBar.grab().toImage();
+    QVERIFY(isNear(pixel(image, 4, 20), token(Color::BgTitlebar)));
+    QCOMPARE(countLeakPixels(image), 0);
 }
 
 void WidgetStyleTest::progressBarThickness()
@@ -2155,6 +2251,328 @@ void WidgetStyleTest::popupPlacement()
     const QPoint right(available.right() - 5, available.top() + 120);
     panel = popup(right, margins);
     QVERIFY2(panel.right() <= available.right() && panel.right() >= available.right() - 1, qPrintable(QStringLiteral("%1 / %2").arg(panel.right()).arg(available.right())));
+}
+
+void WidgetStyleTest::contextMenus()
+{
+    // The standard context menus of the text widgets (some of them are shown
+    // by QMenu::exec) are drawn in the colors of the theme, also their icons
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFLineEdit* lineEdit = new pdf::PDFLineEdit(&window);
+    lineEdit->setText(QStringLiteral("Project_Report.pdf"));
+    lineEdit->selectAll();
+    pdf::PDFPlainTextEdit* plainTextEdit = new pdf::PDFPlainTextEdit(&window);
+    plainTextEdit->setPlainText(QStringLiteral("Keywords of the document"));
+    plainTextEdit->selectAll();
+    pdf::PDFSpinBox* spinBox = new pdf::PDFSpinBox(&window);
+    spinBox->setValue(12);
+    layout->addWidget(lineEdit);
+    layout->addWidget(plainTextEdit);
+    layout->addWidget(spinBox);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    for (QWidget* target : { static_cast<QWidget*>(lineEdit), static_cast<QWidget*>(plainTextEdit->viewport()), static_cast<QWidget*>(spinBox) })
+    {
+        QImage image;
+        int actionCount = 0;
+        int iconCount = 0;
+
+        QTimer timer;
+        timer.setInterval(20);
+        QObject::connect(&timer, &QTimer::timeout, &timer, [&]()
+        {
+            QMenu* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (!menu || !menu->isVisible())
+            {
+                return;
+            }
+
+            timer.stop();
+            QCoreApplication::processEvents();
+            image = menu->grab().toImage();
+            for (const QAction* action : menu->actions())
+            {
+                if (!action->isSeparator())
+                {
+                    ++actionCount;
+                    iconCount += action->icon().isNull() ? 0 : 1;
+                }
+            }
+            menu->close();
+        });
+        timer.start();
+
+        QContextMenuEvent event(QContextMenuEvent::Mouse, QPoint(10, 10), target->mapToGlobal(QPoint(10, 10)));
+        QCoreApplication::sendEvent(target, &event);
+        QTRY_VERIFY(!image.isNull());
+        QTRY_VERIFY(!QApplication::activePopupWidget());
+
+        const QString name = QString::fromLatin1(target->metaObject()->className());
+        QVERIFY2(actionCount > 0, qPrintable(name));
+        QVERIFY2(countLeakPixels(image) == 0, qPrintable(QStringLiteral("%1: %2 leak pixels, %3 icons").arg(name).arg(countLeakPixels(image)).arg(iconCount)));
+    }
+}
+
+void WidgetStyleTest::components()
+{
+    const QStyle::State enabled = QStyle::State_Enabled | QStyle::State_Active;
+    Q_UNUSED(enabled);
+
+    // Icon button: sizes, radius of the focus ring, colors of the icon in the states
+    pdf::PDFIconButton iconButton(QStringLiteral("copy"), pdf::PDFIconButton::Size::Small);
+    QCOMPARE(iconButton.sizeHint(), QSize(24, 24));
+    QCOMPARE(iconButton.property(pdf::PDFWidgetStyleProperties::RADIUS).toReal(), 6.0);
+    QCOMPARE(iconButton.getCurrentIconColor(), Color::IconMuted);
+    iconButton.setAttribute(Qt::WA_UnderMouse, true);
+    QCOMPARE(iconButton.getCurrentIconColor(), Color::IconDefault);
+    const QColor iconBase = pixel(pdf::PDFIconButton(QStringLiteral("copy")).grab().toImage(), 2, 12);
+    QImage image = iconButton.grab().toImage();
+    QVERIFY(isNear(pixel(image, 2, 12), blend(token(Color::BgHover), iconBase)));
+    iconButton.setDown(true);
+    QCOMPARE(iconButton.getCurrentIconColor(), Color::IconStrong);
+    image = iconButton.grab().toImage();
+    QVERIFY(isNear(pixel(image, 2, 12), blend(token(Color::BgPressed), iconBase)));
+    iconButton.setDown(false);
+    iconButton.setIconColor(Color::IconAccent);
+    QCOMPARE(iconButton.getCurrentIconColor(), Color::IconAccent);
+    iconButton.setEnabled(false);
+    QCOMPARE(iconButton.getCurrentIconColor(), Color::IconDisabled);
+    iconButton.setButtonSize(pdf::PDFIconButton::Size::Medium);
+    QCOMPARE(iconButton.sizeHint(), QSize(28, 28));
+    iconButton.setButtonSize(pdf::PDFIconButton::Size::TabClose);
+    QCOMPARE(iconButton.sizeHint(), QSize(20, 20));
+    QCOMPARE(iconButton.property(pdf::PDFWidgetStyleProperties::RADIUS).toReal(), 4.0);
+    QCOMPARE(pdf::PDFIconButton::getIconExtent(pdf::PDFIconButton::Size::Small), 14);
+    QCOMPARE(pdf::PDFIconButton::getIconExtent(pdf::PDFIconButton::Size::Medium), 16);
+    QCOMPARE(pdf::PDFIconButton::getIconExtent(pdf::PDFIconButton::Size::TabClose), 12);
+
+    // Stamp chip: height 26, the label 11 px from the edges, colors of the hue
+    pdf::PDFStampChip stamp(QStringLiteral("Approved"), pdf::PDFAccentHue::Green);
+    const qreal labelWidth = pdf::PDFStylePainter::textWidth(QStringLiteral("APPROVED"), pdf::PDFStampChip::getLabelFont());
+    QCOMPARE(stamp.sizeHint(), QSize(qRound(labelWidth) + 22, 26));
+    stamp.resize(stamp.sizeHint());
+    image = stamp.grab().toImage();
+    QVERIFY(isNear(pixel(image, 3, 13), token(Color::AccentGreenBg)));
+    QVERIFY(isNear(pixel(image, 0, 13), token(Color::AccentGreenBorderStrong)));
+    stamp.setHue(pdf::PDFAccentHue::Red);
+    stamp.setAttribute(Qt::WA_UnderMouse, true);
+    image = stamp.grab().toImage();
+    QVERIFY(isNear(pixel(image, 3, 13), token(Color::AccentRedBgHover)));
+    QCOMPARE(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Neutral, pdf::PDFAccentHueColors::Role::Icon), Color::AccentNeutralIcon);
+    QCOMPARE(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Amber, pdf::PDFAccentHueColors::Role::BackgroundPressed), Color::AccentAmberBgPressed);
+
+    // Navigation: sizes of the two kinds, the selected item does not react to the pointer
+    pdf::PDFNavItem navItem(QStringLiteral("Open"), QStringLiteral("folder"));
+    QCOMPARE(navItem.sizeHint(), QSize(190, 38));
+    navItem.resize(190, 38);
+    image = navItem.grab().toImage();
+    const QColor navBase = pixel(image, 4, 19);
+    navItem.setAttribute(Qt::WA_UnderMouse, true);
+    image = navItem.grab().toImage();
+    QVERIFY(isNear(pixel(image, 4, 19), blend(token(Color::BgHover), navBase)));
+    navItem.setChecked(true);
+    image = navItem.grab().toImage();
+    QVERIFY(isNear(pixel(image, 4, 19), blend(token(Color::BgAccentSubtle), navBase)));
+    navItem.click();
+    QVERIFY(navItem.isChecked());
+
+    pdf::PDFNavItem settingsItem(QStringLiteral("General"), QStringLiteral("settings"), pdf::PDFNavItem::Kind::Settings);
+    settingsItem.setSubtitle(QStringLiteral("Language, theme, documents"));
+    QCOMPARE(settingsItem.sizeHint(), QSize(300, 52));
+    QCOMPARE(settingsItem.accessibleDescription(), QStringLiteral("Language, theme, documents"));
+
+    // The arrows move the selection over the border of the groups
+    pdf::PDFNavList navList;
+    navList.addItem(QStringLiteral("Home"), QStringLiteral("home"));
+    navList.addItem(QStringLiteral("Open"), QStringLiteral("folder"));
+    navList.addGroup();
+    navList.addItem(QStringLiteral("About"), QStringLiteral("info"));
+    navList.show();
+    QCOMPARE(navList.getCount(), 3);
+    QCOMPARE(navList.getCurrentIndex(), 0);
+    QSignalSpy navSpy(&navList, &pdf::PDFNavList::currentIndexChanged);
+    QTest::keyClick(navList.getItem(0), Qt::Key_Down);
+    QTest::keyClick(navList.getItem(1), Qt::Key_Down);
+    QCOMPARE(navList.getCurrentIndex(), 2);
+    QCOMPARE(navSpy.count(), 2);
+    QTest::keyClick(navList.getItem(2), Qt::Key_Home);
+    QCOMPARE(navList.getCurrentIndex(), 0);
+    QCOMPARE(navList.getItem(2)->y() - navList.getItem(1)->geometry().bottom() - 1, 21);
+
+    // Toolbar field: height 32, at least 64 wide, value and suffix 11 px from the edges
+    pdf::PDFToolBarField field(QStringLiteral("308"), QStringLiteral("/ 1592"));
+    QCOMPARE(field.sizeHint().height(), 32);
+    const QFont valueFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold);
+    const QFont suffixFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body);
+    const int expectedWidth = qCeil(pdf::PDFStylePainter::textWidth(QStringLiteral("308"), valueFont) + 4 + pdf::PDFStylePainter::textWidth(QStringLiteral("/ 1592"), suffixFont) + 1) + 22;
+    QCOMPARE(field.sizeHint().width(), expectedWidth);
+    QCOMPARE(field.accessibleDescription(), QStringLiteral("/ 1592"));
+    pdf::PDFToolBarField shortField(QStringLiteral("1"));
+    QCOMPARE(shortField.sizeHint(), QSize(64, 32));
+    field.resize(field.sizeHint());
+    QCOMPARE(countLeakPixels(field.grab().toImage()), 0);
+    QCOMPARE(field.property(pdf::PDFWidgetStyleProperties::FIELD_TEXT_INSETS).value<QMargins>().left(), 11);
+
+    // Password field: height 40, the button of 28 px 7 px from the right edge, text at 37
+    pdf::PDFLineEdit password(QStringLiteral("secret"));
+    password.setPasswordField();
+    QVERIFY(password.isPasswordField());
+    QCOMPARE(password.sizeHint().height(), 40);
+    password.resize(320, 40);
+    QCOMPARE(countLeakPixels(password.grab().toImage()), 0);
+    QCOMPARE(password.getPasswordButton()->geometry(), QRect(285, 6, 28, 28));
+    QCOMPARE(password.property(pdf::PDFWidgetStyleProperties::FIELD_TEXT_INSETS).value<QMargins>(), QMargins(37, 0, 43, 0));
+    QCOMPARE(password.getPasswordButton()->getCurrentIconColor(), Color::IconDefault);
+    password.getPasswordButton()->click();
+    QCOMPARE(password.echoMode(), QLineEdit::Normal);
+    QCOMPARE(password.getPasswordButton()->getIconName(), QStringLiteral("eye-off"));
+    QCOMPARE(password.getPasswordButton()->accessibleName(), QStringLiteral("Hide password"));
+    password.clear();
+    QCOMPARE(password.getPasswordButton()->getCurrentIconColor(), Color::IconMuted);
+    password.setLayoutDirection(Qt::RightToLeft);
+    QCOMPARE(password.getPasswordButton()->geometry(), QRect(7, 6, 28, 28));
+    QCOMPARE(countLeakPixels(password.grab().toImage()), 0);
+
+    // Document tabs: 32 px high also without the close button, the lock and the dot widen the tab
+    pdf::PDFDocumentTabBar tabBar;
+    const int home = tabBar.addTab(QStringLiteral("Home"));
+    const int document = tabBar.addTab(QStringLiteral("Project_Report.pdf"));
+    tabBar.setTabClosable(document, true);
+    QVERIFY(tabBar.isTabClosable(document));
+    QVERIFY(!tabBar.isTabClosable(home));
+    const int plainWidth = tabBar.tabRect(document).width();
+    tabBar.setTabLocked(document, true);
+    tabBar.setTabUnsaved(document, true);
+    tabBar.setTabProgress(document, 0.5);
+    QCOMPARE(tabBar.tabRect(document).width(), plainWidth + 8 + 12 + 8 + 8);
+    QCOMPARE(tabBar.tabRect(home).height(), tabBar.tabRect(document).height());
+    QCOMPARE(tabBar.getTabProgress(document), 0.5);
+    QSignalSpy closeSpy(&tabBar, &QTabBar::tabCloseRequested);
+    qobject_cast<QAbstractButton*>(tabBar.tabButton(document, QTabBar::RightSide))->click();
+    QCOMPARE(closeSpy.count(), 1);
+    QCOMPARE(closeSpy.front().front().toInt(), document);
+    tabBar.moveTab(document, home);
+    QVERIFY(tabBar.isTabLocked(0));
+    QVERIFY(!tabBar.isTabLocked(1));
+    tabBar.resize(tabBar.sizeHint());
+    QCOMPARE(countLeakPixels(tabBar.grab().toImage()), 0);
+
+    // Key value rows: 28 px each, label column 120, the value is elided
+    pdf::PDFKeyValueList keyValues;
+    keyValues.addRow(QStringLiteral("Input"), QStringLiteral("One open PDF"));
+    keyValues.addRow(QStringLiteral("Result"), QStringLiteral("A smaller PDF"));
+    QCOMPARE(keyValues.getRowCount(), 2);
+    keyValues.resize(360, keyValues.heightForWidth(360));
+    QCOMPARE(keyValues.height(), 56);
+    QCOMPARE(keyValues.getRowRect(1), QRect(0, 28, 360, 28));
+    QCOMPARE(keyValues.getRowAt(QPoint(10, 40)), 1);
+    QVERIFY(keyValues.accessibleDescription().contains(QStringLiteral("Result: A smaller PDF")));
+    QCOMPARE(countLeakPixels(keyValues.grab().toImage()), 0);
+    keyValues.clear();
+    QCOMPARE(keyValues.getRowCount(), 0);
+
+    // Filter chip, which is a button, shows its count
+    QPushButton chip(QStringLiteral("Workspaces"));
+    chip.setProperty(pdf::PDFWidgetStyleProperties::CHIP, true);
+    const int chipWidth = chip.sizeHint().width();
+    pdf::PDFWidgetStyleProperties::set(&chip, pdf::PDFWidgetStyleProperties::CHIP_COUNT, 12);
+    QVERIFY(chipWidth > 64);
+    QCOMPARE(chip.sizeHint().width(), qMax(64, chipWidth + 6 + qCeil(pdf::PDFStylePainter::textWidth(QStringLiteral("12"), pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Caption)))));
+}
+
+void WidgetStyleTest::disabledAndSelect()
+{
+    // Disabled controls have text/disabled and icon/disabled, without opacity
+    QCOMPARE(pdf::PDFThemeIcons::getModeColor(QIcon::Disabled), Color::IconDisabled);
+    QCOMPARE(token(Color::TextDisabled), QColor(0x94, 0xa3, 0xb8));
+
+    pdf::PDFLabel label(QStringLiteral("Disabled"));
+    QCOMPARE(label.palette().color(QPalette::Disabled, QPalette::Text), token(Color::TextDisabled));
+
+    // Select: hover is the fill bg/hover, the open select bg/pressed with border/strong
+    pdf::PDFComboBox select;
+    select.addItems({ QStringLiteral("Last opened"), QStringLiteral("Name") });
+    select.setSelectPrefix(QStringLiteral("Sort:"));
+    select.resize(select.sizeHint());
+    QImage image = select.grab().toImage();
+    QVERIFY(isNear(pixel(image, 0, 16), token(Color::BorderDefault)));
+    QVERIFY(isNear(pixel(image, 6, 16), token(Color::BgSurface)));
+    select.setAttribute(Qt::WA_UnderMouse, true);
+    image = select.grab().toImage();
+    QVERIFY(isNear(pixel(image, 6, 16), blend(token(Color::BgHover), token(Color::BgSurface))));
+    QVERIFY(isNear(pixel(image, 0, 16), token(Color::BorderDefault)));
+    select.setEnabled(false);
+    image = select.grab().toImage();
+    QVERIFY(isNear(pixel(image, 6, 16), token(Color::BgMuted)));
+
+    // Segment with its own color of the icon
+    pdf::PDFSegmentedControl segmented;
+    const int light = segmented.addSegment(QStringLiteral("Light"), QStringLiteral("sun"));
+    segmented.addSegment(QStringLiteral("Auto"), QStringLiteral("monitor"));
+    segmented.setSegmentIconColor(light, Color::IconSun);
+    segmented.setCurrentIndex(1);
+    segmented.resize(186, 36);
+    image = segmented.grab().toImage();
+    int sunPixels = 0;
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width() / 2; ++x)
+        {
+            sunPixels += isNear(image.pixelColor(x, y), token(Color::IconSun), 8) ? 1 : 0;
+        }
+    }
+    QVERIFY(sunPixels > 10);
+}
+
+void WidgetStyleTest::rowStyles()
+{
+    QStandardItemModel model;
+    QStandardItem* chapter = new QStandardItem(QStringLiteral("Market Analysis"));
+    chapter->appendRow(new QStandardItem(QStringLiteral("4.1 Regional revenue")));
+    model.appendRow(chapter);
+
+    // Outline row: indentation 18, chevron slot of 16 at 6 px, the title at 6 + 16 + 4
+    pdf::PDFTreeView tree;
+    tree.setModel(&model);
+    tree.setHeaderHidden(true);
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Outline);
+    tree.expandAll();
+    tree.resize(300, 200);
+    tree.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&tree));
+    QCOMPARE(tree.indentation(), 18);
+
+    const QModelIndex index = model.index(0, 0);
+    QStyleOptionViewItem option;
+    option.initFrom(&tree);
+    option.rect = tree.visualRect(index);
+    option.index = index;
+    option.text = index.data().toString();
+    option.features = QStyleOptionViewItem::HasDisplay;
+    QCOMPARE(option.rect.left(), 18);
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, &tree).left(), 26);
+    QCOMPARE(option.rect.height(), 30);
+
+    QStyleOption branch;
+    branch.initFrom(&tree);
+    branch.rect = QRect(0, option.rect.top(), 18, option.rect.height());
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_TreeViewDisclosureItem, &branch, &tree), QRect(6, option.rect.top(), 16, option.rect.height()));
+
+    // Certificate row: height 34
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Certificate);
+    tree.setRootIsDecorated(false);
+    tree.doItemsLayout();
+    QCOMPARE(tree.visualRect(index).height(), 34);
+    QCOMPARE(tree.indentation(), 16);
+
+    // Library row: height 30, back to the default
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Library);
+    tree.doItemsLayout();
+    QCOMPARE(tree.visualRect(index).height(), 30);
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Default);
+    QVERIFY(!tree.property(pdf::PDFWidgetStyleProperties::ROW_STYLE).isValid());
 }
 
 QTEST_MAIN(WidgetStyleTest)

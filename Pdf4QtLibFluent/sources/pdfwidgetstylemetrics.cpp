@@ -116,12 +116,16 @@ bool PDFWidgetStyleMetrics::pixelMetric(const PDFWidgetStyleImpl* impl, QStyle::
             value = 14;
             return true;
 
+        case QStyle::PM_TreeViewIndentation:
+            // A level of the outline is indented by 18 px (Outline row)
+            value = widget && widget->property(PDFWidgetStyleProperties::ROW_STYLE).toString() == QLatin1String("outline") ? 18 : 16;
+            return true;
+
         case QStyle::PM_ButtonIconSize:
         case QStyle::PM_SmallIconSize:
         case QStyle::PM_ListViewIconSize:
         case QStyle::PM_LineEditIconSize:
         case QStyle::PM_SizeGripSize:
-        case QStyle::PM_TreeViewIndentation:
             value = 16;
             return true;
 

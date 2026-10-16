@@ -75,13 +75,18 @@ public:
     /// Returns the renderer of the icon, or nullptr, if the icon does not exist
     /// \param name Name of the icon
     /// \param strokeWidth Width of the strokes in the units of the icon
-    static QSvgRenderer* getRenderer(const QString& name, qreal strokeWidth = STROKE_WIDTH)
+    /// \param isFill The renderer draws the area enclosed by the strokes instead of the strokes
+    static QSvgRenderer* getRenderer(const QString& name, qreal strokeWidth = STROKE_WIDTH, bool isFill = false)
     {
         static QHash<QString, std::shared_ptr<QSvgRenderer>> renderers;
 
         const int strokeKey = qBound(25, qRound(strokeWidth * 100.0), 800);
-        const bool isDesignStroke = strokeKey == qRound(STROKE_WIDTH * 100.0);
-        const QString key = isDesignStroke ? name : QStringLiteral("%1/%2").arg(name).arg(strokeKey);
+        const bool isDesignStroke = strokeKey == qRound(STROKE_WIDTH * 100.0) || isFill;
+        QString key = isDesignStroke ? name : QStringLiteral("%1/%2").arg(name).arg(strokeKey);
+        if (isFill)
+        {
+            key += QStringLiteral("/fill");
+        }
 
         auto it = renderers.constFind(key);
         if (it != renderers.cend())
@@ -94,7 +99,13 @@ public:
 
         if (!data.isEmpty())
         {
-            if (!isDesignStroke)
+            if (isFill)
+            {
+                // Each path of the icon is filled and not stroked
+                data.replace(QByteArrayLiteral("<path "), QByteArrayLiteral("<path fill=\"#000000\" "));
+                data.replace(QByteArrayLiteral("stroke=\"#"), QByteArrayLiteral("data-stroke=\"#"));
+            }
+            else if (!isDesignStroke)
             {
                 data.replace(QByteArrayLiteral("stroke-width=\"2\""), QByteArrayLiteral("stroke-width=\"") + QByteArray::number(strokeKey / 100.0, 'f', 2) + QByteArrayLiteral("\""));
             }
@@ -283,12 +294,73 @@ QString PDFThemeIcons::getIconName(const QIcon& icon)
     return QString();
 }
 
+QString PDFThemeIcons::getReplacementName(const QIcon& icon)
+{
+    if (icon.isNull())
+    {
+        return QString();
+    }
+
+    // Names of the freedesktop icon naming specification used by Qt
+    static const QHash<QString, QString> replacements =
+    {
+        { QStringLiteral("edit-undo"), QStringLiteral("undo") },
+        { QStringLiteral("edit-redo"), QStringLiteral("redo") },
+        { QStringLiteral("edit-cut"), QStringLiteral("clipboard-cut") },
+        { QStringLiteral("edit-copy"), QStringLiteral("copy") },
+        { QStringLiteral("edit-paste"), QStringLiteral("clipboard") },
+        { QStringLiteral("edit-delete"), QStringLiteral("trash") },
+        { QStringLiteral("edit-select-all"), QStringLiteral("select-all") },
+        { QStringLiteral("edit-clear"), QStringLiteral("x") },
+        { QStringLiteral("edit-find"), QStringLiteral("search") },
+        { QStringLiteral("edit-find-replace"), QStringLiteral("replace") },
+        { QStringLiteral("document-new"), QStringLiteral("file-plus") },
+        { QStringLiteral("document-open"), QStringLiteral("folder-open") },
+        { QStringLiteral("document-save"), QStringLiteral("save") },
+        { QStringLiteral("document-save-as"), QStringLiteral("save-as") },
+        { QStringLiteral("document-print"), QStringLiteral("printer") },
+        { QStringLiteral("document-properties"), QStringLiteral("info") },
+        { QStringLiteral("folder"), QStringLiteral("folder") },
+        { QStringLiteral("folder-new"), QStringLiteral("folder-plus") },
+        { QStringLiteral("go-up"), QStringLiteral("arrow-up") },
+        { QStringLiteral("go-down"), QStringLiteral("arrow-down") },
+        { QStringLiteral("go-previous"), QStringLiteral("chevron-left") },
+        { QStringLiteral("go-next"), QStringLiteral("chevron-right") },
+        { QStringLiteral("go-first"), QStringLiteral("chevron-first") },
+        { QStringLiteral("go-last"), QStringLiteral("chevron-last") },
+        { QStringLiteral("go-home"), QStringLiteral("home") },
+        { QStringLiteral("list-add"), QStringLiteral("plus") },
+        { QStringLiteral("list-remove"), QStringLiteral("minus") },
+        { QStringLiteral("view-refresh"), QStringLiteral("refresh-cw") },
+        { QStringLiteral("zoom-in"), QStringLiteral("zoom-in") },
+        { QStringLiteral("window-close"), QStringLiteral("x") },
+        { QStringLiteral("dialog-information"), QStringLiteral("info") },
+        { QStringLiteral("dialog-warning"), QStringLiteral("alert-triangle") },
+        { QStringLiteral("dialog-error"), QStringLiteral("alert-circle") },
+        { QStringLiteral("dialog-question"), QStringLiteral("help-circle") },
+        { QStringLiteral("help-about"), QStringLiteral("info") },
+        { QStringLiteral("help-contents"), QStringLiteral("help-circle") },
+        { QStringLiteral("media-playback-start"), QStringLiteral("play") },
+        { QStringLiteral("media-playback-pause"), QStringLiteral("pause") },
+        { QStringLiteral("media-playback-stop"), QStringLiteral("stop") },
+        { QStringLiteral("preferences-system"), QStringLiteral("settings") }
+    };
+
+    const QString name = icon.name();
+    if (name.isEmpty() || name.startsWith(PDFThemeIconEngine::getIconNamePrefix()))
+    {
+        return QString();
+    }
+
+    return replacements.value(name);
+}
+
 PDFThemeColors::Color PDFThemeIcons::getModeColor(QIcon::Mode mode, QIcon::State state)
 {
     switch (mode)
     {
         case QIcon::Disabled:
-            return PDFThemeColors::IconMuted;
+            return PDFThemeColors::IconDisabled;
 
         case QIcon::Active:
             return state == QIcon::On ? PDFThemeColors::IconAccent : PDFThemeColors::IconStrong;
@@ -367,6 +439,64 @@ QPixmap PDFThemeIcons::getPixmap(const QString& name, const QSizeF& size, qreal 
         renderer->render(&painter, QRectF(QPointF(0, 0), QSizeF(pixelSize)));
 
         // The shape of the icon is kept, its color is replaced by the color of the theme
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(image.rect(), color);
+    }
+
+    pixmap = QPixmap::fromImage(std::move(image));
+    pixmap.setDevicePixelRatio(devicePixelRatio);
+    QPixmapCache::insert(key, pixmap);
+    return pixmap;
+}
+
+void PDFThemeIcons::paintFilled(QPainter* painter, const QRectF& rect, const QString& name, const QColor& strokeColor, const QColor& fillColor)
+{
+    if (!painter || rect.isEmpty())
+    {
+        return;
+    }
+
+    const QPaintDevice* device = painter->device();
+    const qreal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
+    const QPixmap fillPixmap = getFillPixmap(name, rect.size(), devicePixelRatio, fillColor);
+
+    if (!fillPixmap.isNull())
+    {
+        painter->save();
+        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter->drawPixmap(rect, fillPixmap, QRectF(QPointF(0, 0), QSizeF(fillPixmap.size())));
+        painter->restore();
+    }
+
+    paint(painter, rect, name, strokeColor);
+}
+
+QPixmap PDFThemeIcons::getFillPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color)
+{
+    QSvgRenderer* renderer = PDFThemeIconsHelper::getRenderer(name, PDFThemeIconsHelper::STROKE_WIDTH, true);
+
+    if (!renderer || size.isEmpty() || devicePixelRatio <= 0.0)
+    {
+        return QPixmap();
+    }
+
+    const QSize pixelSize(qMax(1, qCeil(size.width() * devicePixelRatio - 0.001)),
+                          qMax(1, qCeil(size.height() * devicePixelRatio - 0.001)));
+    const QString key = QStringLiteral("pdf4qtfluent/icon-fill/%1/%2x%3/%4").arg(name).arg(pixelSize.width()).arg(pixelSize.height()).arg(color.rgba(), 8, 16, QLatin1Char('0'));
+
+    QPixmap pixmap;
+    if (QPixmapCache::find(key, &pixmap))
+    {
+        return pixmap;
+    }
+
+    QImage image(pixelSize, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+
+    {
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        renderer->render(&painter, QRectF(QPointF(0, 0), QSizeF(pixelSize)));
         painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
         painter.fillRect(image.rect(), color);
     }

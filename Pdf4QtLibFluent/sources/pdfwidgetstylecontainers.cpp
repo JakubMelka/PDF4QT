@@ -645,12 +645,15 @@ void PDFWidgetStyleContainers::drawWidgetBackground(const QStyleOption* option, 
         return;
     }
 
+    if (PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::DOCUMENT_TABS))
+    {
+        // Strip of the document tabs: the tab bar and the top bar of the application, which holds it
+        PDFStylePainter::fillRect(painter, rect, Color::BgTitlebar);
+        return;
+    }
+
     if (qobject_cast<const QTabBar*>(widget))
     {
-        if (PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::DOCUMENT_TABS))
-        {
-            PDFStylePainter::fillRect(painter, rect, Color::BgTitlebar);
-        }
         return;
     }
 
@@ -827,7 +830,7 @@ void PDFWidgetStyleContainers::drawGroupBox(const QStyleOptionGroupBox* option, 
         const bool isMuted = !isEnabled || (hasCheckBox && !isChecked);
         const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, labelRect.width() + 1.0);
         m_impl->drawText(painter, labelRect, Qt::AlignVCenter | (option->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
-                         PDFWidgetStyleImpl::color(isMuted ? Color::TextMuted : Color::TextPrimary), widget);
+                         PDFWidgetStyleImpl::color(isMuted ? Color::TextDisabled : Color::TextPrimary), widget);
     }
 
     if (hasCheckBox)
@@ -959,8 +962,8 @@ void PDFWidgetStyleContainers::drawToolBoxTab(const QStyleOptionToolBox* option,
 
     if (!state.enabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
 
     if (state.focusVisible)
@@ -988,7 +991,7 @@ void PDFWidgetStyleContainers::drawToolBoxTab(const QStyleOptionToolBox* option,
     {
         chevron = state.rightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right");
     }
-    PDFStylePainter::icon(painter, place(right, 14.0, 14.0), chevron, Color::IconMuted);
+    PDFStylePainter::icon(painter, place(right, 14.0, 14.0), chevron, state.enabled ? Color::IconMuted : Color::IconDisabled);
 
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::BodyMedium);
     const qreal textWidth = qMax(0.0, right - 10.0 - left);
@@ -1008,7 +1011,7 @@ void PDFWidgetStyleContainers::drawSmallToolButton(const QStyleOptionToolButton*
     if (isDockButton(widget))
     {
         // Button of the title bar of a dock widget: icon 14
-        Color color = Color::IconMuted;
+        Color color = state.enabled ? Color::IconMuted : Color::IconDisabled;
         if (state.enabled && (state.hover || state.pressed))
         {
             color = Color::IconDefault;
@@ -1024,8 +1027,8 @@ void PDFWidgetStyleContainers::drawSmallToolButton(const QStyleOptionToolButton*
     Color iconColor = isWarning ? Color::AccentAmberIcon : Color::IconDefault;
     if (!state.enabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
 
     if (state.focusVisible)

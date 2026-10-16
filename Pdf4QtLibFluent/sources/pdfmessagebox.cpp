@@ -22,6 +22,8 @@
 
 #include "pdfmessagebox.h"
 #include "pdffluentwidgets.h"
+#include "pdfstylepainter.h"
+#include "pdfwidgetstyleimpl.h"
 #include "pdfwidgetstyleproperties.h"
 
 #include <QAbstractButton>
@@ -31,9 +33,11 @@
 #include <QClipboard>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QKeyEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QScreen>
 #include <QShowEvent>
 #include <QVBoxLayout>
 
@@ -64,8 +68,42 @@ private:
     PDFThemeIcons::Badge m_badge;
 };
 
+/// Scrim (bg/scrim) covering the parent widget of a message box, while the
+/// message box is shown
+class PDFMessageBoxScrim : public QWidget
+{
+public:
+    explicit PDFMessageBoxScrim(QWidget* host) :
+        QWidget(host)
+    {
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setGeometry(host->rect());
+        host->installEventFilter(this);
+    }
+
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (watched == parentWidget() && event->type() == QEvent::Resize)
+        {
+            setGeometry(parentWidget()->rect());
+        }
+
+        return QWidget::eventFilter(watched, event);
+    }
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        QPainter painter(this);
+        PDFStylePainter::fillRect(&painter, QRectF(rect()), PDFThemeColors::BgScrim);
+    }
+};
+
 PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QWidget* parent) :
     QDialog(parent),
+    m_mainLayout(new QVBoxLayout(this)),
     m_titleLabel(new PDFLabel(title, PDFThemeFonts::Role::DialogTitle, PDFThemeColors::TextPrimary, this)),
     m_textLabel(new PDFLabel(text, PDFThemeFonts::Role::Small, PDFThemeColors::TextSecondary, this)),
     m_detailsLabel(nullptr),
@@ -79,10 +117,16 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     setAccessibleDescription(text);
     setModal(true);
 
+    // The card has no title bar of the system, its shadow is drawn into the
+    // transparent margins of the window
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    setWindowFlag(Qt::NoDropShadowWindowHint, true);
+    setAttribute(Qt::WA_TranslucentBackground, PDFWidgetStyleImpl::isTranslucencyAvailable());
+
     // Paddings 22 / 20, sections 14 px apart
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(22, 20, 22, 20);
+    QVBoxLayout* mainLayout = m_mainLayout;
     mainLayout->setSpacing(14);
+    updateMargins();
 
     QHBoxLayout* headLayout = new QHBoxLayout();
     headLayout->setContentsMargins(0, 0, 0, 0);
@@ -142,6 +186,128 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     mainLayout->setSizeConstraint(QLayout::SetFixedSize);
 
     connect(m_buttonBox, &QDialogButtonBox::clicked, this, &PDFMessageBox::onButtonClicked);
+}
+
+PDFMessageBox::~PDFMessageBox()
+{
+    hideScrim();
+}
+
+QMargins PDFMessageBox::getShadowMargins() const
+{
+    if (!isWindow() || !testAttribute(Qt::WA_TranslucentBackground))
+    {
+        return QMargins();
+    }
+
+    return PDFWidgetStyleImpl::getShadowMargins(PDFWidgetStyleImpl::PopupKind::Popover);
+}
+
+void PDFMessageBox::updateMargins()
+{
+    m_mainLayout->setContentsMargins(QMargins(PADDING_H, PADDING_V, PADDING_H, PADDING_V) + getShadowMargins());
+}
+
+void PDFMessageBox::setVisible(bool visible)
+{
+    if (visible && isWindow() && !isVisible())
+    {
+        // The window is placed before it is shown, so it does not jump
+        updateMargins();
+        ensurePolished();
+        adjustSize();
+        moveOverParent();
+        showScrim();
+    }
+
+    QDialog::setVisible(visible);
+
+    if (!visible)
+    {
+        hideScrim();
+    }
+}
+
+void PDFMessageBox::moveOverParent()
+{
+    QWidget* host = parentWidget();
+    if (!host)
+    {
+        return;
+    }
+
+    // The card (not the window with the shadow) is centered over the parent
+    const QRect hostRect(host->mapToGlobal(QPoint(0, 0)), host->size());
+    const QRect card = rect().marginsRemoved(getShadowMargins());
+    QRect cardRect(QPoint(0, 0), card.size());
+    cardRect.moveCenter(hostRect.center());
+
+    if (const QScreen* screen = host->screen())
+    {
+        // The card stays on the screen, the shadow may leave it
+        const QRect available = screen->availableGeometry();
+        cardRect.moveLeft(qBound(available.left(), cardRect.left(), qMax(available.left(), available.right() - cardRect.width() + 1)));
+        cardRect.moveTop(qBound(available.top(), cardRect.top(), qMax(available.top(), available.bottom() - cardRect.height() + 1)));
+    }
+
+    move(cardRect.topLeft() - card.topLeft());
+}
+
+void PDFMessageBox::showScrim()
+{
+    QWidget* host = parentWidget();
+    if (!host || m_scrim || !host->isVisible())
+    {
+        return;
+    }
+
+    m_scrim = new PDFMessageBoxScrim(host);
+    m_scrim->raise();
+    m_scrim->show();
+}
+
+void PDFMessageBox::hideScrim()
+{
+    if (m_scrim)
+    {
+        // The scrim is deleted at once, the parent can be deleted before the event loop runs
+        delete m_scrim.data();
+    }
+}
+
+void PDFMessageBox::hideEvent(QHideEvent* event)
+{
+    QDialog::hideEvent(event);
+
+    if (!event->spontaneous())
+    {
+        hideScrim();
+    }
+}
+
+void PDFMessageBox::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    const QMargins margins = getShadowMargins();
+    const QRectF card = QRectF(rect()).marginsRemoved(QMarginsF(margins));
+
+    if (margins.isNull() && isWindow())
+    {
+        // Opaque window: the card fills the window, corners can not be rounded
+        PDFStylePainter::fillRect(&painter, card, PDFThemeColors::BgSurface);
+        PDFStylePainter::strokeInside(&painter, card, PDFStylePainter::Radii(0.0), PDFThemeColors::BorderDefault, 1.0);
+        return;
+    }
+
+    if (!margins.isNull())
+    {
+        PDFStylePainter::shadow(&painter, card, PDFStylePainter::Radii(CARD_RADIUS), QPointF(0.0, 8.0), 24.0, PDFStylePainter::color(PDFThemeColors::EffectShadow));
+    }
+
+    PDFStylePainter::fill(&painter, card, PDFStylePainter::Radii(CARD_RADIUS), PDFThemeColors::BgSurface);
+    PDFStylePainter::strokeInside(&painter, card, PDFStylePainter::Radii(CARD_RADIUS), PDFThemeColors::BorderDefault, 1.0);
 }
 
 void PDFMessageBox::setDetailedText(const QString& text)
@@ -204,6 +370,9 @@ void PDFMessageBox::showEvent(QShowEvent* event)
 {
     if (!event->spontaneous())
     {
+        // A message box shown inside of another widget has no shadow
+        updateMargins();
+
         // Not for a window restored by the system: the focus stays, where the user has left it
         m_clickedButton = nullptr;
         m_clickedStandardButton = QDialogButtonBox::NoButton;

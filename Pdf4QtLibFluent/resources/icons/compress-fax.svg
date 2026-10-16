@@ -1,5 +1,5 @@
-<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="icon/compress-fax">
-<path id="glyph" d="M16 15V8H21V15M6 11H9V24H6V11ZM13 15H24V24H13V15Z" stroke="#475569" stroke-width="2"/>
+<path id="glyph" d="M13 11V4H18V11M3 7H6V20H3V7ZM10 11H21V20H10V11Z" stroke="#475569" stroke-width="2"/>
 </g>
 </svg>

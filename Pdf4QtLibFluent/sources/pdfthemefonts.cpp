@@ -126,6 +126,14 @@ QFont PDFThemeFonts::getFont(Role role)
             return getFont(QFont::Bold, 15);
         case Role::DialogTitle:
             return getFont(QFont::DemiBold, 16);
+        case Role::TinySemiBold:
+            return getFont(QFont::DemiBold, 10);
+        case Role::BodyBold:
+            return getFont(QFont::Bold, 13);
+        case Role::TileTitle:
+            return getFont(QFont::Bold, 14);
+        case Role::Display:
+            return getFont(QFont::Bold, 22);
     }
 
     return getFont(QFont::Normal, 13);

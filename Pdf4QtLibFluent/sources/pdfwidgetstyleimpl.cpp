@@ -220,6 +220,16 @@ bool PDFWidgetStyleImpl::isApplicationStyle()
     return !s_applicationImpl.isNull();
 }
 
+bool PDFWidgetStyleImpl::isApplicationFocusVisible(const QStyleOption* option, const QWidget* widget)
+{
+    if (s_applicationImpl)
+    {
+        return s_applicationImpl->isFocusVisible(option, widget);
+    }
+
+    return option && option->state.testFlag(QStyle::State_HasFocus) && option->state.testFlag(QStyle::State_KeyboardFocusChange);
+}
+
 void PDFWidgetStyleImpl::requestFocusFrameUpdate()
 {
     if (s_applicationImpl)
@@ -373,7 +383,20 @@ void PDFWidgetStyleImpl::drawIcon(QPainter* painter, const QRectF& rect, const Q
         return;
     }
 
-    const QString name = PDFThemeIcons::getIconName(icon);
+    QString name = PDFThemeIcons::getIconName(icon);
+
+    if (name.isEmpty() && !icon.name().isEmpty())
+    {
+        // An icon of the icon theme of the system (the standard context menu of
+        // a line edit) is drawn by the system in the colors of the palette. It
+        // is replaced by the icon of the design, or it is not drawn at all.
+        name = PDFThemeIcons::getReplacementName(icon);
+
+        if (name.isEmpty())
+        {
+            return;
+        }
+    }
 
     if (!name.isEmpty())
     {

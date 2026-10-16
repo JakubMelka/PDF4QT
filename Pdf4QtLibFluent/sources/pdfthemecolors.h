@@ -182,6 +182,13 @@ public:
         DiffAdded,
         DiffReplaced,
         DiffMoved,
+        BgAccentHover,
+        BgAccentPressed,
+        TextDisabled,
+        IconDisabled,
+        SearchMatch,
+        SearchMatchCurrent,
+        SearchMatchBorder,
         ColorCount
     };
     Q_ENUM(Color)

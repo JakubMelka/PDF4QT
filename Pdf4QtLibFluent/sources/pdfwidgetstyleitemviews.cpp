@@ -71,6 +71,9 @@ public:
     /// the contents of the item are shifted by this distance.
     static constexpr int TREE_BRANCH_SHIFT = 8;
 
+    /// Indentation of a level of the outline (Outline row: 14 + gap 4)
+    static constexpr int OUTLINE_INDENTATION = 18;
+
     static constexpr const char* SAVED_HEADER_ALIGNMENT = "_pdf4qt_savedHeaderAlignment";
     static constexpr const char* SAVED_TREE_ANIMATED = "_pdf4qt_savedTreeAnimated";
 
@@ -95,7 +98,23 @@ private:
 
     static int getTreeColumn(const QTreeView* treeView);
     static TreeArea getTreeArea(const QRect& rect, const QWidget* widget);
-    static QRect getDisclosureRect(const QStyleOption* option);
+    /// Geometry and behaviour of the rows of a view (property rowStyle)
+    struct RowMetrics
+    {
+        int height = ROW_HEIGHT;
+        int radius = ROW_RADIUS;
+        int padding = ROW_PADDING;              ///< Padding at the end of the row (and at the start without a branch)
+        int branchShift = TREE_BRANCH_SHIFT;    ///< Distance of the chevron slot from the start of its indentation step
+        int branchSlot = 0;                     ///< Width of the slot of the chevron, 0 = whole indentation step
+        int branchPadding = ROW_PADDING;        ///< Padding between the branch area and the contents of the item
+        qreal focusWidth = 1.0;                 ///< Width of the focus ring of the row (inside)
+        bool hasHover = true;                   ///< The row reacts to the pointer
+        bool keepsTextOnSelection = false;      ///< The selection changes only the fill of the row
+        bool isOutline = false;                 ///< Texts of the outline: secondary, primary under the pointer
+    };
+
+    static RowMetrics getRowMetrics(const QWidget* widget);
+    static QRect getDisclosureRect(const QStyleOption* option, const QWidget* widget);
     static QSize getDecorationSize(const QStyleOptionViewItem* option);
     static QFont getItemFont(const QStyleOptionViewItem* option, const QWidget* widget, bool isSelected);
     static bool isViewFocused(const QWidget* widget);
@@ -171,11 +190,57 @@ PDFWidgetStyleItemViews::TreeArea PDFWidgetStyleItemViews::getTreeArea(const QRe
     return (treeView->rootIsDecorated() || index.parent().isValid()) ? TreeArea::Item : TreeArea::None;
 }
 
-QRect PDFWidgetStyleItemViews::getDisclosureRect(const QStyleOption* option)
+PDFWidgetStyleItemViews::RowMetrics PDFWidgetStyleItemViews::getRowMetrics(const QWidget* widget)
+{
+    RowMetrics metrics;
+    const QString rowStyle = widget ? widget->property(PDFWidgetStyleProperties::ROW_STYLE).toString() : QString();
+
+    if (rowStyle == QLatin1String("outline"))
+    {
+        // Outline row: chevron 14 in the slot of 16 at the padding 6, gap 4 before
+        // the title, padding 8 at the end, radius 8, indentation 18 per level
+        metrics.radius = 8;
+        metrics.padding = 8;
+        metrics.branchShift = 6;
+        metrics.branchSlot = 16;
+        metrics.branchPadding = 6 + 16 + 4 - OUTLINE_INDENTATION - metrics.branchShift;
+        metrics.focusWidth = 2.0;
+        metrics.isOutline = true;
+    }
+    else if (rowStyle == QLatin1String("certificate"))
+    {
+        metrics.height = 34;
+        metrics.padding = 10;
+        metrics.branchPadding = 10;
+        metrics.focusWidth = 2.0;
+        metrics.keepsTextOnSelection = true;
+    }
+    else if (rowStyle == QLatin1String("library"))
+    {
+        metrics.padding = 10;
+        metrics.branchPadding = 10;
+        metrics.hasHover = false;
+        metrics.keepsTextOnSelection = true;
+    }
+
+    return metrics;
+}
+
+QRect PDFWidgetStyleItemViews::getDisclosureRect(const QStyleOption* option, const QWidget* widget)
 {
     // The slot of the chevron is the last indentation step of the item
-    const int shift = option->direction == Qt::RightToLeft ? -TREE_BRANCH_SHIFT : TREE_BRANCH_SHIFT;
-    return option->rect.translated(shift, 0);
+    const RowMetrics metrics = getRowMetrics(widget);
+    QRect rect = option->rect;
+
+    if (metrics.branchSlot > 0)
+    {
+        // Slot of its own width at the start of the indentation step
+        rect.setWidth(metrics.branchSlot);
+        rect = QStyle::visualRect(option->direction, option->rect, rect);
+    }
+
+    const int shift = option->direction == Qt::RightToLeft ? -metrics.branchShift : metrics.branchShift;
+    return rect.translated(shift, 0);
 }
 
 QSize PDFWidgetStyleItemViews::getDecorationSize(const QStyleOptionViewItem* option)
@@ -201,7 +266,11 @@ QFont PDFWidgetStyleItemViews::getItemFont(const QStyleOptionViewItem* option, c
 
     if (!option->index.isValid() || !option->index.data(Qt::FontRole).isValid())
     {
-        font = PDFWidgetStyleImpl::getFont(widget, isComboPopup(widget) || !isSelected ? Font::Body : Font::BodyMedium);
+        // Rows of the tables of the design (Certificate row, Library row) have texts of 12 px
+        const QString rowStyle = widget ? widget->property(PDFWidgetStyleProperties::ROW_STYLE).toString() : QString();
+        const bool isSmall = rowStyle == QLatin1String("certificate") || rowStyle == QLatin1String("library");
+
+        font = PDFWidgetStyleImpl::getFont(widget, isComboPopup(widget) || !isSelected ? (isSmall ? Font::Small : Font::Body) : (isSmall ? Font::SmallMedium : Font::BodyMedium));
 
         if (isSelected && isComboPopup(widget))
         {
@@ -259,7 +328,8 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
     // Rows of a popup list are 2 px apart
     layout.shape = isPopup ? rect.adjusted(0, POPUP_ROW_GAP / 2, 0, -POPUP_ROW_GAP / 2) : rect;
 
-    const int padding = isPopup ? POPUP_ROW_PADDING : ROW_PADDING;
+    const RowMetrics metrics = getRowMetrics(widget);
+    const int padding = isPopup ? POPUP_ROW_PADDING : metrics.padding;
     const int gap = isPopup ? 10 : ROW_GAP;
     const QSize decorationSize = getDecorationSize(option);
     const bool hasCheck = option->features.testFlag(QStyleOptionViewItem::HasCheckIndicator);
@@ -308,9 +378,9 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
 
     if (isTreeBranchColumn(option, widget))
     {
-        // The slot of the branch lies 8 px inside of the row and the contents
+        // The slot of the branch lies inside of the row and the contents
         // of the item follow it after the gap
-        left += TREE_BRANCH_SHIFT;
+        left += metrics.branchShift + metrics.branchPadding - padding;
     }
 
     if (hasCheck)
@@ -387,8 +457,9 @@ PDFWidgetStyleArea::Radii PDFWidgetStyleItemViews::getItemRadii(const QStyleOpti
         std::swap(roundLeft, roundRight);
     }
 
-    const qreal left = roundLeft ? ROW_RADIUS : 0.0;
-    const qreal right = roundRight ? ROW_RADIUS : 0.0;
+    const qreal radius = getRowMetrics(widget).radius;
+    const qreal left = roundLeft ? radius : 0.0;
+    const qreal right = roundRight ? radius : 0.0;
     return Radii(left, right, right, left);
 }
 
@@ -423,27 +494,29 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
             const TreeArea treeArea = getTreeArea(option->rect, widget);
             const bool isBranchArea = treeArea == TreeArea::Branch;
             const bool isRightToLeft = option->direction == Qt::RightToLeft;
+            const RowMetrics metrics = getRowMetrics(widget);
+            const int branchShift = metrics.branchShift;
 
             if (treeArea == TreeArea::Branch)
             {
                 if (isRightToLeft)
                 {
-                    rect.setLeft(rect.left() - TREE_BRANCH_SHIFT);
+                    rect.setLeft(rect.left() - branchShift);
                 }
                 else
                 {
-                    rect.setRight(rect.right() + TREE_BRANCH_SHIFT);
+                    rect.setRight(rect.right() + branchShift);
                 }
             }
             else if (treeArea == TreeArea::Item)
             {
                 if (isRightToLeft)
                 {
-                    rect.setRight(rect.right() - TREE_BRANCH_SHIFT);
+                    rect.setRight(rect.right() - branchShift);
                 }
                 else
                 {
-                    rect.setLeft(rect.left() + TREE_BRANCH_SHIFT);
+                    rect.setLeft(rect.left() + branchShift);
                 }
             }
 
@@ -456,8 +529,9 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
 
             if (isBranchArea && isEnabled)
             {
-                const Radii radii = isRightToLeft ? Radii(0.0, ROW_RADIUS, ROW_RADIUS, 0.0) : Radii(ROW_RADIUS, 0.0, 0.0, ROW_RADIUS);
-                const bool isHovered = option->state.testFlag(QStyle::State_MouseOver);
+                const qreal radius = metrics.radius;
+                const Radii radii = isRightToLeft ? Radii(0.0, radius, radius, 0.0) : Radii(radius, 0.0, 0.0, radius);
+                const bool isHovered = metrics.hasHover && option->state.testFlag(QStyle::State_MouseOver);
 
                 if (option->state.testFlag(QStyle::State_Selected))
                 {
@@ -490,7 +564,9 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
                 name = option->direction == Qt::RightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right");
             }
 
-            PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(getDisclosureRect(option)), QSizeF(14.0, 14.0)), name, Color::IconMuted);
+            // The chevron of the selected row of the outline is accent
+            const bool isAccent = getRowMetrics(widget).isOutline && option->state.testFlag(QStyle::State_Selected) && option->state.testFlag(QStyle::State_Enabled);
+            PDFStylePainter::icon(painter, PDFStylePainter::centered(QRectF(getDisclosureRect(option, widget)), QSizeF(14.0, 14.0)), name, isAccent ? Color::IconAccent : Color::IconMuted);
             return true;
         }
 
@@ -678,7 +754,7 @@ bool PDFWidgetStyleItemViews::subElementRect(QStyle::SubElement element, const Q
         }
 
         case QStyle::SE_TreeViewDisclosureItem:
-            rect = getDisclosureRect(option);
+            rect = getDisclosureRect(option, widget);
             return true;
 
         default:
@@ -701,7 +777,8 @@ bool PDFWidgetStyleItemViews::sizeFromContents(QStyle::ContentsType type, const 
             }
 
             const bool isPopup = isComboPopup(widget);
-            const int padding = isPopup ? POPUP_ROW_PADDING : ROW_PADDING;
+            const RowMetrics rowMetrics = getRowMetrics(widget);
+            const int padding = isPopup ? POPUP_ROW_PADDING : rowMetrics.padding;
             const int gap = isPopup ? 10 : ROW_GAP;
             const QSize decorationSize = getDecorationSize(viewItem);
             const QFont font = getItemFont(viewItem, widget, true);
@@ -748,7 +825,7 @@ bool PDFWidgetStyleItemViews::sizeFromContents(QStyle::ContentsType type, const 
             int width = 2 * padding + textSize.width();
             if (isTreeBranchColumn(viewItem, widget))
             {
-                width += TREE_BRANCH_SHIFT;
+                width += rowMetrics.branchShift + rowMetrics.branchPadding - padding;
             }
             if (viewItem->features.testFlag(QStyleOptionViewItem::HasCheckIndicator))
             {
@@ -763,7 +840,7 @@ bool PDFWidgetStyleItemViews::sizeFromContents(QStyle::ContentsType type, const 
                 width += ROW_ICON + gap;
             }
 
-            const int rowHeight = isPopup ? POPUP_ROW_HEIGHT + POPUP_ROW_GAP : ROW_HEIGHT;
+            const int rowHeight = isPopup ? POPUP_ROW_HEIGHT + POPUP_ROW_GAP : rowMetrics.height;
             const int contentHeight = qMax(textSize.height(), decorationSize.height()) + (isPopup ? POPUP_ROW_GAP : 0) + 8;
             size = QSize(width, qMax(rowHeight, contentHeight));
             return true;
@@ -865,22 +942,24 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
     const ItemLayout layout = getItemLayout(option, widget);
     QRectF shape(layout.shape);
 
+    const RowMetrics metrics = getRowMetrics(widget);
+
     if (isTreeBranchColumn(option, widget))
     {
         // The start of the item is filled together with the area of the branches,
         // because the chevron of the branch lies there
         if (option->direction == Qt::RightToLeft)
         {
-            shape.setRight(shape.right() - TREE_BRANCH_SHIFT);
+            shape.setRight(shape.right() - metrics.branchShift);
         }
         else
         {
-            shape.setLeft(shape.left() + TREE_BRANCH_SHIFT);
+            shape.setLeft(shape.left() + metrics.branchShift);
         }
     }
     const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
     const bool isSelected = option->state.testFlag(QStyle::State_Selected) && !isComboPopup(widget);
-    const bool isHovered = isEnabled && option->state.testFlag(QStyle::State_MouseOver);
+    const bool isHovered = isEnabled && metrics.hasHover && option->state.testFlag(QStyle::State_MouseOver);
     const bool isPopup = isComboPopup(widget);
     const Radii radii = getItemRadii(option, widget);
 
@@ -955,15 +1034,24 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
         style()->drawPrimitive(QStyle::PE_IndicatorItemViewItemCheck, &checkOption, painter, widget);
     }
 
+    const RowMetrics metrics = getRowMetrics(widget);
+    const bool isAccentSelection = (isSelected && !metrics.keepsTextOnSelection) || isCurrentOfCombo;
     Color textColor = Color::TextPrimary;
     Color iconColor = Color::IconDefault;
 
+    if (metrics.isOutline)
+    {
+        // Title of the outline is secondary, primary under the pointer and when pressed
+        const bool isActive = option->state.testFlag(QStyle::State_MouseOver) || option->state.testFlag(QStyle::State_Sunken);
+        textColor = isActive ? Color::TextPrimary : Color::TextSecondary;
+    }
+
     if (!isEnabled)
     {
-        textColor = Color::TextMuted;
-        iconColor = Color::IconMuted;
+        textColor = Color::TextDisabled;
+        iconColor = Color::IconDisabled;
     }
-    else if (isSelected || isCurrentOfCombo)
+    else if (isAccentSelection)
     {
         textColor = Color::TextAccent;
         iconColor = isCurrentOfCombo ? Color::IconDefault : Color::IconAccent;
@@ -982,7 +1070,7 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
         QColor color = PDFWidgetStyleImpl::color(textColor);
 
         // Color of the text given by the model
-        if (isEnabled && !isSelected && !isCurrentOfCombo && option->index.isValid())
+        if (isEnabled && !isAccentSelection && option->index.isValid())
         {
             const QVariant foreground = option->index.data(Qt::ForegroundRole);
             if (foreground.canConvert<QBrush>())
@@ -995,7 +1083,7 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
             }
         }
 
-        const QFont font = getItemFont(option, widget, isSelected || isCurrentOfCombo);
+        const QFont font = getItemFont(option, widget, isAccentSelection);
         const bool isWrapped = option->features.testFlag(QStyleOptionViewItem::WrapText);
         const QRectF textRect(layout.text);
 
@@ -1009,8 +1097,8 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
         }
         else
         {
-            const QFontMetricsF metrics(font);
-            const QString text = metrics.elidedText(option->text, option->textElideMode, textRect.width());
+            const QFontMetricsF fontMetrics(font);
+            const QString text = fontMetrics.elidedText(option->text, option->textElideMode, textRect.width());
             const int alignment = static_cast<int>(QStyle::visualAlignment(option->direction, option->displayAlignment));
             painter->drawText(textRect, (alignment & Qt::AlignHorizontal_Mask) | Qt::AlignVCenter | Qt::TextSingleLine, text);
         }
@@ -1029,11 +1117,12 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
     if (isEditing)
     {
         // The editor is frameless, the ring of the edited cell is drawn by the style
-        PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(ROW_RADIUS), Color::BorderFocus, 2.0);
+        PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(metrics.radius), Color::BorderFocus, 2.0);
     }
     else if (!isPopup && option->state.testFlag(QStyle::State_HasFocus) && isEnabled && m_impl->isKeyboardModality())
     {
-        PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(ROW_RADIUS), Color::BorderFocus, 1.0);
+        // Rows of the components have the ring of 2 px, rows of the other views of 1 px
+        PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(metrics.radius), Color::BorderFocus, metrics.focusWidth);
     }
 }
 
@@ -1169,7 +1258,7 @@ void PDFWidgetStyleItemViews::drawHeaderLabel(const QStyleOptionHeader* option, 
         const QRectF iconRect(isRightToLeft ? rect.right() - 14.0 : rect.left(), rect.top() + (rect.height() - 14.0) / 2.0, 14.0, 14.0);
         PDFStyleState iconState;
         iconState.enabled = isEnabled;
-        PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->icon, PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconMuted), iconState);
+        PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->icon, PDFWidgetStyleImpl::color(isEnabled ? Color::IconDefault : Color::IconDisabled), iconState);
 
         if (isRightToLeft)
         {

@@ -24,6 +24,14 @@
 # the widgets, which draw themselves. The library depends only on Qt, so each
 # application of the project can use it.
 add_library(Pdf4QtLibFluent SHARED
+    sources/pdfaccenthue.cpp
+    sources/pdfaccenthue.h
+    sources/pdfcomponentbuttons.cpp
+    sources/pdfcomponentbuttons.h
+    sources/pdfcomponentpanels.cpp
+    sources/pdfcomponentpanels.h
+    sources/pdfcomponentrows.cpp
+    sources/pdfcomponentrows.h
     sources/pdffluentglobal.h
     sources/pdffluentwidgets.cpp
     sources/pdffluentwidgets.h
