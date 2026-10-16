@@ -59,6 +59,13 @@ public:
     /// buttons of its own beside the text (password field, toolbar field)
     static constexpr const char* FIELD_TEXT_INSETS = "fieldTextInsets";
 
+    /// QMenu (a popup window): global rectangle (QRect) of the widget, which has
+    /// opened the popup below or above itself and which does not take the focus
+    /// (a menu button). The style keeps the panel of the popup (without its shadow)
+    /// at the edge, by which the popup is aligned with the widget. The property
+    /// is valid for one showing of the popup, the style removes it at its hiding.
+    static constexpr const char* POPUP_ANCHOR = "popupAnchor";
+
     /// QLineEdit, QTextEdit, QComboBox, QSpinBox: the value is invalid
     static constexpr const char* INVALID = "error";
 

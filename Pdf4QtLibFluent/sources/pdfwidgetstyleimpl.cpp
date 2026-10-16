@@ -867,6 +867,10 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
             if (widget && widget->isWindow())
             {
                 widget->setProperty(PDFWidgetStyleInternal::POPUP_MOVED, QVariant());
+                if (widget->property(PDFWidgetStyleProperties::POPUP_ANCHOR).isValid())
+                {
+                    widget->setProperty(PDFWidgetStyleProperties::POPUP_ANCHOR, QVariant());
+                }
             }
             break;
         }
@@ -1430,6 +1434,13 @@ void PDFWidgetStyleImpl::movePopup(QWidget* widget)
         }
 
         anchors << anchor;
+    }
+
+    // The widget, which has opened the popup and has said so
+    const QVariant ownAnchor = widget->property(PDFWidgetStyleProperties::POPUP_ANCHOR);
+    if (ownAnchor.canConvert<QRect>() && ownAnchor.toRect().isValid())
+    {
+        anchors << ownAnchor.toRect();
     }
 
     bool isAnchoredByRight = screen && window.right() >= available.right() - 1;

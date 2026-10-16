@@ -27,6 +27,7 @@
 #include <QFile>
 #include <QHash>
 #include <QImage>
+#include <QPaintEngine>
 #include <QPainter>
 #include <QPixmapCache>
 #include <QSvgRenderer>
@@ -382,7 +383,11 @@ void PDFThemeIcons::paint(QPainter* painter, const QRectF& rect, const QString& 
         return;
     }
 
-    const QPaintDevice* device = painter->device();
+    // The device, into which the engine really paints: a widget rendered into an
+    // image (QWidget::render, the export of the gallery) is redirected, its
+    // painter says the widget, whose ratio may differ from the image
+    const QPaintEngine* engine = painter->paintEngine();
+    const QPaintDevice* device = (engine && engine->paintDevice()) ? engine->paintDevice() : painter->device();
     const qreal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
     const QPixmap pixmap = getPixmap(name, rect.size(), devicePixelRatio, color);
 
@@ -456,7 +461,11 @@ void PDFThemeIcons::paintFilled(QPainter* painter, const QRectF& rect, const QSt
         return;
     }
 
-    const QPaintDevice* device = painter->device();
+    // The device, into which the engine really paints: a widget rendered into an
+    // image (QWidget::render, the export of the gallery) is redirected, its
+    // painter says the widget, whose ratio may differ from the image
+    const QPaintEngine* engine = painter->paintEngine();
+    const QPaintDevice* device = (engine && engine->paintDevice()) ? engine->paintDevice() : painter->device();
     const qreal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
     const QPixmap fillPixmap = getFillPixmap(name, rect.size(), devicePixelRatio, fillColor);
 

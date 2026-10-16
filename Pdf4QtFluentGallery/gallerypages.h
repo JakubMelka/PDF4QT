@@ -31,6 +31,7 @@
 #include <vector>
 
 class QBoxLayout;
+class QHBoxLayout;
 class QJsonArray;
 class QLayout;
 class QStyleOption;
@@ -146,9 +147,66 @@ private:
     static Page createDialogsPage(QWidget* parent);
     static Page createIconsPage(QWidget* parent);
     static Page createComponentsPage(QWidget* parent);
+
+    // Pages of the components of the design (gallerycomponentpages.cpp), one for
+    // each chapter of the specification of the components
+    static Page createShellHomePage(QWidget* parent);
+    static Page createCatalogPage(QWidget* parent);
+    static Page createFormsPage(QWidget* parent);
+    static Page createDocumentPage(QWidget* parent);
+    static Page createPanelsPage(QWidget* parent);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(GalleryPages::StateFlags)
+
+/// Builds a page of the gallery: blocks with rows of samples and of live widgets
+class GalleryBuilder
+{
+public:
+    explicit GalleryBuilder(QWidget* parent, QString id, QString title, QString iconName);
+
+    QWidget* page() const { return m_page; }
+    QStyle* style() const;
+
+    /// Starts a block of samples
+    void block(const QString& title, const QString& figmaNode = QString());
+
+    /// Starts a new row of the block
+    void row();
+
+    /// Adds a sample drawn by the style
+    GallerySpecimen* specimen(const QString& caption, QSize size, GallerySpecimen::PaintFunction paintFunction, const QString& figmaNode = QString());
+
+    /// Adds a real widget
+    template<typename Widget>
+    Widget* live(const QString& caption, Widget* widget, const QString& figmaNode = QString())
+    {
+        widget->setProperty("galleryName", caption);
+        widget->setProperty("galleryNode", figmaNode.isEmpty() ? m_blockNode : figmaNode);
+        addItem(widget, caption, 6);
+        return widget;
+    }
+
+    /// Adds a widget, which fills the whole width of the page
+    void wide(QWidget* widget, const QString& caption = QString());
+
+    /// Adds a paragraph of text
+    void note(const QString& text);
+
+    GalleryPages::Page finish();
+
+private:
+    void addItem(QWidget* widget, const QString& caption, int gap);
+
+    QString m_id;
+    QString m_title;
+    QString m_iconName;
+    QString m_blockNode;
+    QWidget* m_page;
+    QVBoxLayout* m_pageLayout;
+    QHBoxLayout* m_rowLayout = nullptr;
+    int m_countInRow = 0;
+};
 
 }   // namespace pdffluentgallery
 

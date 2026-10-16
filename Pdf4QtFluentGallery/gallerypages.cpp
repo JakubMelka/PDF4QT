@@ -130,116 +130,96 @@ void GallerySpecimen::paintEvent(QPaintEvent* event)
     paintSpecimen(painter);
 }
 
-/// Builds a page of the gallery: blocks with rows of samples and of live widgets
-class GalleryBuilder
+GalleryBuilder::GalleryBuilder(QWidget* parent, QString id, QString title, QString iconName) :
+    m_id(std::move(id)),
+    m_title(std::move(title)),
+    m_iconName(std::move(iconName)),
+    m_page(new QWidget(parent)),
+    m_pageLayout(new QVBoxLayout(m_page))
 {
-public:
-    explicit GalleryBuilder(QWidget* parent, QString id, QString title, QString iconName) :
-        m_id(std::move(id)),
-        m_title(std::move(title)),
-        m_iconName(std::move(iconName)),
-        m_page(new QWidget(parent)),
-        m_pageLayout(new QVBoxLayout(m_page))
-    {
-        m_pageLayout->setContentsMargins(24, 24, 24, 24);
-        m_pageLayout->setSpacing(12);
-        m_page->setObjectName(m_id);
-        m_page->setProperty(Properties::CANVAS, true);
+    m_pageLayout->setContentsMargins(24, 24, 24, 24);
+    m_pageLayout->setSpacing(12);
+    m_page->setObjectName(m_id);
+    m_page->setProperty(Properties::CANVAS, true);
 
-        pdf::PDFLabel* titleLabel = new pdf::PDFLabel(m_title, Font::DialogTitle, Color::TextPrimary, m_page);
-        m_pageLayout->addWidget(titleLabel);
+    pdf::PDFLabel* titleLabel = new pdf::PDFLabel(m_title, Font::DialogTitle, Color::TextPrimary, m_page);
+    m_pageLayout->addWidget(titleLabel);
+}
+
+QStyle* GalleryBuilder::style() const
+{
+    return QApplication::style();
+}
+
+void GalleryBuilder::block(const QString& title, const QString& figmaNode)
+{
+    m_blockNode = figmaNode;
+    m_pageLayout->addSpacing(8);
+    m_pageLayout->addWidget(new pdf::PDFLabel(title, Font::BodySemiBold, Color::TextPrimary, m_page));
+    row();
+}
+
+void GalleryBuilder::row()
+{
+    m_rowLayout = new QHBoxLayout();
+    m_rowLayout->setContentsMargins(0, 0, 0, 0);
+    m_rowLayout->setSpacing(20);
+    m_rowLayout->addStretch(1);
+    m_pageLayout->addLayout(m_rowLayout);
+    m_countInRow = 0;
+}
+
+GallerySpecimen* GalleryBuilder::specimen(const QString& caption, QSize size, GallerySpecimen::PaintFunction paintFunction, const QString& figmaNode)
+{
+    GallerySpecimen* widget = new GallerySpecimen(caption, figmaNode.isEmpty() ? m_blockNode : figmaNode, size, std::move(paintFunction), m_page);
+    addItem(widget, caption, 6 - GallerySpecimen::MARGIN);
+    return widget;
+}
+
+void GalleryBuilder::wide(QWidget* widget, const QString& caption)
+{
+    if (!caption.isEmpty())
+    {
+        widget->setProperty("galleryName", caption);
+        widget->setProperty("galleryNode", m_blockNode);
     }
+    m_pageLayout->addWidget(widget);
+}
 
-    QWidget* page() const { return m_page; }
-    QStyle* style() const { return QApplication::style(); }
+void GalleryBuilder::note(const QString& text)
+{
+    pdf::PDFLabel* label = new pdf::PDFLabel(text, Font::Body, Color::TextSecondary, m_page);
+    label->setWordWrap(true);
+    m_pageLayout->addWidget(label);
+}
 
-    /// Starts a block of samples
-    void block(const QString& title, const QString& figmaNode = QString())
+GalleryPages::Page GalleryBuilder::finish()
+{
+    m_pageLayout->addStretch(1);
+
+    GalleryPages::Page page;
+    page.id = m_id;
+    page.title = m_title;
+    page.iconName = m_iconName;
+    page.widget = m_page;
+    return page;
+}
+
+void GalleryBuilder::addItem(QWidget* widget, const QString& caption, int gap)
+{
+    if (m_countInRow >= 9)
     {
-        m_blockNode = figmaNode;
-        m_pageLayout->addSpacing(8);
-        m_pageLayout->addWidget(new pdf::PDFLabel(title, Font::BodySemiBold, Color::TextPrimary, m_page));
         row();
     }
 
-    /// Starts a new row of the block
-    void row()
-    {
-        m_rowLayout = new QHBoxLayout();
-        m_rowLayout->setContentsMargins(0, 0, 0, 0);
-        m_rowLayout->setSpacing(20);
-        m_rowLayout->addStretch(1);
-        m_pageLayout->addLayout(m_rowLayout);
-        m_countInRow = 0;
-    }
-
-    /// Adds a sample drawn by the style
-    GallerySpecimen* specimen(const QString& caption, QSize size, GallerySpecimen::PaintFunction paintFunction, const QString& figmaNode = QString())
-    {
-        GallerySpecimen* widget = new GallerySpecimen(caption, figmaNode.isEmpty() ? m_blockNode : figmaNode, size, std::move(paintFunction), m_page);
-        addItem(widget, caption, 6 - GallerySpecimen::MARGIN);
-        return widget;
-    }
-
-    /// Adds a real widget
-    template<typename Widget>
-    Widget* live(const QString& caption, Widget* widget, const QString& figmaNode = QString())
-    {
-        widget->setProperty("galleryName", caption);
-        widget->setProperty("galleryNode", figmaNode.isEmpty() ? m_blockNode : figmaNode);
-        addItem(widget, caption, 6);
-        return widget;
-    }
-
-    /// Adds a widget, which fills the whole width of the page
-    void wide(QWidget* widget, const QString& caption = QString())
-    {
-        if (!caption.isEmpty())
-        {
-            widget->setProperty("galleryName", caption);
-            widget->setProperty("galleryNode", m_blockNode);
-        }
-        m_pageLayout->addWidget(widget);
-    }
-
-    GalleryPages::Page finish()
-    {
-        m_pageLayout->addStretch(1);
-
-        GalleryPages::Page page;
-        page.id = m_id;
-        page.title = m_title;
-        page.iconName = m_iconName;
-        page.widget = m_page;
-        return page;
-    }
-
-private:
-    void addItem(QWidget* widget, const QString& caption, int gap)
-    {
-        if (m_countInRow >= 9)
-        {
-            row();
-        }
-
-        QVBoxLayout* itemLayout = new QVBoxLayout();
-        itemLayout->setContentsMargins(0, 0, 0, 0);
-        itemLayout->setSpacing(gap);
-        itemLayout->addWidget(widget, 0, Qt::AlignLeft | Qt::AlignBottom);
-        itemLayout->addWidget(new pdf::PDFLabel(caption, Font::Caption, Color::TextTertiary, m_page), 0, Qt::AlignLeft);
-        m_rowLayout->insertLayout(m_rowLayout->count() - 1, itemLayout);
-        ++m_countInRow;
-    }
-
-    QString m_id;
-    QString m_title;
-    QString m_iconName;
-    QString m_blockNode;
-    QWidget* m_page;
-    QVBoxLayout* m_pageLayout;
-    QHBoxLayout* m_rowLayout = nullptr;
-    int m_countInRow = 0;
-};
+    QVBoxLayout* itemLayout = new QVBoxLayout();
+    itemLayout->setContentsMargins(0, 0, 0, 0);
+    itemLayout->setSpacing(gap);
+    itemLayout->addWidget(widget, 0, Qt::AlignLeft | Qt::AlignBottom);
+    itemLayout->addWidget(new pdf::PDFLabel(caption, Font::Caption, Color::TextTertiary, m_page), 0, Qt::AlignLeft);
+    m_rowLayout->insertLayout(m_rowLayout->count() - 1, itemLayout);
+    ++m_countInRow;
+}
 
 /// Helper functions of the pages
 class GalleryHelper
@@ -492,6 +472,11 @@ std::vector<GalleryPages::Page> GalleryPages::createPages(QWidget* parent)
     pages.push_back(createDialogsPage(parent));
     pages.push_back(createIconsPage(parent));
     pages.push_back(createComponentsPage(parent));
+    pages.push_back(createShellHomePage(parent));
+    pages.push_back(createCatalogPage(parent));
+    pages.push_back(createFormsPage(parent));
+    pages.push_back(createDocumentPage(parent));
+    pages.push_back(createPanelsPage(parent));
     return pages;
 }
 
@@ -2380,6 +2365,50 @@ GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
     hoveredConfirmButton->setIconColor(Color::IconAccent);
     hoveredConfirmButton->setAttribute(Qt::WA_UnderMouse, true);
     builder.live(QStringLiteral("Own color, Hover"), hoveredConfirmButton);
+    builder.row();
+
+    // The focus ring outside is drawn by the focus frame of the style for a
+    // widget; the variants Focus are drawn by the painter
+    struct FocusVariant
+    {
+        pdf::PDFIconButton::Size size;
+        const char* node;
+    };
+    static constexpr FocusVariant iconButtonFocusVariants[] = { { pdf::PDFIconButton::Size::Small, "706:147653" }, { pdf::PDFIconButton::Size::Medium, "706:147668" } };
+    for (const FocusVariant& variant : iconButtonFocusVariants)
+    {
+        pdf::PDFComponentPainter::IconButton content;
+        content.iconName = QStringLiteral("more-horizontal");
+        content.extent = pdf::PDFIconButton::getExtent(variant.size);
+        content.iconExtent = pdf::PDFIconButton::getIconExtent(variant.size);
+        content.radius = pdf::PDFIconButton::getRadius(variant.size);
+        builder.specimen(QStringLiteral("%1 Focus").arg(content.extent), QSize(content.extent, content.extent), [content](QPainter& painter, const QRect& rect)
+        {
+            pdf::PDFComponentPainter::paintIconButton(&painter, QRectF(rect), content, pdf::PDFComponentPainter::State(QStyle::State_Enabled | QStyle::State_HasFocus));
+        }, QString::fromLatin1(variant.node));
+    }
+
+    builder.block(QStringLiteral("Menu button (PDFMoreButton) - icon more-vertical 16 of rows and cards, focus ring outside (radius 4)"));
+    for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+    {
+        const QStyle::State flags = toStyleState(StateFlags(state.flags));
+        builder.specimen(QString::fromLatin1(state.name), pdf::PDFComponentPainter::getMoreButtonSize(), [flags](QPainter& painter, const QRect& rect)
+        {
+            pdf::PDFComponentPainter::paintMoreButton(&painter, QRectF(rect), pdf::PDFComponentPainter::State(flags));
+        });
+    }
+    builder.row();
+    for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)
+    {
+        if (state.flags == GalleryPages::Focus)
+        {
+            continue;
+        }
+
+        pdf::PDFMoreButton* moreButton = new pdf::PDFMoreButton(builder.page());
+        setState(moreButton, state);
+        builder.live(QStringLiteral("Live %1").arg(QString::fromLatin1(state.name)), moreButton);
+    }
 
     builder.block(QStringLiteral("Tab close button (PDFIconButton, Size TabClose)"), QStringLiteral("48:110"));
     for (const GalleryHelper::NamedState& state : GalleryHelper::POINTER_STATES)

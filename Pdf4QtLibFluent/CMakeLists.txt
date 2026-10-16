@@ -28,6 +28,10 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfaccenthue.h
     sources/pdfcomponentbuttons.cpp
     sources/pdfcomponentbuttons.h
+    sources/pdfcomponentcards.cpp
+    sources/pdfcomponentcards.h
+    sources/pdfcomponentpainter.cpp
+    sources/pdfcomponentpainter.h
     sources/pdfcomponentpanels.cpp
     sources/pdfcomponentpanels.h
     sources/pdfcomponentrows.cpp

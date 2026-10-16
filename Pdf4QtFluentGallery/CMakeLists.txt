@@ -24,6 +24,7 @@
 # each tab shows one section of the page "Widgets" of the design, and the
 # samples can be exported to images, which are compared with the design.
 add_executable(Pdf4QtFluentGallery
+    gallerycomponentpages.cpp
     gallerypages.cpp
     gallerypages.h
     gallerywindow.cpp

@@ -486,6 +486,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # The pages of the gallery are compiled into the test, which checks them for leaks of the palette
     add_executable(UnitTestsWidgetStyle
         tst_widgetstyletest.cpp
+        ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
         ../Pdf4QtFluentGallery/gallerypages.cpp
         ../Pdf4QtFluentGallery/gallerypages.h
     )
@@ -499,4 +500,24 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsWidgetStyle "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsWidgetStyle")
     set_tests_properties(UnitTestsWidgetStyle PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Components of the design: PDFComponentPainter, the bases of the rows and of
+    # the cards and the widgets of the components; the pages of the gallery draw
+    # every variant of the components
+    add_executable(UnitTestsFluentComponents
+        tst_fluentcomponentstest.cpp
+        ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
+        ../Pdf4QtFluentGallery/gallerypages.cpp
+        ../Pdf4QtFluentGallery/gallerypages.h
+    )
+    target_include_directories(UnitTestsFluentComponents PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery)
+    target_link_libraries(UnitTestsFluentComponents PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsFluentComponents PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsFluentComponents "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsFluentComponents")
+    set_tests_properties(UnitTestsFluentComponents PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
