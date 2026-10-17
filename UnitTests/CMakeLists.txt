@@ -486,7 +486,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # The pages of the gallery are compiled into the test, which checks them for leaks of the palette
     add_executable(UnitTestsWidgetStyle
         tst_widgetstyletest.cpp
+        ../Pdf4QtFluentGallery/gallerycardpages.cpp
         ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
+        ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
+        ../Pdf4QtFluentGallery/gallerypanelpages.cpp
         ../Pdf4QtFluentGallery/gallerypages.cpp
         ../Pdf4QtFluentGallery/gallerypages.h
     )
@@ -506,7 +509,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # every variant of the components
     add_executable(UnitTestsFluentComponents
         tst_fluentcomponentstest.cpp
+        ../Pdf4QtFluentGallery/gallerycardpages.cpp
         ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
+        ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
+        ../Pdf4QtFluentGallery/gallerypanelpages.cpp
         ../Pdf4QtFluentGallery/gallerypages.cpp
         ../Pdf4QtFluentGallery/gallerypages.h
     )

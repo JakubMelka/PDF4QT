@@ -495,8 +495,6 @@ public:
     void setLineVisible(bool isVisible);
 
     virtual bool isInteractive() const override { return false; }
-    virtual bool hasHeightForWidth() const override { return true; }
-    virtual int heightForWidth(int width) const override;
 
     PDFComponentPainter::VersionRow getContent() const;
 
@@ -504,23 +502,14 @@ protected:
     virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
     virtual QSize getContentSizeHint() const override;
     virtual QSize getContentMinimumSizeHint() const override;
+    virtual int computeHeightForWidth(int width) const override;
     virtual void changeEvent(QEvent* event) override;
 
 private:
     void updateDescription();
 
-    /// Height of the last width (a layout asks for it repeatedly)
-    struct HeightCache
-    {
-        int width = -1;
-        int height = 0;
-        QString summary;
-        QFont font;
-    };
-
     PDFComponentPainter::VersionRow m_row;
     QString m_description;
-    mutable HeightCache m_heightCache;
 };
 
 /// Row of the Document properties dialog (component Property row 206:873): the

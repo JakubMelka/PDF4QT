@@ -25,9 +25,13 @@
 
 #include <QCoreApplication>
 #include <QFontMetricsF>
+#include <QPaintEngine>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPixmapCache>
+#include <QTextBoundaryFinder>
 #include <QTextLayout>
+#include <QThread>
 #include <QtMath>
 
 namespace pdf
@@ -129,6 +133,24 @@ QRectF PDFComponentPainter::State::visualRect(const QRectF& outer, const QRectF&
     return QRectF(2.0 * outer.left() + outer.width() - logical.left() - logical.width(), logical.top(), logical.width(), logical.height());
 }
 
+PDFComponentPainter::DirectionGuard::DirectionGuard(QPainter* painter, const State& state) :
+    m_painter(painter)
+{
+    if (m_painter)
+    {
+        m_direction = m_painter->layoutDirection();
+        m_painter->setLayoutDirection(state.isRightToLeft() ? Qt::RightToLeft : Qt::LeftToRight);
+    }
+}
+
+PDFComponentPainter::DirectionGuard::~DirectionGuard()
+{
+    if (m_painter)
+    {
+        m_painter->setLayoutDirection(m_direction);
+    }
+}
+
 QRectF PDFComponentPainter::alignedCentered(const QRectF& outer, const QSizeF& size)
 {
     return QRectF(qFloor(outer.left() + (outer.width() - size.width()) / 2.0),
@@ -143,7 +165,202 @@ QString PDFComponentPainter::elidedText(const QString& text, const QFont& font, 
         return QString();
     }
 
-    return QFontMetricsF(font).elidedText(text, mode, width);
+    const QString elided = QFontMetricsF(font).elidedText(text, mode, width);
+    if (elided == text)
+    {
+        return elided;
+    }
+
+    // QFontMetricsF keeps the space before the ellipsis ("jumps over the …"),
+    // the design has none ("jumps over the…")
+    const QChar ellipsis(0x2026);
+    const qsizetype index = elided.indexOf(ellipsis);
+    if (index <= 0)
+    {
+        return elided;
+    }
+
+    qsizetype start = index;
+    while (start > 0 && elided.at(start - 1).isSpace())
+    {
+        --start;
+    }
+
+    return start > 0 ? elided.left(start) + elided.mid(index) : elided;
+}
+
+QStringList PDFComponentPainter::wrapText(const QString& text, const QFont& font, qreal width, int maxLines)
+{
+    QStringList lines;
+    if (text.isEmpty() || !(width > 0.0) || !qIsFinite(width) || maxLines <= 0)
+    {
+        return lines;
+    }
+
+    QString layoutText = text;
+    layoutText.replace(QLatin1Char('\n'), QChar::LineSeparator);
+
+    auto trimmedEnd = [](QString line)
+    {
+        while (!line.isEmpty() && (line.back().isSpace() || line.back() == QChar::LineSeparator))
+        {
+            line.chop(1);
+        }
+        return line;
+    };
+
+    QTextOption option;
+    option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    QTextLayout layout(layoutText, font);
+    layout.setTextOption(option);
+    layout.beginLayout();
+    for (QTextLine textLine = layout.createLine(); textLine.isValid(); textLine = layout.createLine())
+    {
+        textLine.setLineWidth(width);
+        const int start = textLine.textStart();
+
+        if (lines.size() == maxLines - 1)
+        {
+            // The last allowed line takes the rest of the text, elided
+            QString rest = layoutText.mid(start);
+            rest.replace(QChar::LineSeparator, QLatin1Char(' '));
+            lines << elidedText(trimmedEnd(rest), font, width);
+            break;
+        }
+
+        lines << trimmedEnd(layoutText.mid(start, textLine.textLength()));
+    }
+    layout.endLayout();
+    return lines;
+}
+
+qreal PDFComponentPainter::getLongestWordWidth(const QString& text, const QFont& font)
+{
+    if (text.isEmpty())
+    {
+        return 0.0;
+    }
+
+    // The parts between the opportunities of a line break (UAX #14, as QTextLayout breaks the lines)
+    const QFontMetricsF metrics(font);
+    QTextBoundaryFinder finder(QTextBoundaryFinder::Line, text);
+    qreal longest = 0.0;
+    qsizetype start = 0;
+    for (qsizetype position = finder.toNextBoundary(); position > 0; position = finder.toNextBoundary())
+    {
+        QString word = text.mid(start, position - start);
+        while (!word.isEmpty() && (word.back().isSpace() || word.back() == QChar::LineSeparator))
+        {
+            word.chop(1);
+        }
+        longest = qMax(longest, metrics.horizontalAdvance(word));
+        start = position;
+    }
+
+    return longest;
+}
+
+Qt::LayoutDirection PDFComponentPainter::getDataTextDirection(const QString& text)
+{
+    // QString::isRightToLeft implements P2 and P3 (it skips isolated parts)
+    return text.isRightToLeft() ? Qt::RightToLeft : Qt::LeftToRight;
+}
+
+void PDFComponentPainter::drawDataText(QPainter* painter, const QRectF& rect, int flags, const QString& text, const QFont& font, const QColor& color, Qt::LayoutDirection direction)
+{
+    if (!painter || text.isEmpty())
+    {
+        return;
+    }
+
+    const Qt::LayoutDirection previousDirection = painter->layoutDirection();
+    const Qt::LayoutDirection baseDirection = (direction == Qt::LeftToRight || direction == Qt::RightToLeft) ? direction : getDataTextDirection(text);
+
+    // The alignment of the component is kept: a relative alignment is resolved
+    // in the direction of the painter of the caller before the direction changes
+    // (no horizontal flag is the leading edge, as QPainter::drawText takes it)
+    int absoluteFlags = flags;
+    const Qt::Alignment horizontal = Qt::Alignment(flags) & Qt::AlignHorizontal_Mask;
+    if (!(flags & Qt::AlignAbsolute) && (horizontal == Qt::Alignment() || (horizontal & (Qt::AlignLeft | Qt::AlignRight))))
+    {
+        const Qt::LayoutDirection callerDirection = previousDirection == Qt::RightToLeft ? Qt::RightToLeft : Qt::LeftToRight;
+        const Qt::Alignment visual = QStyle::visualAlignment(callerDirection, horizontal == Qt::Alignment() ? Qt::Alignment(Qt::AlignLeft) : horizontal);
+        absoluteFlags = (flags & ~int(Qt::AlignHorizontal_Mask)) | int(visual & Qt::AlignHorizontal_Mask) | int(Qt::AlignAbsolute);
+    }
+
+    painter->setLayoutDirection(baseDirection);
+    PDFStylePainter::text(painter, rect, absoluteFlags, text, font, color);
+    painter->setLayoutDirection(previousDirection);
+}
+
+void PDFComponentPainter::drawElidedText(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QFont& font,
+                                         PDFThemeColors::Color color, TextKind kind, bool isTrailing)
+{
+    if (!painter || !(visualRect.width() > 0.0) || !(visualRect.height() > 0.0) || text.isEmpty())
+    {
+        return;
+    }
+
+    const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | (isTrailing ? state.trailingAlignment() : state.leadingAlignment());
+    const QColor textColor = PDFStylePainter::color(color);
+    switch (kind)
+    {
+        case TextKind::Data:
+            // The direction of the whole text: the elision may cut its first strong character off (review C18)
+            drawDataText(painter, visualRect, alignment, elidedText(text, font, visualRect.width()), font, textColor, getDataTextDirection(text));
+            return;
+
+        case TextKind::FileName:
+            drawDataText(painter, visualRect, alignment, elidedFileName(text, font, visualRect.width()), font, textColor, getDataTextDirection(text));
+            return;
+
+        case TextKind::Interface:
+            break;
+    }
+
+    PDFStylePainter::text(painter, visualRect, alignment, elidedText(text, font, visualRect.width()), font, textColor);
+}
+
+void PDFComponentPainter::drawScaledPixmap(QPainter* painter, const QRectF& target, const QPixmap& pixmap)
+{
+    const bool isTargetValid = !target.isEmpty() && qIsFinite(target.left()) && qIsFinite(target.top()) && qIsFinite(target.width()) && qIsFinite(target.height());
+    if (!painter || pixmap.isNull() || pixmap.width() <= 0 || pixmap.height() <= 0 || !isTargetValid)
+    {
+        return;
+    }
+
+    painter->save();
+    painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    // The device, into which the painter really paints (a widget rendered into
+    // an image by QWidget::render is redirected), gives the pixel ratio
+    const QPaintEngine* engine = painter->paintEngine();
+    const QPaintDevice* device = (engine && engine->paintDevice()) ? engine->paintDevice() : painter->device();
+    const qreal devicePixelRatio = device ? qMax<qreal>(device->devicePixelRatioF(), 1.0) : 1.0;
+    const QTransform transform = painter->combinedTransform();
+    const bool isScaleOnly = transform.type() <= QTransform::TxScale;
+    const QSize deviceSize(qCeil(target.width() * qAbs(transform.m11()) * devicePixelRatio), qCeil(target.height() * qAbs(transform.m22()) * devicePixelRatio));
+    const bool isDownscaled = deviceSize.width() > 0 && deviceSize.height() > 0 && deviceSize.width() < pixmap.width() && deviceSize.height() < pixmap.height();
+    const bool isApplicationThread = QCoreApplication::instance() && QThread::currentThread() == QCoreApplication::instance()->thread();
+
+    if (isScaleOnly && isDownscaled && isApplicationThread)
+    {
+        // The copy of the size of the device pixels is scaled once
+        const QString key = QStringLiteral("pdf4qt-scaled-%1-%2x%3").arg(pixmap.cacheKey()).arg(deviceSize.width()).arg(deviceSize.height());
+        QPixmap scaled;
+        if (!QPixmapCache::find(key, &scaled))
+        {
+            scaled = pixmap.scaled(deviceSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            QPixmapCache::insert(key, scaled);
+        }
+        painter->drawPixmap(target, scaled, QRectF(QPointF(0.0, 0.0), QSizeF(scaled.size())));
+    }
+    else
+    {
+        painter->drawPixmap(target, pixmap, QRectF(QPointF(0.0, 0.0), QSizeF(pixmap.size())));
+    }
+
+    painter->restore();
 }
 
 void PDFComponentPainter::paintFocusRingOutside(QPainter* painter, const QRectF& shape, const PDFStylePainter::Radii& radii)
@@ -239,6 +456,8 @@ void PDFComponentPainter::paintToolBadge(QPainter* painter, const QRectF& rect, 
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Role = PDFAccentHueColors::Role;
 
     // The badge is never scaled up, only a too small rectangle makes it smaller
@@ -277,21 +496,23 @@ void PDFComponentPainter::paintTag(QPainter* painter, const QRectF& rect, const 
         return;
     }
 
-    const PDFStylePainter::Radii radii(qMin(rect.width(), rect.height()) / 2.0);
+    const DirectionGuard directionGuard(painter, state);
 
-    PDFThemeColors::Color fill = PDFThemeColors::BgSubtle;
-    if (state.isPressed())
-    {
-        fill = PDFThemeColors::BgTrack;
-    }
-    else if (state.isHovered())
-    {
-        fill = PDFThemeColors::BgMuted;
-    }
+    const PDFStylePainter::Radii radii(qMin(rect.width(), rect.height()) / 2.0);
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
-    PDFStylePainter::fill(painter, rect, radii, fill);
+
+    // Hover and press lay bg/hover / bg/pressed over the own fill bg/subtle (decision 27)
+    PDFStylePainter::fill(painter, rect, radii, PDFThemeColors::BgSubtle);
+    if (state.isPressed())
+    {
+        PDFStylePainter::fill(painter, rect, radii, PDFThemeColors::BgPressed);
+    }
+    else if (state.isHovered())
+    {
+        PDFStylePainter::fill(painter, rect, radii, PDFThemeColors::BgHover);
+    }
 
     // The focus ring replaces the border, the label stays at its place
     if (state.hasFocusRing())
@@ -337,6 +558,8 @@ void PDFComponentPainter::paintTextLink(QPainter* painter, const QRectF& rect, c
     {
         return;
     }
+
+    const DirectionGuard directionGuard(painter, state);
 
     PDFThemeColors::Color textColor = PDFThemeColors::TextAccent;
     if (!state.isEnabled())
@@ -409,6 +632,8 @@ void PDFComponentPainter::paintStar(QPainter* painter, const QRectF& rect, StarS
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     const qreal extent = qMin<qreal>(static_cast<int>(normalized(size)), qMin(rect.width(), rect.height()));
     const QRectF shape = alignedCentered(rect, QSizeF(extent, extent));
     const PDFStylePainter::Radii radii(getStarRadius());
@@ -416,13 +641,12 @@ void PDFComponentPainter::paintStar(QPainter* painter, const QRectF& rect, StarS
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    if (state.isPressed())
+    // Hover and press lay the overlay over the own surface (decision 28), so
+    // the star does not add a second overlay to the hover of its row
+    if (state.isPressed() || state.isHovered())
     {
-        PDFStylePainter::fill(painter, shape, radii, PDFThemeColors::BgPressed);
-    }
-    else if (state.isHovered())
-    {
-        PDFStylePainter::fill(painter, shape, radii, PDFThemeColors::BgHover);
+        PDFStylePainter::fill(painter, shape, radii, PDFThemeColors::BgSurface);
+        PDFStylePainter::fill(painter, shape, radii, state.isPressed() ? PDFThemeColors::BgPressed : PDFThemeColors::BgHover);
     }
 
     const qreal iconExtent = qMin<qreal>(PDFComponentPainterHelper::STAR_ICON, extent);
@@ -485,6 +709,8 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     const qreal extent = qMin<qreal>(PDFComponentPainterHelper::SWATCH_EXTENT, qMin(rect.width(), rect.height()));
     const qreal scale = extent / PDFComponentPainterHelper::SWATCH_EXTENT;
     const QRectF shape = alignedCentered(rect, QSizeF(extent, extent));
@@ -495,14 +721,12 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // Hover and press fill the whole circle, a disabled swatch has no hover
-    if (state.isPressed())
+    // Hover and press fill the whole circle, the overlay lies over the own
+    // surface (decision 28); a disabled swatch has no hover
+    if (state.isPressed() || state.isHovered())
     {
-        PDFStylePainter::fillEllipse(painter, shape, PDFStylePainter::color(PDFThemeColors::BgPressed));
-    }
-    else if (state.isHovered())
-    {
-        PDFStylePainter::fillEllipse(painter, shape, PDFStylePainter::color(PDFThemeColors::BgHover));
+        PDFStylePainter::fillEllipse(painter, shape, PDFStylePainter::color(PDFThemeColors::BgSurface));
+        PDFStylePainter::fillEllipse(painter, shape, PDFStylePainter::color(state.isPressed() ? PDFThemeColors::BgPressed : PDFThemeColors::BgHover));
     }
 
     // The color is a value, a disabled swatch keeps it. The border of 1 px lies
@@ -612,6 +836,8 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     const PDFComponentPainterHelper::ThumbnailGeometry geometry = PDFComponentPainterHelper::getThumbnailGeometry(normalized(thumbnail.size));
     const PDFStylePainter::Radii radii(PDFComponentPainterHelper::THUMBNAIL_RADIUS);
 
@@ -628,8 +854,7 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
 
         painter->save();
         painter->setClipPath(PDFStylePainter::roundedPath(frame, radii), Qt::IntersectClip);
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
-        painter->drawPixmap(target, thumbnail.pixmap, QRectF(QPointF(0.0, 0.0), QSizeF(thumbnail.pixmap.size())));
+        drawScaledPixmap(painter, target, thumbnail.pixmap);
         painter->restore();
     }
     else
@@ -803,7 +1028,7 @@ public:
     static Color icon(const State& state, Color color) { return state.isEnabled() ? color : Color::IconDisabled; }
 
     /// Returns the alignment of the trailing edge
-    static Qt::Alignment trailingAlignment(const State& state) { return state.isRightToLeft() ? Qt::AlignLeft : Qt::AlignRight; }
+    static Qt::Alignment trailingAlignment(const State& state) { return state.trailingAlignment(); }
 
     /// Returns the chevron, which points in the reading direction (as the style mirrors its chevrons)
     static QString chevronIcon(const State& state) { return state.isRightToLeft() ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right"); }
@@ -821,17 +1046,24 @@ public:
         return QRectF(left, outer.top() + qFloor((outer.height() - height) / 2.0), qMax<qreal>(0.0, width), height);
     }
 
+    /// Kind of a text (the user interface, data, a name of a file, components.md 6.6)
+    using TextKind = PDFComponentPainter::TextKind;
+
     /// Draws a text of a single line, elided at its end, into the logical rectangle
     static void drawText(QPainter* painter, const State& state, const QRectF& outer, const QRectF& logical, const QString& text,
-                         const QFont& font, Color color, bool isTrailing = false)
+                         const QFont& font, Color color, bool isTrailing = false, TextKind kind = TextKind::Interface)
     {
-        if (logical.width() <= 0.0 || logical.height() <= 0.0 || text.isEmpty())
+        if (logical.width() > 0.0 && logical.height() > 0.0)
         {
-            return;
+            PDFComponentPainter::drawElidedText(painter, state, state.visualRect(outer, logical), text, font, color, kind, isTrailing);
         }
+    }
 
-        const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | (isTrailing ? trailingAlignment(state) : state.leadingAlignment());
-        PDFStylePainter::text(painter, state.visualRect(outer, logical), alignment, PDFComponentPainter::elidedText(text, font, logical.width()), font, PDFStylePainter::color(color));
+    /// Draws a text of data of a single line, elided at its end, into the logical rectangle
+    static void drawDataText(QPainter* painter, const State& state, const QRectF& outer, const QRectF& logical, const QString& text,
+                             const QFont& font, Color color, bool isTrailing = false)
+    {
+        drawText(painter, state, outer, logical, text, font, color, isTrailing, TextKind::Data);
     }
 
     /// Draws an icon into the logical rectangle
@@ -847,30 +1079,18 @@ public:
     /// as a block centered vertically in the outer rectangle
     static void drawTextBlock(QPainter* painter, const State& state, const QRectF& outer, qreal left, qreal width,
                               const QString& title, Color titleColor, const QString& subtitle, Color subtitleColor,
-                              int gap, bool isFileName = false)
+                              int gap, TextKind titleKind = TextKind::Interface, TextKind subtitleKind = TextKind::Interface)
     {
         if (width <= 0.0)
         {
             return;
         }
 
+        // The name of a file is elided in the middle, its extension stays visible
         const qreal blockHeight = TITLE_LINE + gap + SUBTITLE_LINE;
         const qreal top = outer.top() + qFloor((outer.height() - blockHeight) / 2.0);
-        const QFont nameFont = titleFont();
-
-        if (isFileName)
-        {
-            // The name of a file is elided in the middle, its extension stays visible
-            const QRectF nameRect(left, top, width, TITLE_LINE);
-            PDFStylePainter::text(painter, state.visualRect(outer, nameRect), Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment(),
-                                  PDFComponentPainter::elidedFileName(title, nameFont, width), nameFont, PDFStylePainter::color(titleColor));
-        }
-        else
-        {
-            drawText(painter, state, outer, QRectF(left, top, width, TITLE_LINE), title, nameFont, titleColor);
-        }
-
-        drawText(painter, state, outer, QRectF(left, top + TITLE_LINE + gap, width, SUBTITLE_LINE), subtitle, subtitleFont(), subtitleColor);
+        drawText(painter, state, outer, QRectF(left, top, width, TITLE_LINE), title, titleFont(), titleColor, false, titleKind);
+        drawText(painter, state, outer, QRectF(left, top + TITLE_LINE + gap, width, SUBTITLE_LINE), subtitle, subtitleFont(), subtitleColor, false, subtitleKind);
     }
 
     /// Fills the background of the pointer (pressed bg/pressed, hover bg/hover)
@@ -918,7 +1138,7 @@ public:
 
     /// Lays the summary of a version row out into lines of the width
     /// \returns Number of lines
-    static int layoutSummary(QTextLayout& layout, const QString& text, const QFont& font, qreal width, Qt::LayoutDirection direction)
+    static int layoutSummary(QTextLayout& layout, const QString& text, const QFont& font, qreal width, Qt::LayoutDirection rowDirection)
     {
         if (text.isEmpty() || width <= 0.0)
         {
@@ -927,10 +1147,10 @@ public:
 
         QTextOption option;
         option.setWrapMode(QTextOption::WordWrap);
-        // The direction of the text follows its content (as a single line drawn by
-        // QPainter::drawText), the lines are aligned to the leading edge of the row
-        option.setTextDirection(Qt::LayoutDirectionAuto);
-        option.setAlignment((direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute);
+        // The summary is data (the text of a release): its base direction is its
+        // own, the lines are aligned to the leading edge of the row
+        option.setTextDirection(PDFComponentPainter::getDataTextDirection(text));
+        option.setAlignment((rowDirection == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute);
 
         layout.setText(text);
         layout.setFont(font);
@@ -998,6 +1218,8 @@ void PDFComponentPainter::paintIconButton(QPainter* painter, const QRectF& rect,
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     const qreal extent = qMin<qreal>(qMax(button.extent, 0), qMin(rect.width(), rect.height()));
     if (extent <= 0.0)
     {
@@ -1045,6 +1267,8 @@ void PDFComponentPainter::paintMoreButton(QPainter* painter, const QRectF& rect,
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
 
     const qreal extent = qMin<qreal>(Helper::MORE, qMin(rect.width(), rect.height()));
@@ -1084,6 +1308,8 @@ void PDFComponentPainter::paintLinkRow(QPainter* painter, const QRectF& rect, co
     {
         return;
     }
+
+    const DirectionGuard directionGuard(painter, state);
 
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
@@ -1210,6 +1436,8 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1286,7 +1514,7 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
     const qreal textLeft = iconRect.right() + Helper::FILE_GAP;
     const qreal textWidth = statusLeft - Helper::FILE_GAP - textLeft;
     Helper::drawTextBlock(painter, state, rect, textLeft, textWidth, row.fileName, Helper::text(state, isMissing ? Color::TextMuted : Color::TextPrimary),
-                          row.path, Helper::text(state, Color::TextMuted), Helper::FILE_TEXT_GAP, true);
+                          row.path, Helper::text(state, Color::TextMuted), Helper::FILE_TEXT_GAP, Helper::TextKind::FileName, Helper::TextKind::Data);
 
     painter->restore();
 }
@@ -1310,6 +1538,8 @@ void PDFComponentPainter::paintRecentToolRow(QPainter* painter, const QRectF& re
     {
         return;
     }
+
+    const DirectionGuard directionGuard(painter, state);
 
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
@@ -1364,6 +1594,8 @@ void PDFComponentPainter::paintWorkspaceRow(QPainter* painter, const QRectF& rec
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1390,7 +1622,7 @@ void PDFComponentPainter::paintWorkspaceRow(QPainter* painter, const QRectF& rec
 
     const qreal textLeft = badgeRect.right() + Helper::WORKSPACE_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, moreRect.left() - Helper::WORKSPACE_GAP - textLeft,
-                          row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1);
+                          row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1, Helper::TextKind::Data);
 
     painter->restore();
 }
@@ -1438,6 +1670,8 @@ void PDFComponentPainter::paintToolRow(QPainter* painter, const QRectF& rect, co
     {
         return;
     }
+
+    const DirectionGuard directionGuard(painter, state);
 
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
@@ -1503,6 +1737,8 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1527,9 +1763,9 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
         PDFStylePainter::icon(painter, alignedCentered(visualCircle, QSizeF(Helper::COLLECTION_ICON, Helper::COLLECTION_ICON)), row.iconName, Helper::icon(state, Color::IconAccent));
     }
 
-    // The chevron keeps its color under the pointer (unlike Recent tool row)
+    // The chevron is icon/default under the pointer, as in Link row and Recent tool row (decision 29)
     const qreal chevronLeft = rect.right() - Helper::COLLECTION_RIGHT - Helper::CHEVRON;
-    Helper::drawIcon(painter, state, rect, Helper::line(rect, chevronLeft, Helper::CHEVRON, Helper::CHEVRON), Helper::chevronIcon(state), Helper::icon(state, Color::IconMuted));
+    Helper::drawIcon(painter, state, rect, Helper::line(rect, chevronLeft, Helper::CHEVRON, Helper::CHEVRON), Helper::chevronIcon(state), Helper::pointerIcon(state));
 
     const qreal textLeft = circleRect.right() + Helper::COLLECTION_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, chevronLeft - Helper::COLLECTION_GAP - textLeft,
@@ -1562,6 +1798,8 @@ void PDFComponentPainter::paintToolShortcut(QPainter* painter, const QRectF& rec
     {
         return;
     }
+
+    const DirectionGuard directionGuard(painter, state);
 
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
@@ -1632,6 +1870,8 @@ void PDFComponentPainter::paintIssueRow(QPainter* painter, const QRectF& rect, c
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1664,8 +1904,8 @@ void PDFComponentPainter::paintIssueRow(QPainter* painter, const QRectF& rect, c
         // The column has a fixed width, a longer number wraps (it is not elided);
         // the lines are centered vertically as the single line of a short number
         const QRectF numberRect = Helper::line(rect, numberLeft, numberWidth, rect.height());
-        PDFStylePainter::text(painter, state.visualRect(rect, numberRect), Qt::AlignVCenter | Qt::TextWrapAnywhere | state.leadingAlignment(),
-                              row.number, titleFont, PDFStylePainter::color(Helper::text(state, Color::TextAccent)));
+        drawDataText(painter, state.visualRect(rect, numberRect), Qt::AlignVCenter | Qt::TextWrapAnywhere | state.leadingAlignment(),
+                     row.number, titleFont, PDFStylePainter::color(Helper::text(state, Color::TextAccent)));
     }
 
     qreal textRight = rect.right() - Helper::ISSUE_SIDE;
@@ -1683,7 +1923,7 @@ void PDFComponentPainter::paintIssueRow(QPainter* painter, const QRectF& rect, c
 
     const qreal textLeft = numberLeft + Helper::ISSUE_NUMBER + Helper::ISSUE_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, textRight - textLeft,
-                          row.title, Helper::text(state, Color::TextPrimary), row.description, Helper::text(state, Color::TextMuted), 1);
+                          row.title, Helper::text(state, Color::TextPrimary), row.description, Helper::text(state, Color::TextMuted), 1, Helper::TextKind::Data, Helper::TextKind::Data);
 
     painter->restore();
 }
@@ -1719,6 +1959,8 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1747,7 +1989,7 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
     Helper::drawText(painter, state, rect, dateRect, row.date, dateFont, Helper::text(state, Color::TextMuted), true);
 
     const qreal versionWidth = textWidth - (dateWidth > 0.0 ? dateWidth + Helper::VERSION_TOP_GAP : 0.0);
-    Helper::drawText(painter, state, rect, QRectF(textLeft, rect.top(), versionWidth, Helper::TITLE_LINE), row.version, Helper::titleFont(),
+    Helper::drawDataText(painter, state, rect, QRectF(textLeft, rect.top(), versionWidth, Helper::TITLE_LINE), row.version, Helper::titleFont(),
                      Helper::text(state, row.current ? Color::TextAccent : Color::TextPrimary));
 
     // Summary wraps into lines of 14 px
@@ -1821,6 +2063,8 @@ void PDFComponentPainter::paintPropertyRow(QPainter* painter, const QRectF& rect
         return;
     }
 
+    const DirectionGuard directionGuard(painter, state);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1867,12 +2111,12 @@ void PDFComponentPainter::paintPropertyRow(QPainter* painter, const QRectF& rect
         {
             const qreal inset = getPropertyRowEditorTextInset();
             const QRectF textRect(valueRect.left() + inset, valueRect.top(), valueRect.width() - 2 * inset, valueRect.height());
-            Helper::drawText(painter, state, rect, Helper::line(rect, textRect.left(), textRect.width(), Helper::SMALL_LINE), row.value, valueFont, Helper::text(state, Color::TextPrimary));
+            Helper::drawDataText(painter, state, rect, Helper::line(rect, textRect.left(), textRect.width(), Helper::SMALL_LINE), row.value, valueFont, Helper::text(state, Color::TextPrimary));
         }
     }
     else
     {
-        Helper::drawText(painter, state, rect, Helper::line(rect, valueRect.left(), valueRect.width(), Helper::SMALL_LINE), row.value, valueFont, Helper::text(state, Color::TextPrimary));
+        Helper::drawDataText(painter, state, rect, Helper::line(rect, valueRect.left(), valueRect.width(), Helper::SMALL_LINE), row.value, valueFont, Helper::text(state, Color::TextPrimary));
     }
 
     if (row.paintNested)
@@ -1949,6 +2193,8 @@ void PDFComponentPainter::paintPropertyRowAction(QPainter* painter, const QRectF
         return;
     }
 
+    const DirectionGuard directionGuard(painter, buttonState);
+
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
@@ -1972,14 +2218,14 @@ void PDFComponentPainter::paintPropertyRowAction(QPainter* painter, const QRectF
     button.iconExtent = Helper::PROPERTY_ACTION_ICON;
     button.radius = Helper::PROPERTY_RADIUS;
 
-    // The resting color of the icon; the hover and the press of the button itself
-    // keep the colors of an Icon button (icon/default, icon/strong)
-    const bool isPointer = buttonState.isHovered() || buttonState.isPressed();
+    // The color of the icon overridden by the row (card Property row 72): it holds
+    // in every state of the button, the hover and the press of the button itself
+    // change only its background (card Icon button 706:147674, review F6 of step 5)
     switch (action)
     {
         case PropertyAction::Edit:
             button.iconName = QStringLiteral("edit");
-            if (isHighlighted && !isPointer)
+            if (isHighlighted)
             {
                 button.iconColor = Color::IconDefault;
             }
@@ -1987,10 +2233,7 @@ void PDFComponentPainter::paintPropertyRowAction(QPainter* painter, const QRectF
 
         case PropertyAction::Copy:
             button.iconName = QStringLiteral("copy");
-            if (!isPointer)
-            {
-                button.iconColor = Color::IconDefault;
-            }
+            button.iconColor = Color::IconDefault;
             break;
 
         case PropertyAction::Confirm:

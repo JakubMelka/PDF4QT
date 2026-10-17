@@ -36,10 +36,15 @@
 #include <QPixmap>
 #include <QPointer>
 
+#include <functional>
 #include <optional>
+
+class QContextMenuEvent;
 
 namespace pdf
 {
+
+class PDFMoreButton;
 
 /// Small button with an icon only (components Icon button and Tab close button).
 /// It serves the secondary actions inside of rows, cards and fields: copy, edit,
@@ -241,8 +246,26 @@ public:
     /// widget, or the default name of the button (its text, taken literally)
     QString getAccessibleText() const;
 
+    /// Returns the description for assistive technologies: the accessible
+    /// description of the widget, or the default description of the button
+    /// (its tooltip, unless it only repeats the name)
+    QString getAccessibleDescriptionText() const;
+
     /// Returns true, if the button is interactive (otherwise it is announced as a text)
     virtual bool isInteractive() const { return true; }
+
+    /// Returns true, if the button opens a popup (a menu, a palette); it is told
+    /// to assistive technologies (the state hasPopup)
+    virtual bool hasPopup() const { return false; }
+
+    /// Returns true, if the popup of the button is expandable for assistive
+    /// technologies (as the popup of a combo box): it is expanded, while
+    /// \p isPopupShown is true. A button, which shows or hides its popup, sends
+    /// QAccessibleStateChangeEvent with the state expanded.
+    virtual bool hasExpandablePopup() const { return false; }
+
+    /// Returns true, if the popup of the button is shown
+    virtual bool isPopupShown() const { return false; }
 
     /// Returns true, if the user can activate the button now: it is enabled,
     /// interactive and it is not the selected item of an ExclusiveStatic choice.
@@ -295,7 +318,49 @@ public:
     virtual QSize sizeHint() const override;
     virtual QSize minimumSizeHint() const override;
 
+    /// Returns the height of the button of the width, when its size policy has
+    /// the height for width (\p computeHeightForWidth, cached: a layout asks for
+    /// the same width repeatedly), -1 otherwise
+    virtual int heightForWidth(int width) const override;
+
 protected:
+    /// Returns the height of the button of the width. A button, whose height
+    /// follows its width, sets QSizePolicy::setHeightForWidth and overrides this
+    /// function (the default returns -1). Its result is cached by the width and
+    /// the text of the button; every other change of the content must call
+    /// \p invalidateHeight (a setter of such a button calls it instead of
+    /// update, also for a change, which looks only as a change of the colors).
+    /// A change of the theme, of the font, of the style and of the language
+    /// invalidates the cached height by itself.
+    virtual int computeHeightForWidth(int width) const;
+
+    /// Forgets the cached height, updates the geometry and repaints the button
+    void invalidateHeight();
+
+    /// Returns true, if the nested widget lies in the button and it is not hidden
+    bool isNestedShown(const QWidget* widget) const;
+
+    /// Shows the menu of a row or a card by its menu button: at the pointer
+    /// for a mouse, below the menu button for the context menu key. The menu is
+    /// requested first by \p requestMenu (it emits the signal menuRequested of
+    /// the button, whose slot may fill the menu, or delete the button or the
+    /// menu button). A request, which deleted the button, accepts the event
+    /// (it has been handled, and the event must not go on to the deleted widget);
+    /// without the menu button the event is ignored (it goes to the parent).
+    static void showMoreButtonMenu(PDFComponentButton* button, PDFMoreButton* moreButton, QContextMenuEvent* event, const std::function<void()>& requestMenu);
+
+    /// Joins the parts, which are not empty, by the pattern ("%1, %2")
+    static QString joinTexts(const QStringList& parts, const QString& pattern);
+
+    /// Returns the pattern, which joins two parts of an accessible description
+    /// ("%1, %2", translated in the context of PDFComponentButton)
+    static QString getListPattern();
+
+    /// Returns the description of the button for assistive technologies, when
+    /// the application has not set its own (the tooltip by default, unless it
+    /// only repeats the name of the button)
+    virtual QString getDefaultAccessibleDescription() const;
+
     /// Draws the button through PDFComponentPainter
     /// \param painter Painter (never null)
     /// \param rect Rectangle of the button
@@ -346,6 +411,14 @@ private:
     void updateFocusFrame();
     QPointer<QButtonGroup> liftGroupExclusivity();
 
+    /// Height of the last width and text (QAbstractButton::setText bypasses the setters)
+    struct HeightCache
+    {
+        int width = -1;
+        int height = -1;
+        QString text;
+    };
+
     FocusRing m_focusRing;
     qreal m_focusRingRadius = 0.0;
     SelectionBehavior m_selectionBehavior = SelectionBehavior::None;
@@ -359,6 +432,8 @@ private:
     /// button has made non-exclusive for the time of the click (Qt does not
     /// uncheck the checked button of an exclusive group by a click)
     QPointer<QButtonGroup> m_liftedGroup;
+
+    mutable HeightCache m_heightCache;
 };
 
 /// Badge of a tool (component Tool icon): a full circle of the hue of the
@@ -455,9 +530,12 @@ protected:
 
 /// Toggle, which pins (stars) a file or a tool (component Star button). The
 /// unpinned star is an outline icon/muted, the pinned one a filled amber star.
-/// Its tooltip and its name are "Pin file" / "Unpin" by the state (translated
-/// again after a change of the language). Size 28 in Tool row and Quick action
-/// tile, 24 in the file rows and in Pinned card.
+/// Its tooltip and its name are "Pin file" / "Unpin" by the state, "Pin tool" /
+/// "Unpin tool" for a tool (\p setSubject; translated again after a change of
+/// the language). The accessible description of the star is the name of the
+/// row or of the card, in which it lies (the item, which it pins), unless the
+/// application sets its own. Size 28 in Tool row and Quick action tile, 24 in
+/// the file rows and in Pinned card.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFStarButton : public PDFComponentButton
 {
     Q_OBJECT
@@ -469,6 +547,14 @@ private:
 public:
     using StarSize = PDFComponentPainter::StarSize;
 
+    /// What the star pins (it chooses the texts of the states)
+    enum class Subject
+    {
+        File,   ///< "Pin file" / "Unpin"
+        Tool    ///< "Pin tool" / "Unpin tool"
+    };
+    Q_ENUM(Subject)
+
     explicit PDFStarButton(QWidget* parent = nullptr);
     explicit PDFStarButton(StarSize size, QWidget* parent = nullptr);
 
@@ -478,7 +564,11 @@ public:
     StarSize getStarSize() const { return m_size; }
     void setStarSize(StarSize size);
 
-    /// Returns the tooltip of the state ("Pin file" or "Unpin")
+    /// What the star pins (File by default; an invalid value is File)
+    Subject getSubject() const { return m_subject; }
+    void setSubject(Subject subject);
+
+    /// Returns the tooltip of the state ("Pin file" or "Unpin", "Pin tool" or "Unpin tool")
     QString getStateText() const;
 
 Q_SIGNALS:
@@ -489,6 +579,7 @@ protected:
     virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
     virtual QSize getContentSizeHint() const override;
     virtual QString getDefaultAccessibleName() const override;
+    virtual QString getDefaultAccessibleDescription() const override;
     virtual void changeEvent(QEvent* event) override;
 
 private:
@@ -497,6 +588,7 @@ private:
     void onToggled(bool isChecked);
 
     StarSize m_size = StarSize::Medium;
+    Subject m_subject = Subject::File;
     QString m_stateText;
 };
 
@@ -519,6 +611,7 @@ private:
 
 public:
     explicit PDFMoreButton(QWidget* parent = nullptr);
+    virtual ~PDFMoreButton() override;
 
     /// Menu shown by a click (not owned; a deleted menu is forgotten)
     QMenu* getMenu() const { return m_menu.data(); }
@@ -532,6 +625,9 @@ public:
     /// \returns true, if a menu was shown
     bool showMenu(const QPoint& globalPosition);
 
+    /// Returns true, if the button has a menu
+    virtual bool hasPopup() const override { return m_menu != nullptr; }
+
 Q_SIGNALS:
     /// The button has been clicked; emitted before the menu is shown (a slot may fill the menu)
     void menuRequested();
@@ -544,9 +640,13 @@ protected:
 
 private:
     void updateText();
+    void disconnectMenu();
+    void onMenuClosed();
 
     QPointer<QMenu> m_menu;
     QString m_text;
+    QMetaObject::Connection m_menuHiddenConnection;
+    QMetaObject::Connection m_menuDestroyedConnection;
 };
 
 /// Predefined color (component Color swatch): a circle of 28 px with the color
@@ -560,7 +660,7 @@ class PDF4QTLIBFLUENTSHARED_EXPORT PDFColorSwatch : public PDFComponentButton
 {
     Q_OBJECT
     Q_PROPERTY(QColor color READ getColor WRITE setColor)
-    Q_PROPERTY(bool selected READ isSelected WRITE setSelected)
+    Q_PROPERTY(bool selected READ isSelected WRITE setSelected NOTIFY toggled)
 
 private:
     using BaseClass = PDFComponentButton;

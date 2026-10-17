@@ -25,18 +25,22 @@
 
 #include "pdffluentglobal.h"
 #include "pdfaccenthue.h"
+#include "pdfpreviewpainter.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
 
 #include <QColor>
 #include <QFont>
+#include <QList>
 #include <QMargins>
 #include <QPixmap>
 #include <QRectF>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QStyle>
 
+#include <limits>
 #include <optional>
 
 class QPainter;
@@ -101,8 +105,31 @@ public:
         /// rectangle placed in the layout direction of the state (mirrored for RTL)
         QRectF visualRect(const QRectF& outer, const QRectF& logical) const;
 
-        /// Returns the horizontal alignment of the leading edge (left for LTR, right for RTL)
-        Qt::Alignment leadingAlignment() const { return isRightToLeft() ? Qt::AlignRight : Qt::AlignLeft; }
+        /// Returns the absolute horizontal alignment of the leading edge (left
+        /// for LTR, right for RTL). It is absolute (Qt::AlignAbsolute), so the
+        /// layout direction of the painter does not mirror it again.
+        Qt::Alignment leadingAlignment() const { return (isRightToLeft() ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute; }
+
+        /// Returns the absolute horizontal alignment of the trailing edge (right for LTR, left for RTL)
+        Qt::Alignment trailingAlignment() const { return (isRightToLeft() ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignAbsolute; }
+    };
+
+    /// Sets the layout direction of the state to the painter for the lifetime of
+    /// the guard and restores the previous one (the base direction of the texts
+    /// of a component is the direction of its state, never guessed from the text
+    /// and never taken from the painter, which the caller has begun).
+    class PDF4QTLIBFLUENTSHARED_EXPORT DirectionGuard
+    {
+    public:
+        explicit DirectionGuard(QPainter* painter, const State& state);
+        ~DirectionGuard();
+
+        DirectionGuard(const DirectionGuard&) = delete;
+        DirectionGuard& operator=(const DirectionGuard&) = delete;
+
+    private:
+        QPainter* m_painter;
+        Qt::LayoutDirection m_direction = Qt::LeftToRight;
     };
 
     // ------------------------------------------------------------------ helpers
@@ -112,9 +139,76 @@ public:
     static QRectF alignedCentered(const QRectF& outer, const QSizeF& size);
 
     /// Returns the text elided at its end (\p mode Qt::ElideRight) or in the
-    /// middle (Qt::ElideMiddle), so it fits the width. An empty text is returned
-    /// for a width, which is not positive.
+    /// middle (Qt::ElideMiddle), so it fits the width. The spaces before the
+    /// ellipsis are left out ("jumps over the…", as the design). An empty text
+    /// is returned for a width, which is not positive.
     static QString elidedText(const QString& text, const QFont& font, qreal width, Qt::TextElideMode mode = Qt::ElideRight);
+
+    /// Splits the text into lines of the width (at the word boundaries, a word
+    /// longer than the width anywhere), at most \p maxLines lines; the last
+    /// allowed line is elided at its end, when the rest of the text does not fit.
+    /// A line break of the text starts a new line, the spaces at the ends of the
+    /// lines are left out. An empty list is returned for an empty text, a width,
+    /// which is not positive, and \p maxLines, which is not positive.
+    static QStringList wrapText(const QString& text, const QFont& font, qreal width, int maxLines = std::numeric_limits<int>::max());
+
+    /// Returns the width of the widest part of the text, which \p wrapText never
+    /// breaks (a word between two opportunities of a line break of Unicode,
+    /// without its trailing spaces). A text wrapped at this width or wider is
+    /// broken only between the words. Zero is returned for an empty text.
+    static qreal getLongestWordWidth(const QString& text, const QFont& font);
+
+    /// Returns the base direction of a text, which is data: the direction of its
+    /// first strong character (rules P2 and P3 of UAX #9, as the isolate FSI),
+    /// left-to-right for a text without a strong character (numbers, dates).
+    ///
+    /// Texts of the components are of two kinds (components.md 6.6). A text of
+    /// the user interface (a label, a title, a translated message) has the base
+    /// direction of the component (\p State::direction). A text, which is data
+    /// (a name of a file, a path, a name of a person, a version, a number, a
+    /// value of a property, content of the document or of the user), keeps its
+    /// own direction in any layout, it is isolated from the direction of the
+    /// component: "Annual_Report_2026.pdf" elided in a right-to-left row is
+    /// "Annual_Report_20…", not "…Annual_Report_20". Both kinds keep the
+    /// alignment of the component (the leading edge of the state).
+    static Qt::LayoutDirection getDataTextDirection(const QString& text);
+
+    /// Draws a text, which is data (see \p getDataTextDirection): the painter
+    /// gets the base direction of the text for the time of drawing, the alignment
+    /// stays absolute (a relative horizontal alignment is taken in the direction,
+    /// which the painter has when the function is called). The caller elides the
+    /// text before (\p elidedText, \p elidedFileName), so the ellipsis lies at the
+    /// end of the text in its own direction. The lines of one wrapped text share
+    /// the direction of the whole text: pass it as \p direction (LeftToRight or
+    /// RightToLeft; Qt::LayoutDirectionAuto takes the direction of \p text).
+    static void drawDataText(QPainter* painter, const QRectF& rect, int flags, const QString& text, const QFont& font, const QColor& color,
+                             Qt::LayoutDirection direction = Qt::LayoutDirectionAuto);
+
+    /// Kind of a text of a component (components.md 6.6)
+    enum class TextKind
+    {
+        Interface,  ///< Text of the user interface: the base direction of the component
+        Data,       ///< Text, which is data: its own direction, elided at its end
+        FileName    ///< Name of a file: data elided in the middle, the extension stays
+    };
+
+    /// Draws a text of a single line, elided to the width of the rectangle, into
+    /// the visual (already mirrored) rectangle, centered vertically, aligned to
+    /// the leading edge of the state (\p isTrailing: to its trailing edge). A text
+    /// of data keeps the direction of the whole text, also when the elision has
+    /// cut its first strong character off. The single place of the elision and
+    /// of the direction of the single-line texts of all drawing functions.
+    static void drawElidedText(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QFont& font,
+                               PDFThemeColors::Color color, TextKind kind = TextKind::Interface, bool isTrailing = false);
+
+    /// Draws the whole picture into the target rectangle (stretched to it). A
+    /// picture larger than the target is drawn from a copy scaled smoothly to
+    /// the pixels of the device, which is kept in QPixmapCache (in the thread
+    /// of the application), so a repaint of a large picture of the application
+    /// (a page rendered at 150 dpi, the picture of a video) is not scaled again
+    /// and a strong downscale does not alias. Nothing is drawn for a null
+    /// painter, a null picture or an empty or invalid target.
+    static void drawScaledPixmap(QPainter* painter, const QRectF& target, const QPixmap& pixmap);
 
     /// Draws the focus ring of 2 px outside of the shape (outside focus ring of
     /// the components, which the focus frame of the style draws for a widget)
@@ -193,8 +287,9 @@ public:
     /// Returns the size of the tag
     static QSize getTagSize(const Tag& tag);
 
-    /// Draws the tag into the rectangle. The focus ring lies inside and replaces
-    /// the border. A too narrow rectangle elides the label.
+    /// Draws the tag into the rectangle. Hover and press lay bg/hover / bg/pressed
+    /// over the fill bg/subtle, the border stays. The focus ring lies inside and
+    /// replaces the border. A too narrow rectangle elides the label.
     static void paintTag(QPainter* painter, const QRectF& rect, const Tag& tag, const State& state);
 
     // --------------------------------------------------------------- Text link
@@ -239,6 +334,7 @@ public:
 
     /// Draws the star button centered in the rectangle; the pinned star is
     /// the state On (filled star icon/sun), the unpinned one an outline icon/muted.
+    /// Hover and press lay bg/hover / bg/pressed over the own surface bg/surface.
     static void paintStar(QPainter* painter, const QRectF& rect, StarSize size, const State& state);
 
     // ------------------------------------------------------------ Color swatch
@@ -267,7 +363,8 @@ public:
     static qreal getColorSwatchRadius();
 
     /// Draws the swatch centered in the rectangle. The selection (state On) is
-    /// a ring bg/accent 2 px inside, the focus ring lies outside of it.
+    /// a ring bg/accent 2 px inside, the focus ring lies outside of it. Hover and
+    /// press lay bg/hover / bg/pressed over the own surface bg/surface.
     static void paintColorSwatch(QPainter* painter, const QRectF& rect, const ColorSwatch& swatch, const State& state);
 
     // ---------------------------------------------------------- Page thumbnail
@@ -517,7 +614,7 @@ public:
     /// Returns the minimal size of the row (the texts are elided)
     static QSize getCollectionRowMinimumSize(const CollectionRow& row);
 
-    /// Draws the row into the rectangle
+    /// Draws the row into the rectangle (the chevron is icon/default under the pointer)
     static void paintCollectionRow(QPainter* painter, const QRectF& rect, const CollectionRow& row, const State& state);
 
     // ----------------------------------------------------------- Tool shortcut
@@ -676,7 +773,945 @@ public:
     /// \param propertyState State of the row
     /// \param buttonState State of the button itself (enabled, hover, press)
     static void paintPropertyRowAction(QPainter* painter, const QRectF& rect, PropertyAction action, PropertyState propertyState, const State& buttonState);
+
+    // ============================================== tiles and cards (step 3)
+    //
+    // Cards with a border, which their focus ring outside replaces (Quick action
+    // tile, Folder card, Pinned card, Resource card, Video card), take the flag
+    // State_HasFocus and \p paintFocusRing: with the flag the border is left out,
+    // the ring itself is drawn only with \p paintFocusRing (the focus frame of the
+    // style draws it around a widget). Choice cards (Tool choice, Reading theme
+    // card, Color mode card) keep their content with the focus and draw the ring
+    // outside, when the flag is set. A card is drawn into its rectangle; only the
+    // focus ring and the shadow of a thumbnail lie outside of it.
+
+    // ------------------------------------------------------- Progress bar
+
+    /// Returns the valid progress: a value of 0 to 1, NaN and negative values are 0
+    static qreal normalizedProgress(qreal progress);
+
+    /// Draws the reading progress (component Progress bar 78:868) into the
+    /// rectangle: the track border/default and the value bg/accent, the finished
+    /// document (progress 1) accent/green/icon, the value of a disabled bar
+    /// border/strong (as QProgressBar of the style). The width of the value is
+    /// the progress times the width of the track, both have the radius of half
+    /// of the height; progress 0 draws no value (the value is continuous, review I-32).
+    /// The value fills from the leading edge of the state: from the right in a
+    /// right-to-left state (as QProgressBar of the style), for every caller.
+    static void paintProgressBar(QPainter* painter, const QRectF& rect, qreal progress, const State& state);
+
+    /// Draws the enabled progress bar from the left (see the overload with the
+    /// state; an overload, not a default argument: a nested class with default
+    /// member initializers cannot be a default argument inside its enclosing
+    /// class, CWG 1397, GCC rejects it)
+    static void paintProgressBar(QPainter* painter, const QRectF& rect, qreal progress);
+
+    // --------------------------------------------------- Quick action tile
+
+    /// Content of a tile of the Home screen (component Quick action tile 46:431):
+    /// a hued tile 88 px high with the icon in a white circle, the title Bold 14
+    /// and the description Regular 12, which wrap, and the optional star (28) at
+    /// the trailing side. Hover, press and the rest are one recipe of the hue.
+    struct QuickActionTile
+    {
+        QString title;
+        QString description;
+        QString iconName = QStringLiteral("folder-open");
+        PDFAccentHue hue = PDFAccentHue::Blue;
+        bool starVisible = false;
+        bool pinned = false;
+        bool paintNested = true;    ///< Draw the star (false: a widget has a real star, its place is kept)
+    };
+
+    /// Returns the size of the tile (224 x 88; the width is given by the grid)
+    static QSize getQuickActionTileSize(const QuickActionTile& tile);
+
+    /// Returns the minimal size of the tile (the texts are elided)
+    static QSize getQuickActionTileMinimumSize(const QuickActionTile& tile);
+
+    /// Returns the distances of the nested star from the edges (16 from the trailing edge)
+    static QMargins getQuickActionTileTrailingMargins();
+
+    /// Draws the tile into the rectangle
+    static void paintQuickActionTile(QPainter* painter, const QRectF& rect, const QuickActionTile& tile, const State& state, bool paintFocusRing = true);
+
+    // --------------------------------------------------------- Folder card
+
+    /// Content of a folder of the Open screen (component Folder card 63:597): the
+    /// icon in a white circle, the name, the path and the meta line (Last used, or
+    /// the kind of a pinned location), the menu button. Hues Blue, Neutral, Green
+    /// and Violet (the standard folders and the others), one recipe of the hue.
+    struct FolderCard
+    {
+        QString name;
+        QString path;
+        QString meta;
+        bool metaVisible = true;
+        QString iconName = QStringLiteral("folder");
+        PDFAccentHue hue = PDFAccentHue::Neutral;
+        bool paintNested = true;    ///< Draw the menu button
+    };
+
+    /// Returns the hue of a folder card: Blue, Neutral, Green or Violet (any other value is Neutral)
+    static PDFAccentHue normalizedFolderHue(PDFAccentHue hue);
+
+    /// Returns the size of the card (252 x 84)
+    static QSize getFolderCardSize(const FolderCard& card);
+
+    /// Returns the minimal size of the card (the texts are elided)
+    static QSize getFolderCardMinimumSize(const FolderCard& card);
+
+    /// Returns the distances of the nested menu button from the edges (11 from the trailing edge)
+    static QMargins getFolderCardTrailingMargins();
+
+    /// Draws the card into the rectangle
+    static void paintFolderCard(QPainter* painter, const QRectF& rect, const FolderCard& card, const State& state, bool paintFocusRing = true);
+
+    // --------------------------------------------------------- Pinned card
+
+    /// Content of a pinned document of the Recent screen (component Pinned card
+    /// 79:1115): the thumbnail of the first page with its shadow, the name, the
+    /// path, the reading progress (text and bar) and a column of the star (24,
+    /// pinned) and the menu button at the trailing side.
+    struct PinnedCard
+    {
+        QString name;
+        QString path;
+        QString progressText;
+        qreal progress = 0.0;       ///< Reading progress of 0 to 1
+        QPixmap pixmap;             ///< Picture of the first page (the placeholder lines without it)
+        bool pinned = true;
+        bool paintNested = true;    ///< Draw the star and the menu button
+    };
+
+    /// Returns the size of the card (259 x 100)
+    static QSize getPinnedCardSize(const PinnedCard& card);
+
+    /// Returns the minimal size of the card (the texts are elided)
+    static QSize getPinnedCardMinimumSize(const PinnedCard& card);
+
+    /// Returns the distances of the nested column (star and menu button) from the edges (top 13, trailing 9)
+    static QMargins getPinnedCardTrailingMargins();
+
+    /// Returns the gap between the star and the menu button (4)
+    static int getPinnedCardTrailingSpacing();
+
+    /// Draws the card into the rectangle
+    static void paintPinnedCard(QPainter* painter, const QRectF& rect, const PinnedCard& card, const State& state, bool paintFocusRing = true);
+
+    // ------------------------------------------------ Tool category header
+
+    /// Content of the tinted header of a category card of the Tools screen
+    /// (component Tool category header 89:1424). Without states.
+    struct ToolCategoryHeader
+    {
+        QString title;
+        QString description;
+        QString count;
+        QString iconName = QStringLiteral("grid");
+        PDFAccentHue hue = PDFAccentHue::Blue;
+        qreal topRadius = 0.0;      ///< Radius of the top corners: the header lies at the top of a rounded card, which clips it in the design
+    };
+
+    /// Returns the size of the header (393 x 61)
+    static QSize getToolCategoryHeaderSize(const ToolCategoryHeader& header);
+
+    /// Returns the minimal size of the header (the title and the description are elided, the count is not)
+    static QSize getToolCategoryHeaderMinimumSize(const ToolCategoryHeader& header);
+
+    /// Draws the header into the rectangle (the bottom border is its last row)
+    static void paintToolCategoryHeader(QPainter* painter, const QRectF& rect, const ToolCategoryHeader& header, const State& state);
+
+    // ---------------------------------------------------------- Tool choice
+
+    /// Content of a suggested tool of "Then continue with" (component Tool choice
+    /// 417:1006): the badge 28 and the name, which wraps by words. The card hugs
+    /// its content (z=fix/hug): 46 high for a name of one line, 48 for two lines.
+    /// The lines are counted at the width of the name of the selected choice (the
+    /// check takes 24 px), so the height does not change with the selection. The
+    /// selected choice (state On) is bg/surface + bg/accent-subtle with the ring
+    /// bg/accent 2 px inside and a check; hover and press lay bg/hover and
+    /// bg/pressed over the fill in both selections. The focus ring lies outside.
+    struct ToolChoice
+    {
+        QString name;
+        QString iconName = QStringLiteral("grid");
+        PDFAccentHue hue = PDFAccentHue::Blue;
+    };
+
+    /// Returns the size of the choice (154 wide, 48 high for a name of two lines, 46 for one line, in each state)
+    static QSize getToolChoiceSize(const ToolChoice& choice);
+
+    /// Returns the height of the choice of the width (the name wraps, review F1)
+    static int getToolChoiceHeight(const ToolChoice& choice, int width);
+
+    /// Returns the minimal size of the choice: the longest word of the name fits
+    /// the name of the selected choice, so a word is never broken (review F3)
+    static QSize getToolChoiceMinimumSize(const ToolChoice& choice);
+
+    /// Returns the radius of the choice (10, the shape of its focus ring)
+    static qreal getToolChoiceRadius();
+
+    /// Draws the choice into the rectangle
+    static void paintToolChoice(QPainter* painter, const QRectF& rect, const ToolChoice& choice, const State& state);
+
+    // -------------------------------------------------------- Resource card
+
+    /// Content of a card of Learn & Resources (component Resource card 50:242):
+    /// the icon 24, the title Bold 13 and the description Regular 11 (lines of
+    /// 14 px), which wrap; the height follows the width. Hues Neutral, Green,
+    /// Amber and Violet, one recipe of the hue.
+    struct ResourceCard
+    {
+        QString title;
+        QString description;
+        QString iconName = QStringLiteral("book-open");
+        PDFAccentHue hue = PDFAccentHue::Neutral;
+    };
+
+    /// Returns the hue of a resource card: Neutral, Green, Amber or Violet (any other value is Neutral)
+    static PDFAccentHue normalizedResourceHue(PDFAccentHue hue);
+
+    /// Returns the size of the card of the default width (116 x 124 for the texts of two lines)
+    static QSize getResourceCardSize(const ResourceCard& card);
+
+    /// Returns the height of the card of the given width (the texts wrap)
+    static int getResourceCardHeight(const ResourceCard& card, int width);
+
+    /// Returns the minimal size of the card: the minimal width and the height of
+    /// the fixed parts and of one line of each text (a layout of the height for
+    /// width gives the real height)
+    static QSize getResourceCardMinimumSize(const ResourceCard& card);
+
+    /// Draws the card into the rectangle (the content lies at the top, a taller
+    /// card of a row of cards keeps the space below it)
+    static void paintResourceCard(QPainter* painter, const QRectF& rect, const ResourceCard& card, const State& state, bool paintFocusRing = true);
+
+    // ------------------------------------------------------- Highlight card
+
+    /// Content of a highlight of a release (component Highlight card 103:1894):
+    /// a white bordered card with the icon in a circle of the hue, the title Bold
+    /// 14 and the description Regular 12 (lines of 16 px), which wrap. Not interactive.
+    struct HighlightCard
+    {
+        QString title;
+        QString description;
+        QString iconName = QStringLiteral("grid");
+        PDFAccentHue hue = PDFAccentHue::Blue;
+    };
+
+    /// Returns the size of the card of the default width (259 x 137 for the description of two lines)
+    static QSize getHighlightCardSize(const HighlightCard& card);
+
+    /// Returns the height of the card of the given width (the texts wrap)
+    static int getHighlightCardHeight(const HighlightCard& card, int width);
+
+    /// Returns the minimal size of the card: the minimal width and the height of
+    /// the fixed parts and of one line of each text (as Resource card)
+    static QSize getHighlightCardMinimumSize(const HighlightCard& card);
+
+    /// Draws the card into the rectangle (the content lies at the top)
+    static void paintHighlightCard(QPainter* painter, const QRectF& rect, const HighlightCard& card, const State& state);
+
+    // ----------------------------------------------------------- Video card
+
+    /// Content of a video tutorial (component Video card 116:2418): the preview
+    /// 150 px high over the inner width (the picture of the application, or the
+    /// placeholder bg/muted) with the play button and the duration, the title
+    /// (one line), the description (at most two lines of 16 px) and the tags.
+    /// Empty tags are left out; tags, which do not fit the width, are hidden.
+    struct VideoCard
+    {
+        QString title;
+        QString description;
+        QString duration;
+        QStringList tags;
+        QPixmap pixmap;
+        bool paintNested = true;    ///< Draw the tags (false: a widget has real tags, their places are kept)
+    };
+
+    /// Returns the tags of the card, which are drawn (the tags without the empty ones)
+    static QStringList getVideoCardTags(const VideoCard& card);
+
+    /// Returns the rectangles of the tags of \p getVideoCardTags in the card of
+    /// the rectangle, mirrored for right-to-left layouts; a tag, which does not
+    /// fit the width of the card, has an empty rectangle
+    static QList<QRectF> getVideoCardTagRects(const QRectF& rect, const VideoCard& card, const State& state);
+
+    /// Returns the size of the card of the default width (272 x 258 for the description of two lines)
+    static QSize getVideoCardSize(const VideoCard& card);
+
+    /// Returns the height of the card of the given width (the description wraps)
+    static int getVideoCardHeight(const VideoCard& card, int width);
+
+    /// Returns the minimal size of the card
+    static QSize getVideoCardMinimumSize(const VideoCard& card);
+
+    /// Draws the card into the rectangle
+    static void paintVideoCard(QPainter* painter, const QRectF& rect, const VideoCard& card, const State& state, bool paintFocusRing = true);
+
+    // --------------------------------------------------- Reading theme card
+
+    /// Content of a preset of the page and text colors of the Custom colors mode
+    /// (component Reading theme card 156:4218): the sample "Aa" with two lines of
+    /// text in the colors of the theme and the name. The colors are the tokens
+    /// reading/* (\p pageColor, \p textColor) or colors of the user (\p customPageColor,
+    /// \p customTextColor, used when they are valid). The selection (state On) is
+    /// a ring bg/accent 2 px inside with the fill bg/accent-subtle and a check,
+    /// the focus ring lies outside.
+    struct ReadingThemeCard
+    {
+        QString name;
+        PDFThemeColors::Color pageColor = PDFThemeColors::ReadingPaperPage;
+        PDFThemeColors::Color textColor = PDFThemeColors::ReadingPaperText;
+        QColor customPageColor;
+        QColor customTextColor;
+    };
+
+    /// Returns the size of the card (159 x 86)
+    static QSize getReadingThemeCardSize(const ReadingThemeCard& card);
+
+    /// Returns the minimal size of the card (the texts are elided)
+    static QSize getReadingThemeCardMinimumSize(const ReadingThemeCard& card);
+
+    /// Returns the texts of the sample of a reading theme ("Aa", "Quick brown fox", "jumps over the dog", translated)
+    static QStringList getReadingThemeSampleTexts();
+
+    /// Draws the card into the rectangle
+    static void paintReadingThemeCard(QPainter* painter, const QRectF& rect, const ReadingThemeCard& card, const State& state);
+
+    // ----------------------------------------------------- Color mode card
+
+    /// Content of a card of a choice with a picture (component Color mode card
+    /// 171:4545): the picture of PDFPreviewPainter (six color modes and four page
+    /// layouts, review O-05) and the name. Selection and focus as Reading theme card.
+    struct PreviewCard
+    {
+        QString name;
+        PDFPreviewPainter::Preview preview = PDFPreviewPainter::Preview::ModeNormal;
+    };
+
+    /// Returns the size of the card (125 x 122)
+    static QSize getPreviewCardSize(const PreviewCard& card);
+
+    /// Returns the minimal size of the card (the name is elided)
+    static QSize getPreviewCardMinimumSize(const PreviewCard& card);
+
+    /// Draws the card into the rectangle
+    static void paintPreviewCard(QPainter* painter, const QRectF& rect, const PreviewCard& card, const State& state);
+
+    // ======================================== composite widgets (step 4)
+    //
+    // The composite widgets (pdfcomponentpanels.h) are drawn here: the painted
+    // parts of Page selection and Continue with (their segments, fields, check
+    // boxes, choices and links are child widgets), the whole Color button, Color
+    // palette popover, Signature card and Strength meter. A content with
+    // \p paintNested set draws also the nested buttons (choices, swatches, links,
+    // the expand button) for the gallery; a widget with real nested widgets sets
+    // it to false. The layout functions return the places of the parts in the
+    // left-to-right layout of the component (mirror them for right-to-left by
+    // \p State::visualRect); the widgets place their children by them.
+
+    // --------------------------------------------------------- Page selection
+
+    /// Painted parts of a page selection (component Page selection 265:985): the
+    /// header with the label and the page count, the caption of the filters, the
+    /// status row with the count of the selected pages and the error row. The
+    /// segments of the modes, the range field and the check boxes of the filters
+    /// are child widgets (drawn by the style); their texts are used for the
+    /// minimal width.
+    struct PageSelection
+    {
+        QString label;              ///< "Pages"
+        QString total;              ///< "48 pages"
+        QString filtersLabel;       ///< "Only"
+        QString status;             ///< "7 pages selected · 3 (iii) – 12 (xii)"
+        QString error;              ///< Message of the error row; the row is shown, when it is not empty
+        bool rangeVisible = false;  ///< The range field is shown (mode Range)
+        QStringList modeLabels;     ///< Labels of the segments (All, Current, Selected, Range)
+        QStringList filterLabels;   ///< Labels of the check boxes (Even pages, Odd pages, Portrait, Landscape)
+    };
+
+    /// Places of the parts of a page selection in its left-to-right layout
+    struct PageSelectionLayout
+    {
+        QRect header;
+        QRect modes;
+        QRect range;                ///< Empty, when the range field is hidden
+        QRect filtersLabel;
+        QRect filters[4];           ///< Even, Odd, Portrait, Landscape (two columns, gap 8)
+        QRect status;
+        QRect error;                ///< Empty without an error
+        int height = 0;
+    };
+
+    /// Returns the places of the parts of the page selection of the width (the
+    /// error message wraps, so the height follows the width)
+    static PageSelectionLayout getPageSelectionLayout(const PageSelection& selection, int width);
+
+    /// Returns the height of the page selection of the width (156, 200 with the
+    /// range field, 24 more with the error row of one line)
+    static int getPageSelectionHeight(const PageSelection& selection, int width);
+
+    /// Returns the size of the page selection (320 wide)
+    static QSize getPageSelectionSize(const PageSelection& selection);
+
+    /// Returns the minimal size of the page selection: the segments with the
+    /// padding of 6, two columns of the check boxes, the header
+    static QSize getPageSelectionMinimumSize(const PageSelection& selection);
+
+    /// Draws the painted parts of the page selection into the rectangle
+    static void paintPageSelection(QPainter* painter, const QRectF& rect, const PageSelection& selection, const State& state);
+
+    // ---------------------------------------------------------- Continue with
+
+    /// Content of the choice of the next tool of a result dialog (component
+    /// Continue with 417:1007): the header (title, note, link "Another tool…"),
+    /// zero to three Tool choices dividing the width equally and the caption,
+    /// which wraps. The choices and the link are nested. The row of the choices
+    /// is as high as the tallest choice at its width (46 when every name fits
+    /// one line, 48 for a name of two lines); without choices the row and its
+    /// gap are left out (review O-10).
+    struct ContinueWith
+    {
+        QString title;
+        QString note;
+        QString linkText;
+        QString caption;
+        QList<ToolChoice> choices;  ///< At most three are shown
+        int selectedChoice = -1;    ///< Selected choice (drawn with \p paintNested), -1 for none
+        bool paintNested = true;
+    };
+
+    /// Places of the parts of Continue with in its left-to-right layout
+    struct ContinueWithLayout
+    {
+        QRect title;
+        QRect note;
+        QRect link;
+        QList<QRect> choices;       ///< One rectangle for each shown choice
+        QRect caption;
+        int height = 0;
+    };
+
+    /// Returns the maximal count of the choices (3)
+    static int getContinueWithMaxChoices();
+
+    /// Returns the places of the parts of Continue with of the width
+    static ContinueWithLayout getContinueWithLayout(const ContinueWith& content, int width);
+
+    /// Returns the height of Continue with of the width (93 with choices of two
+    /// lines and one line of the caption, 91 with names of one line, 37 without choices)
+    static int getContinueWithHeight(const ContinueWith& content, int width);
+
+    /// Returns the size of Continue with (480 wide)
+    static QSize getContinueWithSize(const ContinueWith& content);
+
+    /// Returns the minimal size of Continue with: the minimal choices (the
+    /// longest word of each name stays whole), the link and a part of the title
+    static QSize getContinueWithMinimumSize(const ContinueWith& content);
+
+    /// Draws Continue with into the rectangle
+    static void paintContinueWith(QPainter* painter, const QRectF& rect, const ContinueWith& content, const State& state);
+
+    // ----------------------------------------------------------- Color button
+
+    /// Content of a color button (component Color button 156:4239): the swatch
+    /// 20 x 20 (an invalid color is no color: crossed), the name of the color
+    /// and the chevron. The focus ring of 2 px lies inside and replaces the
+    /// border (flag State_HasFocus); an open palette is drawn as pressed.
+    struct ColorButton
+    {
+        QColor color;
+        QString name;
+        bool open = false;
+    };
+
+    /// Returns the size of the color button (260 x 34)
+    static QSize getColorButtonSize(const ColorButton& button);
+
+    /// Returns the minimal size of the color button (the name is elided)
+    static QSize getColorButtonMinimumSize(const ColorButton& button);
+
+    /// Returns the radius of the color button (8)
+    static qreal getColorButtonRadius();
+
+    /// Draws the color button into the rectangle
+    static void paintColorButton(QPainter* painter, const QRectF& rect, const ColorButton& button, const State& state);
+
+    // ---------------------------------------------------- Color palette popover
+
+    /// Content of the palette of a color button (component Color palette popover
+    /// 156:4240): the round swatches of the suggested and of the recently used
+    /// colors, six in a row with gaps of 8, and the link "More colors…". An
+    /// invalid color is no color (a crossed swatch). The selected suggested color
+    /// is the selected swatch. The panel is 232 wide (padding 12, the border is
+    /// not counted), its shadow belongs to the popup window.
+    struct ColorPalette
+    {
+        QList<QColor> suggested;
+        QList<QColor> recent;
+        int selected = -1;          ///< Index of the selected suggested color, -1 for none
+        QString suggestedLabel;     ///< "Suggested"
+        QString recentLabel;        ///< "Recently used"
+        QString moreText;           ///< "More colors…"
+        bool paintNested = true;    ///< Draw the swatches and the link
+        bool panelVisible = true;   ///< Draw the panel (bg/surface, the border, radius 12); a popover window of the style has the panel of the style
+    };
+
+    /// Places of the parts of a palette in its left-to-right layout; a section
+    /// without colors is left out
+    struct ColorPaletteLayout
+    {
+        QRect suggestedLabel;
+        QList<QRect> suggested;
+        QRect recentLabel;
+        QList<QRect> recent;
+        QRect divider;
+        QRect more;
+        QSize size;
+    };
+
+    /// Returns the count of the swatches in a row (6)
+    static int getColorPaletteColumns();
+
+    /// Returns the radius of the panel of the palette (12)
+    static qreal getColorPaletteRadius();
+
+    /// Returns the places of the parts of the palette (the panel starts at 0, 0)
+    static ColorPaletteLayout getColorPaletteLayout(const ColorPalette& palette);
+
+    /// Returns the size of the panel of the palette (232 x 209 for two rows of suggested colors and one row of recent ones)
+    static QSize getColorPaletteSize(const ColorPalette& palette);
+
+    /// Draws the panel of the palette (without its shadow) into the rectangle
+    static void paintColorPalette(QPainter* painter, const QRectF& rect, const ColorPalette& palette, const State& state);
+
+    // --------------------------------------------------------- Signature card
+
+    /// Status of a signature or of a certificate of its chain
+    enum class SignatureStatus
+    {
+        Valid,      ///< Green: shield-check, "Valid"
+        Warning,    ///< Amber: alert-triangle, "Needs attention"
+        Invalid     ///< Red: x-circle, "Invalid"
+    };
+
+    /// Row of the details of an expanded signature card ("Signed on", "Sep 28, 2026, 14:02")
+    struct SignatureDetail
+    {
+        QString key;
+        QString value;
+    };
+
+    /// Certificate of the chain of an expanded signature card: the dot and the
+    /// information have the color of the status (green, amber, red; the
+    /// information of a valid certificate is text/muted), an optional link
+    /// ("Add to trusted certificates") follows the information
+    struct SignatureCertificate
+    {
+        QString name;
+        QString info;
+        SignatureStatus status = SignatureStatus::Valid;
+        QString linkText;
+    };
+
+    /// Content of a signature or a timestamp of the Signatures tab (component
+    /// Signature card 192:1032): the status badge, the signer, the meta line,
+    /// the expand button (Icon button 24, nested), the status tag, the summary
+    /// and, when expanded, the details and the certificate chain.
+    struct SignatureCard
+    {
+        QString signer;
+        QString meta;
+        QString summary;
+        SignatureStatus status = SignatureStatus::Valid;
+        bool expanded = false;
+        bool toggleVisible = true;      ///< The expand button is shown (its place is kept)
+        QList<SignatureDetail> details;
+        QString chainCaption;           ///< "Certificate chain"
+        QList<SignatureCertificate> certificates;
+        bool paintNested = true;        ///< Draw the expand button and the links
+    };
+
+    /// Places of the nested widgets of a signature card in its left-to-right layout
+    struct SignatureCardLayout
+    {
+        QRect toggle;
+        QList<QRect> links;     ///< One rectangle for each certificate, empty without a link or when collapsed
+        int height = 0;
+    };
+
+    /// Returns the valid status (an invalid value is Valid)
+    static SignatureStatus normalized(SignatureStatus status);
+
+    /// Returns the text of the status tag ("Valid", "Needs attention", "Invalid", translated)
+    static QString getSignatureStatusText(SignatureStatus status);
+
+    /// Returns the places of the nested widgets and the height of the card of the width
+    static SignatureCardLayout getSignatureCardLayout(const SignatureCard& card, int width);
+
+    /// Returns the height of the card of the width (127 collapsed, 382 expanded as in the design)
+    static int getSignatureCardHeight(const SignatureCard& card, int width);
+
+    /// Returns the size of the card (276 wide)
+    static QSize getSignatureCardSize(const SignatureCard& card);
+
+    /// Returns the minimal size of the card
+    static QSize getSignatureCardMinimumSize(const SignatureCard& card);
+
+    /// Draws the card into the rectangle
+    static void paintSignatureCard(QPainter* painter, const QRectF& rect, const SignatureCard& card, const State& state);
+
+    // --------------------------------------------------------- Strength meter
+
+    /// Level of a strength meter
+    enum class StrengthLevel
+    {
+        Empty,      ///< Nothing measured: the title ("Password strength"), no cell
+        VeryWeak,   ///< Red, 3 cells
+        Weak,       ///< Red, 7 cells
+        Moderate,   ///< Amber, 11 cells
+        Strong,     ///< Green, 16 cells
+        VeryStrong  ///< Green, 20 cells
+    };
+
+    /// Criterion, which makes a password stronger
+    enum class StrengthCriterion
+    {
+        None = 0x0,
+        Length = 0x1,   ///< "12+ characters"
+        Case = 0x2,     ///< "Aa"
+        Digits = 0x4,   ///< "123"
+        Symbols = 0x8   ///< "#$&"
+    };
+    Q_DECLARE_FLAGS(StrengthCriteria, StrengthCriterion)
+
+    /// Content of a strength meter of a password or of an encryption algorithm
+    /// (component Strength meter 455:1270): the level in words, the detail (the
+    /// measured entropy), the bar of 20 cells and the four criteria, which wrap.
+    struct StrengthMeter
+    {
+        StrengthLevel level = StrengthLevel::Empty;
+        QString title;                  ///< Text of the level Empty ("Password strength")
+        QString detail;                 ///< "118 of 128 bits"
+        bool detailVisible = true;
+        bool criteriaVisible = true;
+        StrengthCriteria satisfied;     ///< Satisfied criteria (green with a check)
+        int filledCells = -1;           ///< Filled cells (0 to 20), a negative value is the count of the level; the level Empty has none
+        QStringList criteriaTexts;      ///< Texts of the four criteria (the default texts are used for the missing ones)
+    };
+
+    /// Returns the valid level (an invalid value is Empty)
+    static StrengthLevel normalized(StrengthLevel level);
+
+    /// Returns the count of the cells of the bar (20)
+    static int getStrengthMeterCellCount();
+
+    /// Returns the count of the filled cells of the meter (by the level, or \p StrengthMeter::filledCells
+    /// bounded to 0 to 20); the level Empty has no filled cell
+    static int getStrengthMeterFilledCells(const StrengthMeter& meter);
+
+    /// Returns the name of the level ("Very weak", ..., translated; the title for Empty)
+    static QString getStrengthLevelText(const StrengthMeter& meter);
+
+    /// Returns the default text of a criterion ("12+ characters", "Aa", "123", "#$&")
+    static QString getStrengthCriterionText(StrengthCriterion criterion);
+
+    /// Returns the text of the criterion of the meter (its own text, or the default one)
+    static QString getStrengthCriterionText(const StrengthMeter& meter, StrengthCriterion criterion);
+
+    /// Returns the rectangles of the four criteria in the meter of the width (they wrap)
+    static QList<QRect> getStrengthMeterCriterionRects(const StrengthMeter& meter, int width);
+
+    /// Returns the height of the meter of the width (50, when the criteria fit one line)
+    static int getStrengthMeterHeight(const StrengthMeter& meter, int width);
+
+    /// Returns the size of the meter (300 wide)
+    static QSize getStrengthMeterSize(const StrengthMeter& meter);
+
+    /// Returns the minimal size of the meter
+    static QSize getStrengthMeterMinimumSize(const StrengthMeter& meter);
+
+    /// Draws the meter into the rectangle
+    static void paintStrengthMeter(QPainter* painter, const QRectF& rect, const StrengthMeter& meter, const State& state);
+
+    // ======================================== rows of the views (step 5)
+    //
+    // Items of the views, whose models give the data (the delegates of
+    // pdfcomponentdelegates.h draw them by these functions). The state of an
+    // item comes from its view: State_Selected is the selected item (Thumbnail
+    // item, Bookmark row, Note row, Attachment row, Search result row; the rows
+    // without the axis Selected in the design - Font row, Recent item row,
+    // Shortcut row - ignore it), a selected item reacts to the pointer
+    // (bg/accent-subtle-hover / -pressed, decision 10). The focus ring of 2 px
+    // lies inside of the item (State_HasFocus). A disabled item is drawn by the
+    // rule O-08. Nested buttons of a row (save, copy, star, menu, key cap) have
+    // their own flags in the content (\p QStyle::State_MouseOver and
+    // \p QStyle::State_Sunken of the button itself), their rectangles are given
+    // by the functions get...Rect for the hit testing of the delegates.
+
+    /// Range of characters of a text (a found term in a snippet)
+    struct TextRange
+    {
+        int start = 0;
+        int length = 0;
+    };
+
+    // ---------------------------------------------------------- Thumbnail item
+
+    /// Content of a page of the thumbnails of the document (component Thumbnail
+    /// item 191:777): the picture of the page in its frame with the shadow and
+    /// the label of the page in a pill (bg/accent with icon/on-accent when
+    /// selected). The picture keeps its aspect ratio in the slot of the page
+    /// (108 x 148 in the design), the frame hugs the picture; without a picture
+    /// the frame is the whole slot filled with reading/paper/page.
+    struct ThumbnailItem
+    {
+        QString label;
+        QPixmap pixmap;
+        QSize pageSize = QSize(108, 148);   ///< Slot of the page (an invalid or empty size is the default)
+    };
+
+    /// Returns the valid slot of the page (an invalid or empty size is 108 x 148,
+    /// each side is clamped to 4096)
+    static QSize getThumbnailItemPageSize(const ThumbnailItem& item);
+
+    /// Returns the size of the item (124 x 183 for the slot of the design)
+    static QSize getThumbnailItemSize(const ThumbnailItem& item);
+
+    /// Returns the frame of the page (the picture fitted into its slot, without
+    /// the border, which lies outside of it) in the item of the rectangle
+    static QRectF getThumbnailItemPageRect(const QRectF& rect, const ThumbnailItem& item);
+
+    /// Draws the item into the rectangle
+    static void paintThumbnailItem(QPainter* painter, const QRectF& rect, const ThumbnailItem& item, const State& state);
+
+    // ------------------------------------------------------------ Bookmark row
+
+    /// Content of a bookmark of the document sidebar (component Bookmark row
+    /// 191:911): the filled bookmark icon/accent, the title (text/accent when
+    /// selected), the subtitle and an optional tag ("Auto", shown when its text
+    /// is not empty).
+    struct BookmarkRow
+    {
+        QString title;
+        QString subtitle;
+        QString tag;
+    };
+
+    /// Returns the size of the row (276 x 46)
+    static QSize getBookmarkRowSize(const BookmarkRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided, the tag is not)
+    static QSize getBookmarkRowMinimumSize(const BookmarkRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintBookmarkRow(QPainter* painter, const QRectF& rect, const BookmarkRow& row, const State& state);
+
+    // ---------------------------------------------------------------- Note row
+
+    /// Content of an annotation of the Notes tab (component Note row 191:998):
+    /// the badge of the type of the annotation (Tool icon 32, Amber highlighter
+    /// by default), the author (text/accent when selected), the date and the
+    /// text of at most two lines. The height follows the width (48 for one
+    /// line of the text, 63 for two).
+    struct NoteRow
+    {
+        QString author;
+        QString date;
+        QString text;
+        QString iconName = QStringLiteral("highlighter");
+        PDFAccentHue hue = PDFAccentHue::Amber;
+    };
+
+    /// Returns the height of the row of the width
+    static int getNoteRowHeight(const NoteRow& row, int width);
+
+    /// Returns the size of the row of the default width (276 x 63 for a text of two lines)
+    static QSize getNoteRowSize(const NoteRow& row);
+
+    /// Returns the minimal size of the row
+    static QSize getNoteRowMinimumSize(const NoteRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintNoteRow(QPainter* painter, const QRectF& rect, const NoteRow& row, const State& state);
+
+    // ---------------------------------------------------------- Attachment row
+
+    /// Content of a file embedded in the document (component Attachment row
+    /// 191:1045): the badge (Tool icon 32, Neutral file-text by default), the
+    /// name (text/accent when selected), the meta line and the save action - an
+    /// Icon button 24 with the icon download (icon/muted, icon/default on the
+    /// hovered or pressed row in every state of the button; the own hover and
+    /// press of the button change only its background, card Icon button).
+    struct AttachmentRow
+    {
+        QString name;
+        QString meta;
+        QString iconName = QStringLiteral("file-text");
+        PDFAccentHue hue = PDFAccentHue::Neutral;
+        QStyle::State saveFlags = QStyle::State_None;   ///< Hover and press of the save button itself
+    };
+
+    /// Returns the size of the row (276 x 48)
+    static QSize getAttachmentRowSize(const AttachmentRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided)
+    static QSize getAttachmentRowMinimumSize(const AttachmentRow& row);
+
+    /// Returns the rectangle of the save button (24 x 24, 6 from the trailing edge) in the row
+    static QRectF getAttachmentRowSaveRect(const QRectF& rect, const State& state);
+
+    /// Draws the row into the rectangle
+    static void paintAttachmentRow(QPainter* painter, const QRectF& rect, const AttachmentRow& row, const State& state);
+
+    // ------------------------------------------------------- Search result row
+
+    /// Content of an occurrence of the search (component Search result row
+    /// 191:1073): the page (Medium 11 text/muted, text/accent when selected) and
+    /// the snippet of at most two lines (Regular 12 text/secondary), whose found
+    /// terms (\p matches) are Semi Bold text/primary. The height follows the
+    /// width (62 for two lines of the snippet).
+    struct SearchResultRow
+    {
+        QString page;
+        QString snippet;
+        QList<TextRange> matches;
+    };
+
+    /// Returns the height of the row of the width
+    static int getSearchResultRowHeight(const SearchResultRow& row, int width);
+
+    /// Returns the size of the row of the default width (276 x 62 for a snippet of two lines)
+    static QSize getSearchResultRowSize(const SearchResultRow& row);
+
+    /// Returns the minimal size of the row
+    static QSize getSearchResultRowMinimumSize(const SearchResultRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintSearchResultRow(QPainter* painter, const QRectF& rect, const SearchResultRow& row, const State& state);
+
+    // ---------------------------------------------------------------- Font row
+
+    /// Content of a font of the document (component Font row 206:944): the badge
+    /// (Neutral, type), the name and the family, the tag of the type of the font
+    /// ("TrueType"), the status (a dot accent/green/icon with "Embedded subset",
+    /// accent/amber/icon with "Not embedded", or the own text \p statusText) and
+    /// the copy icon, which is shown on the hovered and on the pressed row. The
+    /// copy place is a plain frame in the design without states of its own.
+    struct FontRow
+    {
+        QString name;
+        QString family;
+        QString type;
+        bool embedded = true;
+        QString statusText;     ///< Text of the status (empty: the text of \p embedded)
+    };
+
+    /// Returns the default text of the status ("Embedded subset" / "Not embedded", translated)
+    static QString getFontStatusText(bool embedded);
+
+    /// Returns the size of the row (692 x 48)
+    static QSize getFontRowSize(const FontRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided)
+    static QSize getFontRowMinimumSize(const FontRow& row);
+
+    /// Returns the rectangle of the copy action (24 x 24, 8 from the trailing edge) in the row
+    static QRectF getFontRowCopyRect(const QRectF& rect, const State& state);
+
+    /// Returns true, if the copy icon is shown in the state (hover or press of the row)
+    static bool isFontRowCopyShown(const State& state);
+
+    /// Draws the row into the rectangle
+    static void paintFontRow(QPainter* painter, const QRectF& rect, const FontRow& row, const State& state);
+
+    // --------------------------------------------------------- Recent item row
+
+    /// Type of a recent item
+    enum class RecentItemType
+    {
+        File,       ///< A document: the thumbnail of its first page and the reading progress
+        Folder,     ///< A folder: the icon folder in a circle of the hue Neutral
+        Workspace   ///< A workspace: the icon layers in a circle of the hue Violet
+    };
+
+    /// Content of an item of the Recent list (component Recent item row
+    /// 79:1026): the thumbnail (File) or the icon in a circle, the name and the
+    /// details, the reading progress (text and bar, the bar only for a file with
+    /// a valid progress), the time of opening, the star (24) and the menu button.
+    struct RecentItemRow
+    {
+        QString name;
+        QString details;
+        QString progressText;
+        qreal progress = -1.0;      ///< Reading progress of 0 to 1; a negative value or NaN has no bar
+        QString opened;
+        RecentItemType type = RecentItemType::File;
+        QPixmap pixmap;             ///< Picture of the first page (the placeholder lines without it)
+        bool pinned = false;
+        QStyle::State starFlags = QStyle::State_None;   ///< Hover and press of the star itself
+        QStyle::State moreFlags = QStyle::State_None;   ///< Hover and press of the menu button itself
+        bool paintNested = true;    ///< Draw the star and the menu button
+    };
+
+    /// Returns the valid type (an invalid value is File)
+    static RecentItemType normalized(RecentItemType type);
+
+    /// Returns the size of the row (802 x 56)
+    static QSize getRecentItemRowSize(const RecentItemRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided)
+    static QSize getRecentItemRowMinimumSize(const RecentItemRow& row);
+
+    /// Returns the rectangle of the star (24 x 24) in the row
+    static QRectF getRecentItemRowStarRect(const QRectF& rect, const State& state);
+
+    /// Returns the rectangle of the menu button (16 x 16, 8 from the trailing edge) in the row
+    static QRectF getRecentItemRowMoreRect(const QRectF& rect, const State& state);
+
+    /// Draws the row into the rectangle
+    static void paintRecentItemRow(QPainter* painter, const QRectF& rect, const RecentItemRow& row, const State& state);
+
+    // ------------------------------------------------------------ Shortcut row
+
+    /// Content of an action of the table of the shortcuts (component Shortcut
+    /// row 145:2904): the icon, the name of the action and the key cap with the
+    /// shortcut at the trailing edge; an action without a shortcut has the dashed
+    /// placeholder "Add shortcut" there. A row, which records a new shortcut
+    /// (\p recording), shows the cap with the focus ring inside and "Press keys…"
+    /// in text/accent; the row itself is drawn as Default. The cap and the
+    /// placeholder are the target of the click, which starts the recording.
+    struct ShortcutRow
+    {
+        QString action;
+        QString shortcut;           ///< Text of the shortcut ("Ctrl+O"); empty: the placeholder
+        QString iconName = QStringLiteral("folder-open");
+        bool recording = false;
+    };
+
+    /// Returns the text of the placeholder ("Add shortcut", translated)
+    static QString getAddShortcutText();
+
+    /// Returns the prompt of the recording ("Press keys…", translated)
+    static QString getRecordShortcutText();
+
+    /// Returns the size of the row (780 x 40)
+    static QSize getShortcutRowSize(const ShortcutRow& row);
+
+    /// Returns the minimal size of the row (the name of the action is elided)
+    static QSize getShortcutRowMinimumSize(const ShortcutRow& row);
+
+    /// Returns the rectangle of the key cap, of the placeholder or of the
+    /// recorded cap (23 high, 10 from the trailing edge) in the row
+    static QRectF getShortcutRowKeyRect(const QRectF& rect, const ShortcutRow& row, const State& state);
+
+    /// Draws the row into the rectangle
+    static void paintShortcutRow(QPainter* painter, const QRectF& rect, const ShortcutRow& row, const State& state);
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(PDFComponentPainter::StrengthCriteria)
 
 }   // namespace pdf
 

@@ -1369,7 +1369,7 @@ void PDFWidgetStyleImpl::movePopup(QWidget* widget)
         return;
     }
 
-    if (widget->inherits("QComboBoxPrivateContainer") || widget->inherits("pdf::PDFToolTipWindow"))
+    if (widget->inherits("QComboBoxPrivateContainer") || widget->inherits("pdf::PDFToolTipWindow") || hasProperty(widget, PDFWidgetStyleProperties::POPUP_PLACED))
     {
         // The position of these popups is computed with the margins
         return;

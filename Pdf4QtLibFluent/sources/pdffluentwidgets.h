@@ -395,9 +395,28 @@ public:
 
 /// Tree view with the inner margin of the design around its rows. A tree
 /// with a visible header has no margin, as the table of the design.
+///
+/// The rows of the presets Outline and Certificate have the state Pressed of
+/// the design (bg/pressed, bg/accent-subtle-pressed). Qt never sets
+/// State_Sunken on the items of a view, so the view tracks the press of the
+/// left button itself: the pressed row (all its cells) gets State_Sunken in
+/// its style option, while the pointer stays over it with the button held. A
+/// release, a move without the button (a release lost to a modal dialog or to a
+/// drag), a leave without the button, the loss of the focus, a blocking modal
+/// window, a drag, a hide and a change of the model end the press. The delegates
+/// of the view are not replaced; a delegate of the application gets the flag too.
+///
+/// The focus ring of these presets (2 px inside, after the keyboard) encloses
+/// the whole current row - the area of the branches and all columns - as the
+/// design (191:805, 706:147113), not only the current cell. The selection of
+/// these rows stays bg/accent-subtle, when the view has no focus (the current
+/// outline item, certificate), as the rows of the delegates of the components.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFTreeView : public QTreeView
 {
     Q_OBJECT
+
+private:
+    using BaseClass = QTreeView;
 
 public:
     explicit PDFTreeView(QWidget* parent = nullptr);
@@ -414,12 +433,44 @@ public:
     RowStyle getRowStyle() const { return m_rowStyle; }
     void setRowStyle(RowStyle rowStyle);
 
+    /// Returns the pressed row (its first column), an invalid index, when no row
+    /// is pressed or the pointer has left it
+    QModelIndex getPressedRow() const;
+
+    /// Returns the radius of the shape of the rows of the preset (Outline 8, others 6)
+    static qreal getRowRadius(RowStyle rowStyle);
+
 protected:
+    /// Returns true, if the focus ring of the current row of the preset is shown
+    /// (the view has the focus after the keyboard); the gallery overrides it
+    virtual bool isRowFocusRingVisible() const;
+
+    /// Draws the focus ring of the preset around the row (2 px inside)
+    void drawRowFocusRing(QPainter* painter, const QRect& rowRect) const;
+
+    virtual bool event(QEvent* event) override;
+    virtual void startDrag(Qt::DropActions supportedActions) override;
     virtual void updateGeometries() override;
+    virtual void drawRow(QPainter* painter, const QStyleOptionViewItem& options, const QModelIndex& index) const override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseDoubleClickEvent(QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
+    virtual bool viewportEvent(QEvent* event) override;
 
 private:
+    /// Returns true, if the preset has the state Pressed (Outline, Certificate)
+    bool isPressTracked() const;
+    void startPress(const QPoint& position, Qt::MouseButton button);
+    void setPressedInside(bool isInside);
+    void clearPress();
+    void updateRow(const QModelIndex& index);
+
     bool m_isUpdatingMargins = false;
     RowStyle m_rowStyle = RowStyle::Default;
+    QPersistentModelIndex m_pressedRow;
+    bool m_isPressedInside = false;
+    bool m_isMoveWithButton = false;
 };
 
 /// Creates the editors of items of views from the widgets of the library. It

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfcomponentpainter.h"
 #include "pdfthemeiconengine.h"
 
 #include <QPainter>
@@ -1014,9 +1015,14 @@ void PDFWidgetStyleTabs::drawTabLabel(const QStyleOptionTab* option, QPainter* p
         PDFWidgetStyleImpl::drawIcon(painter, PDFWidgetStyleImpl::visualRect(state.rightToLeft, shape, iconRect), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
     }
 
+    // The title of a document tab is data, the name of a file (components.md 6.6,
+    // decision 9): elided in the middle keeping its extension, drawn in the
+    // direction of the whole title (the alignment of the tab is kept)
     const QFont font = PDFWidgetStyleImpl::getFont(widget, state.selected ? Font::BodySemiBold : Font::BodyMedium);
-    const QString text = PDFWidgetStyleImpl::getElidedText(getTabText(option, widget), font, textRect.width());
-    m_impl->drawText(painter, textRect, alignment, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+    const QString title = getTabText(option, widget);
+    const QString text = PDFComponentPainter::elidedFileName(title, font, textRect.width());
+    PDFComponentPainter::drawDataText(painter, textRect, alignment | Qt::TextSingleLine | m_impl->getMnemonicFlag(widget), text, font, PDFWidgetStyleImpl::color(textColor),
+                                      PDFComponentPainter::getDataTextDirection(title));
 }
 
 void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const

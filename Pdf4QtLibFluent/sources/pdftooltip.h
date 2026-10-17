@@ -62,6 +62,9 @@ public:
     /// Returns true, if the tooltip is shown
     static bool isVisible();
 
+    /// Returns the title of the shown tooltip (an empty string, when no tooltip is shown)
+    static QString getTitle();
+
     /// Returns the window of the tooltip, or nullptr, if no tooltip has been shown yet
     static QWidget* getWindow();
 };

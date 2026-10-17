@@ -66,6 +66,11 @@ public:
     /// is valid for one showing of the popup, the style removes it at its hiding.
     static constexpr const char* POPUP_ANCHOR = "popupAnchor";
 
+    /// QWidget (a popup window with the property popover): the window places its
+    /// panel by itself (its position already counts with the margins of the
+    /// shadow), the style does not move it, when it is shown (Color palette popover)
+    static constexpr const char* POPUP_PLACED = "popupPlaced";
+
     /// QLineEdit, QTextEdit, QComboBox, QSpinBox: the value is invalid
     static constexpr const char* INVALID = "error";
 

@@ -25,6 +25,7 @@
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
+#include "pdfwidgetstyle.h"
 #include "pdfwidgetstyleproperties.h"
 
 #include <QAccessibleWidget>
@@ -33,6 +34,7 @@
 #include <QButtonGroup>
 #include <QCursor>
 #include <QFontMetricsF>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLayout>
@@ -1357,6 +1359,7 @@ void PDFTreeView::setRowStyle(RowStyle rowStyle)
     }
 
     m_rowStyle = rowStyle;
+    clearPress();
 
     QString name;
     switch (rowStyle)
@@ -1379,6 +1382,218 @@ void PDFTreeView::setRowStyle(RowStyle rowStyle)
     // The indentation is taken from the style only, when the view is created
     setIndentation(style()->pixelMetric(QStyle::PM_TreeViewIndentation, nullptr, this));
     scheduleDelayedItemsLayout();
+}
+
+QModelIndex PDFTreeView::getPressedRow() const
+{
+    return (m_isPressedInside && m_pressedRow.isValid()) ? QModelIndex(m_pressedRow) : QModelIndex();
+}
+
+bool PDFTreeView::isPressTracked() const
+{
+    return m_rowStyle == RowStyle::Outline || m_rowStyle == RowStyle::Certificate;
+}
+
+qreal PDFTreeView::getRowRadius(RowStyle rowStyle)
+{
+    return rowStyle == RowStyle::Outline ? 8.0 : 6.0;
+}
+
+bool PDFTreeView::isRowFocusRingVisible() const
+{
+    return isEnabled() && hasFocus() && PDFWidgetStyle::isFocusRingVisible(this);
+}
+
+void PDFTreeView::drawRowFocusRing(QPainter* painter, const QRect& rowRect) const
+{
+    if (!painter || rowRect.isEmpty())
+    {
+        return;
+    }
+
+    PDFStylePainter::strokeInside(painter, QRectF(rowRect), PDFStylePainter::Radii(getRowRadius(m_rowStyle)), PDFThemeColors::BorderFocus, 2.0);
+}
+
+void PDFTreeView::drawRow(QPainter* painter, const QStyleOptionViewItem& options, const QModelIndex& index) const
+{
+    // The pressed row: every cell and the area of the branches get State_Sunken
+    const QModelIndex pressedRow = getPressedRow();
+    if (pressedRow.isValid() && index.isValid() && index.row() == pressedRow.row() && index.parent() == pressedRow.parent() && index.model() == pressedRow.model())
+    {
+        QStyleOptionViewItem pressedOptions = options;
+        pressedOptions.state |= QStyle::State_Sunken;
+        BaseClass::drawRow(painter, pressedOptions, index);
+    }
+    else
+    {
+        BaseClass::drawRow(painter, options, index);
+    }
+
+    // The focus ring of the presets Outline and Certificate encloses the whole
+    // current row (the style draws no ring of the current cell for them)
+    const QModelIndex current = currentIndex();
+    if (isPressTracked() && current.isValid() && index.isValid() && current.row() == index.row() && current.parent() == index.parent() && isRowFocusRingVisible())
+    {
+        drawRowFocusRing(painter, options.rect);
+    }
+}
+
+bool PDFTreeView::event(QEvent* event)
+{
+    switch (event->type())
+    {
+        case QEvent::FocusOut:
+        case QEvent::WindowBlocked:
+            // A modal window (opened by a slot of a double click) or the loss of
+            // the focus swallow the release (review C2 of step 5)
+            clearPress();
+            break;
+
+        default:
+            break;
+    }
+
+    return BaseClass::event(event);
+}
+
+void PDFTreeView::startDrag(Qt::DropActions supportedActions)
+{
+    // The drag of the platform does not give the release back
+    clearPress();
+    BaseClass::startDrag(supportedActions);
+}
+
+void PDFTreeView::startPress(const QPoint& position, Qt::MouseButton button)
+{
+    clearPress();
+
+    if (!isPressTracked() || button != Qt::LeftButton)
+    {
+        return;
+    }
+
+    const QModelIndex index = indexAt(position);
+    if (index.isValid() && index.flags().testFlag(Qt::ItemIsEnabled))
+    {
+        m_pressedRow = index.siblingAtColumn(0);
+        m_isPressedInside = true;
+        updateRow(m_pressedRow);
+    }
+}
+
+void PDFTreeView::setPressedInside(bool isInside)
+{
+    if (m_isPressedInside != isInside)
+    {
+        m_isPressedInside = isInside;
+        updateRow(m_pressedRow);
+    }
+}
+
+void PDFTreeView::clearPress()
+{
+    const QPersistentModelIndex previous = m_pressedRow;
+    m_pressedRow = QPersistentModelIndex();
+    m_isPressedInside = false;
+    m_isMoveWithButton = false;
+    updateRow(previous);
+}
+
+void PDFTreeView::updateRow(const QModelIndex& index)
+{
+    if (!index.isValid() || index.model() != model() || !viewport())
+    {
+        return;
+    }
+
+    const QRect rect = visualRect(index);
+    viewport()->update(QRect(0, rect.top(), viewport()->width(), rect.height()));
+}
+
+void PDFTreeView::mousePressEvent(QMouseEvent* event)
+{
+    startPress(event->position().toPoint(), event->button());
+    BaseClass::mousePressEvent(event);
+}
+
+void PDFTreeView::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    startPress(event->position().toPoint(), event->button());
+    BaseClass::mouseDoubleClickEvent(event);
+}
+
+void PDFTreeView::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_pressedRow.isValid())
+    {
+        if (!event->buttons().testFlag(Qt::LeftButton))
+        {
+            // The release has been lost (a modal dialog, a drag)
+            clearPress();
+        }
+        else
+        {
+            // The row looks pressed, while the pointer stays over it (the hover
+            // move, which follows, belongs to this move)
+            m_isMoveWithButton = true;
+            const QModelIndex index = indexAt(event->position().toPoint());
+            setPressedInside(index.isValid() && index.row() == m_pressedRow.row() && index.parent() == m_pressedRow.parent());
+        }
+    }
+
+    BaseClass::mouseMoveEvent(event);
+}
+
+void PDFTreeView::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        clearPress();
+    }
+
+    BaseClass::mouseReleaseEvent(event);
+}
+
+bool PDFTreeView::viewportEvent(QEvent* event)
+{
+    const bool isLeftButtonHeld = QGuiApplication::mouseButtons().testFlag(Qt::LeftButton);
+    switch (event->type())
+    {
+        case QEvent::Hide:
+        case QEvent::DragEnter:
+        case QEvent::DragLeave:
+        case QEvent::Drop:
+            clearPress();
+            break;
+
+        case QEvent::HoverEnter:
+        case QEvent::HoverMove:
+            // A move without the button ends a press, whose release has been lost
+            if (m_pressedRow.isValid() && !m_isMoveWithButton && !isLeftButtonHeld)
+            {
+                clearPress();
+            }
+            m_isMoveWithButton = false;
+            break;
+
+        case QEvent::Enter:
+        case QEvent::Leave:
+        case QEvent::HoverLeave:
+            if (m_pressedRow.isValid() && !isLeftButtonHeld)
+            {
+                clearPress();
+            }
+            else if (event->type() != QEvent::Enter)
+            {
+                setPressedInside(false);
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    return BaseClass::viewportEvent(event);
 }
 
 void PDFTreeView::updateGeometries()

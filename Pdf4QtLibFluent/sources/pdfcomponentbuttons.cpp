@@ -30,6 +30,7 @@
 #include <QAccessible>
 #include <QAccessibleWidget>
 #include <QButtonGroup>
+#include <QContextMenuEvent>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QFocusFrame>
@@ -382,11 +383,11 @@ public:
             state.checked = componentButton->isCheckable() && componentButton->isChecked();
             state.pressed = componentButton->isDown();
 
-            // The menu button opens a menu
-            if (const PDFMoreButton* moreButton = qobject_cast<const PDFMoreButton*>(componentButton))
-            {
-                state.hasPopup = moreButton->getMenu() != nullptr;
-            }
+            // The menu button opens a menu, the color button its palette (expanded while it is shown)
+            state.hasPopup = componentButton->hasPopup();
+            state.expandable = componentButton->hasExpandablePopup();
+            state.expanded = state.expandable && componentButton->isPopupShown();
+            state.collapsed = state.expandable && !state.expanded;
         }
 
         return state;
@@ -401,11 +402,9 @@ public:
             return componentButton->getAccessibleText();
         }
 
-        if (componentButton && textType == QAccessible::Description && componentButton->accessibleDescription().isEmpty())
+        if (componentButton && textType == QAccessible::Description)
         {
-            // The tooltip describes the button, unless it only repeats its name ("Unpin")
-            const QString toolTip = componentButton->toolTip();
-            return toolTip == componentButton->getAccessibleText() ? QString() : toolTip;
+            return componentButton->getAccessibleDescriptionText();
         }
 
         return QAccessibleWidget::text(textType);
@@ -633,6 +632,13 @@ void PDFComponentButton::setSelectionBehavior(SelectionBehavior behavior)
             break;
     }
 
+    // A label (a header, a card of the information) is never checkable: it
+    // would be announced as a radio button and drawn as a selected item
+    if (!isInteractive())
+    {
+        behavior = SelectionBehavior::None;
+    }
+
     if (m_selectionBehavior == behavior)
     {
         return;
@@ -749,6 +755,112 @@ QString PDFComponentButton::getDefaultAccessibleName() const
 {
     // The text is data, it is announced as it is drawn ("Protect & Sign")
     return text();
+}
+
+QString PDFComponentButton::getAccessibleDescriptionText() const
+{
+    const QString description = accessibleDescription();
+    return description.isEmpty() ? getDefaultAccessibleDescription() : description;
+}
+
+QString PDFComponentButton::getDefaultAccessibleDescription() const
+{
+    // The tooltip describes the button, unless it only repeats its name ("Unpin")
+    const QString tip = toolTip();
+    return tip == getAccessibleText() ? QString() : tip;
+}
+
+int PDFComponentButton::heightForWidth(int width) const
+{
+    if (!sizePolicy().hasHeightForWidth())
+    {
+        return BaseClass::heightForWidth(width);
+    }
+
+    // A layout asks for the height of the same width repeatedly
+    width = qMax(0, width);
+    if (m_heightCache.width != width || m_heightCache.height < 0 || m_heightCache.text != text())
+    {
+        m_heightCache.width = width;
+        m_heightCache.text = text();
+        m_heightCache.height = qMax(-1, computeHeightForWidth(width));
+    }
+
+    return m_heightCache.height;
+}
+
+int PDFComponentButton::computeHeightForWidth(int width) const
+{
+    Q_UNUSED(width);
+    return -1;
+}
+
+void PDFComponentButton::invalidateHeight()
+{
+    m_heightCache = HeightCache();
+    updateGeometry();
+    update();
+}
+
+bool PDFComponentButton::isNestedShown(const QWidget* widget) const
+{
+    return widget && widget->parentWidget() == this && !widget->isHidden();
+}
+
+void PDFComponentButton::showMoreButtonMenu(PDFComponentButton* button, PDFMoreButton* moreButton, QContextMenuEvent* event, const std::function<void()>& requestMenu)
+{
+    if (!event)
+    {
+        return;
+    }
+
+    QPointer<PDFComponentButton> guard(button);
+    QPointer<PDFMoreButton> menuButton(moreButton);
+    const bool isKeyboard = event->reason() == QContextMenuEvent::Keyboard;
+    const QPoint globalPosition = event->globalPos();
+
+    if (requestMenu)
+    {
+        requestMenu();
+    }
+
+    if (!guard)
+    {
+        // The slot has deleted the button: the request has been handled. An
+        // ignored event would go on to the parent of the deleted widget
+        // (QApplication::notify reads the receiver after the handler).
+        event->accept();
+        return;
+    }
+
+    if (!menuButton || menuButton->parentWidget() != guard.data())
+    {
+        event->ignore();
+        return;
+    }
+
+    const bool isShown = (isKeyboard && !menuButton->isHidden()) ? menuButton->showMenu() : menuButton->showMenu(globalPosition);
+    event->setAccepted(isShown);
+}
+
+QString PDFComponentButton::joinTexts(const QStringList& parts, const QString& pattern)
+{
+    QString result;
+    for (const QString& part : parts)
+    {
+        if (part.isEmpty())
+        {
+            continue;
+        }
+
+        result = result.isEmpty() ? part : pattern.arg(result, part);
+    }
+    return result;
+}
+
+QString PDFComponentButton::getListPattern()
+{
+    return tr("%1, %2");
 }
 
 void PDFComponentButton::addTrailingWidget(QWidget* widget)
@@ -998,7 +1110,7 @@ QSize PDFComponentButton::minimumSizeHint() const
 void PDFComponentButton::onThemeChanged()
 {
     // Colors and fonts are taken at the time of drawing, the size may change with the fonts
-    updateGeometry();
+    invalidateHeight();
     requestTrailingLayout();
 }
 
@@ -1010,6 +1122,13 @@ bool PDFComponentButton::event(QEvent* event)
         case QEvent::Leave:
         case QEvent::HoverEnter:
         case QEvent::HoverLeave:
+            // A label, which does not react to the pointer, has no Qt::WA_Hover
+            if (testAttribute(Qt::WA_Hover))
+            {
+                update();
+            }
+            break;
+
         case QEvent::FocusIn:
         case QEvent::FocusOut:
             update();
@@ -1087,9 +1206,20 @@ void PDFComponentButton::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
+    // PDFComponentPainter mirrors the component by the state, its alignments are
+    // absolute and it sets the direction of the state to the painter, so the
+    // direction of the painter of the widget does not matter (components.md 6.6)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     paintContent(&painter, rect(), getComponentState());
+
+    // The ring outside is drawn by the focus frame of PDFWidgetStyle. Under
+    // another style of the application nothing would draw it (and a card
+    // drops its border for it), so the button draws the ring inside itself.
+    if (m_focusRing == FocusRing::Outside && !PDFWidgetStyle::isActive() && PDFWidgetStyle::isFocusRingVisible(this))
+    {
+        PDFComponentPainter::paintFocusRingInside(&painter, QRectF(rect()), PDFStylePainter::Radii(m_focusRingRadius));
+    }
 }
 
 void PDFComponentButton::resizeEvent(QResizeEvent* event)
@@ -1111,7 +1241,7 @@ void PDFComponentButton::changeEvent(QEvent* event)
         case QEvent::FontChange:
         case QEvent::StyleChange:
         case QEvent::LanguageChange:
-            updateGeometry();
+            invalidateHeight();
             requestTrailingLayout();
             break;
 
@@ -1480,8 +1610,23 @@ void PDFStarButton::setStarSize(StarSize size)
     }
 }
 
+void PDFStarButton::setSubject(Subject subject)
+{
+    subject = subject == Subject::Tool ? Subject::Tool : Subject::File;
+    if (m_subject != subject)
+    {
+        m_subject = subject;
+        updateStateText();
+    }
+}
+
 QString PDFStarButton::getStateText() const
 {
+    if (m_subject == Subject::Tool)
+    {
+        return isChecked() ? tr("Unpin tool") : tr("Pin tool");
+    }
+
     return isChecked() ? tr("Unpin") : tr("Pin file");
 }
 
@@ -1525,6 +1670,22 @@ void PDFStarButton::changeEvent(QEvent* event)
 QString PDFStarButton::getDefaultAccessibleName() const
 {
     return getStateText();
+}
+
+QString PDFStarButton::getDefaultAccessibleDescription() const
+{
+    // The star pins the item of its row or card: the stars of a list of tools
+    // have the same name ("Pin tool"), the description says, which tool
+    if (const PDFComponentButton* item = qobject_cast<const PDFComponentButton*>(parentWidget()))
+    {
+        const QString itemName = item->getAccessibleText();
+        if (!itemName.isEmpty())
+        {
+            return itemName;
+        }
+    }
+
+    return BaseClass::getDefaultAccessibleDescription();
 }
 
 void PDFStarButton::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
@@ -1596,17 +1757,43 @@ bool PDFMoreButton::showMenu()
     // The press, which closes the menu over the button, does not open it again
     menu->setNoReplayFor(this);
 
-    // The button stays pressed, while its menu is shown
+    // The button stays pressed, while its menu is shown. A menu deleted while
+    // it is shown sends no aboutToHide (the destructor of QWidget hides it
+    // without QMenu::hideEvent), so its signal destroyed releases the button
+    // as well (nothing of the menu is called then).
+    disconnectMenu();
     setDown(true);
-    connect(menu, &QMenu::aboutToHide, this, [this]() { setDown(false); }, Qt::SingleShotConnection);
+    m_menuHiddenConnection = connect(menu, &QMenu::aboutToHide, this, &PDFMoreButton::onMenuClosed);
+    m_menuDestroyedConnection = connect(menu, &QObject::destroyed, this, &PDFMoreButton::onMenuClosed);
 
     QPointer<PDFMoreButton> guard(this);
     menu->popup(position);
     if (guard && (!m_menu || !m_menu->isVisible()))
     {
-        setDown(false);
+        onMenuClosed();
     }
     return true;
+}
+
+PDFMoreButton::~PDFMoreButton()
+{
+    // A menu, which is a child of the button, is deleted after the button is
+    // only a QWidget: its signal destroyed must not reach the button
+    disconnectMenu();
+}
+
+void PDFMoreButton::disconnectMenu()
+{
+    disconnect(m_menuHiddenConnection);
+    disconnect(m_menuDestroyedConnection);
+    m_menuHiddenConnection = QMetaObject::Connection();
+    m_menuDestroyedConnection = QMetaObject::Connection();
+}
+
+void PDFMoreButton::onMenuClosed()
+{
+    disconnectMenu();
+    setDown(false);
 }
 
 bool PDFMoreButton::showMenu(const QPoint& globalPosition)

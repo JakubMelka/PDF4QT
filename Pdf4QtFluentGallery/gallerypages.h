@@ -40,6 +40,8 @@ class QVBoxLayout;
 namespace pdffluentgallery
 {
 
+class GalleryBuilder;
+
 /// Sample of a control drawn by the style with a state composed by hand, so
 /// states, which a real widget shows only under the pointer or with the focus,
 /// can be seen and exported side by side as the design shows them.
@@ -155,6 +157,25 @@ private:
     static Page createFormsPage(QWidget* parent);
     static Page createDocumentPage(QWidget* parent);
     static Page createPanelsPage(QWidget* parent);
+
+    // Tiles, cards and pictures of the components (gallerycardpages.cpp), added
+    // to the pages of their chapters, and the sample of the Home screen
+    static void addShellHomeCards(GalleryBuilder& builder);
+    static void addCatalogCards(GalleryBuilder& builder);
+    static void addPanelsCards(GalleryBuilder& builder);
+    static QWidget* createHomeSample(QWidget* parent);
+
+    // Composite widgets of the components (gallerypanelpages.cpp), added to the
+    // pages of their chapters
+    static void addCatalogPanels(GalleryBuilder& builder);
+    static void addFormsPanels(GalleryBuilder& builder);
+    static void addPanelsPanels(GalleryBuilder& builder);
+
+    // Delegates of the views (gallerydelegatepages.cpp), added to the pages of their chapters
+    static void addShellHomeDelegates(GalleryBuilder& builder);
+    static void addFormsDelegates(GalleryBuilder& builder);
+    static void addDocumentDelegates(GalleryBuilder& builder);
+    static void addPanelsDelegates(GalleryBuilder& builder);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(GalleryPages::StateFlags)

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdftooltip.h"
+#include "pdfcomponentdelegates.h"
 #include "pdfstylepainter.h"
 #include "pdfwidgetstyleimpl.h"
 
@@ -67,6 +68,8 @@ public:
     static constexpr int DESCRIPTION_GAP = 2;
     static constexpr int DESCRIPTION_WIDTH = 260;
     static constexpr int DESCRIPTION_LINE = 15;
+
+    const QString& getTitle() const { return m_title; }
 
     void showTip(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget)
     {
@@ -340,7 +343,15 @@ bool PDFToolTip::showForWidget(QWidget* widget, const QPoint& globalPosition, co
         const QAbstractItemView* view = qobject_cast<const QAbstractItemView*>(widget->parentWidget());
         if (view && view->viewport() == widget)
         {
-            text = view->indexAt(position).data(Qt::ToolTipRole).toString();
+            // A delegate of the components shows the tooltips of its items and
+            // of the actions inside of them itself (PDFRowDelegate::helpEvent)
+            const QModelIndex index = view->indexAt(position);
+            if (index.isValid() && qobject_cast<const PDFRowDelegate*>(view->itemDelegateForIndex(index)))
+            {
+                return false;
+            }
+
+            text = index.data(Qt::ToolTipRole).toString();
         }
     }
 
@@ -384,6 +395,11 @@ void PDFToolTip::hideText()
 bool PDFToolTip::isVisible()
 {
     return PDFToolTipHelper::s_window && PDFToolTipHelper::s_window->isVisible();
+}
+
+QString PDFToolTip::getTitle()
+{
+    return isVisible() ? PDFToolTipHelper::s_window->getTitle() : QString();
 }
 
 QWidget* PDFToolTip::getWindow()

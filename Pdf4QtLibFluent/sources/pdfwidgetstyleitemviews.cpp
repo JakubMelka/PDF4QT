@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfcomponentdelegates.h"
+#include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 
 #include <QAbstractItemView>
@@ -108,7 +110,10 @@ private:
         int branchSlot = 0;                     ///< Width of the slot of the chevron, 0 = whole indentation step
         int branchPadding = ROW_PADDING;        ///< Padding between the branch area and the contents of the item
         qreal focusWidth = 1.0;                 ///< Width of the focus ring of the row (inside)
+        bool hasRowFocusRing = false;           ///< PDFTreeView draws the ring around the whole row (all cells and the branches)
+        bool keepsSelectionWithoutFocus = false;///< The selection stays bg/accent-subtle in a view without the focus (rows of the document panels)
         bool hasHover = true;                   ///< The row reacts to the pointer
+        bool hasPressed = false;                ///< The row has the state Pressed (State_Sunken set by PDFTreeView)
         bool keepsTextOnSelection = false;      ///< The selection changes only the fill of the row
         bool isOutline = false;                 ///< Texts of the outline: secondary, primary under the pointer
     };
@@ -205,7 +210,10 @@ PDFWidgetStyleItemViews::RowMetrics PDFWidgetStyleItemViews::getRowMetrics(const
         metrics.branchSlot = 16;
         metrics.branchPadding = 6 + 16 + 4 - OUTLINE_INDENTATION - metrics.branchShift;
         metrics.focusWidth = 2.0;
+        metrics.hasPressed = true;
         metrics.isOutline = true;
+        metrics.keepsSelectionWithoutFocus = true;
+        metrics.hasRowFocusRing = qobject_cast<const PDFTreeView*>(widget) != nullptr;
     }
     else if (rowStyle == QLatin1String("certificate"))
     {
@@ -213,7 +221,10 @@ PDFWidgetStyleItemViews::RowMetrics PDFWidgetStyleItemViews::getRowMetrics(const
         metrics.padding = 10;
         metrics.branchPadding = 10;
         metrics.focusWidth = 2.0;
+        metrics.hasPressed = true;
         metrics.keepsTextOnSelection = true;
+        metrics.keepsSelectionWithoutFocus = true;
+        metrics.hasRowFocusRing = qobject_cast<const PDFTreeView*>(widget) != nullptr;
     }
     else if (rowStyle == QLatin1String("library"))
     {
@@ -527,20 +538,36 @@ bool PDFWidgetStyleItemViews::drawPrimitive(QStyle::PrimitiveElement element, co
 
             const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
 
-            if (isBranchArea && isEnabled)
+            // The item of a delegate of the components draws its own shape of the
+            // row, the area of its branches stays unfilled (one shape of the
+            // selection of a nested item, review C7 of step 5)
+            bool isComponentItem = false;
+            if (isBranchArea)
+            {
+                const QTreeView* treeView = qobject_cast<const QTreeView*>(widget);
+                const QModelIndex index = treeView ? treeView->indexAt(option->rect.center()) : QModelIndex();
+                isComponentItem = index.isValid() && qobject_cast<const PDFRowDelegate*>(treeView->itemDelegateForIndex(index)) != nullptr;
+            }
+
+            if (isBranchArea && isEnabled && !isComponentItem)
             {
                 const qreal radius = metrics.radius;
                 const Radii radii = isRightToLeft ? Radii(0.0, radius, radius, 0.0) : Radii(radius, 0.0, 0.0, radius);
                 const bool isHovered = metrics.hasHover && option->state.testFlag(QStyle::State_MouseOver);
+                const bool isPressed = metrics.hasPressed && option->state.testFlag(QStyle::State_Sunken);
 
                 if (option->state.testFlag(QStyle::State_Selected))
                 {
-                    Color fill = isHovered ? Color::BgAccentSubtleHover : Color::BgAccentSubtle;
-                    if (!option->state.testFlag(QStyle::State_Active) || !isViewFocused(widget))
+                    Color fill = isPressed ? Color::BgAccentSubtlePressed : (isHovered ? Color::BgAccentSubtleHover : Color::BgAccentSubtle);
+                    if (!metrics.keepsSelectionWithoutFocus && (!option->state.testFlag(QStyle::State_Active) || !isViewFocused(widget)))
                     {
                         fill = Color::BgMuted;
                     }
                     PDFStylePainter::fill(painter, rect, radii, fill);
+                }
+                else if (isPressed)
+                {
+                    PDFStylePainter::fill(painter, rect, radii, Color::BgPressed);
                 }
                 else if (isHovered)
                 {
@@ -960,6 +987,7 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
     const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
     const bool isSelected = option->state.testFlag(QStyle::State_Selected) && !isComboPopup(widget);
     const bool isHovered = isEnabled && metrics.hasHover && option->state.testFlag(QStyle::State_MouseOver);
+    const bool isPressed = isEnabled && metrics.hasPressed && option->state.testFlag(QStyle::State_Sunken);
     const bool isPopup = isComboPopup(widget);
     const Radii radii = getItemRadii(option, widget);
 
@@ -984,13 +1012,20 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
 
     if (isSelected)
     {
-        Color fill = isHovered ? Color::BgAccentSubtleHover : Color::BgAccentSubtle;
-        if (!option->state.testFlag(QStyle::State_Active) || !isViewFocused(widget))
+        Color fill = isPressed ? Color::BgAccentSubtlePressed : (isHovered ? Color::BgAccentSubtleHover : Color::BgAccentSubtle);
+        if (!metrics.keepsSelectionWithoutFocus && (!option->state.testFlag(QStyle::State_Active) || !isViewFocused(widget)))
         {
-            // Selection of a view, which does not have the focus
+            // Selection of a view, which does not have the focus (the rows of the
+            // document panels keep it: the current page, outline item,
+            // certificate, as the delegates of the components, review F3 of step 5)
             fill = Color::BgMuted;
         }
         PDFStylePainter::fill(painter, shape, radii, fill);
+    }
+    else if (isPressed)
+    {
+        // Pressed row of the presets Outline and Certificate (PDFTreeView tracks the press)
+        PDFStylePainter::fill(painter, shape, radii, Color::BgPressed);
     }
     else if (isHovered || (isPopup && isEnabled && option->state.testFlag(QStyle::State_Selected)))
     {
@@ -1024,7 +1059,8 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
     {
         QStyleOptionViewItem checkOption = *option;
         checkOption.rect = layout.check;
-        checkOption.state &= ~(QStyle::State_On | QStyle::State_Off | QStyle::State_NoChange | QStyle::State_HasFocus | QStyle::State_Selected);
+        // The press of the row is not a press of its check box (review C20 of step 5)
+        checkOption.state &= ~(QStyle::State_On | QStyle::State_Off | QStyle::State_NoChange | QStyle::State_HasFocus | QStyle::State_Selected | QStyle::State_Sunken);
 
         switch (option->checkState)
         {
@@ -1127,8 +1163,10 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
         // The editor is frameless, the ring of the edited cell is drawn by the style
         PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(metrics.radius), Color::BorderFocus, 2.0);
     }
-    else if (!isPopup && option->state.testFlag(QStyle::State_HasFocus) && isEnabled && m_impl->isKeyboardModality())
+    else if (!isPopup && !metrics.hasRowFocusRing && option->state.testFlag(QStyle::State_HasFocus) && isEnabled && m_impl->isKeyboardModality())
     {
+        // (PDFTreeView draws the ring of the presets Outline and Certificate around
+        // the whole row, not around the current cell, review F2 of step 5)
         // Rows of the components have the ring of 2 px, rows of the other views of 1 px
         PDFStylePainter::strokeInside(painter, QRectF(layout.shape), Radii(metrics.radius), Color::BorderFocus, metrics.focusWidth);
     }

@@ -54,59 +54,6 @@ PDFRowButton::PDFRowButton(QWidget* parent) :
     setTrailingSpacing(PDFComponentPainter::getRowTrailingSpacing());
 }
 
-/// Helper of the rows of the components
-class PDFComponentRowsHelper
-{
-public:
-    PDFComponentRowsHelper() = delete;
-
-    /// Shows the menu of a row by its menu button: at the pointer for a mouse,
-    /// below the menu button for the context menu key (Qt gives the middle of
-    /// the row then). The signal is emitted first (its slot may fill the menu,
-    /// or delete the row or the button).
-    template<typename Row>
-    static void showContextMenu(Row* row, PDFMoreButton* button, QContextMenuEvent* event)
-    {
-        QPointer<Row> guard(row);
-        QPointer<PDFMoreButton> moreButton(button);
-        const bool isKeyboard = event->reason() == QContextMenuEvent::Keyboard;
-        const QPoint globalPosition = event->globalPos();
-
-        Q_EMIT row->menuRequested();
-
-        if (!guard || !moreButton || moreButton->parentWidget() != row)
-        {
-            event->ignore();
-            return;
-        }
-
-        const bool isShown = (isKeyboard && !moreButton->isHidden()) ? moreButton->showMenu() : moreButton->showMenu(globalPosition);
-        event->setAccepted(isShown);
-    }
-
-    /// Returns true, if the nested widget lies in the row and it is not hidden
-    static bool isNestedShown(const QWidget* widget, const QWidget* row)
-    {
-        return widget && widget->parentWidget() == row && !widget->isHidden();
-    }
-
-    /// Joins the parts, which are not empty, by the pattern ("%1, %2")
-    static QString join(const QStringList& parts, const QString& pattern)
-    {
-        QString result;
-        for (const QString& part : parts)
-        {
-            if (part.isEmpty())
-            {
-                continue;
-            }
-
-            result = result.isEmpty() ? part : pattern.arg(result, part);
-        }
-        return result;
-    }
-};
-
 PDFLinkRow::PDFLinkRow(QWidget* parent) :
     BaseClass(parent)
 {
@@ -252,7 +199,7 @@ void PDFRecentFileRow::setStatus(Status status)
 
 bool PDFRecentFileRow::isStarVisible() const
 {
-    return PDFComponentRowsHelper::isNestedShown(m_star.data(), this);
+    return isNestedShown(m_star.data());
 }
 
 void PDFRecentFileRow::setStarVisible(bool isVisible)
@@ -295,15 +242,15 @@ void PDFRecentFileRow::setMenu(QMenu* menu)
 void PDFRecentFileRow::updateDescription()
 {
     // A missing file says so before its folder, it has no time
-    const QString pattern = tr("%1, %2");
+    const QString pattern = getListPattern();
     QString description;
     if (m_row.status == Status::Missing)
     {
-        description = PDFComponentRowsHelper::join({ PDFComponentPainter::getMissingFileText(), m_row.path }, pattern);
+        description = joinTexts({ PDFComponentPainter::getMissingFileText(), m_row.path }, pattern);
     }
     else
     {
-        description = PDFComponentRowsHelper::join({ m_row.path, m_row.time }, pattern);
+        description = joinTexts({ m_row.path, m_row.time }, pattern);
     }
 
     replaceAccessibleDescription(m_description, description);
@@ -337,7 +284,7 @@ QSize PDFRecentFileRow::getContentMinimumSizeHint() const
 
 void PDFRecentFileRow::contextMenuEvent(QContextMenuEvent* event)
 {
-    PDFComponentRowsHelper::showContextMenu(this, m_moreButton.data(), event);
+    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
 }
 
 void PDFRecentFileRow::changeEvent(QEvent* event)
@@ -510,7 +457,7 @@ QSize PDFWorkspaceRow::getContentMinimumSizeHint() const
 
 void PDFWorkspaceRow::contextMenuEvent(QContextMenuEvent* event)
 {
-    PDFComponentRowsHelper::showContextMenu(this, m_moreButton.data(), event);
+    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
 }
 
 PDFToolRow::PDFToolRow(QWidget* parent) :
@@ -521,8 +468,9 @@ PDFToolRow::PDFToolRow(QWidget* parent) :
     setTrailingMargins(PDFComponentPainter::getToolRowTrailingMargins());
     setTrailingSpacing(PDFComponentPainter::getToolRowTrailingSpacing());
 
-    // The tag is shown only with a text
+    // The tag is shown only with a text; the star pins the tool
     m_tag->hide();
+    m_star->setSubject(PDFStarButton::Subject::Tool);
     addTrailingWidget(m_tag.data());
     addTrailingWidget(m_star.data());
 
@@ -608,7 +556,7 @@ PDFComponentPainter::ToolRow PDFToolRow::getContent() const
     row.paintNested = false;
 
     // A tag hidden or deleted by the application leaves its place to the texts
-    if (!PDFComponentRowsHelper::isNestedShown(m_tag.data(), this))
+    if (!isNestedShown(m_tag.data()))
     {
         row.tag.clear();
     }
@@ -621,7 +569,7 @@ void PDFToolRow::layoutTrailingWidgets()
 
     // The tag, which would reach the badge, is dropped as by the painter
     // (it keeps its visibility, the row may become wider again)
-    if (PDFComponentRowsHelper::isNestedShown(m_tag.data(), this) && !PDFComponentPainter::isToolRowTagShown(QRectF(rect()), getContent()))
+    if (isNestedShown(m_tag.data()) && !PDFComponentPainter::isToolRowTagShown(QRectF(rect()), getContent()))
     {
         m_tag->setGeometry(QRect());
     }
@@ -840,7 +788,7 @@ void PDFIssueRow::setStatusIconName(const QString& iconName)
 void PDFIssueRow::updateDescription()
 {
     // "Documents protected with AES-256 now open correctly, Sep 12, 2026"
-    const QString description = PDFComponentRowsHelper::join({ m_row.description, m_row.date }, tr("%1, %2"));
+    const QString description = joinTexts({ m_row.description, m_row.date }, getListPattern());
     replaceAccessibleDescription(m_description, description);
     m_description = description;
 }
@@ -886,8 +834,9 @@ QSize PDFIssueRow::getContentMinimumSizeHint() const
 PDFVersionRow::PDFVersionRow(QWidget* parent) :
     BaseClass(parent)
 {
-    // Without interaction: no focus, the height follows the width
+    // Without interaction: no focus, no hover, the height follows the width
     setFocusPolicy(Qt::NoFocus);
+    setAttribute(Qt::WA_Hover, false);
     QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     policy.setHeightForWidth(true);
     setSizePolicy(policy);
@@ -923,8 +872,7 @@ void PDFVersionRow::setSummary(const QString& summary)
     {
         m_row.summary = summary;
         updateDescription();
-        updateGeometry();
-        update();
+        invalidateHeight();
     }
 }
 
@@ -951,7 +899,7 @@ void PDFVersionRow::updateDescription()
 {
     // "Current version. Sep 14, 2026. One unified app, faster loading."
     const QString currentText = m_row.current ? tr("Current version") : QString();
-    const QString description = PDFComponentRowsHelper::join({ currentText, m_row.date, m_row.summary }, tr("%1. %2"));
+    const QString description = joinTexts({ currentText, m_row.date, m_row.summary }, tr("%1. %2"));
     replaceAccessibleDescription(m_description, description);
     m_description = description;
 }
@@ -966,21 +914,10 @@ void PDFVersionRow::changeEvent(QEvent* event)
     }
 }
 
-int PDFVersionRow::heightForWidth(int width) const
+int PDFVersionRow::computeHeightForWidth(int width) const
 {
-    // A layout asks for the height of the same width repeatedly; the summary
-    // and the font (a change of the theme) invalidate the cached height
-    width = qMax(0, width);
-    const QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
-    if (m_heightCache.width != width || m_heightCache.summary != m_row.summary || m_heightCache.font != font)
-    {
-        m_heightCache.width = width;
-        m_heightCache.summary = m_row.summary;
-        m_heightCache.font = font;
-        m_heightCache.height = PDFComponentPainter::getVersionRowHeight(getContent(), width);
-    }
-
-    return m_heightCache.height;
+    // Cached by PDFComponentButton (the summary invalidates it, the version is the text)
+    return PDFComponentPainter::getVersionRowHeight(getContent(), width);
 }
 
 PDFComponentPainter::VersionRow PDFVersionRow::getContent() const
@@ -1526,6 +1463,15 @@ bool PDFPropertyRow::eventFilter(QObject* watched, QEvent* event)
 {
     const bool isEditingWidget = watched && (watched == m_editor.data() || watched == m_confirmButton.data() || watched == m_cancelButton.data());
     if (!isEditingWidget || !m_isEditing)
+    {
+        return BaseClass::eventFilter(watched, event);
+    }
+
+    // A widget being deleted (the destructor of QWidget takes its focus away,
+    // while the pointers to it are still set) is only QWidget now: nothing of it
+    // is called, the editing ends by the event ChildRemoved after its deletion
+    if ((watched == m_editor.data() && !qobject_cast<QLineEdit*>(watched)) ||
+        (watched != m_editor.data() && !qobject_cast<PDFIconButton*>(watched)))
     {
         return BaseClass::eventFilter(watched, event);
     }

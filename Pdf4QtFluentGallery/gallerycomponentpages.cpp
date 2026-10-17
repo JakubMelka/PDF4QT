@@ -395,6 +395,12 @@ GalleryPages::Page GalleryPages::createShellHomePage(QWidget* parent)
     });
     Helper::liveStates(builder, [page]() { return new pdf::PDFWorkspaceRow(QStringLiteral("Thesis review"), QStringLiteral("4 documents · Opened Yesterday 16:15"), page); });
 
+    // Quick action tile, Folder card, Pinned card and the sample of the Home screen
+    addShellHomeCards(builder);
+
+    // Recent item row
+    addShellHomeDelegates(builder);
+
     return builder.finish();
 }
 
@@ -604,8 +610,11 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
     rightToLeftVersion->setFixedWidth(324);
     Helper::liveOnCard(builder, QStringLiteral("Live right-to-left"), rightToLeftVersion);
 
-    builder.block(QStringLiteral("Cards and composite widgets of this chapter"));
-    builder.note(QStringLiteral("Tool category header, Tool choice, Continue with, Resource card, Highlight card and Video card follow in the next steps of the implementation (components.md, 6.3)."));
+    // Tool category header, Tool choice, Resource card, Highlight card, Video card, Logo
+    addCatalogCards(builder);
+
+    // Continue with
+    addCatalogPanels(builder);
 
     return builder.finish();
 }
@@ -613,16 +622,27 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
 GalleryPages::Page GalleryPages::createFormsPage(QWidget* parent)
 {
     GalleryBuilder builder(parent, QStringLiteral("21-forms"), QStringLiteral("Form controls and Settings"), QStringLiteral("settings"));
-    builder.block(QStringLiteral("Components of this chapter"));
-    builder.note(QStringLiteral("Strength meter, Shortcut row, Color button and Color palette popover follow in the next steps of the implementation (components.md, 6.3). The form controls drawn by the style are on the pages of the widgets."));
+
+    // Strength meter, Color button, Color palette popover
+    addFormsPanels(builder);
+
+    // Shortcut row
+    addFormsDelegates(builder);
+
+    builder.block(QStringLiteral("Other components of this chapter"));
+    builder.note(QStringLiteral("The form controls drawn by the style are on the pages of the widgets."));
     return builder.finish();
 }
 
 GalleryPages::Page GalleryPages::createDocumentPage(QWidget* parent)
 {
     GalleryBuilder builder(parent, QStringLiteral("22-document"), QStringLiteral("Document window"), QStringLiteral("file"));
-    builder.block(QStringLiteral("Components of this chapter"));
-    builder.note(QStringLiteral("Thumbnail item, Bookmark row, Note row, Attachment row and Search result row (delegates of the views) follow in the next steps of the implementation (components.md, 6.3). Stamp chip and Toolbar field are on the page Components."));
+
+    // Thumbnail item, Bookmark row, Note row, Attachment row, Search result row
+    addDocumentDelegates(builder);
+
+    builder.block(QStringLiteral("Other components of this chapter"));
+    builder.note(QStringLiteral("Stamp chip and Toolbar field are on the page Components."));
     return builder.finish();
 }
 
@@ -773,8 +793,14 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     Helper::liveOnCard(builder, QStringLiteral("Live right-to-left"), rightToLeftProperty);
     rightToLeftProperty->setAttribute(Qt::WA_UnderMouse, true);
 
-    builder.block(QStringLiteral("Other components of this chapter"));
-    builder.note(QStringLiteral("Signature card, Font row, Locked document, Page selection, Reading theme card, Color mode card and the previews follow in the next steps of the implementation (components.md, 6.3)."));
+    // Reading theme card, Color mode card, the previews and Locked document
+    addPanelsCards(builder);
+
+    // Signature card, Page selection
+    addPanelsPanels(builder);
+
+    // Font row
+    addPanelsDelegates(builder);
 
     return builder.finish();
 }
