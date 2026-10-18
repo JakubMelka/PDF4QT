@@ -260,7 +260,7 @@ void WidgetStyleTest::cleanup()
 
 void WidgetStyleTest::themeTokens()
 {
-    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 140);
+    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 146);
 
     // The name of each enumeration value is derived from the name of the variable of the design
     const QMetaEnum metaEnum = QMetaEnum::fromType<pdf::PDFThemeColors::Color>();
@@ -334,8 +334,8 @@ void WidgetStyleTest::themeTokensChecksum()
         hash *= 0x01000193u;
     }
 
-    QCOMPARE(text.size(), qsizetype(4638));
-    QCOMPARE(hash, quint32(0x17c678beu));
+    QCOMPARE(text.size(), qsizetype(4843));
+    QCOMPARE(hash, quint32(0xf09f395du));
 }
 
 void WidgetStyleTest::themeManager()

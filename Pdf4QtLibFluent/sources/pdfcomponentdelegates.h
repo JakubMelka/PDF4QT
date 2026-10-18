@@ -635,7 +635,7 @@ public:
     /// Returns true, if a key has been recorded
     bool hasKeySequence() const { return !m_sequence.isEmpty(); }
 
-    /// Returns the move of the focus requested by the key, which has cancelled the
+    /// Returns the move of the focus requested by the key, which has canceled the
     /// recording: 1 Tab (next), -1 Backtab (previous), 0 none
     int getFocusMove() const { return m_focusMove; }
 
@@ -676,8 +676,8 @@ Q_SIGNALS:
     /// A key has been recorded
     void recorded(const QKeySequence& sequence);
 
-    /// The recording has been cancelled (Escape, Tab, the loss of the focus)
-    void cancelled();
+    /// The recording has been canceled (Escape, Tab, the loss of the focus)
+    void canceled();
 
 protected:
     virtual bool event(QEvent* event) override;
@@ -786,9 +786,9 @@ private:
     };
 
     void onRecorderRecorded(const QKeySequence& sequence);
-    void onRecorderCancelled();
+    void onRecorderCanceled();
     void onRecorded(PDFShortcutRecorder* recorder, const QKeySequence& sequence);
-    void onCancelled(PDFShortcutRecorder* recorder);
+    void onCanceled(PDFShortcutRecorder* recorder);
     bool startRecording(QAbstractItemView* view, const QModelIndex& index);
     const Recording* findRecording(const PDFShortcutRecorder* recorder) const;
     void purgeRecordings() const;

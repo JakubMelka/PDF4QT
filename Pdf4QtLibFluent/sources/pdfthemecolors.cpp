@@ -183,7 +183,13 @@ public:
         Token{ "icon/disabled", "#94a3b8", "#525e72" },
         Token{ "search/match", "#a5f3fc", "#a5f3fc" },
         Token{ "search/match-current", "#22d3ee", "#22d3ee" },
-        Token{ "search/match-border", "#0891b2", "#0891b2" }
+        Token{ "search/match-border", "#0891b2", "#0891b2" },
+        Token{ "bg/danger", "#c42b1c", "#c42b1c" },
+        Token{ "bg/danger-pressed", "#b22a1e", "#b22a1e" },
+        Token{ "window/macos-close", "#ff5f57", "#ff5f57" },
+        Token{ "window/macos-minimize", "#febc2e", "#febc2e" },
+        Token{ "window/macos-zoom", "#28c840", "#28c840" },
+        Token{ "window/macos-inactive", "#dddddd", "#4d4d4d" }
     };
 };
 

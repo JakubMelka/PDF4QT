@@ -1422,7 +1422,7 @@ private:
         const QAbstractButton* button = qobject_cast<const QAbstractButton*>(widget);
         const QString parentClass = widget->parentWidget() ? QString::fromLatin1(widget->parentWidget()->metaObject()->className()) : QString();
 
-        // The context, which changes the behaviour: the nearest ancestor of
+        // The context, which changes the behavior: the nearest ancestor of
         // a class of the library (a part of a composite widget), the delegate
         // of a view and the number of the connections of the signals (a widget,
         // to which the application or a composite widget has connected)

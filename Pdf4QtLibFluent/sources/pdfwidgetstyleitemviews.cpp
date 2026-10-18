@@ -100,7 +100,7 @@ private:
 
     static int getTreeColumn(const QTreeView* treeView);
     static TreeArea getTreeArea(const QRect& rect, const QWidget* widget);
-    /// Geometry and behaviour of the rows of a view (property rowStyle)
+    /// Geometry and behavior of the rows of a view (property rowStyle)
     struct RowMetrics
     {
         int height = ROW_HEIGHT;

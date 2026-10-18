@@ -156,7 +156,7 @@ private:
 
 /// Common base of the buttons of the components: rows (PDFRowButton), tiles and
 /// cards (PDFCardButton) and the small elements (Star button, Color swatch, Tag,
-/// Text link). It holds the behaviour, which all of them share:
+/// Text link). It holds the behavior, which all of them share:
 /// - the state for PDFComponentPainter (hover, press, visible focus ring,
 ///   checked, enabled, layout direction), the selected item of a single
 ///   selection group, which does not react to the pointer, a disabled button
@@ -195,7 +195,7 @@ public:
     };
     Q_ENUM(FocusRing)
 
-    /// Checkable behaviour of the button. The exclusivity of a group comes only
+    /// Checkable behavior of the button. The exclusivity of a group comes only
     /// from an exclusive QButtonGroup, into which the application or the composite
     /// widget puts the buttons; the button never groups itself with other buttons
     /// (Qt's auto-exclusivity would take every auto-exclusive button anywhere
@@ -229,9 +229,9 @@ public:
     qreal getFocusRingRadius() const { return m_focusRingRadius; }
     void setFocusRingRadius(qreal radius);
 
-    /// Checkable behaviour, see \p SelectionBehavior. The exclusive behaviours
+    /// Checkable behavior, see \p SelectionBehavior. The exclusive behaviors
     /// make the button checkable; put the buttons of a choice into an exclusive
-    /// QButtonGroup (the arrows then move the selection). Changing the behaviour
+    /// QButtonGroup (the arrows then move the selection). Changing the behavior
     /// to None unchecks the button (with the signal toggled), also when it is the
     /// checked button of an exclusive group.
     SelectionBehavior getSelectionBehavior() const { return m_selectionBehavior; }

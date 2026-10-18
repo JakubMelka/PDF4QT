@@ -655,7 +655,7 @@ private:
 };
 
 /// Item of a navigation (components Nav item and Settings nav item). The item
-/// is a row with the selection behaviour ExclusiveStatic: the checked item is
+/// is a row with the selection behavior ExclusiveStatic: the checked item is
 /// the current page, it does not react to the pointer and a click on it does
 /// nothing. The items of a navigation are in the exclusive group of PDFNavList.
 /// The focus ring of 2 px lies inside of the item.

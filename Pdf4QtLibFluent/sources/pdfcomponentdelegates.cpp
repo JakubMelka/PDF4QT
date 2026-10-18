@@ -2360,7 +2360,7 @@ void PDFShortcutRecorder::cancel()
     }
 
     m_isFinished = true;
-    Q_EMIT cancelled();
+    Q_EMIT canceled();
 }
 
 PDFShortcutDelegate::PDFShortcutDelegate(QObject* parent) :
@@ -2634,7 +2634,7 @@ QWidget* PDFShortcutDelegate::createEditor(QWidget* parent, const QStyleOptionVi
     PDFShortcutRecorder* recorder = new PDFShortcutRecorder(parent);
     PDFShortcutDelegate* self = const_cast<PDFShortcutDelegate*>(this);
     connect(recorder, &PDFShortcutRecorder::recorded, self, &PDFShortcutDelegate::onRecorderRecorded);
-    connect(recorder, &PDFShortcutRecorder::cancelled, self, &PDFShortcutDelegate::onRecorderCancelled);
+    connect(recorder, &PDFShortcutRecorder::canceled, self, &PDFShortcutDelegate::onRecorderCanceled);
 
     // Each recorder remembers its view and its item (one delegate for more views, review C3)
     purgeRecordings();
@@ -2731,9 +2731,9 @@ void PDFShortcutDelegate::onRecorderRecorded(const QKeySequence& sequence)
     onRecorded(qobject_cast<PDFShortcutRecorder*>(sender()), recordedSequence);
 }
 
-void PDFShortcutDelegate::onRecorderCancelled()
+void PDFShortcutDelegate::onRecorderCanceled()
 {
-    onCancelled(qobject_cast<PDFShortcutRecorder*>(sender()));
+    onCanceled(qobject_cast<PDFShortcutRecorder*>(sender()));
 }
 
 void PDFShortcutDelegate::onRecorded(PDFShortcutRecorder* recorder, const QKeySequence& sequence)
@@ -2776,7 +2776,7 @@ void PDFShortcutDelegate::onRecorded(PDFShortcutRecorder* recorder, const QKeySe
     }
 }
 
-void PDFShortcutDelegate::onCancelled(PDFShortcutRecorder* recorder)
+void PDFShortcutDelegate::onCanceled(PDFShortcutRecorder* recorder)
 {
     // The view, which closes the editor itself, has removed it already
     const Recording* recording = findRecording(recorder);

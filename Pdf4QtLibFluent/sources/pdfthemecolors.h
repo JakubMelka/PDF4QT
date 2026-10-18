@@ -189,6 +189,12 @@ public:
         SearchMatch,
         SearchMatchCurrent,
         SearchMatchBorder,
+        BgDanger,
+        BgDangerPressed,
+        WindowMacosClose,
+        WindowMacosMinimize,
+        WindowMacosZoom,
+        WindowMacosInactive,
         ColorCount
     };
     Q_ENUM(Color)

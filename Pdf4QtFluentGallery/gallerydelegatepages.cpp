@@ -712,7 +712,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     Helper::variants(builder, QString(), resultSize, Helper::selectionVariants(searchNodes),
                      [result](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintSearchResultRow(&painter, rect, result, state); }, 4);
     Painter::SearchResultRow longResult = result;
-    longResult.snippet = QStringLiteral("…regional revenue grew by 18 % compared with the previous year, the revenue of the services by 24 %, the revenue of the licences stayed…");
+    longResult.snippet = QStringLiteral("…regional revenue grew by 18 % compared with the previous year, the revenue of the services by 24 %, the revenue of the licenses stayed…");
     longResult.matches = { Painter::TextRange{ 10, 7 }, Painter::TextRange{ 66, 7 }, Painter::TextRange{ 103, 7 } };
     Helper::specimen(builder, QStringLiteral("Long snippet (elided on the second line)"), Painter::getSearchResultRowSize(longResult), GalleryPages::Default,
                      [longResult](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintSearchResultRow(&painter, rect, longResult, state); });

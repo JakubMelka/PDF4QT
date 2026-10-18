@@ -2429,7 +2429,7 @@ void FluentComponentsTest::navItem()
 {
     using Behavior = pdf::PDFComponentButton::SelectionBehavior;
 
-    // The item of a navigation is a row with the static exclusive behaviour (C17)
+    // The item of a navigation is a row with the static exclusive behavior (C17)
     pdf::PDFNavList list;
     list.addItem(QStringLiteral("Home"), QStringLiteral("home"));
     list.addItem(QStringLiteral("Open"), QStringLiteral("folder"));
@@ -3628,7 +3628,7 @@ void FluentComponentsTest::propertyRowEditing()
     QCOMPARE(row->getValue(), QStringLiteral("By button"));
     QCOMPARE(edited.count(), 2);
     QVERIFY(row->startEditing());
-    row->getEditor()->setText(QStringLiteral("Cancelled"));
+    row->getEditor()->setText(QStringLiteral("Canceled"));
     QTest::mouseClick(row->getCancelButton(), Qt::LeftButton);
     QCOMPARE(row->getValue(), QStringLiteral("By button"));
     QCOMPARE(edited.count(), 2);
@@ -4107,7 +4107,7 @@ void FluentComponentsTest::propertyRowKeyboard()
 
     // Space on the cancel button cancels, the focus stays in the row
     QVERIFY(row->startEditing());
-    editor->setText(QStringLiteral("Cancelled"));
+    editor->setText(QStringLiteral("Canceled"));
     row->getCancelButton()->setFocus(Qt::TabFocusReason);
     QTRY_VERIFY(row->getCancelButton()->hasFocus());
     QTest::keyClick(row->getCancelButton(), Qt::Key_Space);
@@ -4245,7 +4245,7 @@ void FluentComponentsTest::propertyRowFocusDeletion()
 
     // The focused field deleted by the application while editing: the destructor
     // of QWidget takes the focus away from the field, which is then only a
-    // QWidget; the row does not confirm from it, the editing is cancelled
+    // QWidget; the row does not confirm from it, the editing is canceled
     pdf::PDFPropertyRow* focusedRow = new pdf::PDFPropertyRow(QStringLiteral("Title"), QStringLiteral("Report"), pdf::PDFPropertyRow::Editability::Editable, &window);
     layout->addWidget(focusedRow);
     focusedRow->show();
@@ -9986,7 +9986,7 @@ void FluentComponentsTest::shortcutRecording()
     // The recorder alone: lone modifiers are not keys, the sequence of the key
     pdf::PDFShortcutRecorder standalone;
     QSignalSpy recorded(&standalone, &pdf::PDFShortcutRecorder::recorded);
-    QSignalSpy cancelled(&standalone, &pdf::PDFShortcutRecorder::cancelled);
+    QSignalSpy canceled(&standalone, &pdf::PDFShortcutRecorder::canceled);
     QVERIFY(!pdf::PDFShortcutRecorder::isRecordableKey(Qt::Key_Shift));
     QVERIFY(!pdf::PDFShortcutRecorder::isRecordableKey(0));
     QVERIFY(pdf::PDFShortcutRecorder::isRecordableKey(Qt::Key_F5));
@@ -9994,7 +9994,7 @@ void FluentComponentsTest::shortcutRecording()
     QCOMPARE(recorded.count(), 1);
     QCOMPARE(standalone.getKeySequence(), QKeySequence(Qt::ShiftModifier | Qt::Key_F5));
     QTest::keyClick(&standalone, Qt::Key_Escape);
-    QCOMPARE(cancelled.count(), 0);
+    QCOMPARE(canceled.count(), 0);
     QCOMPARE(recorded.count(), 1);
     view->setItemDelegate(nullptr);
 }

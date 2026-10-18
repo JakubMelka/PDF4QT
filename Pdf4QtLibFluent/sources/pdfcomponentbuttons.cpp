@@ -332,7 +332,7 @@ void PDFStampChip::paintEvent(QPaintEvent* event)
 
 #if QT_CONFIG(accessibility)
 /// Accessible interface of the buttons of the components. The role follows the
-/// checkable behaviour of the button, the name falls back to the default name
+/// checkable behavior of the button, the name falls back to the default name
 /// of the button (the title, the name of a color, the state of a star).
 class PDFComponentButtonAccessible : public QAccessibleWidget
 {
