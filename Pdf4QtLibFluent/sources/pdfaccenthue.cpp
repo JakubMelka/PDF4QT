@@ -32,8 +32,23 @@ PDFThemeColors::Color PDFAccentHueColors::getColor(PDFAccentHue hue, Role role)
     constexpr int ROLE_COUNT = 6;
     static_assert(PDFThemeColors::AccentVioletBg - PDFThemeColors::AccentBlueBg == ROLE_COUNT);
     static_assert(PDFThemeColors::AccentNeutralIcon - PDFThemeColors::AccentBlueBg == 7 * ROLE_COUNT - 1);
+    static_assert(static_cast<int>(Role::Icon) == ROLE_COUNT - 1);
 
-    const int index = PDFThemeColors::AccentBlueBg + static_cast<int>(hue) * ROLE_COUNT + static_cast<int>(role);
+    // An invalid hue is Neutral, an invalid role the background: their index
+    // would be another token of the theme (a color of another meaning)
+    int hueIndex = static_cast<int>(hue);
+    if (hueIndex < static_cast<int>(PDFAccentHue::Blue) || hueIndex > static_cast<int>(PDFAccentHue::Neutral))
+    {
+        hueIndex = static_cast<int>(PDFAccentHue::Neutral);
+    }
+
+    int roleIndex = static_cast<int>(role);
+    if (roleIndex < 0 || roleIndex >= ROLE_COUNT)
+    {
+        roleIndex = static_cast<int>(Role::Background);
+    }
+
+    const int index = PDFThemeColors::AccentBlueBg + hueIndex * ROLE_COUNT + roleIndex;
     return static_cast<PDFThemeColors::Color>(index);
 }
 

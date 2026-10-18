@@ -30,6 +30,7 @@
 #include <QPaintEngine>
 #include <QPainter>
 #include <QPixmapCache>
+#include <QSet>
 #include <QSvgRenderer>
 #include <QtMath>
 
@@ -51,15 +52,73 @@ public:
     /// Width of the strokes of the icons in the units of the icon (square of 24)
     static constexpr qreal STROKE_WIDTH = 2.0;
 
+    /// Largest width or height of a pixmap of an icon in device pixels (a larger,
+    /// a non-finite or a non-positive size gives no pixmap)
+    static constexpr qreal MAX_PIXEL_EXTENT = 16384.0;
+
+    /// Number of names of missing icons and of renderers of other widths of the
+    /// strokes kept in the caches (each of the two caches is cleared, when it is full)
+    static constexpr qsizetype MISSING_CACHE_SIZE = 256;
+    static constexpr qsizetype STROKE_CACHE_SIZE = 256;
+
+    /// Data of the existing icons (a finite set of the resources)
+    static QHash<QString, QByteArray>& getDataCache()
+    {
+        static QHash<QString, QByteArray> cache;
+        return cache;
+    }
+
+    /// Names asked for, which are not icons (any text of an application)
+    static QSet<QString>& getMissingCache()
+    {
+        static QSet<QString> cache;
+        return cache;
+    }
+
+    /// Renderers of the existing icons with the strokes of the design and of their fills
+    static QHash<QString, std::shared_ptr<QSvgRenderer>>& getDesignRenderers()
+    {
+        static QHash<QString, std::shared_ptr<QSvgRenderer>> renderers;
+        return renderers;
+    }
+
+    /// Renderers of the existing icons with another width of the strokes (one for
+    /// each size, in which an icon is drawn)
+    static QHash<QString, std::shared_ptr<QSvgRenderer>>& getStrokeRenderers()
+    {
+        static QHash<QString, std::shared_ptr<QSvgRenderer>> renderers;
+        return renderers;
+    }
+
+    /// Returns the size of the pixmap of the icon in device pixels, or an empty
+    /// size, if the size is not positive, not finite or larger than MAX_PIXEL_EXTENT
+    /// (the size is bounded before it is converted to integers)
+    static QSize getPixelSize(const QSizeF& size, qreal devicePixelRatio)
+    {
+        const qreal width = size.width() * devicePixelRatio - 0.001;
+        const qreal height = size.height() * devicePixelRatio - 0.001;
+        if (!(size.width() > 0.0 && size.height() > 0.0 && devicePixelRatio > 0.0 && width <= MAX_PIXEL_EXTENT && height <= MAX_PIXEL_EXTENT))
+        {
+            return QSize();
+        }
+
+        return QSize(qMax(1, qCeil(width)), qMax(1, qCeil(height)));
+    }
+
     /// Returns the data of the icon, empty data, if the icon does not exist
     static QByteArray getData(const QString& name)
     {
-        static QHash<QString, QByteArray> cache;
-
+        QHash<QString, QByteArray>& cache = getDataCache();
         auto it = cache.constFind(name);
         if (it != cache.cend())
         {
             return it.value();
+        }
+
+        QSet<QString>& missing = getMissingCache();
+        if (missing.contains(name))
+        {
+            return QByteArray();
         }
 
         QByteArray data;
@@ -69,19 +128,32 @@ public:
             data = file.readAll();
         }
 
-        cache.insert(name, data);
+        if (data.isEmpty())
+        {
+            // The names of the missing icons are not kept without a limit
+            if (missing.size() >= MISSING_CACHE_SIZE)
+            {
+                missing.clear();
+            }
+            missing.insert(name);
+        }
+        else
+        {
+            cache.insert(name, data);
+        }
         return data;
     }
 
-    /// Returns the renderer of the icon, or nullptr, if the icon does not exist
+    /// Returns the renderer of the icon, or nullptr, if the icon does not exist.
+    /// The caller holds the returned renderer (a renderer of another width of
+    /// the strokes may be removed from its bounded cache by the next call).
     /// \param name Name of the icon
     /// \param strokeWidth Width of the strokes in the units of the icon
     /// \param isFill The renderer draws the area enclosed by the strokes instead of the strokes
-    static QSvgRenderer* getRenderer(const QString& name, qreal strokeWidth = STROKE_WIDTH, bool isFill = false)
+    static std::shared_ptr<QSvgRenderer> getRenderer(const QString& name, qreal strokeWidth = STROKE_WIDTH, bool isFill = false)
     {
-        static QHash<QString, std::shared_ptr<QSvgRenderer>> renderers;
-
-        const int strokeKey = qBound(25, qRound(strokeWidth * 100.0), 800);
+        // The width is bounded before it is converted to an integer (NaN gives the lower bound)
+        const int strokeKey = qRound(qBound(25.0, strokeWidth * 100.0, 800.0));
         const bool isDesignStroke = strokeKey == qRound(STROKE_WIDTH * 100.0) || isFill;
         QString key = isDesignStroke ? name : QStringLiteral("%1/%2").arg(name).arg(strokeKey);
         if (isFill)
@@ -89,10 +161,11 @@ public:
             key += QStringLiteral("/fill");
         }
 
+        QHash<QString, std::shared_ptr<QSvgRenderer>>& renderers = isDesignStroke ? getDesignRenderers() : getStrokeRenderers();
         auto it = renderers.constFind(key);
         if (it != renderers.cend())
         {
-            return it.value().get();
+            return it.value();
         }
 
         std::shared_ptr<QSvgRenderer> renderer;
@@ -124,8 +197,24 @@ public:
             }
         }
 
-        renderers.insert(key, renderer);
-        return renderer.get();
+        // Only the renderers of the existing icons are kept (the names of the
+        // missing ones are kept by getData), the other widths of the strokes
+        // in a bounded cache
+        if (renderer)
+        {
+            if (!isDesignStroke && renderers.size() >= STROKE_CACHE_SIZE)
+            {
+                renderers.clear();
+            }
+            renderers.insert(key, renderer);
+        }
+        return renderer;
+    }
+
+    /// Returns the number of the renderers kept in the caches
+    static qsizetype getRendererCount()
+    {
+        return getDesignRenderers().size() + getStrokeRenderers().size();
     }
 };
 
@@ -277,6 +366,11 @@ bool PDFThemeIcons::hasIcon(const QString& name)
     return !name.isEmpty() && PDFThemeIconsHelper::getRenderer(name) != nullptr;
 }
 
+qsizetype PDFThemeIcons::getCachedRendererCount()
+{
+    return PDFThemeIconsHelper::getRendererCount();
+}
+
 QString PDFThemeIcons::getIconName(const QIcon& icon)
 {
     if (icon.isNull())
@@ -402,15 +496,13 @@ void PDFThemeIcons::paint(QPainter* painter, const QRectF& rect, const QString& 
 
 QPixmap PDFThemeIcons::getPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color)
 {
-    QSvgRenderer* renderer = PDFThemeIconsHelper::getRenderer(name);
+    std::shared_ptr<QSvgRenderer> renderer = PDFThemeIconsHelper::getRenderer(name);
+    const QSize pixelSize = PDFThemeIconsHelper::getPixelSize(size, devicePixelRatio);
 
-    if (!renderer || size.isEmpty() || devicePixelRatio <= 0.0)
+    if (!renderer || pixelSize.isEmpty())
     {
         return QPixmap();
     }
-
-    const QSize pixelSize(qMax(1, qCeil(size.width() * devicePixelRatio - 0.001)),
-                          qMax(1, qCeil(size.height() * devicePixelRatio - 0.001)));
 
     // An instance of an icon of the design keeps the strokes of 2 px, when it is
     // resized, so the icon is not scaled as a picture: the stroke is made wider
@@ -419,9 +511,9 @@ QPixmap PDFThemeIcons::getPixmap(const QString& name, const QSizeF& size, qreal 
     if (!iconSize.isEmpty())
     {
         const qreal scale = qMin(size.width() / iconSize.width(), size.height() / iconSize.height());
-        if (QSvgRenderer* scaledRenderer = PDFThemeIconsHelper::getRenderer(name, PDFThemeIconsHelper::STROKE_WIDTH / scale))
+        if (std::shared_ptr<QSvgRenderer> scaledRenderer = PDFThemeIconsHelper::getRenderer(name, PDFThemeIconsHelper::STROKE_WIDTH / scale))
         {
-            renderer = scaledRenderer;
+            renderer = std::move(scaledRenderer);
         }
     }
 
@@ -482,15 +574,13 @@ void PDFThemeIcons::paintFilled(QPainter* painter, const QRectF& rect, const QSt
 
 QPixmap PDFThemeIcons::getFillPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color)
 {
-    QSvgRenderer* renderer = PDFThemeIconsHelper::getRenderer(name, PDFThemeIconsHelper::STROKE_WIDTH, true);
+    std::shared_ptr<QSvgRenderer> renderer = PDFThemeIconsHelper::getRenderer(name, PDFThemeIconsHelper::STROKE_WIDTH, true);
+    const QSize pixelSize = PDFThemeIconsHelper::getPixelSize(size, devicePixelRatio);
 
-    if (!renderer || size.isEmpty() || devicePixelRatio <= 0.0)
+    if (!renderer || pixelSize.isEmpty())
     {
         return QPixmap();
     }
-
-    const QSize pixelSize(qMax(1, qCeil(size.width() * devicePixelRatio - 0.001)),
-                          qMax(1, qCeil(size.height() * devicePixelRatio - 0.001)));
     const QString key = QStringLiteral("pdf4qtfluent/icon-fill/%1/%2x%3/%4").arg(name).arg(pixelSize.width()).arg(pixelSize.height()).arg(color.rgba(), 8, 16, QLatin1Char('0'));
 
     QPixmap pixmap;

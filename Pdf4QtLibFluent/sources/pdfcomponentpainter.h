@@ -66,6 +66,13 @@ namespace pdf
 ///   with the ring outside, see \p State) lies 2 px around the rectangle,
 /// - the drop shadow of a page thumbnail lies around its frame
 ///   (\p getPageThumbnailShadowMargins).
+///
+/// The functions are to be called only from the thread of the user interface
+/// (a paint event, a delegate, a picture of the thread of the application):
+/// they read the active theme of PDFThemeManager, draw the icons and shadows
+/// of PDFStylePainter (QPixmapCache, shared SVG renderers) and keep their own
+/// caches without a lock. A picture of a worker thread is to be drawn by the
+/// application itself and passed to a component as a pixmap.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFComponentPainter
 {
 public:
@@ -203,11 +210,12 @@ public:
 
     /// Draws the whole picture into the target rectangle (stretched to it). A
     /// picture larger than the target is drawn from a copy scaled smoothly to
-    /// the pixels of the device, which is kept in QPixmapCache (in the thread
-    /// of the application), so a repaint of a large picture of the application
-    /// (a page rendered at 150 dpi, the picture of a video) is not scaled again
-    /// and a strong downscale does not alias. Nothing is drawn for a null
-    /// painter, a null picture or an empty or invalid target.
+    /// the pixels of the device, which is kept in QPixmapCache, so a repaint of
+    /// a large picture of the application (a page rendered at 150 dpi, the
+    /// picture of a video) is not scaled again and a strong downscale does not
+    /// alias. Nothing is drawn for a null painter, a null picture or an empty or
+    /// invalid target; a huge or non-finite scale of the painter draws the
+    /// picture itself.
     static void drawScaledPixmap(QPainter* painter, const QRectF& target, const QPixmap& pixmap);
 
     /// Draws the focus ring of 2 px outside of the shape (outside focus ring of

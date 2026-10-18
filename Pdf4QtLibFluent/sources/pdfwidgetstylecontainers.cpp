@@ -87,6 +87,8 @@ private:
     static constexpr const char* SAVED_MARGINS = "_pdf4qt_containerMargins";
     static constexpr const char* SAVED_HEIGHT = "_pdf4qt_containerHeight";
     static constexpr const char* SAVED_SPACING = "_pdf4qt_containerSpacing";
+    static constexpr const char* SAVED_TRANSLUCENT = "_pdf4qt_rubberBandTranslucent";
+    static constexpr const char* SAVED_NO_BACKGROUND = "_pdf4qt_rubberBandNoBackground";
 
     static bool isStatusItem(const QWidget* widget);
     static bool isDockButton(const QWidget* widget);
@@ -562,8 +564,11 @@ void PDFWidgetStyleContainers::polish(QWidget* widget)
     }
     else if (QRubberBand* rubberBand = qobject_cast<QRubberBand*>(widget))
     {
-        if (rubberBand->isWindow() && PDFWidgetStyleImpl::isTranslucencyAvailable() && !rubberBand->testAttribute(Qt::WA_WState_Created))
+        if (rubberBand->isWindow() && PDFWidgetStyleImpl::isTranslucencyAvailable() && !rubberBand->testAttribute(Qt::WA_WState_Created) &&
+            !rubberBand->property(SAVED_TRANSLUCENT).isValid())
         {
+            rubberBand->setProperty(SAVED_TRANSLUCENT, rubberBand->testAttribute(Qt::WA_TranslucentBackground));
+            rubberBand->setProperty(SAVED_NO_BACKGROUND, rubberBand->testAttribute(Qt::WA_NoSystemBackground));
             rubberBand->setAttribute(Qt::WA_TranslucentBackground, true);
         }
     }
@@ -590,6 +595,16 @@ void PDFWidgetStyleContainers::unpolish(QWidget* widget)
     {
         widget->setMinimumHeight(savedHeight.toInt());
         widget->setProperty(SAVED_HEIGHT, QVariant());
+    }
+
+    const QVariant savedTranslucent = widget->property(SAVED_TRANSLUCENT);
+    if (savedTranslucent.isValid())
+    {
+        // A native window, which exists already, keeps its format
+        widget->setAttribute(Qt::WA_TranslucentBackground, savedTranslucent.toBool());
+        widget->setAttribute(Qt::WA_NoSystemBackground, widget->property(SAVED_NO_BACKGROUND).toBool());
+        widget->setProperty(SAVED_TRANSLUCENT, QVariant());
+        widget->setProperty(SAVED_NO_BACKGROUND, QVariant());
     }
 }
 
@@ -971,18 +986,12 @@ void PDFWidgetStyleContainers::drawToolBoxTab(const QStyleOptionToolBox* option,
         PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderFocus, 2.0);
     }
 
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     qreal left = rect.left() + 10.0;
     const qreal right = rect.right() - 12.0 - 14.0;
 
     if (!option->icon.isNull())
     {
-        PDFWidgetStyleImpl::drawIcon(painter, place(left, 16.0, 16.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
+        PDFWidgetStyleImpl::drawIcon(painter, placeInRow(rect, state.rightToLeft, left, 16.0, 16.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
         left += 16.0 + 10.0;
     }
 
@@ -991,12 +1000,12 @@ void PDFWidgetStyleContainers::drawToolBoxTab(const QStyleOptionToolBox* option,
     {
         chevron = state.rightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right");
     }
-    PDFStylePainter::icon(painter, place(right, 14.0, 14.0), chevron, state.enabled ? Color::IconMuted : Color::IconDisabled);
+    PDFStylePainter::icon(painter, placeInRow(rect, state.rightToLeft, right, 14.0, 14.0), chevron, state.enabled ? Color::IconMuted : Color::IconDisabled);
 
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::BodyMedium);
     const qreal textWidth = qMax(0.0, right - 10.0 - left);
     const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, textWidth);
-    m_impl->drawText(painter, place(left, textWidth, rect.height()), Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, left, textWidth, rect.height()), Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
                      PDFWidgetStyleImpl::color(textColor), widget);
 }
 
@@ -1050,19 +1059,13 @@ void PDFWidgetStyleContainers::drawSmallToolButton(const QStyleOptionToolButton*
 
     qreal x = qRound(rect.left() + 8.0 + (available - iconWidth - textWidth) / 2.0);
 
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     if (!option->icon.isNull())
     {
-        PDFWidgetStyleImpl::drawIcon(painter, place(x, 14.0, 14.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
+        PDFWidgetStyleImpl::drawIcon(painter, placeInRow(rect, state.rightToLeft, x, 14.0, 14.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
         x += iconWidth;
     }
 
-    m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 
 void PDFWidgetStyleContainers::drawTitleBar(const QStyleOptionTitleBar* option, QPainter* painter, const QWidget* widget) const

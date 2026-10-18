@@ -28,13 +28,13 @@
 #include "pdfcomponentcards.h"
 
 #include <QAbstractButton>
+#include <QButtonGroup>
 #include <QFont>
 #include <QPointer>
+#include <QTimer>
 
-class QButtonGroup;
 class QContextMenuEvent;
 class QLineEdit;
-class QTimer;
 class QVBoxLayout;
 
 namespace pdf
@@ -178,6 +178,7 @@ protected:
     virtual QSize getContentMinimumSizeHint() const override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
+    virtual void requestMoreButtonMenu() override;
 
 private:
     void updateDescription();
@@ -272,6 +273,7 @@ protected:
     virtual QSize getContentSizeHint() const override;
     virtual QSize getContentMinimumSizeHint() const override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
+    virtual void requestMoreButtonMenu() override;
 
 private:
     PDFComponentPainter::WorkspaceRow m_row;
@@ -648,7 +650,8 @@ private:
     QPointer<PDFIconButton> m_copyButton;
     QPointer<PDFIconButton> m_confirmButton;
     QPointer<PDFIconButton> m_cancelButton;
-    QTimer* m_copiedTimer;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QTimer m_copiedTimer;
 };
 
 /// Item of a navigation (components Nav item and Settings nav item). The item
@@ -732,8 +735,12 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    QVBoxLayout* m_layout;
-    QButtonGroup* m_group;
+    void onGroupIdToggled(int id, bool isChecked);
+
+    /// The layout is reachable by QWidget::layout(), the application may delete it
+    QPointer<QVBoxLayout> m_layout;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QButtonGroup m_group;
     PDFNavItem::Kind m_kind = PDFNavItem::Kind::Home;
 };
 

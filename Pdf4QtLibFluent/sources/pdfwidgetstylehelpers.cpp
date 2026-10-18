@@ -44,7 +44,6 @@
 #include <QStyleOptionGroupBox>
 #include <QTabBar>
 #include <QTextEdit>
-#include <QTimer>
 #include <QToolBar>
 #include <QToolBox>
 #include <QToolButton>
@@ -485,17 +484,124 @@ void PDFWidgetStyleImpl::setSplitterHover(QObject* watched, bool isEntered)
         return;
     }
 
-    // The line appears, when the pointer rests over the handle for a while
-    const int delay = isAnimated() ? 300 : 0;
-    QPointer<QWidget> guard(handle);
-    QTimer::singleShot(delay, this, [guard]()
+    // The line appears, when the pointer rests over the handle for a while. The
+    // pointer is over one handle at a time, the timer waits for the last one:
+    // each Enter starts the delay again (Enter, Leave and Enter again of the
+    // same handle shows the line 300 ms after the last Enter).
+    m_splitterHoverHandle = handle;
+    m_splitterHoverTimer.start(isAnimated() ? 300 : 0, this);
+}
+
+bool PDFWidgetStyleImpl::isSplitterHoverPending() const
+{
+    return m_splitterHoverTimer.isActive();
+}
+
+void PDFWidgetStyleImpl::showSplitterHover()
+{
+    QWidget* handle = m_splitterHoverHandle.data();
+    m_splitterHoverHandle.clear();
+
+    if (handle && handle->underMouse() && !handle->property(SPLITTER_HOVER).toBool())
     {
-        if (guard && guard->underMouse() && !guard->property(SPLITTER_HOVER).toBool())
+        handle->setProperty(SPLITTER_HOVER, true);
+        handle->update();
+    }
+}
+
+void PDFWidgetStyleImpl::watchToolBar(QToolBar* toolBar)
+{
+    if (!toolBar)
+    {
+        return;
+    }
+
+    // A widget can be polished more times, the connection is made once
+    connect(toolBar, &QToolBar::orientationChanged, this, &PDFWidgetStyleImpl::onToolBarOrientationChanged, Qt::UniqueConnection);
+}
+
+void PDFWidgetStyleImpl::unwatchToolBar(QToolBar* toolBar)
+{
+    if (toolBar)
+    {
+        disconnect(toolBar, &QToolBar::orientationChanged, this, &PDFWidgetStyleImpl::onToolBarOrientationChanged);
+    }
+}
+
+void PDFWidgetStyleImpl::onToolBarOrientationChanged()
+{
+    // The signal does not say, which toolbar has sent it. The connections are
+    // made only by watchToolBar, so the sender is a living toolbar.
+    applyToolBarMargins(qobject_cast<QToolBar*>(sender()));
+}
+
+void PDFWidgetStyleImpl::watchTabBar(QTabBar* tabBar)
+{
+    if (tabBar)
+    {
+        connect(tabBar, &QTabBar::currentChanged, this, &PDFWidgetStyleImpl::onTabBarCurrentChanged, Qt::UniqueConnection);
+    }
+}
+
+void PDFWidgetStyleImpl::unwatchTabBar(QTabBar* tabBar)
+{
+    if (tabBar)
+    {
+        disconnect(tabBar, &QTabBar::currentChanged, this, &PDFWidgetStyleImpl::onTabBarCurrentChanged);
+    }
+}
+
+void PDFWidgetStyleImpl::onTabBarCurrentChanged()
+{
+    // The signal does not say, which tab bar has sent it. The connections are
+    // made only by watchTabBar, so the sender is a living tab bar.
+    if (QTabBar* tabBar = qobject_cast<QTabBar*>(sender()))
+    {
+        tabBar->update();
+    }
+}
+
+void PDFWidgetStyleImpl::scheduleToolBarMargins(QToolBar* toolBar)
+{
+    if (!toolBar)
+    {
+        return;
+    }
+
+    if (!m_pendingToolBars.contains(QPointer<QToolBar>(toolBar)))
+    {
+        m_pendingToolBars.push_back(toolBar);
+    }
+
+    if (!m_toolBarMarginsScheduled)
+    {
+        m_toolBarMarginsScheduled = true;
+        QMetaObject::invokeMethod(this, &PDFWidgetStyleImpl::applyPendingToolBarMargins, Qt::QueuedConnection);
+    }
+}
+
+void PDFWidgetStyleImpl::applyPendingToolBarMargins()
+{
+    // A toolbar, whose style changes meanwhile, is scheduled again by its event
+    const QList<QPointer<QToolBar>> toolBars = std::move(m_pendingToolBars);
+    m_pendingToolBars.clear();
+    m_toolBarMarginsScheduled = false;
+
+    if (!m_applicationPolished)
+    {
+        // The style has been replaced meanwhile
+        return;
+    }
+
+    for (const QPointer<QToolBar>& toolBar : toolBars)
+    {
+        // A toolbar, which has got its own style since it was scheduled, keeps
+        // the margins of that style
+        if (toolBar && !toolBar->testAttribute(Qt::WA_SetStyle))
         {
-            guard->setProperty(SPLITTER_HOVER, true);
-            guard->update();
+            applyToolBarMargins(toolBar);
         }
-    });
+    }
 }
 
 }   // namespace pdf

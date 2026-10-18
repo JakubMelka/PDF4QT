@@ -35,7 +35,7 @@
 #include <QStyledItemDelegate>
 #include <QWidget>
 
-#include <functional>
+#include <optional>
 #include <vector>
 
 class QAbstractItemView;
@@ -312,11 +312,16 @@ protected:
     /// Repaints the item (the whole row of a table)
     static void updateIndex(QAbstractItemView* view, const QModelIndex& index);
 
-    /// Returns the size remembered under the key, or computes and remembers it.
+    /// Returns the size remembered under the key (std::nullopt, when it is not
+    /// remembered; the subclass computes it and remembers it by \p setCachedSize).
     /// The sizes are forgotten, when the theme, the fonts, the style or the
     /// language change. The key contains everything, on which the size depends
     /// (the texts and the width).
-    QSize getCachedSize(const QString& key, const std::function<QSize()>& compute) const;
+    [[nodiscard]] std::optional<QSize> getCachedSize(const QString& key) const;
+
+    /// Remembers the size under the key (see \p getCachedSize)
+    /// \returns The size
+    QSize setCachedSize(const QString& key, const QSize& size) const;
 
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
     virtual void disconnectNotify(const QMetaMethod& signal) override;
@@ -330,6 +335,7 @@ private:
         QPointer<QHeaderView> header;
         QMetaObject::Connection headerConnection;
         bool isHoverSet = false;    ///< The delegate has set Qt::WA_Hover of the viewport
+        bool isFilterReinstallPending = false;  ///< The filter is installed again on the viewport set by setViewport (\p installPendingViewportFilters)
         int viewportWidth = -1;
     };
 
@@ -348,6 +354,8 @@ private:
     bool isUsedByView(const QAbstractItemView* view) const;
     void onThemeChanged();
     void onWatchedDestroyed(QObject* object);
+    void onHeaderSectionResized();
+    void installPendingViewportFilters();
     void checkWatchedViews();
     void invalidateSizes();
 
@@ -593,8 +601,24 @@ protected:
 /// key would without the recording (the view gets the key after the editor is
 /// closed). The combination is normalized as QKeySequenceEdit does: Backtab is
 /// Shift+Tab, a symbol typed with Shift ("!" of Shift+1) is the symbol alone, a
-/// character typed with AltGr (Ctrl+Alt on Windows) is the character alone. It
-/// paints nothing, the delegate draws the row in the state Recording.
+/// symbol typed with AltGr (a character, which is not a letter or a digit) is
+/// the symbol alone.
+///
+/// Ctrl+Alt on Windows: Windows cannot tell AltGr from Ctrl+Alt and give the
+/// key of the AltGr level ("[" of Ctrl+Alt+F on the Czech layout). The
+/// combination is always all the modifiers with the base key of the physical
+/// key - its character without the modifiers in the current layout, uppercased
+/// (Ctrl+Alt+F, Ctrl+Alt+V for "@" of AltGr+V, Ctrl+Alt+Ě for the key "ě/2" of
+/// the Czech layout, Ctrl+Alt+É on the French one, Ctrl+Alt+Ф on the Russian
+/// one, Ctrl+Alt+´ for a dead key). This is the candidate, which the shortcut
+/// map of Qt always matches for the key (QWindowsKeyMapper::
+/// possibleKeyCombinations); the character of the AltGr level ("@") is another
+/// candidate of the same key, so both shortcuts fire on the same key press. A
+/// key without a character (F-keys, arrows, Enter, the keypad without NumLock)
+/// keeps its Qt key. Other platforms are not changed. The pure mapping is
+/// getWindowsKeyCombination, the lookup of the layout getBaseCharacter.
+///
+/// It paints nothing, the delegate draws the row in the state Recording.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFShortcutRecorder : public QWidget
 {
     Q_OBJECT
@@ -621,6 +645,32 @@ public:
 
     /// Returns the normalized combination of the key event (see the class)
     static QKeyCombination getKeyCombination(const QKeyEvent* event);
+
+    /// Returns the combinations, which the key event matches as a shortcut (of
+    /// the actions of PDFRowDelegate, the start keys of PDFShortcutDelegate):
+    /// the recorded combination (getKeyCombination), the combination of the
+    /// event and the combination of the other platforms (the AltGr symbol alone),
+    /// without the keypad modifier and without duplicates; empty for nullptr
+    static QList<QKeyCombination> getMatchingKeyCombinations(const QKeyEvent* event);
+
+    /// Returns the normalized combination of a key on the platforms other than
+    /// Windows (and of a key without the base key on Windows): \p key and \p text
+    /// of the event, the keypad modifier is dropped
+    static QKeyCombination getKeyCombination(int key, Qt::KeyboardModifiers modifiers, const QString& text);
+
+    /// Returns the normalized combination of a key on Windows (see the class):
+    /// with Ctrl+Alt and a valid \p baseCharacter (the character of the key
+    /// without the modifiers, as getBaseCharacter gives it; 0 - none) all the
+    /// modifiers with the uppercased base character, otherwise the combination
+    /// of the other platforms. Pure function (it does not read the layout).
+    static QKeyCombination getWindowsKeyCombination(int key, Qt::KeyboardModifiers modifiers, const QString& text, char16_t baseCharacter);
+
+    /// Returns the character of the virtual key without the modifiers in the
+    /// current keyboard layout of Windows (ToUnicode without the keys held, the
+    /// spacing character of a dead key, as Qt computes qtKey[0] of the key);
+    /// 0, when the key has no character, for an invalid virtual key and on
+    /// other platforms
+    static char16_t getBaseCharacter(quint32 virtualKey, quint32 scanCode);
 
 Q_SIGNALS:
     /// A key has been recorded
@@ -735,6 +785,8 @@ private:
         QPersistentModelIndex index;
     };
 
+    void onRecorderRecorded(const QKeySequence& sequence);
+    void onRecorderCancelled();
     void onRecorded(PDFShortcutRecorder* recorder, const QKeySequence& sequence);
     void onCancelled(PDFShortcutRecorder* recorder);
     bool startRecording(QAbstractItemView* view, const QModelIndex& index);

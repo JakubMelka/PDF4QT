@@ -100,6 +100,7 @@ private:
     void drawIndicatorLabel(const QStyleOptionButton* option, QPainter* painter, const QWidget* widget) const;
     void drawToolButton(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const;
     void drawToolButtonLabel(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const;
+    static void drawToolButtonGlyph(QPainter* painter, const QRectF& iconRect, const QStyleOptionToolButton* option, bool hasArrow, Color iconColor, const PDFStyleState& state);
     void drawToolBar(const QStyleOption* option, QPainter* painter, const QWidget* widget) const;
     void drawArrow(QStyle::PrimitiveElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const;
     QSize getButtonSize(const QStyleOptionButton* option, const QWidget* widget) const;
@@ -629,8 +630,7 @@ void PDFWidgetStyleButtons::polish(QWidget* widget)
         // of the widget, so the paddings are the margins of the layout (margins
         // of the contents of the widget only enlarge its size hint)
         PDFWidgetStyleImpl::applyToolBarMargins(toolBar);
-        QObject::disconnect(toolBar, &QToolBar::orientationChanged, m_impl, nullptr);
-        QObject::connect(toolBar, &QToolBar::orientationChanged, m_impl, [toolBar]() { PDFWidgetStyleImpl::applyToolBarMargins(toolBar); });
+        m_impl->watchToolBar(toolBar);
     }
 }
 
@@ -640,7 +640,7 @@ void PDFWidgetStyleButtons::unpolish(QWidget* widget)
     {
         // The margins of the layout are computed again by the toolbar from the
         // metrics of its next style
-        QObject::disconnect(toolBar, &QToolBar::orientationChanged, m_impl, nullptr);
+        m_impl->unwatchToolBar(toolBar);
     }
 }
 
@@ -784,28 +784,22 @@ void PDFWidgetStyleButtons::drawButtonLabel(const QStyleOptionButton* option, QP
     qreal x = rect.left() + paddingLeft + (available - contentWidth) / 2.0;
     x = qRound(x);
 
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     if (hasIcon)
     {
-        PDFWidgetStyleImpl::drawIcon(painter, place(x, iconExtent, iconExtent), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
+        PDFWidgetStyleImpl::drawIcon(painter, placeInRow(rect, state.rightToLeft, x, iconExtent, iconExtent), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
         x += iconWidth;
     }
 
     if (!text.isEmpty())
     {
-        m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+        m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
         x += textWidth;
     }
 
     if (hasMenu)
     {
         x += menuWidth - BUTTON_CHEVRON;
-        PDFStylePainter::icon(painter, place(x, BUTTON_CHEVRON, BUTTON_CHEVRON), QStringLiteral("chevron-down"), iconColor);
+        PDFStylePainter::icon(painter, placeInRow(rect, state.rightToLeft, x, BUTTON_CHEVRON, BUTTON_CHEVRON), QStringLiteral("chevron-down"), iconColor);
     }
 }
 
@@ -1051,24 +1045,6 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
         iconColor = Color::IconStrong;
     }
 
-    auto drawGlyph = [&](const QRectF& iconRect)
-    {
-        if (hasArrow)
-        {
-            PDFStylePainter::icon(painter, iconRect, getArrowIconName(option->arrowType), iconColor);
-        }
-        else
-        {
-            PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->icon, PDFWidgetStyleImpl::color(iconColor), state);
-        }
-    };
-
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     const qreal indicatorWidth = hasIndicator ? TOOL_BUTTON_CHEVRON_GAP + TOOL_BUTTON_CHEVRON : 0.0;
     const Color indicatorColor = !state.enabled ? Color::IconDisabled : (state.on ? Color::IconAccent : Color::IconMuted);
 
@@ -1082,7 +1058,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
             const qreal contentHeight = TOOL_BUTTON_TEXT_ICON + 5.0 + textHeight;
             const qreal top = rect.top() + 10.0 + qMax(0.0, (rect.height() - 18.0 - contentHeight) / 2.0);
 
-            drawGlyph(QRectF(rect.left() + (rect.width() - TOOL_BUTTON_TEXT_ICON) / 2.0, top, TOOL_BUTTON_TEXT_ICON, TOOL_BUTTON_TEXT_ICON));
+            drawToolButtonGlyph(painter, QRectF(rect.left() + (rect.width() - TOOL_BUTTON_TEXT_ICON) / 2.0, top, TOOL_BUTTON_TEXT_ICON, TOOL_BUTTON_TEXT_ICON), option, hasArrow, iconColor, state);
 
             const QRectF textRect(rect.left() + 2.0, top + TOOL_BUTTON_TEXT_ICON + 5.0, rect.width() - 4.0, textHeight);
             const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, textRect.width());
@@ -1111,16 +1087,16 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
 
             if (!isTextOnly)
             {
-                drawGlyph(place(x, TOOL_BUTTON_TEXT_ICON, TOOL_BUTTON_TEXT_ICON));
+                drawToolButtonGlyph(painter, placeInRow(rect, state.rightToLeft, x, TOOL_BUTTON_TEXT_ICON, TOOL_BUTTON_TEXT_ICON), option, hasArrow, iconColor, state);
                 x += iconWidth;
             }
 
-            m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+            m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
             x += textWidth;
 
             if (hasIndicator)
             {
-                PDFStylePainter::icon(painter, place(x + TOOL_BUTTON_CHEVRON_GAP, TOOL_BUTTON_CHEVRON, TOOL_BUTTON_CHEVRON), QStringLiteral("chevron-down"), indicatorColor);
+                PDFStylePainter::icon(painter, placeInRow(rect, state.rightToLeft, x + TOOL_BUTTON_CHEVRON_GAP, TOOL_BUTTON_CHEVRON, TOOL_BUTTON_CHEVRON), QStringLiteral("chevron-down"), indicatorColor);
             }
             break;
         }
@@ -1135,14 +1111,26 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
             extent = qMin(extent, qMin(rect.width(), rect.height()));
 
             qreal x = rect.left() + (rect.width() - extent - indicatorWidth) / 2.0;
-            drawGlyph(place(x, extent, extent));
+            drawToolButtonGlyph(painter, placeInRow(rect, state.rightToLeft, x, extent, extent), option, hasArrow, iconColor, state);
 
             if (hasIndicator)
             {
-                PDFStylePainter::icon(painter, place(x + extent + TOOL_BUTTON_CHEVRON_GAP, TOOL_BUTTON_CHEVRON, TOOL_BUTTON_CHEVRON), QStringLiteral("chevron-down"), indicatorColor);
+                PDFStylePainter::icon(painter, placeInRow(rect, state.rightToLeft, x + extent + TOOL_BUTTON_CHEVRON_GAP, TOOL_BUTTON_CHEVRON, TOOL_BUTTON_CHEVRON), QStringLiteral("chevron-down"), indicatorColor);
             }
             break;
         }
+    }
+}
+
+void PDFWidgetStyleButtons::drawToolButtonGlyph(QPainter* painter, const QRectF& iconRect, const QStyleOptionToolButton* option, bool hasArrow, Color iconColor, const PDFStyleState& state)
+{
+    if (hasArrow)
+    {
+        PDFStylePainter::icon(painter, iconRect, getArrowIconName(option->arrowType), iconColor);
+    }
+    else
+    {
+        PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->icon, PDFWidgetStyleImpl::color(iconColor), state);
     }
 }
 

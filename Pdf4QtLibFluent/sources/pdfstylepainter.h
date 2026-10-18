@@ -39,6 +39,11 @@ namespace pdf
 /// Drawing primitives of the design shared by the style and by the widgets of
 /// the library: flat rounded shapes, strokes lying inside of a shape, soft
 /// shadows, icons and texts. All coordinates are logical pixels.
+///
+/// The functions are to be called only from the thread of the user interface:
+/// the colors are read from the active theme of PDFThemeManager, the shadows
+/// are kept in QPixmapCache and the icons are drawn by PDFThemeIcons (shared
+/// SVG renderers without a lock).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFStylePainter
 {
 public:

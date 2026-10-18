@@ -45,6 +45,7 @@
 class QFocusFrame;
 class QApplication;
 class QMouseEvent;
+class QTabBar;
 class QToolBar;
 
 namespace pdf
@@ -106,6 +107,15 @@ protected:
 
     /// Style, by which the other elements are drawn and measured
     const QStyle* style() const;
+
+    /// Returns the rectangle of an item of a row: it starts at \p left, it is
+    /// centered vertically in the row and mirrored for the right-to-left direction
+    /// \param row Rectangle of the row
+    /// \param rightToLeft Direction of the row
+    /// \param left Logical start of the item
+    /// \param width Width of the item
+    /// \param height Height of the item
+    static QRectF placeInRow(const QRectF& row, bool rightToLeft, qreal left, qreal width, qreal height);
 
     PDFWidgetStyleImpl* m_impl;
 };
@@ -169,7 +179,7 @@ public:
     /// Registers the widget, which is repainted while an animation runs.
     /// The widget is removed, when it is hidden or not registered again
     /// during its repaint.
-    void animate(const QWidget* widget) const;
+    void animate(const QWidget* widget);
 
     // ------------------------------------------------------------------
     //  Shared helpers
@@ -270,6 +280,17 @@ public:
     /// Places the extension button of a toolbar by the paddings of the panel
     static void placeToolBarExtension(QWidget* extension);
 
+    /// The margins of the toolbar are set again, whenever its orientation changes
+    /// (the connection is cut by \p unwatchToolBar or by the deletion of either object)
+    void watchToolBar(QToolBar* toolBar);
+    void unwatchToolBar(QToolBar* toolBar);
+
+    /// The tab bar is repainted, whenever its current tab changes: the focus ring
+    /// of a tab reaches into the gap between the tabs (the connection is cut by
+    /// \p unwatchTabBar or by the deletion of either object)
+    void watchTabBar(QTabBar* tabBar);
+    void unwatchTabBar(QTabBar* tabBar);
+
     /// Property of a handle of a splitter, over which the pointer rests
     static constexpr const char* SPLITTER_HOVER = "_pdf4qt_splitterHover";
 
@@ -287,11 +308,19 @@ public:
 
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
+    /// Returns true, while the delay of the line of a splitter handle runs
+    bool isSplitterHoverPending() const;
+
 protected:
     virtual void timerEvent(QTimerEvent* event) override;
 
 private:
     void onThemeChanged();
+    void onToolBarOrientationChanged();
+    void onTabBarCurrentChanged();
+    void scheduleToolBarMargins(QToolBar* toolBar);
+    void applyPendingToolBarMargins();
+    void showSplitterHover();
     void applyLeakPalette();
     void setKeyboardModality(bool keyboardModality);
     void updateFocusFrame();
@@ -314,9 +343,18 @@ private:
     std::vector<std::unique_ptr<PDFWidgetStyleArea>> m_areas;
     QPointer<QFocusFrame> m_focusFrame;
     QList<QPointer<QWidget>> m_seenAlt;
-    mutable QList<QPointer<QWidget>> m_animatedWidgets;
-    mutable QBasicTimer m_animationTimer;
+    QList<QPointer<QWidget>> m_animatedWidgets;
+    QBasicTimer m_animationTimer;
     QElapsedTimer m_clock;
+
+    /// Toolbars, whose margins are set again from the event loop (after a change of their style)
+    QList<QPointer<QToolBar>> m_pendingToolBars;
+    bool m_toolBarMarginsScheduled = false;
+
+    /// The line of a splitter handle appears, when the pointer rests over it for a while
+    /// (a basic timer: the style creates no objects, which would outlive a replaced style)
+    QBasicTimer m_splitterHoverTimer;
+    QPointer<QWidget> m_splitterHoverHandle;
     qint64 m_animationTime = -1;
     bool m_keyboardModality = false;
     bool m_altDown = false;

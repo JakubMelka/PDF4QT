@@ -36,7 +36,6 @@
 
 #include <vector>
 
-class QButtonGroup;
 class QCheckBox;
 
 namespace pdf
@@ -79,6 +78,7 @@ protected:
 
 private:
     void init();
+    void onTextChanged();
     void updateTextInsets();
     qreal getValueWidth() const;
     qreal getSuffixWidth() const;
@@ -146,6 +146,8 @@ private:
     std::vector<Row> m_rows;
 };
 
+class PDFDocumentTabCloseButton;
+
 /// Tabs of the documents (component Tab): a tab shows the lock of a locked
 /// document (amber in every state), the dot of unsaved changes (in the color of
 /// the label) and the progress of a running tool (line of 2 px at the bottom).
@@ -159,6 +161,7 @@ private:
 
 public:
     explicit PDFDocumentTabBar(QWidget* parent = nullptr);
+    virtual ~PDFDocumentTabBar() override;
 
     bool isTabLocked(int index) const;
     void setTabLocked(int index, bool locked);
@@ -194,10 +197,21 @@ private:
     int getExtraWidth(int index) const;
     void updateAccessibleName(int index);
     void changeTabState(int index);
+    void onTabMoved(int from, int to);
+    void onCloseButtonClicked();
+
+    friend class PDFDocumentTabCloseButton;
+
+    /// Takes the close button out of its tab (called by the destructor of the button)
+    void forgetCloseButton(PDFDocumentTabCloseButton* button);
 
     /// State of the tabs by their position. QTabBar keeps the data of a tab
     /// (tabData) for the application, so the state is held here.
     std::vector<TabState> m_tabs;
+
+    /// The close buttons created by the tab bar, which are alive (each one takes
+    /// itself out from its destructor, the destructor of the tab bar detaches them)
+    QList<PDFDocumentTabCloseButton*> m_closeButtons;
 };
 
 
@@ -494,6 +508,11 @@ private:
     void retranslate();
     void updateResult(int flags);
     void layoutChildren();
+    void onModeIndexChanged(int index);
+    void onRangeTextChanged(const QString& text);
+    void onFilterToggled();
+    void onThemeChanged();
+    static void addToSummary(Summary& summary, qint64 first, qint64 last, qint64 count);
     QString getPageText(int page) const;
     bool passesFilters(int page) const;
     bool isParityFilter() const;
@@ -632,10 +651,12 @@ private:
     void updateDescription();
     void updateTabStop();
     void onChoiceToggled();
+    void onThemeChanged();
     QString getDefaultSelectionCaption() const;
 
     QPointer<PDFTextLink> m_link;
-    QButtonGroup* m_group = nullptr;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QButtonGroup m_group;
     QList<QPointer<PDFToolChoice>> m_choiceWidgets;
     QList<Choice> m_choices;
     QString m_title;
@@ -759,11 +780,24 @@ protected:
 
 private:
     QMargins getPanelMargins() const;
-    void rebuild();
+    /// Creates or updates the swatches
+    /// \returns False, if the palette has been deleted meanwhile (by a slot of toggled of a swatch)
+    bool rebuild();
+    /// Creates the missing swatches of the colors and shows the needed ones (the others are hidden)
+    void fillSwatches(const QList<Entry>& entries, QList<QPointer<PDFColorSwatch>>& swatches, bool isSuggested);
     void layoutChildren();
-    void updateSelection();
+    /// Selects the swatch of the current color
+    /// \returns False, if the palette has been deleted meanwhile (a slot of
+    ///          the signal toggled of a swatch may delete it)
+    bool updateSelection();
     void updateTabStops(PDFColorSwatch* focused);
     void onSwatchClicked(PDFColorSwatch* swatch);
+    /// Slot of the signal clicked of the swatches (the swatch is the sender)
+    void onSwatchButtonClicked();
+    void onMoreClicked();
+    void onAnchorDestroyed();
+    /// Queued after a hide: emits closed, unless the palette has been opened again meanwhile
+    void onHiddenQueued(quint64 openCount);
     QList<PDFColorSwatch*> getVisibleSwatches(bool recent) const;
     bool moveFocus(PDFColorSwatch* swatch, int key);
     void retranslate();
@@ -774,7 +808,8 @@ private:
     QColor m_currentColor;
     QList<QPointer<PDFColorSwatch>> m_suggestedSwatches;
     QList<QPointer<PDFColorSwatch>> m_recentSwatches;
-    QButtonGroup* m_group = nullptr;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QButtonGroup m_group;
     QPointer<PDFTextLink> m_more;
     QPointer<QWidget> m_anchor;
     QPointer<QWidget> m_anchorWindow;
@@ -862,6 +897,8 @@ private:
     void init();
     void onPaletteClosed();
     void onPaletteDestroyed();
+    void onPaletteColorSelected(const QColor& color);
+    void onPaletteColorsChanged();
     void updateText();
     void notifyExpanded();
 
@@ -952,6 +989,10 @@ private:
     void updateLinks();
     void updateDescription();
     bool isExpandable() const;
+    void onToggleClicked();
+    /// Slot of the signal clicked of the links of the certificates (the link is the sender)
+    void onCertificateLinkClicked();
+    void onThemeChanged();
 
     PDFComponentPainter::SignatureCard m_card;
     bool m_isCaptionDefault = true;
@@ -1037,6 +1078,7 @@ private:
     void retranslate();
     void changeContent(bool isGeometryChanged);
     void updateAccessibleTexts();
+    void onThemeChanged();
 
     PDFComponentPainter::StrengthMeter m_meter;
     bool m_isTitleDefault = true;

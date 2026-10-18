@@ -78,6 +78,21 @@ private:
     static int getSliderLine(const QStyleOptionSlider* option);
     static int getProgressLabelWidth(const QStyleOptionProgressBar* option, const QWidget* widget);
 
+    /// Returns the part of the scroll bar along its axis
+    /// \param rect Rectangle of the scroll bar
+    /// \param isHorizontal Orientation of the scroll bar
+    /// \param start Start of the part along the axis
+    /// \param size Length of the part along the axis
+    /// \param isBar The part is the bar of the slider (6 px), not the whole extent
+    static QRect getScrollBarPart(const QRect& rect, bool isHorizontal, int start, int size, bool isBar);
+
+    /// Draws a tick of the slider at the position along the slider and at the coordinate across it
+    static void drawSliderTick(QPainter* painter, const QRect& rect, bool isHorizontal, int position, qreal across, const QColor& color);
+
+    /// Converts the angle measured clockwise from the top in degrees to the angle of Qt
+    /// (counterclockwise from the right in 1/16 of a degree)
+    static int toQtAngle(qreal clockwiseFromTop);
+
     QRect getSliderRect(const QStyleOptionSlider* option, QStyle::SubControl subControl) const;
     QRect getScrollBarRect(const QStyleOptionSlider* option, QStyle::SubControl subControl) const;
     void drawSlider(const QStyleOptionSlider* option, QPainter* painter, const QWidget* widget) const;
@@ -509,6 +524,35 @@ QRect PDFWidgetStyleRanges::getSliderRect(const QStyleOptionSlider* option, QSty
     return QRect();
 }
 
+QRect PDFWidgetStyleRanges::getScrollBarPart(const QRect& rect, bool isHorizontal, int start, int size, bool isBar)
+{
+    if (isHorizontal)
+    {
+        const int thickness = isBar ? SCROLLBAR_BAR : rect.height();
+        return QRect(rect.left() + start, rect.top() + (rect.height() - thickness) / 2, size, thickness);
+    }
+
+    const int thickness = isBar ? SCROLLBAR_BAR : rect.width();
+    return QRect(rect.left() + (rect.width() - thickness) / 2, rect.top() + start, thickness, size);
+}
+
+void PDFWidgetStyleRanges::drawSliderTick(QPainter* painter, const QRect& rect, bool isHorizontal, int position, qreal across, const QColor& color)
+{
+    if (isHorizontal)
+    {
+        PDFStylePainter::fillRect(painter, QRectF(rect.left() + position, across, 1.0, SLIDER_TICK_LENGTH), color);
+    }
+    else
+    {
+        PDFStylePainter::fillRect(painter, QRectF(across, rect.top() + position, SLIDER_TICK_LENGTH, 1.0), color);
+    }
+}
+
+int PDFWidgetStyleRanges::toQtAngle(qreal clockwiseFromTop)
+{
+    return qRound((90.0 - clockwiseFromTop) * 16.0);
+}
+
 QRect PDFWidgetStyleRanges::getScrollBarRect(const QStyleOptionSlider* option, QStyle::SubControl subControl) const
 {
     const QRect rect = option->rect;
@@ -520,23 +564,14 @@ QRect PDFWidgetStyleRanges::getScrollBarRect(const QStyleOptionSlider* option, Q
     int sliderLength = length;
     if (range > 0)
     {
-        sliderLength = static_cast<int>((qint64(option->pageStep) * length) / (range + option->pageStep));
+        // QAbstractSlider keeps the page step positive, an option filled by the
+        // application can have any value (range + page step must not be zero)
+        const qint64 pageStep = qMax(0, option->pageStep);
+        sliderLength = static_cast<int>((pageStep * length) / (range + pageStep));
         sliderLength = qBound(qMin(SCROLLBAR_SLIDER_MIN, length), sliderLength, length);
     }
 
     const int sliderStart = range > 0 ? QStyle::sliderPositionFromValue(option->minimum, option->maximum, option->sliderPosition, length - sliderLength, option->upsideDown) : 0;
-
-    auto along = [&rect, isHorizontal](int start, int size, bool isBar)
-    {
-        if (isHorizontal)
-        {
-            const int thickness = isBar ? SCROLLBAR_BAR : rect.height();
-            return QRect(rect.left() + start, rect.top() + (rect.height() - thickness) / 2, size, thickness);
-        }
-
-        const int thickness = isBar ? SCROLLBAR_BAR : rect.width();
-        return QRect(rect.left() + (rect.width() - thickness) / 2, rect.top() + start, thickness, size);
-    };
 
     QRect result;
 
@@ -550,15 +585,15 @@ QRect PDFWidgetStyleRanges::getScrollBarRect(const QStyleOptionSlider* option, Q
             {
                 return QRect();
             }
-            result = along(sliderStart, sliderLength, false);
+            result = getScrollBarPart(rect, isHorizontal, sliderStart, sliderLength, false);
             break;
 
         case QStyle::SC_ScrollBarSubPage:
-            result = along(0, sliderStart, false);
+            result = getScrollBarPart(rect, isHorizontal, 0, sliderStart, false);
             break;
 
         case QStyle::SC_ScrollBarAddPage:
-            result = along(sliderStart + sliderLength, length - sliderStart - sliderLength, false);
+            result = getScrollBarPart(rect, isHorizontal, sliderStart + sliderLength, length - sliderStart - sliderLength, false);
             break;
 
         default:
@@ -657,25 +692,13 @@ void PDFWidgetStyleRanges::drawSlider(const QStyleOptionSlider* option, QPainter
             {
                 const int position = QStyle::sliderPositionFromValue(option->minimum, option->maximum, static_cast<int>(value), available, option->upsideDown) + SLIDER_HANDLE / 2;
 
-                auto drawTick = [&](qreal across)
-                {
-                    if (isHorizontal)
-                    {
-                        PDFStylePainter::fillRect(painter, QRectF(option->rect.left() + position, across, 1.0, SLIDER_TICK_LENGTH), tickColor);
-                    }
-                    else
-                    {
-                        PDFStylePainter::fillRect(painter, QRectF(across, option->rect.top() + position, SLIDER_TICK_LENGTH, 1.0), tickColor);
-                    }
-                };
-
                 if (hasBefore)
                 {
-                    drawTick(grooveStart - SLIDER_TICK_OFFSET - SLIDER_TICK_LENGTH);
+                    drawSliderTick(painter, option->rect, isHorizontal, position, grooveStart - SLIDER_TICK_OFFSET - SLIDER_TICK_LENGTH, tickColor);
                 }
                 if (hasAfter)
                 {
-                    drawTick(grooveEnd + SLIDER_TICK_OFFSET);
+                    drawSliderTick(painter, option->rect, isHorizontal, position, grooveEnd + SLIDER_TICK_OFFSET, tickColor);
                 }
             }
         }
@@ -726,9 +749,6 @@ void PDFWidgetStyleRanges::drawDial(const QStyleOptionSlider* option, QPainter* 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setBrush(Qt::NoBrush);
-
-    // Qt measures angles counterclockwise from the right in 1/16 of a degree
-    auto toQtAngle = [](qreal clockwiseFromTop) { return qRound((90.0 - clockwiseFromTop) * 16.0); };
 
     // The track is the whole ring, also for a dial, which does not wrap
     painter->setPen(QPen(PDFWidgetStyleImpl::color(Color::BgTrack), 4.0, Qt::SolidLine, Qt::FlatCap));

@@ -31,7 +31,6 @@
 #include <QPixmapCache>
 #include <QTextBoundaryFinder>
 #include <QTextLayout>
-#include <QThread>
 #include <QtMath>
 
 namespace pdf
@@ -83,6 +82,16 @@ public:
     static constexpr qreal THUMBNAIL_RADIUS = 2.0;
     static constexpr qreal THUMBNAIL_SHADOW_OFFSET = 1.0;
     static constexpr qreal THUMBNAIL_SHADOW_BLUR = 2.0;
+
+    /// Returns the line without the spaces and line separators at its end
+    static QString trimmedLineEnd(QString line)
+    {
+        while (!line.isEmpty() && (line.back().isSpace() || line.back() == QChar::LineSeparator))
+        {
+            line.chop(1);
+        }
+        return line;
+    }
 
     /// Layout of the placeholder lines of a page thumbnail
     struct ThumbnailGeometry
@@ -200,15 +209,6 @@ QStringList PDFComponentPainter::wrapText(const QString& text, const QFont& font
     QString layoutText = text;
     layoutText.replace(QLatin1Char('\n'), QChar::LineSeparator);
 
-    auto trimmedEnd = [](QString line)
-    {
-        while (!line.isEmpty() && (line.back().isSpace() || line.back() == QChar::LineSeparator))
-        {
-            line.chop(1);
-        }
-        return line;
-    };
-
     QTextOption option;
     option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     QTextLayout layout(layoutText, font);
@@ -224,11 +224,11 @@ QStringList PDFComponentPainter::wrapText(const QString& text, const QFont& font
             // The last allowed line takes the rest of the text, elided
             QString rest = layoutText.mid(start);
             rest.replace(QChar::LineSeparator, QLatin1Char(' '));
-            lines << elidedText(trimmedEnd(rest), font, width);
+            lines << elidedText(PDFComponentPainterHelper::trimmedLineEnd(rest), font, width);
             break;
         }
 
-        lines << trimmedEnd(layoutText.mid(start, textLine.textLength()));
+        lines << PDFComponentPainterHelper::trimmedLineEnd(layoutText.mid(start, textLine.textLength()));
     }
     layout.endLayout();
     return lines;
@@ -248,11 +248,7 @@ qreal PDFComponentPainter::getLongestWordWidth(const QString& text, const QFont&
     qsizetype start = 0;
     for (qsizetype position = finder.toNextBoundary(); position > 0; position = finder.toNextBoundary())
     {
-        QString word = text.mid(start, position - start);
-        while (!word.isEmpty() && (word.back().isSpace() || word.back() == QChar::LineSeparator))
-        {
-            word.chop(1);
-        }
+        const QString word = PDFComponentPainterHelper::trimmedLineEnd(text.mid(start, position - start));
         longest = qMax(longest, metrics.horizontalAdvance(word));
         start = position;
     }
@@ -339,11 +335,15 @@ void PDFComponentPainter::drawScaledPixmap(QPainter* painter, const QRectF& targ
     const qreal devicePixelRatio = device ? qMax<qreal>(device->devicePixelRatioF(), 1.0) : 1.0;
     const QTransform transform = painter->combinedTransform();
     const bool isScaleOnly = transform.type() <= QTransform::TxScale;
-    const QSize deviceSize(qCeil(target.width() * qAbs(transform.m11()) * devicePixelRatio), qCeil(target.height() * qAbs(transform.m22()) * devicePixelRatio));
-    const bool isDownscaled = deviceSize.width() > 0 && deviceSize.height() > 0 && deviceSize.width() < pixmap.width() && deviceSize.height() < pixmap.height();
-    const bool isApplicationThread = QCoreApplication::instance() && QThread::currentThread() == QCoreApplication::instance()->thread();
+    // The size is bounded by the picture before it is converted to integers (a
+    // huge or a non-finite scale draws the picture itself)
+    const qreal deviceWidth = target.width() * qAbs(transform.m11()) * devicePixelRatio;
+    const qreal deviceHeight = target.height() * qAbs(transform.m22()) * devicePixelRatio;
+    const bool isBounded = deviceWidth > 0.0 && deviceHeight > 0.0 && deviceWidth < pixmap.width() && deviceHeight < pixmap.height();
+    const QSize deviceSize = isBounded ? QSize(qCeil(deviceWidth), qCeil(deviceHeight)) : QSize();
+    const bool isDownscaled = isBounded && deviceSize.width() < pixmap.width() && deviceSize.height() < pixmap.height();
 
-    if (isScaleOnly && isDownscaled && isApplicationThread)
+    if (isScaleOnly && isDownscaled)
     {
         // The copy of the size of the device pixels is scaled once
         const QString key = QStringLiteral("pdf4qt-scaled-%1-%2x%3").arg(pixmap.cacheKey()).arg(deviceSize.width()).arg(deviceSize.height());
@@ -866,23 +866,22 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
         const qreal bottom = frame.bottom() - 1.0;
         qreal top = frame.top() + 1.0 + geometry.paddingTop;
 
-        auto line = [&](qreal lineWidth, qreal height, PDFThemeColors::Color color)
-        {
-            if (top + height <= bottom && lineWidth > 0.0)
-            {
-                PDFStylePainter::fillRect(painter, state.visualRect(frame, QRectF(left, top, lineWidth, height)), color);
-            }
-            top += height + geometry.gap;
-        };
-
         if (width > 0.0)
         {
-            line(width, geometry.titleHeight, PDFThemeColors::TextMuted);
-            for (int i = 0; i < geometry.fullLines; ++i)
+            // The title line, the full lines and the shorter last line
+            const int lineCount = qMax(geometry.fullLines, 0) + 2;
+            for (int i = 0; i < lineCount; ++i)
             {
-                line(width, geometry.lineHeight, PDFThemeColors::BorderStrong);
+                const bool isTitle = i == 0;
+                const qreal lineWidth = (i == lineCount - 1) ? qMin<qreal>(geometry.lastLineWidth, width) : width;
+                const qreal height = isTitle ? geometry.titleHeight : geometry.lineHeight;
+                if (top + height <= bottom && lineWidth > 0.0)
+                {
+                    const PDFThemeColors::Color color = isTitle ? PDFThemeColors::TextMuted : PDFThemeColors::BorderStrong;
+                    PDFStylePainter::fillRect(painter, state.visualRect(frame, QRectF(left, top, lineWidth, height)), color);
+                }
+                top += height + geometry.gap;
             }
-            line(qMin<qreal>(geometry.lastLineWidth, width), geometry.lineHeight, PDFThemeColors::BorderStrong);
         }
     }
 
@@ -2128,25 +2127,20 @@ void PDFComponentPainter::paintPropertyRow(QPainter* painter, const QRectF& rect
         const QRectF copyRect = row.editable ? secondRect : firstRect;
         const State buttonState = Helper::nestedState(state, false);
 
-        auto paintAction = [&](const QRectF& logical, PropertyAction action)
-        {
-            paintPropertyRowAction(painter, state.visualRect(rect, logical), action, propertyState, buttonState);
-        };
-
         if (propertyState == PropertyState::Editing)
         {
-            paintAction(firstRect, PropertyAction::Confirm);
-            paintAction(secondRect, PropertyAction::Cancel);
+            paintPropertyRowAction(painter, state.visualRect(rect, firstRect), PropertyAction::Confirm, propertyState, buttonState);
+            paintPropertyRowAction(painter, state.visualRect(rect, secondRect), PropertyAction::Cancel, propertyState, buttonState);
         }
         else
         {
             if (row.editable)
             {
-                paintAction(firstRect, PropertyAction::Edit);
+                paintPropertyRowAction(painter, state.visualRect(rect, firstRect), PropertyAction::Edit, propertyState, buttonState);
             }
             if (isPropertyRowCopyShown(propertyState, false))
             {
-                paintAction(copyRect, PropertyAction::Copy);
+                paintPropertyRowAction(painter, state.visualRect(rect, copyRect), PropertyAction::Copy, propertyState, buttonState);
             }
         }
     }

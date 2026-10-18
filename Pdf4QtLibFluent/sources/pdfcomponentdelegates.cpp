@@ -26,6 +26,7 @@
 #include "pdfwidgetstyle.h"
 
 #include <QAbstractItemView>
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
@@ -45,12 +46,15 @@
 #include <QPixmapCache>
 #include <QScrollBar>
 #include <QTextDocument>
-#include <QThread>
 #include <QTime>
 #include <QToolTip>
 #include <QTreeView>
 
-#include <algorithm>
+#include <iterator>
+
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 namespace pdf
 {
@@ -120,11 +124,27 @@ public:
         return QPoint();
     }
 
-    /// Returns the combination of the key without the keypad modifier (the
-    /// Enter of the keypad is Enter, the digits of the keypad are digits)
-    static QKeyCombination getKeyCombination(const QKeyEvent* event)
+    /// Returns true, if the key event is the shortcut: one of the combinations of
+    /// PDFShortcutRecorder::getMatchingKeyCombinations (the recorded combination -
+    /// Ctrl+Alt with the base key on Windows -, the combination of the event and
+    /// the combination of the other platforms), always without the keypad
+    /// modifier (the Enter of the keypad is Enter, its digits are digits)
+    static bool isShortcutKey(const QKeySequence& shortcut, const QKeyEvent* event)
     {
-        return QKeyCombination(event->modifiers() & ~Qt::KeypadModifier, static_cast<Qt::Key>(event->key()));
+        if (shortcut.isEmpty())
+        {
+            return false;
+        }
+
+        for (const QKeyCombination& combination : PDFShortcutRecorder::getMatchingKeyCombinations(event))
+        {
+            if (shortcut == QKeySequence(combination))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// Returns true, if the class of the view is a class of Qt or of this
@@ -140,6 +160,61 @@ public:
     {
         return QGuiApplication::mouseButtons().testFlag(Qt::LeftButton);
     }
+
+    /// Appends the range of the value of MatchRangesRole (a QPoint: start,
+    /// length; another type or an invalid range is left out)
+    static void appendMatchRange(QList<PDFComponentPainter::TextRange>& ranges, const QVariant& item)
+    {
+        if (item.typeId() == QMetaType::QPoint)
+        {
+            const QPoint point = item.toPoint();
+            if (point.x() >= 0 && point.y() > 0)
+            {
+                ranges << PDFComponentPainter::TextRange{ point.x(), point.y() };
+            }
+        }
+    }
+};
+
+/// Action of the menu of an item (PDFRowDelegate::addActionsToMenu): it
+/// remembers the delegate, the view and the item and triggers the action of
+/// the delegate. It belongs to the menu, so it is deleted with it.
+class PDFRowDelegateMenuAction : public QAction
+{
+public:
+    explicit PDFRowDelegateMenuAction(const QString& text, PDFRowDelegate* delegate, QAbstractItemView* view, const QModelIndex& index, int id, QObject* parent) :
+        QAction(text, parent),
+        m_delegate(delegate),
+        m_view(view),
+        m_hasView(view != nullptr),
+        m_index(index),
+        m_id(id)
+    {
+        connect(this, &QAction::triggered, this, &PDFRowDelegateMenuAction::onTriggered);
+    }
+
+private:
+    void onTriggered()
+    {
+        // The slots of the action may delete the menu with this action, so the
+        // data are copied first and no member is used after the call
+        const QPointer<PDFRowDelegate> delegate = m_delegate;
+        const QPointer<QAbstractItemView> view = m_view;
+        const QPersistentModelIndex index = m_index;
+        const int id = m_id;
+
+        // A menu of a view, which has been destroyed meanwhile, does nothing (review C14)
+        if (delegate && index.isValid() && (!m_hasView || view))
+        {
+            delegate->triggerAction(view.data(), index, id);
+        }
+    }
+
+    QPointer<PDFRowDelegate> m_delegate;
+    QPointer<QAbstractItemView> m_view;
+    bool m_hasView = false;
+    QPersistentModelIndex m_index;
+    int m_id = -1;
 };
 
 PDFRowDelegate::PDFRowDelegate(QObject* parent) :
@@ -273,10 +348,6 @@ int PDFRowDelegate::addActionsToMenu(QMenu* menu, QAbstractItemView* view, const
 
     const QStyleOptionViewItem option = getViewOption(view, index);
     const bool isEnabled = Helper::isItemEnabled(view, index);
-    const QPersistentModelIndex persistentIndex(index);
-    const QPointer<QAbstractItemView> viewPointer(view);
-    const bool hasView = view != nullptr;
-    const QPointer<PDFRowDelegate> delegate(this);
 
     int count = 0;
     for (const Action& action : getActions(option, index))
@@ -288,17 +359,9 @@ int PDFRowDelegate::addActionsToMenu(QMenu* menu, QAbstractItemView* view, const
             text += QLatin1Char('\t') + action.shortcut.toString(QKeySequence::NativeText);
         }
 
-        QAction* menuAction = menu->addAction(text);
+        QAction* menuAction = new PDFRowDelegateMenuAction(text, this, view, index, action.id, menu);
+        menu->addAction(menuAction);
         menuAction->setEnabled(isEnabled && action.enabled);
-        const int id = action.id;
-        connect(menuAction, &QAction::triggered, menu, [delegate, viewPointer, hasView, persistentIndex, id]()
-        {
-            // A menu of a view, which has been destroyed meanwhile, does nothing (review C14)
-            if (delegate && persistentIndex.isValid() && (!hasView || viewPointer))
-            {
-                delegate->triggerAction(viewPointer.data(), persistentIndex, id);
-            }
-        });
         ++count;
     }
 
@@ -423,6 +486,7 @@ void PDFRowDelegate::installViewport(WatchedView& watched, QWidget* viewport)
 
     watched.viewport = viewport;
     watched.isHoverSet = false;
+    watched.isFilterReinstallPending = false;
     watched.viewportWidth = -1;
 
     if (viewport)
@@ -489,7 +553,10 @@ void PDFRowDelegate::watchView(QAbstractItemView* view)
     }
 
     // Entries of the destroyed views are dropped
-    m_views.erase(std::remove_if(m_views.begin(), m_views.end(), [](const WatchedView& watched) { return !watched.view; }), m_views.end());
+    for (auto it = m_views.begin(); it != m_views.end();)
+    {
+        it = it->view ? std::next(it) : m_views.erase(it);
+    }
 
     WatchedView watched;
     watched.view = view;
@@ -505,13 +572,7 @@ void PDFRowDelegate::watchView(QAbstractItemView* view)
         watched.header = treeView->header();
         if (watched.header)
         {
-            watched.headerConnection = connect(watched.header.data(), &QHeaderView::sectionResized, this, [this]()
-            {
-                if (hasHeightForWidth())
-                {
-                    invalidateSizes();
-                }
-            });
+            watched.headerConnection = connect(watched.header.data(), &QHeaderView::sectionResized, this, &PDFRowDelegate::onHeaderSectionResized);
         }
     }
 
@@ -542,12 +603,61 @@ void PDFRowDelegate::unwatchView(QAbstractItemView* view)
 
 bool PDFRowDelegate::isWatching(const QAbstractItemView* view) const
 {
-    return view && std::any_of(m_views.cbegin(), m_views.cend(), [view](const WatchedView& watched) { return watched.view.data() == view; });
+    if (!view)
+    {
+        return false;
+    }
+
+    for (const WatchedView& watched : m_views)
+    {
+        if (watched.view.data() == view)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 int PDFRowDelegate::getWatchedViewCount() const
 {
-    return static_cast<int>(std::count_if(m_views.cbegin(), m_views.cend(), [](const WatchedView& watched) { return !watched.view.isNull(); }));
+    int count = 0;
+    for (const WatchedView& watched : m_views)
+    {
+        if (!watched.view.isNull())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void PDFRowDelegate::onHeaderSectionResized()
+{
+    // The heights of the items, which follow the width, after a resize of a column
+    if (hasHeightForWidth())
+    {
+        invalidateSizes();
+    }
+}
+
+void PDFRowDelegate::installPendingViewportFilters()
+{
+    // The filter of the delegate is installed again on the viewports set by
+    // setViewport, after the scroll area has installed its own filter on them
+    // (a filter installed later runs first); a view, which is no longer
+    // watched, has no entry
+    for (WatchedView& watched : m_views)
+    {
+        if (watched.isFilterReinstallPending)
+        {
+            watched.isFilterReinstallPending = false;
+            if (watched.viewport)
+            {
+                watched.viewport->installEventFilter(this);
+            }
+        }
+    }
 }
 
 void PDFRowDelegate::ensureWatched(const QWidget* widget) const
@@ -730,7 +840,7 @@ QWidget* PDFRowDelegate::createEditor(QWidget* parent, const QStyleOptionViewIte
     return nullptr;
 }
 
-QSize PDFRowDelegate::getCachedSize(const QString& key, const std::function<QSize()>& compute) const
+std::optional<QSize> PDFRowDelegate::getCachedSize(const QString& key) const
 {
     const auto it = m_sizeCache.constFind(key);
     if (it != m_sizeCache.cend())
@@ -738,7 +848,11 @@ QSize PDFRowDelegate::getCachedSize(const QString& key, const std::function<QSiz
         return it.value();
     }
 
-    const QSize size = compute ? compute() : QSize();
+    return std::nullopt;
+}
+
+QSize PDFRowDelegate::setCachedSize(const QString& key, const QSize& size) const
+{
     if (m_sizeCache.size() >= PDFComponentDelegatesHelper::MAX_CACHED_SIZES)
     {
         m_sizeCache.clear();
@@ -929,18 +1043,12 @@ QPixmap PDFRowDelegate::getPixmap(const QModelIndex& index)
             {
                 // The image is converted once: the same pixmap (with the same cache
                 // key) is returned for each repaint, so its scaled copy is found in
-                // QPixmapCache (review C4); outside of the thread of the application
-                // the image is converted without the cache
+                // QPixmapCache (review C4; delegates paint in the thread of the user
+                // interface only)
                 const QImage image = value.value<QImage>();
                 if (image.isNull())
                 {
                     return QPixmap();
-                }
-
-                const bool isApplicationThread = QCoreApplication::instance() && QThread::currentThread() == QCoreApplication::instance()->thread();
-                if (!isApplicationThread)
-                {
-                    return QPixmap::fromImage(image);
                 }
 
                 const QString key = QStringLiteral("pdf4qt-delegate-image-%1").arg(image.cacheKey());
@@ -981,10 +1089,9 @@ bool PDFRowDelegate::isKeyHandled(QAbstractItemView* view, const QModelIndex& in
         return false;
     }
 
-    const QKeySequence pressed(PDFComponentDelegatesHelper::getKeyCombination(event));
     for (const Action& action : getActions(getViewOption(view, index), index))
     {
-        if (action.enabled && !action.shortcut.isEmpty() && action.shortcut == pressed)
+        if (action.enabled && PDFComponentDelegatesHelper::isShortcutKey(action.shortcut, event))
         {
             return true;
         }
@@ -1000,10 +1107,9 @@ bool PDFRowDelegate::handleKey(QAbstractItemView* view, const QModelIndex& index
         return false;
     }
 
-    const QKeySequence pressed(PDFComponentDelegatesHelper::getKeyCombination(event));
     for (const Action& action : getActions(getViewOption(view, index), index))
     {
-        if (action.enabled && !action.shortcut.isEmpty() && action.shortcut == pressed)
+        if (action.enabled && PDFComponentDelegatesHelper::isShortcutKey(action.shortcut, event))
         {
             triggerAction(view, index, action.id);
             return true;
@@ -1563,14 +1669,8 @@ bool PDFRowDelegate::handleViewEvent(QAbstractItemView* view, QEvent* event)
                 if (watched->viewport != view->viewport())
                 {
                     installViewport(*watched, view->viewport());
-                    const QPointer<QWidget> viewport = watched->viewport;
-                    QMetaObject::invokeMethod(this, [this, viewport]()
-                    {
-                        if (viewport && std::any_of(m_views.cbegin(), m_views.cend(), [&viewport](const WatchedView& entry) { return entry.viewport == viewport; }))
-                        {
-                            viewport->installEventFilter(this);
-                        }
-                    }, Qt::QueuedConnection);
+                    watched->isFilterReinstallPending = watched->viewport != nullptr;
+                    QMetaObject::invokeMethod(this, &PDFRowDelegate::installPendingViewportFilters, Qt::QueuedConnection);
                 }
             }
             return false;
@@ -1736,16 +1836,18 @@ QSize PDFNoteDelegate::getItemSize(const QStyleOptionViewItem& option, const QMo
 
     // The wrapping of the text is remembered by the text and the width (review C5)
     const QString key = QString::number(width) + QLatin1Char('\x1F') + row.text;
-    return getCachedSize(key, [&row, width]()
+    if (const std::optional<QSize> cachedSize = getCachedSize(key))
     {
-        if (width <= 0)
-        {
-            return PDFComponentPainter::getNoteRowSize(row);
-        }
+        return *cachedSize;
+    }
 
-        const int itemWidth = qMax(width, PDFComponentPainter::getNoteRowMinimumSize(row).width());
-        return QSize(itemWidth, PDFComponentPainter::getNoteRowHeight(row, itemWidth));
-    });
+    if (width <= 0)
+    {
+        return setCachedSize(key, PDFComponentPainter::getNoteRowSize(row));
+    }
+
+    const int itemWidth = qMax(width, PDFComponentPainter::getNoteRowMinimumSize(row).width());
+    return setCachedSize(key, QSize(itemWidth, PDFComponentPainter::getNoteRowHeight(row, itemWidth)));
 }
 
 PDFAttachmentDelegate::PDFAttachmentDelegate(QObject* parent) :
@@ -1804,28 +1906,16 @@ QList<PDFComponentPainter::TextRange> PDFSearchResultDelegate::getMatchRanges(co
 {
     QList<PDFComponentPainter::TextRange> ranges;
 
-    auto append = [&ranges](const QVariant& item)
-    {
-        if (item.typeId() == QMetaType::QPoint)
-        {
-            const QPoint point = item.toPoint();
-            if (point.x() >= 0 && point.y() > 0)
-            {
-                ranges << PDFComponentPainter::TextRange{ point.x(), point.y() };
-            }
-        }
-    };
-
     if (value.typeId() == QMetaType::QPoint)
     {
-        append(value);
+        PDFComponentDelegatesHelper::appendMatchRange(ranges, value);
     }
     else if (value.isValid() && value.canConvert<QVariantList>())
     {
         const QVariantList list = value.toList();
         for (qsizetype i = 0; i < list.size() && i < 10000; ++i)
         {
-            append(list.at(i));
+            PDFComponentDelegatesHelper::appendMatchRange(ranges, list.at(i));
         }
     }
 
@@ -1862,16 +1952,18 @@ QSize PDFSearchResultDelegate::getItemSize(const QStyleOptionViewItem& option, c
     }
     key += QLatin1Char('\x1F') + row.snippet;
 
-    return getCachedSize(key, [&row, width]()
+    if (const std::optional<QSize> cachedSize = getCachedSize(key))
     {
-        if (width <= 0)
-        {
-            return PDFComponentPainter::getSearchResultRowSize(row);
-        }
+        return *cachedSize;
+    }
 
-        const int itemWidth = qMax(width, PDFComponentPainter::getSearchResultRowMinimumSize(row).width());
-        return QSize(itemWidth, PDFComponentPainter::getSearchResultRowHeight(row, itemWidth));
-    });
+    if (width <= 0)
+    {
+        return setCachedSize(key, PDFComponentPainter::getSearchResultRowSize(row));
+    }
+
+    const int itemWidth = qMax(width, PDFComponentPainter::getSearchResultRowMinimumSize(row).width());
+    return setCachedSize(key, QSize(itemWidth, PDFComponentPainter::getSearchResultRowHeight(row, itemWidth)));
 }
 
 PDFFontDelegate::PDFFontDelegate(QObject* parent) :
@@ -1986,6 +2078,12 @@ void PDFRecentItemDelegate::performAction(QAbstractItemView* view, const QModelI
         // accept it, keeps the item; the application gets the signal in both
         // cases). A slot of dataChanged may delete the delegate (review C15).
         QAbstractItemModel* model = const_cast<QAbstractItemModel*>(index.model());
+        if (!model)
+        {
+            // An invalid index of a direct call of a subclass (triggerAction checks it)
+            return;
+        }
+
         const bool isPinned = getBool(index, PDFComponentRoles::PinnedRole, false);
         const QPersistentModelIndex persistentIndex(index);
         const QPointer<PDFRecentItemDelegate> self(this);
@@ -2061,9 +2159,89 @@ QKeyCombination PDFShortcutRecorder::getKeyCombination(const QKeyEvent* event)
         return QKeyCombination();
     }
 
-    int key = event->key();
-    Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
-    const QString text = event->text();
+#ifdef Q_OS_WIN
+    // The base key is needed only for Ctrl+Alt (the lookup is not done for other keys)
+    const bool isControlAlt = event->modifiers().testFlags(Qt::ControlModifier | Qt::AltModifier);
+    const char16_t baseCharacter = isControlAlt ? getBaseCharacter(event->nativeVirtualKey(), event->nativeScanCode()) : char16_t(0);
+    return getWindowsKeyCombination(event->key(), event->modifiers(), event->text(), baseCharacter);
+#else
+    return getKeyCombination(event->key(), event->modifiers(), event->text());
+#endif
+}
+
+QList<QKeyCombination> PDFShortcutRecorder::getMatchingKeyCombinations(const QKeyEvent* event)
+{
+    QList<QKeyCombination> combinations;
+    if (!event)
+    {
+        return combinations;
+    }
+
+    const QKeyCombination candidates[] = {
+        getKeyCombination(event),
+        QKeyCombination(event->modifiers() & ~Qt::KeypadModifier, static_cast<Qt::Key>(event->key())),
+        getKeyCombination(event->key(), event->modifiers(), event->text())
+    };
+
+    for (const QKeyCombination& candidate : candidates)
+    {
+        if (candidate.key() != Qt::Key(0) && !combinations.contains(candidate))
+        {
+            combinations.append(candidate);
+        }
+    }
+
+    return combinations;
+}
+
+QKeyCombination PDFShortcutRecorder::getWindowsKeyCombination(int key, Qt::KeyboardModifiers modifiers, const QString& text, char16_t baseCharacter)
+{
+    // Windows give the key of the AltGr level for Ctrl+Alt ("[" of Ctrl+Alt+F on
+    // the Czech layout, the dead caron of the key of U+011B). The shortcut is all
+    // the modifiers with the base key: the character of the key without the
+    // modifiers, uppercased - the candidate, which
+    // QWindowsKeyMapper::possibleKeyCombinations always gives the shortcut map
+    // of Qt (qtKey[0] of toKeyOrUnicode: also the spacing character of a dead
+    // key; a control character is not a base key). A surrogate is not a key.
+    if (modifiers.testFlags(Qt::ControlModifier | Qt::AltModifier))
+    {
+        const char16_t baseKey = QChar(baseCharacter).toUpper().unicode();
+        if (baseKey >= 0x20 && baseKey != 0x7F && !QChar::isSurrogate(baseKey))
+        {
+            return QKeyCombination(modifiers & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier), static_cast<Qt::Key>(baseKey));
+        }
+    }
+
+    // A key without a character (F-keys, arrows, Enter, Tab, the keypad without
+    // NumLock): the rules of the other platforms keep its Qt key and modifiers
+    return getKeyCombination(key, modifiers, text);
+}
+
+char16_t PDFShortcutRecorder::getBaseCharacter(quint32 virtualKey, quint32 scanCode)
+{
+#ifdef Q_OS_WIN
+    if (virtualKey == 0 || virtualKey > 0xFE)
+    {
+        return 0;
+    }
+
+    // ToUnicode without any key held, as toKeyOrUnicode of QWindowsKeyMapper
+    // fills qtKey[0]; flag 0x4: the state of the keyboard (a pending dead key)
+    // is not changed. A dead key (-1) writes its spacing character.
+    const BYTE keyState[256] = { };
+    wchar_t buffer[5] = { };
+    const int count = ::ToUnicode(UINT(virtualKey), UINT(scanCode), keyState, buffer, 5, 0x4);
+    return count != 0 ? char16_t(buffer[0]) : char16_t(0);
+#else
+    Q_UNUSED(virtualKey);
+    Q_UNUSED(scanCode);
+    return 0;
+#endif
+}
+
+QKeyCombination PDFShortcutRecorder::getKeyCombination(int key, Qt::KeyboardModifiers modifiers, const QString& text)
+{
+    modifiers &= (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
     const QChar character = text.isEmpty() ? QChar() : text.at(0);
     const bool isTypedSymbol = !text.isEmpty() && character.isPrint() && !character.isSpace();
 
@@ -2074,7 +2252,8 @@ QKeyCombination PDFShortcutRecorder::getKeyCombination(const QKeyEvent* event)
         modifiers |= Qt::ShiftModifier;
     }
 
-    // A character typed with AltGr (Ctrl+Alt on Windows): the character alone
+    // A character typed with AltGr (Ctrl+Alt on Windows, a key without the base
+    // key there) on another key: the character alone
     if (modifiers.testFlags(Qt::ControlModifier | Qt::AltModifier) && isTypedSymbol && !character.isLetterOrNumber())
     {
         modifiers &= ~(Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier);
@@ -2137,15 +2316,23 @@ void PDFShortcutRecorder::keyPressEvent(QKeyEvent* event)
         return;
     }
 
-    if (!isRecordableKey(key))
+    // The key of the combination: Windows give no Qt key for Ctrl+Alt with a key
+    // without a character of the AltGr level (Ctrl+Alt+Shift+the key of U+011B
+    // on the Czech layout), the base key is the key then
+    const QKeyCombination combination = getKeyCombination(event);
+    if (!isRecordableKey(combination.key()))
     {
         // A lone modifier: the recording waits for the key
         return;
     }
 
-    m_sequence = QKeySequence(getKeyCombination(event));
+    m_sequence = QKeySequence(combination);
     m_isFinished = true;
-    Q_EMIT recorded(m_sequence);
+
+    // A copy: a slot of the signal may delete the recorder, the next slots
+    // must not read its member
+    const QKeySequence sequence = m_sequence;
+    Q_EMIT recorded(sequence);
 }
 
 void PDFShortcutRecorder::focusOutEvent(QFocusEvent* event)
@@ -2222,7 +2409,10 @@ PDFComponentPainter::ShortcutRow PDFShortcutDelegate::getContent(const QModelInd
 void PDFShortcutDelegate::purgeRecordings() const
 {
     // A recorder deleted without destroyEditor (its view has been destroyed)
-    m_recordings.erase(std::remove_if(m_recordings.begin(), m_recordings.end(), [](const Recording& recording) { return !recording.recorder; }), m_recordings.end());
+    for (auto it = m_recordings.begin(); it != m_recordings.end();)
+    {
+        it = it->recorder ? std::next(it) : m_recordings.erase(it);
+    }
 }
 
 const PDFShortcutDelegate::Recording* PDFShortcutDelegate::findRecording(const PDFShortcutRecorder* recorder) const
@@ -2245,18 +2435,33 @@ const PDFShortcutDelegate::Recording* PDFShortcutDelegate::findRecording(const P
 
 bool PDFShortcutDelegate::isRecording(const QModelIndex& index) const
 {
-    return std::any_of(m_recordings.cbegin(), m_recordings.cend(), [&index](const Recording& recording)
+    for (const Recording& recording : m_recordings)
     {
-        return recording.recorder && PDFComponentDelegatesHelper::isSameItem(index, recording.index);
-    });
+        if (recording.recorder && PDFComponentDelegatesHelper::isSameItem(index, recording.index))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool PDFShortcutDelegate::isRecording(const QAbstractItemView* view, const QModelIndex& index) const
 {
-    return view && std::any_of(m_recordings.cbegin(), m_recordings.cend(), [view, &index](const Recording& recording)
+    if (!view)
     {
-        return recording.recorder && recording.view.data() == view && PDFComponentDelegatesHelper::isSameItem(index, recording.index);
-    });
+        return false;
+    }
+
+    for (const Recording& recording : m_recordings)
+    {
+        if (recording.recorder && recording.view.data() == view && PDFComponentDelegatesHelper::isSameItem(index, recording.index))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 QModelIndex PDFShortcutDelegate::getRecordingIndex() const
@@ -2274,7 +2479,15 @@ QModelIndex PDFShortcutDelegate::getRecordingIndex() const
 
 int PDFShortcutDelegate::getRecordingCount() const
 {
-    return static_cast<int>(std::count_if(m_recordings.cbegin(), m_recordings.cend(), [](const Recording& recording) { return !recording.recorder.isNull(); }));
+    int count = 0;
+    for (const Recording& recording : m_recordings)
+    {
+        if (!recording.recorder.isNull())
+        {
+            ++count;
+        }
+    }
+    return count;
 }
 
 QModelIndexList PDFShortcutDelegate::findConflicts(const QModelIndex& index, const QKeySequence& sequence)
@@ -2348,6 +2561,12 @@ void PDFShortcutDelegate::performAction(QAbstractItemView* view, const QModelInd
         {
             // A slot of dataChanged may delete the delegate (review C15)
             QAbstractItemModel* model = const_cast<QAbstractItemModel*>(index.model());
+            if (!model)
+            {
+                // An invalid index of a direct call of a subclass (triggerAction checks it)
+                return;
+            }
+
             const QKeySequence before = getShortcut(index);
             const bool isWritten = model->setData(index, QVariant::fromValue(QKeySequence()), PDFComponentRoles::ShortcutRole);
             if (!self || !persistentIndex.isValid())
@@ -2395,12 +2614,11 @@ bool PDFShortcutDelegate::startRecording(QAbstractItemView* view, const QModelIn
 
 QWidget* PDFShortcutDelegate::createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
+    // createEditor is a const function of Qt, the delegate receives the signals of the editor
     PDFShortcutRecorder* recorder = new PDFShortcutRecorder(parent);
     PDFShortcutDelegate* self = const_cast<PDFShortcutDelegate*>(this);
-    const QPointer<PDFShortcutRecorder> recorderPointer(recorder);
-
-    connect(recorder, &PDFShortcutRecorder::recorded, self, [self, recorderPointer](const QKeySequence& sequence) { self->onRecorded(recorderPointer.data(), sequence); });
-    connect(recorder, &PDFShortcutRecorder::cancelled, self, [self, recorderPointer]() { self->onCancelled(recorderPointer.data()); });
+    connect(recorder, &PDFShortcutRecorder::recorded, self, &PDFShortcutDelegate::onRecorderRecorded);
+    connect(recorder, &PDFShortcutRecorder::cancelled, self, &PDFShortcutDelegate::onRecorderCancelled);
 
     // Each recorder remembers its view and its item (one delegate for more views, review C3)
     purgeRecordings();
@@ -2485,6 +2703,22 @@ void PDFShortcutDelegate::closeEditorOfView(QAbstractItemView* view, PDFShortcut
     }
 }
 
+void PDFShortcutDelegate::onRecorderRecorded(const QKeySequence& sequence)
+{
+    // The signal does not carry the recorder and more recorders (of more views)
+    // can be connected: the sender is the recorder (another sender, or a direct
+    // call, is not a recording - findRecording finds nothing). The sequence is
+    // copied: it may be a member of the recorder, which a slot of
+    // shortcutConflict can delete before the next slot reads the sequence.
+    const QKeySequence recordedSequence = sequence;
+    onRecorded(qobject_cast<PDFShortcutRecorder*>(sender()), recordedSequence);
+}
+
+void PDFShortcutDelegate::onRecorderCancelled()
+{
+    onCancelled(qobject_cast<PDFShortcutRecorder*>(sender()));
+}
+
 void PDFShortcutDelegate::onRecorded(PDFShortcutRecorder* recorder, const QKeySequence& sequence)
 {
     const Recording* recording = findRecording(recorder);
@@ -2549,21 +2783,26 @@ void PDFShortcutDelegate::onCancelled(PDFShortcutRecorder* recorder)
 
 bool PDFShortcutDelegate::isStartKey(const QKeyEvent* event)
 {
-    if (!event || PDFComponentDelegatesHelper::getKeyCombination(event).keyboardModifiers() != Qt::NoModifier)
+    // The same combinations as the shortcuts of the actions (without the keypad
+    // modifier); a start key is a key without the modifiers
+    for (const QKeyCombination& combination : PDFShortcutRecorder::getMatchingKeyCombinations(event))
     {
-        return false;
-    }
+        if (combination.keyboardModifiers() != Qt::NoModifier)
+        {
+            continue;
+        }
 
-    switch (event->key())
-    {
-        case Qt::Key_Return:
-        case Qt::Key_Enter:
-        case Qt::Key_Space:
-        case Qt::Key_F2:
-            return true;
+        switch (combination.key())
+        {
+            case Qt::Key_Return:
+            case Qt::Key_Enter:
+            case Qt::Key_Space:
+            case Qt::Key_F2:
+                return true;
 
-        default:
-            break;
+            default:
+                break;
+        }
     }
 
     return false;

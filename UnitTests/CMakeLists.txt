@@ -526,4 +526,52 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsFluentComponents "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsFluentComponents")
     set_tests_properties(UnitTestsFluentComponents PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Destruction of every widget of every page of the gallery in every order and
+    # situation (child first, parent first, from its own signal, with an open popup,
+    # models, delegates and views of item views). Objects are tracked by the hooks
+    # of QtCore (private API), so a double destruction, an event or a signal of
+    # a destroyed object, a leaked object and a connection left on a long-lived
+    # object are found also in a Release build. The test is built only, when the
+    # private headers of QtCore are installed (Debian / Ubuntu: qt6-base-private-dev).
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        # List of the classes of Pdf4QtLibFluent with meta objects: the test checks,
+        # that each of them has a sample on a page of the gallery
+        file(GLOB PDF4QT_FLUENT_LIBRARY_SOURCES CONFIGURE_DEPENDS
+            "${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/sources/*.h"
+            "${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/sources/*.cpp")
+        set(PDF4QT_FLUENT_CLASSES_HEADER "${CMAKE_CURRENT_BINARY_DIR}/fluentlifetime/fluentlifetimeclasses.h")
+        add_custom_command(
+            OUTPUT "${PDF4QT_FLUENT_CLASSES_HEADER}"
+            COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/sources" "-DOUTPUT=${PDF4QT_FLUENT_CLASSES_HEADER}" -P "${CMAKE_CURRENT_SOURCE_DIR}/fluentclasses.cmake"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/fluentclasses.cmake" ${PDF4QT_FLUENT_LIBRARY_SOURCES}
+            COMMENT "Listing the classes of Pdf4QtLibFluent"
+            VERBATIM
+        )
+
+        add_executable(UnitTestsFluentLifetime
+            tst_fluentlifetimetest.cpp
+            "${PDF4QT_FLUENT_CLASSES_HEADER}"
+            ../Pdf4QtFluentGallery/gallerycardpages.cpp
+            ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
+            ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
+            ../Pdf4QtFluentGallery/gallerypanelpages.cpp
+            ../Pdf4QtFluentGallery/gallerypages.cpp
+            ../Pdf4QtFluentGallery/gallerypages.h
+        )
+        set_source_files_properties("${PDF4QT_FLUENT_CLASSES_HEADER}" PROPERTIES GENERATED ON SKIP_AUTOMOC ON)
+        target_include_directories(UnitTestsFluentLifetime PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery "${CMAKE_CURRENT_BINARY_DIR}/fluentlifetime")
+        target_link_libraries(UnitTestsFluentLifetime PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test Qt6::CorePrivate)
+        set_target_properties(UnitTestsFluentLifetime PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTestsFluentLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsFluentLifetime")
+        set_tests_properties(UnitTestsFluentLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    else()
+        message(STATUS "UnitTestsFluentLifetime is not built: the private headers of QtCore (Qt6::CorePrivate) are not installed")
+    endif()
 endif()

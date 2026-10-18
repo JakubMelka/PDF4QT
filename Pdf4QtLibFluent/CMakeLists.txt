@@ -23,6 +23,13 @@
 # Look of the user interface: the widget style, the colors of the themes and
 # the widgets, which draw themselves. The library depends only on Qt, so each
 # application of the project can use it.
+
+# The library needs Qt 6.9 (the minimum of the project, CLAUDE.md): the queued
+# QMetaObject::invokeMethod of a member function with arguments needs Qt 6.7
+if(Qt6_VERSION VERSION_LESS 6.9)
+    message(FATAL_ERROR "Pdf4QtLibFluent requires Qt 6.9 or newer, found Qt ${Qt6_VERSION}.")
+endif()
+
 add_library(Pdf4QtLibFluent SHARED
     sources/pdfaccenthue.cpp
     sources/pdfaccenthue.h
@@ -87,6 +94,11 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibFluent
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibfluent_export.h")
 
 target_link_libraries(Pdf4QtLibFluent PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+
+if(WIN32)
+    # ToUnicode (the base key of Ctrl+Alt shortcuts, PDFShortcutRecorder)
+    target_link_libraries(Pdf4QtLibFluent PRIVATE user32)
+endif()
 
 target_include_directories(Pdf4QtLibFluent INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibFluent PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})

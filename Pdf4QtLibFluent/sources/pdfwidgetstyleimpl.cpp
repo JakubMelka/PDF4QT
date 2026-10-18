@@ -63,10 +63,10 @@ namespace pdf
 
 /// Names of the internal properties, by which the style remembers,
 /// what it has changed on a widget.
-class PDFWidgetStyleInternal
+class PDFWidgetStyleImplHelper
 {
 public:
-    PDFWidgetStyleInternal() = delete;
+    PDFWidgetStyleImplHelper() = delete;
 
     static constexpr const char* TRANSLUCENT = "_pdf4qt_translucent";
     static constexpr const char* SAVED_AUTOFILL = "_pdf4qt_autofill";
@@ -77,6 +77,40 @@ public:
     static constexpr const char* POPUP_MOVED = "_pdf4qt_moved";
     static constexpr const char* SAVED_POPUP_OPAQUE = "_pdf4qt_popupOpaque";
     static constexpr const char* SAVED_POPUP_NO_BACKGROUND = "_pdf4qt_popupNoBackground";
+
+    /// Returns true, if the list holds the widget
+    static bool contains(const QList<QPointer<QWidget>>& widgets, const QWidget* widget)
+    {
+        for (const QPointer<QWidget>& current : widgets)
+        {
+            if (current.data() == widget)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// Returns true, if windows of popups can be translucent on the platform
+    static bool detectTranslucency()
+    {
+        if (qEnvironmentVariableIsSet("PDF4QT_OPAQUE_POPUPS"))
+        {
+            return false;
+        }
+
+        const QString platform = QGuiApplication::platformName();
+        for (const char* opaquePlatform : { "minimal", "linuxfb", "eglfs", "vnc", "minimalegl" })
+        {
+            if (platform == QLatin1String(opaquePlatform))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 QPointer<PDFWidgetStyleImpl> PDFWidgetStyleImpl::s_applicationImpl;
@@ -152,6 +186,12 @@ const QStyle* PDFWidgetStyleArea::style() const
     return m_impl->getStyle()->proxy();
 }
 
+QRectF PDFWidgetStyleArea::placeInRow(const QRectF& row, bool rightToLeft, qreal left, qreal width, qreal height)
+{
+    const QRectF item(left, row.top() + (row.height() - height) / 2.0, width, height);
+    return PDFWidgetStyleImpl::visualRect(rightToLeft, row, item);
+}
+
 PDFWidgetStyleImpl::PDFWidgetStyleImpl(PDFWidgetStyle* style) :
     QObject(nullptr),
     m_style(style)
@@ -171,6 +211,7 @@ PDFWidgetStyleImpl::PDFWidgetStyleImpl(PDFWidgetStyle* style) :
 PDFWidgetStyleImpl::~PDFWidgetStyleImpl()
 {
     m_animationTimer.stop();
+    m_splitterHoverTimer.stop();
 
     if (m_focusFrame)
     {
@@ -254,7 +295,7 @@ bool PDFWidgetStyleImpl::isMnemonicVisible(const QWidget* widget) const
     }
 
     const QWidget* window = widget->window();
-    const bool seenAlt = std::any_of(m_seenAlt.cbegin(), m_seenAlt.cend(), [window](const QPointer<QWidget>& current) { return current.data() == window; });
+    const bool seenAlt = PDFWidgetStyleImplHelper::contains(m_seenAlt, window);
 
     if (qobject_cast<const QMenuBar*>(widget))
     {
@@ -284,24 +325,23 @@ bool PDFWidgetStyleImpl::isAnimated() const
     return !PDFThemeManager::getInstance()->isReducedMotion();
 }
 
-void PDFWidgetStyleImpl::animate(const QWidget* widget) const
+void PDFWidgetStyleImpl::animate(const QWidget* widget)
 {
     if (!widget || !isAnimated() || m_animationTime >= 0)
     {
         return;
     }
 
-    QWidget* target = const_cast<QWidget*>(widget);
-    const bool isRegistered = std::any_of(m_animatedWidgets.cbegin(), m_animatedWidgets.cend(), [target](const QPointer<QWidget>& current) { return current.data() == target; });
-
-    if (!isRegistered)
+    if (!PDFWidgetStyleImplHelper::contains(m_animatedWidgets, widget))
     {
-        m_animatedWidgets.push_back(target);
+        // The style gets the painted widget as const (QStyle API), the next
+        // frame needs QWidget::update. The widget is held by a QPointer.
+        m_animatedWidgets.push_back(const_cast<QWidget*>(widget));
     }
 
     if (!m_animationTimer.isActive())
     {
-        m_animationTimer.start(16, const_cast<PDFWidgetStyleImpl*>(this));
+        m_animationTimer.start(16, this);
     }
 }
 
@@ -461,25 +501,7 @@ QRectF PDFWidgetStyleImpl::visualRect(bool rightToLeft, const QRectF& outer, con
 
 bool PDFWidgetStyleImpl::isTranslucencyAvailable()
 {
-    static const bool available = []()
-    {
-        if (qEnvironmentVariableIsSet("PDF4QT_OPAQUE_POPUPS"))
-        {
-            return false;
-        }
-
-        const QString platform = QGuiApplication::platformName();
-        for (const char* opaquePlatform : { "minimal", "linuxfb", "eglfs", "vnc", "minimalegl" })
-        {
-            if (platform == QLatin1String(opaquePlatform))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }();
-
+    static const bool available = PDFWidgetStyleImplHelper::detectTranslucency();
     return available;
 }
 
@@ -529,7 +551,7 @@ QMargins PDFWidgetStyleImpl::getPopupMargins(const QWidget* widget)
     }
 
     // A popup asks for its geometry before it is prepared by the style
-    const QVariant translucent = widget->property(PDFWidgetStyleInternal::TRANSLUCENT);
+    const QVariant translucent = widget->property(PDFWidgetStyleImplHelper::TRANSLUCENT);
     const bool isTranslucent = translucent.isValid() ? translucent.toBool() : isTranslucencyAvailable();
     return isTranslucent ? getShadowMargins(getPopupKind(widget)) : QMargins();
 }
@@ -583,9 +605,9 @@ void PDFWidgetStyleImpl::polish(QWidget* widget)
     // Hover is a part of the look of the controls. It is not turned on for
     // other widgets: a widget with hover is repainted whole, whenever the
     // pointer enters or leaves it.
-    if (needsHover(widget) && !widget->property(PDFWidgetStyleInternal::SAVED_HOVER).isValid())
+    if (needsHover(widget) && !widget->property(PDFWidgetStyleImplHelper::SAVED_HOVER).isValid())
     {
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_HOVER, widget->testAttribute(Qt::WA_Hover));
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_HOVER, widget->testAttribute(Qt::WA_Hover));
         widget->setAttribute(Qt::WA_Hover, true);
     }
 
@@ -607,10 +629,10 @@ void PDFWidgetStyleImpl::ensureStyledBackground(QWidget* widget)
         return;
     }
 
-    if (!widget->property(PDFWidgetStyleInternal::SAVED_STYLED).isValid())
+    if (!widget->property(PDFWidgetStyleImplHelper::SAVED_STYLED).isValid())
     {
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_STYLED, widget->testAttribute(Qt::WA_StyledBackground));
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_AUTOFILL, widget->autoFillBackground());
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_STYLED, widget->testAttribute(Qt::WA_StyledBackground));
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_AUTOFILL, widget->autoFillBackground());
     }
 
     widget->setAttribute(Qt::WA_StyledBackground, true);
@@ -636,20 +658,20 @@ void PDFWidgetStyleImpl::unpolish(QWidget* widget)
 
     restorePopup(widget);
 
-    const QVariant savedStyled = widget->property(PDFWidgetStyleInternal::SAVED_STYLED);
+    const QVariant savedStyled = widget->property(PDFWidgetStyleImplHelper::SAVED_STYLED);
     if (savedStyled.isValid())
     {
         widget->setAttribute(Qt::WA_StyledBackground, savedStyled.toBool());
-        widget->setAutoFillBackground(widget->property(PDFWidgetStyleInternal::SAVED_AUTOFILL).toBool());
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_STYLED, QVariant());
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_AUTOFILL, QVariant());
+        widget->setAutoFillBackground(widget->property(PDFWidgetStyleImplHelper::SAVED_AUTOFILL).toBool());
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_STYLED, QVariant());
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_AUTOFILL, QVariant());
     }
 
-    const QVariant savedHover = widget->property(PDFWidgetStyleInternal::SAVED_HOVER);
+    const QVariant savedHover = widget->property(PDFWidgetStyleImplHelper::SAVED_HOVER);
     if (savedHover.isValid())
     {
         widget->setAttribute(Qt::WA_Hover, savedHover.toBool());
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_HOVER, QVariant());
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_HOVER, QVariant());
     }
 
     if (m_focusFrame && m_focusFrame->widget() == widget)
@@ -732,6 +754,11 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     m_animationTimer.stop();
     m_animatedWidgets.clear();
     m_seenAlt.clear();
+
+    // Work scheduled by the event filter belongs to the style of the application
+    m_splitterHoverTimer.stop();
+    m_splitterHoverHandle.clear();
+    m_pendingToolBars.clear();
 
     if (m_focusFrame)
     {
@@ -843,6 +870,23 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
             }
             break;
 
+        case QEvent::ParentChange:
+        {
+            // The widget with the focus frame (or its ancestor) has moved to another
+            // parent, maybe to another window: QFocusFrame keeps its parent from the
+            // old hierarchy (QWidget::mapTo warns, the frame is drawn into the old
+            // window), so it is detached and attached again from the event loop
+            QWidget* widget = qobject_cast<QWidget*>(watched);
+            QWidget* framed = m_focusFrame ? m_focusFrame->widget() : nullptr;
+            if (widget && framed && (framed == widget || widget->isAncestorOf(framed)))
+            {
+                framed->disconnect(m_focusFrame);
+                m_focusFrame->setWidget(nullptr);
+                QMetaObject::invokeMethod(this, &PDFWidgetStyleImpl::updateFocusFrame, Qt::QueuedConnection);
+            }
+            break;
+        }
+
         case QEvent::Show:
         case QEvent::ShowToParent:
         {
@@ -866,7 +910,7 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
             QWidget* widget = qobject_cast<QWidget*>(watched);
             if (widget && widget->isWindow())
             {
-                widget->setProperty(PDFWidgetStyleInternal::POPUP_MOVED, QVariant());
+                widget->setProperty(PDFWidgetStyleImplHelper::POPUP_MOVED, QVariant());
                 if (widget->property(PDFWidgetStyleProperties::POPUP_ANCHOR).isValid())
                 {
                     widget->setProperty(PDFWidgetStyleProperties::POPUP_ANCHOR, QVariant());
@@ -901,7 +945,7 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
             }
 
             // The popup of a calendar is a plain widget, its panel is drawn here
-            if (widget && widget->isWindow() && widget->property(PDFWidgetStyleInternal::TRANSLUCENT).isValid() && widget->inherits("QCalendarPopup"))
+            if (widget && widget->isWindow() && widget->property(PDFWidgetStyleImplHelper::TRANSLUCENT).isValid() && widget->inherits("QCalendarPopup"))
             {
                 QPainter painter(widget);
                 drawPopupPanel(&painter, widget->rect(), widget, PopupKind::Popover, 12.0, Color::BorderDefault);
@@ -929,7 +973,7 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
             // proxy style, only a toolbar with a style of its own is left alone
             if (toolBar && !toolBar->testAttribute(Qt::WA_SetStyle) && toolBar->testAttribute(Qt::WA_WState_Polished))
             {
-                QMetaObject::invokeMethod(toolBar, [toolBar]() { applyToolBarMargins(toolBar); }, Qt::QueuedConnection);
+                scheduleToolBarMargins(toolBar);
             }
             break;
         }
@@ -1054,11 +1098,16 @@ bool PDFWidgetStyleImpl::handlePopupMarginEvent(QObject* watched, QMouseEvent* e
         QMouseEvent forwardedEvent(event->type(), targetPosition, scenePosition, event->globalPosition(), event->button(), event->buttons(), event->modifiers(), event->pointingDevice());
 
         // The forwarded event is recognized by its address: its handler can
-        // run a nested event loop (an action, which opens a dialog)
+        // run a nested event loop (an action, which opens a dialog), where the
+        // application can replace the style (this object is deleted then)
         const QEvent* previousEvent = m_forwardedMouseEvent;
         m_forwardedMouseEvent = &forwardedEvent;
+        QPointer<PDFWidgetStyleImpl> guard(this);
         QCoreApplication::sendEvent(target, &forwardedEvent);
-        m_forwardedMouseEvent = previousEvent;
+        if (guard)
+        {
+            m_forwardedMouseEvent = previousEvent;
+        }
         return true;
     }
 
@@ -1082,6 +1131,14 @@ bool PDFWidgetStyleImpl::handlePopupMarginEvent(QObject* watched, QMouseEvent* e
 
 void PDFWidgetStyleImpl::timerEvent(QTimerEvent* event)
 {
+    if (event->timerId() == m_splitterHoverTimer.timerId())
+    {
+        // Single shot
+        m_splitterHoverTimer.stop();
+        showSplitterHover();
+        return;
+    }
+
     if (event->timerId() != m_animationTimer.timerId())
     {
         QObject::timerEvent(event);
@@ -1121,11 +1178,27 @@ void PDFWidgetStyleImpl::onThemeChanged()
     m_paletteGuard = false;
     applyLeakPalette();
 
-    const QWidgetList widgets = QApplication::allWidgets();
-    for (QWidget* widget : widgets)
+    // The handlers of the events are code of the application, which can delete
+    // other widgets of the list
+    QList<QPointer<QWidget>> widgets;
+    for (QWidget* widget : QApplication::allWidgets())
     {
+        widgets.push_back(widget);
+    }
+
+    for (const QPointer<QWidget>& widget : widgets)
+    {
+        if (!widget)
+        {
+            continue;
+        }
+
         QEvent styleChange(QEvent::StyleChange);
         QCoreApplication::sendEvent(widget, &styleChange);
+        if (!widget)
+        {
+            continue;
+        }
         widget->update();
 
         QToolBar* toolBar = qobject_cast<QToolBar*>(widget);
@@ -1275,8 +1348,7 @@ void PDFWidgetStyleImpl::updateMnemonics(QWidget* window)
         return;
     }
 
-    const bool isKnown = std::any_of(m_seenAlt.cbegin(), m_seenAlt.cend(), [window](const QPointer<QWidget>& current) { return current.data() == window; });
-    if (!isKnown)
+    if (!PDFWidgetStyleImplHelper::contains(m_seenAlt, window))
     {
         m_seenAlt.push_back(window);
     }
@@ -1295,7 +1367,7 @@ void PDFWidgetStyleImpl::preparePopup(QWidget* widget)
 {
     const PopupKind kind = getPopupKind(widget);
 
-    if (kind == PopupKind::None || !isTranslucencyAvailable() || widget->property(PDFWidgetStyleInternal::TRANSLUCENT).isValid())
+    if (kind == PopupKind::None || !isTranslucencyAvailable() || widget->property(PDFWidgetStyleImplHelper::TRANSLUCENT).isValid())
     {
         return;
     }
@@ -1303,13 +1375,13 @@ void PDFWidgetStyleImpl::preparePopup(QWidget* widget)
     if (widget->testAttribute(Qt::WA_WState_Created) && widget->windowHandle() && !widget->windowHandle()->format().hasAlpha())
     {
         // The native window exists already and it is opaque
-        widget->setProperty(PDFWidgetStyleInternal::TRANSLUCENT, false);
+        widget->setProperty(PDFWidgetStyleImplHelper::TRANSLUCENT, false);
         return;
     }
 
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_FLAGS, static_cast<qulonglong>(widget->windowFlags().toInt()));
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_POPUP_OPAQUE, widget->testAttribute(Qt::WA_OpaquePaintEvent));
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_POPUP_NO_BACKGROUND, widget->testAttribute(Qt::WA_NoSystemBackground));
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_FLAGS, static_cast<qulonglong>(widget->windowFlags().toInt()));
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_POPUP_OPAQUE, widget->testAttribute(Qt::WA_OpaquePaintEvent));
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_POPUP_NO_BACKGROUND, widget->testAttribute(Qt::WA_NoSystemBackground));
 
     // Changing of the flags must not create or recreate the window
     const bool wasCreated = widget->testAttribute(Qt::WA_WState_Created);
@@ -1320,19 +1392,19 @@ void PDFWidgetStyleImpl::preparePopup(QWidget* widget)
     widget->setWindowFlag(Qt::NoDropShadowWindowHint, true);
     widget->setAttribute(Qt::WA_RightToLeft, wasRightToLeft);
     widget->setAttribute(Qt::WA_WState_Created, wasCreated);
-    widget->setProperty(PDFWidgetStyleInternal::TRANSLUCENT, true);
+    widget->setProperty(PDFWidgetStyleImplHelper::TRANSLUCENT, true);
 
     if (qobject_cast<QMenu*>(widget) || widget->inherits("QCalendarPopup"))
     {
         const QMargins margins = widget->contentsMargins();
-        widget->setProperty(PDFWidgetStyleInternal::SAVED_MARGINS, QVariant::fromValue(margins));
+        widget->setProperty(PDFWidgetStyleImplHelper::SAVED_MARGINS, QVariant::fromValue(margins));
         widget->setContentsMargins(getShadowMargins(kind) + (widget->inherits("QCalendarPopup") ? QMargins(9, 9, 9, 9) : QMargins()));
     }
 }
 
 void PDFWidgetStyleImpl::restorePopup(QWidget* widget)
 {
-    const QVariant translucent = widget->property(PDFWidgetStyleInternal::TRANSLUCENT);
+    const QVariant translucent = widget->property(PDFWidgetStyleImplHelper::TRANSLUCENT);
 
     if (!translucent.isValid())
     {
@@ -1341,7 +1413,7 @@ void PDFWidgetStyleImpl::restorePopup(QWidget* widget)
 
     if (translucent.toBool())
     {
-        const QVariant margins = widget->property(PDFWidgetStyleInternal::SAVED_MARGINS);
+        const QVariant margins = widget->property(PDFWidgetStyleImplHelper::SAVED_MARGINS);
         if (margins.isValid())
         {
             widget->setContentsMargins(margins.value<QMargins>());
@@ -1349,22 +1421,22 @@ void PDFWidgetStyleImpl::restorePopup(QWidget* widget)
 
         const bool wasCreated = widget->testAttribute(Qt::WA_WState_Created);
         widget->setAttribute(Qt::WA_TranslucentBackground, false);
-        widget->setAttribute(Qt::WA_NoSystemBackground, widget->property(PDFWidgetStyleInternal::SAVED_POPUP_NO_BACKGROUND).toBool());
-        widget->setAttribute(Qt::WA_OpaquePaintEvent, widget->property(PDFWidgetStyleInternal::SAVED_POPUP_OPAQUE).toBool());
-        widget->setWindowFlags(Qt::WindowFlags::fromInt(static_cast<int>(widget->property(PDFWidgetStyleInternal::SAVED_FLAGS).toULongLong())));
+        widget->setAttribute(Qt::WA_NoSystemBackground, widget->property(PDFWidgetStyleImplHelper::SAVED_POPUP_NO_BACKGROUND).toBool());
+        widget->setAttribute(Qt::WA_OpaquePaintEvent, widget->property(PDFWidgetStyleImplHelper::SAVED_POPUP_OPAQUE).toBool());
+        widget->setWindowFlags(Qt::WindowFlags::fromInt(static_cast<int>(widget->property(PDFWidgetStyleImplHelper::SAVED_FLAGS).toULongLong())));
         widget->setAttribute(Qt::WA_WState_Created, wasCreated);
     }
 
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_POPUP_OPAQUE, QVariant());
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_POPUP_NO_BACKGROUND, QVariant());
-    widget->setProperty(PDFWidgetStyleInternal::TRANSLUCENT, QVariant());
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_MARGINS, QVariant());
-    widget->setProperty(PDFWidgetStyleInternal::SAVED_FLAGS, QVariant());
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_POPUP_OPAQUE, QVariant());
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_POPUP_NO_BACKGROUND, QVariant());
+    widget->setProperty(PDFWidgetStyleImplHelper::TRANSLUCENT, QVariant());
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_MARGINS, QVariant());
+    widget->setProperty(PDFWidgetStyleImplHelper::SAVED_FLAGS, QVariant());
 }
 
 void PDFWidgetStyleImpl::movePopup(QWidget* widget)
 {
-    if (widget->property(PDFWidgetStyleInternal::POPUP_MOVED).toBool())
+    if (widget->property(PDFWidgetStyleImplHelper::POPUP_MOVED).toBool())
     {
         return;
     }
@@ -1495,7 +1567,7 @@ void PDFWidgetStyleImpl::movePopup(QWidget* widget)
         }
     }
 
-    widget->setProperty(PDFWidgetStyleInternal::POPUP_MOVED, true);
+    widget->setProperty(PDFWidgetStyleImplHelper::POPUP_MOVED, true);
     widget->move(position);
 }
 
@@ -1519,9 +1591,16 @@ void PDFWidgetStyleProperties::set(QWidget* widget, const char* name, const QVar
         PDFWidgetStyleImpl::requestFocusFrameUpdate();
     }
 
-    // Widgets cache their size hints, the change of the style makes them forget
+    // Widgets cache their size hints, the change of the style makes them forget.
+    // The handler of the event is code of the application, which can delete the widget.
+    QPointer<QWidget> guard(widget);
     QEvent styleChange(QEvent::StyleChange);
     QCoreApplication::sendEvent(widget, &styleChange);
+
+    if (!guard)
+    {
+        return;
+    }
 
     widget->updateGeometry();
     widget->update();

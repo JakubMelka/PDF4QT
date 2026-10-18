@@ -22,8 +22,6 @@
 
 #include "pdfthememanager.h"
 
-#include <algorithm>
-
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
 #endif
@@ -54,19 +52,31 @@ PDFThemeManager* PDFThemeManager::getInstance()
 
 const PDFThemeColors* PDFThemeManager::findTheme(const QString& id) const
 {
-    auto it = std::find_if(m_themes.cbegin(), m_themes.cend(), [&id](const PDFThemeColors& theme) { return theme.getId() == id; });
-    return it != m_themes.cend() ? &*it : nullptr;
+    for (const PDFThemeColors& theme : m_themes)
+    {
+        if (theme.getId() == id)
+        {
+            return &theme;
+        }
+    }
+
+    return nullptr;
 }
 
 void PDFThemeManager::registerTheme(const PDFThemeColors& theme)
 {
-    auto it = std::find_if(m_themes.begin(), m_themes.end(), [&theme](const PDFThemeColors& current) { return current.getId() == theme.getId(); });
-
-    if (it != m_themes.end())
+    bool isReplaced = false;
+    for (PDFThemeColors& current : m_themes)
     {
-        *it = theme;
+        if (current.getId() == theme.getId())
+        {
+            current = theme;
+            isReplaced = true;
+            break;
+        }
     }
-    else
+
+    if (!isReplaced)
     {
         m_themes.push_back(theme);
     }

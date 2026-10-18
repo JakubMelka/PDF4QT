@@ -127,9 +127,15 @@ public:
     {
         m_hideTimer.stop();
 
-        if (isVisible())
+        // The window can be hidden by another way (the window system), the
+        // filter of the application is removed anyway
+        if (qApp)
         {
             qApp->removeEventFilter(this);
+        }
+
+        if (isVisible())
+        {
             hide();
         }
 
@@ -208,18 +214,17 @@ protected:
             // Description: Regular 11 with lines of 15 px
             painter.setPen(PDFStylePainter::color(PDFThemeColors::TextMuted));
             const QPointF origin(content.left(), content.top() + titleHeight + DESCRIPTION_GAP);
-            layoutDescription(content.width(), [&painter, &origin](const QTextLine& line, qreal y)
-            {
-                line.draw(&painter, origin + QPointF(0.0, y));
-            });
+            layoutDescription(content.width(), &painter, origin);
         }
     }
 
 private:
     /// Lays the description out into lines of the fixed height
+    /// \param width Width of the lines
+    /// \param painter Painter, which draws the lines, nullptr, if the lines are only measured
+    /// \param origin Position of the first line
     /// \returns Height of the description
-    template<typename Visitor>
-    qreal layoutDescription(qreal width, Visitor visitor) const
+    qreal layoutDescription(qreal width, QPainter* painter, const QPointF& origin) const
     {
         const QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
         const QFontMetricsF metrics(font);
@@ -252,7 +257,10 @@ private:
 
             for (int i = 0; i < layout.lineCount(); ++i)
             {
-                visitor(layout.lineAt(i), y + lineOffset);
+                if (painter)
+                {
+                    layout.lineAt(i).draw(painter, origin + QPointF(0.0, y + lineOffset));
+                }
                 y += DESCRIPTION_LINE;
             }
 
@@ -280,7 +288,7 @@ private:
         if (!m_description.isEmpty())
         {
             width = qMax<qreal>(width, DESCRIPTION_WIDTH);
-            height += DESCRIPTION_GAP + layoutDescription(width, [](const QTextLine&, qreal) { });
+            height += DESCRIPTION_GAP + layoutDescription(width, nullptr, QPointF());
         }
 
         return QSize(qCeil(width) + 2 * (BORDER + PADDING_H), qCeil(height) + 2 * (BORDER + PADDING_V));

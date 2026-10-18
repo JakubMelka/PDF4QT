@@ -52,6 +52,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -203,6 +204,60 @@ GalleryPages::Page GalleryBuilder::finish()
     page.iconName = m_iconName;
     page.widget = m_page;
     return page;
+}
+
+void GalleryLifetimeHints::set(QWidget* widget, GalleryLifetimeHints hints)
+{
+    if (widget)
+    {
+        widget->setProperty("galleryLifetimeHints", QVariant::fromValue(std::move(hints)));
+    }
+}
+
+GalleryLifetimeHints GalleryLifetimeHints::get(const QWidget* widget)
+{
+    const QVariant value = widget ? widget->property("galleryLifetimeHints") : QVariant();
+    return value.canConvert<GalleryLifetimeHints>() ? value.value<GalleryLifetimeHints>() : GalleryLifetimeHints();
+}
+
+void GalleryLifetimeHints::giveMenus(QWidget* widget)
+{
+    if (!widget)
+    {
+        return;
+    }
+
+    QList<pdf::PDFMoreButton*> buttons = widget->findChildren<pdf::PDFMoreButton*>();
+    if (pdf::PDFMoreButton* button = qobject_cast<pdf::PDFMoreButton*>(widget))
+    {
+        buttons.prepend(button);
+    }
+
+    int index = 0;
+    for (pdf::PDFMoreButton* button : buttons)
+    {
+        if (!button->getMenu())
+        {
+            const bool isChildOfButton = (index++ % 2) == 1 || !button->parentWidget();
+            QMenu* menu = new QMenu(isChildOfButton ? static_cast<QWidget*>(button) : button->parentWidget());
+            menu->addAction(QStringLiteral("Open"));
+            menu->addAction(QStringLiteral("Remove"));
+            button->setMenu(menu);
+        }
+    }
+}
+
+void GalleryBuilder::addLiveDefaults(QWidget* widget)
+{
+    // A sample with its own hints keeps them
+    if (widget->property("galleryLifetimeHints").isValid())
+    {
+        return;
+    }
+
+    GalleryLifetimeHints hints;
+    hints.prepare = &GalleryLifetimeHints::giveMenus;
+    GalleryLifetimeHints::set(widget, std::move(hints));
 }
 
 void GalleryBuilder::addItem(QWidget* widget, const QString& caption, int gap)
@@ -453,31 +508,72 @@ QStyle::State GalleryPages::toStyleState(StateFlags flags)
 std::vector<GalleryPages::Page> GalleryPages::createPages(QWidget* parent)
 {
     std::vector<Page> pages;
-    pages.push_back(createOverviewPage(parent));
-    pages.push_back(createButtonsPage(parent));
-    pages.push_back(createToolButtonsPage(parent));
-    pages.push_back(createCheckBoxesPage(parent));
-    pages.push_back(createTextInputPage(parent));
-    pages.push_back(createSpinBoxesPage(parent));
-    pages.push_back(createComboBoxesPage(parent));
-    pages.push_back(createSlidersPage(parent));
-    pages.push_back(createProgressBarsPage(parent));
-    pages.push_back(createScrollBarsPage(parent));
-    pages.push_back(createMenusPage(parent));
-    pages.push_back(createTabsPage(parent));
-    pages.push_back(createItemViewsPage(parent));
-    pages.push_back(createHeadersPage(parent));
-    pages.push_back(createGroupBoxesPage(parent));
-    pages.push_back(createContainersPage(parent));
-    pages.push_back(createDialogsPage(parent));
-    pages.push_back(createIconsPage(parent));
-    pages.push_back(createComponentsPage(parent));
-    pages.push_back(createShellHomePage(parent));
-    pages.push_back(createCatalogPage(parent));
-    pages.push_back(createFormsPage(parent));
-    pages.push_back(createDocumentPage(parent));
-    pages.push_back(createPanelsPage(parent));
+    const int count = getPageCount();
+    pages.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i)
+    {
+        pages.push_back(createPage(i, parent));
+    }
     return pages;
+}
+
+int GalleryPages::getPageCount()
+{
+    return static_cast<int>(getPageEntries().size());
+}
+
+QString GalleryPages::getPageId(int index)
+{
+    const std::vector<PageEntry>& entries = getPageEntries();
+    if (index < 0 || index >= static_cast<int>(entries.size()))
+    {
+        return QString();
+    }
+    return QString::fromLatin1(entries[static_cast<size_t>(index)].id);
+}
+
+GalleryPages::Page GalleryPages::createPage(int index, QWidget* parent)
+{
+    const std::vector<PageEntry>& entries = getPageEntries();
+    if (index < 0 || index >= static_cast<int>(entries.size()))
+    {
+        return Page();
+    }
+    return entries[static_cast<size_t>(index)].function(parent);
+}
+
+const std::vector<GalleryPages::PageEntry>& GalleryPages::getPageEntries()
+{
+    // The identifiers are known without creating the pages (data rows of the
+    // tests); each one is the identifier, which its function gives to the page
+    static const std::vector<PageEntry> entries =
+    {
+        { "00-overview", &GalleryPages::createOverviewPage },
+        { "01-push-buttons", &GalleryPages::createButtonsPage },
+        { "02-tool-buttons-toolbars", &GalleryPages::createToolButtonsPage },
+        { "03-checkbox-radio", &GalleryPages::createCheckBoxesPage },
+        { "04-text-input", &GalleryPages::createTextInputPage },
+        { "05-spin-box-date-edit", &GalleryPages::createSpinBoxesPage },
+        { "06-combo-box", &GalleryPages::createComboBoxesPage },
+        { "07-slider-dial", &GalleryPages::createSlidersPage },
+        { "08-progress-bar", &GalleryPages::createProgressBarsPage },
+        { "09-scroll-bars", &GalleryPages::createScrollBarsPage },
+        { "10-menus-menu-bar", &GalleryPages::createMenusPage },
+        { "11-tabs", &GalleryPages::createTabsPage },
+        { "12-item-views", &GalleryPages::createItemViewsPage },
+        { "13-header-view", &GalleryPages::createHeadersPage },
+        { "14-group-box-frames", &GalleryPages::createGroupBoxesPage },
+        { "15-containers", &GalleryPages::createContainersPage },
+        { "16-tooltips-dialogs", &GalleryPages::createDialogsPage },
+        { "17-icons-metrics-hints", &GalleryPages::createIconsPage },
+        { "18-components", &GalleryPages::createComponentsPage },
+        { "19-shell-home", &GalleryPages::createShellHomePage },
+        { "20-catalog", &GalleryPages::createCatalogPage },
+        { "21-forms", &GalleryPages::createFormsPage },
+        { "22-document", &GalleryPages::createDocumentPage },
+        { "23-panels", &GalleryPages::createPanelsPage }
+    };
+    return entries;
 }
 
 GalleryPages::Page GalleryPages::createOverviewPage(QWidget* parent)
@@ -583,8 +679,10 @@ GalleryPages::Page GalleryPages::createButtonsPage(QWidget* parent)
         const QSize size = style->sizeFromContents(QStyle::CT_PushButton, &option, QSize(), prototype);
         const bool hasFocus = flags.testFlag(GalleryPages::Focus);
 
-        builder.specimen(caption, size, [option, style, prototype, hasFocus](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(caption, size, [option, prototype = QPointer<QWidget>(prototype), hasFocus](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawControl(QStyle::CE_PushButton, &option, &painter, prototype);
 
@@ -717,8 +815,10 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
         const QSize size = style->sizeFromContents(QStyle::CT_ToolButton, &option, QSize(), prototype);
         const bool hasFocus = flags.testFlag(GalleryPages::Focus);
 
-        builder.specimen(caption, size, [option, style, prototype, hasFocus, radius](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(caption, size, [option, prototype = QPointer<QWidget>(prototype), hasFocus, radius](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, prototype);
 
@@ -768,8 +868,10 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
         option.toolButtonStyle = Qt::ToolButtonIconOnly;
         option.subControls = QStyle::SC_ToolButton;
 
-        builder.specimen(QStringLiteral("Framed (autoRaise = false)"), QSize(36, 36), [option, style, framedPrototype](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(QStringLiteral("Framed (autoRaise = false)"), QSize(36, 36), [option, framedPrototype = QPointer<QWidget>(framedPrototype)](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, framedPrototype);
         }, QStringLiteral("607:1289"));
@@ -864,8 +966,10 @@ GalleryPages::Page GalleryPages::createCheckBoxesPage(QWidget* parent)
         const bool isChecked = flags.testFlag(GalleryPages::On) || flags.testFlag(GalleryPages::Partial);
         const bool hasFocus = flags.testFlag(GalleryPages::Focus);
 
-        builder.specimen(caption, size, [option, style, isRadio, isChecked, hasFocus](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(caption, size, [option, isRadio, isChecked, hasFocus](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawControl(isRadio ? QStyle::CE_RadioButton : QStyle::CE_CheckBox, &option, &painter, nullptr);
 
@@ -932,8 +1036,10 @@ GalleryPages::Page GalleryPages::createCheckBoxesPage(QWidget* parent)
         const StateFlags flags(indicator.flags);
         const bool isExclusive = indicator.isExclusive;
 
-        builder.specimen(QString::fromLatin1(indicator.name), isMenuMark ? QSize(16, 16) : QSize(18, 18), [style, element, flags, isExclusive](QPainter& painter, const QRect& rect)
+        builder.specimen(QString::fromLatin1(indicator.name), isMenuMark ? QSize(16, 16) : QSize(18, 18), [element, flags, isExclusive](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionMenuItem option;
             GalleryHelper::initOption(option, rect, flags);
             option.checkType = isExclusive ? QStyleOptionMenuItem::Exclusive : QStyleOptionMenuItem::NonExclusive;
@@ -982,8 +1088,10 @@ GalleryPages::Page GalleryPages::createTextInputPage(QWidget* parent)
 
     auto fieldSpecimen = [&builder, style](const QString& caption, const QString& text, StateFlags flags, QLineEdit* fieldPrototype, bool isMuted)
     {
-        builder.specimen(caption, QSize(200, 34), [style, text, flags, fieldPrototype, isMuted](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, QSize(200, 34), [text, flags, fieldPrototype = QPointer<QLineEdit>(fieldPrototype), isMuted](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionFrame option;
             GalleryHelper::initOption(option, rect, flags);
             option.lineWidth = 1;
@@ -1065,8 +1173,10 @@ GalleryPages::Page GalleryPages::createSpinBoxesPage(QWidget* parent)
 
     auto spinSpecimen = [&builder, style](const QString& caption, StateFlags flags, QStyle::SubControls activeSubControls, QAbstractSpinBox::StepEnabled stepEnabled, QAbstractSpinBox::ButtonSymbols symbols)
     {
-        builder.specimen(caption, QSize(140, 34), [style, flags, activeSubControls, stepEnabled, symbols](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, QSize(140, 34), [flags, activeSubControls, stepEnabled, symbols](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionSpinBox option;
             GalleryHelper::initOption(option, rect, flags);
             option.frame = true;
@@ -1158,8 +1268,10 @@ GalleryPages::Page GalleryPages::createComboBoxesPage(QWidget* parent)
 
     auto comboSpecimen = [&builder, style](const QString& caption, StateFlags flags, bool isEditable, QStyle::SubControls activeSubControls)
     {
-        builder.specimen(caption, QSize(220, 34), [style, flags, isEditable, activeSubControls](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, QSize(220, 34), [flags, isEditable, activeSubControls](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionComboBox option;
             GalleryHelper::initOption(option, rect, flags);
             option.frame = true;
@@ -1258,8 +1370,10 @@ GalleryPages::Page GalleryPages::createSlidersPage(QWidget* parent)
         const bool hasTicks = ticks != QSlider::NoTicks;
         const QSize size = orientation == Qt::Horizontal ? QSize(180, hasTicks ? 28 : 20) : QSize(hasTicks ? 28 : 20, 140);
 
-        builder.specimen(caption, size, [style, value, flags, activeSubControls, orientation, ticks](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, size, [value, flags, activeSubControls, orientation, ticks](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionSlider option;
             GalleryHelper::initOption(option, rect, flags);
             option.orientation = orientation;
@@ -1302,8 +1416,10 @@ GalleryPages::Page GalleryPages::createSlidersPage(QWidget* parent)
 
     auto dialSpecimen = [&builder, style](const QString& caption, int value, StateFlags flags)
     {
-        builder.specimen(caption, QSize(64, 64), [style, value, flags](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, QSize(64, 64), [value, flags](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionSlider option;
             GalleryHelper::initOption(option, rect, flags);
             option.minimum = 0;
@@ -1378,8 +1494,10 @@ GalleryPages::Page GalleryPages::createProgressBarsPage(QWidget* parent)
         const int labelWidth = text.isEmpty() ? 0 : 8 + pdf::PDFStylePainter::textWidth(text, pdf::PDFThemeFonts::getFont(Font::Small)) + 1;
         const QSize size = isHorizontal ? QSize(180 + labelWidth, thickness.height()) : QSize(thickness.width(), 120);
 
-        builder.specimen(caption, size, [option, style, prototype](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(caption, size, [option, prototype = QPointer<QWidget>(prototype)](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawControl(QStyle::CE_ProgressBar, &option, &painter, prototype);
         });
@@ -1439,8 +1557,10 @@ GalleryPages::Page GalleryPages::createScrollBarsPage(QWidget* parent)
     {
         const QSize size = orientation == Qt::Vertical ? QSize(12, 200) : QSize(200, 12);
 
-        builder.specimen(caption, size, [style, flags, activeSubControls, orientation, maximum, pageStep](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, size, [flags, activeSubControls, orientation, maximum, pageStep](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionSlider option;
             GalleryHelper::initOption(option, rect, flags);
             option.orientation = orientation;
@@ -1530,8 +1650,13 @@ GalleryPages::Page GalleryPages::createMenusPage(QWidget* parent)
         menu->ensurePolished();
         const QSize size = menu->sizeHint();
 
-        builder.specimen(QStringLiteral("Section title, shortcuts, submenu, checked, exclusive, disabled, destructive"), size, [menu](QPainter& painter, const QRect& rect)
+        builder.specimen(QStringLiteral("Section title, shortcuts, submenu, checked, exclusive, disabled, destructive"), size, [menu = QPointer<QMenu>(menu)](QPainter& painter, const QRect& rect)
         {
+            // The menu is a child of the page, it may have been destroyed
+            if (!menu)
+            {
+                return;
+            }
             menu->ensurePolished();
             menu->resize(menu->sizeHint());
             const QList<QAction*> actions = menu->actions();
@@ -1615,8 +1740,10 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
 
         const QSize size = style->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), prototype);
 
-        builder.specimen(caption, size, [option, style, prototype](QPainter& painter, const QRect& rect) mutable
+        builder.specimen(caption, size, [option, prototype = QPointer<QWidget>(prototype)](QPainter& painter, const QRect& rect) mutable
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             option.rect = rect;
             style->drawControl(QStyle::CE_TabBarTab, &option, &painter, prototype);
         }, node);
@@ -1650,8 +1777,10 @@ GalleryPages::Page GalleryPages::createTabsPage(QWidget* parent)
     for (const GalleryHelper::NamedState& state : { GalleryHelper::POINTER_STATES[0], GalleryHelper::POINTER_STATES[1], GalleryHelper::POINTER_STATES[2] })
     {
         const StateFlags flags(state.flags);
-        builder.specimen(QStringLiteral("Tab close button / %1").arg(QString::fromLatin1(state.name)), QSize(20, 20), [style, flags](QPainter& painter, const QRect& rect)
+        builder.specimen(QStringLiteral("Tab close button / %1").arg(QString::fromLatin1(state.name)), QSize(20, 20), [flags](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOption option;
             GalleryHelper::initOption(option, rect, flags);
             style->drawPrimitive(QStyle::PE_IndicatorTabClose, &option, &painter, nullptr);
@@ -1943,6 +2072,34 @@ GalleryPages::Page GalleryPages::createItemViewsPage(QWidget* parent)
     cellTable->setFixedSize(480, 220);
     builder.live(QStringLiteral("QTableView with the vertical header and the corner button"), cellTable, QStringLiteral("622:1603"));
 
+    // A cell of each type, which PDFItemEditorFactory edits by a widget of the
+    // library (a boolean, numbers, a date, a time, a date and time, a text)
+    builder.row();
+    QStandardItemModel* typedModel = new QStandardItemModel(0, 8);
+    typedModel->setHorizontalHeaderLabels({ QStringLiteral("Bool"), QStringLiteral("Int"), QStringLiteral("UInt"), QStringLiteral("Double"),
+                                            QStringLiteral("Date"), QStringLiteral("Time"), QStringLiteral("Date and time"), QStringLiteral("Text") });
+    for (int row = 0; row < 2; ++row)
+    {
+        const QList<QVariant> values = { QVariant(row == 0), QVariant(42 + row), QVariant(uint(7 + row)), QVariant(2.5 + row),
+                                         QVariant(QDate(2026, 10, 18 + row)), QVariant(QTime(9, 30 + row)),
+                                         QVariant(QDateTime(QDate(2026, 10, 18 + row), QTime(9, 30))), QVariant(QStringLiteral("Report %1").arg(row + 1)) };
+        QList<QStandardItem*> items;
+        for (const QVariant& value : values)
+        {
+            QStandardItem* item = new QStandardItem();
+            item->setData(value, Qt::EditRole);
+            items << item;
+        }
+        typedModel->appendRow(items);
+    }
+    QTableView* typedTable = new QTableView(builder.page());
+    typedTable->setModel(typedModel);
+    typedModel->setParent(typedTable);
+    typedTable->setItemDelegate(new pdf::PDFItemDelegate(typedTable));
+    typedTable->verticalHeader()->hide();
+    typedTable->setFixedSize(900, 120);
+    builder.live(QStringLiteral("QTableView - an editor of each type of PDFItemEditorFactory (F2, double click)"), typedTable, QStringLiteral("621:1660"));
+
     return builder.finish();
 }
 
@@ -1956,8 +2113,10 @@ GalleryPages::Page GalleryPages::createHeadersPage(QWidget* parent)
     {
         const QSize size = orientation == Qt::Horizontal ? QSize(width, 28) : QSize(40, 30);
 
-        builder.specimen(caption, size, [style, text, flags, sortIndicator, alignment, orientation, position](QPainter& painter, const QRect& rect)
+        builder.specimen(caption, size, [text, flags, sortIndicator, alignment, orientation, position](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             QStyleOptionHeader option;
             GalleryHelper::initOption(option, rect, flags);
             option.state &= ~QStyle::State_Off;
@@ -2252,10 +2411,25 @@ GalleryPages::Page GalleryPages::createDialogsPage(QWidget* parent)
 
         QObject::connect(button, &QPushButton::clicked, button, [button, badge, title, text]()
         {
-            pdf::PDFMessageBox messageBox(badge, title, text, badge == pdf::PDFThemeIcons::Badge::Question ? QDialogButtonBox::StandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No)
-                                                                                                             : QDialogButtonBox::StandardButtons(QDialogButtonBox::Ok), button->window());
-            messageBox.setDefaultButton(badge == pdf::PDFThemeIcons::Badge::Question ? QDialogButtonBox::Yes : QDialogButtonBox::Ok);
-            messageBox.exec();
+            // The static functions of the library, as an application calls them (the
+            // message box is a child of the window and is deleted with it, when the
+            // window is deleted while the message box is shown)
+            QWidget* window = button->window();
+            switch (badge)
+            {
+                case pdf::PDFThemeIcons::Badge::Question:
+                    pdf::PDFMessageBox::question(window, title, text, QDialogButtonBox::Yes | QDialogButtonBox::No, QDialogButtonBox::Yes);
+                    break;
+                case pdf::PDFThemeIcons::Badge::Warning:
+                    pdf::PDFMessageBox::warning(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
+                    break;
+                case pdf::PDFThemeIcons::Badge::Critical:
+                    pdf::PDFMessageBox::critical(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
+                    break;
+                default:
+                    pdf::PDFMessageBox::information(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
+                    break;
+            }
         });
     }
 
@@ -2265,7 +2439,6 @@ GalleryPages::Page GalleryPages::createDialogsPage(QWidget* parent)
 GalleryPages::Page GalleryPages::createIconsPage(QWidget* parent)
 {
     GalleryBuilder builder(parent, QStringLiteral("17-icons-metrics-hints"), QStringLiteral("Icons, metrics and hints"), QStringLiteral("grid"));
-    QStyle* style = builder.style();
 
     builder.block(QStringLiteral("Standard icons (SP_*)"), QStringLiteral("627:1625"));
     struct StandardSample
@@ -2287,8 +2460,10 @@ GalleryPages::Page GalleryPages::createIconsPage(QWidget* parent)
     for (const StandardSample& sample : standardSamples)
     {
         const QStyle::StandardPixmap pixmap = sample.pixmap;
-        builder.specimen(QString::fromLatin1(sample.name), QSize(36, 36), [style, pixmap](QPainter& painter, const QRect& rect)
+        builder.specimen(QString::fromLatin1(sample.name), QSize(36, 36), [pixmap](QPainter& painter, const QRect& rect)
         {
+            // The style of the application at the time of painting (it can be replaced)
+            QStyle* style = QApplication::style();
             Painter::fill(&painter, QRectF(rect), 8.0, Color::BgSubtle);
             const QIcon icon = style->standardIcon(pixmap);
             const bool isBadge = pixmap == QStyle::SP_MessageBoxInformation || pixmap == QStyle::SP_MessageBoxWarning || pixmap == QStyle::SP_MessageBoxCritical || pixmap == QStyle::SP_MessageBoxQuestion;
@@ -2551,6 +2726,20 @@ GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
     builder.live(QStringLiteral("Disabled"), disabledField);
     builder.live(QStringLiteral("Zoom"), new pdf::PDFToolBarField(QStringLiteral("151"), QStringLiteral("%"), builder.page()));
     builder.live(QStringLiteral("Without a suffix (min. 64)"), new pdf::PDFToolBarField(QStringLiteral("12"), QString(), builder.page()));
+    builder.row();
+
+    // The field and an Icon button in a toolbar, as the application places them
+    // (QToolBar::addWidget wraps them into actions, which the toolbar lays out)
+    QToolBar* fieldToolBar = new QToolBar(builder.page());
+    fieldToolBar->addAction(GalleryHelper::icon("chevron-left"), QStringLiteral("Previous page"));
+    fieldToolBar->addWidget(new pdf::PDFToolBarField(QStringLiteral("308"), QStringLiteral("/ 1592"), fieldToolBar));
+    fieldToolBar->addAction(GalleryHelper::icon("chevron-right"), QStringLiteral("Next page"));
+    fieldToolBar->addSeparator();
+    fieldToolBar->addWidget(new pdf::PDFToolBarField(QStringLiteral("151"), QStringLiteral("%"), fieldToolBar));
+    pdf::PDFIconButton* toolBarIconButton = new pdf::PDFIconButton(QStringLiteral("more-horizontal"), pdf::PDFIconButton::Size::Small, fieldToolBar);
+    toolBarIconButton->setToolTip(QStringLiteral("More"));
+    fieldToolBar->addWidget(toolBarIconButton);
+    builder.live(QStringLiteral("In a toolbar (QToolBar::addWidget)"), fieldToolBar);
 
     builder.block(QStringLiteral("Password field (PDFLineEdit::setPasswordField)"), QStringLiteral("225:870"));
     auto passwordField = [&builder](const QString& caption, const QString& text)

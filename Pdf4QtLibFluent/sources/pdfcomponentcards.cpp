@@ -34,8 +34,6 @@
 #include <QStyle>
 #include <QtMath>
 
-#include <algorithm>
-
 namespace pdf
 {
 
@@ -52,6 +50,13 @@ public:
     static bool isSamePixmap(const QPixmap& first, const QPixmap& second)
     {
         return first.cacheKey() == second.cacheKey() || (first.isNull() && second.isNull());
+    }
+
+    /// Returns the token, if it is valid, otherwise the fallback (an invalid
+    /// token would be drawn in the leak color)
+    static PDFThemeColors::Color getValidColor(PDFThemeColors::Color color, PDFThemeColors::Color fallback)
+    {
+        return (static_cast<int>(color) >= 0 && static_cast<int>(color) < static_cast<int>(PDFThemeColors::ColorCount)) ? color : fallback;
     }
 };
 
@@ -322,7 +327,12 @@ QSize PDFFolderCard::getContentMinimumSizeHint() const
 
 void PDFFolderCard::contextMenuEvent(QContextMenuEvent* event)
 {
-    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
+    showMoreButtonMenu(m_moreButton.data(), event);
+}
+
+void PDFFolderCard::requestMoreButtonMenu()
+{
+    Q_EMIT menuRequested();
 }
 
 // -------------------------------------------------------------------- Pinned card
@@ -459,7 +469,12 @@ QSize PDFPinnedCard::getContentMinimumSizeHint() const
 
 void PDFPinnedCard::contextMenuEvent(QContextMenuEvent* event)
 {
-    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
+    showMoreButtonMenu(m_moreButton.data(), event);
+}
+
+void PDFPinnedCard::requestMoreButtonMenu()
+{
+    Q_EMIT menuRequested();
 }
 
 // ----------------------------------------------------------- Tool category header
@@ -957,6 +972,7 @@ void PDFVideoCard::rebuildTags()
         }
     }
     m_tags.clear();
+    m_tagTexts.clear();
 
     // The tags follow the card in the order of the focus: a new child would be
     // the last widget of the window (QWidget::setTabOrder moves it after the card)
@@ -970,10 +986,33 @@ void PDFVideoCard::rebuildTags()
         tag->setAttribute(Qt::WA_NoMousePropagation, true);
         tag->show();
         tag->installEventFilter(this);
-        connect(tag, &QAbstractButton::clicked, this, [this, text]() { Q_EMIT tagClicked(text); });
+        connect(tag, &QAbstractButton::clicked, this, &PDFVideoCard::onTagClicked);
         QWidget::setTabOrder(previous, tag);
         previous = tag;
         m_tags << tag;
+        m_tagTexts << text;
+    }
+}
+
+void PDFVideoCard::onTagClicked()
+{
+    // QAbstractButton::clicked does not say the button: the sender is the tag
+    // (a tag removed by rebuildTags is no longer in the list and reports nothing)
+    const PDFTag* tag = qobject_cast<const PDFTag*>(sender());
+    if (!tag)
+    {
+        return;
+    }
+
+    for (qsizetype i = 0; i < m_tags.size() && i < m_tagTexts.size(); ++i)
+    {
+        if (m_tags.at(i).data() == tag)
+        {
+            // A copy: a slot may set the tags (the list is cleared then)
+            const QString text = m_tagTexts.at(i);
+            Q_EMIT tagClicked(text);
+            return;
+        }
     }
 }
 
@@ -1020,7 +1059,16 @@ bool PDFVideoCard::event(QEvent* event)
     {
         // A tag deleted or moved away by the application leaves its place to the others
         const QObject* child = static_cast<QChildEvent*>(event)->child();
-        const bool isTag = std::any_of(m_tags.cbegin(), m_tags.cend(), [child](const QPointer<PDFTag>& tag) { return !tag || tag.data() == child; });
+        bool isTag = false;
+        for (const QPointer<PDFTag>& tag : std::as_const(m_tags))
+        {
+            if (!tag || tag.data() == child)
+            {
+                isTag = true;
+                break;
+            }
+        }
+
         if (isTag)
         {
             invalidateHeight();
@@ -1130,12 +1178,8 @@ void PDFReadingThemeCard::setName(const QString& name)
 void PDFReadingThemeCard::setColors(PDFThemeColors::Color pageColor, PDFThemeColors::Color textColor)
 {
     // An invalid token would be drawn in the leak color
-    auto valid = [](PDFThemeColors::Color color, PDFThemeColors::Color fallback)
-    {
-        return (static_cast<int>(color) >= 0 && static_cast<int>(color) < static_cast<int>(PDFThemeColors::ColorCount)) ? color : fallback;
-    };
-    pageColor = valid(pageColor, PDFThemeColors::ReadingPaperPage);
-    textColor = valid(textColor, PDFThemeColors::ReadingPaperText);
+    pageColor = PDFComponentCardsHelper::getValidColor(pageColor, PDFThemeColors::ReadingPaperPage);
+    textColor = PDFComponentCardsHelper::getValidColor(textColor, PDFThemeColors::ReadingPaperText);
 
     if (m_card.pageColor != pageColor || m_card.textColor != textColor)
     {

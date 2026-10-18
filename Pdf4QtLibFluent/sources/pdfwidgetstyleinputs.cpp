@@ -84,7 +84,13 @@ private:
     static int getAffixWidth(const QWidget* widget, const char* property);
     static void countIconButtons(const QWidget* widget, int& leftCount, int& rightCount);
 
+    /// Takes the item of the width from the leading side of the rectangle, the rest
+    /// of the rectangle starts after the gap
+    static QRectF takeLeading(QRectF& rect, bool rightToLeft, qreal width, qreal gap);
+
     void drawSpinBox(const QStyleOptionSpinBox* option, QPainter* painter, const QWidget* widget) const;
+    void drawSpinBoxHalf(const QStyleOptionSpinBox* option, QPainter* painter, const QWidget* widget,
+                         QStyle::SubControl subControl, QAbstractSpinBox::StepEnabledFlag step, QStyle::PrimitiveElement glyph) const;
     void drawComboBox(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const;
     void drawComboBoxLabel(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const;
     void drawSelectFrame(QPainter* painter, const QRectF& rect, const PDFFieldState& state) const;
@@ -664,40 +670,39 @@ void PDFWidgetStyleInputs::drawSpinBox(const QStyleOptionSpinBox* option, QPaint
         return;
     }
 
-    const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
     const bool isPlusMinus = option->buttonSymbols == QAbstractSpinBox::PlusMinus;
+    drawSpinBoxHalf(option, painter, widget, QStyle::SC_SpinBoxUp, QAbstractSpinBox::StepUpEnabled, isPlusMinus ? QStyle::PE_IndicatorSpinPlus : QStyle::PE_IndicatorSpinUp);
+    drawSpinBoxHalf(option, painter, widget, QStyle::SC_SpinBoxDown, QAbstractSpinBox::StepDownEnabled, isPlusMinus ? QStyle::PE_IndicatorSpinMinus : QStyle::PE_IndicatorSpinDown);
+}
 
-    auto drawHalf = [&](QStyle::SubControl subControl, QAbstractSpinBox::StepEnabledFlag step, QStyle::PrimitiveElement glyph)
+void PDFWidgetStyleInputs::drawSpinBoxHalf(const QStyleOptionSpinBox* option, QPainter* painter, const QWidget* widget,
+                                           QStyle::SubControl subControl, QAbstractSpinBox::StepEnabledFlag step, QStyle::PrimitiveElement glyph) const
+{
+    if (!option->subControls.testFlag(subControl))
     {
-        if (!option->subControls.testFlag(subControl))
+        return;
+    }
+
+    const QRect halfRect = style()->subControlRect(QStyle::CC_SpinBox, option, subControl, widget);
+    const bool isStepEnabled = option->state.testFlag(QStyle::State_Enabled) && option->stepEnabled.testFlag(step);
+    const bool isActive = option->activeSubControls.testFlag(subControl);
+
+    if (isStepEnabled && isActive)
+    {
+        if (option->state.testFlag(QStyle::State_Sunken))
         {
-            return;
+            PDFStylePainter::fill(painter, QRectF(halfRect), Radii(4.0), Color::BgPressed);
         }
-
-        const QRect halfRect = style()->subControlRect(QStyle::CC_SpinBox, option, subControl, widget);
-        const bool isStepEnabled = isEnabled && option->stepEnabled.testFlag(step);
-        const bool isActive = option->activeSubControls.testFlag(subControl);
-
-        if (isStepEnabled && isActive)
+        else if (option->state.testFlag(QStyle::State_MouseOver))
         {
-            if (option->state.testFlag(QStyle::State_Sunken))
-            {
-                PDFStylePainter::fill(painter, QRectF(halfRect), Radii(4.0), Color::BgPressed);
-            }
-            else if (option->state.testFlag(QStyle::State_MouseOver))
-            {
-                PDFStylePainter::fill(painter, QRectF(halfRect), Radii(4.0), Color::BgHover);
-            }
+            PDFStylePainter::fill(painter, QRectF(halfRect), Radii(4.0), Color::BgHover);
         }
+    }
 
-        QStyleOption glyphOption = *option;
-        glyphOption.rect = halfRect;
-        glyphOption.state.setFlag(QStyle::State_Enabled, isStepEnabled);
-        style()->drawPrimitive(glyph, &glyphOption, painter, widget);
-    };
-
-    drawHalf(QStyle::SC_SpinBoxUp, QAbstractSpinBox::StepUpEnabled, isPlusMinus ? QStyle::PE_IndicatorSpinPlus : QStyle::PE_IndicatorSpinUp);
-    drawHalf(QStyle::SC_SpinBoxDown, QAbstractSpinBox::StepDownEnabled, isPlusMinus ? QStyle::PE_IndicatorSpinMinus : QStyle::PE_IndicatorSpinDown);
+    QStyleOption glyphOption = *option;
+    glyphOption.rect = halfRect;
+    glyphOption.state.setFlag(QStyle::State_Enabled, isStepEnabled);
+    style()->drawPrimitive(glyph, &glyphOption, painter, widget);
 }
 
 void PDFWidgetStyleInputs::drawComboBox(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const
@@ -785,6 +790,22 @@ void PDFWidgetStyleInputs::drawSelectFrame(QPainter* painter, const QRectF& rect
     }
 }
 
+QRectF PDFWidgetStyleInputs::takeLeading(QRectF& rect, bool rightToLeft, qreal width, qreal gap)
+{
+    QRectF item;
+    if (rightToLeft)
+    {
+        item = QRectF(rect.right() - width, rect.top(), width, rect.height());
+        rect.setRight(rect.right() - width - gap);
+    }
+    else
+    {
+        item = QRectF(rect.left(), rect.top(), width, rect.height());
+        rect.setLeft(rect.left() + width + gap);
+    }
+    return item;
+}
+
 void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option, QPainter* painter, const QWidget* widget) const
 {
     if (option->editable)
@@ -800,22 +821,6 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
     const QComboBox* comboBox = qobject_cast<const QComboBox*>(widget);
     const bool isPlaceholder = comboBox && comboBox->currentIndex() < 0 && !comboBox->placeholderText().isEmpty();
 
-    auto takeLeft = [&rect, &state](qreal width, qreal gap)
-    {
-        QRectF item;
-        if (state.rightToLeft)
-        {
-            item = QRectF(rect.right() - width, rect.top(), width, rect.height());
-            rect.setRight(rect.right() - width - gap);
-        }
-        else
-        {
-            item = QRectF(rect.left(), rect.top(), width, rect.height());
-            rect.setLeft(rect.left() + width + gap);
-        }
-        return item;
-    };
-
     const int alignment = Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft);
 
     if (kind == ComboKind::Select)
@@ -825,7 +830,7 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
         if (!prefix.isEmpty())
         {
             const QFont prefixFont = PDFWidgetStyleImpl::getFont(widget, Font::Small);
-            const QRectF prefixRect = takeLeft(PDFWidgetStyleImpl::getTextWidth(prefix, prefixFont), FIELD_GAP);
+            const QRectF prefixRect = takeLeading(rect, state.rightToLeft, PDFWidgetStyleImpl::getTextWidth(prefix, prefixFont), FIELD_GAP);
             PDFStylePainter::text(painter, prefixRect, alignment | Qt::TextSingleLine, prefix, prefixFont, PDFWidgetStyleImpl::color(state.enabled ? Color::TextMuted : Color::TextDisabled));
         }
 
@@ -838,7 +843,7 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
     if (!option->currentIcon.isNull())
     {
         const qreal extent = kind == ComboKind::Compact ? 14.0 : 16.0;
-        const QRectF iconRect = PDFStylePainter::centered(takeLeft(extent, kind == ComboKind::Compact ? 6.0 : FIELD_GAP), QSizeF(extent, extent));
+        const QRectF iconRect = PDFStylePainter::centered(takeLeading(rect, state.rightToLeft, extent, kind == ComboKind::Compact ? 6.0 : FIELD_GAP), QSizeF(extent, extent));
         PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->currentIcon, PDFWidgetStyleImpl::color(state.enabled ? Color::IconDefault : Color::IconDisabled), PDFStyleState{ state.enabled });
     }
 

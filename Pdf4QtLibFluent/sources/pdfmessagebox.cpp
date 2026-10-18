@@ -74,18 +74,29 @@ class PDFMessageBoxScrim : public QWidget
 {
 public:
     explicit PDFMessageBoxScrim(QWidget* host) :
-        QWidget(host)
+        QWidget(host),
+        m_host(host)
     {
         setAttribute(Qt::WA_NoSystemBackground, true);
         setGeometry(host->rect());
         host->installEventFilter(this);
     }
 
+    virtual ~PDFMessageBoxScrim() override
+    {
+        // The filter is removed from the host (also from a host, which is
+        // deleting its children: its QObject part is still whole)
+        if (m_host)
+        {
+            m_host->removeEventFilter(this);
+        }
+    }
+
     virtual bool eventFilter(QObject* watched, QEvent* event) override
     {
-        if (watched == parentWidget() && event->type() == QEvent::Resize)
+        if (watched == m_host && m_host == parentWidget() && event->type() == QEvent::Resize)
         {
-            setGeometry(parentWidget()->rect());
+            setGeometry(m_host->rect());
         }
 
         return QWidget::eventFilter(watched, event);
@@ -99,6 +110,9 @@ protected:
         QPainter painter(this);
         PDFStylePainter::fillRect(&painter, QRectF(rect()), PDFThemeColors::BgScrim);
     }
+
+private:
+    QPointer<QWidget> m_host;
 };
 
 PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QWidget* parent) :
@@ -205,6 +219,12 @@ QMargins PDFMessageBox::getShadowMargins() const
 
 void PDFMessageBox::updateMargins()
 {
+    if (!m_mainLayout)
+    {
+        // The application has deleted the layout
+        return;
+    }
+
     m_mainLayout->setContentsMargins(QMargins(PADDING_H, PADDING_V, PADDING_H, PADDING_V) + getShadowMargins());
 }
 
@@ -316,27 +336,39 @@ void PDFMessageBox::setDetailedText(const QString& text)
     const bool isLong = text.size() > DETAILS_LONG_SIZE || text.count(QLatin1Char('\n')) > DETAILS_LONG_LINES;
 
     m_detailedText = text;
-    m_detailsLabel->setText(isLong ? QString() : text);
-    m_detailsLabel->setVisible(!isLong);
-    m_detailsEdit->setPlainText(isLong ? text : QString());
-    m_detailsEdit->setVisible(isLong);
-    m_detailsFrame->setVisible(!text.isEmpty());
+    if (m_detailsLabel)
+    {
+        m_detailsLabel->setText(isLong ? QString() : text);
+        m_detailsLabel->setVisible(!isLong);
+    }
+    if (m_detailsEdit)
+    {
+        m_detailsEdit->setPlainText(isLong ? text : QString());
+        m_detailsEdit->setVisible(isLong);
+    }
+    if (m_detailsFrame)
+    {
+        m_detailsFrame->setVisible(!text.isEmpty());
+    }
 }
 
 void PDFMessageBox::setCheckBoxText(const QString& text)
 {
-    m_checkBox->setText(text);
-    m_checkBox->setVisible(!text.isEmpty());
+    if (m_checkBox)
+    {
+        m_checkBox->setText(text);
+        m_checkBox->setVisible(!text.isEmpty());
+    }
 }
 
 bool PDFMessageBox::isCheckBoxChecked() const
 {
-    return m_checkBox->isVisibleTo(this) && m_checkBox->isChecked();
+    return m_checkBox && m_checkBox->isVisibleTo(this) && m_checkBox->isChecked();
 }
 
 void PDFMessageBox::setDefaultButton(QDialogButtonBox::StandardButton button)
 {
-    if (QPushButton* pushButton = m_buttonBox->button(button))
+    if (QPushButton* pushButton = m_buttonBox ? m_buttonBox->button(button) : nullptr)
     {
         pushButton->setDefault(true);
         pushButton->setFocus();
@@ -345,7 +377,12 @@ void PDFMessageBox::setDefaultButton(QDialogButtonBox::StandardButton button)
 
 void PDFMessageBox::setEscapeButton(QDialogButtonBox::StandardButton button)
 {
-    m_escapeButton = m_buttonBox->button(button);
+    m_escapeButton = m_buttonBox ? m_buttonBox->button(button) : nullptr;
+}
+
+QAbstractButton* PDFMessageBox::getClickedButton() const
+{
+    return m_clickedButton.data();
 }
 
 void PDFMessageBox::reject()
@@ -356,11 +393,18 @@ void PDFMessageBox::reject()
         QAbstractButton* button = getEscapeButton();
         if (!button)
         {
+            // Without the buttons (the application has deleted the button box or
+            // all of its buttons) there is no choice, the message box must still
+            // be closable
+            if (!m_buttonBox || m_buttonBox->buttons().isEmpty())
+            {
+                QDialog::reject();
+            }
             return;
         }
 
         m_clickedButton = button;
-        m_clickedStandardButton = m_buttonBox->standardButton(button);
+        m_clickedStandardButton = m_buttonBox ? m_buttonBox->standardButton(button) : QDialogButtonBox::NoButton;
     }
 
     QDialog::reject();
@@ -392,15 +436,15 @@ void PDFMessageBox::keyPressEvent(QKeyEvent* event)
     if (event->matches(QKeySequence::Copy))
     {
         // The selected text is copied, or the whole message as in QMessageBox
-        QString text = m_textLabel->selectedText();
-        if (text.isEmpty())
+        QString text = m_textLabel ? m_textLabel->selectedText() : QString();
+        if (text.isEmpty() && m_detailsLabel)
         {
             text = m_detailsLabel->selectedText();
         }
         if (text.isEmpty())
         {
             QStringList parts;
-            for (const QString& part : { m_titleLabel->text(), m_textLabel->text(), m_detailedText })
+            for (const QString& part : { m_titleLabel ? m_titleLabel->text() : QString(), m_textLabel ? m_textLabel->text() : QString(), m_detailedText })
             {
                 if (!part.isEmpty())
                 {
@@ -420,6 +464,11 @@ void PDFMessageBox::keyPressEvent(QKeyEvent* event)
 
 void PDFMessageBox::ensureDefaultButton()
 {
+    if (!m_buttonBox)
+    {
+        return;
+    }
+
     const QList<QAbstractButton*> buttons = m_buttonBox->buttons();
     QPushButton* defaultButton = nullptr;
 
@@ -475,6 +524,11 @@ QAbstractButton* PDFMessageBox::getEscapeButton() const
     if (m_escapeButton)
     {
         return m_escapeButton;
+    }
+
+    if (!m_buttonBox)
+    {
+        return nullptr;
     }
 
     const QList<QAbstractButton*> buttons = m_buttonBox->buttons();
@@ -533,7 +587,7 @@ QString PDFMessageBox::getBadgeName(PDFThemeIcons::Badge badge)
 
 QAbstractButton* PDFMessageBox::addButton(const QString& text, QDialogButtonBox::ButtonRole role)
 {
-    return m_buttonBox->addButton(text, role);
+    return m_buttonBox ? m_buttonBox->addButton(text, role) : nullptr;
 }
 
 QDialogButtonBox::StandardButton PDFMessageBox::information(QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
@@ -558,19 +612,33 @@ QDialogButtonBox::StandardButton PDFMessageBox::critical(QWidget* parent, const 
 
 QDialogButtonBox::StandardButton PDFMessageBox::showMessage(PDFThemeIcons::Badge badge, QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
 {
-    PDFMessageBox messageBox(badge, title, text, buttons, parent);
-
+    // The message box is a child of the parent: when the parent is deleted while
+    // the message box is shown, the message box is deleted with it (a message box
+    // on the stack would be deleted twice)
+    QPointer<PDFMessageBox> messageBox = new PDFMessageBox(badge, title, text, buttons, parent);
     if (defaultButton != QDialogButtonBox::NoButton)
     {
-        messageBox.setDefaultButton(defaultButton);
+        messageBox->setDefaultButton(defaultButton);
+    }
+    messageBox->exec();
+
+    if (!messageBox)
+    {
+        return QDialogButtonBox::NoButton;
     }
 
-    messageBox.exec();
-    return messageBox.getClickedStandardButton();
+    const QDialogButtonBox::StandardButton result = messageBox->getClickedStandardButton();
+    delete messageBox.data();
+    return result;
 }
 
 void PDFMessageBox::onButtonClicked(QAbstractButton* button)
 {
+    if (!m_buttonBox)
+    {
+        return;
+    }
+
     m_clickedButton = button;
     m_clickedStandardButton = m_buttonBox->standardButton(button);
 

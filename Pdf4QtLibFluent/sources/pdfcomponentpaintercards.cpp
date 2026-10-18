@@ -525,6 +525,19 @@ public:
 
     /// Returns a width, which is used for a layout (a width of an invalid or negative value is 0)
     static int validWidth(int width) { return qMax(0, width); }
+
+    /// Returns a color of a reading theme: the valid color of the user, or the
+    /// color of the token (of the fallback for an invalid token)
+    static QColor getReadingThemeColor(const QColor& custom, Color token, Color fallback)
+    {
+        if (custom.isValid())
+        {
+            return custom;
+        }
+
+        const bool isValidToken = static_cast<int>(token) >= 0 && static_cast<int>(token) < static_cast<int>(PDFThemeColors::ColorCount);
+        return PDFStylePainter::color(isValidToken ? token : fallback);
+    }
 };
 
 qreal PDFComponentPainter::normalizedProgress(qreal progress)
@@ -1366,18 +1379,8 @@ void PDFComponentPainter::paintReadingThemeCard(QPainter* painter, const QRectF&
     using Color = PDFThemeColors::Color;
 
     // The colors of the theme are data: a valid color of the user, or a valid token
-    auto themeColor = [](const QColor& custom, Color token, Color fallback)
-    {
-        if (custom.isValid())
-        {
-            return custom;
-        }
-
-        const bool isValidToken = static_cast<int>(token) >= 0 && static_cast<int>(token) < static_cast<int>(PDFThemeColors::ColorCount);
-        return PDFStylePainter::color(isValidToken ? token : fallback);
-    };
-    const QColor pageColor = themeColor(card.customPageColor, card.pageColor, Color::ReadingPaperPage);
-    const QColor textColor = themeColor(card.customTextColor, card.textColor, Color::ReadingPaperText);
+    const QColor pageColor = Helper::getReadingThemeColor(card.customPageColor, card.pageColor, Color::ReadingPaperPage);
+    const QColor textColor = Helper::getReadingThemeColor(card.customTextColor, card.textColor, Color::ReadingPaperText);
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);

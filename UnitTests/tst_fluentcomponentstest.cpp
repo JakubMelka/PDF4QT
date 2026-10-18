@@ -53,6 +53,7 @@
 #include <QDialog>
 #include <QFile>
 #include <QFocusFrame>
+#include <QGraphicsEffect>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLineEdit>
@@ -316,6 +317,175 @@ private:
     std::function<void(QPainter&)> m_paint;
 };
 
+/// Model of the shortcut map of Qt on Windows for one key press: the key of a
+/// layout as QWindowsKeyMapper::updatePossibleKeyCodes stores it and the
+/// candidates of QWindowsKeyMapper::possibleKeyCombinations, which
+/// QShortcutMap::createNewSequences matches against the shortcuts, with the
+/// retry of QShortcutMap::nextState without the keypad modifier
+/// (qtbase/src/plugins/platforms/windows/qwindowskeymapper.cpp of Qt 6.11.2:
+/// toKeyOrUnicode 555-581, updatePossibleKeyCodes 656-717,
+/// possibleKeyCombinations 1347-1397; qtbase/src/gui/kernel/qshortcutmap.cpp
+/// 339-341). The layouts are not installed, the test gives the characters of
+/// their levels.
+class WindowsShortcutCandidates
+{
+public:
+    WindowsShortcutCandidates() = delete;
+
+    /// A key of a layout: characters of its levels (0 - none), the Qt key of
+    /// the table KeyTbl of Qt for the virtual key (winceKeyBend), extended key
+    struct LayoutKey
+    {
+        quint32 virtualKey = 0;
+        char16_t base = 0;          ///< without the modifiers, qtKey[0]
+        char16_t shift = 0;         ///< Shift, qtKey[1]
+        char16_t altGr = 0;         ///< Ctrl+Alt, qtKey[6]
+        char16_t altGrShift = 0;    ///< Ctrl+Alt+Shift, qtKey[7]
+        int keyTable = 0;           ///< KeyTbl[virtualKey]
+        bool extended = false;      ///< extended key (the Enter of the keypad)
+    };
+
+    /// toKeyOrUnicode: the character uppercased, a control character or none
+    /// is the key of the table
+    static quint32 toKey(char16_t character, int keyTable)
+    {
+        quint32 code = character ? quint32(QChar(character).toUpper().unicode()) : 0;
+        if (code < 0x20 || code == 0x7F)
+        {
+            code = quint32(keyTable);
+        }
+        return code == quint32(Qt::Key_unknown) ? 0 : code;
+    }
+
+    /// The candidates of possibleKeyCombinations. The levels Ctrl, Ctrl+Shift,
+    /// Alt and Alt+Shift (qtKey[2..5]) are left empty: each of them only adds a
+    /// candidate of its own, the base candidate is always there.
+    static QList<QKeyCombination> getCandidates(const LayoutKey& key, Qt::KeyboardModifiers keyMods)
+    {
+        static const Qt::KeyboardModifiers modsTable[9] = {
+            Qt::NoModifier, Qt::ShiftModifier, Qt::ControlModifier, Qt::ControlModifier | Qt::ShiftModifier,
+            Qt::AltModifier, Qt::AltModifier | Qt::ShiftModifier, Qt::AltModifier | Qt::ControlModifier,
+            Qt::AltModifier | Qt::ShiftModifier | Qt::ControlModifier, Qt::NoModifier
+        };
+
+        quint32 qtKey[9] = { };
+        qtKey[0] = toKey(key.base, key.keyTable);
+        qtKey[1] = toKey(key.shift, key.keyTable);
+        qtKey[6] = toKey(key.altGr, key.keyTable);
+        qtKey[7] = toKey(key.altGrShift, key.keyTable);
+
+        // The fall back key of the layouts without the Latin characters
+        quint32 fallbackKey = quint32(key.keyTable);
+        if (!fallbackKey || fallbackKey == quint32(Qt::Key_unknown))
+        {
+            fallbackKey = 0;
+            if (key.virtualKey != qtKey[0] && key.virtualKey != qtKey[1] && key.virtualKey < 0x5B && key.virtualKey > 0x2F)
+            {
+                fallbackKey = key.virtualKey;
+            }
+        }
+        qtKey[8] = fallbackKey;
+
+        QList<QKeyCombination> result;
+        const quint32 baseKey = qtKey[0];
+        if (baseKey == quint32(Qt::Key_Return) && key.extended)
+        {
+            result << QKeyCombination(keyMods, Qt::Key_Enter);
+            return result;
+        }
+
+        if (baseKey == quint32(Qt::Key_Tab) && keyMods.testFlag(Qt::ShiftModifier))
+        {
+            result << QKeyCombination(keyMods & ~Qt::ShiftModifier, Qt::Key_Backtab);
+        }
+
+        // The base key is always valid
+        result << QKeyCombination::fromCombined(int(baseKey) + int(keyMods));
+
+        for (int i = 1; i < 9; ++i)
+        {
+            const Qt::KeyboardModifiers neededMods = modsTable[i];
+            const quint32 levelKey = qtKey[i];
+            if (levelKey && levelKey != baseKey && (keyMods & neededMods) == neededMods)
+            {
+                const Qt::KeyboardModifiers missingMods = keyMods & ~neededMods;
+                const QKeyCombination matchedKey = QKeyCombination::fromCombined(int(levelKey) + int(missingMods));
+                auto it = std::find_if(result.begin(), result.end(), [levelKey](const QKeyCombination& combination) { return quint32(combination.key()) == levelKey; });
+                if (it == result.end())
+                {
+                    result << matchedKey;
+                }
+                else if (missingMods > it->keyboardModifiers())
+                {
+                    *it = matchedKey;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// Returns true, if the shortcut map matches the combination for the key press
+    static bool isMatched(const QKeyCombination& combination, const LayoutKey& key, Qt::KeyboardModifiers keyMods)
+    {
+        for (const QKeyCombination& candidate : getCandidates(key, keyMods))
+        {
+            if (candidate == combination)
+            {
+                return true;
+            }
+
+            // The retry without the keypad modifier
+            if (keyMods.testFlag(Qt::KeypadModifier) && QKeyCombination::fromCombined(candidate.toCombined() & ~int(Qt::KeypadModifier)) == combination)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// Returns the candidates as a text (the message of a failure)
+    static QString describe(const LayoutKey& key, Qt::KeyboardModifiers keyMods)
+    {
+        QStringList texts;
+        for (const QKeyCombination& candidate : getCandidates(key, keyMods))
+        {
+            texts << QKeySequence(candidate).toString(QKeySequence::PortableText);
+        }
+        return texts.join(QStringLiteral(" | "));
+    }
+};
+
+Q_DECLARE_METATYPE(WindowsShortcutCandidates::LayoutKey)
+
+/// Delegate of the fonts, whose action has the shortcut Ctrl+Alt+F (the
+/// matching of the action keys, review C3 of the lifetime test)
+class ControlAltFontDelegate : public pdf::PDFFontDelegate
+{
+public:
+    explicit ControlAltFontDelegate(const QKeySequence& shortcut) :
+        m_shortcut(shortcut)
+    {
+    }
+
+    virtual QList<Action> getActions(const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QList<Action> actions = pdf::PDFFontDelegate::getActions(option, index);
+        for (Action& action : actions)
+        {
+            action.shortcut = m_shortcut;
+        }
+        return actions;
+    }
+
+    using pdf::PDFFontDelegate::isKeyHandled;
+    using pdf::PDFFontDelegate::handleKey;
+
+private:
+    QKeySequence m_shortcut;
+};
+
 class FluentComponentsTest : public QObject
 {
     Q_OBJECT
@@ -433,8 +603,23 @@ private slots:
     void treeViewLostRelease();
     void treeViewRowFocusAndSelection();
     void shortcutSharedDelegate();
+    void shortcutControlAlt_data();
+    void shortcutControlAlt();
+    void shortcutControlAltActions();
     void delegateReviewDetails();
     void delegateListWidth();
+
+    // R2: lambdas of the components replaced by member functions, safe constructs
+    void r2AccentHueDefensive();
+    void r2DelegateMenuActionLifetime();
+    void r2VideoCardTagText();
+    void r2PerformActionInvalidIndex();
+
+    // R1: lambdas of the panels converted to member functions
+    void panelsMemberSlots();
+
+    // Fixes of the review of the lambdas (S3, S9, S10, S11)
+    void lambdasReviewFixes();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -10239,7 +10424,8 @@ void FluentComponentsTest::delegateGallery()
 
     QCOMPARE(delegateViews.value(QStringLiteral("19-shell-home")), 3);
     QCOMPARE(delegateViews.value(QStringLiteral("21-forms")), 3);
-    QCOMPARE(delegateViews.value(QStringLiteral("22-document")), 16);
+    // 16 views of the document delegates and the two views of one shared delegate (lifetime test)
+    QCOMPARE(delegateViews.value(QStringLiteral("22-document")), 18);
 
     // The states Pressed and Focus of the presets Outline and Certificate (review F4 of step 5)
     QSet<QString> liveNodes;
@@ -10979,6 +11165,41 @@ void FluentComponentsTest::shortcutSharedDelegate()
     QCOMPARE(Recorder::getKeyCombination(&backtab), QKeyCombination(Qt::ControlModifier | Qt::ShiftModifier, Qt::Key_Tab));
     const QKeyEvent altGr(QEvent::KeyPress, Qt::Key_At, Qt::ControlModifier | Qt::AltModifier, QStringLiteral("@"));
     QCOMPARE(Recorder::getKeyCombination(&altGr), QKeyCombination(Qt::Key_At));
+    // Ctrl+Alt (the mapping of Windows for the layouts: shortcutControlAlt). The
+    // keys below have the same base key in every layout, so the events give the
+    // same combination on every platform and with any layout of the machine.
+    const Qt::KeyboardModifiers controlAlt = Qt::ControlModifier | Qt::AltModifier;
+    const QKeyEvent controlAltF5(QEvent::KeyPress, Qt::Key_F5, controlAlt, 0x3F, 0x74 /* VK_F5 */, 0, QString());
+    QCOMPARE(Recorder::getKeyCombination(&controlAltF5), QKeyCombination(controlAlt, Qt::Key_F5));
+    const QKeyEvent controlAltKeypad2(QEvent::KeyPress, Qt::Key_2, controlAlt | Qt::KeypadModifier, 0x50, 0x62 /* VK_NUMPAD2 */, 0, QStringLiteral("2"));
+    QCOMPARE(Recorder::getKeyCombination(&controlAltKeypad2), QKeyCombination(controlAlt, Qt::Key_2));
+    const QKeyEvent controlAltSpace(QEvent::KeyPress, Qt::Key_Space, controlAlt, 0x39, 0x20 /* VK_SPACE */, 0, QStringLiteral(" "));
+    QCOMPARE(Recorder::getKeyCombination(&controlAltSpace), QKeyCombination(controlAlt, Qt::Key_Space));
+    const QKeyEvent controlAltBacktab(QEvent::KeyPress, Qt::Key_Backtab, controlAlt | Qt::ShiftModifier, 0x0F, 0x09 /* VK_TAB */, 0, QString());
+    QCOMPARE(Recorder::getKeyCombination(&controlAltBacktab), QKeyCombination(controlAlt | Qt::ShiftModifier, Qt::Key_Tab));
+    // Ctrl alone is not changed by the virtual key
+    const QKeyEvent controlOnly(QEvent::KeyPress, Qt::Key_F, Qt::ControlModifier, 0x21, 'F', 0, QString(QChar(0x06)));
+    QCOMPARE(Recorder::getKeyCombination(&controlOnly), QKeyCombination(Qt::ControlModifier, Qt::Key_F));
+#ifdef Q_OS_WIN
+    // The lookup of the layout: keys with the same character in every layout
+    QCOMPARE(int(Recorder::getBaseCharacter(0x74 /* VK_F5 */, 0x3F)), 0);
+    QCOMPARE(int(Recorder::getBaseCharacter(0x62 /* VK_NUMPAD2 */, 0x50)), int(u'2'));
+    QCOMPARE(int(Recorder::getBaseCharacter(0x20 /* VK_SPACE */, 0x39)), int(u' '));
+    QCOMPARE(int(Recorder::getBaseCharacter(0x0D /* VK_RETURN */, 0x1C)), int(u'\r'));
+    QCOMPARE(int(Recorder::getBaseCharacter(0, 0)), 0);
+    QCOMPARE(int(Recorder::getBaseCharacter(0x1FF, 0)), 0);
+    // A key of the layout of the machine: the event is the pure mapping of its base character
+    const char16_t baseF = Recorder::getBaseCharacter('F', 0x21);
+    QVERIFY(baseF != 0);
+    const QKeyEvent controlAltF(QEvent::KeyPress, Qt::Key_BracketLeft, controlAlt, 0x21, 'F', 0, QStringLiteral("["));
+    QCOMPARE(Recorder::getKeyCombination(&controlAltF), Recorder::getWindowsKeyCombination(Qt::Key_BracketLeft, controlAlt, QStringLiteral("["), baseF));
+    QCOMPARE(Recorder::getKeyCombination(&controlAltF), QKeyCombination(controlAlt, Qt::Key(QChar(baseF).toUpper().unicode())));
+#else
+    // Other platforms: no lookup, the event is not changed by its virtual key
+    QCOMPARE(int(Recorder::getBaseCharacter('F', 0x21)), 0);
+    const QKeyEvent controlAltF(QEvent::KeyPress, Qt::Key_BracketLeft, controlAlt, 0x21, 'F', 0, QStringLiteral("["));
+    QCOMPARE(Recorder::getKeyCombination(&controlAltF), QKeyCombination(Qt::Key_BracketLeft));
+#endif
     const QKeyEvent shiftLetter(QEvent::KeyPress, Qt::Key_A, Qt::ShiftModifier, QStringLiteral("A"));
     QCOMPARE(Recorder::getKeyCombination(&shiftLetter), QKeyCombination(Qt::ShiftModifier, Qt::Key_A));
     const QKeyEvent controlShift(QEvent::KeyPress, Qt::Key_K, Qt::ControlModifier | Qt::ShiftModifier, QString(QChar(0x0B)));
@@ -10987,6 +11208,204 @@ void FluentComponentsTest::shortcutSharedDelegate()
 
     firstView->setItemDelegate(nullptr);
     secondView->setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::shortcutControlAlt_data()
+{
+    // Ctrl+Alt on Windows (review C1, C2 of the lifetime test): the key of a
+    // layout, the Qt key and the text of the event as Qt gives them for the key
+    // press (qtKey[modifiers] of QWindowsKeyMapper::translateKeyEventInternal,
+    // 0 when the level has no character), the recorded combination, which
+    // must be a candidate of the shortcut map of Qt for the same key press, a
+    // combination, which must not be recorded (it is no candidate: the rule of
+    // the virtual key of A-Z / 0-9 before the review), and another candidate of
+    // the same key press (the AltGr symbol alone, the Latin key of a Cyrillic
+    // layout), which fires on the same key press too.
+    using Key = WindowsShortcutCandidates::LayoutKey;
+    QTest::addColumn<Key>("key");
+    QTest::addColumn<int>("eventKey");
+    QTest::addColumn<int>("modifiers");
+    QTest::addColumn<QString>("text");
+    QTest::addColumn<int>("recorded");
+    QTest::addColumn<int>("rejected");
+    QTest::addColumn<int>("alsoFires");
+
+    const int controlAlt = int(Qt::ControlModifier | Qt::AltModifier);
+    const int controlAltShift = controlAlt | int(Qt::ShiftModifier);
+    const int keypad = int(Qt::KeypadModifier);
+    auto row = [](const char* tag, Key key, int eventKey, int modifiers, const QString& text, int recorded, int rejected = 0, int alsoFires = 0)
+    {
+        QTest::newRow(tag) << key << eventKey << modifiers << text << recorded << rejected << alsoFires;
+    };
+    auto character = [](char16_t value) { return QString(QChar(value)); };
+
+    // Czech QWERTZ (00000405): the digit row "+ěščřžýáíé" with the digits on Shift
+    row("cs F, AltGr [", Key{ 'F', u'f', u'F', u'[' }, Qt::Key_BracketLeft, controlAlt, QStringLiteral("["), controlAlt | Qt::Key_F, 0, Qt::Key_BracketLeft);
+    row("cs V, AltGr @", Key{ 'V', u'v', u'V', u'@' }, Qt::Key_At, controlAlt, QStringLiteral("@"), controlAlt | Qt::Key_V, 0, Qt::Key_At);
+    row("cs E, AltGr euro", Key{ 'E', u'e', u'E', u'€' }, 0x20AC, controlAlt, character(u'€'), controlAlt | Qt::Key_E, 0, 0x20AC);
+    row("cs 2 = e caron, AltGr dead caron", Key{ '2', u'ě', u'2', u'ˇ' }, 0x02C7, controlAlt, QString(), controlAlt | 0x011A, controlAlt | Qt::Key_2);
+    row("cs Shift+2 = E caron", Key{ '2', u'ě', u'2', u'ˇ' }, 0, controlAltShift, QString(), controlAltShift | 0x011A, controlAltShift | Qt::Key_2);
+    row("cs 0 = e acute", Key{ '0', u'é', u'0', u'˝' }, 0x02DD, controlAlt, QString(), controlAlt | 0x00C9, controlAlt | Qt::Key_0);
+    row("cs OEM_4 = u acute, AltGr division", Key{ 0xDB, u'ú', u'/', u'÷' }, 0x00F7, controlAlt, character(u'÷'), controlAlt | 0x00DA, 0, 0x00F7);
+    row("cs OEM_2 = dead acute", Key{ 0xBF, u'´', u'ˇ' }, 0, controlAlt, QString(), controlAlt | 0x00B4);
+    row("cs Ctrl+2 without Alt", Key{ '2', u'ě', u'2', u'ˇ' }, 0x011A, int(Qt::ControlModifier), QString(), int(Qt::ControlModifier) | 0x011A);
+
+    // German QWERTZ (00000407)
+    row("de Q, AltGr @", Key{ 'Q', u'q', u'Q', u'@' }, Qt::Key_At, controlAlt, QStringLiteral("@"), controlAlt | Qt::Key_Q, 0, Qt::Key_At);
+    row("de 8, AltGr [", Key{ '8', u'8', u'(', u'[' }, Qt::Key_BracketLeft, controlAlt, QStringLiteral("["), controlAlt | Qt::Key_8, 0, Qt::Key_BracketLeft);
+    row("de OEM_4 = sharp s, AltGr backslash", Key{ 0xDB, u'ß', u'?', u'\\' }, Qt::Key_Backslash, controlAlt, QStringLiteral("\\"), controlAlt | 0x00DF, 0, Qt::Key_Backslash);
+    row("de OEM_5 = dead circumflex", Key{ 0xDC, u'^', u'°' }, 0, controlAlt, QString(), controlAlt | Qt::Key_AsciiCircum);
+    row("de Shift+M, AltGr micro", Key{ 'M', u'm', u'M', u'µ' }, 0, controlAltShift, QString(), controlAltShift | Qt::Key_M);
+
+    // French AZERTY (0000040C): the digit row "&é\"'(-è_çà" with the digits on Shift
+    row("fr 1 = ampersand", Key{ '1', u'&', u'1' }, 0, controlAlt, QString(), controlAlt | Qt::Key_Ampersand, controlAlt | Qt::Key_1);
+    row("fr 2 = e acute, AltGr dead tilde", Key{ '2', u'é', u'2', u'~' }, Qt::Key_AsciiTilde, controlAlt, QString(), controlAlt | 0x00C9, controlAlt | Qt::Key_2, Qt::Key_AsciiTilde);
+    row("fr Shift+2", Key{ '2', u'é', u'2', u'~' }, 0, controlAltShift, QString(), controlAltShift | 0x00C9, controlAltShift | Qt::Key_2);
+    row("fr 0 = a grave, AltGr @", Key{ '0', u'à', u'0', u'@' }, Qt::Key_At, controlAlt, QStringLiteral("@"), controlAlt | 0x00C0, controlAlt | Qt::Key_0, Qt::Key_At);
+    row("fr A", Key{ 'A', u'a', u'A' }, 0, controlAlt, QString(), controlAlt | Qt::Key_A);
+
+    // Russian (00000419): no AltGr level, the Latin key is the fall back candidate
+    row("ru F = cyrillic a", Key{ 'F', u'а', u'А' }, 0, controlAlt, QString(), controlAlt | 0x0410, 0, controlAlt | Qt::Key_F);
+    row("ru OEM_3 = yo", Key{ 0xC0, u'ё', u'Ё' }, 0, controlAlt, QString(), controlAlt | 0x0401);
+    row("ru 2", Key{ '2', u'2', u'"' }, 0, controlAlt, QString(), controlAlt | Qt::Key_2);
+
+    // US: Ctrl+Alt+Shift+2 keeps the digit, "@" with Ctrl+Alt is another candidate
+    row("us Shift+2", Key{ '2', u'2', u'@' }, Qt::Key_At, controlAltShift, QString(), controlAltShift | Qt::Key_2, 0, controlAlt | Qt::Key_At);
+
+    // Keys without a character: the Qt key of the event (KeyTbl of Qt)
+    row("keypad 2", Key{ 0x62, u'2', u'2', 0, 0, Qt::Key_2 }, Qt::Key_2, controlAlt | keypad, QStringLiteral("2"), controlAlt | Qt::Key_2);
+    row("keypad End without NumLock", Key{ 0x23, 0, 0, 0, 0, Qt::Key_End }, Qt::Key_End, controlAlt | keypad, QString(), controlAlt | Qt::Key_End);
+    row("keypad decimal comma", Key{ 0x6E, u',', u',', 0, 0, Qt::Key_Period }, Qt::Key_Comma, controlAlt | keypad, QStringLiteral(","), controlAlt | Qt::Key_Comma);
+    row("keypad Enter", Key{ 0x0D, u'\r', u'\r', 0, 0, Qt::Key_Return, true }, Qt::Key_Enter, controlAlt | keypad, QStringLiteral("\r"), controlAlt | Qt::Key_Enter);
+    row("F5", Key{ 0x74, 0, 0, 0, 0, Qt::Key_F5 }, Qt::Key_F5, controlAlt, QString(), controlAlt | Qt::Key_F5);
+    row("Shift+F5", Key{ 0x74, 0, 0, 0, 0, Qt::Key_F5 }, Qt::Key_F5, controlAltShift, QString(), controlAltShift | Qt::Key_F5);
+    row("Space", Key{ 0x20, u' ', u' ', 0, 0, Qt::Key_Space }, Qt::Key_Space, controlAlt, QStringLiteral(" "), controlAlt | Qt::Key_Space);
+    row("Escape", Key{ 0x1B, u'\x1B', u'\x1B', 0, 0, Qt::Key_Escape }, Qt::Key_Escape, controlAlt, QString(), controlAlt | Qt::Key_Escape);
+    row("Shift+Tab", Key{ 0x09, u'\t', u'\t', 0, 0, Qt::Key_Tab }, Qt::Key_Backtab, controlAltShift, QString(), controlAltShift | Qt::Key_Tab, 0, controlAlt | Qt::Key_Backtab);
+}
+
+void FluentComponentsTest::shortcutControlAlt()
+{
+    using Candidates = WindowsShortcutCandidates;
+    using Recorder = pdf::PDFShortcutRecorder;
+    QFETCH(Candidates::LayoutKey, key);
+    QFETCH(int, eventKey);
+    QFETCH(int, modifiers);
+    QFETCH(QString, text);
+    QFETCH(int, recorded);
+    QFETCH(int, rejected);
+    QFETCH(int, alsoFires);
+
+    const Qt::KeyboardModifiers keyMods = Qt::KeyboardModifiers::fromInt(modifiers);
+    const QString candidates = Candidates::describe(key, keyMods);
+
+    // The pure mapping of Windows with the base character of the layout
+    const QKeyCombination combination = Recorder::getWindowsKeyCombination(eventKey, keyMods, text, key.base);
+    QVERIFY2(combination == QKeyCombination::fromCombined(recorded),
+             qPrintable(QStringLiteral("recorded %1, expected %2").arg(QKeySequence(combination).toString(QKeySequence::PortableText),
+                                                                         QKeySequence(QKeyCombination::fromCombined(recorded)).toString(QKeySequence::PortableText))));
+
+    // The shortcut map of Qt matches the recorded combination on the same key press
+    QVERIFY2(Candidates::isMatched(combination, key, keyMods), qPrintable(candidates));
+
+    // The rule before the review would record a combination, which never fires (C1)
+    if (rejected)
+    {
+        QVERIFY2(!Candidates::isMatched(QKeyCombination::fromCombined(rejected), key, keyMods), qPrintable(candidates));
+    }
+
+    // Another shortcut, which fires on the same key press (the AltGr symbol alone, C2)
+    if (alsoFires)
+    {
+        QVERIFY2(Candidates::isMatched(QKeyCombination::fromCombined(alsoFires), key, keyMods), qPrintable(candidates));
+    }
+
+    // Without the base character (a key without a character, an event of the
+    // test) the mapping is the one of the other platforms
+    QCOMPARE(Recorder::getWindowsKeyCombination(eventKey, keyMods, text, 0), Recorder::getKeyCombination(eventKey, keyMods, text));
+}
+
+void FluentComponentsTest::shortcutControlAltActions()
+{
+    // Review C3 of the lifetime test: the shortcuts of the actions of the
+    // delegates match the keys as the recorder records them
+    using Recorder = pdf::PDFShortcutRecorder;
+    const Qt::KeyboardModifiers controlAlt = Qt::ControlModifier | Qt::AltModifier;
+
+    QStandardItemModel model;
+    DelegateSamples::fonts(&model);
+    ControlAltFontDelegate delegate(QKeySequence(controlAlt | Qt::Key_F));
+    QWidget window;
+    window.resize(720, 200);
+    pdf::PDFListView* view = new pdf::PDFListView(&window);
+    view->setGeometry(0, 0, 720, 200);
+    view->setModel(&model);
+    view->setItemDelegate(&delegate);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QSignalSpy triggered(&delegate, &pdf::PDFRowDelegate::actionTriggered);
+    const QModelIndex index = model.index(1, 0);
+    view->setFocus(Qt::TabFocusReason);
+    view->setCurrentIndex(index);
+
+    // An event without a virtual key: Ctrl+Alt+F on every platform
+    const QKeyEvent synthesized(QEvent::KeyPress, Qt::Key_F, controlAlt);
+    QVERIFY(delegate.isKeyHandled(view, index, &synthesized));
+
+    // Ctrl+Alt+F of the Czech layout of Windows: the Qt key "[" of the AltGr
+    // level with the virtual key F. On Windows the base key of the layout of
+    // the machine (F on every Latin layout) is the shortcut of the action.
+    const QKeyEvent czech(QEvent::KeyPress, Qt::Key_BracketLeft, controlAlt, 0x21, 'F', 0, QStringLiteral("["));
+    const QList<QKeyCombination> combinations = Recorder::getMatchingKeyCombinations(&czech);
+    QVERIFY(!combinations.isEmpty());
+    QCOMPARE(combinations.first(), Recorder::getKeyCombination(&czech));
+    QVERIFY(combinations.contains(QKeyCombination(controlAlt, Qt::Key_BracketLeft)));
+    QVERIFY(combinations.contains(QKeyCombination(Qt::Key_BracketLeft)));
+#ifdef Q_OS_WIN
+    if (QChar(Recorder::getBaseCharacter('F', 0x21)).toUpper() == QLatin1Char('F'))
+    {
+        QVERIFY(delegate.isKeyHandled(view, index, &czech));
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_BracketLeft, controlAlt, 0x21, 'F', 0, QStringLiteral("["));
+        QVERIFY(delegate.handleKey(view, index, &press));
+        QCOMPARE(triggered.count(), 1);
+        triggered.clear();
+    }
+    else
+    {
+        qWarning("The layout of the machine has no Latin F, the action key of Ctrl+Alt+F is not checked");
+    }
+#else
+    QVERIFY(!delegate.isKeyHandled(view, index, &czech));
+#endif
+
+    // An action with the AltGr symbol alone fires on the same key press (as a shortcut of Qt)
+    ControlAltFontDelegate symbolDelegate{ QKeySequence(Qt::Key_BracketLeft) };
+    QVERIFY(symbolDelegate.isKeyHandled(view, index, &czech));
+
+    // No duplicates, the keypad modifier is dropped, nothing for nullptr
+    const QKeyEvent keypadEnter(QEvent::KeyPress, Qt::Key_Enter, Qt::KeypadModifier);
+    const QList<QKeyCombination> enterCombinations = Recorder::getMatchingKeyCombinations(&keypadEnter);
+    QCOMPARE(enterCombinations.size(), 1);
+    QCOMPARE(enterCombinations.first(), QKeyCombination(Qt::Key_Enter));
+    QVERIFY(Recorder::getMatchingKeyCombinations(nullptr).isEmpty());
+
+    // Through the view: the key wins over the shortcut of the application and triggers the action
+    QAction applicationAction(&window);
+    applicationAction.setShortcut(QKeySequence(controlAlt | Qt::Key_F));
+    window.addAction(&applicationAction);
+    QSignalSpy applicationTriggered(&applicationAction, &QAction::triggered);
+    QTest::keyClick(view, Qt::Key_F, controlAlt);
+    QCOMPARE(triggered.count(), 1);
+    QCOMPARE(triggered.at(0).at(0).value<QModelIndex>(), index);
+    QCOMPARE(applicationTriggered.count(), 0);
+
+    // Another key is not the action
+    QTest::keyClick(view, Qt::Key_G, controlAlt);
+    QCOMPARE(triggered.count(), 1);
+
+    view->setItemDelegate(nullptr);
 }
 
 void FluentComponentsTest::delegateReviewDetails()
@@ -11374,6 +11793,556 @@ void FluentComponentsTest::delegateListWidth()
             QCOMPARE(view.verticalScrollBar()->isVisible(), copies > 1);
             view.setItemDelegate(nullptr);
         }
+    }
+}
+
+// R2: an invalid hue or role of an accent color is Neutral / Background (its
+// index would be another token of the theme or none); the stamp chip, which
+// takes the hue without normalizing it, draws an invalid hue as Neutral
+void FluentComponentsTest::r2AccentHueDefensive()
+{
+    using Role = pdf::PDFAccentHueColors::Role;
+    for (const int hue : { -1, -100, 7, 42 })
+    {
+        QCOMPARE(pdf::PDFAccentHueColors::getColor(static_cast<pdf::PDFAccentHue>(hue), Role::Icon), Color::AccentNeutralIcon);
+        QCOMPARE(pdf::PDFAccentHueColors::getColor(static_cast<pdf::PDFAccentHue>(hue), Role::Background), Color::AccentNeutralBg);
+    }
+    for (const int role : { -1, 6, 100 })
+    {
+        QCOMPARE(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Amber, static_cast<Role>(role)), Color::AccentAmberBg);
+    }
+    QCOMPARE(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Green, Role::BorderStrong), Color::AccentGreenBorderStrong);
+
+    pdf::PDFStampChip invalidChip(QStringLiteral("Draft"), static_cast<pdf::PDFAccentHue>(42));
+    pdf::PDFStampChip neutralChip(QStringLiteral("Draft"), pdf::PDFAccentHue::Neutral);
+    invalidChip.resize(invalidChip.sizeHint());
+    neutralChip.resize(neutralChip.sizeHint());
+    const QImage invalidImage = renderWidget(&invalidChip, 1.0);
+    QCOMPARE(countLeakPixels(invalidImage), 0);
+    QCOMPARE(describeDifference(invalidImage, renderWidget(&neutralChip, 1.0), 0), QString());
+}
+
+// R2: the actions of the menu of an item (PDFRowDelegate::addActionsToMenu)
+// remember the delegate, the view and the item: a slot, which deletes the menu
+// with the triggered action, a destroyed view, a menu without a view and a
+// destroyed delegate
+void FluentComponentsTest::r2DelegateMenuActionLifetime()
+{
+    QStandardItemModel model;
+    DelegateSamples::attachments(&model);
+    QListView view;
+    view.setModel(&model);
+    QPointer<pdf::PDFAttachmentDelegate> delegate = new pdf::PDFAttachmentDelegate(&view);
+    view.setItemDelegate(delegate.data());
+    view.resize(320, 240);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QSignalSpy triggered(delegate.data(), &pdf::PDFRowDelegate::actionTriggered);
+
+    // (1) The slot of the signal deletes the menu with the action
+    QPointer<QMenu> menu = new QMenu();
+    QCOMPARE(delegate->addActionsToMenu(menu.data(), &view, model.index(1, 0)), 1);
+    const QPointer<QAction> action = menu->actions().at(0);
+    QVERIFY(action->isEnabled());
+    connect(delegate.data(), &pdf::PDFRowDelegate::actionTriggered, menu.data(), [&menu]() { delete menu.data(); });
+    action->trigger();
+    QVERIFY(!menu);
+    QVERIFY(!action);
+    QCOMPARE(triggered.count(), 1);
+    QCOMPARE(triggered.at(0).at(0).value<QModelIndex>(), model.index(1, 0));
+    QCOMPARE(triggered.at(0).at(1).toInt(), int(pdf::PDFAttachmentDelegate::SaveAction));
+    QCOMPARE(delegate->getLastActionView(), &view);
+
+    // (2) A menu of a view, which has been destroyed meanwhile, does nothing
+    QListView* otherView = new QListView();
+    otherView->setModel(&model);
+    QMenu staleMenu;
+    QCOMPARE(delegate->addActionsToMenu(&staleMenu, otherView, model.index(0, 0)), 1);
+    delete otherView;
+    staleMenu.actions().at(0)->trigger();
+    QCOMPARE(triggered.count(), 1);
+
+    // (3) A menu of the application without a view triggers the action of the item
+    QMenu viewlessMenu;
+    QCOMPARE(delegate->addActionsToMenu(&viewlessMenu, nullptr, model.index(2, 0)), 1);
+    viewlessMenu.actions().at(0)->trigger();
+    QCOMPARE(triggered.count(), 2);
+    QCOMPARE(triggered.at(1).at(0).value<QModelIndex>(), model.index(2, 0));
+    QCOMPARE(delegate->getLastActionView(), nullptr);
+
+    // (4) The delegate destroyed: the menu stays, its action does nothing
+    QMenu orphanMenu;
+    QCOMPARE(delegate->addActionsToMenu(&orphanMenu, &view, model.index(0, 0)), 1);
+    view.setItemDelegate(nullptr);
+    delete delegate.data();
+    QVERIFY(!delegate);
+    orphanMenu.actions().at(0)->trigger();
+    QCOMPARE(orphanMenu.actions().size(), 1);
+    QCOMPARE(triggered.count(), 2);
+}
+
+// R2: tagClicked gives the text of the clicked tag also to a later receiver,
+// after a former one has replaced the tags (the card emits a copy of the
+// text); a removed tag reports nothing more, the new tags their own texts
+void FluentComponentsTest::r2VideoCardTagText()
+{
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFVideoCard* card = new pdf::PDFVideoCard(QStringLiteral("Getting started"), QStringLiteral("A tour"), QStringLiteral("2:45"), { QStringLiteral("OCR"), QStringLiteral("Basics") }, &window);
+    layout->addWidget(card);
+    window.resize(360, 200);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QApplication::processEvents();
+
+    const QString replacement = QStringLiteral("A replacement tag with a long text");
+    QStringList received;
+    connect(card, &pdf::PDFVideoCard::tagClicked, card, [card, &replacement](const QString& tag)
+    {
+        if (tag != replacement)
+        {
+            card->setTags({ replacement });
+        }
+    });
+    connect(card, &pdf::PDFVideoCard::tagClicked, card, [&received](const QString& tag) { received << tag; });
+
+    const QList<pdf::PDFTag*> tags = card->getTagWidgets();
+    QCOMPARE(tags.size(), 2);
+    const QPointer<pdf::PDFTag> oldTag = tags.at(1);
+    QTest::mouseClick(oldTag.data(), Qt::LeftButton);
+    QCOMPARE(received, QStringList{ QStringLiteral("Basics") });
+
+    QVERIFY(oldTag);
+    oldTag->click();
+    QCOMPARE(received.size(), 1);
+
+    QTRY_VERIFY(!oldTag);
+    QTRY_COMPARE(card->getTagWidgets().size(), 1);
+    card->getTagWidgets().at(0)->click();
+    QCOMPARE(received, (QStringList{ QStringLiteral("Basics"), replacement }));
+}
+
+// R1: the slots, comparators and helpers, which have replaced the lambdas of
+// the panels, the palette, the color button and the signature card
+void FluentComponentsTest::panelsMemberSlots()
+{
+    using Entry = pdf::PDFColorPalette::Entry;
+    const QList<Entry> suggested = PanelSamples::suggested();
+
+    // Document tabs: the state moves with its tab, the close button finds its
+    // tab after a move, a close button deleted by the application leaves its tab
+    pdf::PDFDocumentTabBar tabBar;
+    tabBar.addTab(QStringLiteral("Home"));
+    tabBar.addTab(QStringLiteral("A.pdf"));
+    tabBar.addTab(QStringLiteral("B.pdf"));
+    tabBar.setTabClosable(1, true);
+    tabBar.setTabClosable(2, true);
+    tabBar.setTabLocked(2, true);
+    tabBar.setTabProgress(2, 0.25);
+    auto closeButton = [&tabBar](int index) -> QAbstractButton*
+    {
+        QWidget* button = tabBar.tabButton(index, QTabBar::RightSide);
+        return qobject_cast<QAbstractButton*>(button ? button : tabBar.tabButton(index, QTabBar::LeftSide));
+    };
+    QAbstractButton* closeB = closeButton(2);
+    QVERIFY(closeB);
+    tabBar.moveTab(2, 0);
+    QVERIFY(tabBar.isTabLocked(0));
+    QCOMPARE(tabBar.getTabProgress(0), 0.25);
+    QVERIFY(!tabBar.isTabLocked(2));
+    QCOMPARE(closeButton(0), closeB);
+    QSignalSpy closeSpy(&tabBar, &QTabBar::tabCloseRequested);
+    closeB->click();
+    closeButton(2)->click();
+    QCOMPARE(closeSpy.count(), 2);
+    QCOMPARE(closeSpy.at(0).at(0).toInt(), 0);
+    QCOMPARE(closeSpy.at(1).at(0).toInt(), 2);
+    delete closeButton(2);
+    QVERIFY(!tabBar.isTabClosable(2));
+    QVERIFY(tabBar.isTabClosable(0));
+    tabBar.resize(tabBar.sizeHint());
+    QCOMPARE(countLeakPixels(tabBar.grab().toImage()), 0);
+
+    // Page range: the comparators and the errors of the helpers
+    const pdf::PDFPageRange::Result range = pdf::PDFPageRange::parse(QStringLiteral("9-10, 3, 1-2, 5"), 10);
+    QVERIFY(range.isValid());
+    QCOMPARE(pdf::PDFPageRange::format(range.intervals), QStringLiteral("1-3, 5, 9-10"));
+    QVERIFY(range.contains(1) && range.contains(3) && range.contains(10));
+    QVERIFY(!range.contains(0) && !range.contains(4) && !range.contains(8) && !range.contains(11));
+    QCOMPARE(pdf::PDFPageRange::normalized({ { 4, 2 }, { 0, 3 }, { 7, 9 }, { 5, 6 }, { 5, 5 } }),
+             (QList<pdf::PDFPageRange::Interval>{ { 5, 9 } }));
+    QCOMPARE(pdf::PDFPageRange::parse(QStringLiteral("2, x"), 10).errorMessage, QStringLiteral("Can't convert '\u2068x\u2069' to a number."));
+    QCOMPARE(pdf::PDFPageRange::parse(QStringLiteral("3-y"), 10).errorMessage, QStringLiteral("Can't convert '\u2068y\u2069' to a number."));
+    QCOMPARE(pdf::PDFPageRange::parse(QStringLiteral("2-12"), 10).errorMessage, pdf::PDFPageRange::getMissingPageText(12, 10));
+    QCOMPARE(pdf::PDFPageRange::parse(QStringLiteral("0"), 10).errorMessage, pdf::PDFPageRange::getMissingPageText(0, 10));
+
+    // Page selection: the slots of the nested widgets
+    pdf::PDFPageSelection selection;
+    selection.setPageCount(10);
+    QSignalSpy modeSpy(&selection, &pdf::PDFPageSelection::modeChanged);
+    QSignalSpy rangeSpy(&selection, &pdf::PDFPageSelection::rangeChanged);
+    QSignalSpy filtersSpy(&selection, &pdf::PDFPageSelection::filtersChanged);
+    selection.getModeControl()->setCurrentIndex(3);
+    QCOMPARE(selection.getMode(), pdf::PDFPageSelection::Mode::Range);
+    QCOMPARE(modeSpy.count(), 1);
+    selection.getRangeField()->setText(QStringLiteral("2-4"));
+    QCOMPARE(selection.getRange(), QStringLiteral("2-4"));
+    QCOMPARE(rangeSpy.count(), 1);
+    QCOMPARE(selection.getResultCount(), qint64(3));
+    selection.getFilterCheckBox(pdf::PDFPageSelection::Filter::Even)->setChecked(true);
+    QCOMPARE(selection.getFilters(), pdf::PDFPageSelection::Filters(pdf::PDFPageSelection::Filter::Even));
+    QCOMPARE(filtersSpy.count(), 1);
+    QCOMPARE(selection.getResultPages(), (QList<int>{ 2, 4 }));
+    delete selection.getFilterCheckBox(pdf::PDFPageSelection::Filter::Odd);
+    selection.getFilterCheckBox(pdf::PDFPageSelection::Filter::Even)->setChecked(false);
+    QCOMPARE(selection.getFilters(), pdf::PDFPageSelection::Filters());
+    QCOMPARE(selection.getResultCount(), qint64(3));
+
+    // Palette: a click on a recent or a suggested swatch selects its color, the
+    // recent colors have no duplicates, "More colors…" emits its signal
+    pdf::PDFColorPalette palette;
+    palette.setSuggestedColors(suggested);
+    palette.setRecentColors({ Entry{ QColor(1, 2, 3), QStringLiteral("Mine") }, Entry{ QColor(1, 2, 3), QStringLiteral("Twice") } });
+    QCOMPARE(palette.getRecentColors().size(), 1);
+    QSignalSpy selectedSpy(&palette, &pdf::PDFColorPalette::colorSelected);
+    QSignalSpy moreSpy(&palette, &pdf::PDFColorPalette::moreColorsRequested);
+    palette.getRecentSwatch(0)->click();
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.at(0).at(0).value<QColor>(), QColor(1, 2, 3));
+    QCOMPARE(palette.getCurrentColor(), QColor(1, 2, 3));
+    palette.getSuggestedSwatch(3)->click();
+    palette.getRecentSwatch(1)->click();
+    QCOMPARE(selectedSpy.count(), 3);
+    QCOMPARE(selectedSpy.at(2).at(0).value<QColor>(), QColor(1, 2, 3));
+    QCOMPARE(palette.getRecentColors().size(), 2);
+    QCOMPARE(palette.getRecentColors().at(0).color, QColor(1, 2, 3));
+    QCOMPARE(palette.getRecentColors().at(1).color, suggested.at(3).color);
+    QCOMPARE(palette.getRecentColors().at(1).name, suggested.at(3).name);
+    palette.getMoreColorsLink()->click();
+    QCOMPARE(moreSpy.count(), 1);
+
+    // The popover: each hide queues the signal closed, an opening drops the pending ones
+    QWidget host;
+    host.resize(320, 240);
+    QPushButton* anchor = new QPushButton(QStringLiteral("Color"), &host);
+    anchor->setGeometry(10, 10, 100, 30);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    pdf::PDFColorPalette* popover = new pdf::PDFColorPalette(&host, Qt::Popup);
+    popover->setSuggestedColors(suggested);
+    QSignalSpy closedSpy(popover, &pdf::PDFColorPalette::closed);
+    popover->popup(anchor);
+    popover->close();
+    popover->popup(anchor);
+    QVERIFY(popover->isVisible());
+    popover->close();
+    QCOMPARE(closedSpy.count(), 0);
+    QTRY_COMPARE(closedSpy.count(), 1);
+    QApplication::processEvents();
+    QCOMPARE(closedSpy.count(), 1);
+    popover->popup(anchor);
+    QVERIFY(popover->isVisible());
+    delete anchor;
+    QVERIFY(!popover->isVisible());
+    QTRY_COMPARE(closedSpy.count(), 2);
+    delete popover;
+
+    // Color button: the color of the palette replaces the explicit name, the
+    // same color is selected again without colorChanged, new colors of the
+    // palette rename the shown color, a slot of colorChanged may delete the palette
+    pdf::PDFColorButton button(QColor(Qt::black), QStringLiteral("Ink"));
+    pdf::PDFColorPalette* buttonPalette = button.getPalette();
+    buttonPalette->setSuggestedColors(suggested);
+    QSignalSpy changedSpy(&button, &pdf::PDFColorButton::colorChanged);
+    QSignalSpy buttonSelectedSpy(&button, &pdf::PDFColorButton::colorSelected);
+    buttonPalette->getSuggestedSwatch(2)->click();
+    QCOMPARE(button.getColor(), suggested.at(2).color);
+    QCOMPARE(button.getColorName(), QString());
+    QCOMPARE(button.getShownName(), suggested.at(2).name);
+    QCOMPARE(changedSpy.count(), 1);
+    QCOMPARE(buttonSelectedSpy.count(), 1);
+    button.setColorName(QStringLiteral("Explicit"));
+    buttonPalette->getSuggestedSwatch(2)->click();
+    QCOMPARE(changedSpy.count(), 1);
+    QCOMPARE(buttonSelectedSpy.count(), 2);
+    QCOMPARE(button.getColorName(), QString());
+    QCOMPARE(button.text(), suggested.at(2).name);
+    QList<Entry> renamed = suggested;
+    renamed[2].name = QStringLiteral("Renamed");
+    buttonPalette->setSuggestedColors(renamed);
+    QCOMPARE(button.text(), QStringLiteral("Renamed"));
+    QPointer<pdf::PDFColorPalette> paletteGuard(buttonPalette);
+    QPointer<pdf::PDFColorButton> buttonGuard(&button);
+    connect(&button, &pdf::PDFColorButton::colorChanged, buttonPalette, [&paletteGuard]() { paletteGuard->deleteLater(); });
+    buttonPalette->getSuggestedSwatch(4)->click();
+    QVERIFY(buttonGuard);
+    QCOMPARE(buttonSelectedSpy.count(), 3);
+    QCOMPARE(buttonSelectedSpy.at(2).at(0).value<QColor>(), suggested.at(4).color);
+    QTRY_VERIFY(!paletteGuard);
+    QCOMPARE(button.getShownName(), QStringLiteral("#CFD4DA"));
+
+    // Signature card: a link emits the index of its certificate, also a link
+    // created again after the application has deleted it
+    pdf::PDFSignatureCard card;
+    pdf::PDFSignatureCard::Certificate first;
+    first.name = QStringLiteral("Signer");
+    first.linkText = QStringLiteral("Trust signer");
+    pdf::PDFSignatureCard::Certificate second;
+    second.name = QStringLiteral("Root");
+    second.linkText = QStringLiteral("Trust root");
+    card.setCertificates({ first, second });
+    card.setDetails({ pdf::PDFSignatureCard::Detail{ QStringLiteral("Hash"), QStringLiteral("SHA-256") } });
+    const QString description = card.accessibleDescription();
+    card.setDetails({ pdf::PDFSignatureCard::Detail{ QStringLiteral("Hash"), QStringLiteral("SHA-256") } });
+    QCOMPARE(card.accessibleDescription(), description);
+    card.setExpanded(true);
+    QSignalSpy linkSpy(&card, &pdf::PDFSignatureCard::certificateLinkActivated);
+    QSignalSpy expandedSpy(&card, &pdf::PDFSignatureCard::expandedChanged);
+    card.getCertificateLink(1)->click();
+    delete card.getCertificateLink(0);
+    QCOMPARE(card.getCertificateLink(0), nullptr);
+    first.linkText = QStringLiteral("Trust the signer");
+    card.setCertificates({ first, second });
+    QVERIFY(card.getCertificateLink(0));
+    card.getCertificateLink(0)->click();
+    QCOMPARE(linkSpy.count(), 2);
+    QCOMPARE(linkSpy.at(0).at(0).toInt(), 1);
+    QCOMPARE(linkSpy.at(1).at(0).toInt(), 0);
+    card.getToggleButton()->click();
+    QVERIFY(!card.isExpanded());
+    QCOMPARE(expandedSpy.count(), 1);
+
+    // The theme changes reach the slots of the panels
+    pdf::PDFStrengthMeter meter;
+    pdf::PDFContinueWith continueWith;
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    const QString theme = themeManager->getTheme().getId();
+    QVERIFY(themeManager->setTheme(theme == QStringLiteral("dark") ? QStringLiteral("light") : QStringLiteral("dark")));
+    QVERIFY(themeManager->setTheme(theme));
+    QCOMPARE(themeManager->getTheme().getId(), theme);
+
+    // The graphics effect of the locked document moved to another widget and
+    // given to it by the application does not use the deleted picture
+    QWidget pictureHost;
+    pictureHost.resize(320, 320);
+    pdf::PDFLockedDocumentPicture* picture = new pdf::PDFLockedDocumentPicture(&pictureHost);
+    QWidget* other = new QWidget(&pictureHost);
+    other->setGeometry(170, 0, 140, 140);
+    QGraphicsEffect* effect = picture->graphicsEffect();
+    QVERIFY(effect);
+    other->setGraphicsEffect(effect);
+    QCOMPARE(picture->graphicsEffect(), nullptr);
+    effect->setParent(other);
+    delete picture;
+    QCOMPARE(other->graphicsEffect(), effect);
+    QVERIFY(!pictureHost.grab().isNull());
+
+    // The logo is drawn from the SVG for a scale, whose size of the device pixels does not fit an integer
+    QImage logoImage(64, 64, QImage::Format_ARGB32_Premultiplied);
+    logoImage.fill(Qt::transparent);
+    {
+        QPainter logoPainter(&logoImage);
+        logoPainter.scale(1e12, 1e12);
+        pdf::PDFPreviewPainter::paintLogo(&logoPainter, QRectF(0.0, 0.0, 0.1, 0.1));
+        logoPainter.resetTransform();
+        logoPainter.scale(1e-9, 1e-9);
+        pdf::PDFPreviewPainter::paintLogo(&logoPainter, QRectF(0.0, 0.0, 64.0, 64.0));
+    }
+}
+
+// R2: performAction called directly by a subclass with an invalid index (the
+// model of the index is null) does nothing (triggerAction checks the index)
+void FluentComponentsTest::r2PerformActionInvalidIndex()
+{
+    class RecentProbe : public pdf::PDFRecentItemDelegate
+    {
+    public:
+        void perform(int action) { performAction(nullptr, QModelIndex(), action); }
+    };
+
+    class ShortcutProbe : public pdf::PDFShortcutDelegate
+    {
+    public:
+        void perform(int action) { performAction(nullptr, QModelIndex(), action); }
+    };
+
+    RecentProbe recent;
+    QSignalSpy recentTriggered(&recent, &pdf::PDFRowDelegate::actionTriggered);
+    recent.perform(pdf::PDFRecentItemDelegate::PinAction);
+    QCOMPARE(recentTriggered.count(), 0);
+    recent.perform(pdf::PDFRecentItemDelegate::MenuAction);
+    QCOMPARE(recentTriggered.count(), 1);
+
+    ShortcutProbe shortcut;
+    QSignalSpy shortcutTriggered(&shortcut, &pdf::PDFRowDelegate::actionTriggered);
+    QSignalSpy shortcutChanged(&shortcut, &pdf::PDFShortcutDelegate::shortcutChanged);
+    shortcut.perform(pdf::PDFShortcutDelegate::ClearAction);
+    shortcut.perform(pdf::PDFShortcutDelegate::RecordAction);
+    QCOMPARE(shortcutTriggered.count(), 0);
+    QCOMPARE(shortcutChanged.count(), 0);
+}
+
+void FluentComponentsTest::lambdasReviewFixes()
+{
+    // S9: a close button of a document tab takes itself out of its tab from its
+    // own destructor (no slot of destroyed reaches the dying button); a button
+    // deleted directly, a button removed by setTabClosable (deleteLater), a
+    // button taken by the application and deleted after the tab bar, and the
+    // tab bar deleted with its buttons (use after free is seen by valgrind)
+    {
+        QPointer<pdf::PDFDocumentTabBar> tabBar = new pdf::PDFDocumentTabBar();
+        for (const QString& title : { QStringLiteral("Home"), QStringLiteral("A.pdf"), QStringLiteral("B.pdf"), QStringLiteral("C.pdf") })
+        {
+            tabBar->addTab(title);
+        }
+        for (int i = 1; i < 4; ++i)
+        {
+            tabBar->setTabClosable(i, true);
+        }
+        tabBar->resize(tabBar->sizeHint());
+        tabBar->show();
+        QVERIFY(QTest::qWaitForWindowExposed(tabBar));
+        auto closeButton = [&tabBar](int index) -> QWidget*
+        {
+            QWidget* button = tabBar->tabButton(index, QTabBar::RightSide);
+            return button ? button : tabBar->tabButton(index, QTabBar::LeftSide);
+        };
+
+        // Deleted directly: the tab forgets it while it is whole (the hide event reaches it)
+        QPointer<QWidget> first = closeButton(1);
+        QVERIFY(first && first->isVisible());
+        delete first.data();
+        QVERIFY(!closeButton(1));
+        QVERIFY(!tabBar->isTabClosable(1));
+        tabBar->setTabClosable(1, true);
+        QVERIFY(tabBar->isTabClosable(1));
+        QVERIFY(closeButton(1) && closeButton(1) != nullptr);
+
+        // Removed by setTabClosable: deleted later, the tab bar is not called for another tab
+        QPointer<QWidget> second = closeButton(2);
+        tabBar->setTabClosable(2, false);
+        QVERIFY(!closeButton(2));
+        QVERIFY(second);
+        tabBar->setTabClosable(2, true);
+        QPointer<QWidget> newSecond = closeButton(2);
+        QTRY_VERIFY(!second);
+        QCOMPARE(closeButton(2), newSecond.data());
+
+        // A tab removed by QTabBar::removeTab (its button is deleted later)
+        QPointer<QWidget> removed = closeButton(3);
+        tabBar->removeTab(3);
+        QTRY_VERIFY(!removed);
+        QCOMPARE(tabBar->count(), 3);
+
+        // A button taken by the application outlives the tab bar
+        QWidget holder;
+        QPointer<QWidget> taken = closeButton(1);
+        QVERIFY(taken);
+        taken->setParent(&holder);
+        QSignalSpy closeSpy(tabBar.data(), &QTabBar::tabCloseRequested);
+        QPointer<QWidget> remaining = closeButton(2);
+        QVERIFY(remaining);
+        delete tabBar.data();
+        QVERIFY(!tabBar && !remaining);
+        QVERIFY(taken);
+        delete taken.data();
+        QCOMPARE(closeSpy.count(), 0);
+    }
+
+    // S3: the recorded sequence stays valid for every slot of shortcutConflict,
+    // also when a slot deletes the view with the recorder (valgrind sees a read
+    // of the freed member of the recorder)
+    {
+        QStandardItemModel model;
+        DelegateSamples::shortcuts(&model);
+        pdf::PDFShortcutDelegate delegate;
+        QWidget window;
+        window.resize(820, 200);
+        QPointer<pdf::PDFListView> view = new pdf::PDFListView(&window);
+        view->setGeometry(0, 0, 820, 160);
+        view->setModel(&model);
+        view->setItemDelegate(&delegate);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        window.activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(&window));
+
+        QList<QKeySequence> seen;
+        connect(&delegate, &pdf::PDFShortcutDelegate::shortcutConflict, &window, [&view](const QModelIndex&, const QKeySequence&, const QModelIndexList&) { delete view.data(); });
+        connect(&delegate, &pdf::PDFShortcutDelegate::shortcutConflict, &window, [&seen](const QModelIndex&, const QKeySequence& sequence, const QModelIndexList&) { seen << sequence; });
+
+        view->setFocus();
+        view->setCurrentIndex(model.index(0, 0));
+        QTest::keyClick(view, Qt::Key_Return);
+        QPointer<QWidget> recorder = QApplication::focusWidget();
+        QVERIFY(recorder && qobject_cast<pdf::PDFShortcutRecorder*>(recorder));
+        // Only the press: the release would go to the deleted recorder
+        QTest::keyPress(recorder.data(), Qt::Key_S, Qt::ControlModifier);
+        QVERIFY(!view && !recorder);
+        QCOMPARE(seen.size(), 1);
+        QCOMPARE(seen.front(), QKeySequence(Qt::ControlModifier | Qt::Key_S));
+        QApplication::processEvents();
+    }
+
+    // S10: the button groups and the timer of the state Copied are members, an
+    // application cannot reach them by children(); a layout deleted by the
+    // application (QWidget::layout() is public) lays nothing out
+    {
+        pdf::PDFNavList navList;
+        navList.addItem(QStringLiteral("Home"), QStringLiteral("home"));
+        QVERIFY(navList.findChildren<QButtonGroup*>().isEmpty());
+        QVERIFY(navList.layout());
+        delete navList.layout();
+        QCOMPARE(navList.addItem(QStringLiteral("Tools"), QStringLiteral("tool")), 1);
+        navList.addGroup();
+        QCOMPARE(navList.getCount(), 2);
+        navList.setCurrentIndex(1);
+        QCOMPARE(navList.getCurrentIndex(), 1);
+
+        pdf::PDFSegmentedControl segments;
+        segments.addSegment(QStringLiteral("One"));
+        QVERIFY(segments.findChildren<QButtonGroup*>().isEmpty());
+        delete segments.layout();
+        QCOMPARE(segments.addSegment(QStringLiteral("Two")), 1);
+        segments.setCurrentIndex(1);
+        QCOMPARE(segments.getCurrentIndex(), 1);
+        QCOMPARE(segments.getCount(), 2);
+
+        pdf::PDFContinueWith continueWith;
+        QVERIFY(continueWith.findChildren<QButtonGroup*>().isEmpty());
+        pdf::PDFColorPalette palette;
+        QVERIFY(palette.findChildren<QButtonGroup*>().isEmpty());
+
+        pdf::PDFPropertyRow row(QStringLiteral("Author"), QStringLiteral("Jakub"));
+        QVERIFY(row.findChildren<QTimer*>().isEmpty());
+        row.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&row));
+        row.setCopiedDuration(10);
+        row.copy();
+        QVERIFY(row.isCopied());
+        QTRY_VERIFY(!row.isCopied());
+    }
+
+    // S11: a segment of the mode control, which is not a mode, is refused and
+    // the control shows the current mode again
+    {
+        pdf::PDFPageSelection selection;
+        selection.setPageCount(10);
+        pdf::PDFSegmentedControl* modes = selection.getModeControl();
+        QVERIFY(modes);
+        const int extra = modes->addSegment(QStringLiteral("Extra"));
+        QVERIFY(extra >= 4);
+        QSignalSpy modeSpy(&selection, &pdf::PDFPageSelection::modeChanged);
+        modes->setCurrentIndex(extra);
+        QCOMPARE(selection.getMode(), pdf::PDFPageSelection::Mode::All);
+        QCOMPARE(modes->getCurrentIndex(), static_cast<int>(pdf::PDFPageSelection::Mode::All));
+        QCOMPARE(modeSpy.count(), 0);
+        modes->setCurrentIndex(static_cast<int>(pdf::PDFPageSelection::Mode::Range));
+        QCOMPARE(selection.getMode(), pdf::PDFPageSelection::Mode::Range);
+        modes->setCurrentIndex(extra);
+        QCOMPARE(selection.getMode(), pdf::PDFPageSelection::Mode::Range);
+        QCOMPARE(modes->getCurrentIndex(), static_cast<int>(pdf::PDFPageSelection::Mode::Range));
+        QCOMPARE(modeSpy.count(), 1);
     }
 }
 

@@ -25,6 +25,7 @@
 
 #include <QString>
 #include <QStyle>
+#include <QMetaType>
 #include <QWidget>
 
 #include <functional>
@@ -41,6 +42,31 @@ namespace pdffluentgallery
 {
 
 class GalleryBuilder;
+
+/// Hints of a live sample for the lifetime test (UnitTestsFluentLifetime): what
+/// an application does with the widget, which the generic input of the test
+/// cannot do. A new widget gets them by its sample (CLAUDE.md, the lifetime rule).
+struct GalleryLifetimeHints
+{
+    /// Called on each new instance of the page before the test (an application
+    /// gives the widget its menus, its models, ...)
+    std::function<void(QWidget* widget)> prepare;
+
+    /// Starts the timers and the states of the widget, which run while the page
+    /// is deleted (a timed state, an inline editor)
+    std::function<void(QWidget* widget)> startTimers;
+
+    /// Sets the hints of the widget (a dynamic property of the widget)
+    static void set(QWidget* widget, GalleryLifetimeHints hints);
+
+    /// Returns the hints of the widget (empty functions, if it has none)
+    static GalleryLifetimeHints get(const QWidget* widget);
+
+    /// Gives a menu to each "more" button of the library in the widget, which
+    /// has none (every second menu a child of the button, the others children
+    /// of the row or of the card of the button) - the hint of every live sample
+    static void giveMenus(QWidget* widget);
+};
 
 /// Sample of a control drawn by the style with a state composed by hand, so
 /// states, which a real widget shows only under the pointer or with the focus,
@@ -111,6 +137,20 @@ public:
     /// Creates all pages
     static std::vector<Page> createPages(QWidget* parent);
 
+    /// Returns the number of the pages created by createPages
+    static int getPageCount();
+
+    /// Returns the identifier of a page (Page::id) without creating the page
+    /// \param index Index of the page (0 ... getPageCount() - 1)
+    /// \returns Identifier, an empty string for an index out of range
+    static QString getPageId(int index);
+
+    /// Creates a single page of createPages (the same widgets as createPages creates)
+    /// \param index Index of the page (0 ... getPageCount() - 1)
+    /// \param parent Parent widget
+    /// \returns Page, an empty page (no widget) for an index out of range
+    static Page createPage(int index, QWidget* parent);
+
     /// Creates the page with widgets of Qt, which draw themselves from the palette.
     /// They are expected to show the leak color.
     static Page createLeakPage(QWidget* parent);
@@ -130,6 +170,17 @@ public:
     static QStyle::State toStyleState(StateFlags flags);
 
 private:
+    using PageFunction = Page (*)(QWidget* parent);
+
+    struct PageEntry
+    {
+        const char* id;         ///< Identifier of the page (Page::id)
+        PageFunction function;  ///< Function creating the page
+    };
+
+    /// Pages in the order of the tabs of the gallery
+    static const std::vector<PageEntry>& getPageEntries();
+
     static Page createOverviewPage(QWidget* parent);
     static Page createButtonsPage(QWidget* parent);
     static Page createToolButtonsPage(QWidget* parent);
@@ -198,12 +249,13 @@ public:
     /// Adds a sample drawn by the style
     GallerySpecimen* specimen(const QString& caption, QSize size, GallerySpecimen::PaintFunction paintFunction, const QString& figmaNode = QString());
 
-    /// Adds a real widget
+    /// Adds a real widget (the "more" buttons in it get menus in the lifetime test)
     template<typename Widget>
     Widget* live(const QString& caption, Widget* widget, const QString& figmaNode = QString())
     {
         widget->setProperty("galleryName", caption);
         widget->setProperty("galleryNode", figmaNode.isEmpty() ? m_blockNode : figmaNode);
+        addLiveDefaults(widget);
         addItem(widget, caption, 6);
         return widget;
     }
@@ -219,6 +271,9 @@ public:
 private:
     void addItem(QWidget* widget, const QString& caption, int gap);
 
+    /// The default lifetime hints of a live sample (GalleryLifetimeHints::giveMenus)
+    static void addLiveDefaults(QWidget* widget);
+
     QString m_id;
     QString m_title;
     QString m_iconName;
@@ -230,5 +285,7 @@ private:
 };
 
 }   // namespace pdffluentgallery
+
+Q_DECLARE_METATYPE(pdffluentgallery::GalleryLifetimeHints)
 
 #endif // GALLERYPAGES_H

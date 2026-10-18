@@ -763,9 +763,33 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
         }
     }
 
-    // Live rows of a properties card
+    // Live rows of a properties card; the lifetime test deletes them in the timed
+    // state Copied and with the inline editor open (the hints of the samples)
     using Editability = pdf::PDFPropertyRow::Editability;
+    GalleryLifetimeHints propertyHints;
+    propertyHints.prepare = &GalleryLifetimeHints::giveMenus;
+    propertyHints.startTimers = [](QWidget* sample)
+    {
+        QList<pdf::PDFPropertyRow*> rows = sample->findChildren<pdf::PDFPropertyRow*>();
+        if (pdf::PDFPropertyRow* row = qobject_cast<pdf::PDFPropertyRow*>(sample))
+        {
+            rows.prepend(row);
+        }
+        bool isEditing = false;
+        for (pdf::PDFPropertyRow* row : rows)
+        {
+            if (row->isVisible())
+            {
+                row->copy();
+                if (!isEditing && row->isEditable())
+                {
+                    isEditing = row->startEditing();
+                }
+            }
+        }
+    };
     QWidget* properties = Helper::createCard(builder.page());
+    GalleryLifetimeHints::set(properties, propertyHints);
     properties->setFixedWidth(326 + 8);
     QLayout* propertiesLayout = properties->layout();
     propertiesLayout->addWidget(new pdf::PDFPropertyRow(QStringLiteral("Title"), QStringLiteral("Annual report 2026"), Editability::Editable, properties));
@@ -776,6 +800,7 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     builder.row();
     pdf::PDFPropertyRow* hoveredProperty = Helper::liveOnCard(builder, QStringLiteral("Live hover"), new pdf::PDFPropertyRow(QStringLiteral("Author"), QStringLiteral("Jane Novak"), Editability::Editable, builder.page()));
     hoveredProperty->setAttribute(Qt::WA_UnderMouse, true);
+    GalleryLifetimeHints::set(hoveredProperty, propertyHints);
     builder.row();
     pdf::PDFPropertyRow* editedProperty = Helper::liveOnCard(builder, QStringLiteral("Live editing"), new pdf::PDFPropertyRow(QStringLiteral("Author"), QStringLiteral("Jane Novak"), Editability::Editable, builder.page()));
     editedProperty->startEditing();
@@ -790,6 +815,7 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     builder.row();
     pdf::PDFPropertyRow* rightToLeftProperty = new pdf::PDFPropertyRow(QStringLiteral("Author"), QStringLiteral("Jane Novak"), Editability::Editable, builder.page());
     rightToLeftProperty->setLayoutDirection(Qt::RightToLeft);
+    GalleryLifetimeHints::set(rightToLeftProperty, propertyHints);
     Helper::liveOnCard(builder, QStringLiteral("Live right-to-left"), rightToLeftProperty);
     rightToLeftProperty->setAttribute(Qt::WA_UnderMouse, true);
 

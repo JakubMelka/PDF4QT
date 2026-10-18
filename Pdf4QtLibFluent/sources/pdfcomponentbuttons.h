@@ -36,7 +36,6 @@
 #include <QPixmap>
 #include <QPointer>
 
-#include <functional>
 #include <optional>
 
 class QContextMenuEvent;
@@ -342,12 +341,18 @@ protected:
 
     /// Shows the menu of a row or a card by its menu button: at the pointer
     /// for a mouse, below the menu button for the context menu key. The menu is
-    /// requested first by \p requestMenu (it emits the signal menuRequested of
-    /// the button, whose slot may fill the menu, or delete the button or the
-    /// menu button). A request, which deleted the button, accepts the event
-    /// (it has been handled, and the event must not go on to the deleted widget);
-    /// without the menu button the event is ignored (it goes to the parent).
-    static void showMoreButtonMenu(PDFComponentButton* button, PDFMoreButton* moreButton, QContextMenuEvent* event, const std::function<void()>& requestMenu);
+    /// requested first by \p requestMoreButtonMenu (it emits the signal
+    /// menuRequested of the button, whose slot may fill the menu, or delete the
+    /// button or the menu button). A request, which deleted the button, accepts
+    /// the event (it has been handled, and the event must not go on to the
+    /// deleted widget); without the menu button the event is ignored (it goes to
+    /// the parent).
+    void showMoreButtonMenu(PDFMoreButton* moreButton, QContextMenuEvent* event);
+
+    /// Requests the menu of the menu button before \p showMoreButtonMenu shows
+    /// it: a row or a card with a menu button emits its signal menuRequested
+    /// (the slot may delete the button). The default does nothing.
+    virtual void requestMoreButtonMenu();
 
     /// Joins the parts, which are not empty, by the pattern ("%1, %2")
     static QString joinTexts(const QStringList& parts, const QString& pattern);
@@ -642,6 +647,7 @@ private:
     void updateText();
     void disconnectMenu();
     void onMenuClosed();
+    void onClicked();
 
     QPointer<QMenu> m_menu;
     QString m_text;

@@ -28,6 +28,7 @@
 #include "pdfthemefonts.h"
 
 #include <QCalendarWidget>
+#include <QButtonGroup>
 #include <QComboBox>
 #include <QDateTimeEdit>
 #include <QDoubleSpinBox>
@@ -36,6 +37,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStyledItemDelegate>
@@ -44,7 +46,6 @@
 #include <QTreeView>
 
 class QAction;
-class QButtonGroup;
 class QHBoxLayout;
 class QToolButton;
 
@@ -142,10 +143,11 @@ public:
     void setPasswordField();
 
     /// Returns true, if the field is a password field
-    bool isPasswordField() const { return m_passwordButton != nullptr; }
+    bool isPasswordField() const { return m_isPasswordField; }
 
-    /// Returns the button, which shows the password, nullptr, if the field is not a password field
-    PDFIconButton* getPasswordButton() const { return m_passwordButton; }
+    /// Returns the button, which shows the password, nullptr, if the field is not
+    /// a password field (or the application has deleted the button)
+    PDFIconButton* getPasswordButton() const;
 
 protected:
     virtual void changeEvent(QEvent* event) override;
@@ -158,8 +160,10 @@ private:
     void updatePasswordFont();
     void updatePasswordButton();
     void placePasswordButton();
+    void onPasswordButtonToggled(bool isShown);
 
-    PDFIconButton* m_passwordButton = nullptr;
+    bool m_isPasswordField = false;
+    QPointer<QWidget> m_passwordButton; ///< PDFIconButton, a child, which the application may delete
     QString m_invalidMessage;
 };
 
@@ -270,7 +274,7 @@ protected:
 private:
     void updateColors();
 
-    QWidget* m_viewport = nullptr;
+    QPointer<QWidget> m_viewport;
 };
 
 /// Editor of a date and time. Its calendar popup is \p PDFCalendarWidget.
@@ -361,8 +365,12 @@ protected:
     virtual void paintEvent(QPaintEvent* event) override;
 
 private:
-    QHBoxLayout* m_layout;
-    QButtonGroup* m_group;
+    void onSegmentToggled(int id, bool isChecked);
+
+    /// The layout is reachable by QWidget::layout(), the application may delete it
+    QPointer<QHBoxLayout> m_layout;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QButtonGroup m_group;
 };
 
 /// Dial. The value follows the pointer along the arc of the design, which has

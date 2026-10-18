@@ -51,6 +51,9 @@ namespace pdf
 /// (pdflockeddocumentpicture.h). A rectangle smaller than the picture scales it down evenly;
 /// a larger one keeps the size of the design (a mode preview fills the width
 /// of the rectangle as the component, the other pictures are centered).
+///
+/// Only in the thread of the user interface (as PDFComponentPainter): the
+/// colors of the active theme and the cache of the logo are read without a lock.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFPreviewPainter
 {
 public:
@@ -121,8 +124,8 @@ public:
 
     /// Draws the logo into the rectangle (scaled up or down, keeping its aspect
     /// ratio, centered). The SVG is parsed once: the picture of each size of the
-    /// device pixels is kept (a few sizes, thread safe); a painter rotated or
-    /// sheared draws the SVG itself.
+    /// device pixels is kept (a few sizes); a painter rotated or sheared draws
+    /// the SVG itself.
     static void paintLogo(QPainter* painter, const QRectF& rect);
 };
 

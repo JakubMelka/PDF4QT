@@ -29,6 +29,7 @@
 #include <QEvent>
 #include <QGraphicsEffect>
 #include <QPainter>
+#include <QPointer>
 
 namespace pdf
 {
@@ -113,7 +114,9 @@ protected:
     }
 
 private:
-    PDFLockedDocumentPicture* m_picture;
+    // The effect can be moved to another widget by QWidget::setGraphicsEffect
+    // (it stays a child of the picture): the picture is not owned by the effect
+    QPointer<PDFLockedDocumentPicture> m_picture;
 };
 
 PDFLockedDocumentPicture::PDFLockedDocumentPicture(QWidget* parent) :

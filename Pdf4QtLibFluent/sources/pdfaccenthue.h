@@ -60,7 +60,8 @@ public:
         Icon
     };
 
-    /// Returns the color of the hue (for example accent/green/bg-hover)
+    /// Returns the color of the hue (for example accent/green/bg-hover); an
+    /// invalid hue is Neutral, an invalid role is Background
     static PDFThemeColors::Color getColor(PDFAccentHue hue, Role role);
 };
 

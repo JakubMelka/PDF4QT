@@ -36,6 +36,7 @@
 #include "pdfwidgetstyleproperties.h"
 
 #include <QApplication>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeySequence>
 #include <QListView>
@@ -775,6 +776,45 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     nestedView->setFixedSize(320, 4 * 46 + 16);
     builder.live(QStringLiteral("Selected nested bookmark"), nestedView);
     builder.note(QStringLiteral("The delegates draw the rows of flat lists; in a tree the style leaves the area of the branches of their items unfilled."));
+
+    // Configurations of the delegates, which an application may use: one
+    // delegate for two views, delegates for a column and for a row (the
+    // lifetime test destroys their views, models and delegates)
+    builder.block(QStringLiteral("Configurations of the delegates - one delegate for two views, a delegate for a column and for a row"));
+
+    QWidget* sharedHost = new QWidget(builder.page());
+    QHBoxLayout* sharedLayout = new QHBoxLayout(sharedHost);
+    sharedLayout->setContentsMargins(0, 0, 0, 0);
+    pdf::PDFNoteDelegate* sharedDelegate = new pdf::PDFNoteDelegate(sharedHost);
+    for (int i = 0; i < 2; ++i)
+    {
+        pdf::PDFListView* sharedView = new pdf::PDFListView(sharedHost);
+        QStandardItemModel* sharedModel = Helper::noteModel();
+        sharedView->setModel(sharedModel);
+        sharedModel->setParent(sharedView);
+        sharedView->setItemDelegate(sharedDelegate);
+        sharedView->setSpacing(2);
+        sharedView->setFixedSize(296, 63 + 48 + 4 * 2 + 16);
+        sharedLayout->addWidget(sharedView);
+    }
+    builder.live(QStringLiteral("One PDFNoteDelegate for two views (a child of their parent)"), sharedHost);
+    builder.row();
+
+    pdf::PDFTreeView* columnView = new pdf::PDFTreeView(builder.page());
+    QStandardItemModel* columnModel = Helper::searchModel();
+    columnModel->setColumnCount(2);
+    for (int row = 0; row < columnModel->rowCount(); ++row)
+    {
+        columnModel->setItem(row, 1, Helper::item(QStringLiteral("Page %1").arg(row + 1)));
+    }
+    columnView->setModel(columnModel);
+    columnModel->setParent(columnView);
+    columnView->setRootIsDecorated(false);
+    columnView->setItemDelegateForColumn(0, new pdf::PDFSearchResultDelegate(columnView));
+    columnView->setItemDelegateForRow(1, new pdf::PDFBookmarkDelegate(columnView));
+    columnView->setColumnWidth(0, 300);
+    columnView->setFixedSize(480, 62 + 47 + 2 * 46 + 16);
+    builder.live(QStringLiteral("Delegate for the column 0 (search results) and for the row 1 (bookmark)"), columnView);
 }
 
 void GalleryPages::addPanelsDelegates(GalleryBuilder& builder)

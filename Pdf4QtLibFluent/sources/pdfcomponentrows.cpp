@@ -284,7 +284,12 @@ QSize PDFRecentFileRow::getContentMinimumSizeHint() const
 
 void PDFRecentFileRow::contextMenuEvent(QContextMenuEvent* event)
 {
-    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
+    showMoreButtonMenu(m_moreButton.data(), event);
+}
+
+void PDFRecentFileRow::requestMoreButtonMenu()
+{
+    Q_EMIT menuRequested();
 }
 
 void PDFRecentFileRow::changeEvent(QEvent* event)
@@ -457,7 +462,12 @@ QSize PDFWorkspaceRow::getContentMinimumSizeHint() const
 
 void PDFWorkspaceRow::contextMenuEvent(QContextMenuEvent* event)
 {
-    showMoreButtonMenu(this, m_moreButton.data(), event, [this]() { Q_EMIT menuRequested(); });
+    showMoreButtonMenu(m_moreButton.data(), event);
+}
+
+void PDFWorkspaceRow::requestMoreButtonMenu()
+{
+    Q_EMIT menuRequested();
 }
 
 PDFToolRow::PDFToolRow(QWidget* parent) :
@@ -1005,8 +1015,7 @@ PDFPropertyRow::PDFPropertyRow(QWidget* parent) :
     m_editButton(new PDFPropertyRowButton(PDFComponentPainter::PropertyAction::Edit, this)),
     m_copyButton(new PDFPropertyRowButton(PDFComponentPainter::PropertyAction::Copy, this)),
     m_confirmButton(new PDFPropertyRowButton(PDFComponentPainter::PropertyAction::Confirm, this)),
-    m_cancelButton(new PDFPropertyRowButton(PDFComponentPainter::PropertyAction::Cancel, this)),
-    m_copiedTimer(new QTimer(this))
+    m_cancelButton(new PDFPropertyRowButton(PDFComponentPainter::PropertyAction::Cancel, this))
 {
     // The row is a text, its actions are buttons of their own
     setFocusPolicy(Qt::NoFocus);
@@ -1038,10 +1047,10 @@ PDFPropertyRow::PDFPropertyRow(QWidget* parent) :
         widget->installEventFilter(this);
     }
 
-    m_copiedTimer->setSingleShot(true);
-    connect(m_copiedTimer, &QTimer::timeout, this, &PDFPropertyRow::onCopiedTimeout);
+    m_copiedTimer.setSingleShot(true);
+    connect(&m_copiedTimer, &QTimer::timeout, this, &PDFPropertyRow::onCopiedTimeout);
     connect(m_copyButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::copy);
-    connect(m_editButton.data(), &QAbstractButton::clicked, this, [this]() { startEditing(); });
+    connect(m_editButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::startEditing);
     connect(m_confirmButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::confirmEditing);
     connect(m_cancelButton.data(), &QAbstractButton::clicked, this, &PDFPropertyRow::cancelEditing);
 
@@ -1065,7 +1074,7 @@ PDFPropertyRow::PDFPropertyRow(const QString& key, const QString& value, Editabi
 PDFPropertyRow::~PDFPropertyRow()
 {
     // The timer and the field are children; nothing may call the row back
-    m_copiedTimer->stop();
+    m_copiedTimer.stop();
     for (QWidget* widget : std::initializer_list<QWidget*>{ m_editor.data(), m_confirmButton.data(), m_cancelButton.data() })
     {
         if (widget)
@@ -1133,7 +1142,7 @@ bool PDFPropertyRow::startEditing()
     }
 
     // The confirmation of a copy is not shown over the field
-    m_copiedTimer->stop();
+    m_copiedTimer.stop();
     m_isCopied = false;
     m_isEditing = true;
 
@@ -1233,7 +1242,7 @@ void PDFPropertyRow::copy()
     if (isVisible())
     {
         m_isCopied = true;
-        m_copiedTimer->start(m_copiedDuration);
+        m_copiedTimer.start(m_copiedDuration);
         updateActions();
         update();
     }
@@ -1584,7 +1593,7 @@ void PDFPropertyRow::changeEvent(QEvent* event)
             // A disabled row cancels the editing and the confirmation of a copy
             if (!isEnabled())
             {
-                m_copiedTimer->stop();
+                m_copiedTimer.stop();
                 m_isCopied = false;
                 QPointer<PDFPropertyRow> guard(this);
                 cancelEditing();
@@ -1606,7 +1615,7 @@ void PDFPropertyRow::hideEvent(QHideEvent* event)
     BaseClass::hideEvent(event);
 
     // The timer does not run for a hidden row
-    m_copiedTimer->stop();
+    m_copiedTimer.stop();
     if (m_isCopied)
     {
         m_isCopied = false;
@@ -1646,6 +1655,13 @@ public:
     static constexpr int SEPARATOR_HEIGHT = 17;
     static constexpr int SEPARATOR_LINE = 8;
     static constexpr int SEPARATOR_INSET = 6;
+
+    /// Returns the rectangle of the item in the direction of the state (the
+    /// logical rectangle aligned to whole pixels)
+    static QRectF place(const PDFComponentPainter::State& state, const QRectF& shape, const QRectF& logical)
+    {
+        return state.visualRect(shape, QRectF(logical.toAlignedRect()));
+    }
 };
 
 /// Line between two groups of a navigation
@@ -1785,17 +1801,12 @@ void PDFNavItem::paintContent(QPainter* painter, const QRect& rect, const PDFCom
         textColor = PDFThemeColors::TextAccent;
     }
 
-    auto place = [&state, &shape](const QRectF& logical)
-    {
-        return state.visualRect(shape, QRectF(logical.toAlignedRect()));
-    };
-
     const qreal left = shape.left();
     const qreal top = shape.top();
     const qreal height = shape.height();
     const qreal gap = m_kind == Kind::Settings ? PDFNavItemHelper::SETTINGS_GAP : PDFNavItemHelper::HOME_GAP;
     const QRectF iconRect(left + PDFNavItemHelper::PADDING, top + (height - PDFNavItemHelper::ICON) / 2.0, PDFNavItemHelper::ICON, PDFNavItemHelper::ICON);
-    PDFStylePainter::icon(painter, place(iconRect), m_iconName, iconColor);
+    PDFStylePainter::icon(painter, PDFNavItemHelper::place(state, shape, iconRect), m_iconName, iconColor);
 
     const qreal textLeft = left + PDFNavItemHelper::PADDING + PDFNavItemHelper::ICON + gap;
     const qreal textWidth = qMax(0.0, shape.right() - textLeft - PDFNavItemHelper::PADDING);
@@ -1811,14 +1822,14 @@ void PDFNavItem::paintContent(QPainter* painter, const QRect& rect, const PDFCom
 
         const QRectF nameRect(textLeft, blockTop, textWidth, PDFNavItemHelper::NAME_LINE);
         const QRectF subtitleRect(textLeft, blockTop + PDFNavItemHelper::NAME_LINE + PDFNavItemHelper::TEXT_GAP, textWidth, PDFNavItemHelper::SUBTITLE_LINE);
-        PDFStylePainter::text(painter, place(nameRect), alignment, PDFComponentPainter::elidedText(text(), nameFont, textWidth), nameFont, PDFStylePainter::color(textColor));
-        PDFStylePainter::text(painter, place(subtitleRect), alignment, PDFComponentPainter::elidedText(m_subtitle, subtitleFont, textWidth), subtitleFont, PDFStylePainter::color(subtitleColor));
+        PDFStylePainter::text(painter, PDFNavItemHelper::place(state, shape, nameRect), alignment, PDFComponentPainter::elidedText(text(), nameFont, textWidth), nameFont, PDFStylePainter::color(textColor));
+        PDFStylePainter::text(painter, PDFNavItemHelper::place(state, shape, subtitleRect), alignment, PDFComponentPainter::elidedText(m_subtitle, subtitleFont, textWidth), subtitleFont, PDFStylePainter::color(subtitleColor));
         return;
     }
 
     const QFont font = PDFThemeFonts::getFont(selected ? PDFThemeFonts::Role::BodySemiBold : PDFThemeFonts::Role::Body);
     const QRectF textRect(textLeft, top, textWidth, height);
-    PDFStylePainter::text(painter, place(textRect), alignment, PDFComponentPainter::elidedText(text(), font, textWidth), font, PDFStylePainter::color(textColor));
+    PDFStylePainter::text(painter, PDFNavItemHelper::place(state, shape, textRect), alignment, PDFComponentPainter::elidedText(text(), font, textWidth), font, PDFStylePainter::color(textColor));
 }
 
 PDFNavList::PDFNavList(QWidget* parent) :
@@ -1830,23 +1841,24 @@ PDFNavList::PDFNavList(QWidget* parent) :
 PDFNavList::PDFNavList(PDFNavItem::Kind kind, QWidget* parent) :
     BaseClass(parent),
     m_layout(new QVBoxLayout(this)),
-    m_group(new QButtonGroup(this)),
     m_kind(kind)
 {
     // Items of a group are 2 px apart
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->setSpacing(2);
     m_layout->addStretch(1);
-    m_group->setExclusive(true);
+    m_group.setExclusive(true);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
-    connect(m_group, &QButtonGroup::idToggled, this, [this](int id, bool isChecked)
+    connect(&m_group, &QButtonGroup::idToggled, this, &PDFNavList::onGroupIdToggled);
+}
+
+void PDFNavList::onGroupIdToggled(int id, bool isChecked)
+{
+    if (isChecked)
     {
-        if (isChecked)
-        {
-            Q_EMIT currentIndexChanged(id);
-        }
-    });
+        Q_EMIT currentIndexChanged(id);
+    }
 }
 
 int PDFNavList::addItem(const QString& text, const QString& iconName, const QString& subtitle)
@@ -1856,10 +1868,14 @@ int PDFNavList::addItem(const QString& text, const QString& iconName, const QStr
     item->installEventFilter(this);
 
     const int index = getCount();
-    m_group->addButton(item, index);
+    m_group.addButton(item, index);
 
-    // The stretch stays the last item of the layout
-    m_layout->insertWidget(m_layout->count() - 1, item);
+    // The stretch stays the last item of the layout (a layout deleted by the
+    // application lays nothing out)
+    if (m_layout)
+    {
+        m_layout->insertWidget(m_layout->count() - 1, item);
+    }
 
     if (index == 0)
     {
@@ -1871,22 +1887,26 @@ int PDFNavList::addItem(const QString& text, const QString& iconName, const QStr
 
 void PDFNavList::addGroup()
 {
-    m_layout->insertWidget(m_layout->count() - 1, new PDFNavSeparator(this));
+    // A separator is only a part of the layout (a layout deleted by the application lays nothing out)
+    if (m_layout)
+    {
+        m_layout->insertWidget(m_layout->count() - 1, new PDFNavSeparator(this));
+    }
 }
 
 int PDFNavList::getCount() const
 {
-    return static_cast<int>(m_group->buttons().size());
+    return static_cast<int>(m_group.buttons().size());
 }
 
 PDFNavItem* PDFNavList::getItem(int index) const
 {
-    return qobject_cast<PDFNavItem*>(m_group->button(index));
+    return qobject_cast<PDFNavItem*>(m_group.button(index));
 }
 
 int PDFNavList::getCurrentIndex() const
 {
-    return m_group->checkedId();
+    return m_group.checkedId();
 }
 
 void PDFNavList::setCurrentIndex(int index)
@@ -1909,7 +1929,7 @@ bool PDFNavList::eventFilter(QObject* watched, QEvent* event)
         {
             // The arrows move the selection to the next enabled item, also into another group
             const int count = getCount();
-            const int current = m_group->id(item);
+            const int current = m_group.id(item);
             int step = key == Qt::Key_Up || key == Qt::Key_End ? -1 : 1;
             int index = current;
 

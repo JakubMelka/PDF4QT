@@ -125,6 +125,9 @@ private:
     static bool isViewFocused(const QWidget* widget);
     static bool isEdited(const QStyleOptionViewItem* option, const QWidget* widget);
 
+    /// Returns the rectangle of the size at the position x, centered vertically in the row
+    static QRect centerInRow(const QRect& row, int x, const QSize& size);
+
     ItemLayout getItemLayout(const QStyleOptionViewItem* option, const QWidget* widget) const;
     Radii getItemRadii(const QStyleOptionViewItem* option, const QWidget* widget) const;
     void drawItemBackground(const QStyleOptionViewItem* option, QPainter* painter, const QWidget* widget) const;
@@ -330,6 +333,11 @@ bool PDFWidgetStyleItemViews::isEdited(const QStyleOptionViewItem* option, const
            editor->geometry().center().y() <= option->rect.bottom() && option->rect.contains(editor->geometry().center());
 }
 
+QRect PDFWidgetStyleItemViews::centerInRow(const QRect& row, int x, const QSize& size)
+{
+    return QRect(x, row.top() + (row.height() - size.height()) / 2, size.width(), size.height());
+}
+
 PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const QStyleOptionViewItem* option, const QWidget* widget) const
 {
     ItemLayout layout;
@@ -382,11 +390,6 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
     int left = layout.shape.left() + padding;
     int right = layout.shape.right() + 1 - padding;
 
-    auto centered = [&layout](int x, const QSize& size)
-    {
-        return QRect(x, layout.shape.top() + (layout.shape.height() - size.height()) / 2, size.width(), size.height());
-    };
-
     if (isTreeBranchColumn(option, widget))
     {
         // The slot of the branch lies inside of the row and the contents
@@ -396,7 +399,7 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
 
     if (hasCheck)
     {
-        layout.check = centered(left, QSize(ROW_CHECK, ROW_CHECK));
+        layout.check = centerInRow(layout.shape, left, QSize(ROW_CHECK, ROW_CHECK));
         left += ROW_CHECK + gap;
     }
 
@@ -404,12 +407,12 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
     {
         if (option->decorationPosition == QStyleOptionViewItem::Right)
         {
-            layout.decoration = centered(right - decorationSize.width(), decorationSize);
+            layout.decoration = centerInRow(layout.shape, right - decorationSize.width(), decorationSize);
             right -= decorationSize.width() + gap;
         }
         else
         {
-            layout.decoration = centered(left, decorationSize);
+            layout.decoration = centerInRow(layout.shape, left, decorationSize);
             left += decorationSize.width() + gap;
         }
     }

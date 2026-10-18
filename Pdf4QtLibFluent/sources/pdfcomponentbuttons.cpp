@@ -807,22 +807,25 @@ bool PDFComponentButton::isNestedShown(const QWidget* widget) const
     return widget && widget->parentWidget() == this && !widget->isHidden();
 }
 
-void PDFComponentButton::showMoreButtonMenu(PDFComponentButton* button, PDFMoreButton* moreButton, QContextMenuEvent* event, const std::function<void()>& requestMenu)
+void PDFComponentButton::requestMoreButtonMenu()
+{
+    // A component without a menu of its own shows only the menu set by the application
+}
+
+void PDFComponentButton::showMoreButtonMenu(PDFMoreButton* moreButton, QContextMenuEvent* event)
 {
     if (!event)
     {
         return;
     }
 
-    QPointer<PDFComponentButton> guard(button);
+    // Nothing of this button is used after the request (its slot may delete it)
+    QPointer<PDFComponentButton> guard(this);
     QPointer<PDFMoreButton> menuButton(moreButton);
     const bool isKeyboard = event->reason() == QContextMenuEvent::Keyboard;
     const QPoint globalPosition = event->globalPos();
 
-    if (requestMenu)
-    {
-        requestMenu();
-    }
+    requestMoreButtonMenu();
 
     if (!guard)
     {
@@ -1708,15 +1711,18 @@ PDFMoreButton::PDFMoreButton(QWidget* parent) :
     setFocusRingRadius(PDFComponentPainter::getMoreButtonRadius());
     updateText();
 
-    connect(this, &QAbstractButton::clicked, this, [this]()
+    connect(this, &QAbstractButton::clicked, this, &PDFMoreButton::onClicked);
+}
+
+void PDFMoreButton::onClicked()
+{
+    // A slot of the signal may delete the button
+    QPointer<PDFMoreButton> guard(this);
+    Q_EMIT menuRequested();
+    if (guard)
     {
-        QPointer<PDFMoreButton> guard(this);
-        Q_EMIT menuRequested();
-        if (guard)
-        {
-            showMenu();
-        }
-    });
+        showMenu();
+    }
 }
 
 void PDFMoreButton::setMenu(QMenu* menu)

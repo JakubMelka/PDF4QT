@@ -27,6 +27,8 @@
 
 #include <QCommonStyle>
 
+#include <memory>
+
 namespace pdf
 {
 
@@ -91,10 +93,14 @@ public:
     /// used by the tests, a negative time returns the real clock.
     void setAnimationTime(qint64 milliseconds);
 
+    /// Returns true, while the delay of the hover line of a splitter handle
+    /// runs (the tests wait for the decision instead of a fixed time)
+    bool isSplitterHoverPending() const;
+
 private:
     friend class PDFWidgetStyleImpl;
 
-    PDFWidgetStyleImpl* m_impl;
+    std::unique_ptr<PDFWidgetStyleImpl> m_impl;
 };
 
 }   // namespace pdf

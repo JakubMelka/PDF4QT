@@ -28,8 +28,6 @@
 #include <QCoreApplication>
 #include <QImage>
 #include <QList>
-#include <QMutex>
-#include <QMutexLocker>
 #include <QPaintEngine>
 #include <QPainter>
 #include <QSvgRenderer>
@@ -97,13 +95,12 @@ public:
     };
 
     /// Returns the picture of the logo of the size of the device pixels (the
-    /// SVG is parsed only for a new size; thread safe)
+    /// SVG is parsed only for a new size; without a lock - the painter is used
+    /// only in the thread of the user interface)
     static QImage getLogoImage(const QSize& size)
     {
-        static QMutex mutex;
         static QList<LogoPicture> cache;
 
-        QMutexLocker locker(&mutex);
         for (qsizetype i = 0; i < cache.size(); ++i)
         {
             if (cache.at(i).size == size)
@@ -517,10 +514,14 @@ void PDFPreviewPainter::paintLogo(QPainter* painter, const QRectF& rect)
     const QPaintEngine* engine = painter->paintEngine();
     const QPaintDevice* device = (engine && engine->paintDevice()) ? engine->paintDevice() : painter->device();
     const qreal devicePixelRatio = device ? qMax<qreal>(device->devicePixelRatioF(), 1.0) : 1.0;
+    // The size is bounded before it is converted to integers (a huge or a
+    // non-finite scale of the painter is drawn from the SVG)
     const QTransform transform = painter->combinedTransform();
-    const QSize pixelSize(qCeil(target.width() * qAbs(transform.m11()) * devicePixelRatio), qCeil(target.height() * qAbs(transform.m22()) * devicePixelRatio));
-    const bool isCached = transform.type() <= QTransform::TxScale && !pixelSize.isEmpty() &&
-                          pixelSize.width() <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT && pixelSize.height() <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT;
+    const qreal pixelWidth = target.width() * qAbs(transform.m11()) * devicePixelRatio;
+    const qreal pixelHeight = target.height() * qAbs(transform.m22()) * devicePixelRatio;
+    const bool isCached = transform.type() <= QTransform::TxScale && pixelWidth > 0.0 && pixelHeight > 0.0 &&
+                          pixelWidth <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT && pixelHeight <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT;
+    const QSize pixelSize = isCached ? QSize(qCeil(pixelWidth), qCeil(pixelHeight)) : QSize();
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);

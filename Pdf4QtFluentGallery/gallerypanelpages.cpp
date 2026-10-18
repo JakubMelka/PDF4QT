@@ -517,10 +517,12 @@ void GalleryPages::addFormsPanels(GalleryBuilder& builder)
 
         const int bits = qMin(128, static_cast<int>(text.size()) * 6);
         static constexpr Level byBits[] = { Level::VeryWeak, Level::VeryWeak, Level::Weak, Level::Moderate, Level::Strong, Level::VeryStrong };
-        liveMeter->setLevel(text.isEmpty() ? Level::Empty : byBits[qMin(5, bits / 24)]);
         liveMeter->setFilledCells(text.isEmpty() ? -1 : qMax(1, bits * 20 / 128));
         liveMeter->setDetail(QStringLiteral("%1 of 128 bits").arg(bits));
         liveMeter->setSatisfiedCriteria(criteria);
+
+        // The last call: a slot of its signal levelChanged may delete the meter
+        liveMeter->setLevel(text.isEmpty() ? Level::Empty : byBits[qMin(5, bits / 24)]);
     });
     builder.live(QStringLiteral("Live with a password field (type)"), passwordCard);
 
@@ -618,6 +620,13 @@ void GalleryPages::addFormsPanels(GalleryBuilder& builder)
     pdf::PDFColorButton* rightToLeftButton = Helper::createColorButton(builder.page());
     rightToLeftButton->setLayoutDirection(Qt::RightToLeft);
     builder.live(QStringLiteral("Live right-to-left"), rightToLeftButton);
+
+    // Without a name of its own: the button asks its palette for the name of the color
+    pdf::PDFColorButton* paletteNameButton = new pdf::PDFColorButton(pdf::PDFStylePainter::color(Color::ReadingPaperText), QString(), builder.page());
+    paletteNameButton->getPalette()->setSuggestedColors(Helper::getSuggestedColors());
+    paletteNameButton->getPalette()->setRecentColors(Helper::getRecentColors());
+    paletteNameButton->setFixedWidth(260);
+    builder.live(QStringLiteral("Live, the name from the palette"), paletteNameButton);
 
     // Color palette popover: the panel and an inline palette
     builder.block(QStringLiteral("Color palette popover (PDFColorPalette) - round swatches six in a row, the selected color, More colors…"), QStringLiteral("156:4240"));

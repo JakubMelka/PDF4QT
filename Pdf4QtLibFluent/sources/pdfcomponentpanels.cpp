@@ -96,6 +96,27 @@ public:
         name = newName;
         description = newDescription;
     }
+
+    /// Returns the square of an item of a document tab (the lock, the dot)
+    /// following the label at the \p position (from the leading edge of the
+    /// text), and moves the position after the item and its gap
+    static QRectF placeTabItem(qreal extent, const QRect& shape, const QRect& textRect, bool isRightToLeft, qreal& position)
+    {
+        const qreal top = shape.top() + (shape.height() - extent) / 2.0;
+        const qreal left = isRightToLeft ? textRect.right() + 1 - position - extent : textRect.left() + position;
+        position += extent + TAB_ITEM_GAP;
+        return QRectF(left, top, extent, extent);
+    }
+
+    /// Places a nested widget (nothing for a deleted one) at the logical
+    /// rectangle inside of the bounds (mirrored in the right-to-left layout)
+    static void placeWidget(QWidget* widget, Qt::LayoutDirection direction, const QRect& bounds, const QRect& logical)
+    {
+        if (widget)
+        {
+            widget->setGeometry(QStyle::visualRect(direction, bounds, logical));
+        }
+    }
 };
 
 PDFToolBarField::PDFToolBarField(QWidget* parent) :
@@ -119,11 +140,14 @@ void PDFToolBarField::init()
     setAccessibleDescription(m_suffix);
     updateTextInsets();
 
-    connect(this, &QLineEdit::textChanged, this, [this]()
-    {
-        updateTextInsets();
-        updateGeometry();
-    });
+    connect(this, &QLineEdit::textChanged, this, &PDFToolBarField::onTextChanged);
+}
+
+void PDFToolBarField::onTextChanged()
+{
+    // The field is as wide as its value
+    updateTextInsets();
+    updateGeometry();
 }
 
 void PDFToolBarField::setSuffix(const QString& suffix)
@@ -464,13 +488,54 @@ void PDFKeyValueList::contextMenuEvent(QContextMenuEvent* event)
         return;
     }
 
-    QMenu menu(this);
-    QAction* copyAction = menu.addAction(PDFThemeIcons::getIcon(QStringLiteral("copy")), tr("Copy Value"));
-    if (menu.exec(event->globalPos()) == copyAction)
+    // The application can delete the list while the menu runs its event loop:
+    // the menu (a child of the list) is deleted with it, so it is not an object
+    // on the stack, and the value is taken before
+    const QString value = m_rows[index].value;
+    QPointer<QMenu> menu = new QMenu(this);
+    QAction* copyAction = menu->addAction(PDFThemeIcons::getIcon(QStringLiteral("copy")), tr("Copy Value"));
+    QAction* chosenAction = menu->exec(event->globalPos());
+    if (menu && chosenAction == copyAction)
     {
-        QGuiApplication::clipboard()->setText(m_rows[index].value);
+        QGuiApplication::clipboard()->setText(value);
     }
+    delete menu.data();
 }
+
+/// Close button of a document tab. QTabBar keeps its buttons as plain pointers
+/// and hides the old button, when it is replaced (QTabBar::setTabButton), so a
+/// button deleted by the application takes itself out of its tab from its own
+/// destructor, while it is still whole (a slot of the signal destroyed would let
+/// QTabBar hide a widget, whose derived parts are gone).
+class PDFDocumentTabCloseButton : public PDFIconButton
+{
+public:
+    explicit PDFDocumentTabCloseButton(PDFDocumentTabBar* tabBar) :
+        PDFIconButton(QStringLiteral("x"), PDFIconButton::Size::TabClose, tabBar),
+        m_tabBar(tabBar)
+    {
+    }
+
+    virtual ~PDFDocumentTabCloseButton() override
+    {
+        if (m_tabBar)
+        {
+            m_tabBar->forgetCloseButton(this);
+        }
+    }
+
+    /// Forgets the tab bar (its destructor, the buttons are deleted after it by ~QWidget)
+    void detach()
+    {
+        m_tabBar = nullptr;
+    }
+
+private:
+    /// The tab bar, which has created the button. Not a QPointer: a QPointer is
+    /// cleared only by ~QObject, after ~QWidget of the tab bar has deleted its
+    /// children; ~PDFDocumentTabBar clears it by detach while the tab bar is whole.
+    PDFDocumentTabBar* m_tabBar;
+};
 
 PDFDocumentTabBar::PDFDocumentTabBar(QWidget* parent) :
     BaseClass(parent)
@@ -480,15 +545,55 @@ PDFDocumentTabBar::PDFDocumentTabBar(QWidget* parent) :
     setElideMode(Qt::ElideNone);
     setDrawBase(false);
 
-    connect(this, &QTabBar::tabMoved, this, [this](int from, int to)
+    connect(this, &QTabBar::tabMoved, this, &PDFDocumentTabBar::onTabMoved);
+}
+
+void PDFDocumentTabBar::onTabMoved(int from, int to)
+{
+    // The state of the tab moves with it
+    if (from >= 0 && to >= 0 && from < int(m_tabs.size()) && to < int(m_tabs.size()))
     {
-        if (from >= 0 && to >= 0 && from < int(m_tabs.size()) && to < int(m_tabs.size()))
+        const TabState state = m_tabs[from];
+        m_tabs.erase(m_tabs.begin() + from);
+        m_tabs.insert(m_tabs.begin() + to, state);
+    }
+}
+
+void PDFDocumentTabBar::onCloseButtonClicked()
+{
+    // The close button of the tab is the sender (the tab moves, the button stays with it)
+    const QWidget* button = qobject_cast<const QWidget*>(sender());
+    if (!button)
+    {
+        return;
+    }
+
+    for (int i = 0; i < count(); ++i)
+    {
+        if (tabButton(i, LeftSide) == button || tabButton(i, RightSide) == button)
         {
-            const TabState state = m_tabs[from];
-            m_tabs.erase(m_tabs.begin() + from);
-            m_tabs.insert(m_tabs.begin() + to, state);
+            Q_EMIT tabCloseRequested(i);
+            break;
         }
-    });
+    }
+}
+
+void PDFDocumentTabBar::forgetCloseButton(PDFDocumentTabCloseButton* button)
+{
+    // Called by the destructor of the button, while the button is whole:
+    // QTabBar::setTabButton hides the button and forgets it (QTabBar keeps the
+    // button as a plain pointer)
+    m_closeButtons.removeAll(button);
+    for (int i = 0; i < count(); ++i)
+    {
+        for (ButtonPosition position : { LeftSide, RightSide })
+        {
+            if (tabButton(i, position) == button)
+            {
+                setTabButton(i, position, nullptr);
+            }
+        }
+    }
 }
 
 const PDFDocumentTabBar::TabState* PDFDocumentTabBar::getTabState(int index) const
@@ -499,6 +604,18 @@ const PDFDocumentTabBar::TabState* PDFDocumentTabBar::getTabState(int index) con
 PDFDocumentTabBar::TabState* PDFDocumentTabBar::getTabState(int index)
 {
     return index >= 0 && index < int(m_tabs.size()) ? &m_tabs[index] : nullptr;
+}
+
+PDFDocumentTabBar::~PDFDocumentTabBar()
+{
+    // The close buttons are deleted after this destructor (by ~QWidget, or
+    // later by the application, which has taken one): they must not call the
+    // tab bar, which is no longer whole
+    for (PDFDocumentTabCloseButton* button : std::as_const(m_closeButtons))
+    {
+        button->detach();
+    }
+    m_closeButtons.clear();
 }
 
 bool PDFDocumentTabBar::isTabLocked(int index) const
@@ -561,23 +678,13 @@ void PDFDocumentTabBar::setTabClosable(int index, bool closable)
 
     if (closable)
     {
-        PDFIconButton* button = new PDFIconButton(QStringLiteral("x"), PDFIconButton::Size::TabClose, this);
+        PDFDocumentTabCloseButton* button = new PDFDocumentTabCloseButton(this);
+        m_closeButtons.append(button);
         button->setAccessibleName(tr("Close tab"));
         button->setToolTip(tr("Close tab"));
         button->setFocusPolicy(Qt::NoFocus);
 
-        connect(button, &QAbstractButton::clicked, this, [this, button, side]()
-        {
-            for (int i = 0; i < count(); ++i)
-            {
-                if (tabButton(i, side) == button)
-                {
-                    Q_EMIT tabCloseRequested(i);
-                    break;
-                }
-            }
-        });
-
+        connect(button, &QAbstractButton::clicked, this, &PDFDocumentTabBar::onCloseButtonClicked);
         setTabButton(index, side, button);
     }
     else if (QWidget* button = tabButton(index, side))
@@ -715,25 +822,19 @@ void PDFDocumentTabBar::paintEvent(QPaintEvent* event)
         const QFont font = PDFThemeFonts::getFont(isSelected ? PDFThemeFonts::Role::BodySemiBold : PDFThemeFonts::Role::BodyMedium);
         qreal position = PDFStylePainter::textWidth(label, font) + PDFComponentPanelsHelper::TAB_ITEM_GAP;
 
-        auto place = [&](qreal extent)
-        {
-            const qreal top = shape.top() + (shape.height() - extent) / 2.0;
-            const qreal left = isRightToLeft ? textRect.right() + 1 - position - extent : textRect.left() + position;
-            position += extent + PDFComponentPanelsHelper::TAB_ITEM_GAP;
-            return QRectF(left, top, extent, extent);
-        };
-
         if (state->locked)
         {
             // Amber lock in every state of the tab
-            PDFThemeIcons::paintFilled(&painter, place(PDFComponentPanelsHelper::TAB_LOCK), QStringLiteral("lock"),
+            const QRectF lockRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_LOCK, shape, textRect, isRightToLeft, position);
+            PDFThemeIcons::paintFilled(&painter, lockRect, QStringLiteral("lock"),
                                        PDFStylePainter::color(PDFThemeColors::IconDefault), PDFStylePainter::color(PDFThemeColors::AccentAmberIcon));
         }
 
         if (state->unsaved)
         {
             // The dot has the color of the label
-            PDFStylePainter::fillEllipse(&painter, place(PDFComponentPanelsHelper::TAB_DOT), PDFStylePainter::color(isSelected ? PDFThemeColors::TextPrimary : PDFThemeColors::TextTertiary));
+            const QRectF dotRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_DOT, shape, textRect, isRightToLeft, position);
+            PDFStylePainter::fillEllipse(&painter, dotRect, PDFStylePainter::color(isSelected ? PDFThemeColors::TextPrimary : PDFThemeColors::TextTertiary));
         }
 
         if (state->progress >= 0.0)
@@ -822,6 +923,41 @@ public:
         }
         return QChar(0x2068) + part + QChar(0x2069);
     }
+
+    /// Sets the error of a part, which is not a number
+    static void setConvertError(PDFPageRange::Result& result, QStringView part)
+    {
+        result.errorMessage = PDFPageRange::tr("Can't convert '%1' to a number.").arg(quoted(part));
+    }
+
+    /// Returns true, if the document has the page; otherwise sets the error of the missing page
+    static bool checkPageExists(PDFPageRange::Result& result, qint64 page, int pageCount)
+    {
+        if (page < 1 || page > pageCount)
+        {
+            result.errorMessage = PDFPageRange::getMissingPageText(page, pageCount);
+            return false;
+        }
+        return true;
+    }
+
+    /// Comparator of std::upper_bound: the page lies before the interval
+    static bool isBeforeInterval(int page, const PDFPageRange::Interval& interval)
+    {
+        return page < interval.first;
+    }
+
+    /// Returns true, if the interval has no page (it is left out of the normalized intervals)
+    static bool isInvalidInterval(const PDFPageRange::Interval& interval)
+    {
+        return interval.first < 1 || interval.last < interval.first;
+    }
+
+    /// Order of the intervals: by the first page, then by the last page
+    static bool isIntervalLess(const PDFPageRange::Interval& left, const PDFPageRange::Interval& right)
+    {
+        return left.first < right.first || (left.first == right.first && left.last < right.last);
+    }
 };
 
 bool PDFPageRange::isListSeparator(QChar character)
@@ -870,7 +1006,7 @@ qint64 PDFPageRange::Result::getCount() const
 bool PDFPageRange::Result::contains(int page) const
 {
     // The intervals are sorted and disjoint
-    auto it = std::upper_bound(intervals.cbegin(), intervals.cend(), page, [](int value, const Interval& interval) { return value < interval.first; });
+    auto it = std::upper_bound(intervals.cbegin(), intervals.cend(), page, &PDFPageRangeHelper::isBeforeInterval);
     if (it == intervals.cbegin())
     {
         return false;
@@ -897,8 +1033,8 @@ QList<int> PDFPageRange::Result::getPages() const
 
 QList<PDFPageRange::Interval> PDFPageRange::normalized(QList<Interval> intervals)
 {
-    intervals.removeIf([](const Interval& interval) { return interval.first < 1 || interval.last < interval.first; });
-    std::sort(intervals.begin(), intervals.end(), [](const Interval& left, const Interval& right) { return left.first < right.first || (left.first == right.first && left.last < right.last); });
+    intervals.removeIf(&PDFPageRangeHelper::isInvalidInterval);
+    std::sort(intervals.begin(), intervals.end(), &PDFPageRangeHelper::isIntervalLess);
 
     QList<Interval> result;
     result.reserve(intervals.size());
@@ -946,21 +1082,6 @@ PDFPageRange::Result PDFPageRange::parse(const QString& text, int pageCount)
     Result result;
     pageCount = qBound(0, pageCount, MAX_PAGE_COUNT);
 
-    auto convertError = [&result](QStringView part)
-    {
-        result.errorMessage = tr("Can't convert '%1' to a number.").arg(Helper::quoted(part));
-    };
-
-    auto existsOrError = [&result, pageCount](qint64 page)
-    {
-        if (page < 1 || page > pageCount)
-        {
-            result.errorMessage = getMissingPageText(page, pageCount);
-            return false;
-        }
-        return true;
-    };
-
     // The parts are separated by the commas of any script
     QList<QStringView> parts;
     const QStringView view(text);
@@ -998,10 +1119,10 @@ PDFPageRange::Result PDFPageRange::parse(const QString& text, int pageCount)
             qint64 page = 0;
             if (!Helper::parseNumber(part, page))
             {
-                convertError(part);
+                Helper::setConvertError(result, part);
                 break;
             }
-            if (!existsOrError(page))
+            if (!Helper::checkPageExists(result, page, pageCount))
             {
                 break;
             }
@@ -1020,15 +1141,15 @@ PDFPageRange::Result PDFPageRange::parse(const QString& text, int pageCount)
 
         if (isLowerDefined && !Helper::parseNumber(lowerText, lower))
         {
-            convertError(lowerText);
+            Helper::setConvertError(result, lowerText);
             break;
         }
         if (isUpperDefined && !Helper::parseNumber(upperText, upper))
         {
-            convertError(upperText);
+            Helper::setConvertError(result, upperText);
             break;
         }
-        if ((isLowerDefined && !existsOrError(lower)) || (isUpperDefined && !existsOrError(upper)))
+        if ((isLowerDefined && !Helper::checkPageExists(result, lower, pageCount)) || (isUpperDefined && !Helper::checkPageExists(result, upper, pageCount)))
         {
             break;
         }
@@ -1159,57 +1280,80 @@ PDFPageSelection::PDFPageSelection(QWidget* parent) :
     {
         m_modes->addSegment(QString());
     }
-    connect(m_modes, &PDFSegmentedControl::currentIndexChanged, this, [this](int index)
-    {
-        setMode(static_cast<Mode>(index));
-    });
+    connect(m_modes, &PDFSegmentedControl::currentIndexChanged, this, &PDFPageSelection::onModeIndexChanged);
 
     m_rangeField = new PDFLineEdit(this);
     m_rangeField->setVisible(false);
     m_rangeField->setMaxLength(MAX_RANGE_LENGTH);
-    connect(m_rangeField, &QLineEdit::textChanged, this, [this](const QString& text)
-    {
-        if (m_range != text)
-        {
-            m_range = text;
-            QPointer<PDFPageSelection> guard(this);
-            updateResult(UpdateRange);
-            if (guard)
-            {
-                Q_EMIT rangeChanged(text);
-            }
-        }
-    });
+    connect(m_rangeField, &QLineEdit::textChanged, this, &PDFPageSelection::onRangeTextChanged);
 
     for (int i = 0; i < 4; ++i)
     {
         QCheckBox* box = new QCheckBox(this);
         m_filterBoxes[i] = box;
-        connect(box, &QCheckBox::toggled, this, [this]()
-        {
-            Filters filters = Filter::None;
-            for (int index = 0; index < 4; ++index)
-            {
-                if (m_filterBoxes[index] && m_filterBoxes[index]->isChecked())
-                {
-                    filters |= PDFPageSelectionHelper::FILTERS[index];
-                }
-            }
-            setFilters(filters);
-        });
+        connect(box, &QCheckBox::toggled, this, &PDFPageSelection::onFilterToggled);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, [this]()
-    {
-        updateGeometry();
-        layoutChildren();
-        update();
-    });
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFPageSelection::onThemeChanged);
 
     retranslate();
 }
 
 PDFPageSelection::~PDFPageSelection() = default;
+
+void PDFPageSelection::onModeIndexChanged(int index)
+{
+    // An index, which is not a mode (a segment added by the application), is
+    // refused: the control shows the current mode again
+    if (!PDFPageSelectionHelper::isValidMode(static_cast<Mode>(index)))
+    {
+        if (m_modes && m_modes->getCurrentIndex() != static_cast<int>(m_mode))
+        {
+            m_modes->setCurrentIndex(static_cast<int>(m_mode));
+        }
+        return;
+    }
+
+    setMode(static_cast<Mode>(index));
+}
+
+void PDFPageSelection::onRangeTextChanged(const QString& text)
+{
+    if (m_range != text)
+    {
+        // A copy: the text is a member of the field, which a slot of the
+        // signals may delete before the next slot reads it
+        const QString range = text;
+        m_range = range;
+        QPointer<PDFPageSelection> guard(this);
+        updateResult(UpdateRange);
+        if (guard)
+        {
+            Q_EMIT rangeChanged(range);
+        }
+    }
+}
+
+void PDFPageSelection::onFilterToggled()
+{
+    // The filters are the checked boxes (a box deleted by the application is no filter)
+    Filters filters = Filter::None;
+    for (int index = 0; index < 4; ++index)
+    {
+        if (m_filterBoxes[index] && m_filterBoxes[index]->isChecked())
+        {
+            filters |= PDFPageSelectionHelper::FILTERS[index];
+        }
+    }
+    setFilters(filters);
+}
+
+void PDFPageSelection::onThemeChanged()
+{
+    updateGeometry();
+    layoutChildren();
+    update();
+}
 
 QStringList PDFPageSelection::getModeTexts()
 {
@@ -1610,22 +1754,11 @@ QList<PDFPageRange::Interval> PDFPageSelection::computeBase() const
 PDFPageSelection::Summary PDFPageSelection::computeSummary(const QList<PDFPageRange::Interval>& base) const
 {
     Summary summary;
-    auto add = [&summary](qint64 first, qint64 last, qint64 count)
-    {
-        if (count <= 0)
-        {
-            return;
-        }
-        summary.first = summary.count == 0 ? static_cast<int>(first) : summary.first;
-        summary.last = static_cast<int>(last);
-        summary.count += count;
-    };
-
     if (!isParityFilter() && !isOrientationFilter())
     {
         for (const PDFPageRange::Interval& interval : base)
         {
-            add(interval.first, interval.last, static_cast<qint64>(interval.last) - interval.first + 1);
+            addToSummary(summary, interval.first, interval.last, static_cast<qint64>(interval.last) - interval.first + 1);
         }
     }
     else if (!isOrientationFilter())
@@ -1638,7 +1771,7 @@ PDFPageSelection::Summary PDFPageSelection::computeSummary(const QList<PDFPageRa
             const qint64 last = PDFPageSelectionHelper::lastOfParity(interval.first, interval.last, isEven);
             if (first > 0 && last >= first)
             {
-                add(first, last, (last - first) / 2 + 1);
+                addToSummary(summary, first, last, (last - first) / 2 + 1);
             }
         }
     }
@@ -1653,13 +1786,25 @@ PDFPageSelection::Summary PDFPageSelection::computeSummary(const QList<PDFPageRa
             {
                 if (passesFilters(static_cast<int>(page)))
                 {
-                    add(page, page, 1);
+                    addToSummary(summary, page, page, 1);
                 }
             }
         }
     }
 
     return summary;
+}
+
+void PDFPageSelection::addToSummary(Summary& summary, qint64 first, qint64 last, qint64 count)
+{
+    // The pages come in the ascending order: the first one is kept, the last one moves
+    if (count <= 0)
+    {
+        return;
+    }
+    summary.first = summary.count == 0 ? static_cast<int>(first) : summary.first;
+    summary.last = static_cast<int>(last);
+    summary.count += count;
 }
 
 QString PDFPageSelection::computeStatus() const
@@ -1803,25 +1948,17 @@ void PDFPageSelection::layoutChildren()
     // minimal width of the page selection (the padding 6 of the segments) may lie
     // below the minimal size hint of PDFSegmentedControl (the padding 14 of the style)
     const PDFComponentPainter::PageSelectionLayout layout = PDFComponentPainter::getPageSelectionLayout(getContent(), width());
-    auto place = [this](QWidget* widget, const QRect& logical)
-    {
-        if (widget)
-        {
-            widget->setGeometry(QStyle::visualRect(layoutDirection(), rect(), logical));
-        }
-    };
-
-    place(m_modes, layout.modes);
+    PDFComponentPanelsHelper::placeWidget(m_modes, layoutDirection(), rect(), layout.modes);
 
     if (m_rangeField)
     {
-        place(m_rangeField, layout.range);
+        PDFComponentPanelsHelper::placeWidget(m_rangeField, layoutDirection(), rect(), layout.range);
         m_rangeField->setVisible(m_mode == Mode::Range);
     }
 
     for (int i = 0; i < 4; ++i)
     {
-        place(m_filterBoxes[i], layout.filters[i]);
+        PDFComponentPanelsHelper::placeWidget(m_filterBoxes[i], layoutDirection(), rect(), layout.filters[i]);
     }
 }
 
@@ -1874,8 +2011,7 @@ void PDFPageSelection::changeEvent(QEvent* event)
 // ------------------------------------------------------------- Continue with
 
 PDFContinueWith::PDFContinueWith(QWidget* parent) :
-    BaseClass(parent),
-    m_group(new QButtonGroup(this))
+    BaseClass(parent)
 {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     setFocusPolicy(Qt::NoFocus);
@@ -1885,25 +2021,27 @@ PDFContinueWith::PDFContinueWith(QWidget* parent) :
     connect(m_link.data(), &QAbstractButton::clicked, this, &PDFContinueWith::anotherToolRequested);
 
     // An exclusive group, which can be left empty (Tool choice is deselectable)
-    m_group->setExclusive(true);
+    m_group.setExclusive(true);
     for (int i = 0; i < PDFComponentPainter::getContinueWithMaxChoices(); ++i)
     {
         PDFToolChoice* choice = new PDFToolChoice(this);
         choice->setVisible(false);
         choice->installEventFilter(this);
-        m_group->addButton(choice, i);
+        m_group.addButton(choice, i);
         m_choiceWidgets << choice;
         connect(choice, &QAbstractButton::toggled, this, &PDFContinueWith::onChoiceToggled);
     }
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, [this]()
-    {
-        updateGeometry();
-        layoutChildren();
-        update();
-    });
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFContinueWith::onThemeChanged);
 
     retranslate();
+}
+
+void PDFContinueWith::onThemeChanged()
+{
+    updateGeometry();
+    layoutChildren();
+    update();
 }
 
 PDFContinueWith::~PDFContinueWith()
@@ -2072,15 +2210,12 @@ void PDFContinueWith::setChoices(const QList<Choice>& choices)
         choice.hue = PDFComponentPainter::normalized(choice.hue);
     }
 
-    auto isSame = [](const Choice& left, const Choice& right)
-    {
-        return left.name == right.name && left.iconName == right.iconName && left.hue == right.hue;
-    };
-
     bool isEqual = shownChoices.size() == m_choices.size();
     for (qsizetype i = 0; isEqual && i < shownChoices.size(); ++i)
     {
-        isEqual = isSame(shownChoices.at(i), m_choices.at(i));
+        const Choice& left = shownChoices.at(i);
+        const Choice& right = m_choices.at(i);
+        isEqual = left.name == right.name && left.iconName == right.iconName && left.hue == right.hue;
     }
     if (isEqual)
     {
@@ -2445,15 +2580,39 @@ public:
         }
         return color.alpha() == 255 ? color.name(QColor::HexRgb).toUpper() : color.name(QColor::HexArgb).toUpper();
     }
+
+    /// Returns true, if an entry has the same color
+    static bool containsColor(const QList<PDFColorPalette::Entry>& entries, const QColor& color)
+    {
+        for (const PDFColorPalette::Entry& entry : entries)
+        {
+            if (isSameColor(entry.color, color))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Removes the entries of the same color
+    static void removeColor(QList<PDFColorPalette::Entry>& entries, const QColor& color)
+    {
+        for (qsizetype i = entries.size() - 1; i >= 0; --i)
+        {
+            if (isSameColor(entries.at(i).color, color))
+            {
+                entries.removeAt(i);
+            }
+        }
+    }
 };
 
 PDFColorPalette::PDFColorPalette(QWidget* parent, Qt::WindowFlags flags) :
-    BaseClass(parent, flags),
-    m_group(new QButtonGroup(this))
+    BaseClass(parent, flags)
 {
     setFocusPolicy(Qt::NoFocus);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    m_group->setExclusive(true);
+    m_group.setExclusive(true);
 
     if (isPopup())
     {
@@ -2464,26 +2623,25 @@ PDFColorPalette::PDFColorPalette(QWidget* parent, Qt::WindowFlags flags) :
     }
 
     m_more = new PDFTextLink(this);
-    connect(m_more.data(), &QAbstractButton::clicked, this, [this]()
-    {
-        QPointer<PDFColorPalette> guard(this);
-        if (isPopup())
-        {
-            close();
-        }
-        if (guard)
-        {
-            Q_EMIT moreColorsRequested();
-        }
-    });
-
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, [this]()
-    {
-        update();
-    });
+    connect(m_more.data(), &QAbstractButton::clicked, this, &PDFColorPalette::onMoreClicked);
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
 
     retranslate();
     rebuild();
+}
+
+void PDFColorPalette::onMoreClicked()
+{
+    // The popover closes first (a filter of the hide may delete it), the signal is the last
+    QPointer<PDFColorPalette> guard(this);
+    if (isPopup())
+    {
+        close();
+    }
+    if (guard)
+    {
+        Q_EMIT moreColorsRequested();
+    }
 }
 
 PDFColorPalette::~PDFColorPalette()
@@ -2534,8 +2692,10 @@ void PDFColorPalette::setSuggestedColors(const QList<Entry>& colors)
     if (m_suggested != limited)
     {
         m_suggested = limited;
-        rebuild();
-        Q_EMIT colorsChanged();
+        if (rebuild())
+        {
+            Q_EMIT colorsChanged();
+        }
     }
 }
 
@@ -2545,8 +2705,7 @@ void PDFColorPalette::setRecentColors(const QList<Entry>& colors)
     QList<Entry> limited;
     for (const Entry& entry : colors)
     {
-        const bool isDuplicate = std::any_of(limited.cbegin(), limited.cend(), [&entry](const Entry& other) { return PDFColorPaletteHelper::isSameColor(other.color, entry.color); });
-        if (!isDuplicate && limited.size() < MAX_RECENT_COLORS)
+        if (!PDFColorPaletteHelper::containsColor(limited, entry.color) && limited.size() < MAX_RECENT_COLORS)
         {
             limited << entry;
         }
@@ -2555,15 +2714,17 @@ void PDFColorPalette::setRecentColors(const QList<Entry>& colors)
     if (m_recent != limited)
     {
         m_recent = limited;
-        rebuild();
-        Q_EMIT colorsChanged();
+        if (rebuild())
+        {
+            Q_EMIT colorsChanged();
+        }
     }
 }
 
 void PDFColorPalette::addRecentColor(const Entry& entry)
 {
     QList<Entry> colors = m_recent;
-    colors.removeIf([&entry](const Entry& other) { return PDFColorPaletteHelper::isSameColor(other.color, entry.color); });
+    PDFColorPaletteHelper::removeColor(colors, entry.color);
     colors.prepend(entry);
     setRecentColors(colors);
 }
@@ -2573,8 +2734,10 @@ void PDFColorPalette::setCurrentColor(const QColor& color)
     if (!PDFColorPaletteHelper::isSameColor(m_currentColor, color))
     {
         m_currentColor = color;
-        updateSelection();
-        update();
+        if (updateSelection())
+        {
+            update();
+        }
     }
 }
 
@@ -2604,54 +2767,53 @@ PDFColorSwatch* PDFColorPalette::getRecentSwatch(int index) const
     return (index >= 0 && index < m_recent.size() && index < m_recentSwatches.size()) ? m_recentSwatches.at(index).data() : nullptr;
 }
 
-void PDFColorPalette::rebuild()
+void PDFColorPalette::fillSwatches(const QList<Entry>& entries, QList<QPointer<PDFColorSwatch>>& swatches, bool isSuggested)
 {
     // The swatches are reused (a swatch is never deleted, while its signal
     // clicked is handled); the swatches, which are not needed, are hidden
-    auto fill = [this](const QList<Entry>& entries, QList<QPointer<PDFColorSwatch>>& swatches, bool isSuggested)
+    swatches.removeAll(QPointer<PDFColorSwatch>());
+
+    while (swatches.size() < entries.size())
     {
-        swatches.removeAll(QPointer<PDFColorSwatch>());
-
-        while (swatches.size() < entries.size())
+        PDFColorSwatch* swatch = new PDFColorSwatch(this);
+        swatch->installEventFilter(this);
+        swatch->setSelectionBehavior(isSuggested ? PDFComponentButton::SelectionBehavior::Exclusive : PDFComponentButton::SelectionBehavior::None);
+        if (isSuggested)
         {
-            PDFColorSwatch* swatch = new PDFColorSwatch(this);
-            swatch->installEventFilter(this);
-            swatch->setSelectionBehavior(isSuggested ? PDFComponentButton::SelectionBehavior::Exclusive : PDFComponentButton::SelectionBehavior::None);
-            if (isSuggested)
-            {
-                m_group->addButton(swatch);
-            }
-
-            QPointer<PDFColorSwatch> swatchPointer(swatch);
-            connect(swatch, &QAbstractButton::clicked, this, [this, swatchPointer]()
-            {
-                onSwatchClicked(swatchPointer.data());
-            });
-            swatches << swatch;
+            m_group.addButton(swatch);
         }
 
-        for (qsizetype i = 0; i < swatches.size(); ++i)
+        connect(swatch, &QAbstractButton::clicked, this, &PDFColorPalette::onSwatchButtonClicked);
+        swatches << swatch;
+    }
+
+    for (qsizetype i = 0; i < swatches.size(); ++i)
+    {
+        PDFColorSwatch* swatch = swatches.at(i);
+        if (i < entries.size())
         {
-            PDFColorSwatch* swatch = swatches.at(i);
-            if (i < entries.size())
-            {
-                const Entry& entry = entries.at(i);
-                swatch->setColor(entry.color);
-                swatch->setKind(entry.color.isValid() ? PDFColorSwatch::Kind::Color : PDFColorSwatch::Kind::None);
-                swatch->setColorName(entry.name.isEmpty() ? PDFColorPaletteHelper::getDefaultName(entry.color) : entry.name);
-                swatch->setVisible(true);
-            }
-            else
-            {
-                swatch->setVisible(false);
-            }
+            const Entry& entry = entries.at(i);
+            swatch->setColor(entry.color);
+            swatch->setKind(entry.color.isValid() ? PDFColorSwatch::Kind::Color : PDFColorSwatch::Kind::None);
+            swatch->setColorName(entry.name.isEmpty() ? PDFColorPaletteHelper::getDefaultName(entry.color) : entry.name);
+            swatch->setVisible(true);
         }
-    };
+        else
+        {
+            swatch->setVisible(false);
+        }
+    }
+}
 
-    fill(m_suggested, m_suggestedSwatches, true);
-    fill(m_recent, m_recentSwatches, false);
+bool PDFColorPalette::rebuild()
+{
+    fillSwatches(m_suggested, m_suggestedSwatches, true);
+    fillSwatches(m_recent, m_recentSwatches, false);
 
-    updateSelection();
+    if (!updateSelection())
+    {
+        return false;
+    }
     updateTabStops(qobject_cast<PDFColorSwatch*>(focusWidget()));
     updateGeometry();
 
@@ -2666,9 +2828,10 @@ void PDFColorPalette::rebuild()
 
     layoutChildren();
     update();
+    return true;
 }
 
-void PDFColorPalette::updateSelection()
+bool PDFColorPalette::updateSelection()
 {
     // The current color is the selected suggested swatch (the first one of the same color)
     int selected = -1;
@@ -2681,13 +2844,20 @@ void PDFColorPalette::updateSelection()
         }
     }
 
+    // A swatch emits toggled, whose slot of the application may delete the palette
+    QPointer<PDFColorPalette> guard(this);
     for (int i = 0; i < m_suggestedSwatches.size(); ++i)
     {
         if (PDFColorSwatch* swatch = m_suggestedSwatches.at(i))
         {
             swatch->setSelected(i == selected);
+            if (!guard)
+            {
+                return false;
+            }
         }
     }
+    return true;
 }
 
 QList<PDFColorSwatch*> PDFColorPalette::getVisibleSwatches(bool recent) const
@@ -2839,11 +3009,10 @@ void PDFColorPalette::onSwatchClicked(PDFColorSwatch* swatch)
     }
     QPointer<PDFColorPalette> guard(this);
     addRecentColor(entry);
-    if (!guard)
+    if (!guard || !updateSelection())
     {
         return;
     }
-    updateSelection();
 
     if (isPopup())
     {
@@ -2852,6 +3021,30 @@ void PDFColorPalette::onSwatchClicked(PDFColorSwatch* swatch)
     if (guard)
     {
         Q_EMIT colorSelected(entry.color);
+    }
+}
+
+void PDFColorPalette::onSwatchButtonClicked()
+{
+    // The clicked swatch is the sender (the swatches are created and reused by the palette)
+    onSwatchClicked(qobject_cast<PDFColorSwatch*>(sender()));
+}
+
+void PDFColorPalette::onAnchorDestroyed()
+{
+    // An anchor deleted by the application closes the popover as well (nothing of the anchor is used)
+    if (isVisible())
+    {
+        close();
+    }
+}
+
+void PDFColorPalette::onHiddenQueued(quint64 openCount)
+{
+    // The palette opened again after the hide drops the signal of that hide
+    if (m_openCount == openCount && !isVisible())
+    {
+        Q_EMIT closed();
     }
 }
 
@@ -2886,13 +3079,7 @@ void PDFColorPalette::watchAnchor(bool watch)
     // An anchor deleted by the application closes the popover as well
     if (m_anchor)
     {
-        m_anchorDestroyed = connect(m_anchor.data(), &QObject::destroyed, this, [this]()
-        {
-            if (isVisible())
-            {
-                close();
-            }
-        });
+        m_anchorDestroyed = connect(m_anchor.data(), &QObject::destroyed, this, &PDFColorPalette::onAnchorDestroyed);
     }
 }
 
@@ -2950,7 +3137,13 @@ void PDFColorPalette::popup(QWidget* anchor)
     resize(panelSize.grownBy(margins));
     move(panel.topLeft() - QPoint(margins.left(), margins.top()));
     layoutChildren();
+    QPointer<PDFColorPalette> guard(this);
     show();
+    if (!guard)
+    {
+        // A filter of the events of the application has deleted the palette
+        return;
+    }
 
     // The focus goes to the selected color, or to the first one
     QWidget* target = nullptr;
@@ -3022,23 +3215,17 @@ void PDFColorPalette::layoutChildren()
     const QRect panel = rect().marginsRemoved(margins);
     const PDFComponentPainter::ColorPaletteLayout layout = PDFComponentPainter::getColorPaletteLayout(getContent());
 
-    auto place = [this, &panel](QWidget* widget, const QRect& logical)
-    {
-        if (widget)
-        {
-            widget->setGeometry(QStyle::visualRect(layoutDirection(), panel, logical.translated(panel.topLeft())));
-        }
-    };
-
+    // The layout is in the coordinates of the panel
+    const Qt::LayoutDirection direction = layoutDirection();
     for (int i = 0; i < layout.suggested.size(); ++i)
     {
-        place(getSuggestedSwatch(i), layout.suggested.at(i));
+        PDFComponentPanelsHelper::placeWidget(getSuggestedSwatch(i), direction, panel, layout.suggested.at(i).translated(panel.topLeft()));
     }
     for (int i = 0; i < layout.recent.size(); ++i)
     {
-        place(getRecentSwatch(i), layout.recent.at(i));
+        PDFComponentPanelsHelper::placeWidget(getRecentSwatch(i), direction, panel, layout.recent.at(i).translated(panel.topLeft()));
     }
-    place(m_more.data(), layout.more);
+    PDFComponentPanelsHelper::placeWidget(m_more.data(), direction, panel, layout.more.translated(panel.topLeft()));
 }
 
 void PDFColorPalette::paintEvent(QPaintEvent* event)
@@ -3126,14 +3313,7 @@ void PDFColorPalette::hideEvent(QHideEvent* event)
         // A palette opened again before it is delivered drops it.
         m_isOpen = false;
         watchAnchor(false);
-        const quint64 openCount = m_openCount;
-        QMetaObject::invokeMethod(this, [this, openCount]()
-        {
-            if (m_openCount == openCount && !isVisible())
-            {
-                Q_EMIT closed();
-            }
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, &PDFColorPalette::onHiddenQueued, Qt::QueuedConnection, quint64(m_openCount));
     }
 }
 
@@ -3216,10 +3396,8 @@ PDFColorButton::~PDFColorButton()
 void PDFColorButton::init()
 {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    connect(this, &QAbstractButton::clicked, this, [this]()
-    {
-        showPalette();
-    });
+    // The result of showPalette is not needed by a click
+    connect(this, &QAbstractButton::clicked, this, &PDFColorButton::showPalette);
     updateText();
 }
 
@@ -3269,38 +3447,45 @@ PDFColorPalette* PDFColorButton::getPalette()
     if (!m_palette)
     {
         m_palette = new PDFColorPalette(this, Qt::Popup);
-        connect(m_palette.data(), &PDFColorPalette::colorSelected, this, [this](const QColor& color)
-        {
-            // The name of the picked color comes from the palette (getShownName
-            // asks it), an explicit name of the previous color is dropped
-            QPointer<PDFColorButton> guard(this);
-            m_colorName.clear();
-            if (PDFColorPaletteHelper::isSameColor(m_color, color))
-            {
-                updateText();
-                update();
-            }
-            else
-            {
-                setColor(color);
-            }
-            if (guard)
-            {
-                Q_EMIT colorSelected(color);
-            }
-        });
+        connect(m_palette.data(), &PDFColorPalette::colorSelected, this, &PDFColorButton::onPaletteColorSelected);
         connect(m_palette.data(), &PDFColorPalette::moreColorsRequested, this, &PDFColorButton::moreColorsRequested);
         connect(m_palette.data(), &PDFColorPalette::closed, this, &PDFColorButton::onPaletteClosed);
-        connect(m_palette.data(), &PDFColorPalette::colorsChanged, this, [this]()
-        {
-            // The shown name may come from the palette
-            updateText();
-            update();
-        });
+        connect(m_palette.data(), &PDFColorPalette::colorsChanged, this, &PDFColorButton::onPaletteColorsChanged);
         connect(m_palette.data(), &QObject::destroyed, this, &PDFColorButton::onPaletteDestroyed);
     }
 
     return m_palette.data();
+}
+
+void PDFColorButton::onPaletteColorSelected(const QColor& color)
+{
+    // The name of the picked color comes from the palette (getShownName
+    // asks it), an explicit name of the previous color is dropped; the
+    // color is copied (the reference belongs to the emitter, a slot of
+    // colorChanged may delete the palette)
+    const QColor selectedColor = color;
+    QPointer<PDFColorButton> guard(this);
+    m_colorName.clear();
+    if (PDFColorPaletteHelper::isSameColor(m_color, selectedColor))
+    {
+        updateText();
+        update();
+    }
+    else
+    {
+        setColor(selectedColor);
+    }
+    if (guard)
+    {
+        Q_EMIT colorSelected(selectedColor);
+    }
+}
+
+void PDFColorButton::onPaletteColorsChanged()
+{
+    // The shown name may come from the palette
+    updateText();
+    update();
 }
 
 bool PDFColorButton::showPalette()
@@ -3310,14 +3495,25 @@ bool PDFColorButton::showPalette()
         return false;
     }
 
-    PDFColorPalette* palette = getPalette();
+    QPointer<PDFColorPalette> palette = getPalette();
     if (!palette)
     {
         return false;
     }
 
+    // The palette selects its swatch (toggled) and shows itself: a slot or a
+    // filter of the application may delete the palette or this button
+    QPointer<PDFColorButton> guard(this);
     palette->setCurrentColor(m_color);
+    if (!guard || !palette)
+    {
+        return false;
+    }
     palette->popup(this);
+    if (!guard || !palette)
+    {
+        return false;
+    }
     update();
     notifyExpanded();
     return palette->isVisible();
@@ -3442,6 +3638,23 @@ void PDFColorButton::hideEvent(QHideEvent* event)
 
 // ------------------------------------------------------------ Signature card
 
+/// Helper of the signature card
+class PDFSignatureCardHelper
+{
+public:
+    PDFSignatureCardHelper() = delete;
+
+    static bool isSameDetail(const PDFSignatureCard::Detail& left, const PDFSignatureCard::Detail& right)
+    {
+        return left.key == right.key && left.value == right.value;
+    }
+
+    static bool isSameCertificate(const PDFSignatureCard::Certificate& left, const PDFSignatureCard::Certificate& right)
+    {
+        return left.name == right.name && left.info == right.info && left.status == right.status && left.linkText == right.linkText;
+    }
+};
+
 PDFSignatureCard::PDFSignatureCard(QWidget* parent) :
     BaseClass(parent)
 {
@@ -3449,23 +3662,41 @@ PDFSignatureCard::PDFSignatureCard(QWidget* parent) :
     setFocusPolicy(Qt::NoFocus);
 
     m_toggle = new PDFIconButton(QStringLiteral("chevron-down"), PDFIconButton::Size::Small, this);
-    connect(m_toggle.data(), &QAbstractButton::clicked, this, [this]()
-    {
-        setExpanded(!m_card.expanded);
-    });
-
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, [this]()
-    {
-        updateGeometry();
-        layoutChildren();
-        update();
-    });
+    connect(m_toggle.data(), &QAbstractButton::clicked, this, &PDFSignatureCard::onToggleClicked);
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFSignatureCard::onThemeChanged);
 
     m_card.paintNested = false;
     retranslate();
 }
 
 PDFSignatureCard::~PDFSignatureCard() = default;
+
+void PDFSignatureCard::onToggleClicked()
+{
+    setExpanded(!m_card.expanded);
+}
+
+void PDFSignatureCard::onThemeChanged()
+{
+    updateGeometry();
+    layoutChildren();
+    update();
+}
+
+void PDFSignatureCard::onCertificateLinkClicked()
+{
+    // The link of a certificate is the sender; a link keeps the index of its
+    // certificate (the links are reused, never moved)
+    const PDFTextLink* link = qobject_cast<const PDFTextLink*>(sender());
+    for (qsizetype i = 0; link && i < m_links.size(); ++i)
+    {
+        if (m_links.at(i).data() == link)
+        {
+            Q_EMIT certificateLinkActivated(static_cast<int>(i));
+            return;
+        }
+    }
+}
 
 void PDFSignatureCard::retranslate()
 {
@@ -3525,8 +3756,7 @@ void PDFSignatureCard::setExpanded(bool expanded)
 
 void PDFSignatureCard::setDetails(const QList<Detail>& details)
 {
-    auto isSame = [](const Detail& left, const Detail& right) { return left.key == right.key && left.value == right.value; };
-    if (details.size() != m_card.details.size() || !std::equal(details.cbegin(), details.cend(), m_card.details.cbegin(), isSame))
+    if (details.size() != m_card.details.size() || !std::equal(details.cbegin(), details.cend(), m_card.details.cbegin(), &PDFSignatureCardHelper::isSameDetail))
     {
         m_card.details = details;
         changeContent();
@@ -3535,18 +3765,13 @@ void PDFSignatureCard::setDetails(const QList<Detail>& details)
 
 void PDFSignatureCard::setCertificates(const QList<Certificate>& certificates)
 {
-    auto isSame = [](const Certificate& left, const Certificate& right)
-    {
-        return left.name == right.name && left.info == right.info && left.status == right.status && left.linkText == right.linkText;
-    };
-
     QList<Certificate> normalizedCertificates = certificates;
     for (Certificate& certificate : normalizedCertificates)
     {
         certificate.status = PDFComponentPainter::normalized(certificate.status);
     }
 
-    if (normalizedCertificates.size() != m_card.certificates.size() || !std::equal(normalizedCertificates.cbegin(), normalizedCertificates.cend(), m_card.certificates.cbegin(), isSame))
+    if (normalizedCertificates.size() != m_card.certificates.size() || !std::equal(normalizedCertificates.cbegin(), normalizedCertificates.cend(), m_card.certificates.cbegin(), &PDFSignatureCardHelper::isSameCertificate))
     {
         m_card.certificates = std::move(normalizedCertificates);
         changeContent();
@@ -3623,11 +3848,7 @@ void PDFSignatureCard::updateLinks()
         if (!certificate.linkText.isEmpty() && !m_links.at(i))
         {
             PDFTextLink* link = new PDFTextLink(this);
-            const int index = static_cast<int>(i);
-            connect(link, &QAbstractButton::clicked, this, [this, index]()
-            {
-                Q_EMIT certificateLinkActivated(index);
-            });
+            connect(link, &QAbstractButton::clicked, this, &PDFSignatureCard::onCertificateLinkClicked);
             m_links[i] = link;
         }
 
@@ -3768,13 +3989,15 @@ PDFStrengthMeter::PDFStrengthMeter(QWidget* parent) :
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     setFocusPolicy(Qt::NoFocus);
 
-    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, [this]()
-    {
-        updateGeometry();
-        update();
-    });
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFStrengthMeter::onThemeChanged);
 
     retranslate();
+}
+
+void PDFStrengthMeter::onThemeChanged()
+{
+    updateGeometry();
+    update();
 }
 
 void PDFStrengthMeter::retranslate()

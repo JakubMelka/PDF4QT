@@ -353,14 +353,8 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
         iconColor = Color::IconDanger;
     }
 
-    auto place = [&rect, isRightToLeft](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(isRightToLeft, rect, item);
-    };
-
     // Icon slot of 16 px. The mark of an exclusive action is a dot in this slot.
-    const QRectF iconRect = place(rect.left() + ITEM_PADDING, ITEM_ICON, ITEM_ICON);
+    const QRectF iconRect = placeInRow(rect, isRightToLeft, rect.left() + ITEM_PADDING, ITEM_ICON, ITEM_ICON);
     const bool isExclusiveChecked = option->checkType == QStyleOptionMenuItem::Exclusive && option->checked;
 
     if (isExclusiveChecked)
@@ -379,12 +373,12 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
 
     if (option->menuItemType == QStyleOptionMenuItem::SubMenu)
     {
-        PDFStylePainter::icon(painter, place(right - 14.0, 14.0, 14.0), isRightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right"), isEnabled ? Color::IconMuted : Color::IconDisabled);
+        PDFStylePainter::icon(painter, placeInRow(rect, isRightToLeft, right - 14.0, 14.0, 14.0), isRightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right"), isEnabled ? Color::IconMuted : Color::IconDisabled);
         right -= ITEM_ICON + ITEM_GAP;
     }
     else if (option->checkType == QStyleOptionMenuItem::NonExclusive && option->checked)
     {
-        PDFStylePainter::icon(painter, place(right - ITEM_ICON, ITEM_ICON, ITEM_ICON), QStringLiteral("check"), isEnabled ? Color::IconDefault : Color::IconDisabled);
+        PDFStylePainter::icon(painter, placeInRow(rect, isRightToLeft, right - ITEM_ICON, ITEM_ICON, ITEM_ICON), QStringLiteral("check"), isEnabled ? Color::IconDefault : Color::IconDisabled);
         right -= ITEM_ICON + ITEM_GAP;
     }
 
@@ -395,7 +389,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     {
         const QFont shortcutFont = PDFThemeFonts::getFont(Font::Small);
         const qreal shortcutWidth = PDFWidgetStyleImpl::getTextWidth(shortcut, shortcutFont);
-        PDFStylePainter::text(painter, place(right - shortcutWidth, shortcutWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine | Qt::TextHideMnemonic,
+        PDFStylePainter::text(painter, placeInRow(rect, isRightToLeft, right - shortcutWidth, shortcutWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine | Qt::TextHideMnemonic,
                               shortcut, shortcutFont, PDFWidgetStyleImpl::color(isEnabled ? Color::TextMuted : Color::TextDisabled));
         right -= shortcutWidth + ITEM_GAP;
     }
@@ -403,7 +397,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     const qreal textLeft = rect.left() + ITEM_PADDING + ITEM_ICON + ITEM_GAP;
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::Body);
     const QString text = PDFWidgetStyleImpl::getElidedText(label, font, right - textLeft);
-    m_impl->drawText(painter, place(textLeft, qMax(0.0, right - textLeft), rect.height()), Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft),
+    m_impl->drawText(painter, placeInRow(rect, isRightToLeft, textLeft, qMax(0.0, right - textLeft), rect.height()), Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft),
                      text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 

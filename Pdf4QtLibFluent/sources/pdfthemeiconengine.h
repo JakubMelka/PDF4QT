@@ -37,6 +37,11 @@ namespace pdf
 /// Icons of the design (24 px grid, stroke of 2 px, single color). An icon is
 /// drawn from its SVG in the requested size and it is filled by a color of the
 /// active theme, so the same icon serves all states and all themes.
+///
+/// The functions (and the icon engine) are to be called only from the thread of
+/// the user interface: they read the active theme of PDFThemeManager, keep
+/// their pixmaps in QPixmapCache and share the parsed SVG renderers (QObjects)
+/// in caches without a lock.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFThemeIcons
 {
 public:
@@ -102,9 +107,16 @@ public:
     /// Returns the pixmap of the area enclosed by the strokes of the icon
     /// filled by the color (without the strokes)
     static QPixmap getFillPixmap(const QString& name, const QSizeF& size, qreal devicePixelRatio, const QColor& color);
+
+    /// Returns the number of the parsed SVG renderers kept by the icons (for
+    /// the tests: the caches are bounded - one renderer of the strokes of the
+    /// design and one of the fill for each existing icon and at most 256 of
+    /// other widths of the strokes; missing icons keep no renderer)
+    static qsizetype getCachedRendererCount();
 };
 
-/// Engine of the icons returned by \p PDFThemeIcons::getIcon
+/// Engine of the icons returned by \p PDFThemeIcons::getIcon (in the thread of
+/// the user interface only, see PDFThemeIcons)
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFThemeIconEngine : public QIconEngine
 {
 public:

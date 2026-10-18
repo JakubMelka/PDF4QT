@@ -42,7 +42,8 @@ PDFWidgetStyle::PDFWidgetStyle() :
 
 PDFWidgetStyle::~PDFWidgetStyle()
 {
-    delete m_impl;
+    // The implementation is deleted first (it has no parent), while the style is whole
+    m_impl.reset();
 }
 
 void PDFWidgetStyle::drawPrimitive(PrimitiveElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const
@@ -188,7 +189,7 @@ QSize PDFWidgetStyle::sizeFromContents(ContentsType type, const QStyleOption* op
 int PDFWidgetStyle::pixelMetric(PixelMetric metric, const QStyleOption* option, const QWidget* widget) const
 {
     int value = 0;
-    if (PDFWidgetStyleMetrics::pixelMetric(m_impl, metric, option, widget, value))
+    if (PDFWidgetStyleMetrics::pixelMetric(m_impl.get(), metric, option, widget, value))
     {
         return value;
     }
@@ -199,7 +200,7 @@ int PDFWidgetStyle::pixelMetric(PixelMetric metric, const QStyleOption* option, 
 int PDFWidgetStyle::styleHint(StyleHint hint, const QStyleOption* option, const QWidget* widget, QStyleHintReturn* returnData) const
 {
     int value = 0;
-    if (PDFWidgetStyleMetrics::styleHint(m_impl, hint, option, widget, returnData, value))
+    if (PDFWidgetStyleMetrics::styleHint(m_impl.get(), hint, option, widget, returnData, value))
     {
         return value;
     }
@@ -389,6 +390,11 @@ bool PDFWidgetStyle::isFocusRingVisible(const QWidget* widget)
 void PDFWidgetStyle::setAnimationTime(qint64 milliseconds)
 {
     m_impl->setAnimationTime(milliseconds);
+}
+
+bool PDFWidgetStyle::isSplitterHoverPending() const
+{
+    return m_impl->isSplitterHoverPending();
 }
 
 }   // namespace pdf

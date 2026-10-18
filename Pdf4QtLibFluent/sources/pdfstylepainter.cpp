@@ -63,30 +63,13 @@ public:
         std::vector<uchar> source(static_cast<size_t>(qMax(width, height)));
         std::vector<uchar> target(source.size());
 
-        auto blurLine = [radius, box, &source, &target](int count)
-        {
-            int sum = 0;
-            for (int i = -radius; i <= radius; ++i)
-            {
-                sum += source[static_cast<size_t>(qBound(0, i, count - 1))];
-            }
-
-            for (int i = 0; i < count; ++i)
-            {
-                target[static_cast<size_t>(i)] = static_cast<uchar>(sum / box);
-                const int removed = qBound(0, i - radius, count - 1);
-                const int added = qBound(0, i + radius + 1, count - 1);
-                sum += source[static_cast<size_t>(added)] - source[static_cast<size_t>(removed)];
-            }
-        };
-
         for (int pass = 0; pass < 3; ++pass)
         {
             for (int y = 0; y < height; ++y)
             {
                 uchar* line = image.scanLine(y);
                 std::copy(line, line + width, source.begin());
-                blurLine(width);
+                blurLine(source, target, width, radius, box);
                 std::copy(target.begin(), target.begin() + width, line);
             }
 
@@ -96,13 +79,40 @@ public:
                 {
                     source[static_cast<size_t>(y)] = image.scanLine(y)[x];
                 }
-                blurLine(height);
+                blurLine(source, target, height, radius, box);
                 for (int y = 0; y < height; ++y)
                 {
                     image.scanLine(y)[x] = target[static_cast<size_t>(y)];
                 }
             }
         }
+    }
+
+    /// Blurs the first \p count values of the line \p source by the box filter of
+    /// the width \p box (= 2 * \p radius + 1) into \p target. The values outside
+    /// of the line are the values of its ends.
+    static void blurLine(const std::vector<uchar>& source, std::vector<uchar>& target, int count, int radius, int box)
+    {
+        int sum = 0;
+        for (int i = -radius; i <= radius; ++i)
+        {
+            sum += source[static_cast<size_t>(qBound(0, i, count - 1))];
+        }
+
+        for (int i = 0; i < count; ++i)
+        {
+            target[static_cast<size_t>(i)] = static_cast<uchar>(sum / box);
+            const int removed = qBound(0, i - radius, count - 1);
+            const int added = qBound(0, i + radius + 1, count - 1);
+            sum += source[static_cast<size_t>(added)] - source[static_cast<size_t>(removed)];
+        }
+    }
+
+    /// Returns the radius of a corner of a shape grown by \p delta (shrunk for a negative delta)
+    static qreal adjustRadius(qreal radius, qreal delta)
+    {
+        // A sharp corner stays sharp, if the shape shrinks
+        return (radius <= 0.0 && delta >= 0.0) ? 0.0 : qMax(0.0, radius - delta);
     }
 
     static void appendCorner(QPainterPath& path, const QRectF& rect, qreal radius, int corner)
@@ -159,13 +169,8 @@ public:
 
 PDFStylePainter::Radii PDFStylePainter::Radii::adjusted(qreal delta) const
 {
-    auto adjust = [delta](qreal radius)
-    {
-        // A sharp corner stays sharp, if the shape shrinks
-        return (radius <= 0.0 && delta >= 0.0) ? 0.0 : qMax(0.0, radius - delta);
-    };
-
-    return Radii(adjust(topLeft), adjust(topRight), adjust(bottomRight), adjust(bottomLeft));
+    return Radii(PDFStylePainterHelper::adjustRadius(topLeft, delta), PDFStylePainterHelper::adjustRadius(topRight, delta),
+                 PDFStylePainterHelper::adjustRadius(bottomRight, delta), PDFStylePainterHelper::adjustRadius(bottomLeft, delta));
 }
 
 QColor PDFStylePainter::color(PDFThemeColors::Color color)
@@ -317,16 +322,27 @@ void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii&
         return;
     }
 
+    // The sizes are bounded before they are converted to integers: a huge or a
+    // non-finite blur, rectangle or ratio of the device draws no shadow
+    constexpr qreal MAX_PIXEL_EXTENT = 8192.0;
+    if (!qIsFinite(blur) || qAbs(blur) > MAX_PIXEL_EXTENT)
+    {
+        return;
+    }
+
     const QPaintDevice* device = painter->device();
     const qreal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
     const qreal margin = qCeil(blur);
     const QSizeF logicalSize(rect.width() + 2 * margin, rect.height() + 2 * margin);
-    const QSize pixelSize(qCeil(logicalSize.width() * devicePixelRatio), qCeil(logicalSize.height() * devicePixelRatio));
+    const qreal pixelWidth = logicalSize.width() * devicePixelRatio;
+    const qreal pixelHeight = logicalSize.height() * devicePixelRatio;
 
-    if (pixelSize.isEmpty() || pixelSize.width() > 8192 || pixelSize.height() > 8192)
+    if (!(pixelWidth > 0.0 && pixelHeight > 0.0 && pixelWidth <= MAX_PIXEL_EXTENT && pixelHeight <= MAX_PIXEL_EXTENT))
     {
         return;
     }
+
+    const QSize pixelSize(qCeil(pixelWidth), qCeil(pixelHeight));
 
     const QString key = QStringLiteral("pdf4qtfluent/shadow/%1x%2@%9/%3/%4/%5/%6/%7/%8")
             .arg(pixelSize.width()).arg(pixelSize.height())

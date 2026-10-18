@@ -66,7 +66,15 @@ public:
 
     static constexpr const char* TEXT_COLOR = "_pdf4qt_textColor";
     static constexpr const char* DISABLED_TEXT_COLOR = "_pdf4qt_disabledTextColor";
-    static constexpr const char* BOUND = "_pdf4qt_textPaletteBound";
+    static constexpr const char* TEXT_PALETTE_BINDER = "_pdf4qt_textPaletteBinder";
+
+    /// Returns true, if the text palette is bound to the widget: its binder is
+    /// found among the children (not remembered by a flag), the application may
+    /// delete it as any child object, then the next binding creates a new one
+    static bool isTextPaletteBound(const QWidget* widget)
+    {
+        return widget && widget->findChild<QObject*>(QLatin1String(TEXT_PALETTE_BINDER), Qt::FindDirectChildrenOnly);
+    }
 
     // Geometry of the password field
     static constexpr int PASSWORD_HEIGHT = 40;
@@ -163,6 +171,28 @@ public:
     }
 };
 
+/// Sets the text palette of the theme to its parent widget, whenever the theme
+/// changes. It is a child of the widget, so it lives exactly as long as the widget.
+class PDFTextPaletteBinder : public QObject
+{
+public:
+    explicit PDFTextPaletteBinder(QWidget* widget) :
+        QObject(widget)
+    {
+        setObjectName(QLatin1String(PDFFluentWidgetsHelper::TEXT_PALETTE_BINDER));
+        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFTextPaletteBinder::apply);
+    }
+
+private:
+    void apply()
+    {
+        if (QWidget* widget = qobject_cast<QWidget*>(parent()))
+        {
+            PDFFluentWidgetsHelper::applyTextPalette(widget);
+        }
+    }
+};
+
 QPalette PDFThemeWidgetHelper::createTextPalette(PDFThemeColors::Color text, PDFThemeColors::Color disabledText)
 {
     const PDFThemeColors& theme = PDFThemeManager::getInstance()->getTheme();
@@ -197,10 +227,9 @@ void PDFThemeWidgetHelper::bindTextPalette(QWidget* widget, PDFThemeColors::Colo
     widget->setProperty(PDFFluentWidgetsHelper::DISABLED_TEXT_COLOR, static_cast<int>(disabledText));
     PDFFluentWidgetsHelper::applyTextPalette(widget);
 
-    if (!widget->property(PDFFluentWidgetsHelper::BOUND).toBool())
+    if (!PDFFluentWidgetsHelper::isTextPaletteBound(widget))
     {
-        widget->setProperty(PDFFluentWidgetsHelper::BOUND, true);
-        QObject::connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, widget, [widget]() { PDFFluentWidgetsHelper::applyTextPalette(widget); });
+        new PDFTextPaletteBinder(widget);
     }
 }
 
@@ -362,23 +391,21 @@ void PDFLineEdit::setPasswordField()
 {
     setEchoMode(QLineEdit::Password);
 
-    if (!m_passwordButton)
+    if (!m_isPasswordField)
     {
+        m_isPasswordField = true;
+
         // Height 40; the lock 16 px at 13 px from the left edge and the gap 8 before the
         // text; the button of 28 px at 7 px from the right edge and the gap 8 after the text
         setProperty(PDFWidgetStyleProperties::FIELD_HEIGHT, PDFFluentWidgetsHelper::PASSWORD_HEIGHT);
         setProperty(PDFWidgetStyleProperties::FIELD_TEXT_INSETS, QVariant::fromValue(PDFFluentWidgetsHelper::getPasswordInsets(layoutDirection())));
 
-        m_passwordButton = new PDFIconButton(QStringLiteral("eye"), PDFIconButton::Size::Medium, this);
-        m_passwordButton->setCheckable(true);
-        m_passwordButton->setCursor(Qt::ArrowCursor);
+        PDFIconButton* passwordButton = new PDFIconButton(QStringLiteral("eye"), PDFIconButton::Size::Medium, this);
+        passwordButton->setCheckable(true);
+        passwordButton->setCursor(Qt::ArrowCursor);
+        m_passwordButton = passwordButton;
 
-        connect(m_passwordButton, &QAbstractButton::toggled, this, [this](bool isShown)
-        {
-            setEchoMode(isShown ? QLineEdit::Normal : QLineEdit::Password);
-            updatePasswordButton();
-            updatePasswordFont();
-        });
+        connect(passwordButton, &QAbstractButton::toggled, this, &PDFLineEdit::onPasswordButtonToggled);
         connect(this, &QLineEdit::textChanged, this, &PDFLineEdit::updatePasswordButton);
         connect(this, &QLineEdit::textChanged, this, &PDFLineEdit::updatePasswordFont);
 
@@ -390,18 +417,31 @@ void PDFLineEdit::setPasswordField()
     updatePasswordFont();
 }
 
+PDFIconButton* PDFLineEdit::getPasswordButton() const
+{
+    return qobject_cast<PDFIconButton*>(m_passwordButton.data());
+}
+
+void PDFLineEdit::onPasswordButtonToggled(bool isShown)
+{
+    setEchoMode(isShown ? QLineEdit::Normal : QLineEdit::Password);
+    updatePasswordButton();
+    updatePasswordFont();
+}
+
 void PDFLineEdit::updatePasswordButton()
 {
-    if (!m_passwordButton)
+    PDFIconButton* passwordButton = getPasswordButton();
+    if (!passwordButton)
     {
         return;
     }
 
-    const bool isShown = m_passwordButton->isChecked();
+    const bool isShown = passwordButton->isChecked();
     const QString buttonText = isShown ? tr("Hide password") : tr("Show password");
-    m_passwordButton->setIconName(isShown ? QStringLiteral("eye-off") : QStringLiteral("eye"));
-    m_passwordButton->setAccessibleName(buttonText);
-    m_passwordButton->setToolTip(buttonText);
+    passwordButton->setIconName(isShown ? QStringLiteral("eye-off") : QStringLiteral("eye"));
+    passwordButton->setAccessibleName(buttonText);
+    passwordButton->setToolTip(buttonText);
 
     // The toggle is a plain icon button in every content of the field (icon/muted at rest,
     // icon/default on hover, icon/strong when pressed), its color is not overridden
@@ -429,7 +469,7 @@ void PDFLineEdit::paintEvent(QPaintEvent* event)
 {
     QLineEdit::paintEvent(event);
 
-    if (!m_passwordButton)
+    if (!m_isPasswordField)
     {
         return;
     }
@@ -472,7 +512,7 @@ void PDFLineEdit::changeEvent(QEvent* event)
     {
         updateColors();
     }
-    else if (event->type() == QEvent::LayoutDirectionChange && m_passwordButton)
+    else if (event->type() == QEvent::LayoutDirectionChange && m_isPasswordField)
     {
         setProperty(PDFWidgetStyleProperties::FIELD_TEXT_INSETS, QVariant::fromValue(PDFFluentWidgetsHelper::getPasswordInsets(layoutDirection())));
         placePasswordButton();
@@ -1057,7 +1097,7 @@ bool PDFComboBox::event(QEvent* event)
         // The editor of an editable combo box draws its text by its palette
         if (QLineEdit* editor = lineEdit())
         {
-            if (!editor->property(PDFFluentWidgetsHelper::BOUND).toBool())
+            if (!PDFFluentWidgetsHelper::isTextPaletteBound(editor))
             {
                 PDFThemeWidgetHelper::bindTextPalette(editor);
             }
@@ -1208,36 +1248,40 @@ public:
 
         return nullptr;
     }
+
+    static bool installFactory()
+    {
+        QAccessible::installFactory(&PDFSegmentAccessible::create);
+        return true;
+    }
 };
 #endif
 
 PDFSegmentedControl::PDFSegmentedControl(QWidget* parent) :
     QWidget(parent),
-    m_layout(new QHBoxLayout(this)),
-    m_group(new QButtonGroup(this))
+    m_layout(new QHBoxLayout(this))
 {
 #if QT_CONFIG(accessibility)
-    static bool isFactoryInstalled = false;
-    if (!isFactoryInstalled)
-    {
-        isFactoryInstalled = true;
-        QAccessible::installFactory(&PDFSegmentAccessible::create);
-    }
+    // The factory is installed once for the whole application
+    static const bool isFactoryInstalled = PDFSegmentAccessible::installFactory();
+    Q_UNUSED(isFactoryInstalled);
 #endif
 
     // Track without padding, segments follow each other without a gap
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->setSpacing(0);
-    m_group->setExclusive(true);
+    m_group.setExclusive(true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    connect(m_group, &QButtonGroup::idToggled, this, [this](int id, bool isChecked)
+    connect(&m_group, &QButtonGroup::idToggled, this, &PDFSegmentedControl::onSegmentToggled);
+}
+
+void PDFSegmentedControl::onSegmentToggled(int id, bool isChecked)
+{
+    if (isChecked)
     {
-        if (isChecked)
-        {
-            Q_EMIT currentIndexChanged(id);
-        }
-    });
+        Q_EMIT currentIndexChanged(id);
+    }
 }
 
 int PDFSegmentedControl::addSegment(const QString& text, const QString& iconName)
@@ -1258,8 +1302,12 @@ int PDFSegmentedControl::addSegment(const QString& text, const QString& iconName
     }
 
     const int index = getCount();
-    m_group->addButton(segment, index);
-    m_layout->addWidget(segment, 1);
+    m_group.addButton(segment, index);
+    // A layout deleted by the application lays nothing out
+    if (m_layout)
+    {
+        m_layout->addWidget(segment, 1);
+    }
 
     if (index == 0)
     {
@@ -1275,7 +1323,7 @@ QSize PDFSegmentedControl::sizeHint() const
     int width = 0;
     int height = 0;
     int count = 0;
-    for (const QAbstractButton* button : m_group->buttons())
+    for (const QAbstractButton* button : m_group.buttons())
     {
         if (button->isHidden())
         {
@@ -1299,17 +1347,17 @@ QSize PDFSegmentedControl::minimumSizeHint() const
 
 int PDFSegmentedControl::getCount() const
 {
-    return static_cast<int>(m_group->buttons().size());
+    return static_cast<int>(m_group.buttons().size());
 }
 
 int PDFSegmentedControl::getCurrentIndex() const
 {
-    return m_group->checkedId();
+    return m_group.checkedId();
 }
 
 void PDFSegmentedControl::setCurrentIndex(int index)
 {
-    if (QAbstractButton* button = m_group->button(index))
+    if (QAbstractButton* button = m_group.button(index))
     {
         button->setChecked(true);
     }
@@ -1317,7 +1365,7 @@ void PDFSegmentedControl::setCurrentIndex(int index)
 
 void PDFSegmentedControl::setSegmentIconColor(int index, PDFThemeColors::Color color)
 {
-    if (QAbstractButton* button = m_group->button(index))
+    if (QAbstractButton* button = m_group.button(index))
     {
         PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::ICON_COLOR, static_cast<int>(color));
     }
@@ -1331,7 +1379,7 @@ void PDFSegmentedControl::paintEvent(QPaintEvent* event)
     PDFStylePainter::fill(&painter, QRectF(rect()), PDFStylePainter::Radii(16.0), PDFThemeColors::BgTrack);
 
     // Shadow of the raised plate of the selected segment lies on the track
-    QAbstractButton* button = m_group->checkedButton();
+    QAbstractButton* button = m_group.checkedButton();
     if (button && button->isVisible() && button->isEnabled())
     {
         PDFStylePainter::shadow(&painter, QRectF(button->geometry()), PDFStylePainter::Radii(16.0), QPointF(0.0, 1.0), 3.0, PDFStylePainter::color(PDFThemeColors::EffectShadow));

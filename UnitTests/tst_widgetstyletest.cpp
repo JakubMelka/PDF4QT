@@ -22,6 +22,7 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
@@ -65,6 +66,9 @@
 #include <QTimer>
 #include <QDir>
 #include <QProgressBar>
+#include <QRubberBand>
+#include <QSplitter>
+#include <QStyleFactory>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStyleOptionButton>
@@ -84,6 +88,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <limits>
 #include <memory>
 
 using Color = pdf::PDFThemeColors::Color;
@@ -144,6 +149,16 @@ private slots:
     void components();
     void disabledAndSelect();
     void rowStyles();
+
+    // R3: members and slots, which replaced the lambdas of the style, and the safe constructs
+    void styleToolBarConnections();
+    void styleSplitterHover();
+    void styleTextPaletteBinder();
+    void styleThemeChangeDeletesWidgets();
+    void styleSafeConstructs();
+
+    // Fixes of the review of the lambdas (S2, S12): bounded sizes and caches of the painters
+    void styleReviewFixes();
 
 private:
     static QImage render(const std::function<void(QPainter&)>& paint, QSize size, qreal scale = 1.0);
@@ -2910,6 +2925,541 @@ void WidgetStyleTest::rowStyles()
     QCOMPARE(tree.visualRect(index).height(), 30);
     tree.setRowStyle(pdf::PDFTreeView::RowStyle::Default);
     QVERIFY(!tree.property(pdf::PDFWidgetStyleProperties::ROW_STYLE).isValid());
+}
+
+/// R3: deletes its victim, when the watched widget gets the change of the style
+class StyleChangeDeleter : public QObject
+{
+public:
+    explicit StyleChangeDeleter(QObject* parent) : QObject(parent) { }
+
+    QPointer<QWidget> victim;
+    int deleted = 0;
+
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::StyleChange && victim)
+        {
+            // The watched widget itself is deleted only by a filter, which is not its child
+            const bool isSelf = victim == watched;
+            if (isSelf && parent() == watched)
+            {
+                return QObject::eventFilter(watched, event);
+            }
+
+            delete victim.data();
+            ++deleted;
+
+            if (isSelf)
+            {
+                // The receiver is gone, the event must not be delivered
+                return true;
+            }
+        }
+
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+/// Counts the queued calls (QEvent::MetaCall) delivered to the implementation of the style
+class StyleMetaCallCounter : public QObject
+{
+public:
+    int count = 0;
+
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::MetaCall && watched && watched->inherits("pdf::PDFWidgetStyleImpl"))
+        {
+            ++count;
+        }
+        return false;
+    }
+};
+
+void WidgetStyleTest::styleToolBarConnections()
+{
+    // R3: the margins of a toolbar follow its orientation (a member slot of the
+    // style, the sender is the toolbar) and its change of the style (a queued
+    // member slot over a list of the toolbars)
+    const QMargins horizontal(8, 12, 16, 4);
+    const QMargins vertical(12, 8, 4, 16);
+
+    QWidget host;
+    host.resize(300, 300);
+    QToolBar* toolBar = new QToolBar(&host);
+    toolBar->addAction(pdf::PDFThemeIcons::getIcon(QStringLiteral("save")), QStringLiteral("Save"));
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+    QVERIFY(toolBar->layout());
+    QCOMPARE(toolBar->layout()->contentsMargins(), horizontal);
+
+    toolBar->setOrientation(Qt::Vertical);
+    QCOMPARE(toolBar->layout()->contentsMargins(), vertical);
+    toolBar->setOrientation(Qt::Horizontal);
+    QCOMPARE(toolBar->layout()->contentsMargins(), horizontal);
+
+    // More changes of the style are applied once from the event loop: one
+    // queued call of the style for all of them (T2)
+    StyleMetaCallCounter metaCalls;
+    qApp->installEventFilter(&metaCalls);
+    toolBar->layout()->setContentsMargins(1, 1, 1, 1);
+    QEvent styleChange(QEvent::StyleChange);
+    QCoreApplication::sendEvent(toolBar, &styleChange);
+    QCoreApplication::sendEvent(toolBar, &styleChange);
+    QCoreApplication::sendEvent(toolBar, &styleChange);
+    // The toolbar itself has set the same margin to all sides
+    QVERIFY(toolBar->layout()->contentsMargins() != horizontal);
+    QTRY_COMPARE(toolBar->layout()->contentsMargins(), horizontal);
+    QCoreApplication::processEvents();
+    qApp->removeEventFilter(&metaCalls);
+    QCOMPARE(metaCalls.count, 1);
+
+    // A toolbar deleted before the event loop runs is skipped, the next one is served
+    QToolBar* deletedToolBar = new QToolBar(&host);
+    deletedToolBar->addAction(QStringLiteral("Open"));
+    deletedToolBar->ensurePolished();
+    QCoreApplication::sendEvent(deletedToolBar, &styleChange);
+    delete deletedToolBar;
+    toolBar->layout()->setContentsMargins(1, 1, 1, 1);
+    QCoreApplication::sendEvent(toolBar, &styleChange);
+    QTRY_COMPARE(toolBar->layout()->contentsMargins(), horizontal);
+
+    // A toolbar with another style is not followed by this style any more
+    std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+    QVERIFY(fusion);
+    QToolBar* fusionToolBar = new QToolBar(&host);
+    fusionToolBar->addAction(QStringLiteral("Print"));
+    fusionToolBar->ensurePolished();
+    QCOMPARE(fusionToolBar->layout()->contentsMargins(), horizontal);
+    fusionToolBar->setStyle(fusion.get());
+    QCoreApplication::processEvents();
+    const QMargins fusionMargins = fusionToolBar->layout()->contentsMargins();
+    QVERIFY(fusionMargins != horizontal);
+    fusionToolBar->setOrientation(Qt::Vertical);
+    QCoreApplication::processEvents();
+    QVERIFY(fusionToolBar->layout()->contentsMargins() != vertical);
+    delete fusionToolBar;
+
+    // S7: a toolbar scheduled by a change of the style, which gets its own style
+    // before the event loop runs, keeps the margins of its own style
+    QToolBar* lateToolBar = new QToolBar(&host);
+    lateToolBar->addAction(QStringLiteral("Export"));
+    lateToolBar->ensurePolished();
+    QCOMPARE(lateToolBar->layout()->contentsMargins(), horizontal);
+    QCoreApplication::sendEvent(lateToolBar, &styleChange);
+    lateToolBar->setStyle(fusion.get());
+    const QMargins lateFusionMargins = lateToolBar->layout()->contentsMargins();
+    QVERIFY(lateFusionMargins != horizontal);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QCOMPARE(lateToolBar->layout()->contentsMargins(), lateFusionMargins);
+    delete lateToolBar;
+
+    // A tab bar is repainted by the style, whenever its current tab changes; the
+    // tab bar deleted first and a tab bar of another style are left alone
+    QTabBar* tabBar = new QTabBar(&host);
+    tabBar->addTab(QStringLiteral("One"));
+    tabBar->addTab(QStringLiteral("Two"));
+    tabBar->show();
+    tabBar->setCurrentIndex(1);
+    tabBar->setStyle(fusion.get());
+    tabBar->setCurrentIndex(0);
+    QCOMPARE(tabBar->currentIndex(), 0);
+    tabBar->setStyle(nullptr);
+    tabBar->setCurrentIndex(1);
+    delete tabBar;
+    QCoreApplication::processEvents();
+}
+
+void WidgetStyleTest::styleSplitterHover()
+{
+    // R3: the line of a splitter handle appears, when the pointer rests over it
+    // (one timer of the style, which waits for the last entered handle). T1:
+    // deterministic - no window is shown (the filter of the application sees
+    // the events sent to hidden widgets, the style reads only underMouse()),
+    // every wait is for the decision of the timer (isSplitterHoverPending) with
+    // a long timeout, the negative checks follow the decision.
+    static constexpr const char* HOVER = "_pdf4qt_splitterHover";
+    pdf::PDFThemeManager* manager = pdf::PDFThemeManager::getInstance();
+    const bool wasReducedMotion = manager->isReducedMotion();
+    manager->setReducedMotion(true);
+    pdf::PDFWidgetStyle* style = m_style;
+    auto waitForDecision = [style]() { return QTest::qWaitFor([style]() { return !style->isSplitterHoverPending(); }, 30000); };
+    QVERIFY(waitForDecision());
+
+    QSplitter* splitter = new QSplitter(Qt::Horizontal);
+    splitter->addWidget(new QWidget());
+    splitter->addWidget(new QWidget());
+    splitter->addWidget(new QWidget());
+    splitter->resize(300, 100);
+    splitter->ensurePolished();
+
+    QPointer<QSplitterHandle> first = splitter->handle(1);
+    QPointer<QSplitterHandle> second = splitter->handle(2);
+    QVERIFY(first && second);
+
+    QEvent enter(QEvent::Enter);
+    QEvent leave(QEvent::Leave);
+
+    // The line appears after the delay (0 ms with reduced motion: the timer is
+    // pending until the event loop runs)
+    first->setAttribute(Qt::WA_UnderMouse, true);
+    QCoreApplication::sendEvent(first, &enter);
+    QVERIFY(style->isSplitterHoverPending());
+    QVERIFY(!first->property(HOVER).toBool());
+    QVERIFY(waitForDecision());
+    QVERIFY(first->property(HOVER).toBool());
+
+    first->setAttribute(Qt::WA_UnderMouse, false);
+    QCoreApplication::sendEvent(first, &leave);
+    QVERIFY(!first->property(HOVER).toBool());
+
+    // One timer for the last entered handle: both handles are under the pointer
+    // (the old timers of each handle would give both the line)
+    first->setAttribute(Qt::WA_UnderMouse, true);
+    second->setAttribute(Qt::WA_UnderMouse, true);
+    QCoreApplication::sendEvent(first, &enter);
+    QCoreApplication::sendEvent(second, &enter);
+    QVERIFY(style->isSplitterHoverPending());
+    QVERIFY(waitForDecision());
+    QVERIFY(second->property(HOVER).toBool());
+    QVERIFY(!first->property(HOVER).toBool());
+    first->setAttribute(Qt::WA_UnderMouse, false);
+    second->setAttribute(Qt::WA_UnderMouse, false);
+    QCoreApplication::sendEvent(second, &leave);
+    QVERIFY(!second->property(HOVER).toBool());
+
+    // A handle not under the pointer when the time runs out gets no line (the
+    // timer has run and decided; QApplication sets WA_UnderMouse on the Enter
+    // after the filter of the style, the pointer leaves without a Leave)
+    QCoreApplication::sendEvent(second, &enter);
+    QVERIFY(second->underMouse());
+    second->setAttribute(Qt::WA_UnderMouse, false);
+    QVERIFY(style->isSplitterHoverPending());
+    QVERIFY(waitForDecision());
+    QVERIFY(!second->property(HOVER).toBool());
+
+    // The animated delay of 300 ms: pending after the Enter, the line after it
+    manager->setReducedMotion(false);
+    second->setAttribute(Qt::WA_UnderMouse, true);
+    QCoreApplication::sendEvent(second, &enter);
+    QVERIFY(style->isSplitterHoverPending());
+    QVERIFY(!second->property(HOVER).toBool());
+    QVERIFY(waitForDecision());
+    QVERIFY(second->property(HOVER).toBool());
+    second->setAttribute(Qt::WA_UnderMouse, false);
+    QCoreApplication::sendEvent(second, &leave);
+
+    // The handle is deleted, while the animated timer runs: the timer decides
+    // for no handle
+    second->setAttribute(Qt::WA_UnderMouse, true);
+    QCoreApplication::sendEvent(second, &enter);
+    QVERIFY(style->isSplitterHoverPending());
+    delete splitter;
+    QVERIFY(!first && !second);
+    QVERIFY(waitForDecision());
+    QVERIFY(!style->isSplitterHoverPending());
+
+    manager->setReducedMotion(wasReducedMotion);
+}
+
+void WidgetStyleTest::styleTextPaletteBinder()
+{
+    // R3: the text palette bound to a widget follows the theme by a child object
+    // of the widget, which lives as long as the widget
+    pdf::PDFThemeManager* manager = pdf::PDFThemeManager::getInstance();
+    QLineEdit edit;
+    pdf::PDFThemeWidgetHelper::bindTextPalette(&edit, Color::TextMuted);
+    pdf::PDFThemeWidgetHelper::bindTextPalette(&edit, Color::TextMuted);
+    QCOMPARE(edit.findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly).size(), qsizetype(1));
+    QCOMPARE(edit.palette().color(QPalette::Active, QPalette::Text), token(Color::TextMuted));
+    QCOMPARE(edit.palette().color(QPalette::Disabled, QPalette::Text), token(Color::TextDisabled));
+
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(edit.palette().color(QPalette::Active, QPalette::Text), token(Color::TextMuted));
+
+    // A new color of the text is taken by the same binding
+    pdf::PDFThemeWidgetHelper::bindTextPalette(&edit, Color::TextAccent);
+    QCOMPARE(edit.findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly).size(), qsizetype(1));
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(edit.palette().color(QPalette::Active, QPalette::Text), token(Color::TextAccent));
+
+    // Widgets deleted after the binding, in both orders of the parent and the child
+    QWidget* parent = new QWidget();
+    QLineEdit* child = new QLineEdit(parent);
+    pdf::PDFThemeWidgetHelper::bindTextPalette(parent);
+    pdf::PDFThemeWidgetHelper::bindTextPalette(child);
+    delete child;
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    delete parent;
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // S6: the binding is found by its binder, not by a flag: a binder deleted
+    // by the application is created again by the next binding
+    QLineEdit rebound;
+    pdf::PDFThemeWidgetHelper::bindTextPalette(&rebound, Color::TextMuted);
+    qDeleteAll(rebound.findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly));
+    QVERIFY(rebound.findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly).isEmpty());
+    pdf::PDFThemeWidgetHelper::bindTextPalette(&rebound, Color::TextMuted);
+    QCOMPARE(rebound.findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly).size(), qsizetype(1));
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(rebound.palette().color(QPalette::Active, QPalette::Text), token(Color::TextMuted));
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(rebound.palette().color(QPalette::Active, QPalette::Text), token(Color::TextMuted));
+
+    // The editor of an editable combo box gets its binder again after a polish
+    pdf::PDFComboBox combo;
+    combo.setEditable(true);
+    combo.ensurePolished();
+    QVERIFY(combo.lineEdit());
+    qDeleteAll(combo.lineEdit()->findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly));
+    QEvent polish(QEvent::Polish);
+    QCoreApplication::sendEvent(&combo, &polish);
+    QCOMPARE(combo.lineEdit()->findChildren<QObject*>(QStringLiteral("_pdf4qt_textPaletteBinder"), Qt::FindDirectChildrenOnly).size(), qsizetype(1));
+
+    // A null widget is ignored
+    pdf::PDFThemeWidgetHelper::bindTextPalette(nullptr);
+
+    // The button of a password field: the toggle (a member slot of the field)
+    // shows the password, the deleted button is not returned
+    pdf::PDFLineEdit password;
+    password.setPasswordField();
+    password.setText(QStringLiteral("secret"));
+    QPointer<pdf::PDFIconButton> button = password.getPasswordButton();
+    QVERIFY(button);
+    button->click();
+    QCOMPARE(password.echoMode(), QLineEdit::Normal);
+    QCOMPARE(button->accessibleName(), QStringLiteral("Hide password"));
+    button->click();
+    QCOMPARE(password.echoMode(), QLineEdit::Password);
+    QCOMPARE(button->accessibleName(), QStringLiteral("Show password"));
+    delete button.data();
+    QVERIFY(!password.getPasswordButton());
+    password.setText(QStringLiteral("other"));
+
+    // Segments of a segmented control (a member slot of the control)
+    pdf::PDFSegmentedControl segments;
+    segments.addSegment(QStringLiteral("One"));
+    segments.addSegment(QStringLiteral("Two"));
+    QSignalSpy spy(&segments, &pdf::PDFSegmentedControl::currentIndexChanged);
+    segments.setCurrentIndex(1);
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).toInt(), 1);
+    segments.setCurrentIndex(1);
+    QCOMPARE(spy.count(), 1);
+}
+
+void WidgetStyleTest::styleThemeChangeDeletesWidgets()
+{
+    // R3: a change of the theme sends the change of the style to all widgets; a
+    // handler of the application, which deletes another widget, does not leave
+    // a dangling widget in the list of the style
+    QWidget* first = new QWidget();
+    QWidget* second = new QWidget();
+    QToolBar* toolBar = new QToolBar();
+    toolBar->addAction(QStringLiteral("Save"));
+    toolBar->ensurePolished();
+
+    StyleChangeDeleter* firstDeleter = new StyleChangeDeleter(first);
+    StyleChangeDeleter* secondDeleter = new StyleChangeDeleter(second);
+    StyleChangeDeleter* toolBarDeleter = new StyleChangeDeleter(toolBar);
+    firstDeleter->victim = second;
+    secondDeleter->victim = toolBar;
+    toolBarDeleter->victim = first;
+    first->installEventFilter(firstDeleter);
+    second->installEventFilter(secondDeleter);
+    toolBar->installEventFilter(toolBarDeleter);
+
+    QPointer<QWidget> firstGuard(first);
+    QPointer<QWidget> secondGuard(second);
+    QPointer<QWidget> toolBarGuard(toolBar);
+
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+
+    // The first widget to get the event deletes the next one in the ring, the
+    // survivor of the pair deletes nothing more after its victim is gone
+    const int alive = (firstGuard ? 1 : 0) + (secondGuard ? 1 : 0) + (toolBarGuard ? 1 : 0);
+    QVERIFY2(alive >= 1 && alive <= 2, qPrintable(QString::number(alive)));
+
+    delete firstGuard.data();
+    delete secondGuard.data();
+    delete toolBarGuard.data();
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+}
+
+void WidgetStyleTest::styleSafeConstructs()
+{
+    // R3: a scroll bar option with a negative page step (QAbstractSlider keeps it
+    // positive, an option of the application can have any value) divided by zero
+    QStyleOptionSlider option;
+    option.rect = QRect(0, 0, 12, 200);
+    option.orientation = Qt::Vertical;
+    option.state = QStyle::State_Enabled;
+    option.minimum = 0;
+    option.maximum = 10;
+    option.pageStep = -10;
+    option.sliderPosition = 5;
+    const QRect slider = m_style->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, nullptr);
+    QCOMPARE(slider.height(), 32);
+    QVERIFY(QRect(0, 0, 12, 200).contains(slider));
+
+    option.pageStep = 0;
+    QCOMPARE(m_style->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, nullptr).height(), 32);
+    option.pageStep = 10;
+    QCOMPARE(m_style->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, nullptr).height(), 100);
+
+    QImage image(QSize(12, 200), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    option.pageStep = -10;
+    m_style->drawComplexControl(QStyle::CC_ScrollBar, &option, &painter, nullptr);
+    painter.end();
+
+    // A property of the style set to a widget, which the application deletes,
+    // when the widget gets the change of the style
+    QWidget* doomed = new QWidget();
+    doomed->ensurePolished();
+    QPointer<QWidget> doomedGuard(doomed);
+    StyleChangeDeleter selfDeleter(nullptr);
+    selfDeleter.victim = doomed;
+    doomed->installEventFilter(&selfDeleter);
+    pdf::PDFWidgetStyleProperties::set(doomed, pdf::PDFWidgetStyleProperties::CARD, true);
+    QVERIFY(!doomedGuard);
+    QCOMPARE(selfDeleter.deleted, 1);
+    QCoreApplication::processEvents();
+
+    // The rubber band gets its translucent window from the style and the
+    // attributes back, when the style leaves it
+    QRubberBand band(QRubberBand::Rectangle);
+    const bool wasTranslucent = band.testAttribute(Qt::WA_TranslucentBackground);
+    const bool hadNoBackground = band.testAttribute(Qt::WA_NoSystemBackground);
+    band.ensurePolished();
+    QVERIFY(band.testAttribute(Qt::WA_TranslucentBackground));
+
+    std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+    QVERIFY(fusion);
+    band.setStyle(fusion.get());
+    QCOMPARE(band.testAttribute(Qt::WA_TranslucentBackground), wasTranslucent);
+    QCOMPARE(band.testAttribute(Qt::WA_NoSystemBackground), hadNoBackground);
+
+    // And again, when it returns to the style
+    band.setStyle(nullptr);
+    QVERIFY(band.testAttribute(Qt::WA_TranslucentBackground));
+    band.setStyle(fusion.get());
+    QCOMPARE(band.testAttribute(Qt::WA_TranslucentBackground), wasTranslucent);
+    band.setStyle(nullptr);
+
+    // The tooltip hidden by another way removes its filter of the application
+    // with the next hide, a new tooltip works
+    QWidget owner;
+    owner.resize(100, 100);
+    owner.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&owner));
+
+    // T4: the filter of the application is seen by its effect, a click hides
+    // the tooltip. The window shown again directly (without showText, which
+    // installs the filter): a click hides it while the filter of the tooltip
+    // hidden by another way is still installed...
+    pdf::PDFToolTip::showText(owner.mapToGlobal(QPoint(10, 10)), QStringLiteral("Probe"), QString(), QString(), &owner);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QPointer<QWidget> tipWindow = pdf::PDFToolTip::getWindow();
+    QVERIFY(tipWindow);
+    tipWindow->hide();
+    tipWindow->show();
+    QTest::mouseClick(&owner, Qt::LeftButton);
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+    // ...and does not hide it after hideText has removed the filter
+    pdf::PDFToolTip::showText(owner.mapToGlobal(QPoint(10, 10)), QStringLiteral("Probe"), QString(), QString(), &owner);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    tipWindow->hide();
+    pdf::PDFToolTip::hideText();
+    tipWindow->show();
+    QTest::mouseClick(&owner, Qt::LeftButton);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    tipWindow->hide();
+    pdf::PDFToolTip::hideText();
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+
+    pdf::PDFToolTip::showText(owner.mapToGlobal(QPoint(10, 10)), QStringLiteral("Title"), QString(), QStringLiteral("Description\nSecond paragraph"), &owner);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QVERIFY(pdf::PDFToolTip::getWindow());
+    pdf::PDFToolTip::getWindow()->repaint();
+    pdf::PDFToolTip::getWindow()->hide();
+    pdf::PDFToolTip::hideText();
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+    pdf::PDFToolTip::showText(owner.mapToGlobal(QPoint(10, 10)), QStringLiteral("Title"), QStringLiteral("Ctrl+T"), QString(), &owner);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QCOMPARE(pdf::PDFToolTip::getTitle(), QStringLiteral("Title"));
+    QTest::mouseClick(&owner, Qt::LeftButton);
+    QVERIFY(!pdf::PDFToolTip::isVisible());
+}
+
+void WidgetStyleTest::styleReviewFixes()
+{
+    // S2: a huge or non-finite size is bounded before it is converted to an
+    // integer (UBSan sees the overflow, MSVC gives INT_MIN): no pixmap, no shadow
+    const QColor black(Qt::black);
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    const qreal infinity = std::numeric_limits<qreal>::infinity();
+    QVERIFY(!pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(16.0, 16.0), 1.0, black).isNull());
+    QVERIFY(!pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(0.0001, 0.0001), 1.0, black).isNull());
+    for (const QSizeF& size : { QSizeF(nan, 16.0), QSizeF(16.0, infinity), QSizeF(1e12, 1e12), QSizeF(16384.0, 20000.0), QSizeF(-1.0, 16.0) })
+    {
+        QVERIFY(pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), size, 1.0, black).isNull());
+        QVERIFY(pdf::PDFThemeIcons::getFillPixmap(QStringLiteral("bookmark"), size, 1.0, black).isNull());
+    }
+    for (qreal ratio : { nan, infinity, 1e12, 0.0, -2.0 })
+    {
+        QVERIFY(pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(16.0, 16.0), ratio, black).isNull());
+    }
+
+    QImage blank(64, 64, QImage::Format_ARGB32_Premultiplied);
+    blank.fill(Qt::transparent);
+    QImage image = render([](QPainter& painter)
+    {
+        const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+        pdf::PDFStylePainter::shadow(&painter, QRectF(8, 8, 40, 40), 8.0, QPointF(0, 2), nan, Qt::black);
+        pdf::PDFStylePainter::shadow(&painter, QRectF(8, 8, 40, 40), 8.0, QPointF(0, 2), 1e300, Qt::black);
+        pdf::PDFStylePainter::shadow(&painter, QRectF(8, 8, 1e12, 40), 8.0, QPointF(0, 2), 8.0, Qt::black);
+        pdf::PDFStylePainter::shadow(&painter, QRectF(8, 8, std::numeric_limits<qreal>::infinity(), 40), 8.0, QPointF(0, 2), 8.0, Qt::black);
+    }, QSize(64, 64));
+    QCOMPARE(image, blank);
+    image = render([](QPainter& painter) { pdf::PDFStylePainter::shadow(&painter, QRectF(8, 8, 40, 40), 8.0, QPointF(0, 2), 8.0, Qt::black); }, QSize(64, 64));
+    QVERIFY(image != blank);
+
+    // A huge scale of the painter draws the picture itself (no scaled copy)
+    QPixmap picture(200, 100);
+    picture.fill(Qt::red);
+    for (qreal scale : { 1e-12, 1e12 })
+    {
+        render([&picture, scale](QPainter& painter)
+        {
+            painter.scale(scale, scale);
+            pdf::PDFComponentPainter::drawScaledPixmap(&painter, QRectF(0, 0, 20, 10), picture);
+        }, QSize(64, 64));
+    }
+    image = render([&picture](QPainter& painter) { pdf::PDFComponentPainter::drawScaledPixmap(&painter, QRectF(0, 0, 20, 10), picture); }, QSize(64, 64));
+    QVERIFY(isNear(pixel(image, 10, 5), QColor(Qt::red)));
+
+    // S12: the caches of the icons are bounded: the names of missing icons keep
+    // no renderer, the other widths of the strokes at most 256 renderers
+    const qsizetype before = pdf::PDFThemeIcons::getCachedRendererCount();
+    for (int i = 0; i < 1000; ++i)
+    {
+        QVERIFY(!pdf::PDFThemeIcons::hasIcon(QStringLiteral("no-such-icon-%1").arg(i)));
+    }
+    QCOMPARE(pdf::PDFThemeIcons::getCachedRendererCount(), before);
+    const qsizetype designRenderers = pdf::PDFThemeIcons::getIconNames().size() * 2;
+    for (int i = 1; i <= 800; ++i)
+    {
+        // Each size has another width of the strokes (2 px at each size)
+        const QPixmap pixmap = pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(i * 0.1 + 0.05, i * 0.1 + 0.05), 1.0, black);
+        QVERIFY(!pixmap.isNull());
+        QVERIFY(pdf::PDFThemeIcons::getCachedRendererCount() <= designRenderers + 256);
+    }
+    QVERIFY(pdf::PDFThemeIcons::hasIcon(QStringLiteral("save")));
+    QVERIFY(!pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(24.0, 24.0), 2.0, black).isNull());
 }
 
 QTEST_MAIN(WidgetStyleTest)

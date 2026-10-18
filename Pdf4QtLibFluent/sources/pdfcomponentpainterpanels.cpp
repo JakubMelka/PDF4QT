@@ -432,6 +432,43 @@ public:
         PDFComponentPainter::StrengthCriterion::Digits,
         PDFComponentPainter::StrengthCriterion::Symbols
     };
+
+    /// Adds a section of a color palette (the label and the grid of the
+    /// swatches) at the position \p y and moves it after the section
+    static void addPaletteSection(const QList<QColor>& colors, int& y, QRect& label, QList<QRect>& swatches)
+    {
+        if (colors.isEmpty())
+        {
+            return;
+        }
+
+        const int padding = PALETTE_PADDING;
+        const int innerWidth = PALETTE_WIDTH - 2 * padding;
+        const int step = PALETTE_SWATCH + PALETTE_SWATCH_GAP;
+
+        label = QRect(padding, y, innerWidth, LINE_11);
+        y += LINE_11 + PALETTE_GAP;
+
+        const int count = static_cast<int>(qMin<qsizetype>(colors.size(), 4096));
+        for (int i = 0; i < count; ++i)
+        {
+            swatches << QRect(padding + (i % PALETTE_COLUMNS) * step, y + (i / PALETTE_COLUMNS) * step, PALETTE_SWATCH, PALETTE_SWATCH);
+        }
+
+        const int rows = (count + PALETTE_COLUMNS - 1) / PALETTE_COLUMNS;
+        y += rows * step - PALETTE_SWATCH_GAP + PALETTE_GAP;
+    }
+
+    /// Paints the swatches of a section of a color palette, the swatch \p selected is checked
+    static void paintPaletteSwatches(QPainter* painter, const QRectF& rect, const QList<QColor>& colors, const QList<QRect>& rects, int selected, const State& state)
+    {
+        for (int i = 0; i < rects.size() && i < colors.size(); ++i)
+        {
+            const QColor& color = colors.at(i);
+            const PDFComponentPainter::ColorSwatch swatch{ color, color.isValid() ? PDFComponentPainter::SwatchKind::Color : PDFComponentPainter::SwatchKind::None };
+            PDFComponentPainter::paintColorSwatch(painter, place(rect, QRectF(rects.at(i)), state), swatch, nestedState(state, i == selected));
+        }
+    }
 };
 
 // ------------------------------------------------------------ Page selection
@@ -864,32 +901,11 @@ PDFComponentPainter::ColorPaletteLayout PDFComponentPainter::getColorPaletteLayo
     ColorPaletteLayout layout;
     const int padding = Helper::PALETTE_PADDING;
     const int innerWidth = Helper::PALETTE_WIDTH - 2 * padding;
-    const int step = Helper::PALETTE_SWATCH + Helper::PALETTE_SWATCH_GAP;
     int y = padding;
 
     // A section is the label and the grid of the swatches
-    auto addSection = [&](const QList<QColor>& colors, QRect& label, QList<QRect>& swatches)
-    {
-        if (colors.isEmpty())
-        {
-            return;
-        }
-
-        label = QRect(padding, y, innerWidth, Helper::LINE_11);
-        y += Helper::LINE_11 + Helper::PALETTE_GAP;
-
-        const int count = static_cast<int>(qMin<qsizetype>(colors.size(), 4096));
-        for (int i = 0; i < count; ++i)
-        {
-            swatches << QRect(padding + (i % Helper::PALETTE_COLUMNS) * step, y + (i / Helper::PALETTE_COLUMNS) * step, Helper::PALETTE_SWATCH, Helper::PALETTE_SWATCH);
-        }
-
-        const int rows = (count + Helper::PALETTE_COLUMNS - 1) / Helper::PALETTE_COLUMNS;
-        y += rows * step - Helper::PALETTE_SWATCH_GAP + Helper::PALETTE_GAP;
-    };
-
-    addSection(palette.suggested, layout.suggestedLabel, layout.suggested);
-    addSection(palette.recent, layout.recentLabel, layout.recent);
+    Helper::addPaletteSection(palette.suggested, y, layout.suggestedLabel, layout.suggested);
+    Helper::addPaletteSection(palette.recent, y, layout.recentLabel, layout.recent);
 
     // The divider separates the colors from the link
     if (!layout.suggested.isEmpty() || !layout.recent.isEmpty())
@@ -957,18 +973,8 @@ void PDFComponentPainter::paintColorPalette(QPainter* painter, const QRectF& rec
 
     if (palette.paintNested)
     {
-        auto paintSwatches = [&](const QList<QColor>& colors, const QList<QRect>& rects, int selected)
-        {
-            for (int i = 0; i < rects.size() && i < colors.size(); ++i)
-            {
-                const QColor& color = colors.at(i);
-                const ColorSwatch swatch{ color, color.isValid() ? SwatchKind::Color : SwatchKind::None };
-                paintColorSwatch(painter, Helper::place(rect, QRectF(rects.at(i)), state), swatch, Helper::nestedState(state, i == selected));
-            }
-        };
-
-        paintSwatches(palette.suggested, layout.suggested, palette.selected);
-        paintSwatches(palette.recent, layout.recent, -1);
+        Helper::paintPaletteSwatches(painter, rect, palette.suggested, layout.suggested, palette.selected, state);
+        Helper::paintPaletteSwatches(painter, rect, palette.recent, layout.recent, -1, state);
 
         if (!layout.more.isEmpty())
         {

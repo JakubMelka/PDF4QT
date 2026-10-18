@@ -87,9 +87,9 @@ public:
 
     /// Returns the button, by which the message box has been closed
     QDialogButtonBox::StandardButton getClickedStandardButton() const { return m_clickedStandardButton; }
-    QAbstractButton* getClickedButton() const { return m_clickedButton; }
+    QAbstractButton* getClickedButton() const;
 
-    QDialogButtonBox* getButtonBox() const { return m_buttonBox; }
+    QDialogButtonBox* getButtonBox() const { return m_buttonBox.data(); }
 
     virtual ~PDFMessageBox() override;
 
@@ -140,17 +140,19 @@ private:
     static constexpr int PADDING_V = 20;
     static constexpr qreal CARD_RADIUS = 16.0;
 
-    QVBoxLayout* m_mainLayout;
-    PDFLabel* m_titleLabel;
-    PDFLabel* m_textLabel;
-    PDFLabel* m_detailsLabel;
-    PDFPlainTextEdit* m_detailsEdit;
-    QFrame* m_detailsFrame;
+    // The parts are children of the message box, which the application may
+    // delete (Qt deletes them with the message box), so they are held by QPointer
+    QPointer<QVBoxLayout> m_mainLayout;
+    QPointer<PDFLabel> m_titleLabel;
+    QPointer<PDFLabel> m_textLabel;
+    QPointer<PDFLabel> m_detailsLabel;
+    QPointer<PDFPlainTextEdit> m_detailsEdit;
+    QPointer<QFrame> m_detailsFrame;
     QString m_detailedText;
     QPointer<QAbstractButton> m_escapeButton;
-    QCheckBox* m_checkBox;
-    QDialogButtonBox* m_buttonBox;
-    QAbstractButton* m_clickedButton = nullptr;
+    QPointer<QCheckBox> m_checkBox;
+    QPointer<QDialogButtonBox> m_buttonBox;
+    QPointer<QAbstractButton> m_clickedButton;
     QDialogButtonBox::StandardButton m_clickedStandardButton = QDialogButtonBox::NoButton;
     QPointer<QWidget> m_scrim;
 };

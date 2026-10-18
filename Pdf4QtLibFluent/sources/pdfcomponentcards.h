@@ -196,6 +196,7 @@ protected:
     virtual QSize getContentMinimumSizeHint() const override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
     virtual void updateDescription() override;
+    virtual void requestMoreButtonMenu() override;
 
 private:
 
@@ -264,6 +265,7 @@ protected:
     virtual QSize getContentMinimumSizeHint() const override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
     virtual void updateDescription() override;
+    virtual void requestMoreButtonMenu() override;
 
 private:
 
@@ -526,6 +528,9 @@ protected:
 private:
     void rebuildTags();
 
+    /// A nested tag has been clicked: the signal tagClicked with its text
+    void onTagClicked();
+
     /// Returns true, if the tag is a nested tag of the card (not deleted, not moved away)
     bool isOwnTag(const PDFTag* tag) const;
 
@@ -534,6 +539,7 @@ private:
 
     PDFComponentPainter::VideoCard m_card;
     QList<QPointer<PDFTag>> m_tags;
+    QStringList m_tagTexts;         ///< Texts of the tags of \p m_tags (the same index), reported by tagClicked
     QString m_description;
     QString m_tagLayoutTitle;       ///< Title, with which the tags were placed (QAbstractButton::setText bypasses setTitle)
     bool m_isPlacingTags = false;   ///< The card itself shows and hides its tags

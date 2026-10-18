@@ -766,7 +766,7 @@ void PDFWidgetStyleTabs::polish(QWidget* widget)
     }
 
     // The focus ring of a tab reaches into the gap between the tabs
-    QObject::connect(tabBar, &QTabBar::currentChanged, m_impl, [tabBar]() { tabBar->update(); });
+    m_impl->watchTabBar(tabBar);
 }
 
 void PDFWidgetStyleTabs::unpolish(QWidget* widget)
@@ -777,7 +777,7 @@ void PDFWidgetStyleTabs::unpolish(QWidget* widget)
         return;
     }
 
-    QObject::disconnect(tabBar, &QTabBar::currentChanged, m_impl, nullptr);
+    m_impl->unwatchTabBar(tabBar);
     tabBar->setDrawBase(tabBar->property(SAVED_DRAW_BASE).toBool());
     tabBar->setUsesScrollButtons(tabBar->property(SAVED_SCROLL_BUTTONS).toBool());
     tabBar->setExpanding(tabBar->property(SAVED_EXPANDING).toBool());
@@ -868,28 +868,22 @@ void PDFWidgetStyleTabs::drawChip(QPainter* painter, const QRectF& rect, const P
 
     qreal x = qRound(rect.left() + CHIP_PADDING + (available - iconWidth - textWidth - countWidth) / 2.0);
 
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     if (isCheckShown)
     {
-        PDFStylePainter::icon(painter, place(x, CHIP_ICON, CHIP_ICON), QStringLiteral("check"), iconColor);
+        PDFStylePainter::icon(painter, placeInRow(rect, state.rightToLeft, x, CHIP_ICON, CHIP_ICON), QStringLiteral("check"), iconColor);
     }
     else if (!icon.isNull())
     {
-        PDFWidgetStyleImpl::drawIcon(painter, place(x, CHIP_ICON, CHIP_ICON), icon, PDFWidgetStyleImpl::color(iconColor), state);
+        PDFWidgetStyleImpl::drawIcon(painter, placeInRow(rect, state.rightToLeft, x, CHIP_ICON, CHIP_ICON), icon, PDFWidgetStyleImpl::color(iconColor), state);
     }
     x += iconWidth;
 
-    m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, shownText, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, shownText, font, PDFWidgetStyleImpl::color(textColor), widget);
     x += textWidth;
 
     if (!countText.isEmpty())
     {
-        PDFStylePainter::text(painter, place(x + CHIP_GAP, countWidth - CHIP_GAP, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, countText, countFont, PDFWidgetStyleImpl::color(countColor));
+        PDFStylePainter::text(painter, placeInRow(rect, state.rightToLeft, x + CHIP_GAP, countWidth - CHIP_GAP, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, countText, countFont, PDFWidgetStyleImpl::color(countColor));
     }
 }
 
@@ -1076,19 +1070,13 @@ void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPain
 
     qreal x = qRound(rect.left() + SEGMENT_MIN_PADDING + (available - iconWidth - textWidth) / 2.0);
 
-    auto place = [&rect, &state](qreal left, qreal width, qreal height)
-    {
-        const QRectF item(left, rect.top() + (rect.height() - height) / 2.0, width, height);
-        return PDFWidgetStyleImpl::visualRect(state.rightToLeft, rect, item);
-    };
-
     if (!option->icon.isNull())
     {
-        PDFWidgetStyleImpl::drawIcon(painter, place(x, 14.0, 14.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
+        PDFWidgetStyleImpl::drawIcon(painter, placeInRow(rect, state.rightToLeft, x, 14.0, 14.0), option->icon, PDFWidgetStyleImpl::color(iconColor), state);
         x += iconWidth;
     }
 
-    m_impl->drawText(painter, place(x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 
 void PDFWidgetStyleTabs::drawTabBarButton(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const

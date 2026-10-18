@@ -32,7 +32,6 @@
 #include <QCoreApplication>
 #include <QFontMetricsF>
 #include <QHash>
-#include <QMutex>
 #include <QPainter>
 #include <QPainterPath>
 #include <QTextBoundaryFinder>
@@ -283,18 +282,75 @@ public:
     }
 
     /// Cache of the elided texts of the snippets (laying a snippet out with the
-    /// elision is a search of the longest beginning, which fits), shared by the
-    /// threads; the painter may be used outside of the thread of the application
-    static QMutex& getSnippetCacheMutex()
-    {
-        static QMutex mutex;
-        return mutex;
-    }
-
+    /// elision is a search of the longest beginning, which fits). Without a lock:
+    /// the painter is used only in the thread of the user interface.
     static QHash<QString, QString>& getSnippetCache()
     {
         static QHash<QString, QString> cache;
         return cache;
+    }
+
+    /// Remembers the elided text of a snippet under its key (getSnippetKey)
+    static void rememberSnippet(const QString& key, const QString& result)
+    {
+        QHash<QString, QString>& cache = getSnippetCache();
+        if (cache.size() >= SNIPPET_CACHE_SIZE)
+        {
+            cache.clear();
+        }
+        cache.insert(key, result);
+    }
+
+    /// Returns the beginning of the text up to \p end (without the spaces at
+    /// its end) with an ellipsis: a candidate of the elided last line
+    static QString getElidedSnippet(const QString& text, int end)
+    {
+        QString prefix = text.left(end);
+        while (!prefix.isEmpty() && prefix.back().isSpace())
+        {
+            prefix.chop(1);
+        }
+        return prefix + QChar(0x2026);
+    }
+
+    /// Lays the text of a snippet out into lines of the width, the found terms
+    /// in \p matchFormat (ranges outside of the text - also after the elision -
+    /// are clipped)
+    /// \returns Number of the lines (all of them, at most 1000)
+    static int layoutSnippetText(QTextLayout& layout, const QString& laidText, const QList<PDFComponentPainter::TextRange>& matches, const QFont& font,
+                                 const QTextOption& option, const QTextCharFormat& matchFormat, qreal width)
+    {
+        QList<QTextLayout::FormatRange> formats;
+        for (const PDFComponentPainter::TextRange& range : matches)
+        {
+            const qint64 size = qint64(laidText.size());
+            const qint64 start = qBound(qint64(0), qint64(range.start), size);
+            const qint64 end = qBound(start, qint64(range.start) + qint64(qMax(range.length, 0)), size);
+            if (end > start)
+            {
+                QTextLayout::FormatRange format;
+                format.start = int(start);
+                format.length = int(end - start);
+                format.format = matchFormat;
+                formats << format;
+            }
+        }
+
+        layout.clearLayout();
+        layout.setText(laidText);
+        layout.setFont(font);
+        layout.setTextOption(option);
+        layout.setFormats(formats);
+        layout.beginLayout();
+        int count = 0;
+        for (QTextLine textLine = layout.createLine(); textLine.isValid() && count < 1000; textLine = layout.createLine())
+        {
+            textLine.setLineWidth(width);
+            textLine.setPosition(QPointF(0.0, count * LINE_12 + (LINE_12 - textLine.height()) / 2.0));
+            ++count;
+        }
+        layout.endLayout();
+        return count;
     }
 
     /// Returns the number of the lines of a snippet in the width (at most
@@ -330,43 +386,6 @@ public:
         matchFormat.setFont(matchFont);
         matchFormat.setForeground(PDFStylePainter::color(matchColor));
 
-        // Lays the text out, returns the number of its lines (all of them)
-        auto doLayout = [&](const QString& laidText)
-        {
-            QList<QTextLayout::FormatRange> formats;
-            for (const PDFComponentPainter::TextRange& range : matches)
-            {
-                // Ranges outside of the text (also after the elision) are clipped
-                const qint64 size = qint64(laidText.size());
-                const qint64 start = qBound(qint64(0), qint64(range.start), size);
-                const qint64 end = qBound(start, qint64(range.start) + qint64(qMax(range.length, 0)), size);
-                if (end > start)
-                {
-                    QTextLayout::FormatRange format;
-                    format.start = int(start);
-                    format.length = int(end - start);
-                    format.format = matchFormat;
-                    formats << format;
-                }
-            }
-
-            layout.clearLayout();
-            layout.setText(laidText);
-            layout.setFont(font);
-            layout.setTextOption(option);
-            layout.setFormats(formats);
-            layout.beginLayout();
-            int count = 0;
-            for (QTextLine textLine = layout.createLine(); textLine.isValid() && count < 1000; textLine = layout.createLine())
-            {
-                textLine.setLineWidth(width);
-                textLine.setPosition(QPointF(0.0, count * LINE_12 + (LINE_12 - textLine.height()) / 2.0));
-                ++count;
-            }
-            layout.endLayout();
-            return count;
-        };
-
         QString laidText = text;
         laidText.replace(QLatin1Char('\n'), QLatin1Char(' '));
 
@@ -374,33 +393,21 @@ public:
         const QString key = elide ? getSnippetKey(laidText, matches, font, width, maxLines) : QString();
         if (elide)
         {
-            QMutexLocker locker(&getSnippetCacheMutex());
             const auto it = getSnippetCache().constFind(key);
             if (it != getSnippetCache().cend())
             {
+                // A copy: the layout below may remember another snippet
                 const QString cached = it.value();
-                locker.unlock();
-                return qMin(doLayout(cached), maxLines);
+                return qMin(layoutSnippetText(layout, cached, matches, font, option, matchFormat, width), maxLines);
             }
         }
 
-        auto remember = [&key](const QString& result)
-        {
-            QMutexLocker locker(&getSnippetCacheMutex());
-            QHash<QString, QString>& cache = getSnippetCache();
-            if (cache.size() >= SNIPPET_CACHE_SIZE)
-            {
-                cache.clear();
-            }
-            cache.insert(key, result);
-        };
-
-        const int count = doLayout(laidText);
+        const int count = layoutSnippetText(layout, laidText, matches, font, option, matchFormat, width);
         if (count <= maxLines || !elide)
         {
             if (elide)
             {
-                remember(laidText);
+                rememberSnippet(key, laidText);
             }
             return qMin(count, maxLines);
         }
@@ -415,24 +422,13 @@ public:
             boundaries << int(position);
         }
 
-        const QChar ellipsis(0x2026);
-        auto candidate = [&](int end)
-        {
-            QString prefix = laidText.left(end);
-            while (!prefix.isEmpty() && prefix.back().isSpace())
-            {
-                prefix.chop(1);
-            }
-            return prefix + ellipsis;
-        };
-
         int low = 0;
         int high = int(boundaries.size()) - 1;
         int best = 0;
         while (low <= high)
         {
             const int middle = (low + high) / 2;
-            if (doLayout(candidate(boundaries.at(middle))) <= maxLines)
+            if (layoutSnippetText(layout, getElidedSnippet(laidText, boundaries.at(middle)), matches, font, option, matchFormat, width) <= maxLines)
             {
                 best = middle;
                 low = middle + 1;
@@ -443,9 +439,9 @@ public:
             }
         }
 
-        const QString result = candidate(boundaries.value(best));
-        remember(result);
-        return qMin(doLayout(result), maxLines);
+        const QString result = getElidedSnippet(laidText, boundaries.value(best));
+        rememberSnippet(key, result);
+        return qMin(layoutSnippetText(layout, result, matches, font, option, matchFormat, width), maxLines);
     }
 
     /// Returns the number of the lines of the text of a note in the width (at most two)
