@@ -190,6 +190,7 @@ private slots:
     void testPrecompiledPageTargets();
     void testHighDpiGeometry();
     void testHighDpiImageResolution();
+    void testBlend2DImageClipping();
 };
 
 
@@ -1208,6 +1209,114 @@ void ImageScalingTest::testHighDpiImageResolution()
 
         QCOMPARE(target.size(), logicalSize);
         QCOMPARE(logicalCache.getMemoryConsumptionEstimate(), qint64(200) * qint64(20));
+    }
+}
+
+void ImageScalingTest::testBlend2DImageClipping()
+{
+    // The downscaled bitonal images are grayscale images, whose rows are padded to four
+    // bytes, and the crop box of a page clips them by a rectangle with fractional edges.
+    // The paint engine of Blend2D must draw such an image exactly as the raster paint
+    // engine - the JIT pipeline of Blend2D blits an image with a wrong offset of the rows,
+    // when the clip rectangle does not start at a pixel boundary, so the image was sheared
+    // (and the source data were even read out of their bounds). Test the images of all
+    // widths (padded or not), the mirroring transform, which the painter uses for the
+    // images of a page, a source rectangle and both of the threading modes.
+    std::vector<QSize> sizes;
+    for (int width = 13; width <= 20; ++width)
+    {
+        sizes.emplace_back(width, 12);
+    }
+    sizes.emplace_back(544, 832);
+    sizes.emplace_back(522, 799);
+
+    for (const QImage::Format format : { QImage::Format_Grayscale8, QImage::Format_RGB32, QImage::Format_ARGB32 })
+    {
+        for (const QSize& size : sizes)
+        {
+            const int width = size.width();
+            const int height = size.height();
+
+            QImage image(width, height, format);
+            image.fill(Qt::white);
+
+            // A diagonal line - a wrong offset of the rows would shear it
+            for (int y = 0; y < height; ++y)
+            {
+                image.setPixelColor(y % width, y, Qt::black);
+            }
+
+            const QRectF clipRect(width * 0.1 + 0.378, 1.863, width * 0.8 + 0.621, height - 2.7);
+            const QRect comparedRect(QPoint(qCeil(clipRect.left()), qCeil(clipRect.top())),
+                                     QPoint(qFloor(clipRect.right()) - 1, qFloor(clipRect.bottom()) - 1));
+
+            for (const QTransform& transform : { QTransform(), QTransform(1.0, 0.0, 0.0, -1.0, 0.0, height) })
+            {
+                for (const bool isSourceRectUsed : { false, true })
+                {
+                    auto paint = [&](QPainter* painter)
+                    {
+                        painter->fillRect(QRect(0, 0, width, height), Qt::white);
+
+                        QPainterPath clipPath;
+                        clipPath.addRect(clipRect);
+                        painter->setClipPath(clipPath, Qt::IntersectClip);
+
+                        painter->setWorldTransform(transform);
+
+                        if (isSourceRectUsed)
+                        {
+                            painter->drawImage(QPointF(1.0, 0.0), image, QRectF(2.0, 1.0, width - 3.0, height - 1.0));
+                        }
+                        else
+                        {
+                            painter->drawImage(0, 0, image);
+                        }
+                    };
+
+                    QImage rasterBuffer(width, height, QImage::Format_ARGB32_Premultiplied);
+                    rasterBuffer.fill(Qt::white);
+
+                    {
+                        QPainter painter(&rasterBuffer);
+                        paint(&painter);
+                    }
+
+                    for (const bool isMultithreaded : { false, true })
+                    {
+                        QImage blendBuffer(width, height, QImage::Format_ARGB32_Premultiplied);
+                        blendBuffer.fill(Qt::white);
+
+                        {
+                            pdf::PDFBLPaintDevice paintDevice(blendBuffer, isMultithreaded);
+                            QPainter painter;
+                            QVERIFY(painter.begin(&paintDevice));
+                            paint(&painter);
+                            painter.end();
+                        }
+
+                        // The pixels at the edges of the clip rectangle are partially covered
+                        // and the raster paint engine does not antialias the clipping, so
+                        // compare only the pixels lying inside of the clip rectangle
+                        for (int y = comparedRect.top(); y <= comparedRect.bottom(); ++y)
+                        {
+                            for (int x = comparedRect.left(); x <= comparedRect.right(); ++x)
+                            {
+                                const int rasterGray = qGray(rasterBuffer.pixel(x, y));
+                                const int blendGray = qGray(blendBuffer.pixel(x, y));
+
+                                if (qAbs(rasterGray - blendGray) > 2)
+                                {
+                                    QFAIL(qPrintable(QString("Format %1, size %2 x %3, mirrored %4, source rectangle %5, multithreaded %6: pixel (%7, %8) is %9 instead of %10")
+                                                     .arg(int(format)).arg(width).arg(height).arg(transform.m22() < 0.0).arg(isSourceRectUsed).arg(isMultithreaded)
+                                                     .arg(x).arg(y).arg(blendGray).arg(rasterGray)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

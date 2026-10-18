@@ -152,8 +152,9 @@ public:
 /// the last \p MAXIMUM_PASS_AGE passes, are discarded at the end of a pass.
 ///
 /// This class is not thread safe. All drawing of the cached precompiled pages happens on the
-/// GUI thread, and the Blend2D backend copies the images before it hands them to its worker
-/// threads, so no synchronization is needed. Do not share a single cache between the threads -
+/// GUI thread, and the Blend2D backend hands to its worker threads only a reference to the
+/// immutable shared data of an image (the cache never modifies a stored image), so no
+/// synchronization is needed. Do not share a single cache between the threads -
 /// a page drawn on a worker thread (the rasterizer pool) must use no cache at all.
 class PDF4QTLIBCORESHARED_EXPORT PDFScaledImageCache
 {

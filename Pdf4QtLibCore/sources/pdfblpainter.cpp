@@ -60,19 +60,6 @@ decltype(auto) assign_data(T& obj, Args&&... args)
 }
 
 template <typename T, typename... Args>
-decltype(auto) assign_deep(T& obj, Args&&... args)
-{
-    if constexpr (requires { obj.assign_deep(args...); })
-    {
-        return obj.assign_deep(std::forward<Args>(args)...);
-    }
-    else
-    {
-        return obj.assignDeep(std::forward<Args>(args)...);
-    }
-}
-
-template <typename T, typename... Args>
 decltype(auto) assign_stops(T& obj, Args&&... args)
 {
     if constexpr (requires { obj.assign_stops(args...); })
@@ -173,6 +160,19 @@ decltype(auto) fill_ellipse(T& obj, Args&&... args)
     else
     {
         return obj.fillEllipse(std::forward<Args>(args)...);
+    }
+}
+
+template <typename T, typename... Args>
+decltype(auto) fill_rect(T& obj, Args&&... args)
+{
+    if constexpr (requires { obj.fill_rect(args...); })
+    {
+        return obj.fill_rect(std::forward<Args>(args)...);
+    }
+    else
+    {
+        return obj.fillRect(std::forward<Args>(args)...);
     }
 }
 
@@ -626,6 +626,17 @@ private:
 
     /// Returns composition operator
     static BLCompOp getBLCompOp(QPainter::CompositionMode mode);
+
+    /// Creates a Blend2D image, which shares the pixels of the image (in the format
+    /// QImage::Format_ARGB32_Premultiplied) instead of copying them. The image is held
+    /// by Blend2D until it does not need the pixels anymore - a multithreaded context
+    /// draws them later, in its worker threads, after the image has been passed to it.
+    /// \param blImage Created Blend2D image
+    /// \param image Image to be shared
+    static bool createSharedBLImage(BLImage& blImage, const QImage& image);
+
+    /// Releases the image held by the Blend2D image \sa createSharedBLImage
+    static void BL_CDECL destroySharedBLImage(void* impl, void* externalData, void* userData) noexcept;
 
     void drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill, bool forceFill = false);
 
@@ -1258,11 +1269,11 @@ void PDFBLPaintEngine::drawTiledPixmap(const QRectF& r, const QPixmap& pixmap, c
     int tilesX = qCeil(r.width() / pixmap.width());
     int tilesY = qCeil(r.height() / pixmap.height());
 
-    BLImage blImage;
-    blcompat::create_from_data(blImage, image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
-
     BLImage blDrawImage;
-    blcompat::assign_deep(blDrawImage, blImage);
+    if (!createSharedBLImage(blDrawImage, image))
+    {
+        return;
+    }
 
     for (int x = 0; x < tilesX; ++x)
     {
@@ -1318,15 +1329,35 @@ void PDFBLPaintEngine::drawImage(const QRectF& r, const QImage& pm, const QRectF
         imagePainter.end();
     }
 
-    BLImage blImage;
-    blcompat::create_from_data(blImage, image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
+    const QRect sourceRect(int(sr.x()), int(sr.y()), int(sr.width()), int(sr.height()));
+    if (sourceRect != image.rect())
+    {
+        image = image.copy(sourceRect);
+    }
+
+    if (image.isNull())
+    {
+        return;
+    }
 
     BLImage blDrawImage;
-    blcompat::assign_deep(blDrawImage, blImage);
+    if (!createSharedBLImage(blDrawImage, image))
+    {
+        return;
+    }
 
-    blcompat::blit_image(*m_blContext, BLRect(r.x(), r.y(), r.width(), r.height()),
-                         blDrawImage,
-                         BLRectI(sr.x(), sr.y(), sr.width(), sr.height()));
+    // Jakub Melka: the image is drawn as a pattern and not by blit_image. When the clipping
+    // is a rectangle with fractional left or top edge (the crop box of a page usually is),
+    // the JIT pipeline of Blend2D blits an image, which is not scaled, with a wrong offset
+    // of its rows - the image is sheared and the source data can even be read out of their
+    // bounds (crash). The pattern is fetched by another pipeline, which is correct.
+    BLMatrix2D patternTransform;
+    patternTransform.reset(r.width() / image.width(), 0.0, 0.0, r.height() / image.height(), r.x(), r.y());
+
+    BLPattern pattern;
+    pattern.create(blDrawImage, BL_EXTEND_MODE_PAD, patternTransform);
+
+    blcompat::fill_rect(*m_blContext, BLRect(r.x(), r.y(), r.width(), r.height()), pattern);
 }
 
 QPaintEngine::Type PDFBLPaintEngine::type() const
@@ -1658,6 +1689,36 @@ BLCompOp PDFBLPaintEngine::getBLCompOp(QPainter::CompositionMode mode)
     }
 
     return BL_COMP_OP_SRC_OVER;
+}
+
+bool PDFBLPaintEngine::createSharedBLImage(BLImage& blImage, const QImage& image)
+{
+    Q_ASSERT(image.format() == QImage::Format_ARGB32_Premultiplied);
+
+    // Jakub Melka: the pixels are not copied, Blend2D holds a reference to the shared data
+    // of the image instead. Blend2D only reads the pixels, so the constant pixels can be
+    // passed to it (the nonconstant ones would detach the image and copy them). Whoever
+    // modifies the image later detaches it, so the pixels held by Blend2D never change.
+    QImage* heldImage = new QImage(image);
+    uchar* pixels = const_cast<uchar*>(heldImage->constBits());
+
+    if (blcompat::create_from_data(blImage, heldImage->width(), heldImage->height(), BL_FORMAT_PRGB32, pixels, heldImage->bytesPerLine(),
+                                   BL_DATA_ACCESS_READ, &PDFBLPaintEngine::destroySharedBLImage, heldImage) != BL_SUCCESS)
+    {
+        // Blend2D calls the destroy function only for an image, which has been created
+        delete heldImage;
+        return false;
+    }
+
+    return true;
+}
+
+void BL_CDECL PDFBLPaintEngine::destroySharedBLImage(void* impl, void* externalData, void* userData) noexcept
+{
+    Q_UNUSED(impl);
+    Q_UNUSED(externalData);
+
+    delete static_cast<QImage*>(userData);
 }
 
 void PDFBLPaintEngine::setPathFillMode(PolygonDrawMode mode, QPainterPath& path)
