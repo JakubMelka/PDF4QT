@@ -621,6 +621,15 @@ private slots:
     // Fixes of the review of the lambdas (S3, S9, S10, S11)
     void lambdasReviewFixes();
 
+    // Fixes of the code review of the library (Pdf4QtLibFluent/CODE_REVIEW.md: F01 - F04, F06, F09, F14)
+    void reviewNavigationRemoval();
+    void reviewClipboardLifetime();
+    void reviewShortcutSelectionLifetime();
+    void reviewPropertyEditorLifetime();
+    void reviewDelegateFilterLifetime();
+    void reviewSignatureDefaults();
+    void reviewDisplayLong();
+
 private:
     /// Returns the pixel of the area, which differs most from the background
     static QColor strongestInk(const QImage& image, const QRect& area, const QColor& background);
@@ -7679,7 +7688,7 @@ void FluentComponentsTest::signatureCard()
     QCOMPARE(Painter::getSignatureStatusText(Status::Valid), QStringLiteral("Valid"));
     QCOMPARE(Painter::getSignatureStatusText(Status::Warning), QStringLiteral("Needs attention"));
     QCOMPARE(Painter::getSignatureStatusText(Status::Invalid), QStringLiteral("Invalid"));
-    QCOMPARE(Painter::getSignatureStatusText(static_cast<Status>(9)), QStringLiteral("Valid"));
+    QCOMPARE(Painter::getSignatureStatusText(static_cast<Status>(9)), QStringLiteral("Invalid"));
 
     // The widget: the toggle expands and collapses it
     QWidget window;
@@ -7770,9 +7779,9 @@ void FluentComponentsTest::signatureCard()
     bare.setSigner(QStringLiteral("TSA"));
     QVERIFY(bare.getToggleButton()->isHidden());
     bare.setStatus(static_cast<Status>(42));
-    QCOMPARE(bare.getStatus(), Status::Valid);
+    QCOMPARE(bare.getStatus(), Status::Invalid);
     bare.setCertificates({ { QStringLiteral("A"), QString(), static_cast<Status>(-3), QString() } });
-    QCOMPARE(bare.getCertificates().front().status, Status::Valid);
+    QCOMPARE(bare.getCertificates().front().status, Status::Invalid);
     QVERIFY(!bare.getToggleButton()->isHidden());
     QCOMPARE(bare.heightForWidth(-50), Painter::getSignatureCardHeight(bare.getContent(), 0));
     delete bare.getToggleButton();
@@ -12344,6 +12353,148 @@ void FluentComponentsTest::lambdasReviewFixes()
         QCOMPARE(modes->getCurrentIndex(), static_cast<int>(pdf::PDFPageSelection::Mode::Range));
         QCOMPARE(modeSpy.count(), 1);
     }
+}
+
+void FluentComponentsTest::reviewNavigationRemoval()
+{
+    // F09: the indices are the positions of the items, also after the application
+    // has deleted an item (the identifiers of the button group collided)
+    pdf::PDFNavList list;
+    list.addItem(QStringLiteral("A"), QString());
+    list.addItem(QStringLiteral("B"), QString());
+    list.addItem(QStringLiteral("C"), QString());
+    QPointer<pdf::PDFNavItem> last = list.getItem(2);
+    delete list.getItem(1);
+    QCOMPARE(list.getItem(1), last.data());
+    QCOMPARE(list.addItem(QStringLiteral("D"), QString()), 2);
+
+    QSignalSpy changed(&list, &pdf::PDFNavList::currentIndexChanged);
+    list.setCurrentIndex(1);
+    QVERIFY(last->isChecked());
+    QCOMPARE(list.getCurrentIndex(), 1);
+    QCOMPARE(changed.last().at(0).toInt(), 1);
+    list.setCurrentIndex(2);
+    QVERIFY(!last->isChecked());
+    QVERIFY(list.getItem(2)->isChecked());
+    QCOMPARE(list.getCurrentIndex(), 2);
+}
+
+void FluentComponentsTest::reviewClipboardLifetime()
+{
+    // F02: the clipboard notifies its observers synchronously (offscreen, X11)
+    QClipboard* clipboard = QGuiApplication::clipboard();
+
+    // An observer deletes the delegate
+    {
+        clipboard->setText(QStringLiteral("before"));
+        QStandardItemModel model(1, 1);
+        model.setData(model.index(0, 0), QStringLiteral("font to copy"));
+        QPointer<pdf::PDFFontDelegate> delegate = new pdf::PDFFontDelegate();
+        connect(clipboard, &QClipboard::dataChanged, this, [delegate]() { delete delegate.data(); }, Qt::SingleShotConnection);
+        delegate->triggerAction(nullptr, model.index(0, 0), pdf::PDFFontDelegate::CopyAction);
+        QVERIFY(delegate.isNull());
+        QCOMPARE(clipboard->text(), QStringLiteral("font to copy"));
+    }
+
+    // An observer removes the copied row: no action of an invalid index
+    {
+        clipboard->setText(QStringLiteral("before"));
+        QStandardItemModel model(1, 1);
+        model.setData(model.index(0, 0), QStringLiteral("another font"));
+        pdf::PDFFontDelegate delegate;
+        QSignalSpy triggered(&delegate, &pdf::PDFFontDelegate::actionTriggered);
+        connect(clipboard, &QClipboard::dataChanged, &model, [&model]() { model.clear(); }, Qt::SingleShotConnection);
+        delegate.triggerAction(nullptr, model.index(0, 0), pdf::PDFFontDelegate::CopyAction);
+        QCOMPARE(model.rowCount(), 0);
+        QCOMPARE(triggered.count(), 0);
+    }
+}
+
+void FluentComponentsTest::reviewShortcutSelectionLifetime()
+{
+    // F03: a slot of currentChanged deletes the view before the recording starts
+    QStandardItemModel model(2, 1);
+    model.setData(model.index(0, 0), QStringLiteral("first"));
+    model.setData(model.index(1, 0), QStringLiteral("second"));
+    pdf::PDFShortcutDelegate delegate;
+    QPointer<pdf::PDFListView> view = new pdf::PDFListView();
+    view->setModel(&model);
+    view->setItemDelegate(&delegate);
+    view->setCurrentIndex(model.index(0, 0));
+    connect(view->selectionModel(), &QItemSelectionModel::currentChanged, this, [view]() { delete view.data(); }, Qt::SingleShotConnection);
+    delegate.triggerAction(view.data(), model.index(1, 0), pdf::PDFShortcutDelegate::RecordAction);
+    QVERIFY(view.isNull());
+    QCOMPARE(delegate.getRecordingCount(), 0);
+}
+
+void FluentComponentsTest::reviewPropertyEditorLifetime()
+{
+    // F04: a slot of the editor deletes the row, while the editing starts
+    for (const bool isSelection : { false, true })
+    {
+        QPointer<pdf::PDFPropertyRow> row = new pdf::PDFPropertyRow();
+        row->setEditable(true);
+        row->setValue(QStringLiteral("new value"));
+        if (isSelection)
+        {
+            connect(row->getEditor(), &QLineEdit::selectionChanged, this, [row]() { delete row.data(); });
+        }
+        else
+        {
+            connect(row->getEditor(), &QLineEdit::textChanged, this, [row]() { delete row.data(); });
+        }
+        QVERIFY(!row->startEditing());
+        QVERIFY(row.isNull());
+    }
+}
+
+/// Gives the test the event filter of the delegate
+class FluentComponentsTestFontDelegate : public pdf::PDFFontDelegate
+{
+public:
+    using pdf::PDFFontDelegate::eventFilter;
+};
+
+void FluentComponentsTest::reviewDelegateFilterLifetime()
+{
+    // F06: a slot of sizeHintChanged deletes the watched view, the filter stops the event
+    for (const bool isViewport : { false, true })
+    {
+        FluentComponentsTestFontDelegate delegate;
+        QPointer<pdf::PDFListView> view = new pdf::PDFListView();
+        delegate.watchView(view.data());
+        connect(&delegate, &QAbstractItemDelegate::sizeHintChanged, this, [view]() { delete view.data(); }, Qt::SingleShotConnection);
+        bool isHandled = false;
+        if (isViewport)
+        {
+            QResizeEvent event(view->viewport()->size() + QSize(7, 0), view->viewport()->size());
+            isHandled = delegate.eventFilter(view->viewport(), &event);
+        }
+        else
+        {
+            QEvent event(QEvent::FontChange);
+            isHandled = delegate.eventFilter(view.data(), &event);
+        }
+        QVERIFY(view.isNull());
+        QVERIFY(isHandled);
+    }
+}
+
+void FluentComponentsTest::reviewSignatureDefaults()
+{
+    // F01: a signature, whose verification has not been supplied, is not shown as valid
+    using Painter = pdf::PDFComponentPainter;
+    QCOMPARE(Painter::SignatureCard().status, Painter::SignatureStatus::Warning);
+    QCOMPARE(Painter::SignatureCertificate().status, Painter::SignatureStatus::Warning);
+    pdf::PDFSignatureCard card;
+    QCOMPARE(card.getStatus(), Painter::SignatureStatus::Warning);
+}
+
+void FluentComponentsTest::reviewDisplayLong()
+{
+    // F14: long is not cut to int (LP64)
+    const long value = std::numeric_limits<long>::max();
+    QCOMPARE(pdf::PDFRowDelegate::getDisplayString(QVariant::fromValue(value), QLocale::c()), QLocale::c().toString(static_cast<qlonglong>(value)));
 }
 
 QTEST_MAIN(FluentComponentsTest)

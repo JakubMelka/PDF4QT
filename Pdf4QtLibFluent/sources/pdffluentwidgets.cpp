@@ -1280,7 +1280,7 @@ void PDFSegmentedControl::onSegmentToggled(int id, bool isChecked)
 {
     if (isChecked)
     {
-        Q_EMIT currentIndexChanged(id);
+        Q_EMIT currentIndexChanged(static_cast<int>(m_group.buttons().indexOf(m_group.button(id))));
     }
 }
 
@@ -1302,19 +1302,19 @@ int PDFSegmentedControl::addSegment(const QString& text, const QString& iconName
     }
 
     const int index = getCount();
-    m_group.addButton(segment, index);
+    m_group.addButton(segment);
     // A layout deleted by the application lays nothing out
     if (m_layout)
     {
         m_layout->addWidget(segment, 1);
     }
 
+    updateGeometry();
     if (index == 0)
     {
         segment->setChecked(true);
     }
 
-    updateGeometry();
     return index;
 }
 
@@ -1352,12 +1352,12 @@ int PDFSegmentedControl::getCount() const
 
 int PDFSegmentedControl::getCurrentIndex() const
 {
-    return m_group.checkedId();
+    return static_cast<int>(m_group.buttons().indexOf(m_group.checkedButton()));
 }
 
 void PDFSegmentedControl::setCurrentIndex(int index)
 {
-    if (QAbstractButton* button = m_group.button(index))
+    if (QAbstractButton* button = m_group.buttons().value(index))
     {
         button->setChecked(true);
     }
@@ -1365,7 +1365,7 @@ void PDFSegmentedControl::setCurrentIndex(int index)
 
 void PDFSegmentedControl::setSegmentIconColor(int index, PDFThemeColors::Color color)
 {
-    if (QAbstractButton* button = m_group.button(index))
+    if (QAbstractButton* button = m_group.buttons().value(index))
     {
         PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::ICON_COLOR, static_cast<int>(color));
     }
@@ -1677,8 +1677,12 @@ void PDFDial::mousePressEvent(QMouseEvent* event)
     }
 
     event->accept();
+    const QPointer<PDFDial> guard(this);
     setSliderPosition(getValueFromPoint(event->position()));
-    setSliderDown(true);
+    if (guard)
+    {
+        setSliderDown(true);
+    }
 }
 
 void PDFDial::mouseMoveEvent(QMouseEvent* event)
@@ -1702,8 +1706,12 @@ void PDFDial::mouseReleaseEvent(QMouseEvent* event)
     }
 
     event->accept();
+    const QPointer<PDFDial> guard(this);
     setValue(getValueFromPoint(event->position()));
-    setSliderDown(false);
+    if (guard)
+    {
+        setSliderDown(false);
+    }
 }
 
 int PDFDial::getValueFromPoint(const QPointF& point) const

@@ -60,7 +60,8 @@ public:
     };
 
     /// Loads the fonts of the library into the font database of the application.
-    /// The call is repeated safely, the application must exist.
+    /// The call is repeated safely, a QGuiApplication must exist.
+    /// Call from the thread of the user interface only.
     /// \returns False, if a font has not been loaded
     static bool loadFonts();
 

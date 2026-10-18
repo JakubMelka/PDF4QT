@@ -40,6 +40,8 @@
 #include <QWidget>
 #include <QtMath>
 
+#include <limits>
+
 namespace pdf
 {
 
@@ -120,7 +122,8 @@ public:
         update();
 
         // Longer texts stay longer
-        m_hideTimer.start(10000 + 40 * qMax(0, static_cast<int>(m_title.size() + m_description.size()) - 100));
+        const qsizetype extraCharacters = qBound(qsizetype(0), m_title.size() + m_description.size() - 100, qsizetype((std::numeric_limits<int>::max() - 10000) / 40));
+        m_hideTimer.start(10000 + 40 * static_cast<int>(extraCharacters));
     }
 
     void hideTip()

@@ -1124,7 +1124,12 @@ void PDFPropertyRow::setEditable(bool isEditable)
         }
     }
 
+    QPointer<PDFPropertyRow> guard(this);
     updateActions();
+    if (!guard)
+    {
+        return;
+    }
     placeEditor();
     update();
 }
@@ -1146,30 +1151,55 @@ bool PDFPropertyRow::startEditing()
     m_isCopied = false;
     m_isEditing = true;
 
-    m_editor->setText(m_value);
+    QPointer<PDFPropertyRow> guard(this);
+    const QString value = m_value;
+    m_editor->setText(value);
+    if (!guard || !m_isEditing || !m_editor)
+    {
+        return false;
+    }
     m_editor->setAccessibleName(text());
     placeEditor();
+    if (!guard || !m_isEditing)
+    {
+        return false;
+    }
 
     // The field is shown before the buttons are hidden: the focus of the edit
     // button goes to the field, not out of the row
     updateActions();
+    if (!guard || !m_isEditing)
+    {
+        return false;
+    }
     if (m_editor)
     {
         m_editor->selectAll();
+        if (!guard || !m_isEditing || !m_editor)
+        {
+            return false;
+        }
         m_editor->setFocus(Qt::OtherFocusReason);
+    }
+    if (!guard || !m_isEditing)
+    {
+        return false;
     }
     update();
 
-    QPointer<PDFPropertyRow> guard(this);
     Q_EMIT editingChanged(true);
     return guard && m_isEditing;
 }
 
 void PDFPropertyRow::finishEditing()
 {
+    QPointer<PDFPropertyRow> guard(this);
     m_isEditing = false;
     updateActions();
-    update();
+    if (guard)
+    {
+        update();
+    }
 }
 
 void PDFPropertyRow::confirmEditing()
@@ -1293,13 +1323,14 @@ PDFComponentPainter::PropertyState PDFPropertyRow::getPropertyState() const
 
 void PDFPropertyRow::updateActions()
 {
+    QPointer<PDFPropertyRow> guard(this);
     const bool isEditing = m_isEditing;
     const bool showEdit = m_isEditable && !isEditing;
     const bool showCopy = !isEditing;
 
     struct Visibility
     {
-        QWidget* widget;
+        QPointer<QWidget> widget;
         bool isVisible;
     };
 
@@ -1316,7 +1347,7 @@ void PDFPropertyRow::updateActions()
     // which is hidden, goes to the widget of the state (the field, the edit or
     // the copy button) before the hiding, so it does not leave the row
     // (QWidget::hide gives the focus to the next widget of the window).
-    QWidget* focusWidget = QApplication::focusWidget();
+    QPointer<QWidget> focusWidget = QApplication::focusWidget();
     bool isFocusHidden = false;
     for (const Visibility& visibility : visibilities)
     {
@@ -1328,6 +1359,10 @@ void PDFPropertyRow::updateActions()
         if (visibility.isVisible)
         {
             visibility.widget->show();
+            if (!guard)
+            {
+                return;
+            }
         }
         else if (focusWidget && (focusWidget == visibility.widget || visibility.widget->isAncestorOf(focusWidget)))
         {
@@ -1341,6 +1376,10 @@ void PDFPropertyRow::updateActions()
         if (target && target->isVisible() && target->isEnabled())
         {
             target->setFocus(Qt::OtherFocusReason);
+            if (!guard)
+            {
+                return;
+            }
         }
     }
 
@@ -1349,6 +1388,10 @@ void PDFPropertyRow::updateActions()
         if (visibility.widget && !visibility.isVisible)
         {
             visibility.widget->hide();
+            if (!guard)
+            {
+                return;
+            }
         }
     }
 
@@ -1857,7 +1900,7 @@ void PDFNavList::onGroupIdToggled(int id, bool isChecked)
 {
     if (isChecked)
     {
-        Q_EMIT currentIndexChanged(id);
+        Q_EMIT currentIndexChanged(static_cast<int>(m_group.buttons().indexOf(m_group.button(id))));
     }
 }
 
@@ -1868,7 +1911,7 @@ int PDFNavList::addItem(const QString& text, const QString& iconName, const QStr
     item->installEventFilter(this);
 
     const int index = getCount();
-    m_group.addButton(item, index);
+    m_group.addButton(item);
 
     // The stretch stays the last item of the layout (a layout deleted by the
     // application lays nothing out)
@@ -1901,12 +1944,12 @@ int PDFNavList::getCount() const
 
 PDFNavItem* PDFNavList::getItem(int index) const
 {
-    return qobject_cast<PDFNavItem*>(m_group.button(index));
+    return qobject_cast<PDFNavItem*>(m_group.buttons().value(index));
 }
 
 int PDFNavList::getCurrentIndex() const
 {
-    return m_group.checkedId();
+    return static_cast<int>(m_group.buttons().indexOf(m_group.checkedButton()));
 }
 
 void PDFNavList::setCurrentIndex(int index)
@@ -1929,7 +1972,7 @@ bool PDFNavList::eventFilter(QObject* watched, QEvent* event)
         {
             // The arrows move the selection to the next enabled item, also into another group
             const int count = getCount();
-            const int current = m_group.id(item);
+            const int current = static_cast<int>(m_group.buttons().indexOf(item));
             int step = key == Qt::Key_Up || key == Qt::Key_End ? -1 : 1;
             int index = current;
 

@@ -121,6 +121,18 @@ public:
             return QByteArray();
         }
 
+        // Accept a resource base name only. Aliases such as "./check" would
+        // otherwise turn the finite resource cache into an unbounded cache.
+        for (const QChar character : name)
+        {
+            const ushort code = character.unicode();
+            if (!((code >= u'a' && code <= u'z') || (code >= u'A' && code <= u'Z') ||
+                  (code >= u'0' && code <= u'9') || code == u'-' || code == u'_'))
+            {
+                return QByteArray();
+            }
+        }
+
         QByteArray data;
         QFile file(getFileName(name));
         if (file.open(QIODevice::ReadOnly))
@@ -519,7 +531,7 @@ QPixmap PDFThemeIcons::getPixmap(const QString& name, const QSizeF& size, qreal 
 
     // The same size in pixels has other strokes at another scale of the screen
     const QString key = QStringLiteral("pdf4qtfluent/icon/%1/%2x%3@%4/%5").arg(name).arg(pixelSize.width()).arg(pixelSize.height())
-                                                                          .arg(qRound(devicePixelRatio * 100.0)).arg(color.rgba(), 8, 16, QLatin1Char('0'));
+                                                                          .arg(devicePixelRatio, 0, 'g', 17).arg(color.rgba(), 8, 16, QLatin1Char('0'));
 
     QPixmap pixmap;
     if (QPixmapCache::find(key, &pixmap))
@@ -581,7 +593,8 @@ QPixmap PDFThemeIcons::getFillPixmap(const QString& name, const QSizeF& size, qr
     {
         return QPixmap();
     }
-    const QString key = QStringLiteral("pdf4qtfluent/icon-fill/%1/%2x%3/%4").arg(name).arg(pixelSize.width()).arg(pixelSize.height()).arg(color.rgba(), 8, 16, QLatin1Char('0'));
+    const QString key = QStringLiteral("pdf4qtfluent/icon-fill/%1/%2x%3@%4/%5").arg(name).arg(pixelSize.width()).arg(pixelSize.height())
+                                                                              .arg(devicePixelRatio, 0, 'g', 17).arg(color.rgba(), 8, 16, QLatin1Char('0'));
 
     QPixmap pixmap;
     if (QPixmapCache::find(key, &pixmap))

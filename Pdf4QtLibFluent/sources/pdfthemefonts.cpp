@@ -23,7 +23,7 @@
 #include "pdfthemefonts.h"
 
 #include <QFontDatabase>
-#include <QCoreApplication>
+#include <QGuiApplication>
 
 namespace pdf
 {
@@ -54,7 +54,7 @@ bool PDFThemeFonts::loadFonts()
         return PDFThemeFontsHelper::s_state == PDFThemeFontsHelper::State::Loaded;
     }
 
-    if (!QCoreApplication::instance())
+    if (!qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
     {
         // Font database needs the application, try it again later
         return false;

@@ -780,6 +780,8 @@ protected:
 
 private:
     QMargins getPanelMargins() const;
+    /// Size of the window with the panel and its shadow margins (sizeHint)
+    QSize getPaletteSize() const;
     /// Creates or updates the swatches
     /// \returns False, if the palette has been deleted meanwhile (by a slot of toggled of a swatch)
     bool rebuild();

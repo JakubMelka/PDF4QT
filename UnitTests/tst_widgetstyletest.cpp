@@ -88,6 +88,10 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <QPixmapCache>
+#include <QProcess>
+
+#include <cstdlib>
 #include <limits>
 #include <memory>
 
@@ -96,6 +100,11 @@ using Color = pdf::PDFThemeColors::Color;
 class WidgetStyleTest : public QObject
 {
     Q_OBJECT
+
+public:
+    /// Called by QTEST_MAIN before the application is created: the process started
+    /// by reviewFontsWithoutGuiApplication loads the fonts with a QCoreApplication only
+    static void initMain();
 
 private slots:
     void initTestCase();
@@ -160,7 +169,16 @@ private slots:
     // Fixes of the review of the lambdas (S2, S12): bounded sizes and caches of the painters
     void styleReviewFixes();
 
+    // Fixes of the code review of the library (Pdf4QtLibFluent/CODE_REVIEW.md: F05, F07, F09, F10, F12, F13)
+    void reviewFontsWithoutGuiApplication();
+    void reviewIconCacheKeys();
+    void reviewSegmentRemoval();
+    void reviewDialDeletedBySignal();
+    void reviewClassFontsRestored();
+
 private:
+    static constexpr const char* CORE_FONTS_VARIABLE = "PDF4QT_WIDGET_STYLE_TEST_CORE_FONTS";
+
     static QImage render(const std::function<void(QPainter&)>& paint, QSize size, qreal scale = 1.0);
     static QColor pixel(const QImage& image, qreal x, qreal y);
     static bool isNear(const QColor& first, const QColor& second, int tolerance = 2);
@@ -3460,6 +3478,162 @@ void WidgetStyleTest::styleReviewFixes()
     }
     QVERIFY(pdf::PDFThemeIcons::hasIcon(QStringLiteral("save")));
     QVERIFY(!pdf::PDFThemeIcons::getPixmap(QStringLiteral("save"), QSizeF(24.0, 24.0), 2.0, black).isNull());
+}
+
+void WidgetStyleTest::initMain()
+{
+    if (!qEnvironmentVariableIsSet(CORE_FONTS_VARIABLE))
+    {
+        return;
+    }
+
+    int exitCode = 0;
+    {
+        int argc = 1;
+        char name[] = "UnitTestsWidgetStyle";
+        char* argv[] = { name, nullptr };
+        QCoreApplication application(argc, argv);
+
+        // The font database needs a QGuiApplication (Qt ends the process by qFatal
+        // without it): the fonts are not loaded and they can be loaded later
+        exitCode = pdf::PDFThemeFonts::loadFonts() ? 1 : 0;
+    }
+    std::exit(exitCode);
+}
+
+void WidgetStyleTest::reviewFontsWithoutGuiApplication()
+{
+    // F10: the fonts are not loaded into the font database without a QGuiApplication
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QString::fromLatin1(CORE_FONTS_VARIABLE), QStringLiteral("1"));
+    QProcess process;
+    process.setProcessEnvironment(environment);
+    process.start(QCoreApplication::applicationFilePath(), QStringList());
+    QVERIFY(process.waitForFinished());
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 0);
+}
+
+void WidgetStyleTest::reviewIconCacheKeys()
+{
+    // F12: the same size in pixels of another ratio of the device is another pixmap
+    QPixmapCache::clear();
+    const QColor color(Qt::red);
+    const QPixmap first = pdf::PDFThemeIcons::getFillPixmap(QStringLiteral("lock"), QSizeF(16, 16), 2.0, color);
+    const QPixmap second = pdf::PDFThemeIcons::getFillPixmap(QStringLiteral("lock"), QSizeF(32, 32), 1.0, color);
+    QVERIFY(!first.isNull());
+    QVERIFY(!second.isNull());
+    QCOMPARE(first.size(), second.size());
+    QCOMPARE(first.devicePixelRatio(), 2.0);
+    QCOMPARE(second.devicePixelRatio(), 1.0);
+
+    // Two close ratios collided after the rounding to hundredths
+    const QPixmap normal = pdf::PDFThemeIcons::getPixmap(QStringLiteral("lock"), QSizeF(16, 16), 1.0, color);
+    const QPixmap fractional = pdf::PDFThemeIcons::getPixmap(QStringLiteral("lock"), QSizeF(16.0 / 1.001, 16.0 / 1.001), 1.001, color);
+    QCOMPARE(normal.size(), fractional.size());
+    QCOMPARE(fractional.devicePixelRatio(), 1.001);
+
+    // F07: an alias of the name of an icon ("./lock") is no icon, the caches do not grow
+    QVERIFY(pdf::PDFThemeIcons::hasIcon(QStringLiteral("lock")));
+    const qsizetype count = pdf::PDFThemeIcons::getCachedRendererCount();
+    for (int i = 1; i <= 300; ++i)
+    {
+        const QString alias = QStringLiteral("./").repeated(i) + QStringLiteral("lock");
+        QVERIFY(!pdf::PDFThemeIcons::hasIcon(alias));
+    }
+    QCOMPARE(pdf::PDFThemeIcons::getCachedRendererCount(), count);
+}
+
+void WidgetStyleTest::reviewSegmentRemoval()
+{
+    // F09: the indices are the positions of the segments, also after the application
+    // has deleted a segment (the identifiers of the button group collided)
+    pdf::PDFSegmentedControl control;
+    control.addSegment(QStringLiteral("A"));
+    control.addSegment(QStringLiteral("B"));
+    control.addSegment(QStringLiteral("C"));
+    const QList<QAbstractButton*> buttons = control.findChildren<QAbstractButton*>(Qt::FindDirectChildrenOnly);
+    QCOMPARE(buttons.size(), 3);
+    delete buttons.at(1);
+    QCOMPARE(control.addSegment(QStringLiteral("D")), 2);
+
+    QSignalSpy changed(&control, &pdf::PDFSegmentedControl::currentIndexChanged);
+    control.setCurrentIndex(1);
+    QVERIFY(buttons.at(2)->isChecked());
+    QCOMPARE(control.getCurrentIndex(), 1);
+    QCOMPARE(changed.last().at(0).toInt(), 1);
+    control.setCurrentIndex(2);
+    QCOMPARE(control.getCurrentIndex(), 2);
+    QVERIFY(!buttons.at(2)->isChecked());
+}
+
+/// Gives the test the mouse handlers of the dial
+class WidgetStyleTestDial : public pdf::PDFDial
+{
+public:
+    using pdf::PDFDial::mousePressEvent;
+    using pdf::PDFDial::mouseReleaseEvent;
+};
+
+void WidgetStyleTest::reviewDialDeletedBySignal()
+{
+    // F05: a slot of valueChanged deletes the dial during the press and the release
+    for (const bool isPress : { true, false })
+    {
+        QPointer<WidgetStyleTestDial> dial = new WidgetStyleTestDial();
+        dial->resize(64, 64);
+        dial->setRange(0, 100);
+        connect(dial, &QDial::valueChanged, this, [dial]() { delete dial.data(); });
+        QMouseEvent event(isPress ? QEvent::MouseButtonPress : QEvent::MouseButtonRelease, QPointF(32, 0), QPointF(32, 0),
+                          Qt::LeftButton, isPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        if (isPress)
+        {
+            dial->mousePressEvent(&event);
+        }
+        else
+        {
+            dial->mouseReleaseEvent(&event);
+        }
+        QVERIFY(dial.isNull());
+    }
+}
+
+void WidgetStyleTest::reviewClassFontsRestored()
+{
+    // F13: unpolish gives the classes the fonts, which the application has set before
+    // polish, not the font of the application. The style is unpolished first, so the
+    // fonts of the application without the style are restored at the end.
+    static constexpr const char* classNames[] = { "QPushButton", "QToolButton", "QMenu", "QMenuBar", "QHeaderView", "QStatusBar", "QTipLabel", "QMessageBox", "QTabBar" };
+    m_style->unpolish(qApp);
+    const QFont originalFont = QApplication::font();
+    QList<QFont> originalClassFonts;
+    for (const char* className : classNames)
+    {
+        originalClassFonts.push_back(QApplication::font(className));
+    }
+
+    QApplication::setFont(QFont(QStringLiteral("Arial"), 17));
+    QApplication::setFont(QFont(QStringLiteral("Courier New"), 19), "QPushButton");
+    QApplication::setFont(QFont(QStringLiteral("Arial"), 11), "QHeaderView");
+    const QFont general = QApplication::font();
+    const QFont button = QApplication::font("QPushButton");
+    const QFont header = QApplication::font("QHeaderView");
+
+    m_style->polish(qApp);
+    QVERIFY(QApplication::font("QPushButton") != button);
+    m_style->unpolish(qApp);
+    QCOMPARE(QApplication::font(), general);
+    QCOMPARE(QApplication::font("QPushButton"), button);
+    QCOMPARE(QApplication::font("QHeaderView"), header);
+
+    // The font of the application without a class removes the fonts of the classes
+    QApplication::setFont(originalFont);
+    for (qsizetype i = 0; i < originalClassFonts.size(); ++i)
+    {
+        QApplication::setFont(originalClassFonts[i], classNames[i]);
+    }
+    m_style->polish(qApp);
+    QVERIFY(pdf::PDFWidgetStyle::isActive());
 }
 
 QTEST_MAIN(WidgetStyleTest)

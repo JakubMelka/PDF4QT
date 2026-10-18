@@ -40,6 +40,7 @@
 #include <QStyleOption>
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 class QFocusFrame;
@@ -369,6 +370,7 @@ private:
     QPalette m_savedPalette;
     QPalette m_savedToolTipPalette;
     QFont m_savedFont;
+    std::vector<std::pair<const char*, QFont>> m_savedClassFonts;
     bool m_savedEffects[6] = { };
 
     /// Default item editor factory installed by the style (owned by Qt, only compared)

@@ -692,6 +692,11 @@ void PDFWidgetStyleImpl::polish(QApplication* application)
     m_savedPalette = QApplication::palette();
     m_savedToolTipPalette = QToolTip::palette();
     m_savedFont = QApplication::font();
+    m_savedClassFonts.clear();
+    for (const char* className : { "QPushButton", "QToolButton", "QMenu", "QMenuBar", "QHeaderView", "QStatusBar", "QTipLabel", "QMessageBox", "QTabBar" })
+    {
+        m_savedClassFonts.emplace_back(className, QApplication::font(className));
+    }
 
     static constexpr Qt::UIEffect effects[] = { Qt::UI_AnimateMenu, Qt::UI_FadeMenu, Qt::UI_AnimateCombo, Qt::UI_AnimateTooltip, Qt::UI_FadeTooltip, Qt::UI_AnimateToolBox };
     for (size_t i = 0; i < std::size(effects); ++i)
@@ -778,10 +783,11 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     m_paletteGuard = false;
 
     QApplication::setFont(m_savedFont);
-    for (const char* className : { "QPushButton", "QToolButton", "QMenu", "QMenuBar", "QHeaderView", "QStatusBar", "QTipLabel", "QMessageBox", "QTabBar" })
+    for (const auto& [className, font] : m_savedClassFonts)
     {
-        QApplication::setFont(m_savedFont, className);
+        QApplication::setFont(font, className);
     }
+    m_savedClassFonts.clear();
 
     // The factory of Qt is used again (Qt deletes the installed factory), unless
     // the application has replaced it meanwhile (its factory could even have

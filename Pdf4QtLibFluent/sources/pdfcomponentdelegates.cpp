@@ -930,9 +930,9 @@ QString PDFRowDelegate::getDisplayString(const QVariant& value, const QLocale& l
 
         case QMetaType::Int:
         case QMetaType::Short:
-        case QMetaType::Long:
             return locale.toString(value.toInt());
 
+        case QMetaType::Long:
         case QMetaType::LongLong:
             return locale.toString(value.toLongLong());
 
@@ -1248,12 +1248,16 @@ bool PDFRowDelegate::eventFilter(QObject* watched, QEvent* event)
 
             if (watched == entry.view.data())
             {
-                return handleViewEvent(entry.view.data(), event);
+                QPointer<QObject> guard(watched);
+                const bool handled = handleViewEvent(entry.view.data(), event);
+                return !guard || handled;
             }
 
             if (watched == entry.viewport.data())
             {
-                return handleViewportEvent(entry.view.data(), event);
+                QPointer<QObject> guard(watched);
+                const bool handled = handleViewportEvent(entry.view.data(), event);
+                return !guard || handled;
             }
         }
     }
@@ -2002,6 +2006,9 @@ QList<PDFRowDelegate::Action> PDFFontDelegate::getActions(const QStyleOptionView
 
 void PDFFontDelegate::performAction(QAbstractItemView* view, const QModelIndex& index, int action)
 {
+    const QPointer<PDFFontDelegate> self(this);
+    const QPointer<QAbstractItemView> viewPointer(view);
+    const QPersistentModelIndex persistentIndex(index);
     if (action == CopyAction)
     {
         if (QClipboard* clipboard = QGuiApplication::clipboard())
@@ -2010,7 +2017,11 @@ void PDFFontDelegate::performAction(QAbstractItemView* view, const QModelIndex& 
         }
     }
 
-    BaseClass::performAction(view, index, action);
+    // Clipboard observers may delete the delegate, the view or the model.
+    if (self && persistentIndex.isValid())
+    {
+        BaseClass::performAction(viewPointer.data(), persistentIndex, action);
+    }
 }
 
 void PDFFontDelegate::paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const
@@ -2598,18 +2609,23 @@ bool PDFShortcutDelegate::startRecording(QAbstractItemView* view, const QModelIn
         return false;
     }
 
+    const QPointer<PDFShortcutDelegate> self(this);
+    const QPointer<QAbstractItemView> viewPointer(view);
+    const QPersistentModelIndex persistentIndex(index);
     if (view->currentIndex() != index && view->selectionModel())
     {
         view->selectionModel()->setCurrentIndex(index, QItemSelectionModel::NoUpdate);
+        if (!self || !viewPointer || !persistentIndex.isValid() || persistentIndex.model() != viewPointer->model())
+        {
+            return false;
+        }
     }
 
     // The view refuses the editor in some states (another editor is being
     // closed, the view is not editable): the recording has started only, when
     // the editor exists
-    const QPointer<QAbstractItemView> viewPointer(view);
-    const QPersistentModelIndex persistentIndex(index);
-    view->edit(index);
-    return viewPointer && persistentIndex.isValid() && isRecording(viewPointer.data(), persistentIndex);
+    viewPointer->edit(persistentIndex);
+    return self && viewPointer && persistentIndex.isValid() && isRecording(viewPointer.data(), persistentIndex);
 }
 
 QWidget* PDFShortcutDelegate::createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const
@@ -2691,15 +2707,16 @@ void PDFShortcutDelegate::closeEditorOfView(QAbstractItemView* view, PDFShortcut
         return;
     }
 
+    const QPointer<QAbstractItemView> viewPointer(view);
     const QPointer<PDFShortcutRecorder> recorderPointer(recorder);
     if (isCommitted)
     {
         QMetaObject::invokeMethod(view, "commitData", Qt::DirectConnection, Q_ARG(QWidget*, recorder));
     }
-    if (view && recorderPointer)
+    if (viewPointer && recorderPointer)
     {
         const QAbstractItemDelegate::EndEditHint hint = isCommitted ? QAbstractItemDelegate::NoHint : QAbstractItemDelegate::RevertModelCache;
-        QMetaObject::invokeMethod(view, "closeEditor", Qt::DirectConnection, Q_ARG(QWidget*, recorderPointer.data()), Q_ARG(QAbstractItemDelegate::EndEditHint, hint));
+        QMetaObject::invokeMethod(viewPointer.data(), "closeEditor", Qt::DirectConnection, Q_ARG(QWidget*, recorderPointer.data()), Q_ARG(QAbstractItemDelegate::EndEditHint, hint));
     }
 }
 

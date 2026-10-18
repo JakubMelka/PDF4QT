@@ -52,6 +52,8 @@ public:
     const std::vector<PDFThemeColors>& getThemes() const { return m_themes; }
 
     /// Returns the registered theme with the given identifier, or nullptr
+    /// The pointer borrows storage from the registry; registerTheme can invalidate it.
+    /// Keep the id or a value copy when registering further themes.
     const PDFThemeColors* findTheme(const QString& id) const;
 
     /// Registers a theme, a theme with the same identifier is replaced.

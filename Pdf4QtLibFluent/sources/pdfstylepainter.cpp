@@ -325,7 +325,7 @@ void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii&
     // The sizes are bounded before they are converted to integers: a huge or a
     // non-finite blur, rectangle or ratio of the device draws no shadow
     constexpr qreal MAX_PIXEL_EXTENT = 8192.0;
-    if (!qIsFinite(blur) || qAbs(blur) > MAX_PIXEL_EXTENT)
+    if (!qIsFinite(blur) || blur < 0.0 || blur > MAX_PIXEL_EXTENT)
     {
         return;
     }
@@ -347,12 +347,16 @@ void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii&
     const QString key = QStringLiteral("pdf4qtfluent/shadow/%1x%2@%9/%3/%4/%5/%6/%7/%8")
             .arg(pixelSize.width()).arg(pixelSize.height())
             .arg(radii.topLeft).arg(radii.topRight).arg(radii.bottomRight).arg(radii.bottomLeft)
-            .arg(blur).arg(color.rgba(), 8, 16, QLatin1Char('0')).arg(qRound(devicePixelRatio * 100.0));
+            .arg(blur).arg(color.rgba(), 8, 16, QLatin1Char('0')).arg(devicePixelRatio, 0, 'g', 17);
 
     QPixmap pixmap;
     if (!QPixmapCache::find(key, &pixmap))
     {
         QImage alpha(pixelSize, QImage::Format_Alpha8);
+        if (alpha.isNull())
+        {
+            return;
+        }
         alpha.fill(0);
 
         {
@@ -368,6 +372,10 @@ void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii&
         PDFStylePainterHelper::blur(alpha, blur * devicePixelRatio / 2.0);
 
         QImage image(pixelSize, QImage::Format_ARGB32_Premultiplied);
+        if (image.isNull())
+        {
+            return;
+        }
         image.fill(Qt::transparent);
 
         const int red = color.red();

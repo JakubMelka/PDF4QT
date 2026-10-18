@@ -2819,7 +2819,8 @@ bool PDFColorPalette::rebuild()
 
     if (isWindow())
     {
-        const QSize size = sizeHint();
+        // Not the virtual sizeHint: rebuild is called also from the constructor
+        const QSize size = getPaletteSize();
         if (size != this->size())
         {
             resize(size);
@@ -3158,9 +3159,13 @@ void PDFColorPalette::popup(QWidget* anchor)
             }
         }
     }
-    if (!target && !getVisibleSwatches(true).isEmpty())
+    if (!target)
     {
-        target = getVisibleSwatches(true).front();
+        const QList<PDFColorSwatch*> recentSwatches = getVisibleSwatches(true);
+        if (!recentSwatches.isEmpty())
+        {
+            target = recentSwatches.front();
+        }
     }
     if (!target)
     {
@@ -3200,6 +3205,11 @@ PDFComponentPainter::ColorPalette PDFColorPalette::getContent() const
 }
 
 QSize PDFColorPalette::sizeHint() const
+{
+    return getPaletteSize();
+}
+
+QSize PDFColorPalette::getPaletteSize() const
 {
     return PDFComponentPainter::getColorPaletteSize(getContent()).grownBy(getPanelMargins());
 }

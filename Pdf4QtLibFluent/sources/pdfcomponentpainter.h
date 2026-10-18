@@ -1320,7 +1320,7 @@ public:
     {
         QString name;
         QString info;
-        SignatureStatus status = SignatureStatus::Valid;
+        SignatureStatus status = SignatureStatus::Warning; ///< Verification has not been supplied yet
         QString linkText;
     };
 
@@ -1333,7 +1333,7 @@ public:
         QString signer;
         QString meta;
         QString summary;
-        SignatureStatus status = SignatureStatus::Valid;
+        SignatureStatus status = SignatureStatus::Warning; ///< Verification has not been supplied yet
         bool expanded = false;
         bool toggleVisible = true;      ///< The expand button is shown (its place is kept)
         QList<SignatureDetail> details;
@@ -1350,7 +1350,7 @@ public:
         int height = 0;
     };
 
-    /// Returns the valid status (an invalid value is Valid)
+    /// Returns a known status; unknown verification states are Invalid.
     static SignatureStatus normalized(SignatureStatus status);
 
     /// Returns the text of the status tag ("Valid", "Needs attention", "Invalid", translated)

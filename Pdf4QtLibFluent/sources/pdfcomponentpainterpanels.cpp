@@ -997,7 +997,8 @@ PDFComponentPainter::SignatureStatus PDFComponentPainter::normalized(SignatureSt
             return status;
     }
 
-    return SignatureStatus::Valid;
+    // An unknown verification result must never be presented as a valid signature.
+    return SignatureStatus::Invalid;
 }
 
 QString PDFComponentPainter::getSignatureStatusText(SignatureStatus status)
