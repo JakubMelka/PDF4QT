@@ -26,6 +26,7 @@
 // pdfcomponentdelegates.h draw the items of their views by these functions.
 
 #include "pdfcomponentpainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 
@@ -538,7 +539,7 @@ void PDFComponentPainter::paintThumbnailItem(QPainter* painter, const QRectF& re
     const bool isSelected = Helper::isSelected(state);
     const bool isEnabled = state.isEnabled();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, true);
@@ -556,10 +557,9 @@ void PDFComponentPainter::paintThumbnailItem(QPainter* painter, const QRectF& re
 
     if (!item.pixmap.isNull())
     {
-        painter->save();
+        const PDFStylePainterGuard innerGuard(painter);
         painter->setClipPath(PDFStylePainter::roundedPath(page, pageRadii), Qt::IntersectClip);
         drawScaledPixmap(painter, page, item.pixmap);
-        painter->restore();
     }
     PDFStylePainter::strokeOutside(painter, page, pageRadii, PDFStylePainter::color(borderColor), borderWidth);
 
@@ -587,8 +587,6 @@ void PDFComponentPainter::paintThumbnailItem(QPainter* painter, const QRectF& re
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getBookmarkRowSize(const BookmarkRow& row)
@@ -618,7 +616,7 @@ void PDFComponentPainter::paintBookmarkRow(QPainter* painter, const QRectF& rect
     const Helper::Radii radii(Helper::ROW_RADIUS);
     const bool isSelected = Helper::isSelected(state);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, true);
@@ -651,8 +649,6 @@ void PDFComponentPainter::paintBookmarkRow(QPainter* painter, const QRectF& rect
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 int PDFComponentPainter::getNoteRowHeight(const NoteRow& row, int width)
@@ -691,7 +687,7 @@ void PDFComponentPainter::paintNoteRow(QPainter* painter, const QRectF& rect, co
     const Helper::Radii radii(Helper::ROW_RADIUS);
     const bool isSelected = Helper::isSelected(state);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, true);
@@ -732,8 +728,6 @@ void PDFComponentPainter::paintNoteRow(QPainter* painter, const QRectF& rect, co
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getAttachmentRowSize(const AttachmentRow& row)
@@ -777,7 +771,7 @@ void PDFComponentPainter::paintAttachmentRow(QPainter* painter, const QRectF& re
     const Helper::Radii radii(Helper::ROW_RADIUS);
     const bool isSelected = Helper::isSelected(state);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, true);
@@ -813,8 +807,6 @@ void PDFComponentPainter::paintAttachmentRow(QPainter* painter, const QRectF& re
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 int PDFComponentPainter::getSearchResultRowHeight(const SearchResultRow& row, int width)
@@ -856,7 +848,7 @@ void PDFComponentPainter::paintSearchResultRow(QPainter* painter, const QRectF& 
     const Helper::Radii radii(Helper::ROW_RADIUS);
     const bool isSelected = Helper::isSelected(state);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, true);
@@ -874,19 +866,16 @@ void PDFComponentPainter::paintSearchResultRow(QPainter* painter, const QRectF& 
                               state.direction, Helper::text(state, Color::TextPrimary)) > 0)
     {
         const QRectF snippetRect = state.visualRect(rect, QRectF(left, top + Helper::LINE_11 + Helper::SEARCH_GAP, width, 1.0));
-        painter->save();
+        const PDFStylePainterGuard innerGuard(painter);
         painter->setRenderHint(QPainter::TextAntialiasing, true);
         painter->setPen(PDFStylePainter::color(Helper::text(state, Color::TextSecondary)));
         layout.draw(painter, snippetRect.topLeft());
-        painter->restore();
     }
 
     if (state.hasFocusRing())
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 QString PDFComponentPainter::getFontStatusText(bool embedded)
@@ -937,7 +926,7 @@ void PDFComponentPainter::paintFontRow(QPainter* painter, const QRectF& rect, co
     const DirectionGuard directionGuard(painter, state);
     const Helper::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, false);
@@ -983,8 +972,6 @@ void PDFComponentPainter::paintFontRow(QPainter* painter, const QRectF& rect, co
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::RecentItemType PDFComponentPainter::normalized(RecentItemType type)
@@ -1052,7 +1039,7 @@ void PDFComponentPainter::paintRecentItemRow(QPainter* painter, const QRectF& re
     const Helper::Radii radii(Helper::ROW_RADIUS);
     const RecentItemType type = normalized(row.type);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, state, false);
@@ -1116,8 +1103,6 @@ void PDFComponentPainter::paintRecentItemRow(QPainter* painter, const QRectF& re
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 QString PDFComponentPainter::getAddShortcutText()
@@ -1175,7 +1160,7 @@ void PDFComponentPainter::paintShortcutRow(QPainter* painter, const QRectF& rect
     // The recording row is drawn as Default: the ring belongs to the cap
     const State rowState = isRecording ? State(state.flags & QStyle::State_Enabled, state.direction) : state;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillRow(painter, rect, radii, rowState, false);
@@ -1211,13 +1196,14 @@ void PDFComponentPainter::paintShortcutRow(QPainter* painter, const QRectF& rect
         else
         {
             // Dashed border of 1 px inside, dashes 3 / 3, no fill
-            painter->save();
-            QPen pen(PDFStylePainter::color(Color::BorderStrong), 1.0, Qt::CustomDashLine, Qt::FlatCap, Qt::MiterJoin);
-            pen.setDashPattern({ Helper::SHORTCUT_DASH, Helper::SHORTCUT_DASH });
-            painter->setPen(pen);
-            painter->setBrush(Qt::NoBrush);
-            painter->drawPath(PDFStylePainter::roundedPath(keyRect.adjusted(0.5, 0.5, -0.5, -0.5), capRadii.adjusted(0.5)));
-            painter->restore();
+            {
+                const PDFStylePainterGuard innerGuard(painter);
+                QPen pen(PDFStylePainter::color(Color::BorderStrong), 1.0, Qt::CustomDashLine, Qt::FlatCap, Qt::MiterJoin);
+                pen.setDashPattern({ Helper::SHORTCUT_DASH, Helper::SHORTCUT_DASH });
+                painter->setPen(pen);
+                painter->setBrush(Qt::NoBrush);
+                painter->drawPath(PDFStylePainter::roundedPath(keyRect.adjusted(0.5, 0.5, -0.5, -0.5), capRadii.adjusted(0.5)));
+            }
             PDFStylePainter::text(painter, capText, Qt::AlignCenter | Qt::TextSingleLine, elidedText(getAddShortcutText(), capFont, capText.width()), capFont,
                                   PDFStylePainter::color(Helper::text(state, Color::TextMuted)));
         }
@@ -1234,8 +1220,6 @@ void PDFComponentPainter::paintShortcutRow(QPainter* painter, const QRectF& rect
     {
         paintFocusRingInside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 }   // namespace pdf

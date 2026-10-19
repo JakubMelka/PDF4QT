@@ -22,6 +22,7 @@
 
 #include "pdfwidgetstyleimpl.h"
 #include "pdfcomponentpainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemeiconengine.h"
 
 #include <QPainter>
@@ -929,10 +930,9 @@ void PDFWidgetStyleTabs::drawTabShape(const QStyleOptionTab* option, QPainter* p
                 // Selected tab continues to the toolbar below, it has no bottom border
                 PDFStylePainter::fill(painter, shape, radii, Color::BgSubtle);
 
-                painter->save();
+                const PDFStylePainterGuard guard(painter);
                 painter->setClipRect(shape.adjusted(0.0, 0.0, 0.0, -1.0), Qt::IntersectClip);
                 PDFStylePainter::strokeInside(painter, shape.adjusted(0.0, 0.0, 0.0, 2.0), radii, Color::BorderDefault, 1.0);
-                painter->restore();
             }
             else
             {

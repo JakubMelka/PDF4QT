@@ -32,6 +32,7 @@
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfcomponentwindow.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
 #include "pdfpreviewpainter.h"
@@ -490,7 +491,7 @@ QWidget* GalleryPages::createHomeSample(QWidget* parent)
     topBar->setProperty(Properties::DOCUMENT_TABS, true);
     topBar->setFixedHeight(38);
     QHBoxLayout* topBarLayout = new QHBoxLayout(topBar);
-    topBarLayout->setContentsMargins(16, 0, 16, 0);
+    topBarLayout->setContentsMargins(16, 0, 0, 0);
     topBarLayout->setSpacing(0);
     pdf::PDFDocumentTabBar* tabs = new pdf::PDFDocumentTabBar(topBar);
     tabs->setAccessibleName(QStringLiteral("Documents"));
@@ -508,7 +509,15 @@ QWidget* GalleryPages::createHomeSample(QWidget* parent)
     newTab->setAccessibleName(QStringLiteral("New tab"));
     newTab->setToolTip(QStringLiteral("New tab"));
     topBarLayout->addWidget(newTab, 0, Qt::AlignBottom);
+
+    // The free part of the bar drags the window: the bar keeps the right
+    // padding of 200 (16 + 46 free + the controls of 138), the window controls
+    // touch the right edge of the window
     topBarLayout->addStretch(1);
+    topBarLayout->addSpacing(16 + 46);
+    pdf::PDFWindowControls* windowControls = new pdf::PDFWindowControls(pdf::PDFWindowControls::Platform::Windows, topBar);
+    windowControls->setActivity(pdf::PDFWindowControls::Activity::Active);
+    topBarLayout->addWidget(windowControls, 0, Qt::AlignTop);
     applicationLayout->addWidget(topBar);
 
     QWidget* body = new QWidget(application);

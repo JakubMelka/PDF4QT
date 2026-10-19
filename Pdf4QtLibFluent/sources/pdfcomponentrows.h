@@ -725,10 +725,16 @@ public:
     int getCount() const;
     PDFNavItem* getItem(int index) const;
 
+    /// Index of the current item, -1 when no item is current
     int getCurrentIndex() const;
+
+    /// Makes the item current. A negative index leaves the navigation without
+    /// a current item (a page, which is not in the navigation, as Page Not
+    /// Found); an index beyond the items does nothing.
     void setCurrentIndex(int index);
 
 Q_SIGNALS:
+    /// The current item has changed (-1: no item is current)
     void currentIndexChanged(int index);
 
 protected:

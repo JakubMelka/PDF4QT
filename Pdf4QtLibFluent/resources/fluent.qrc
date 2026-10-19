@@ -77,6 +77,7 @@
         <file>icons/csv.svg</file>
         <file>icons/cursor.svg</file>
         <file>icons/cuts-clear.svg</file>
+        <file>icons/database.svg</file>
         <file>icons/densitometer.svg</file>
         <file>icons/deskew.svg</file>
         <file>icons/destination.svg</file>
@@ -249,6 +250,7 @@
         <file>icons/plus.svg</file>
         <file>icons/polygon.svg</file>
         <file>icons/polyline.svg</file>
+        <file>icons/portable.svg</file>
         <file>icons/power.svg</file>
         <file>icons/presentation.svg</file>
         <file>icons/print-draft.svg</file>
@@ -306,6 +308,7 @@
         <file>icons/sign-certificate.svg</file>
         <file>icons/signature-field.svg</file>
         <file>icons/signature.svg</file>
+        <file>icons/signpost.svg</file>
         <file>icons/skip.svg</file>
         <file>icons/sliders.svg</file>
         <file>icons/snap.svg</file>
@@ -363,6 +366,10 @@
         <file>icons/waveform.svg</file>
         <file>icons/whole-word.svg</file>
         <file>icons/wildcard.svg</file>
+        <file>icons/window-close.svg</file>
+        <file>icons/window-maximize.svg</file>
+        <file>icons/window-minimize.svg</file>
+        <file>icons/window-restore.svg</file>
         <file>icons/word-overlay.svg</file>
         <file>icons/x-circle.svg</file>
         <file>icons/x.svg</file>

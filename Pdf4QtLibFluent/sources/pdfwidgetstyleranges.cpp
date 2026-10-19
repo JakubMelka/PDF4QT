@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfstylepainterguard.h"
 
 #include <QDial>
 #include <QLocale>
@@ -746,39 +747,39 @@ void PDFWidgetStyleRanges::drawDial(const QStyleOptionSlider* option, QPainter* 
     const qreal span = isWrapping ? 360.0 : 270.0;
     const qreal valueAngle = startAngle + fraction * span;
 
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setBrush(Qt::NoBrush);
-
-    // The track is the whole ring, also for a dial, which does not wrap
-    painter->setPen(QPen(PDFWidgetStyleImpl::color(Color::BgTrack), 4.0, Qt::SolidLine, Qt::FlatCap));
-    painter->drawEllipse(axis);
-
-    if (fraction > 0.0)
     {
-        painter->setPen(QPen(PDFWidgetStyleImpl::color(state.enabled ? Color::BgAccent : Color::BorderStrong), 4.0, Qt::SolidLine, Qt::FlatCap));
-        painter->drawArc(axis, toQtAngle(startAngle), qRound(-fraction * span * 16.0));
-    }
+        const PDFStylePainterGuard guard(painter);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setBrush(Qt::NoBrush);
 
-    if (option->subControls.testFlag(QStyle::SC_DialTickmarks))
-    {
-        // Notches: lines 1 x 3 outside of the ring
-        int interval = option->tickInterval > 0 ? option->tickInterval : qMax(1, option->pageStep);
-        const qint64 count = range / interval;
+        // The track is the whole ring, also for a dial, which does not wrap
+        painter->setPen(QPen(PDFWidgetStyleImpl::color(Color::BgTrack), 4.0, Qt::SolidLine, Qt::FlatCap));
+        painter->drawEllipse(axis);
 
-        if (range > 0 && count <= 360)
+        if (fraction > 0.0)
         {
-            painter->setPen(QPen(PDFWidgetStyleImpl::color(Color::BorderStrong), 1.0, Qt::SolidLine, Qt::FlatCap));
-            for (qint64 i = 0; i <= count; ++i)
+            painter->setPen(QPen(PDFWidgetStyleImpl::color(state.enabled ? Color::BgAccent : Color::BorderStrong), 4.0, Qt::SolidLine, Qt::FlatCap));
+            painter->drawArc(axis, toQtAngle(startAngle), qRound(-fraction * span * 16.0));
+        }
+
+        if (option->subControls.testFlag(QStyle::SC_DialTickmarks))
+        {
+            // Notches: lines 1 x 3 outside of the ring
+            int interval = option->tickInterval > 0 ? option->tickInterval : qMax(1, option->pageStep);
+            const qint64 count = range / interval;
+
+            if (range > 0 && count <= 360)
             {
-                const qreal angle = qDegreesToRadians(startAngle + (qreal(i * interval) / qreal(range)) * span);
-                const QPointF direction(qSin(angle), -qCos(angle));
-                painter->drawLine(center + direction * (extent / 2.0 + 1.0), center + direction * (extent / 2.0 + 4.0));
+                painter->setPen(QPen(PDFWidgetStyleImpl::color(Color::BorderStrong), 1.0, Qt::SolidLine, Qt::FlatCap));
+                for (qint64 i = 0; i <= count; ++i)
+                {
+                    const qreal angle = qDegreesToRadians(startAngle + (qreal(i * interval) / qreal(range)) * span);
+                    const QPointF direction(qSin(angle), -qCos(angle));
+                    painter->drawLine(center + direction * (extent / 2.0 + 1.0), center + direction * (extent / 2.0 + 4.0));
+                }
             }
         }
     }
-
-    painter->restore();
 
     const qreal angle = qDegreesToRadians(valueAngle);
     const QPointF handleCenter = center + QPointF(qSin(angle), -qCos(angle)) * axisRadius;
@@ -897,11 +898,10 @@ void PDFWidgetStyleRanges::drawProgressContents(const QStyleOptionProgressBar* o
                                          : QRectF(groove.left(), groove.top() + start, groove.width(), size);
 
     // The contents are clipped by the rounded groove
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipPath(PDFStylePainter::roundedPath(groove, radii), Qt::IntersectClip);
     PDFStylePainter::fill(painter, contents, radii, fill);
-    painter->restore();
 }
 
 }   // namespace pdf

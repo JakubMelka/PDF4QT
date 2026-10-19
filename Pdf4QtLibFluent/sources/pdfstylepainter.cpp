@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfstylepainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthememanager.h"
 #include "pdfthemeiconengine.h"
 
@@ -212,12 +213,11 @@ void PDFStylePainter::fill(QPainter* painter, const QRectF& rect, const Radii& r
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
     painter->drawPath(roundedPath(rect, radii));
-    painter->restore();
 }
 
 void PDFStylePainter::fill(QPainter* painter, const QRectF& rect, const Radii& radii, PDFThemeColors::Color color)
@@ -234,12 +234,11 @@ void PDFStylePainter::strokeInside(QPainter* painter, const QRectF& rect, const 
 
     const qreal half = width / 2.0;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(QPen(color, width, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(roundedPath(rect.adjusted(half, half, -half, -half), radii.adjusted(half)));
-    painter->restore();
 }
 
 void PDFStylePainter::strokeInside(QPainter* painter, const QRectF& rect, const Radii& radii, PDFThemeColors::Color color, qreal width)
@@ -272,10 +271,9 @@ void PDFStylePainter::fillRect(QPainter* painter, const QRectF& rect, const QCol
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, false);
     painter->fillRect(rect, color);
-    painter->restore();
 }
 
 void PDFStylePainter::fillRect(QPainter* painter, const QRectF& rect, PDFThemeColors::Color color)
@@ -290,12 +288,11 @@ void PDFStylePainter::fillEllipse(QPainter* painter, const QRectF& rect, const Q
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
     painter->drawEllipse(rect);
-    painter->restore();
 }
 
 void PDFStylePainter::strokeEllipseInside(QPainter* painter, const QRectF& rect, const QColor& color, qreal width)
@@ -307,12 +304,11 @@ void PDFStylePainter::strokeEllipseInside(QPainter* painter, const QRectF& rect,
 
     const qreal half = width / 2.0;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(QPen(color, width));
     painter->setBrush(Qt::NoBrush);
     painter->drawEllipse(rect.adjusted(half, half, -half, -half));
-    painter->restore();
 }
 
 void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii& radii, const QPointF& offset, qreal blur, const QColor& color)
@@ -399,10 +395,9 @@ void PDFStylePainter::shadow(QPainter* painter, const QRectF& rect, const Radii&
         QPixmapCache::insert(key, pixmap);
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter->drawPixmap(QRectF(rect.topLeft() + offset - QPointF(margin, margin), logicalSize), pixmap, QRectF(QPointF(0, 0), QSizeF(pixmap.size())));
-    painter->restore();
 }
 
 void PDFStylePainter::icon(QPainter* painter, const QRectF& rect, const QString& name, const QColor& color)
@@ -422,12 +417,11 @@ void PDFStylePainter::text(QPainter* painter, const QRectF& rect, int flags, con
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::TextAntialiasing, true);
     painter->setFont(font);
     painter->setPen(color);
     painter->drawText(rect, flags, text);
-    painter->restore();
 }
 
 qreal PDFStylePainter::textWidth(const QString& text, const QFont& font, int flags)

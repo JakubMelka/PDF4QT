@@ -575,3 +575,52 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         message(STATUS "UnitTestsFluentLifetime is not built: the private headers of QtCore (Qt6::CorePrivate) are not installed")
     endif()
 endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Storage of the new application (newapp_storage.md 6): SQLite in WAL, more
+    # processes (the test starts itself), notifier, migrations, damaged / read-only /
+    # newer files, portable memory database, settings. The test never links SQLite
+    # itself - a second copy of SQLite in one process breaks the locks of the file.
+    add_executable(UnitTestsAppStorage
+        tst_appstoragetest.cpp
+    )
+    target_link_libraries(UnitTestsAppStorage PRIVATE Pdf4QtLibApp Qt6::Core Qt6::Test)
+    set_target_properties(UnitTestsAppStorage PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppStorage "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppStorage")
+
+    # Core of the new application: command line, forwarding to a running instance,
+    # logs, command registry, application context and the executable PDF4QT
+    add_executable(UnitTestsAppCore
+        tst_appcoretest.cpp
+    )
+    target_link_libraries(UnitTestsAppCore PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    add_dependencies(UnitTestsAppCore Pdf4QtApp)
+    set_target_properties(UnitTestsAppCore PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppCore "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppCore")
+    set_tests_properties(UnitTestsAppCore PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Window shell of the new application: routes, route table, history, navigator,
+    # Page Not Found, tabs, sidebar, banners, hit test of the frameless window
+    add_executable(UnitTestsAppNavigation
+        tst_appnavigationtest.cpp
+    )
+    target_link_libraries(UnitTestsAppNavigation PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    set_target_properties(UnitTestsAppNavigation PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppNavigation "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppNavigation")
+    set_tests_properties(UnitTestsAppNavigation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()

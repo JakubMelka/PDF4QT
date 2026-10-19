@@ -1954,6 +1954,31 @@ int PDFNavList::getCurrentIndex() const
 
 void PDFNavList::setCurrentIndex(int index)
 {
+    if (index < 0)
+    {
+        // No current item (a page outside of the navigation): the exclusive group
+        // keeps one button checked, so its exclusivity is suspended for the change
+        QAbstractButton* checkedButton = m_group.checkedButton();
+        if (!checkedButton)
+        {
+            return;
+        }
+
+        QPointer<PDFNavList> guard(this);
+        m_group.setExclusive(false);
+        checkedButton->setChecked(false);
+
+        // A slot of the item may have deleted the list
+        if (!guard)
+        {
+            return;
+        }
+
+        m_group.setExclusive(true);
+        Q_EMIT currentIndexChanged(-1);
+        return;
+    }
+
     if (PDFNavItem* item = getItem(index))
     {
         item->setChecked(true);

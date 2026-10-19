@@ -22,6 +22,7 @@
 
 #include "pdfpreviewpainter.h"
 #include "pdfstylepainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemecolors.h"
 #include "pdfthememanager.h"
 
@@ -320,7 +321,7 @@ void PDFPreviewPainter::paintPreview(QPainter* painter, const QRectF& rect, Prev
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->translate(rect.topLeft());
     painter->scale(scale, scale);
@@ -389,7 +390,6 @@ void PDFPreviewPainter::paintPreview(QPainter* painter, const QRectF& rect, Prev
     }
 
     PDFStylePainter::strokeInside(painter, shape, radii, Color::BorderStrong, 1.0);
-    painter->restore();
 }
 
 QSize PDFPreviewPainter::getLockedDocumentSize()
@@ -428,7 +428,7 @@ void PDFPreviewPainter::paintLockedDocument(QPainter* painter, const QRectF& rec
     const QColor shadowColor = PDFStylePainter::color(Color::EffectShadow);
     const QPointF shadowOffset(0.0, Helper::LOCKED_SHADOW_OFFSET);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     const QPointF origin(rect.left() + qFloor((rect.width() - extent * scale) / 2.0), rect.top() + qFloor((rect.height() - extent * scale) / 2.0));
     if (paintOverflow)
@@ -453,13 +453,14 @@ void PDFPreviewPainter::paintLockedDocument(QPainter* painter, const QRectF& rec
 
     // The sheet behind, turned by 8 degrees counterclockwise around its top left corner
     const PDFStylePainter::Radii sheetRadii(8.0);
-    painter->save();
-    painter->translate(28.0, 40.0);
-    painter->rotate(-8.0);
-    const QRectF backSheet(0.0, 0.0, 78.0, 100.0);
-    PDFStylePainter::fill(painter, backSheet, sheetRadii, Color::BgSurface);
-    PDFStylePainter::strokeInside(painter, backSheet, sheetRadii, borderColor, 1.0);
-    painter->restore();
+    {
+        const PDFStylePainterGuard innerGuard(painter);
+        painter->translate(28.0, 40.0);
+        painter->rotate(-8.0);
+        const QRectF backSheet(0.0, 0.0, 78.0, 100.0);
+        PDFStylePainter::fill(painter, backSheet, sheetRadii, Color::BgSurface);
+        PDFStylePainter::strokeInside(painter, backSheet, sheetRadii, borderColor, 1.0);
+    }
 
     // The sheet with its shadow, the heading and the lines of the text
     const QRectF sheet(40.0, 26.0, 82.0, 104.0);
@@ -484,8 +485,6 @@ void PDFPreviewPainter::paintLockedDocument(QPainter* painter, const QRectF& rec
     PDFStylePainter::fillEllipse(painter, badgeWithRing, PDFStylePainter::color(Color::BgSurface));
     PDFStylePainter::fillEllipse(painter, badge, PDFStylePainter::color(badgeColor));
     PDFStylePainter::icon(painter, PDFStylePainter::centered(badge, QSizeF(28.0, 28.0)), QStringLiteral("lock"), Color::IconOnAccent);
-
-    painter->restore();
 }
 
 QSize PDFPreviewPainter::getLogoSize()
@@ -523,7 +522,7 @@ void PDFPreviewPainter::paintLogo(QPainter* painter, const QRectF& rect)
                           pixelWidth <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT && pixelHeight <= PDFPreviewPainterHelper::LOGO_CACHE_MAX_EXTENT;
     const QSize pixelSize = isCached ? QSize(qCeil(pixelWidth), qCeil(pixelHeight)) : QSize();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter->setClipRect(rect, Qt::IntersectClip);
@@ -543,7 +542,6 @@ void PDFPreviewPainter::paintLogo(QPainter* painter, const QRectF& rect)
             renderer.render(painter, target);
         }
     }
-    painter->restore();
 }
 
 }   // namespace pdf

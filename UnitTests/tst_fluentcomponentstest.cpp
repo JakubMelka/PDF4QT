@@ -27,12 +27,14 @@
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfcomponentwindow.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
 #include "pdfpreviewpainter.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
 #include "pdfthemefonts.h"
+#include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 #include "pdftooltip.h"
 #include "pdfwidgetstyle.h"
@@ -74,6 +76,7 @@
 #include <QSet>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
+#include <QStyleOptionTab>
 #include <QToolTip>
 #include <QTreeView>
 #include <QTranslator>
@@ -629,6 +632,16 @@ private slots:
     void reviewDelegateFilterLifetime();
     void reviewSignatureDefaults();
     void reviewDisplayLong();
+
+    // Window button and Window controls of the frameless window, the password of a document tab
+    void windowSizes();
+    void windowPixels_data();
+    void windowPixels();
+    void windowControlsBehaviour();
+    void windowActivity();
+    void windowDefensive();
+    void windowControlsApplication();
+    void documentTabPassword();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -2467,6 +2480,35 @@ void FluentComponentsTest::navItem()
     QTest::keyClick(home, Qt::Key_Return);
     QCOMPARE(list.getCurrentIndex(), 0);
     QCOMPARE(changed.count(), 2);
+
+    // No current item (a page outside of the navigation), then an item again;
+    // an index beyond the items does nothing
+    list.setCurrentIndex(-1);
+    QCOMPARE(list.getCurrentIndex(), -1);
+    QVERIFY(!home->isChecked());
+    QVERIFY(!open->isChecked());
+    QCOMPARE(changed.count(), 3);
+    QCOMPARE(changed.last().at(0).toInt(), -1);
+    list.setCurrentIndex(-1);
+    list.setCurrentIndex(5);
+    QCOMPARE(changed.count(), 3);
+    QCOMPARE(list.getCurrentIndex(), -1);
+    QTest::mouseClick(open, Qt::LeftButton);
+    QCOMPARE(list.getCurrentIndex(), 1);
+    QCOMPARE(changed.count(), 4);
+    list.setCurrentIndex(0);
+    QVERIFY(!open->isChecked());
+    QCOMPARE(changed.count(), 5);
+
+    // A slot of the item deletes the list, while the current item is cleared
+    {
+        pdf::PDFNavList* deletedList = new pdf::PDFNavList();
+        deletedList->addItem(QStringLiteral("A"), QString());
+        QPointer<pdf::PDFNavList> deletedGuard(deletedList);
+        connect(deletedList->getItem(0), &QAbstractButton::toggled, this, [deletedList]() { delete deletedList; });
+        deletedList->setCurrentIndex(-1);
+        QVERIFY(deletedGuard.isNull());
+    }
 
     // Invalid kind
     home->setKind(static_cast<pdf::PDFNavItem::Kind>(7));
@@ -12412,16 +12454,23 @@ void FluentComponentsTest::reviewClipboardLifetime()
 
 void FluentComponentsTest::reviewShortcutSelectionLifetime()
 {
-    // F03: a slot of currentChanged deletes the view before the recording starts
+    // F03: a slot of currentChanged deletes the view before the recording starts.
+    // The selection model is not a child of the view: QItemSelectionModel::setCurrentIndex
+    // reads its own data after it has emitted currentChanged, so Qt itself does not
+    // survive the deletion of the emitting selection model (the default one is a child
+    // of the view) - an application must not delete the sender synchronously. Only the
+    // view, whose loss the delegate must survive, is deleted inside of the signal.
     QStandardItemModel model(2, 1);
     model.setData(model.index(0, 0), QStringLiteral("first"));
     model.setData(model.index(1, 0), QStringLiteral("second"));
     pdf::PDFShortcutDelegate delegate;
+    QItemSelectionModel selectionModel(&model);
     QPointer<pdf::PDFListView> view = new pdf::PDFListView();
     view->setModel(&model);
+    view->setSelectionModel(&selectionModel);
     view->setItemDelegate(&delegate);
     view->setCurrentIndex(model.index(0, 0));
-    connect(view->selectionModel(), &QItemSelectionModel::currentChanged, this, [view]() { delete view.data(); }, Qt::SingleShotConnection);
+    connect(&selectionModel, &QItemSelectionModel::currentChanged, this, [view]() { delete view.data(); }, Qt::SingleShotConnection);
     delegate.triggerAction(view.data(), model.index(1, 0), pdf::PDFShortcutDelegate::RecordAction);
     QVERIFY(view.isNull());
     QCOMPARE(delegate.getRecordingCount(), 0);
@@ -12429,22 +12478,38 @@ void FluentComponentsTest::reviewShortcutSelectionLifetime()
 
 void FluentComponentsTest::reviewPropertyEditorLifetime()
 {
-    // F04: a slot of the editor deletes the row, while the editing starts
+    // F04: a slot of the editor deletes the row, while the editing starts.
+    // The slot takes the editor out of the row first: the editor is the sender, and
+    // QWidgetLineControl uses its data after it has emitted textChanged / selectionChanged
+    // (finishChange, emitCursorPositionChanged), so Qt itself does not survive the
+    // deletion of the editor inside of its own signal - an application must not delete
+    // the sender synchronously. Only the row, which guards its calls, is deleted.
     for (const bool isSelection : { false, true })
     {
         QPointer<pdf::PDFPropertyRow> row = new pdf::PDFPropertyRow();
         row->setEditable(true);
         row->setValue(QStringLiteral("new value"));
+        QPointer<QLineEdit> editor = row->getEditor();
+        auto deleteRow = [row, editor]()
+        {
+            if (editor)
+            {
+                editor->setParent(nullptr);
+            }
+            delete row.data();
+        };
         if (isSelection)
         {
-            connect(row->getEditor(), &QLineEdit::selectionChanged, this, [row]() { delete row.data(); });
+            connect(editor.data(), &QLineEdit::selectionChanged, this, deleteRow);
         }
         else
         {
-            connect(row->getEditor(), &QLineEdit::textChanged, this, [row]() { delete row.data(); });
+            connect(editor.data(), &QLineEdit::textChanged, this, deleteRow);
         }
         QVERIFY(!row->startEditing());
         QVERIFY(row.isNull());
+        QVERIFY(editor);
+        delete editor.data();
     }
 }
 
@@ -12495,6 +12560,761 @@ void FluentComponentsTest::reviewDisplayLong()
     // F14: long is not cut to int (LP64)
     const long value = std::numeric_limits<long>::max();
     QCOMPARE(pdf::PDFRowDelegate::getDisplayString(QVariant::fromValue(value), QLocale::c()), QLocale::c().toString(static_cast<qlonglong>(value)));
+}
+
+void FluentComponentsTest::windowSizes()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+
+    // Window button 947:1475: 46 x 38, glyph 16; traffic light of macOS: circle 12 in a target of 20 x 38
+    QCOMPARE(Painter::getWindowButtonSize(Platform::Windows), QSize(46, 38));
+    QCOMPARE(Painter::getWindowButtonSize(Platform::Linux), QSize(46, 38));
+    QCOMPARE(Painter::getWindowButtonSize(Platform::MacOS), QSize(20, 38));
+    QCOMPARE(Painter::getWindowButtonIconExtent(), 16);
+    QCOMPARE(Painter::getWindowButtonCircleExtent(), 12);
+
+    // Window controls 947:1504: 138 x 38, macOS 80 x 38 (14 + 12 + 8 + 12 + 8 + 12 + 14)
+    QCOMPARE(Painter::getWindowControlsSize(Platform::Windows), QSize(138, 38));
+    QCOMPARE(Painter::getWindowControlsSize(Platform::Linux), QSize(138, 38));
+    QCOMPARE(Painter::getWindowControlsSize(Platform::MacOS), QSize(80, 38));
+
+    // Glyphs of the design
+    QCOMPARE(Painter::getWindowButtonIconName(Kind::Minimize), QStringLiteral("window-minimize"));
+    QCOMPARE(Painter::getWindowButtonIconName(Kind::Maximize), QStringLiteral("window-maximize"));
+    QCOMPARE(Painter::getWindowButtonIconName(Kind::Restore), QStringLiteral("window-restore"));
+    QCOMPARE(Painter::getWindowButtonIconName(Kind::Close), QStringLiteral("window-close"));
+    for (const Kind kind : { Kind::Minimize, Kind::Maximize, Kind::Restore, Kind::Close })
+    {
+        QVERIFY(pdf::PDFThemeIcons::hasIcon(Painter::getWindowButtonIconName(kind)));
+    }
+
+    // Order of the buttons: Minimize, Maximize / Restore, Close; macOS close, minimize, zoom
+    Painter::WindowControls controls;
+    QCOMPARE(Painter::getWindowControlsButtons(controls), (QList<Kind>{ Kind::Minimize, Kind::Maximize, Kind::Close }));
+    controls.maximized = true;
+    QCOMPARE(Painter::getWindowControlsButtons(controls), (QList<Kind>{ Kind::Minimize, Kind::Restore, Kind::Close }));
+    controls.platform = Platform::MacOS;
+    QCOMPARE(Painter::getWindowControlsButtons(controls), (QList<Kind>{ Kind::Close, Kind::Minimize, Kind::Maximize }));
+
+    // Rectangles of the buttons: from the leading edge, mirrored for right-to-left
+    const QRectF area(0, 0, 138, 38);
+    Painter::WindowControls windows;
+    const Painter::State leftToRight(QStyle::State_Enabled, Qt::LeftToRight);
+    const Painter::State rightToLeft(QStyle::State_Enabled, Qt::RightToLeft);
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Minimize, leftToRight), QRectF(0, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Maximize, leftToRight), QRectF(46, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Restore, leftToRight), QRectF(46, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Close, leftToRight), QRectF(92, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Close, rightToLeft), QRectF(0, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(area, windows, Kind::Minimize, rightToLeft), QRectF(92, 0, 46, 38));
+    QCOMPARE(Painter::getWindowControlsButtonAt(area, windows, QPointF(100, 10), leftToRight), std::optional<Kind>(Kind::Close));
+    QCOMPARE(Painter::getWindowControlsButtonAt(area, windows, QPointF(100, 10), rightToLeft), std::optional<Kind>(Kind::Minimize));
+    QVERIFY(!Painter::getWindowControlsButtonAt(area, windows, QPointF(140, 10), leftToRight).has_value());
+
+    // macOS: circles at 14, 34 and 54 (targets 10 + 3 x 20 + 10)
+    Painter::WindowControls mac;
+    mac.platform = Platform::MacOS;
+    const QRectF macArea(0, 0, 80, 38);
+    QCOMPARE(Painter::getWindowControlsButtonRect(macArea, mac, Kind::Close, leftToRight), QRectF(10, 0, 20, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(macArea, mac, Kind::Minimize, leftToRight), QRectF(30, 0, 20, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(macArea, mac, Kind::Maximize, leftToRight), QRectF(50, 0, 20, 38));
+    QCOMPARE(Painter::getWindowControlsButtonRect(macArea, mac, Kind::Close, rightToLeft), QRectF(50, 0, 20, 38));
+
+    // Widgets have the sizes of the design in every state
+    pdf::PDFWindowButton button(Kind::Close, Platform::Windows);
+    QCOMPARE(button.sizeHint(), QSize(46, 38));
+    QCOMPARE(button.minimumSizeHint(), QSize(46, 38));
+    button.setAttribute(Qt::WA_UnderMouse, true);
+    button.setDown(true);
+    button.setEnabled(false);
+    button.setActivity(pdf::PDFWindowButton::Activity::Inactive);
+    button.setLayoutDirection(Qt::RightToLeft);
+    QCOMPARE(button.sizeHint(), QSize(46, 38));
+    button.setPlatform(Platform::MacOS);
+    QCOMPARE(button.sizeHint(), QSize(20, 38));
+    QCOMPARE(button.focusPolicy(), Qt::NoFocus);
+
+    pdf::PDFWindowControls group(Platform::Windows);
+    QCOMPARE(group.sizeHint(), QSize(138, 38));
+    group.setMaximized(true);
+    group.setResizable(false);
+    QCOMPARE(group.sizeHint(), QSize(138, 38));
+    group.setPlatform(Platform::MacOS);
+    QCOMPARE(group.sizeHint(), QSize(80, 38));
+    QCOMPARE(group.minimumSizeHint(), QSize(80, 38));
+    group.setSystemButtons(true);
+    QCOMPARE(group.sizeHint(), QSize(80, 38));
+
+    // The native platform of the build
+#if defined(Q_OS_MACOS)
+    QCOMPARE(Painter::getNativeWindowPlatform(), Platform::MacOS);
+#elif defined(Q_OS_WIN)
+    QCOMPARE(Painter::getNativeWindowPlatform(), Platform::Windows);
+#else
+    QCOMPARE(Painter::getNativeWindowPlatform(), Platform::Linux);
+#endif
+    QCOMPARE(pdf::PDFWindowControls().getPlatform(), Painter::getNativeWindowPlatform());
+}
+
+void FluentComponentsTest::windowPixels_data()
+{
+    QTest::addColumn<QString>("theme");
+    QTest::addColumn<qreal>("scale");
+
+    for (const char* theme : { "light", "dark" })
+    {
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            QTest::newRow(qPrintable(QStringLiteral("%1@%2").arg(QString::fromLatin1(theme)).arg(scale))) << QString::fromLatin1(theme) << scale;
+        }
+    }
+}
+
+void FluentComponentsTest::windowPixels()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    const QSize size(46, 38);
+    const QRect glyphArea(15, 11, 16, 16);
+
+    auto renderButton = [&](Kind kind, QStyle::State flags, bool windowActive)
+    {
+        const Painter::WindowButton button{ kind, Platform::Windows, windowActive };
+        return render([&](QPainter& painter) { Painter::paintWindowButton(&painter, QRectF(QPointF(0, 0), size), button, Painter::State(flags)); }, size, scale);
+    };
+    auto hasGlyph = [&](const QImage& image, Color color)
+    {
+        return countPixels(image, glyphArea, token(color), 24) > 0;
+    };
+
+    const QStyle::State enabled = QStyle::State_Enabled;
+    for (const Kind kind : { Kind::Minimize, Kind::Maximize, Kind::Restore, Kind::Close })
+    {
+        const bool isClose = kind == Kind::Close;
+        const QString message = QStringLiteral("%1 %2@%3").arg(int(kind)).arg(theme).arg(scale);
+
+        // Default: no background, glyph icon/default in the middle
+        QImage image = renderButton(kind, enabled, true);
+        QVERIFY2(isNear(pixel(image, 1, 1), surface), qPrintable(message));
+        QVERIFY2(isNear(pixel(image, 44, 36), surface), qPrintable(message));
+        QVERIFY2(hasGlyph(image, Color::IconDefault), qPrintable(message));
+        QVERIFY2(countPixels(image, QRect(0, 0, 46, 10), token(Color::IconDefault), 24) == 0, qPrintable(message));
+
+        // Hover: bg/hover (Close bg/danger) over the whole button, glyph icon/strong (Close icon/on-accent)
+        image = renderButton(kind, enabled | QStyle::State_MouseOver, true);
+        const QColor hover = isClose ? token(Color::BgDanger) : blend(token(Color::BgHover), surface);
+        QVERIFY2(isNear(pixel(image, 0, 0), hover), qPrintable(message));
+        QVERIFY2(isNear(pixel(image, 45, 37), hover), qPrintable(message));
+        QVERIFY2(hasGlyph(image, isClose ? Color::IconOnAccent : Color::IconStrong), qPrintable(message));
+
+        // Pressed: bg/pressed (Close bg/danger-pressed)
+        image = renderButton(kind, enabled | QStyle::State_MouseOver | QStyle::State_Sunken, true);
+        const QColor pressed = isClose ? token(Color::BgDangerPressed) : blend(token(Color::BgPressed), surface);
+        QVERIFY2(isNear(pixel(image, 0, 0), pressed), qPrintable(message));
+        QVERIFY2(isNear(pixel(image, 23, 3), pressed), qPrintable(message));
+        QVERIFY2(hasGlyph(image, isClose ? Color::IconOnAccent : Color::IconStrong), qPrintable(message));
+
+        // Inactive: no background, glyph icon/disabled; the hover looks as in an active window
+        image = renderButton(kind, enabled, false);
+        QVERIFY2(isNear(pixel(image, 1, 1), surface), qPrintable(message));
+        QVERIFY2(hasGlyph(image, Color::IconDisabled), qPrintable(message));
+        QVERIFY2(!hasGlyph(image, Color::IconDefault) || token(Color::IconDefault) == token(Color::IconDisabled), qPrintable(message));
+        const QImage inactiveHover = renderButton(kind, enabled | QStyle::State_MouseOver, false);
+        QCOMPARE(inactiveHover, renderButton(kind, enabled | QStyle::State_MouseOver, true));
+
+        // Disabled: no hover, no press, glyph icon/disabled
+        image = renderButton(kind, QStyle::State_MouseOver | QStyle::State_Sunken, true);
+        QVERIFY2(isNear(pixel(image, 1, 1), surface), qPrintable(message));
+        QVERIFY2(hasGlyph(image, Color::IconDisabled), qPrintable(message));
+    }
+
+    // Traffic lights of macOS: circles of 12 px in the middle of the target, the inactive window gray
+    const QSize macSize(20, 38);
+    struct Light
+    {
+        Kind kind;
+        Color color;
+    };
+    for (const Light light : { Light{ Kind::Close, Color::WindowMacosClose }, Light{ Kind::Minimize, Color::WindowMacosMinimize }, Light{ Kind::Maximize, Color::WindowMacosZoom }, Light{ Kind::Restore, Color::WindowMacosZoom } })
+    {
+        for (const bool windowActive : { true, false })
+        {
+            const Painter::WindowButton button{ light.kind, Platform::MacOS, windowActive };
+            for (const QStyle::State flags : { enabled, enabled | QStyle::State_MouseOver | QStyle::State_Sunken })
+            {
+                const QImage image = render([&](QPainter& painter) { Painter::paintWindowButton(&painter, QRectF(QPointF(0, 0), macSize), button, Painter::State(flags)); }, macSize, scale);
+                QVERIFY(isNear(pixel(image, 10, 19), token(windowActive ? light.color : Color::WindowMacosInactive)));
+                QVERIFY(isNear(pixel(image, 10, 12), surface));
+                QVERIFY(isNear(pixel(image, 2, 19), surface));
+                QVERIFY(isNear(pixel(image, 10, 22), token(windowActive ? light.color : Color::WindowMacosInactive)));
+            }
+        }
+
+        // A disabled zoom button has the color of the inactive window
+        const Painter::WindowButton button{ light.kind, Platform::MacOS, true };
+        const QImage image = render([&](QPainter& painter) { Painter::paintWindowButton(&painter, QRectF(QPointF(0, 0), macSize), button, Painter::State(QStyle::State_None)); }, macSize, scale);
+        QVERIFY(isNear(pixel(image, 10, 19), token(Color::WindowMacosInactive)));
+    }
+
+    // Group: the hovered Close (bg/danger) at the trailing edge, mirrored for right-to-left
+    Painter::WindowControls controls;
+    controls.hovered = Kind::Close;
+    QImage image = render([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 138, 38), controls, Painter::State(enabled)); }, QSize(138, 38), scale);
+    QVERIFY(isNear(pixel(image, 137, 1), token(Color::BgDanger)));
+    QVERIFY(isNear(pixel(image, 91, 1), surface));
+    QVERIFY(isNear(pixel(image, 1, 1), surface));
+    image = render([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 138, 38), controls, Painter::State(enabled, Qt::RightToLeft)); }, QSize(138, 38), scale);
+    QVERIFY(isNear(pixel(image, 1, 1), token(Color::BgDanger)));
+    QVERIFY(isNear(pixel(image, 137, 1), surface));
+
+    // A window of a fixed size: the Maximize button is disabled, its hover is not drawn
+    controls.hovered = Kind::Maximize;
+    controls.resizable = false;
+    image = render([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 138, 38), controls, Painter::State(enabled)); }, QSize(138, 38), scale);
+    QVERIFY(isNear(pixel(image, 47, 1), surface));
+    QVERIFY(countPixels(image, QRect(61, 11, 16, 16), token(Color::IconDisabled), 24) > 0);
+
+    // Pressed Restore of a maximized window
+    controls.resizable = true;
+    controls.maximized = true;
+    controls.hovered.reset();
+    controls.pressed = Kind::Restore;
+    image = render([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 138, 38), controls, Painter::State(enabled)); }, QSize(138, 38), scale);
+    QVERIFY(isNear(pixel(image, 47, 1), blend(token(Color::BgPressed), surface)));
+    QVERIFY(isNear(pixel(image, 1, 1), surface));
+
+    // The widgets draw as the painter functions (also with the hover of the system)
+    // (a child widget: a window would fill its background)
+    QWidget holder;
+    pdf::PDFWindowControls* group = new pdf::PDFWindowControls(Platform::Windows, &holder);
+    group->resize(group->sizeHint());
+    group->setActivity(pdf::PDFWindowControls::Activity::Active);
+    group->setHoveredButton(Kind::Close);
+    Painter::WindowControls painted;
+    painted.hovered = Kind::Close;
+    QString difference = describeDifference(renderWidget(group, scale), renderInWidget([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 138, 38), painted, Painter::State(enabled)); }, QSize(138, 38), scale), 2);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+
+    group->setPlatform(Platform::MacOS);
+    group->resize(group->sizeHint());
+    group->setActivity(pdf::PDFWindowControls::Activity::Inactive);
+    painted.platform = Platform::MacOS;
+    painted.windowActive = false;
+    difference = describeDifference(renderWidget(group, scale), renderInWidget([&](QPainter& painter) { Painter::paintWindowControls(&painter, QRectF(0, 0, 80, 38), painted, Painter::State(enabled)); }, QSize(80, 38), scale), 2);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+
+    // System buttons of macOS: nothing is drawn
+    group->setSystemButtons(true);
+    image = renderWidget(group, scale);
+    QCOMPARE(countPixels(image, QRect(0, 0, 80, 38), surface, 0), 80 * 38);
+
+    // No leak of the palette
+    QCOMPARE(countLeakPixels(renderWidget(group, scale)), 0);
+}
+
+void FluentComponentsTest::windowControlsBehaviour()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+
+    QWidget window;
+    window.resize(400, 100);
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    layout->setContentsMargins(10, 20, 30, 40);
+    layout->addStretch(1);
+    pdf::PDFWindowControls* controls = new pdf::PDFWindowControls(Platform::Windows, &window);
+    layout->addWidget(controls);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // Buttons in the logical order with the names of the actions
+    const QList<pdf::PDFWindowButton*> buttons = controls->getButtons();
+    QCOMPARE(buttons.size(), 3);
+    QCOMPARE(buttons[0]->getKind(), Kind::Minimize);
+    QCOMPARE(buttons[1]->getKind(), Kind::Maximize);
+    QCOMPARE(buttons[2]->getKind(), Kind::Close);
+    QCOMPARE(controls->getButton(Kind::Restore), buttons[1]);
+    QCOMPARE(QAccessible::queryAccessibleInterface(buttons[0])->text(QAccessible::Name), QStringLiteral("Minimize"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(buttons[1])->text(QAccessible::Name), QStringLiteral("Maximize"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(buttons[2])->text(QAccessible::Name), QStringLiteral("Close"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(buttons[2])->role(), QAccessible::Button);
+    QCOMPARE(buttons[2]->toolTip(), QStringLiteral("Close"));
+    QCOMPARE(controls->accessibleName(), QStringLiteral("Window controls"));
+    for (pdf::PDFWindowButton* button : buttons)
+    {
+        QCOMPARE(button->focusPolicy(), Qt::NoFocus);
+        QVERIFY(button->shortcut().isEmpty());
+    }
+
+    // Rectangles in the coordinates of the window: the group lies at the right edge before the margin
+    const QPoint origin = controls->mapTo(&window, QPoint(0, 0));
+    QCOMPARE(controls->getButtonRect(Kind::Minimize), QRect(origin, QSize(46, 38)));
+    QCOMPARE(controls->getButtonRect(Kind::Maximize), QRect(origin + QPoint(46, 0), QSize(46, 38)));
+    QCOMPARE(controls->getButtonRect(Kind::Close), QRect(origin + QPoint(92, 0), QSize(46, 38)));
+    QCOMPARE(controls->getButtonAt(origin + QPoint(50, 5)), std::optional<Kind>(Kind::Maximize));
+    QCOMPARE(controls->getButtonAt(origin + QPoint(137, 37)), std::optional<Kind>(Kind::Close));
+    QVERIFY(!controls->getButtonAt(origin + QPoint(-1, 5)).has_value());
+    QVERIFY(!controls->getButtonAt(QPoint(0, 0)).has_value());
+
+    // Clicks emit the signals
+    QSignalSpy minimizeSpy(controls, &pdf::PDFWindowControls::minimizeRequested);
+    QSignalSpy maximizeSpy(controls, &pdf::PDFWindowControls::maximizeRestoreRequested);
+    QSignalSpy closeSpy(controls, &pdf::PDFWindowControls::closeRequested);
+    QTest::mouseClick(buttons[0], Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QTest::mouseClick(buttons[1], Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QTest::mouseClick(buttons[2], Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QCOMPARE(minimizeSpy.count(), 1);
+    QCOMPARE(maximizeSpy.count(), 1);
+    QCOMPARE(closeSpy.count(), 1);
+
+    // The press action of assistive technologies
+    QAccessibleActionInterface* action = QAccessible::queryAccessibleInterface(buttons[0])->actionInterface();
+    QVERIFY(action);
+    action->doAction(QAccessibleActionInterface::pressAction());
+    QTRY_COMPARE(minimizeSpy.count(), 2);
+
+    // Activation by the window (WM_NCLBUTTONUP over a button)
+    QVERIFY(controls->activate(Kind::Close));
+    QCOMPARE(closeSpy.count(), 2);
+    QVERIFY(controls->activate(Kind::Restore));
+    QCOMPARE(maximizeSpy.count(), 2);
+    QVERIFY(!controls->activate(static_cast<Kind>(42)));
+
+    // Maximized window: the middle button is Restore
+    controls->setMaximized(true);
+    QCOMPARE(buttons[1]->getKind(), Kind::Restore);
+    QCOMPARE(QAccessible::queryAccessibleInterface(buttons[1])->text(QAccessible::Name), QStringLiteral("Restore"));
+    QCOMPARE(buttons[1]->toolTip(), QStringLiteral("Restore"));
+    QCOMPARE(controls->getButtonAt(origin + QPoint(50, 5)), std::optional<Kind>(Kind::Restore));
+    QTest::mouseClick(buttons[1], Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QCOMPARE(maximizeSpy.count(), 3);
+
+    // A window of a fixed size: Maximize is disabled, a click and the activation do nothing
+    controls->setResizable(false);
+    QVERIFY(!buttons[1]->isEnabled());
+    QTest::mouseClick(buttons[1], Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QVERIFY(!controls->activate(Kind::Maximize));
+    QCOMPARE(maximizeSpy.count(), 3);
+    controls->setResizable(true);
+    QVERIFY(buttons[1]->isEnabled());
+
+    // Hover and press given by the window (non-client messages); Restore and Maximize are one button
+    controls->setHoveredButton(Kind::Maximize);
+    QCOMPARE(controls->getHoveredButton(), std::optional<Kind>(Kind::Maximize));
+    QVERIFY(buttons[1]->isExternalHover());
+    QVERIFY(buttons[1]->getPaintedState().isHovered());
+    QVERIFY(!buttons[0]->getPaintedState().isHovered());
+    controls->setPressedButton(Kind::Restore);
+    QVERIFY(buttons[1]->isExternalPressed());
+    QVERIFY(buttons[1]->getPaintedState().isPressed());
+    QCOMPARE(controls->getPaintedControls().pressed, std::optional<Kind>(Kind::Restore));
+    controls->setHoveredButton(Kind::Close);
+    QVERIFY(!buttons[1]->isExternalHover());
+    QVERIFY(buttons[2]->isExternalHover());
+    controls->setHoveredButton(static_cast<Kind>(-3));
+    QVERIFY(!controls->getHoveredButton().has_value());
+    QVERIFY(!buttons[2]->isExternalHover());
+    controls->setPressedButton(std::nullopt);
+    QVERIFY(!buttons[1]->isExternalPressed());
+
+    // A tooltip set by the application is kept
+    buttons[2]->setToolTip(QStringLiteral("Close the window"));
+    buttons[2]->setKind(Kind::Close);
+    QEvent languageChange(QEvent::LanguageChange);
+    QApplication::sendEvent(buttons[2], &languageChange);
+    QCOMPARE(buttons[2]->toolTip(), QStringLiteral("Close the window"));
+    controls->setAccessibleName(QStringLiteral("Caption buttons"));
+    QApplication::sendEvent(controls, &languageChange);
+    QCOMPARE(controls->accessibleName(), QStringLiteral("Caption buttons"));
+
+    // Right-to-left: Close is the leftmost button
+    controls->setLayoutDirection(Qt::RightToLeft);
+    QCOMPARE(buttons[2]->geometry(), QRect(0, 0, 46, 38));
+    QCOMPARE(buttons[0]->geometry(), QRect(92, 0, 46, 38));
+    QCOMPARE(controls->getButtonAt(origin + QPoint(5, 5)), std::optional<Kind>(Kind::Close));
+    controls->setLayoutDirection(Qt::LeftToRight);
+    QCOMPARE(buttons[2]->geometry(), QRect(92, 0, 46, 38));
+
+    // macOS: close, minimize, zoom; the names of the native buttons, no tooltips
+    controls->setPlatform(Platform::MacOS);
+    QCOMPARE(controls->sizeHint(), QSize(80, 38));
+    QTRY_COMPARE(controls->size(), QSize(80, 38));
+    const QList<pdf::PDFWindowButton*> macButtons = controls->getButtons();
+    QCOMPARE(macButtons.size(), 3);
+    QCOMPARE(macButtons[0]->getKind(), Kind::Close);
+    QCOMPARE(macButtons[2]->getKind(), Kind::Maximize);
+    QCOMPARE(macButtons[0]->geometry(), QRect(10, 0, 20, 38));
+    QCOMPARE(QAccessible::queryAccessibleInterface(macButtons[2])->text(QAccessible::Name), QStringLiteral("Zoom"));
+    QVERIFY(macButtons[1]->toolTip().isEmpty());
+    QVERIFY(macButtons[0]->toolTip() == QStringLiteral("Close the window"));
+
+    // System buttons of macOS: only the place is kept
+    controls->setSystemButtons(true);
+    QVERIFY(!controls->hasOwnButtons());
+    QVERIFY(controls->getButtons().isEmpty());
+    QVERIFY(!controls->getButton(Kind::Close));
+    QVERIFY(controls->getButtonRect(Kind::Close).isEmpty());
+    QVERIFY(!controls->getButtonAt(controls->mapTo(&window, QPoint(15, 19))).has_value());
+    QVERIFY(!controls->activate(Kind::Close));
+    for (pdf::PDFWindowButton* button : macButtons)
+    {
+        QVERIFY(button->isHidden());
+    }
+
+    // The system buttons belong only to macOS
+    controls->setPlatform(Platform::Linux);
+    QVERIFY(controls->hasOwnButtons());
+    QCOMPARE(controls->getButtons().size(), 3);
+    QVERIFY(!controls->getButton(Kind::Close)->isHidden());
+    controls->setSystemButtons(false);
+
+    // A button deleted by the application is forgotten
+    delete controls->getButton(Kind::Minimize);
+    QVERIFY(!controls->getButton(Kind::Minimize));
+    QCOMPARE(controls->getButtons().size(), 2);
+    controls->setMaximized(false);
+    controls->setPlatform(Platform::Windows);
+    controls->resize(200, 38);
+    QVERIFY(!controls->activate(Kind::Minimize));
+    QVERIFY(controls->getButtonRect(Kind::Minimize).isEmpty());
+
+    // The group deleted from inside of its own signal
+    QPointer<pdf::PDFWindowControls> guard(controls);
+    QObject::connect(controls, &pdf::PDFWindowControls::closeRequested, controls, [controls]() { delete controls; });
+    QTest::mouseClick(controls->getButton(Kind::Close), Qt::LeftButton, Qt::NoModifier, QPoint(23, 19));
+    QVERIFY(guard.isNull());
+
+    // ... and by activate
+    pdf::PDFWindowControls* second = new pdf::PDFWindowControls(Platform::Windows, &window);
+    QPointer<pdf::PDFWindowControls> secondGuard(second);
+    QObject::connect(second, &pdf::PDFWindowControls::maximizeRestoreRequested, second, [second]() { delete second; });
+    QVERIFY(second->activate(Kind::Maximize));
+    QVERIFY(secondGuard.isNull());
+}
+
+void FluentComponentsTest::windowActivity()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Activity = pdf::PDFWindowButton::Activity;
+
+    // The buttons follow the activity of their window
+    QWidget window;
+    window.resize(300, 60);
+    pdf::PDFWindowControls* controls = new pdf::PDFWindowControls(Painter::WindowPlatform::Windows, &window);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    pdf::PDFWindowButton* close = controls->getButton(Kind::Close);
+    QCOMPARE(controls->getActivity(), Activity::FollowWindow);
+    QCOMPARE(close->getActivity(), Activity::FollowWindow);
+    QVERIFY(close->isWindowActive());
+    QVERIFY(close->getPaintedButton().windowActive);
+    QVERIFY(controls->getPaintedControls().windowActive);
+
+    // The button is repainted, when its window is deactivated (the window
+    // passes WindowDeactivate to its children, not ActivationChange)
+    class PaintCounter : public QObject
+    {
+    public:
+        int count = 0;
+
+    protected:
+        virtual bool eventFilter(QObject* watched, QEvent* event) override
+        {
+            if (event->type() == QEvent::Paint)
+            {
+                ++count;
+            }
+            return QObject::eventFilter(watched, event);
+        }
+    };
+    PaintCounter paintCounter;
+    close->installEventFilter(&paintCounter);
+    QApplication::processEvents();
+    paintCounter.count = 0;
+
+    QWidget other;
+    other.resize(100, 100);
+    other.show();
+    other.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&other));
+    QTRY_VERIFY(!close->isWindowActive());
+    QTRY_VERIFY(paintCounter.count > 0);
+    close->removeEventFilter(&paintCounter);
+    QVERIFY(!controls->getPaintedControls().windowActive);
+
+    // The application overrides the activity
+    controls->setActivity(Activity::Active);
+    QVERIFY(close->isWindowActive());
+    controls->setActivity(Activity::Inactive);
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QVERIFY(!close->isWindowActive());
+    QVERIFY(!controls->getPaintedControls().windowActive);
+
+    // An invalid value follows the window
+    controls->setActivity(static_cast<Activity>(17));
+    QCOMPARE(controls->getActivity(), Activity::FollowWindow);
+    QVERIFY(close->isWindowActive());
+    close->setActivity(static_cast<Activity>(-1));
+    QCOMPARE(close->getActivity(), Activity::FollowWindow);
+
+    // The theme changes the colors, not the sizes
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(controls->sizeHint(), QSize(138, 38));
+    QCOMPARE(countLeakPixels(renderWidget(controls, 1.0)), 0);
+}
+
+void FluentComponentsTest::windowDefensive()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+
+    // Invalid values of the enumerations
+    QCOMPARE(Painter::normalized(static_cast<Kind>(42)), Kind::Minimize);
+    QCOMPARE(Painter::normalized(static_cast<Platform>(-7)), Painter::getNativeWindowPlatform());
+    QCOMPARE(Painter::getWindowButtonSize(static_cast<Platform>(99)), Painter::getWindowButtonSize(Painter::getNativeWindowPlatform()));
+    QCOMPARE(Painter::getWindowButtonIconName(static_cast<Kind>(42)), QStringLiteral("window-minimize"));
+    QVERIFY(Painter::getWindowControlsButtonRect(QRectF(0, 0, 138, 38), Painter::WindowControls(), static_cast<Kind>(42), Painter::State()).isEmpty());
+    QVERIFY(Painter::getWindowControlsButtonRect(QRectF(), Painter::WindowControls(), Kind::Close, Painter::State()).isEmpty());
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    QVERIFY(Painter::getWindowControlsButtonRect(QRectF(nan, 0, 138, 38), Painter::WindowControls(), Kind::Close, Painter::State()).isEmpty());
+    QVERIFY(!Painter::getWindowControlsButtonAt(QRectF(), Painter::WindowControls(), QPointF(1, 1), Painter::State()).has_value());
+
+    pdf::PDFWindowButton button(static_cast<Kind>(42), static_cast<Platform>(99));
+    QCOMPARE(button.getKind(), Kind::Minimize);
+    QCOMPARE(button.getPlatform(), Painter::getNativeWindowPlatform());
+    button.setKind(static_cast<Kind>(-1));
+    QCOMPARE(button.getKind(), Kind::Minimize);
+    QCOMPARE(pdf::PDFWindowButton::getActionName(static_cast<Kind>(42), Platform::Windows), QStringLiteral("Minimize"));
+
+    pdf::PDFWindowControls controls(static_cast<Platform>(99));
+    QCOMPARE(controls.getPlatform(), Painter::getNativeWindowPlatform());
+    QVERIFY(!controls.getButton(static_cast<Kind>(42)));
+    QVERIFY(controls.getButtonRect(static_cast<Kind>(42)).isEmpty());
+    controls.setPressedButton(static_cast<Kind>(42));
+    QVERIFY(!controls.getPressedButton().has_value());
+
+    // Drawing tolerates a null painter, empty, negative and not finite rectangles, invalid contents
+    Painter::WindowButton content{ static_cast<Kind>(42), static_cast<Platform>(99), true };
+    Painter::paintWindowButton(nullptr, QRectF(0, 0, 46, 38), content, Painter::State());
+    Painter::paintWindowControls(nullptr, QRectF(0, 0, 138, 38), Painter::WindowControls(), Painter::State());
+    const QImage image = render([&](QPainter& painter)
+    {
+        Painter::paintWindowButton(&painter, QRectF(), content, Painter::State());
+        Painter::paintWindowButton(&painter, QRectF(10, 10, -5, -5), content, Painter::State());
+        Painter::paintWindowButton(&painter, QRectF(nan, 0, 46, 38), content, Painter::State());
+        Painter::paintWindowControls(&painter, QRectF(0, 0, nan, 38), Painter::WindowControls(), Painter::State());
+        Painter::WindowControls invalid;
+        invalid.platform = static_cast<Platform>(99);
+        invalid.hovered = static_cast<Kind>(42);
+        invalid.pressed = static_cast<Kind>(-4);
+        Painter::paintWindowControls(&painter, QRectF(0, 0, 4, 4), invalid, Painter::State(QStyle::State_Enabled | QStyle::State_HasFocus));
+    }, QSize(46, 38));
+    QCOMPARE(countLeakPixels(image), 0);
+    QVERIFY(isNear(pixel(image, 30, 30), token(Color::BgSurface)));
+
+    // A tiny button draws its glyph into its rectangle only
+    const QImage tiny = render([&](QPainter& painter) { Painter::paintWindowButton(&painter, QRectF(0, 0, 6, 6), Painter::WindowButton{ Kind::Close, Platform::Windows, true }, Painter::State(QStyle::State_Enabled)); }, QSize(20, 20));
+    QVERIFY(isNear(pixel(tiny, 10, 10), token(Color::BgSurface)));
+}
+
+void FluentComponentsTest::windowControlsApplication()
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+
+    QWidget window;
+    window.resize(400, 100);
+    QWidget* bar = new QWidget(&window);
+    bar->setGeometry(0, 0, 400, 38);
+    pdf::PDFWindowControls* controls = new pdf::PDFWindowControls(Platform::Windows, bar);
+    controls->setGeometry(262, 0, 138, 38);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // The group or its parent hidden (a top bar hidden in the full screen):
+    // the window must not answer HTMAXBUTTON over the place of the buttons
+    QCOMPARE(controls->getButtonRect(Kind::Maximize), QRect(308, 0, 46, 38));
+    controls->hide();
+    QVERIFY(controls->getButtonRect(Kind::Maximize).isEmpty());
+    QVERIFY(!controls->getButtonAt(QPoint(310, 5)).has_value());
+    controls->show();
+    QCOMPARE(controls->getButtonAt(QPoint(310, 5)), std::optional<Kind>(Kind::Maximize));
+    bar->hide();
+    QVERIFY(controls->getButtonRect(Kind::Close).isEmpty());
+    QVERIFY(!controls->getButtonAt(QPoint(360, 5)).has_value());
+    bar->show();
+    QCOMPARE(controls->getButtonRect(Kind::Close), QRect(354, 0, 46, 38));
+
+    // A button hidden or disabled by the application (a window without
+    // Minimize, a window, which cannot be closed now) stays so, whatever the
+    // window tells the group
+    const QList<QPointer<pdf::PDFWindowButton>> buttons = { controls->getButton(Kind::Minimize), controls->getButton(Kind::Maximize), controls->getButton(Kind::Close) };
+    QSignalSpy minimizeSpy(controls, &pdf::PDFWindowControls::minimizeRequested);
+    QSignalSpy closeSpy(controls, &pdf::PDFWindowControls::closeRequested);
+    buttons[0]->hide();
+    buttons[2]->setEnabled(false);
+    controls->setHoveredButton(Kind::Maximize);
+    controls->setPressedButton(Kind::Maximize);
+    controls->setMaximized(true);
+    controls->setResizable(false);
+    controls->setResizable(true);
+    controls->setActivity(pdf::PDFWindowControls::Activity::Inactive);
+    controls->setPlatform(Platform::Linux);
+    controls->setHoveredButton(std::nullopt);
+    controls->setPressedButton(std::nullopt);
+    QVERIFY(buttons[0]->isHidden());
+    QVERIFY(!buttons[2]->isEnabled());
+    QVERIFY(buttons[1]->isEnabled());
+    QVERIFY(controls->getButtonRect(Kind::Minimize).isEmpty());
+    QVERIFY(!controls->getButtonAt(QPoint(270, 5)).has_value());
+    QVERIFY(!controls->activate(Kind::Minimize));
+    QVERIFY(!controls->activate(Kind::Close));
+    QCOMPARE(minimizeSpy.count(), 0);
+    QCOMPARE(closeSpy.count(), 0);
+
+    // The system buttons of macOS hide the buttons; without them the group
+    // shows again only the buttons, which it has hidden
+    controls->setPlatform(Platform::MacOS);
+    controls->setSystemButtons(true);
+    for (const QPointer<pdf::PDFWindowButton>& button : buttons)
+    {
+        QVERIFY(button && button->isHidden());
+    }
+    controls->setSystemButtons(false);
+    QVERIFY(buttons[0]->isHidden());
+    QVERIFY(!buttons[1]->isHidden());
+    QVERIFY(!buttons[2]->isHidden());
+    QVERIFY(!buttons[2]->isEnabled());
+
+    // The application shows and enables the buttons again
+    buttons[0]->show();
+    buttons[2]->setEnabled(true);
+    controls->setPlatform(Platform::Windows);
+    QVERIFY(controls->activate(Kind::Minimize));
+    QVERIFY(controls->activate(Kind::Close));
+    QCOMPARE(minimizeSpy.count(), 1);
+    QCOMPARE(closeSpy.count(), 1);
+    QCOMPARE(controls->getButtonAt(QPoint(270, 5)), std::optional<Kind>(Kind::Minimize));
+}
+
+void FluentComponentsTest::documentTabPassword()
+{
+    // The tab bar with its protected functions
+    class OptionTabBar : public pdf::PDFDocumentTabBar
+    {
+    public:
+        using pdf::PDFDocumentTabBar::initStyleOption;
+        using pdf::PDFDocumentTabBar::tabSizeHint;
+    };
+
+    OptionTabBar tabBar;
+    const int home = tabBar.addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("home")), QStringLiteral("Home"));
+    const int report = tabBar.addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("file")), QStringLiteral("Report.pdf"));
+    const int bare = tabBar.addTab(QStringLiteral("Bare.pdf"));
+    tabBar.setTabClosable(report, true);
+    tabBar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&tabBar));
+
+    QVERIFY(!tabBar.isTabPasswordProtected(report));
+    QVERIFY(!tabBar.isTabPasswordProtected(-1));
+    QVERIFY(!tabBar.isTabPasswordProtected(42));
+    tabBar.setTabPasswordProtected(42, true);
+    tabBar.setTabPasswordProtected(-1, true);
+
+    // The icon password replaces the icon of the tab, the icon of the tab is kept
+    const int reportWidth = tabBar.tabSizeHint(report).width();
+    tabBar.setTabPasswordProtected(report, true);
+    QVERIFY(tabBar.isTabPasswordProtected(report));
+    QCOMPARE(tabBar.tabSizeHint(report).width(), reportWidth);
+    QStyleOptionTab option;
+    tabBar.initStyleOption(&option, report);
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(option.icon), QStringLiteral("password"));
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(tabBar.tabIcon(report)), QStringLiteral("file"));
+    tabBar.initStyleOption(nullptr, report);
+
+    // Assistive technologies hear it
+    QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(&tabBar);
+    QVERIFY(accessible);
+    QCOMPARE(accessible->child(report)->text(QAccessible::Name), QStringLiteral("Report.pdf, password protected"));
+    tabBar.setTabLocked(report, true);
+    QCOMPARE(accessible->child(report)->text(QAccessible::Name), QStringLiteral("Report.pdf, password protected, locked"));
+
+    // A tab without an icon gets the place of the icon
+    const int bareWidth = tabBar.tabSizeHint(bare).width();
+    tabBar.setTabPasswordProtected(bare, true);
+    QCOMPARE(tabBar.tabSizeHint(bare).width(), bareWidth + 14 + 8);
+    tabBar.setTabPasswordProtected(bare, false);
+    QCOMPARE(tabBar.tabSizeHint(bare).width(), bareWidth);
+
+    // The state moves with the tab
+    tabBar.moveTab(report, home);
+    QVERIFY(tabBar.isTabPasswordProtected(home));
+    QVERIFY(!tabBar.isTabPasswordProtected(report));
+
+    // Turning the protection off shows the icon of the tab again
+    tabBar.setTabPasswordProtected(home, false);
+    tabBar.initStyleOption(&option, home);
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(option.icon), QStringLiteral("file"));
+    QCOMPARE(accessible->child(home)->text(QAccessible::Name), QStringLiteral("Report.pdf, locked"));
+
+    // The protected tab is drawn with the icon password in both themes without a leak
+    tabBar.setTabPasswordProtected(home, true);
+    tabBar.setCurrentIndex(home);
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QImage image = renderWidget(&tabBar, 2.0);
+        QCOMPARE(countLeakPixels(image), 0);
+        const QRect tab = tabBar.tabRect(home);
+        QVERIFY(countPixels(image, QRect(tab.left() + 16, tab.top() + 6 + 9, 14, 14), token(Color::IconAccent), 40) > 0);
+    }
+
+    // A renamed document (Save As of a protected document) is announced by its new name
+    tabBar.setTabText(home, QStringLiteral("Copy.pdf"));
+    QCOMPARE(accessible->child(home)->text(QAccessible::Name), QStringLiteral("Copy.pdf, password protected, locked"));
+    tabBar.setTabPasswordProtected(home, false);
+    tabBar.setTabLocked(home, false);
+    tabBar.setTabText(home, QStringLiteral("Final.pdf"));
+    QCOMPARE(accessible->child(home)->text(QAccessible::Name), QStringLiteral("Final.pdf"));
+
+    // A tab inserted or removed before a tab with a state: QTabBar lays the
+    // tabs out before tabInserted / tabRemoved, the widths follow the states
+    OptionTabBar states;
+    states.resize(1200, 38);
+    states.addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("home")), QStringLiteral("Home"));
+    states.addTab(QStringLiteral("Bare.pdf"));
+    states.setTabPasswordProtected(1, true);
+    states.setTabLocked(1, true);
+    states.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&states));
+    QAccessibleInterface* statesAccessible = QAccessible::queryAccessibleInterface(&states);
+    QVERIFY(statesAccessible);
+
+    states.insertTab(1, pdf::PDFThemeIcons::getIcon(QStringLiteral("file")), QStringLiteral("New.pdf"));
+    for (int i = 0; i < states.count(); ++i)
+    {
+        QCOMPARE(states.tabRect(i).width(), states.tabSizeHint(i).width());
+    }
+    QVERIFY(!states.isTabPasswordProtected(1));
+    QVERIFY(states.isTabPasswordProtected(2));
+    QCOMPARE(statesAccessible->child(1)->text(QAccessible::Name), QStringLiteral("New.pdf"));
+    QCOMPARE(statesAccessible->child(2)->text(QAccessible::Name), QStringLiteral("Bare.pdf, password protected, locked"));
+
+    states.removeTab(1);
+    for (int i = 0; i < states.count(); ++i)
+    {
+        QCOMPARE(states.tabRect(i).width(), states.tabSizeHint(i).width());
+    }
+    QCOMPARE(statesAccessible->child(1)->text(QAccessible::Name), QStringLiteral("Bare.pdf, password protected, locked"));
 }
 
 QTEST_MAIN(FluentComponentsTest)

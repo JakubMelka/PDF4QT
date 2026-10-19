@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyle.h"
+#include "pdfstylepainterguard.h"
 #include "pdfwidgetstyleimpl.h"
 #include "pdfthememanager.h"
 #include "pdfthemeiconengine.h"
@@ -324,7 +325,7 @@ void PDFWidgetStyle::drawItemText(QPainter* painter, const QRect& rect, int flag
             break;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
 
     if (hasColor)
     {
@@ -332,7 +333,6 @@ void PDFWidgetStyle::drawItemText(QPainter* painter, const QRect& rect, int flag
     }
 
     painter->drawText(rect, flags, text);
-    painter->restore();
 }
 
 void PDFWidgetStyle::drawItemPixmap(QPainter* painter, const QRect& rect, int alignment, const QPixmap& pixmap) const

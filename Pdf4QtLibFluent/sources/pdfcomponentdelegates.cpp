@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentdelegates.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthememanager.h"
 #include "pdftooltip.h"
 #include "pdfwidgetstyle.h"
@@ -804,9 +805,8 @@ void PDFRowDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option
 
     ensureWatched(option.widget);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     paintItem(painter, option, index, getItemState(option, index));
-    painter->restore();
 }
 
 QSize PDFRowDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const

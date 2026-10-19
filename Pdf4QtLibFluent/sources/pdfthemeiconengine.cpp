@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfthemeiconengine.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthememanager.h"
 
 #include <QDir>
@@ -347,12 +348,13 @@ void PDFThemeIcons::paintBadge(QPainter* painter, const QRectF& rect, Badge badg
     const qreal iconExtent = extent * 20.0 / 36.0;
     const QRectF iconRect(circle.left() + (extent - iconExtent) / 2.0, circle.top() + (extent - iconExtent) / 2.0, iconExtent, iconExtent);
 
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(theme.getColor(background));
-    painter->drawEllipse(circle);
-    painter->restore();
+    {
+        const PDFStylePainterGuard guard(painter);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(theme.getColor(background));
+        painter->drawEllipse(circle);
+    }
 
     paint(painter, iconRect, name, theme.getColor(foreground));
 }
@@ -499,10 +501,9 @@ void PDFThemeIcons::paint(QPainter* painter, const QRectF& rect, const QString& 
 
     if (!pixmap.isNull())
     {
-        painter->save();
+        const PDFStylePainterGuard guard(painter);
         painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
         painter->drawPixmap(rect, pixmap, QRectF(QPointF(0, 0), QSizeF(pixmap.size())));
-        painter->restore();
     }
 }
 
@@ -575,10 +576,9 @@ void PDFThemeIcons::paintFilled(QPainter* painter, const QRectF& rect, const QSt
 
     if (!fillPixmap.isNull())
     {
-        painter->save();
+        const PDFStylePainterGuard guard(painter);
         painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
         painter->drawPixmap(rect, fillPixmap, QRectF(QPointF(0, 0), QSizeF(fillPixmap.size())));
-        painter->restore();
     }
 
     paint(painter, rect, name, strokeColor);

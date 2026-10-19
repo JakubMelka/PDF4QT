@@ -1717,6 +1717,130 @@ public:
 
     /// Draws the row into the rectangle
     static void paintShortcutRow(QPainter* painter, const QRectF& rect, const ShortcutRow& row, const State& state);
+
+    // ----------------------------------------------------------- Window button
+
+    /// Kind of a button of the frameless application window (component Window
+    /// button 947:1475). Maximize is shown for a normal window, Restore for a
+    /// maximized one; on macOS both are the green zoom button.
+    enum class WindowButtonKind
+    {
+        Minimize,
+        Maximize,
+        Restore,
+        Close
+    };
+
+    /// Platform of the buttons of the window (component Window controls 947:1504)
+    enum class WindowPlatform
+    {
+        Windows,    ///< Minimize, Maximize / Restore, Close at the right end of the top bar, 46 x 38 each
+        Linux,      ///< The same buttons as Windows (the application draws them, no desktop theme is followed)
+        MacOS       ///< The traffic lights close, minimize, zoom (circles of 12 px) at the left end of the top bar
+    };
+
+    /// Content of a window button. Its state: State_Enabled (a disabled button
+    /// is Maximize of a window, which cannot be resized: glyph icon/disabled, no
+    /// hover, no press), State_MouseOver and State_Sunken (from the mouse or
+    /// from the non-client messages of the system). A button of an inactive
+    /// window (\p windowActive false) is the variant Inactive: no background,
+    /// glyph icon/disabled; its hover and press look as in an active window.
+    /// The buttons take no keyboard focus (they have no focus ring), the window
+    /// is controlled by the keyboard through its system menu.
+    struct WindowButton
+    {
+        WindowButtonKind kind = WindowButtonKind::Minimize;
+        WindowPlatform platform = WindowPlatform::Windows;
+        bool windowActive = true;
+    };
+
+    /// Returns the valid kind (an invalid value is Minimize)
+    static WindowButtonKind normalized(WindowButtonKind kind);
+
+    /// Returns the valid platform (an invalid value is the native platform)
+    static WindowPlatform normalized(WindowPlatform platform);
+
+    /// Returns the platform of the system, for which the library is built
+    /// (macOS, Windows, Linux for every other system)
+    static WindowPlatform getNativeWindowPlatform();
+
+    /// Returns the name of the icon of the glyph of the kind ("window-minimize", ...)
+    static QString getWindowButtonIconName(WindowButtonKind kind);
+
+    /// Returns the size of a window button of the platform: 46 x 38 (Windows,
+    /// Linux), 20 x 38 for a traffic light of macOS (the circle of 12 px and the
+    /// half of the gap of 8 px at each side, so the targets of the three circles touch)
+    static QSize getWindowButtonSize(WindowPlatform platform);
+
+    /// Returns the size of the glyph (16) of a button of Windows and Linux
+    static int getWindowButtonIconExtent();
+
+    /// Returns the diameter of a traffic light of macOS (12)
+    static int getWindowButtonCircleExtent();
+
+    /// Returns the color of the glyph of a button of Windows and Linux in the
+    /// state: icon/disabled for a disabled button, icon/on-accent for the
+    /// hovered or pressed Close, icon/strong for the hovered or pressed other
+    /// buttons, icon/disabled in an inactive window, icon/default otherwise
+    static PDFThemeColors::Color getWindowButtonIconColor(const WindowButton& button, const State& state);
+
+    /// Returns the background of a button of Windows and Linux in the state
+    /// (bg/hover, bg/pressed, bg/danger, bg/danger-pressed), nothing at rest,
+    /// in an inactive window and for a disabled button
+    static std::optional<PDFThemeColors::Color> getWindowButtonBackground(const WindowButton& button, const State& state);
+
+    /// Returns the color of a traffic light of macOS: window/macos-close,
+    /// window/macos-minimize, window/macos-zoom, window/macos-inactive in an
+    /// inactive window and for a disabled zoom button. The hover and the press
+    /// have no drawing of their own (the native buttons draw their glyphs).
+    static PDFThemeColors::Color getWindowButtonCircleColor(const WindowButton& button, const State& state);
+
+    /// Draws the window button into the rectangle: the background fills the whole
+    /// rectangle without a radius, the glyph of 16 px (or the circle of 12 px on
+    /// macOS) lies in its middle. The glyphs are not mirrored for right-to-left.
+    static void paintWindowButton(QPainter* painter, const QRectF& rect, const WindowButton& button, const State& state);
+
+    // --------------------------------------------------------- Window controls
+
+    /// Content of the group of the window buttons (component Window controls
+    /// 947:1504). Windows and Linux: Minimize, Maximize (Restore, when the window
+    /// is maximized) and Close, 138 x 38, placed at the right end of app-top-bar
+    /// (the bar keeps 46 px free for dragging the window before them). macOS: the
+    /// traffic lights close, minimize, zoom, 80 x 38 including the margins of
+    /// 14 px, at the left end of the bar. A right-to-left layout mirrors the
+    /// group as the systems do (Windows mirrors the caption of a window with the
+    /// layout WS_EX_LAYOUTRTL, Close is then the leftmost button): the order is
+    /// mirrored by the direction of the state, the glyphs are not.
+    struct WindowControls
+    {
+        WindowPlatform platform = WindowPlatform::Windows;
+        bool maximized = false;     ///< Restore instead of Maximize (macOS: no change)
+        bool windowActive = true;   ///< false: the variant Inactive of each button
+        bool resizable = true;      ///< false: Maximize / zoom is disabled (a window of a fixed size)
+        std::optional<WindowButtonKind> hovered;    ///< Button under the pointer (Maximize and Restore are the same button)
+        std::optional<WindowButtonKind> pressed;    ///< Pressed button
+    };
+
+    /// Returns the buttons of the group in their logical (left-to-right) order
+    static QList<WindowButtonKind> getWindowControlsButtons(const WindowControls& controls);
+
+    /// Returns the size of the group (138 x 38, 80 x 38 on macOS)
+    static QSize getWindowControlsSize(WindowPlatform platform);
+
+    /// Returns the rectangle of the button of the kind (Maximize and Restore are
+    /// the same button) in the visual (mirrored for right-to-left) layout of the
+    /// group drawn into the rectangle: the buttons fill the height of the
+    /// rectangle and start at its leading edge. An empty rectangle is returned
+    /// for an invalid kind or rectangle.
+    static QRectF getWindowControlsButtonRect(const QRectF& rect, const WindowControls& controls, WindowButtonKind kind, const State& state);
+
+    /// Returns the button at the point (in the coordinates of the rectangle), nothing outside of the buttons
+    static std::optional<WindowButtonKind> getWindowControlsButtonAt(const QRectF& rect, const WindowControls& controls, const QPointF& point, const State& state);
+
+    /// Draws the group into the rectangle. The enabled flag of the state applies
+    /// to the whole group; the hover and the press of the buttons are given by
+    /// \p WindowControls::hovered and \p WindowControls::pressed.
+    static void paintWindowControls(QPainter* painter, const QRectF& rect, const WindowControls& controls, const State& state);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFComponentPainter::StrengthCriteria)

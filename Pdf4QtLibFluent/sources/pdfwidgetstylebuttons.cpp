@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfwidgetstyleimpl.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemeiconengine.h"
 
 #include <QAbstractButton>
@@ -926,26 +927,28 @@ void PDFWidgetStyleButtons::drawToolButton(const QStyleOptionToolButton* option,
     }
     else if (isSplit)
     {
-        // The two halves react separately, they share the rounded shape
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setClipPath(PDFStylePainter::roundedPath(rect, Radii(TOOL_BUTTON_RADIUS)), Qt::IntersectClip);
-
-        if (state.on)
-        {
-            painter->fillRect(rect, PDFWidgetStyleImpl::color(Color::BgAccentSubtle));
-        }
-
         const bool isAnyActive = state.enabled && (state.hover || state.pressed);
-        if (state.enabled && isButtonActive)
+
+        // The two halves react separately, they share the rounded shape
         {
-            painter->fillRect(QRectF(buttonRect), PDFWidgetStyleImpl::color(state.pressed ? Color::BgPressed : Color::BgHover));
+            const PDFStylePainterGuard guard(painter);
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            painter->setClipPath(PDFStylePainter::roundedPath(rect, Radii(TOOL_BUTTON_RADIUS)), Qt::IntersectClip);
+
+            if (state.on)
+            {
+                painter->fillRect(rect, PDFWidgetStyleImpl::color(Color::BgAccentSubtle));
+            }
+
+            if (state.enabled && isButtonActive)
+            {
+                painter->fillRect(QRectF(buttonRect), PDFWidgetStyleImpl::color(state.pressed ? Color::BgPressed : Color::BgHover));
+            }
+            if (state.enabled && isMenuActive)
+            {
+                painter->fillRect(QRectF(menuRect), PDFWidgetStyleImpl::color(state.pressed ? Color::BgPressed : Color::BgHover));
+            }
         }
-        if (state.enabled && isMenuActive)
-        {
-            painter->fillRect(QRectF(menuRect), PDFWidgetStyleImpl::color(state.pressed ? Color::BgPressed : Color::BgHover));
-        }
-        painter->restore();
 
         if (isAnyActive)
         {

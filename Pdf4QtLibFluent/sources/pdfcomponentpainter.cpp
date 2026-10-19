@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcomponentpainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
 
 #include <QCoreApplication>
@@ -325,7 +326,7 @@ void PDFComponentPainter::drawScaledPixmap(QPainter* painter, const QRectF& targ
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     // The device, into which the painter really paints (a widget rendered into
@@ -359,8 +360,6 @@ void PDFComponentPainter::drawScaledPixmap(QPainter* painter, const QRectF& targ
     {
         painter->drawPixmap(target, pixmap, QRectF(QPointF(0.0, 0.0), QSizeF(pixmap.size())));
     }
-
-    painter->restore();
 }
 
 void PDFComponentPainter::paintFocusRingOutside(QPainter* painter, const QRectF& shape, const PDFStylePainter::Radii& radii)
@@ -465,7 +464,7 @@ void PDFComponentPainter::paintToolBadge(QPainter* painter, const QRectF& rect, 
     const QRectF circle = alignedCentered(rect, QSizeF(diameter, diameter));
     const PDFAccentHue hue = normalized(badge.hue);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::fillEllipse(painter, circle, PDFStylePainter::color(PDFAccentHueColors::getColor(hue, Role::Background)));
 
@@ -475,7 +474,6 @@ void PDFComponentPainter::paintToolBadge(QPainter* painter, const QRectF& rect, 
         const PDFThemeColors::Color iconColor = state.isEnabled() ? PDFAccentHueColors::getColor(hue, Role::Icon) : PDFThemeColors::IconDisabled;
         PDFStylePainter::icon(painter, alignedCentered(circle, QSizeF(iconExtent, iconExtent)), badge.iconName, iconColor);
     }
-    painter->restore();
 }
 
 QFont PDFComponentPainter::getTagFont()
@@ -500,7 +498,7 @@ void PDFComponentPainter::paintTag(QPainter* painter, const QRectF& rect, const 
 
     const PDFStylePainter::Radii radii(qMin(rect.width(), rect.height()) / 2.0);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Hover and press lay bg/hover / bg/pressed over the own fill bg/subtle (decision 27)
@@ -531,7 +529,6 @@ void PDFComponentPainter::paintTag(QPainter* painter, const QRectF& rect, const 
     const QColor textColor = PDFStylePainter::color(state.isEnabled() ? PDFThemeColors::TextSecondary : PDFThemeColors::TextDisabled);
     PDFStylePainter::text(painter, textRect, Qt::AlignVCenter | state.leadingAlignment() | Qt::TextSingleLine,
                           elidedText(tag.text, font, textRect.width()), font, textColor);
-    painter->restore();
 }
 
 QFont PDFComponentPainter::getTextLinkFont(bool isUnderlined)
@@ -571,7 +568,7 @@ void PDFComponentPainter::paintTextLink(QPainter* painter, const QRectF& rect, c
         textColor = PDFThemeColors::TextAccentPressed;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     const QFont font = getTextLinkFont();
@@ -598,8 +595,6 @@ void PDFComponentPainter::paintTextLink(QPainter* painter, const QRectF& rect, c
     {
         paintFocusRingOutside(painter, rect, PDFStylePainter::Radii(getTextLinkRadius()));
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::StarSize PDFComponentPainter::normalized(StarSize size)
@@ -638,7 +633,7 @@ void PDFComponentPainter::paintStar(QPainter* painter, const QRectF& rect, StarS
     const QRectF shape = alignedCentered(rect, QSizeF(extent, extent));
     const PDFStylePainter::Radii radii(getStarRadius());
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Hover and press lay the overlay over the own surface (decision 28), so
@@ -676,8 +671,6 @@ void PDFComponentPainter::paintStar(QPainter* painter, const QRectF& rect, StarS
     {
         paintFocusRingOutside(painter, shape, radii);
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::SwatchKind PDFComponentPainter::normalized(SwatchKind kind)
@@ -718,7 +711,7 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
     const QRectF colorRect = alignedCentered(shape, QSizeF(colorExtent, colorExtent));
     const bool enabled = state.isEnabled();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Hover and press fill the whole circle, the overlay lies over the own
@@ -751,7 +744,7 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
 
         QPainterPath clip;
         clip.addEllipse(colorRect);
-        painter->save();
+        const PDFStylePainterGuard innerGuard(painter);
         painter->setClipPath(clip, Qt::IntersectClip);
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setPen(QPen(PDFStylePainter::color(enabled ? PDFThemeColors::IconDanger : PDFThemeColors::IconDisabled),
@@ -759,7 +752,6 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
         const qreal leg = PDFComponentPainterHelper::SWATCH_SLASH_LENGTH * scale / M_SQRT2;
         const QPointF start(colorRect.left() + PDFComponentPainterHelper::SWATCH_SLASH_X * scale, colorRect.top() + PDFComponentPainterHelper::SWATCH_SLASH_Y * scale);
         painter->drawLine(start, start + QPointF(leg, -leg));
-        painter->restore();
     }
     else if (swatch.color.isValid())
     {
@@ -778,8 +770,6 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
     {
         paintFocusRingOutside(painter, shape, PDFStylePainter::Radii(extent / 2.0));
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::ThumbnailSize PDFComponentPainter::normalized(ThumbnailSize size)
@@ -822,11 +812,10 @@ void PDFComponentPainter::paintPageThumbnailShadow(QPainter* painter, const QRec
         return;
     }
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::shadow(painter, frame, PDFStylePainter::Radii(PDFComponentPainterHelper::THUMBNAIL_RADIUS), QPointF(0.0, PDFComponentPainterHelper::THUMBNAIL_SHADOW_OFFSET),
                             PDFComponentPainterHelper::THUMBNAIL_SHADOW_BLUR, PDFStylePainter::color(PDFThemeColors::EffectShadow));
-    painter->restore();
 }
 
 void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRectF& frame, const PageThumbnail& thumbnail, const State& state)
@@ -841,7 +830,7 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
     const PDFComponentPainterHelper::ThumbnailGeometry geometry = PDFComponentPainterHelper::getThumbnailGeometry(normalized(thumbnail.size));
     const PDFStylePainter::Radii radii(PDFComponentPainterHelper::THUMBNAIL_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::fill(painter, frame, radii, PDFThemeColors::BgSurface);
 
@@ -852,10 +841,9 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
         const QSizeF targetSize = pixmapSize.scaled(frame.size(), Qt::KeepAspectRatio);
         const QRectF target = PDFStylePainter::centered(frame, targetSize);
 
-        painter->save();
+        const PDFStylePainterGuard innerGuard(painter);
         painter->setClipPath(PDFStylePainter::roundedPath(frame, radii), Qt::IntersectClip);
         drawScaledPixmap(painter, target, thumbnail.pixmap);
-        painter->restore();
     }
     else
     {
@@ -886,7 +874,6 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
     }
 
     PDFStylePainter::strokeInside(painter, frame, radii, PDFThemeColors::BorderStrong, 1.0);
-    painter->restore();
 }
 
 /// Geometry constants and drawing helpers of the rows of the specification
@@ -1228,7 +1215,7 @@ void PDFComponentPainter::paintIconButton(QPainter* painter, const QRectF& rect,
     const QRectF shape = PDFStylePainter::centered(rect, QSizeF(extent, extent));
     const PDFStylePainter::Radii radii(qBound<qreal>(0.0, button.radius, extent / 2.0));
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Hover and press add a background over the surface below the button
@@ -1245,8 +1232,6 @@ void PDFComponentPainter::paintIconButton(QPainter* painter, const QRectF& rect,
     {
         paintFocusRingOutside(painter, shape, radii);
     }
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getMoreButtonSize()
@@ -1273,7 +1258,7 @@ void PDFComponentPainter::paintMoreButton(QPainter* painter, const QRectF& rect,
     const qreal extent = qMin<qreal>(Helper::MORE, qMin(rect.width(), rect.height()));
     const QRectF shape = alignedCentered(rect, QSizeF(extent, extent));
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::icon(painter, shape, QStringLiteral("more-vertical"), Helper::pointerIcon(state));
 
@@ -1281,8 +1266,6 @@ void PDFComponentPainter::paintMoreButton(QPainter* painter, const QRectF& rect,
     {
         paintFocusRingOutside(painter, shape, PDFStylePainter::Radii(Helper::MORE_RADIUS));
     }
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getLinkRowSize(const LinkRow& row)
@@ -1315,7 +1298,7 @@ void PDFComponentPainter::paintLinkRow(QPainter* painter, const QRectF& rect, co
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1335,8 +1318,6 @@ void PDFComponentPainter::paintLinkRow(QPainter* painter, const QRectF& rect, co
     const qreal textLeft = left + Helper::LINK_PADDING + Helper::LINK_ICON + Helper::LINK_GAP;
     const qreal textWidth = chevronLeft - Helper::LINK_GAP - textLeft;
     Helper::drawTextBlock(painter, state, rect, textLeft, textWidth, row.title, Helper::text(state, Color::TextPrimary), row.subtitle, Helper::text(state, Color::TextTertiary), 1);
-
-    painter->restore();
 }
 
 PDFComponentPainter::FileStatus PDFComponentPainter::normalized(FileStatus status)
@@ -1444,7 +1425,7 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
     const bool isMissing = normalized(row.status) == FileStatus::Missing;
     const bool isPointer = state.isHovered() || state.isPressed();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1514,8 +1495,6 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
     const qreal textWidth = statusLeft - Helper::FILE_GAP - textLeft;
     Helper::drawTextBlock(painter, state, rect, textLeft, textWidth, row.fileName, Helper::text(state, isMissing ? Color::TextMuted : Color::TextPrimary),
                           row.path, Helper::text(state, Color::TextMuted), Helper::FILE_TEXT_GAP, Helper::TextKind::FileName, Helper::TextKind::Data);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getRecentToolRowSize(const RecentToolRow& row)
@@ -1545,7 +1524,7 @@ void PDFComponentPainter::paintRecentToolRow(QPainter* painter, const QRectF& re
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1564,8 +1543,6 @@ void PDFComponentPainter::paintRecentToolRow(QPainter* painter, const QRectF& re
     const qreal textLeft = badgeRect.right() + Helper::RECENT_TOOL_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, chevronLeft - Helper::RECENT_TOOL_GAP - textLeft,
                           row.name, Helper::text(state, Color::TextPrimary), row.lastUsed, Helper::text(state, Color::TextMuted), 1);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getWorkspaceRowSize(const WorkspaceRow& row)
@@ -1600,7 +1577,7 @@ void PDFComponentPainter::paintWorkspaceRow(QPainter* painter, const QRectF& rec
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1622,8 +1599,6 @@ void PDFComponentPainter::paintWorkspaceRow(QPainter* painter, const QRectF& rec
     const qreal textLeft = badgeRect.right() + Helper::WORKSPACE_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, moreRect.left() - Helper::WORKSPACE_GAP - textLeft,
                           row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1, Helper::TextKind::Data);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getToolRowSize(const ToolRow& row)
@@ -1677,7 +1652,7 @@ void PDFComponentPainter::paintToolRow(QPainter* painter, const QRectF& rect, co
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1712,8 +1687,6 @@ void PDFComponentPainter::paintToolRow(QPainter* painter, const QRectF& rect, co
     const qreal textLeft = badgeRect.right() + Helper::TOOL_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, trailingLeft - Helper::TOOL_GAP - textLeft,
                           row.name, Helper::text(state, Color::TextPrimary), row.description, Helper::text(state, Color::TextMuted), 1);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getCollectionRowSize(const CollectionRow& row)
@@ -1743,7 +1716,7 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1769,8 +1742,6 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
     const qreal textLeft = circleRect.right() + Helper::COLLECTION_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, chevronLeft - Helper::COLLECTION_GAP - textLeft,
                           row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getToolShortcutSize(const ToolShortcut& shortcut)
@@ -1806,7 +1777,7 @@ void PDFComponentPainter::paintToolShortcut(QPainter* painter, const QRectF& rec
     const PDFStylePainter::Radii radii(Helper::SHORTCUT_RADIUS);
     const bool isPointer = state.isHovered() || state.isPressed();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Hover and press darken the tile by the steps of the neutral hue
@@ -1835,7 +1806,7 @@ void PDFComponentPainter::paintToolShortcut(QPainter* painter, const QRectF& rec
     }
 
     // The content is clipped to the tile, only the focus ring lies outside
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
     const QRectF badgeRect = Helper::line(rect, rect.left() + Helper::SHORTCUT_LEFT, Helper::BADGE, Helper::BADGE);
     paintToolBadge(painter, state.visualRect(rect, badgeRect), ToolBadge{ shortcut.iconName, shortcut.hue, BadgeSize::Medium }, state);
@@ -1843,9 +1814,6 @@ void PDFComponentPainter::paintToolShortcut(QPainter* painter, const QRectF& rec
     const qreal textLeft = badgeRect.right() + Helper::SHORTCUT_GAP;
     const qreal textWidth = rect.right() - Helper::SHORTCUT_RIGHT - textLeft;
     Helper::drawText(painter, state, rect, Helper::line(rect, textLeft, textWidth, Helper::TITLE_LINE), shortcut.name, Helper::titleFont(), Helper::text(state, Color::TextPrimary));
-    painter->restore();
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getIssueRowSize(const IssueRow& row)
@@ -1876,7 +1844,7 @@ void PDFComponentPainter::paintIssueRow(QPainter* painter, const QRectF& rect, c
 
     const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
     Helper::fillPointer(painter, rect, radii, state);
@@ -1923,8 +1891,6 @@ void PDFComponentPainter::paintIssueRow(QPainter* painter, const QRectF& rect, c
     const qreal textLeft = numberLeft + Helper::ISSUE_NUMBER + Helper::ISSUE_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, textRight - textLeft,
                           row.title, Helper::text(state, Color::TextPrimary), row.description, Helper::text(state, Color::TextMuted), 1, Helper::TextKind::Data, Helper::TextKind::Data);
-
-    painter->restore();
 }
 
 QSize PDFComponentPainter::getVersionRowSize(const VersionRow& row)
@@ -1963,7 +1929,7 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
     using Helper = PDFComponentRowPainterHelper;
     using Color = PDFThemeColors::Color;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -2000,8 +1966,6 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
         painter->setPen(PDFStylePainter::color(Helper::text(state, Color::TextTertiary)));
         layout.draw(painter, summaryRect.topLeft());
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::PropertyState PDFComponentPainter::normalized(PropertyState propertyState, bool editable)
@@ -2080,7 +2044,7 @@ void PDFComponentPainter::paintPropertyRow(QPainter* painter, const QRectF& rect
 
     const PDFStylePainter::Radii radii(Helper::PROPERTY_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -2144,8 +2108,6 @@ void PDFComponentPainter::paintPropertyRow(QPainter* painter, const QRectF& rect
             }
         }
     }
-
-    painter->restore();
 }
 
 PDFComponentPainter::PropertyAction PDFComponentPainter::normalized(PropertyAction action)
@@ -2200,10 +2162,9 @@ void PDFComponentPainter::paintPropertyRowAction(QPainter* painter, const QRectF
     {
         // The confirmation of the copy: the green check without a background
         const qreal extent = qMin<qreal>(Helper::PROPERTY_ACTION_ICON, qMin(rect.width(), rect.height()));
-        painter->save();
+        const PDFStylePainterGuard guard(painter);
         painter->setRenderHint(QPainter::Antialiasing, true);
         PDFStylePainter::icon(painter, alignedCentered(rect, QSizeF(extent, extent)), QStringLiteral("check"), Helper::icon(buttonState, Color::AccentGreenIcon));
-        painter->restore();
         return;
     }
 

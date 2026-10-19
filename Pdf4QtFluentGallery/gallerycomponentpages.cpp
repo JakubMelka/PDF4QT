@@ -27,6 +27,7 @@
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
+#include "pdfcomponentwindow.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
 #include "pdfwidgetstyleproperties.h"
@@ -116,6 +117,32 @@ public:
         const qreal margin = GallerySpecimen::MARGIN;
         pdf::PDFStylePainter::fillRect(&painter, rect.adjusted(-margin, -margin, margin, margin), Color::BgSurface);
     }
+
+    /// Fills the sample (with its margin) by bg/titlebar: the buttons of the
+    /// window lie in the top bar of the application
+    static void fillTitleBar(QPainter& painter, const QRectF& rect)
+    {
+        const qreal margin = GallerySpecimen::MARGIN;
+        pdf::PDFStylePainter::fillRect(&painter, rect.adjusted(-margin, -margin, margin, margin), Color::BgTitlebar);
+    }
+
+    /// Returns a strip of the top bar (bg/titlebar) holding the widget, as in app-top-bar
+    static QWidget* createTitleBar(QWidget* parent, QWidget* widget)
+    {
+        QWidget* titleBar = new QWidget(parent);
+        pdf::PDFWidgetStyleProperties::set(titleBar, pdf::PDFWidgetStyleProperties::DOCUMENT_TABS);
+        titleBar->setLayoutDirection(widget->layoutDirection());
+        QHBoxLayout* layout = new QHBoxLayout(titleBar);
+        layout->setContentsMargins(8, 0, 8, 0);
+        layout->setSpacing(0);
+        widget->setParent(titleBar);
+        layout->addWidget(widget);
+        return titleBar;
+    }
+
+    /// Adds the window buttons and the window controls (components Window
+    /// button 947:1475 and Window controls 947:1504) to the page
+    static void addWindowControls(GalleryBuilder& builder);
 
     /// Adds a sample of a row drawn over bg/surface
     template<typename Paint>
@@ -213,12 +240,233 @@ public:
     }
 };
 
+void GalleryComponentPagesHelper::addWindowControls(GalleryBuilder& builder)
+{
+    using Kind = Painter::WindowButtonKind;
+    using Platform = Painter::WindowPlatform;
+    using Activity = pdf::PDFWindowButton::Activity;
+
+    // Window button: every variant of the design drawn over the top bar
+    builder.block(QStringLiteral("Window button (PDFWindowButton) - Default / Hover / Pressed / Inactive, Maximize Disabled"), QStringLiteral("947:1475"));
+
+    struct WindowState
+    {
+        const char* name;
+        int flags;
+        bool windowActive;
+    };
+    static constexpr WindowState windowStates[] =
+    {
+        { "Default", GalleryPages::Default, true },
+        { "Hover", GalleryPages::Hover, true },
+        { "Pressed", GalleryPages::Pressed | GalleryPages::Hover, true },
+        { "Inactive", GalleryPages::Default, false },
+        { "Disabled", GalleryPages::Disabled, true },
+        { "Inactive Hover", GalleryPages::Hover, false }
+    };
+
+    struct WindowKind
+    {
+        Kind kind;
+        const char* name;
+        const char* nodes[6];
+    };
+    static constexpr WindowKind windowKinds[] =
+    {
+        { Kind::Minimize, "Minimize", { "947:1439", "947:1442", "947:1445", "955:142595", nullptr, nullptr } },
+        { Kind::Maximize, "Maximize", { "947:1448", "947:1451", "947:1454", "955:142598", "955:142607", nullptr } },
+        { Kind::Restore, "Restore", { "947:1457", "947:1460", "947:1463", "955:142601", nullptr, nullptr } },
+        { Kind::Close, "Close", { "947:1466", "947:1469", "947:1472", "955:142604", nullptr, nullptr } }
+    };
+
+    for (const WindowKind& windowKind : windowKinds)
+    {
+        for (int i = 0; i < 6; ++i)
+        {
+            // Only Maximize has the variant Disabled (a window of a fixed size)
+            if (i == 4 && windowKind.kind != Kind::Maximize)
+            {
+                continue;
+            }
+
+            const WindowState windowState = windowStates[i];
+            const Painter::WindowButton button{ windowKind.kind, Platform::Windows, windowState.windowActive };
+            const QString caption = QStringLiteral("%1 %2").arg(QString::fromLatin1(windowKind.name), QString::fromLatin1(windowState.name));
+            builder.specimen(caption, Painter::getWindowButtonSize(Platform::Windows), [button, windowState](QPainter& painter, const QRect& rect)
+            {
+                fillTitleBar(painter, QRectF(rect));
+                Painter::paintWindowButton(&painter, QRectF(rect), button, state(windowState.flags));
+            }, node(windowKind.nodes, i));
+        }
+        builder.row();
+    }
+
+    // Traffic lights of macOS (the circles of Window controls, Platform=macOS)
+    for (const Kind kind : { Kind::Close, Kind::Minimize, Kind::Maximize })
+    {
+        for (const bool windowActive : { true, false })
+        {
+            const Painter::WindowButton button{ kind, Platform::MacOS, windowActive };
+            const QString caption = QStringLiteral("macOS %1%2").arg(pdf::PDFWindowButton::getActionName(kind, Platform::MacOS), windowActive ? QString() : QStringLiteral(" Inactive"));
+            builder.specimen(caption, Painter::getWindowButtonSize(Platform::MacOS), [button](QPainter& painter, const QRect& rect)
+            {
+                fillTitleBar(painter, QRectF(rect));
+                Painter::paintWindowButton(&painter, QRectF(rect), button, state(GalleryPages::Default));
+            }, QStringLiteral("955:142618"));
+        }
+    }
+    builder.row();
+
+    // Live buttons in the strip of the top bar
+    QWidget* page = builder.page();
+    for (const Kind kind : { Kind::Minimize, Kind::Maximize, Kind::Restore, Kind::Close })
+    {
+        pdf::PDFWindowButton* button = new pdf::PDFWindowButton(kind, Platform::Windows, page);
+        button->setActivity(Activity::Active);
+        builder.live(QStringLiteral("Live %1").arg(pdf::PDFWindowButton::getActionName(kind, Platform::Windows)), createTitleBar(page, button));
+    }
+    builder.row();
+
+    pdf::PDFWindowButton* hoveredClose = new pdf::PDFWindowButton(Kind::Close, Platform::Windows, page);
+    hoveredClose->setActivity(Activity::Active);
+    hoveredClose->setAttribute(Qt::WA_UnderMouse, true);
+    builder.live(QStringLiteral("Live Close hover"), createTitleBar(page, hoveredClose), QStringLiteral("947:1469"));
+
+    pdf::PDFWindowButton* pressedMaximize = new pdf::PDFWindowButton(Kind::Maximize, Platform::Windows, page);
+    pressedMaximize->setActivity(Activity::Active);
+    pressedMaximize->setDown(true);
+    builder.live(QStringLiteral("Live Maximize pressed"), createTitleBar(page, pressedMaximize), QStringLiteral("947:1454"));
+
+    pdf::PDFWindowButton* externalMaximize = new pdf::PDFWindowButton(Kind::Maximize, Platform::Windows, page);
+    externalMaximize->setActivity(Activity::Active);
+    externalMaximize->setExternalHover(true);
+    builder.live(QStringLiteral("Live Maximize, hover of the system (HTMAXBUTTON)"), createTitleBar(page, externalMaximize), QStringLiteral("947:1451"));
+
+    pdf::PDFWindowButton* inactiveMinimize = new pdf::PDFWindowButton(Kind::Minimize, Platform::Windows, page);
+    inactiveMinimize->setActivity(Activity::Inactive);
+    builder.live(QStringLiteral("Live Minimize inactive"), createTitleBar(page, inactiveMinimize), QStringLiteral("955:142595"));
+
+    pdf::PDFWindowButton* disabledMaximize = new pdf::PDFWindowButton(Kind::Maximize, Platform::Windows, page);
+    disabledMaximize->setActivity(Activity::Active);
+    disabledMaximize->setEnabled(false);
+    builder.live(QStringLiteral("Live Maximize disabled"), createTitleBar(page, disabledMaximize), QStringLiteral("955:142607"));
+    builder.row();
+
+    // Window controls: every variant of the design, the inactive window and right-to-left
+    builder.block(QStringLiteral("Window controls (PDFWindowControls) - Platform Windows / Linux / macOS, Maximized"), QStringLiteral("947:1504"));
+
+    struct ControlsVariant
+    {
+        const char* name;
+        Platform platform;
+        bool maximized;
+        const char* node;
+    };
+    static constexpr ControlsVariant controlsVariants[] =
+    {
+        { "Windows", Platform::Windows, false, "947:1484" },
+        { "Windows maximized", Platform::Windows, true, "947:1494" },
+        { "Linux", Platform::Linux, false, "955:142610" },
+        { "Linux maximized", Platform::Linux, true, "955:142614" },
+        { "macOS", Platform::MacOS, false, "955:142618" },
+        { "macOS maximized", Platform::MacOS, true, "955:142631" }
+    };
+
+    for (const ControlsVariant& variant : controlsVariants)
+    {
+        Painter::WindowControls controls;
+        controls.platform = variant.platform;
+        controls.maximized = variant.maximized;
+        builder.specimen(QString::fromLatin1(variant.name), Painter::getWindowControlsSize(variant.platform), [controls](QPainter& painter, const QRect& rect)
+        {
+            fillTitleBar(painter, QRectF(rect));
+            Painter::paintWindowControls(&painter, QRectF(rect), controls, state(GalleryPages::Default));
+        }, QString::fromLatin1(variant.node));
+    }
+    builder.row();
+
+    // States of the group, which are not variants of the design
+    for (const Platform platform : { Platform::Windows, Platform::MacOS })
+    {
+        const QString prefix = platform == Platform::MacOS ? QStringLiteral("macOS") : QStringLiteral("Windows");
+
+        Painter::WindowControls inactive;
+        inactive.platform = platform;
+        inactive.windowActive = false;
+        builder.specimen(QStringLiteral("%1 inactive").arg(prefix), Painter::getWindowControlsSize(platform), [inactive](QPainter& painter, const QRect& rect)
+        {
+            fillTitleBar(painter, QRectF(rect));
+            Painter::paintWindowControls(&painter, QRectF(rect), inactive, state(GalleryPages::Default));
+        });
+
+        Painter::WindowControls fixedSize;
+        fixedSize.platform = platform;
+        fixedSize.resizable = false;
+        builder.specimen(QStringLiteral("%1 fixed size").arg(prefix), Painter::getWindowControlsSize(platform), [fixedSize](QPainter& painter, const QRect& rect)
+        {
+            fillTitleBar(painter, QRectF(rect));
+            Painter::paintWindowControls(&painter, QRectF(rect), fixedSize, state(GalleryPages::Default));
+        });
+
+        Painter::WindowControls closeHovered;
+        closeHovered.platform = platform;
+        closeHovered.hovered = Kind::Close;
+        builder.specimen(QStringLiteral("%1 right-to-left, Close hover").arg(prefix), Painter::getWindowControlsSize(platform), [closeHovered](QPainter& painter, const QRect& rect)
+        {
+            fillTitleBar(painter, QRectF(rect));
+            const Painter::State rightToLeft(QStyle::State_Enabled, Qt::RightToLeft);
+            Painter::paintWindowControls(&painter, QRectF(rect), closeHovered, rightToLeft);
+        });
+    }
+    builder.row();
+
+    // Live groups in the strip of the top bar
+    for (const ControlsVariant& variant : controlsVariants)
+    {
+        pdf::PDFWindowControls* controls = new pdf::PDFWindowControls(variant.platform, page);
+        controls->setActivity(Activity::Active);
+        controls->setMaximized(variant.maximized);
+        builder.live(QStringLiteral("Live %1").arg(QString::fromLatin1(variant.name)), createTitleBar(page, controls), QString::fromLatin1(variant.node));
+    }
+    builder.row();
+
+    pdf::PDFWindowControls* inactiveControls = new pdf::PDFWindowControls(Platform::Windows, page);
+    inactiveControls->setActivity(Activity::Inactive);
+    builder.live(QStringLiteral("Live inactive window"), createTitleBar(page, inactiveControls));
+
+    pdf::PDFWindowControls* fixedControls = new pdf::PDFWindowControls(Platform::Windows, page);
+    fixedControls->setActivity(Activity::Active);
+    fixedControls->setResizable(false);
+    builder.live(QStringLiteral("Live window of a fixed size"), createTitleBar(page, fixedControls), QStringLiteral("955:142607"));
+
+    pdf::PDFWindowControls* snapControls = new pdf::PDFWindowControls(Platform::Windows, page);
+    snapControls->setActivity(Activity::Active);
+    snapControls->setHoveredButton(Kind::Maximize);
+    builder.live(QStringLiteral("Live, Maximize hovered by the system (HTMAXBUTTON)"), createTitleBar(page, snapControls));
+    builder.row();
+
+    pdf::PDFWindowControls* rightToLeftControls = new pdf::PDFWindowControls(Platform::Windows, page);
+    rightToLeftControls->setActivity(Activity::Active);
+    rightToLeftControls->setLayoutDirection(Qt::RightToLeft);
+    builder.live(QStringLiteral("Live right-to-left"), createTitleBar(page, rightToLeftControls));
+
+    pdf::PDFWindowControls* systemControls = new pdf::PDFWindowControls(Platform::MacOS, page);
+    systemControls->setSystemButtons(true);
+    builder.live(QStringLiteral("Live macOS, system buttons (only the place)"), createTitleBar(page, systemControls));
+
+    builder.live(QStringLiteral("Live, native platform, follows the window"), createTitleBar(page, new pdf::PDFWindowControls(page)));
+    builder.row();
+}
+
 GalleryPages::Page GalleryPages::createShellHomePage(QWidget* parent)
 {
     using Helper = GalleryComponentPagesHelper;
     using Painter = pdf::PDFComponentPainter;
 
     GalleryBuilder builder(parent, QStringLiteral("19-shell-home"), QStringLiteral("Shell and Home"), QStringLiteral("home"));
+
+    // Window button and Window controls of the top bar
+    Helper::addWindowControls(builder);
 
     // Text link
     builder.block(QStringLiteral("Text link (PDFTextLink)"), QStringLiteral("49:152"));

@@ -27,6 +27,7 @@
 // the cards of the specification of these components.
 
 #include "pdfcomponentpainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
 
 #include <QCoreApplication>
@@ -580,7 +581,7 @@ void PDFComponentPainter::paintPageSelection(QPainter* painter, const QRectF& re
 
     const PageSelectionLayout layout = getPageSelectionLayout(selection, qFloor(rect.width()));
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -618,8 +619,6 @@ void PDFComponentPainter::paintPageSelection(QPainter* painter, const QRectF& re
         const QStringList lines = wrapText(selection.error, messageFont, messageWidth);
         Helper::drawLines(painter, state, rect, QRectF(error.left() + textLeft, error.top(), messageWidth, error.height()), Helper::LINE_11, lines, messageFont, Helper::text(state, Color::TextDanger));
     }
-
-    painter->restore();
 }
 
 // ------------------------------------------------------------- Continue with
@@ -733,7 +732,7 @@ void PDFComponentPainter::paintContinueWith(QPainter* painter, const QRectF& rec
 
     const ContinueWithLayout layout = getContinueWithLayout(content, qFloor(rect.width()));
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -769,8 +768,6 @@ void PDFComponentPainter::paintContinueWith(QPainter* painter, const QRectF& rec
             paintToolChoice(painter, Helper::place(rect, QRectF(layout.choices.at(i)), state), content.choices.at(i), Helper::nestedState(state, i == content.selectedChoice));
         }
     }
-
-    painter->restore();
 }
 
 // -------------------------------------------------------------- Color button
@@ -811,7 +808,7 @@ void PDFComponentPainter::paintColorButton(QPainter* painter, const QRectF& rect
     const bool isPressed = state.isEnabled() && (state.isPressed() || button.open);
     const bool isHovered = state.isHovered();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Field: bg/surface, bg/subtle when pressed (or open), bg/muted when disabled
@@ -836,7 +833,7 @@ void PDFComponentPainter::paintColorButton(QPainter* painter, const QRectF& rect
         PDFStylePainter::strokeInside(painter, rect, radii, (isPressed || isHovered) ? Color::BorderStrong : Color::BorderDefault, 1.0);
     }
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     // Swatch: the color keeps its value in each state; no color is crossed
@@ -851,7 +848,7 @@ void PDFComponentPainter::paintColorButton(QPainter* painter, const QRectF& rect
     {
         PDFStylePainter::fill(painter, visualSwatch, swatchRadii, Color::BgSurface);
 
-        painter->save();
+        const PDFStylePainterGuard innermostGuard(painter);
         painter->setClipPath(PDFStylePainter::roundedPath(visualSwatch, swatchRadii), Qt::IntersectClip);
         QPen pen(PDFStylePainter::color(Helper::icon(state, Color::IconDanger)), 1.5);
         pen.setCapStyle(Qt::FlatCap);
@@ -865,7 +862,6 @@ void PDFComponentPainter::paintColorButton(QPainter* painter, const QRectF& rect
         {
             painter->drawLine(slash.bottomLeft(), slash.topRight());
         }
-        painter->restore();
     }
     PDFStylePainter::strokeInside(painter, visualSwatch, swatchRadii, Color::BorderStrong, 1.0);
 
@@ -877,9 +873,6 @@ void PDFComponentPainter::paintColorButton(QPainter* painter, const QRectF& rect
     const qreal nameLeft = swatch.right() + Helper::BUTTON_GAP;
     Helper::drawDataText(painter, state, rect, Helper::line(nameLeft, 0.0, rect.height(), chevronLeft - Helper::BUTTON_GAP - nameLeft, Helper::LINE_13),
                          button.name, Helper::font(PDFThemeFonts::Role::Body), Helper::text(state, Color::TextPrimary));
-
-    painter->restore();
-    painter->restore();
 }
 
 // ----------------------------------------------------- Color palette popover
@@ -950,7 +943,7 @@ void PDFComponentPainter::paintColorPalette(QPainter* painter, const QRectF& rec
     const ColorPaletteLayout layout = getColorPaletteLayout(palette);
     const PDFStylePainter::Radii radii(qMin(Helper::PALETTE_RADIUS, qMin(rect.width(), rect.height()) / 2.0));
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -981,8 +974,6 @@ void PDFComponentPainter::paintColorPalette(QPainter* painter, const QRectF& rec
             paintTextLink(painter, Helper::place(rect, QRectF(layout.more), state), TextLink{ palette.moreText }, Helper::nestedState(state, false));
         }
     }
-
-    painter->restore();
 }
 
 // ------------------------------------------------------------ Signature card
@@ -1121,14 +1112,14 @@ void PDFComponentPainter::paintSignatureCard(QPainter* painter, const QRectF& re
     const PDFStylePainter::Radii radii(qMin(Helper::CARD_RADIUS, qMin(rect.width(), rect.height()) / 2.0));
     const qreal left = Helper::CARD_INSET;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Card
     PDFStylePainter::fill(painter, rect, radii, Color::BgSurface);
     PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderDefault, 1.0);
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     // Header: the badge of the status (the fill keeps its hue when disabled, O-08)
@@ -1260,9 +1251,6 @@ void PDFComponentPainter::paintSignatureCard(QPainter* painter, const QRectF& re
         toggle.iconExtent = Helper::CARD_TOGGLE_ICON;
         paintIconButton(painter, Helper::place(rect, QRectF(layout.toggle), state), toggle, Helper::nestedState(state, false));
     }
-
-    painter->restore();
-    painter->restore();
 }
 
 // ------------------------------------------------------------ Strength meter
@@ -1454,7 +1442,7 @@ void PDFComponentPainter::paintStrengthMeter(QPainter* painter, const QRectF& re
 
     const int width = qFloor(rect.width());
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -1481,12 +1469,11 @@ void PDFComponentPainter::paintStrengthMeter(QPainter* painter, const QRectF& re
     {
         const qreal valueWidth = track.width() * cells / Helper::METER_CELLS;
         const QRectF value = Helper::place(rect, QRectF(0.0, Helper::METER_TOP + Helper::METER_GAP, valueWidth, Helper::METER_TRACK), state);
-        painter->save();
+        const PDFStylePainterGuard innerGuard(painter);
         painter->setClipPath(PDFStylePainter::roundedPath(track, trackRadii), Qt::IntersectClip);
 
         // A disabled meter has the value border/strong (as the progress bar of the style)
         PDFStylePainter::fillRect(painter, value, state.isEnabled() ? Helper::getLevelColor(meter.level) : Color::BorderStrong);
-        painter->restore();
     }
 
     if (meter.criteriaVisible)
@@ -1518,8 +1505,6 @@ void PDFComponentPainter::paintStrengthMeter(QPainter* painter, const QRectF& re
                              getStrengthCriterionText(meter, criterion), criterionFont, Helper::text(state, isSatisfied ? Color::AccentGreenIcon : Color::TextTertiary));
         }
     }
-
-    painter->restore();
 }
 
 }   // namespace pdf

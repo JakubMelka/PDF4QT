@@ -700,6 +700,39 @@ bool PDFDocumentTabBar::isTabClosable(int index) const
     return tabButton(index, side) != nullptr;
 }
 
+bool PDFDocumentTabBar::isTabPasswordProtected(int index) const
+{
+    const TabState* state = getTabState(index);
+    return state && state->passwordProtected;
+}
+
+void PDFDocumentTabBar::setTabPasswordProtected(int index, bool passwordProtected)
+{
+    TabState* state = getTabState(index);
+    if (state && state->passwordProtected != passwordProtected)
+    {
+        state->passwordProtected = passwordProtected;
+        changeTabState(index);
+    }
+}
+
+void PDFDocumentTabBar::initStyleOption(QStyleOptionTab* option, int tabIndex) const
+{
+    if (!option)
+    {
+        return;
+    }
+
+    BaseClass::initStyleOption(option, tabIndex);
+
+    // The icon password replaces the icon of the tab (the icon of the tab is kept)
+    const TabState* state = getTabState(tabIndex);
+    if (state && state->passwordProtected)
+    {
+        option->icon = PDFThemeIcons::getIcon(QStringLiteral("password"));
+    }
+}
+
 int PDFDocumentTabBar::getExtraWidth(int index) const
 {
     const TabState* state = getTabState(index);
@@ -712,6 +745,18 @@ int PDFDocumentTabBar::getExtraWidth(int index) const
     if (state->locked)
     {
         width += PDFComponentPanelsHelper::TAB_ITEM_GAP + PDFComponentPanelsHelper::TAB_LOCK;
+    }
+    if (state->passwordProtected && tabIcon(index).isNull())
+    {
+        // QTabBar measures the tab by its own icon: the place of the icon
+        // password of a tab without an icon is added (the difference, which the
+        // style gives to the icon)
+        QStyleOptionTab option;
+        initStyleOption(&option, index);
+        const int withIcon = style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), this).width();
+        option.icon = QIcon();
+        const int withoutIcon = style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), this).width();
+        width += qMax(0, withIcon - withoutIcon);
     }
     if (state->unsaved)
     {
@@ -740,6 +785,7 @@ void PDFDocumentTabBar::tabInserted(int index)
         m_tabs.insert(m_tabs.begin() + index, TabState());
     }
     BaseClass::tabInserted(index);
+    relayoutTabStates();
 }
 
 void PDFDocumentTabBar::tabRemoved(int index)
@@ -749,6 +795,22 @@ void PDFDocumentTabBar::tabRemoved(int index)
         m_tabs.erase(m_tabs.begin() + index);
     }
     BaseClass::tabRemoved(index);
+    relayoutTabStates();
+}
+
+void PDFDocumentTabBar::relayoutTabStates()
+{
+    // QTabBar lays the tabs out before it calls tabInserted / tabRemoved, so
+    // the extra widths of the states were taken from the old positions
+    for (const TabState& state : m_tabs)
+    {
+        if (state.locked || state.unsaved || state.passwordProtected)
+        {
+            QEvent styleChange(QEvent::StyleChange);
+            QTabBar::event(&styleChange);
+            break;
+        }
+    }
 }
 
 void PDFDocumentTabBar::changeTabState(int index)
@@ -760,6 +822,44 @@ void PDFDocumentTabBar::changeTabState(int index)
     QTabBar::event(&styleChange);
     updateGeometry();
     update();
+}
+
+void PDFDocumentTabBar::tabLayoutChange()
+{
+    BaseClass::tabLayoutChange();
+
+    // QTabBar lays the tabs out after setTabText: the names of the tabs with a
+    // state follow a renamed document (Save As of a protected document)
+    updateAccessibleNames();
+}
+
+void PDFDocumentTabBar::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+
+    if (event->type() == QEvent::LanguageChange)
+    {
+        updateAccessibleNames();
+    }
+}
+
+void PDFDocumentTabBar::updateAccessibleNames()
+{
+    // Inside of insertTab / removeTab the states are not yet at the positions of
+    // the tabs (the names move with the tabs by themselves)
+    if (int(m_tabs.size()) != count())
+    {
+        return;
+    }
+
+    for (int i = 0; i < count(); ++i)
+    {
+        const TabState* state = getTabState(i);
+        if (state && (state->passwordProtected || state->locked || state->unsaved))
+        {
+            updateAccessibleName(i);
+        }
+    }
 }
 
 void PDFDocumentTabBar::updateAccessibleName(int index)
@@ -774,6 +874,10 @@ void PDFDocumentTabBar::updateAccessibleName(int index)
     // The lock and the dot are only drawn, so they are told to assistive technologies
     QString name = tabText(index);
     name.remove(QLatin1Char('&'));
+    if (state->passwordProtected)
+    {
+        name = tr("%1, password protected").arg(name);
+    }
     if (state->locked)
     {
         name = tr("%1, locked").arg(name);
@@ -782,7 +886,15 @@ void PDFDocumentTabBar::updateAccessibleName(int index)
     {
         name = tr("%1, unsaved changes").arg(name);
     }
-    setAccessibleTabName(index, name);
+    if (!state->passwordProtected && !state->locked && !state->unsaved)
+    {
+        // QTabBar names the tab by its current text
+        name.clear();
+    }
+    if (accessibleTabName(index) != name)
+    {
+        setAccessibleTabName(index, name);
+    }
 #else
     Q_UNUSED(index);
 #endif

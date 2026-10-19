@@ -25,6 +25,7 @@
 // the geometry constants of the cards of the specification.
 
 #include "pdfcomponentpainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
 
 #include <QCoreApplication>
@@ -563,7 +564,7 @@ void PDFComponentPainter::paintProgressBar(QPainter* painter, const QRectF& rect
     progress = normalizedProgress(progress);
     const PDFStylePainter::Radii radii(rect.height() / 2.0);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::fill(painter, rect, radii, PDFThemeColors::BorderDefault);
 
@@ -583,8 +584,6 @@ void PDFComponentPainter::paintProgressBar(QPainter* painter, const QRectF& rect
         }
         PDFStylePainter::fill(painter, value, PDFStylePainter::Radii(qMin(valueWidth, rect.height()) / 2.0), color);
     }
-
-    painter->restore();
 }
 
 void PDFComponentPainter::paintProgressBar(QPainter* painter, const QRectF& rect, qreal progress)
@@ -626,11 +625,11 @@ void PDFComponentPainter::paintQuickActionTile(QPainter* painter, const QRectF& 
 
     const PDFAccentHue hue = normalized(tile.hue);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     Helper::paintHuedCard(painter, rect, hue, state, paintFocusRing);
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     // The icon in a white circle, the color of the hue in every state
@@ -663,9 +662,6 @@ void PDFComponentPainter::paintQuickActionTile(QPainter* painter, const QRectF& 
     Helper::drawLines(painter, state, rect, textLeft, top, textWidth, block.titleLine, block.title, titleFont, Helper::text(state, Color::TextPrimary));
     const qreal descriptionTop = top + block.title.size() * block.titleLine + (block.title.isEmpty() ? 0 : block.gap);
     Helper::drawLines(painter, state, rect, textLeft, descriptionTop, textWidth, block.descriptionLine, block.description, descriptionFont, Helper::text(state, Color::TextTertiary));
-
-    painter->restore();
-    painter->restore();
 }
 
 // ------------------------------------------------------------------ Folder card
@@ -719,11 +715,11 @@ void PDFComponentPainter::paintFolderCard(QPainter* painter, const QRectF& rect,
 
     const PDFAccentHue hue = normalizedFolderHue(card.hue);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     Helper::paintHuedCard(painter, rect, hue, state, paintFocusRing);
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     const QRectF circle = Helper::line(rect, rect.left() + Helper::FOLDER_LEFT, Helper::FOLDER_CIRCLE, Helper::FOLDER_CIRCLE);
@@ -750,9 +746,6 @@ void PDFComponentPainter::paintFolderCard(QPainter* painter, const QRectF& rect,
         const qreal metaTop = pathTop + Helper::LINE_REGULAR_11 + Helper::FOLDER_TEXT_GAP;
         Helper::drawText(painter, state, rect, QRectF(textLeft, metaTop, textWidth, Helper::LINE_REGULAR_11), card.meta, smallFont, Helper::text(state, Color::TextTertiary));
     }
-
-    painter->restore();
-    painter->restore();
 }
 
 // ------------------------------------------------------------------ Pinned card
@@ -793,13 +786,13 @@ void PDFComponentPainter::paintPinnedCard(QPainter* painter, const QRectF& rect,
     using Helper = PDFComponentCardPainterHelper;
     using Color = PDFThemeColors::Color;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // bg/surface with the overlay of the pointer over it (decision 21)
     Helper::paintSurfaceCard(painter, rect, state, paintFocusRing);
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     // The thumbnail of the first page with its shadow (inside of the card)
@@ -834,9 +827,6 @@ void PDFComponentPainter::paintPinnedCard(QPainter* painter, const QRectF& rect,
         // The bar fills from the leading edge (paintProgressBar mirrors it by the state)
         paintProgressBar(painter, state.visualRect(rect, barRect), card.progress, Helper::nestedState(state, false));
     }
-
-    painter->restore();
-    painter->restore();
 }
 
 // --------------------------------------------------------- Tool category header
@@ -869,7 +859,7 @@ void PDFComponentPainter::paintToolCategoryHeader(QPainter* painter, const QRect
 
     const PDFAccentHue hue = normalized(header.hue);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
@@ -902,8 +892,6 @@ void PDFComponentPainter::paintToolCategoryHeader(QPainter* painter, const QRect
     Helper::drawText(painter, state, rect, QRectF(textLeft, top, textWidth, Helper::LINE_BOLD_15), header.title, Helper::font(PDFThemeFonts::Role::Title), Helper::text(state, Color::TextPrimary));
     Helper::drawText(painter, state, rect, QRectF(textLeft, top + Helper::LINE_BOLD_15 + Helper::HEADER_TEXT_GAP, textWidth, Helper::LINE_12), header.description,
                      Helper::font(PDFThemeFonts::Role::Small), Helper::text(state, Color::TextTertiary));
-
-    painter->restore();
 }
 
 // ------------------------------------------------------------------ Tool choice
@@ -956,7 +944,7 @@ void PDFComponentPainter::paintToolChoice(QPainter* painter, const QRectF& rect,
     const PDFStylePainter::Radii radii(Helper::CHOICE_RADIUS);
     const bool isSelected = state.isOn();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Own surface, the selection over it, the overlay of the pointer over both
@@ -984,36 +972,35 @@ void PDFComponentPainter::paintToolChoice(QPainter* painter, const QRectF& rect,
         PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderDefault, 1.0);
     }
 
-    painter->save();
-    painter->setClipRect(rect, Qt::IntersectClip);
-
-    // The content keeps its places in both selections
-    const QRectF badgeRect = Helper::line(rect, rect.left() + Helper::CHOICE_SIDE, Helper::CHOICE_BADGE, Helper::CHOICE_BADGE);
-    paintToolBadge(painter, state.visualRect(rect, badgeRect), ToolBadge{ choice.iconName, choice.hue, BadgeSize::Small }, state);
-
-    qreal textRight = rect.right() - Helper::CHOICE_SIDE;
-    if (isSelected)
     {
-        const QRectF checkRect = Helper::line(rect, textRight - Helper::CHOICE_CHECK, Helper::CHOICE_CHECK, Helper::CHOICE_CHECK);
-        Helper::drawIcon(painter, state, rect, checkRect, QStringLiteral("check"), Helper::icon(state, Color::IconAccent));
-        textRight = checkRect.left() - Helper::CHOICE_GAP;
-    }
+        const PDFStylePainterGuard innerGuard(painter);
+        painter->setClipRect(rect, Qt::IntersectClip);
 
-    const qreal textLeft = badgeRect.right() + Helper::CHOICE_GAP;
-    const qreal textWidth = textRight - textLeft;
-    const QFont nameFont = Helper::font(PDFThemeFonts::Role::SmallMedium);
-    const int maxLines = qMax(1, static_cast<int>((rect.height() - 2 * Helper::CHOICE_VERTICAL) / Helper::LINE_12));
-    const QStringList lines = Helper::wrap(choice.name, nameFont, textWidth, qMin(maxLines, Helper::CHOICE_MAX_LINES));
-    const qreal top = rect.top() + qFloor((rect.height() - lines.size() * Helper::LINE_12) / 2.0);
-    Helper::drawLines(painter, state, rect, textLeft, top, textWidth, Helper::LINE_12, lines, nameFont, Helper::text(state, Color::TextPrimary));
-    painter->restore();
+        // The content keeps its places in both selections
+        const QRectF badgeRect = Helper::line(rect, rect.left() + Helper::CHOICE_SIDE, Helper::CHOICE_BADGE, Helper::CHOICE_BADGE);
+        paintToolBadge(painter, state.visualRect(rect, badgeRect), ToolBadge{ choice.iconName, choice.hue, BadgeSize::Small }, state);
+
+        qreal textRight = rect.right() - Helper::CHOICE_SIDE;
+        if (isSelected)
+        {
+            const QRectF checkRect = Helper::line(rect, textRight - Helper::CHOICE_CHECK, Helper::CHOICE_CHECK, Helper::CHOICE_CHECK);
+            Helper::drawIcon(painter, state, rect, checkRect, QStringLiteral("check"), Helper::icon(state, Color::IconAccent));
+            textRight = checkRect.left() - Helper::CHOICE_GAP;
+        }
+
+        const qreal textLeft = badgeRect.right() + Helper::CHOICE_GAP;
+        const qreal textWidth = textRight - textLeft;
+        const QFont nameFont = Helper::font(PDFThemeFonts::Role::SmallMedium);
+        const int maxLines = qMax(1, static_cast<int>((rect.height() - 2 * Helper::CHOICE_VERTICAL) / Helper::LINE_12));
+        const QStringList lines = Helper::wrap(choice.name, nameFont, textWidth, qMin(maxLines, Helper::CHOICE_MAX_LINES));
+        const qreal top = rect.top() + qFloor((rect.height() - lines.size() * Helper::LINE_12) / 2.0);
+        Helper::drawLines(painter, state, rect, textLeft, top, textWidth, Helper::LINE_12, lines, nameFont, Helper::text(state, Color::TextPrimary));
+    }
 
     if (state.hasFocusRing())
     {
         paintFocusRingOutside(painter, rect, radii);
     }
-
-    painter->restore();
 }
 
 // ---------------------------------------------------------------- Resource card
@@ -1079,11 +1066,11 @@ void PDFComponentPainter::paintResourceCard(QPainter* painter, const QRectF& rec
 
     const PDFAccentHue hue = normalizedResourceHue(card.hue);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     Helper::paintHuedCard(painter, rect, hue, state, paintFocusRing);
 
-    painter->save();
+    const PDFStylePainterGuard innerGuard(painter);
     painter->setClipRect(rect, Qt::IntersectClip);
 
     // The icon without a circle, the texts below it from the top of the card
@@ -1098,9 +1085,6 @@ void PDFComponentPainter::paintResourceCard(QPainter* painter, const QRectF& rec
     Helper::drawLines(painter, state, rect, textLeft, top, textWidth, block.titleLine, block.title, Helper::font(PDFThemeFonts::Role::BodyBold), Helper::text(state, Color::TextPrimary));
     const qreal descriptionTop = top + block.title.size() * block.titleLine + (block.title.isEmpty() ? 0 : block.gap);
     Helper::drawLines(painter, state, rect, textLeft, descriptionTop, textWidth, block.descriptionLine, block.description, Helper::font(PDFThemeFonts::Role::CaptionRegular), Helper::text(state, Color::TextTertiary));
-
-    painter->restore();
-    painter->restore();
 }
 
 // --------------------------------------------------------------- Highlight card
@@ -1148,7 +1132,7 @@ void PDFComponentPainter::paintHighlightCard(QPainter* painter, const QRectF& re
     const PDFAccentHue hue = normalized(card.hue);
     const PDFStylePainter::Radii radii(Helper::CARD_RADIUS);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     PDFStylePainter::fill(painter, rect, radii, Color::BgSurface);
     PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderDefault, 1.0);
@@ -1166,8 +1150,6 @@ void PDFComponentPainter::paintHighlightCard(QPainter* painter, const QRectF& re
     Helper::drawLines(painter, state, rect, textLeft, top, textWidth, block.titleLine, block.title, Helper::font(PDFThemeFonts::Role::TileTitle), Helper::text(state, Color::TextPrimary));
     const qreal descriptionTop = top + block.title.size() * block.titleLine + (block.title.isEmpty() ? 0 : block.gap);
     Helper::drawLines(painter, state, rect, textLeft, descriptionTop, textWidth, block.descriptionLine, block.description, Helper::font(PDFThemeFonts::Role::Small), Helper::text(state, Color::TextTertiary));
-
-    painter->restore();
 }
 
 // ------------------------------------------------------------------- Video card
@@ -1232,7 +1214,7 @@ void PDFComponentPainter::paintVideoCard(QPainter* painter, const QRectF& rect, 
     const PDFStylePainter::Radii radii(Helper::CARD_RADIUS);
     const bool isPointer = state.isHovered() || state.isPressed();
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     // Surface: bg/subtle under the pointer, bg/muted pressed
@@ -1248,84 +1230,83 @@ void PDFComponentPainter::paintVideoCard(QPainter* painter, const QRectF& rect, 
     PDFStylePainter::fill(painter, rect, radii, fill);
 
     // The card clips its content by its rounded shape (the corners of the preview)
-    painter->save();
-    painter->setClipPath(PDFStylePainter::roundedPath(rect, radii), Qt::IntersectClip);
-
-    const QRectF thumbnail(rect.left() + 1.0, rect.top() + 1.0, qMax<qreal>(0.0, rect.width() - 2.0), qMin<qreal>(Helper::VIDEO_THUMBNAIL, qMax<qreal>(0.0, rect.height() - 2.0)));
-    if (!thumbnail.isEmpty())
     {
-        PDFStylePainter::fillRect(painter, thumbnail, Color::BgMuted);
-        if (!card.pixmap.isNull() && card.pixmap.width() > 0 && card.pixmap.height() > 0)
-        {
-            // The picture of the application covers the preview (it is cropped, not distorted)
-            const QSizeF pixmapSize = QSizeF(card.pixmap.size()) / qMax<qreal>(card.pixmap.devicePixelRatio(), 1.0);
-            const QRectF target = PDFStylePainter::centered(thumbnail, pixmapSize.scaled(thumbnail.size(), Qt::KeepAspectRatioByExpanding));
-            painter->save();
-            painter->setClipRect(thumbnail, Qt::IntersectClip);
-            drawScaledPixmap(painter, target, card.pixmap);
-            painter->restore();
-        }
-        PDFStylePainter::fillRect(painter, QRectF(thumbnail.left(), thumbnail.bottom() - 1.0, thumbnail.width(), 1.0), Color::BorderDivider);
+        const PDFStylePainterGuard innerGuard(painter);
+        painter->setClipPath(PDFStylePainter::roundedPath(rect, radii), Qt::IntersectClip);
 
-        // The play button in the middle; the triangle lies 2 px right of the
-        // center of the circle (it is a symbol of playing, it is not mirrored)
-        if (thumbnail.width() >= Helper::VIDEO_PLAY && thumbnail.height() >= Helper::VIDEO_PLAY)
+        const QRectF thumbnail(rect.left() + 1.0, rect.top() + 1.0, qMax<qreal>(0.0, rect.width() - 2.0), qMin<qreal>(Helper::VIDEO_THUMBNAIL, qMax<qreal>(0.0, rect.height() - 2.0)));
+        if (!thumbnail.isEmpty())
         {
-            const QRectF play = alignedCentered(thumbnail, QSizeF(Helper::VIDEO_PLAY, Helper::VIDEO_PLAY));
-            PDFStylePainter::fillEllipse(painter, play, PDFStylePainter::color(Color::BgScrim));
-
-            const qreal triangleLeft = play.left() + 19.0;
-            QPainterPath triangle;
-            triangle.moveTo(triangleLeft, play.top() + 15.5);
-            triangle.lineTo(triangleLeft + 11.5, play.top() + 22.0);
-            triangle.lineTo(triangleLeft, play.top() + 28.5);
-            triangle.closeSubpath();
-            painter->fillPath(triangle, PDFStylePainter::color(Color::IconOnAccent));
-        }
-
-        // The duration in the trailing bottom corner
-        if (!card.duration.isEmpty())
-        {
-            const QFont durationFont = Helper::font(PDFThemeFonts::Role::Caption);
-            const qreal durationWidth = qMin<qreal>(Helper::textWidth(card.duration, durationFont) + 2 * Helper::VIDEO_DURATION_SIDE, thumbnail.width() - 2 * Helper::VIDEO_DURATION_OFFSET);
-            const QRectF duration(thumbnail.right() - Helper::VIDEO_DURATION_OFFSET - durationWidth, thumbnail.bottom() - Helper::VIDEO_DURATION_OFFSET - Helper::VIDEO_DURATION_HEIGHT,
-                                  durationWidth, Helper::VIDEO_DURATION_HEIGHT);
-            if (duration.width() > 2 * Helper::VIDEO_DURATION_SIDE && duration.top() > thumbnail.top())
+            PDFStylePainter::fillRect(painter, thumbnail, Color::BgMuted);
+            if (!card.pixmap.isNull() && card.pixmap.width() > 0 && card.pixmap.height() > 0)
             {
-                const QRectF visualDuration = state.visualRect(rect, duration);
-                PDFStylePainter::fill(painter, visualDuration, PDFStylePainter::Radii(Helper::VIDEO_DURATION_RADIUS), Color::BgScrim);
-                const QRectF durationText = visualDuration.adjusted(Helper::VIDEO_DURATION_SIDE, 0.0, -Helper::VIDEO_DURATION_SIDE, 0.0);
-                drawDataText(painter, durationText, Qt::AlignCenter | Qt::TextSingleLine, elidedText(card.duration, durationFont, durationText.width()),
-                             durationFont, PDFStylePainter::color(Color::IconOnAccent), getDataTextDirection(card.duration));
+                // The picture of the application covers the preview (it is cropped, not distorted)
+                const QSizeF pixmapSize = QSizeF(card.pixmap.size()) / qMax<qreal>(card.pixmap.devicePixelRatio(), 1.0);
+                const QRectF target = PDFStylePainter::centered(thumbnail, pixmapSize.scaled(thumbnail.size(), Qt::KeepAspectRatioByExpanding));
+                const PDFStylePainterGuard innermostGuard(painter);
+                painter->setClipRect(thumbnail, Qt::IntersectClip);
+                drawScaledPixmap(painter, target, card.pixmap);
+            }
+            PDFStylePainter::fillRect(painter, QRectF(thumbnail.left(), thumbnail.bottom() - 1.0, thumbnail.width(), 1.0), Color::BorderDivider);
+
+            // The play button in the middle; the triangle lies 2 px right of the
+            // center of the circle (it is a symbol of playing, it is not mirrored)
+            if (thumbnail.width() >= Helper::VIDEO_PLAY && thumbnail.height() >= Helper::VIDEO_PLAY)
+            {
+                const QRectF play = alignedCentered(thumbnail, QSizeF(Helper::VIDEO_PLAY, Helper::VIDEO_PLAY));
+                PDFStylePainter::fillEllipse(painter, play, PDFStylePainter::color(Color::BgScrim));
+
+                const qreal triangleLeft = play.left() + 19.0;
+                QPainterPath triangle;
+                triangle.moveTo(triangleLeft, play.top() + 15.5);
+                triangle.lineTo(triangleLeft + 11.5, play.top() + 22.0);
+                triangle.lineTo(triangleLeft, play.top() + 28.5);
+                triangle.closeSubpath();
+                painter->fillPath(triangle, PDFStylePainter::color(Color::IconOnAccent));
+            }
+
+            // The duration in the trailing bottom corner
+            if (!card.duration.isEmpty())
+            {
+                const QFont durationFont = Helper::font(PDFThemeFonts::Role::Caption);
+                const qreal durationWidth = qMin<qreal>(Helper::textWidth(card.duration, durationFont) + 2 * Helper::VIDEO_DURATION_SIDE, thumbnail.width() - 2 * Helper::VIDEO_DURATION_OFFSET);
+                const QRectF duration(thumbnail.right() - Helper::VIDEO_DURATION_OFFSET - durationWidth, thumbnail.bottom() - Helper::VIDEO_DURATION_OFFSET - Helper::VIDEO_DURATION_HEIGHT,
+                                      durationWidth, Helper::VIDEO_DURATION_HEIGHT);
+                if (duration.width() > 2 * Helper::VIDEO_DURATION_SIDE && duration.top() > thumbnail.top())
+                {
+                    const QRectF visualDuration = state.visualRect(rect, duration);
+                    PDFStylePainter::fill(painter, visualDuration, PDFStylePainter::Radii(Helper::VIDEO_DURATION_RADIUS), Color::BgScrim);
+                    const QRectF durationText = visualDuration.adjusted(Helper::VIDEO_DURATION_SIDE, 0.0, -Helper::VIDEO_DURATION_SIDE, 0.0);
+                    drawDataText(painter, durationText, Qt::AlignCenter | Qt::TextSingleLine, elidedText(card.duration, durationFont, durationText.width()),
+                                 durationFont, PDFStylePainter::color(Color::IconOnAccent), getDataTextDirection(card.duration));
+                }
+            }
+        }
+
+        // Title of one line, description of two lines at most, the row of the tags
+        const qreal textLeft = rect.left() + 1.0 + Helper::VIDEO_PADDING;
+        const qreal textWidth = rect.width() - 2.0 * (1.0 + Helper::VIDEO_PADDING);
+        const Helper::TextBlock block = Helper::videoBlock(card, textWidth);
+        const qreal top = thumbnail.bottom() + Helper::VIDEO_PADDING;
+        const QFont titleFont = Helper::font(PDFThemeFonts::Role::BodySemiBold);
+        Helper::drawLines(painter, state, rect, textLeft, top, textWidth, block.titleLine, block.title, titleFont, Helper::text(state, Color::TextPrimary));
+        const qreal descriptionTop = top + block.title.size() * block.titleLine + (block.title.isEmpty() ? 0 : block.gap);
+        Helper::drawLines(painter, state, rect, textLeft, descriptionTop, textWidth, block.descriptionLine, block.description, Helper::font(PDFThemeFonts::Role::Small), Helper::text(state, Color::TextTertiary));
+
+        if (card.paintNested)
+        {
+            // The text block is laid out once for the texts and the tags
+            const QStringList tags = getVideoCardTags(card);
+            const QList<QRectF> tagRects = Helper::videoTagRects(rect, tags, state, block);
+            for (qsizetype i = 0; i < tags.size() && i < tagRects.size(); ++i)
+            {
+                if (!tagRects.at(i).isEmpty())
+                {
+                    paintTag(painter, tagRects.at(i), Tag{ tags.at(i) }, Helper::nestedState(state, false));
+                }
             }
         }
     }
-
-    // Title of one line, description of two lines at most, the row of the tags
-    const qreal textLeft = rect.left() + 1.0 + Helper::VIDEO_PADDING;
-    const qreal textWidth = rect.width() - 2.0 * (1.0 + Helper::VIDEO_PADDING);
-    const Helper::TextBlock block = Helper::videoBlock(card, textWidth);
-    const qreal top = thumbnail.bottom() + Helper::VIDEO_PADDING;
-    const QFont titleFont = Helper::font(PDFThemeFonts::Role::BodySemiBold);
-    Helper::drawLines(painter, state, rect, textLeft, top, textWidth, block.titleLine, block.title, titleFont, Helper::text(state, Color::TextPrimary));
-    const qreal descriptionTop = top + block.title.size() * block.titleLine + (block.title.isEmpty() ? 0 : block.gap);
-    Helper::drawLines(painter, state, rect, textLeft, descriptionTop, textWidth, block.descriptionLine, block.description, Helper::font(PDFThemeFonts::Role::Small), Helper::text(state, Color::TextTertiary));
-
-    if (card.paintNested)
-    {
-        // The text block is laid out once for the texts and the tags
-        const QStringList tags = getVideoCardTags(card);
-        const QList<QRectF> tagRects = Helper::videoTagRects(rect, tags, state, block);
-        for (qsizetype i = 0; i < tags.size() && i < tagRects.size(); ++i)
-        {
-            if (!tagRects.at(i).isEmpty())
-            {
-                paintTag(painter, tagRects.at(i), Tag{ tags.at(i) }, Helper::nestedState(state, false));
-            }
-        }
-    }
-
-    painter->restore();
 
     // The focus ring outside replaces the border
     if (state.hasFocusRing())
@@ -1339,8 +1320,6 @@ void PDFComponentPainter::paintVideoCard(QPainter* painter, const QRectF& rect, 
     {
         PDFStylePainter::strokeInside(painter, rect, radii, isPointer ? Color::BorderStrong : Color::BorderDefault, 1.0);
     }
-
-    painter->restore();
 }
 
 // ----------------------------------------------------------- Reading theme card
@@ -1382,54 +1361,55 @@ void PDFComponentPainter::paintReadingThemeCard(QPainter* painter, const QRectF&
     const QColor pageColor = Helper::getReadingThemeColor(card.customPageColor, card.pageColor, Color::ReadingPaperPage);
     const QColor textColor = Helper::getReadingThemeColor(card.customTextColor, card.textColor, Color::ReadingPaperText);
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     Helper::paintChoiceBackground(painter, rect, state);
 
-    painter->save();
-    painter->setClipRect(rect, Qt::IntersectClip);
-
-    // The sample: "Aa" and two lines of text in the colors of the theme
-    const QRectF sample(rect.left() + Helper::CHOICE_CARD_PADDING, rect.top() + Helper::CHOICE_CARD_PADDING,
-                        qMax<qreal>(0.0, rect.width() - 2 * Helper::CHOICE_CARD_PADDING), Helper::READING_SAMPLE_HEIGHT);
-    if (!sample.isEmpty())
     {
-        const PDFStylePainter::Radii sampleRadii(Helper::READING_SAMPLE_RADIUS);
-        PDFStylePainter::fill(painter, sample, sampleRadii, pageColor);
+        const PDFStylePainterGuard innerGuard(painter);
+        painter->setClipRect(rect, Qt::IntersectClip);
 
-        painter->save();
-        painter->setClipPath(PDFStylePainter::roundedPath(sample, sampleRadii), Qt::IntersectClip);
-        const QStringList texts = getReadingThemeSampleTexts();
-        const QFont lettersFont = Helper::font(PDFThemeFonts::Role::Display);
-        const qreal lettersWidth = Helper::textWidth(texts.value(0), lettersFont);
-        const qreal left = sample.left() + Helper::READING_SAMPLE_INSET;
-        const QRectF letters = Helper::line(sample, left, lettersWidth, Helper::READING_LETTERS_LINE);
-        PDFStylePainter::text(painter, state.visualRect(rect, letters), Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment(), texts.value(0), lettersFont, textColor);
-
-        const qreal linesLeft = letters.right() + Helper::READING_LETTERS_GAP;
-        const qreal linesWidth = sample.right() - Helper::READING_SAMPLE_INSET - linesLeft;
-        const qreal linesHeight = 2 * Helper::READING_SAMPLE_LINE + Helper::READING_SAMPLE_GAP;
-        const qreal linesTop = sample.top() + qFloor((sample.height() - linesHeight) / 2.0);
-        if (linesWidth > 0.0)
+        // The sample: "Aa" and two lines of text in the colors of the theme
+        const QRectF sample(rect.left() + Helper::CHOICE_CARD_PADDING, rect.top() + Helper::CHOICE_CARD_PADDING,
+                            qMax<qreal>(0.0, rect.width() - 2 * Helper::CHOICE_CARD_PADDING), Helper::READING_SAMPLE_HEIGHT);
+        if (!sample.isEmpty())
         {
-            const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment();
-            const QFont firstFont = Helper::font(PDFThemeFonts::Role::TinySemiBold);
-            const QFont secondFont = Helper::font(PDFThemeFonts::Role::Tiny);
-            PDFStylePainter::text(painter, state.visualRect(rect, QRectF(linesLeft, linesTop, linesWidth, Helper::READING_SAMPLE_LINE)), alignment,
-                                  elidedText(texts.value(1), firstFont, linesWidth), firstFont, textColor);
-            PDFStylePainter::text(painter, state.visualRect(rect, QRectF(linesLeft, linesTop + Helper::READING_SAMPLE_LINE + Helper::READING_SAMPLE_GAP, linesWidth, Helper::READING_SAMPLE_LINE)), alignment,
-                                  elidedText(texts.value(2), secondFont, linesWidth), secondFont, textColor);
-        }
-        painter->restore();
+            const PDFStylePainter::Radii sampleRadii(Helper::READING_SAMPLE_RADIUS);
+            PDFStylePainter::fill(painter, sample, sampleRadii, pageColor);
 
-        PDFStylePainter::strokeInside(painter, sample, sampleRadii, Color::BorderDefault, 1.0);
+            {
+                const PDFStylePainterGuard innermostGuard(painter);
+                painter->setClipPath(PDFStylePainter::roundedPath(sample, sampleRadii), Qt::IntersectClip);
+                const QStringList texts = getReadingThemeSampleTexts();
+                const QFont lettersFont = Helper::font(PDFThemeFonts::Role::Display);
+                const qreal lettersWidth = Helper::textWidth(texts.value(0), lettersFont);
+                const qreal left = sample.left() + Helper::READING_SAMPLE_INSET;
+                const QRectF letters = Helper::line(sample, left, lettersWidth, Helper::READING_LETTERS_LINE);
+                PDFStylePainter::text(painter, state.visualRect(rect, letters), Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment(), texts.value(0), lettersFont, textColor);
+
+                const qreal linesLeft = letters.right() + Helper::READING_LETTERS_GAP;
+                const qreal linesWidth = sample.right() - Helper::READING_SAMPLE_INSET - linesLeft;
+                const qreal linesHeight = 2 * Helper::READING_SAMPLE_LINE + Helper::READING_SAMPLE_GAP;
+                const qreal linesTop = sample.top() + qFloor((sample.height() - linesHeight) / 2.0);
+                if (linesWidth > 0.0)
+                {
+                    const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment();
+                    const QFont firstFont = Helper::font(PDFThemeFonts::Role::TinySemiBold);
+                    const QFont secondFont = Helper::font(PDFThemeFonts::Role::Tiny);
+                    PDFStylePainter::text(painter, state.visualRect(rect, QRectF(linesLeft, linesTop, linesWidth, Helper::READING_SAMPLE_LINE)), alignment,
+                                          elidedText(texts.value(1), firstFont, linesWidth), firstFont, textColor);
+                    PDFStylePainter::text(painter, state.visualRect(rect, QRectF(linesLeft, linesTop + Helper::READING_SAMPLE_LINE + Helper::READING_SAMPLE_GAP, linesWidth, Helper::READING_SAMPLE_LINE)), alignment,
+                                          elidedText(texts.value(2), secondFont, linesWidth), secondFont, textColor);
+                }
+            }
+
+            PDFStylePainter::strokeInside(painter, sample, sampleRadii, Color::BorderDefault, 1.0);
+        }
+
+        Helper::paintChoiceLabel(painter, rect, card.name, state);
     }
 
-    Helper::paintChoiceLabel(painter, rect, card.name, state);
-    painter->restore();
-
     Helper::paintChoiceRings(painter, rect, state);
-    painter->restore();
 }
 
 // ------------------------------------------------------------- Color mode card
@@ -1458,30 +1438,30 @@ void PDFComponentPainter::paintPreviewCard(QPainter* painter, const QRectF& rect
 
     using Helper = PDFComponentCardPainterHelper;
 
-    painter->save();
+    const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     Helper::paintChoiceBackground(painter, rect, state);
 
-    painter->save();
-    painter->setClipRect(rect, Qt::IntersectClip);
-
-    // The picture fills the width of the card (its height is the one of the design)
-    const QSize previewSize = PDFPreviewPainter::getPreviewSize();
-    const qreal labelTop = rect.bottom() - Helper::CHOICE_CARD_BOTTOM - Helper::CHOICE_CARD_LABEL;
-    const qreal previewHeight = qMin<qreal>(previewSize.height(), labelTop - Helper::CHOICE_CARD_GAP - rect.top() - Helper::CHOICE_CARD_PADDING);
-    const QRectF preview(rect.left() + Helper::CHOICE_CARD_PADDING, rect.top() + Helper::CHOICE_CARD_PADDING,
-                         rect.width() - 2 * Helper::CHOICE_CARD_PADDING, previewHeight);
-    if (preview.width() > 0.0 && preview.height() > 0.0)
     {
-        // The picture is a scheme of a page, it is not mirrored for right-to-left layouts
-        PDFPreviewPainter::paintPreview(painter, preview, card.preview);
+        const PDFStylePainterGuard innerGuard(painter);
+        painter->setClipRect(rect, Qt::IntersectClip);
+
+        // The picture fills the width of the card (its height is the one of the design)
+        const QSize previewSize = PDFPreviewPainter::getPreviewSize();
+        const qreal labelTop = rect.bottom() - Helper::CHOICE_CARD_BOTTOM - Helper::CHOICE_CARD_LABEL;
+        const qreal previewHeight = qMin<qreal>(previewSize.height(), labelTop - Helper::CHOICE_CARD_GAP - rect.top() - Helper::CHOICE_CARD_PADDING);
+        const QRectF preview(rect.left() + Helper::CHOICE_CARD_PADDING, rect.top() + Helper::CHOICE_CARD_PADDING,
+                             rect.width() - 2 * Helper::CHOICE_CARD_PADDING, previewHeight);
+        if (preview.width() > 0.0 && preview.height() > 0.0)
+        {
+            // The picture is a scheme of a page, it is not mirrored for right-to-left layouts
+            PDFPreviewPainter::paintPreview(painter, preview, card.preview);
+        }
+
+        Helper::paintChoiceLabel(painter, rect, card.name, state);
     }
 
-    Helper::paintChoiceLabel(painter, rect, card.name, state);
-    painter->restore();
-
     Helper::paintChoiceRings(painter, rect, state);
-    painter->restore();
 }
 
 }   // namespace pdf

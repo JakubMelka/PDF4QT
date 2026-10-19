@@ -44,10 +44,13 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfcomponentpaintercards.cpp
     sources/pdfcomponentpainterdelegates.cpp
     sources/pdfcomponentpainterpanels.cpp
+    sources/pdfcomponentpainterwindow.cpp
     sources/pdfcomponentpanels.cpp
     sources/pdfcomponentpanels.h
     sources/pdfcomponentrows.cpp
     sources/pdfcomponentrows.h
+    sources/pdfcomponentwindow.cpp
+    sources/pdfcomponentwindow.h
     sources/pdffluentglobal.h
     sources/pdffluentwidgets.cpp
     sources/pdffluentwidgets.h
@@ -59,6 +62,7 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdflockeddocumentpicture.h
     sources/pdfstylepainter.cpp
     sources/pdfstylepainter.h
+    sources/pdfstylepainterguard.h
     sources/pdfthemecolors.cpp
     sources/pdfthemecolors.h
     sources/pdfthemefonts.cpp

@@ -28,6 +28,7 @@
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemecolors.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
@@ -117,9 +118,8 @@ void GallerySpecimen::paintSpecimen(QPainter& painter) const
 {
     if (m_paintFunction)
     {
-        painter.save();
+        const pdf::PDFStylePainterGuard guard(&painter);
         m_paintFunction(painter, QRect(QPoint(MARGIN, MARGIN), m_size));
-        painter.restore();
     }
 }
 
@@ -2782,6 +2782,32 @@ GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
     topBarLayout->addStretch(1);
     topBar->setFixedSize(860, 38);
     builder.live(QStringLiteral("Home, unsaved, locked and unsaved, progress"), topBar);
+    builder.row();
+
+    // Document protected by a password (the icon password replaces the icon of
+    // the tab, View Document 228:8709) and the tab New tab (pdf4qt-new-tab 955:152339)
+    QWidget* passwordBar = new QWidget(builder.page());
+    passwordBar->setProperty(Properties::DOCUMENT_TABS, true);
+    QHBoxLayout* passwordBarLayout = new QHBoxLayout(passwordBar);
+    passwordBarLayout->setContentsMargins(8, 0, 8, 0);
+    pdf::PDFDocumentTabBar* passwordTabs = new pdf::PDFDocumentTabBar(passwordBar);
+    passwordTabs->setAccessibleName(QStringLiteral("Documents"));
+    const int passwordHomeTab = passwordTabs->addTab(GalleryHelper::icon("home"), QStringLiteral("Home"));
+    const int protectedTab = passwordTabs->addTab(GalleryHelper::icon("file"), QStringLiteral("Project_Report.pdf"));
+    const int protectedLockedTab = passwordTabs->addTab(GalleryHelper::icon("file"), QStringLiteral("Contract.pdf"));
+    const int newTab = passwordTabs->addTab(GalleryHelper::icon("folder"), QStringLiteral("New tab"));
+    passwordTabs->setTabClosable(passwordHomeTab, false);
+    passwordTabs->setTabClosable(protectedTab, true);
+    passwordTabs->setTabClosable(protectedLockedTab, true);
+    passwordTabs->setTabClosable(newTab, true);
+    passwordTabs->setTabPasswordProtected(protectedTab, true);
+    passwordTabs->setTabPasswordProtected(protectedLockedTab, true);
+    passwordTabs->setTabLocked(protectedLockedTab, true);
+    passwordTabs->setCurrentIndex(protectedTab);
+    passwordBarLayout->addWidget(passwordTabs);
+    passwordBarLayout->addStretch(1);
+    passwordBar->setFixedSize(860, 38);
+    builder.live(QStringLiteral("Password protected, password protected and locked, New tab"), passwordBar, QStringLiteral("228:8709"));
 
     builder.block(QStringLiteral("Rows of views (PDFTreeView::setRowStyle)"), QStringLiteral("191:840"));
     QStandardItemModel* outlineModel = new QStandardItemModel(builder.page());

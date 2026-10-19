@@ -23,6 +23,7 @@
 #include "pdfwidgetstyleimpl.h"
 #include "pdfcomponentdelegates.h"
 #include "pdffluentwidgets.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemeiconengine.h"
 
 #include <QAbstractItemView>
@@ -1005,12 +1006,11 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
     if (option->backgroundBrush.style() != Qt::NoBrush)
     {
         // Background given by the model
-        painter->save();
+        const PDFStylePainterGuard guard(painter);
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setPen(Qt::NoPen);
         painter->setBrush(option->backgroundBrush);
         painter->drawPath(PDFStylePainter::roundedPath(shape, radii));
-        painter->restore();
     }
 
     if (isSelected)
@@ -1134,7 +1134,7 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
         const bool isWrapped = option->features.testFlag(QStyleOptionViewItem::WrapText);
         const QRectF textRect(layout.text);
 
-        painter->save();
+        const PDFStylePainterGuard guard(painter);
         painter->setFont(font);
         painter->setPen(color);
 
@@ -1149,8 +1149,6 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
             const int alignment = static_cast<int>(QStyle::visualAlignment(option->direction, option->displayAlignment));
             painter->drawText(textRect, (alignment & Qt::AlignHorizontal_Mask) | Qt::AlignVCenter | Qt::TextSingleLine, text);
         }
-
-        painter->restore();
     }
 
     if (isCurrentOfCombo)

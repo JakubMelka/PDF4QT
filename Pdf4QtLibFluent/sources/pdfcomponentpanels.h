@@ -151,7 +151,14 @@ class PDFDocumentTabCloseButton;
 /// Tabs of the documents (component Tab): a tab shows the lock of a locked
 /// document (amber in every state), the dot of unsaved changes (in the color of
 /// the label) and the progress of a running tool (line of 2 px at the bottom).
+/// The tab of a document protected by a password has the icon password in the
+/// place of its icon (the lock belongs only to the lock of the document).
 /// Every tab is 32 px high, also without the close button.
+///
+/// In the top bar of the application window (app-top-bar, 38 px) the tab bar is
+/// 38 px high: each tab has the 6 px above its shape in its rectangle, so a tab
+/// of a maximized window is hit at the edge of the screen. The free part of
+/// the bar (\p tabAt returns -1) belongs to the window (dragging, double click).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFDocumentTabBar : public QTabBar
 {
     Q_OBJECT
@@ -177,18 +184,29 @@ public:
     void setTabClosable(int index, bool closable);
     bool isTabClosable(int index) const;
 
+    /// The document of the tab is protected by a password: the tab shows the
+    /// icon password instead of its icon (the icon of the tab is kept and shown
+    /// again, when the protection is turned off) and assistive technologies
+    /// announce "password protected"
+    bool isTabPasswordProtected(int index) const;
+    void setTabPasswordProtected(int index, bool passwordProtected);
+
 protected:
+    virtual void initStyleOption(QStyleOptionTab* option, int tabIndex) const override;
     virtual QSize tabSizeHint(int index) const override;
     virtual QSize minimumTabSizeHint(int index) const override;
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void tabInserted(int index) override;
     virtual void tabRemoved(int index) override;
+    virtual void tabLayoutChange() override;
+    virtual void changeEvent(QEvent* event) override;
 
 private:
     struct TabState
     {
         bool locked = false;
         bool unsaved = false;
+        bool passwordProtected = false;
         qreal progress = -1.0;
     };
 
@@ -196,6 +214,12 @@ private:
     TabState* getTabState(int index);
     int getExtraWidth(int index) const;
     void updateAccessibleName(int index);
+
+    /// Updates the names of the tabs with a state (lock, unsaved changes, password)
+    void updateAccessibleNames();
+
+    /// Lays the tabs out again after a tab has been inserted or removed, if a tab has a state
+    void relayoutTabStates();
     void changeTabState(int index);
     void onTabMoved(int from, int to);
     void onCloseButtonClicked();
