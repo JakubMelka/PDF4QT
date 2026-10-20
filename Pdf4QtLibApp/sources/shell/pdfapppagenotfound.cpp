@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapppagenotfound.h"
+#include "pdfappworkspace.h"
 
 #include "pdfaccenthue.h"
 #include "pdffluentwidgets.h"
@@ -37,6 +38,7 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
+#include <QTextDocument>
 #include <QVBoxLayout>
 
 namespace pdf
@@ -112,6 +114,68 @@ public:
         QPushButton* button = new QPushButton(PDFThemeIcons::getIcon(iconName), text, parent);
         button->setAutoDefault(false);
         return button;
+    }
+
+    /// The requested text as it is shown: invisible characters (bidirectional
+    /// overrides, zero width characters, separators of lines) would let a link
+    /// look like another one, they are shown percent-encoded; a lone surrogate
+    /// is the replacement character
+    static QString toVisibleText(const QString& text)
+    {
+        QString result;
+        result.reserve(text.size());
+        for (qsizetype i = 0; i < text.size(); ++i)
+        {
+            const QChar character = text[i];
+            if (character.isHighSurrogate() && i + 1 < text.size() && text[i + 1].isLowSurrogate())
+            {
+                const char32_t codePoint = QChar::surrogateToUcs4(character, text[i + 1]);
+                const QString pair = text.mid(i, 2);
+                result += isInvisible(QChar::category(codePoint)) ? toPercentEncoding(pair) : pair;
+                ++i;
+            }
+            else if (character.isSurrogate())
+            {
+                result += QChar(QChar::ReplacementCharacter);
+            }
+            else
+            {
+                result += isInvisible(character.category()) ? toPercentEncoding(QString(character)) : QString(character);
+            }
+        }
+        return result;
+    }
+
+    /// Text of a tooltip: the tooltip of Qt shows a text, which looks like HTML,
+    /// as rich text (formatting, pictures), so such a text is escaped
+    static QString toToolTip(const QString& text)
+    {
+        if (!Qt::mightBeRichText(text))
+        {
+            return text;
+        }
+        return QStringLiteral("<p style=\"white-space:pre-wrap\">%1</p>").arg(text.toHtmlEscaped());
+    }
+
+    /// Text of a button: '&' of the data is not a mnemonic
+    static QString toButtonText(const QString& text)
+    {
+        return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
+    }
+
+    static bool isInvisible(QChar::Category category)
+    {
+        return category == QChar::Other_Control || category == QChar::Other_Format || category == QChar::Separator_Line || category == QChar::Separator_Paragraph;
+    }
+
+    static QString toPercentEncoding(const QString& text)
+    {
+        QString result;
+        for (const char byte : text.toUtf8())
+        {
+            result += QStringLiteral("%%1").arg(int(static_cast<unsigned char>(byte)), 2, 16, QLatin1Char('0')).toUpper();
+        }
+        return result;
     }
 
     /// Text elided to the width (a route can be 10 kB long)
@@ -268,9 +332,10 @@ PDFPageNotFoundPage::PDFPageNotFoundPage(PDFAppContext* context, QWidget* parent
     stateLayout->addWidget(m_titleLabel, 0, Qt::AlignHCenter);
     stateLayout->addSpacing(8);
 
-    m_textLabel = Helper::createLabel(QString(), PDFThemeFonts::getFont(QFont::Normal, 14), PDFThemeColors::TextTertiary, emptyState);
+    // Regular 14 with the line height 21 (a QLabel would have 17 and the layout of
+    // the empty state would not know the height of the wrapped text)
+    m_textLabel = new PDFAppParagraph(PDFThemeFonts::getFont(QFont::Normal, 14), 21, PDFThemeColors::TextTertiary, emptyState);
     m_textLabel->setObjectName(QStringLiteral("notFoundText"));
-    m_textLabel->setWordWrap(true);
     m_textLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_textLabel->setFixedWidth(MAXIMUM_TEXT_WIDTH);
     stateLayout->addWidget(m_textLabel, 0, Qt::AlignHCenter);
@@ -323,8 +388,12 @@ PDFPageNotFoundPage::PDFPageNotFoundPage(PDFAppContext* context, QWidget* parent
     hintsLayout->setSpacing(4);
     stateLayout->addWidget(m_hints, 0, Qt::AlignHCenter);
 
-    layout->addWidget(emptyState, 0, Qt::AlignHCenter);
+    // The empty state takes the whole width, its items are centered on the page
+    // (centering it as a whole would round the position of the items twice)
+    layout->addWidget(emptyState);
     layout->addStretch(1);
+
+    updateIcons();
 
     connect(m_backButton, &QPushButton::clicked, this, &PDFPageNotFoundPage::onBackClicked);
     connect(m_searchButton, &QPushButton::clicked, this, &PDFPageNotFoundPage::onSearchClicked);
@@ -368,7 +437,9 @@ void PDFPageNotFoundPage::addKeyHint(QWidget* parent, const QKeySequence& shortc
 
     if (!isFirst)
     {
-        layout->addSpacing(10);
+        // hint: the gap 10 between the gaps 4 of the row (the layout puts its
+        // spacing only on one side of a spacer item)
+        layout->addSpacing(14);
     }
 
     for (const QString& key : keys)
@@ -398,13 +469,14 @@ void PDFPageNotFoundPage::updateContent()
     const int boxTextWidth = MAXIMUM_TEXT_WIDTH - 2 * 17;
     if (m_descriptionLabel)
     {
-        const QString description = m_request.description.isEmpty() ? tr("An unknown page") : m_request.description;
+        // The description and the path contain the requested text (untrusted input)
+        const QString description = Helper::toVisibleText(m_request.description.isEmpty() ? tr("An unknown page") : m_request.description);
         m_descriptionLabel->setText(Helper::elide(description, m_descriptionLabel->font(), Qt::ElideRight, boxTextWidth));
-        m_descriptionLabel->setToolTip(description.left(PDFAppRoute::MAXIMUM_LENGTH));
+        m_descriptionLabel->setToolTip(Helper::toToolTip(description.left(PDFAppRoute::MAXIMUM_LENGTH)));
     }
     if (m_pathLabel)
     {
-        const QString path = m_request.route.isValid() ? m_request.route.getPath() : m_request.route.getRequestedText();
+        const QString path = Helper::toVisibleText(m_request.route.isValid() ? m_request.route.getPath() : m_request.route.getRequestedText());
         m_pathLabel->setText(Helper::elide(path, m_pathLabel->font(), Qt::ElideMiddle, boxTextWidth));
         m_pathLabel->setVisible(!path.isEmpty());
     }
@@ -416,7 +488,7 @@ void PDFPageNotFoundPage::updateContent()
     }
     if (m_searchButton)
     {
-        m_searchButton->setText(tr("Search for “%1”").arg(m_request.searchText));
+        m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(Helper::toVisibleText(m_request.searchText))));
         m_searchButton->setVisible(!m_request.searchText.isEmpty());
     }
     if (m_homeButton)
@@ -470,6 +542,20 @@ void PDFPageNotFoundPage::changeEvent(QEvent* event)
     if (event->type() == QEvent::LanguageChange)
     {
         updateContent();
+    }
+    else if (event->type() == QEvent::LayoutDirectionChange)
+    {
+        updateIcons();
+    }
+}
+
+void PDFPageNotFoundPage::updateIcons()
+{
+    // The chevron of Back points to the previous page: Qt does not mirror icons in
+    // right-to-left, the mirrored icon is used
+    if (m_backButton)
+    {
+        m_backButton->setIcon(PDFThemeIcons::getIcon(getDirectionalIconName(QStringLiteral("chevron-left"), layoutDirection())));
     }
 }
 

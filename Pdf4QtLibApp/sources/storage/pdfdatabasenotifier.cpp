@@ -179,16 +179,21 @@ void PDFDatabaseNotifier::poll()
 
         std::vector<std::pair<QString, QString>> changes;
         QSet<std::pair<QString, QString>> seen;
-        qint64 firstSequence = -1;
         qint64 lastSequence = m_lastSequence;
+        qint64 expectedSequence = m_lastSequence + 1;
+        bool hasGap = false;
         int rowCount = 0;
         while (statement.next())
         {
+            // Every hole is a gap, not only the one before the first row: the pruning
+            // deletes the rows by their time, which follows the sequence only, while
+            // the clock is not set back
             const qint64 sequence = statement.getInt64(0);
-            if (firstSequence < 0)
+            if (sequence != expectedSequence)
             {
-                firstSequence = sequence;
+                hasGap = true;
             }
+            expectedSequence = sequence + 1;
             lastSequence = qMax(lastSequence, sequence);
             ++rowCount;
 
@@ -223,7 +228,7 @@ void PDFDatabaseNotifier::poll()
                 lastSequence = maximum;
             }
         }
-        else if (firstSequence != m_lastSequence + 1 || rowCount > MAXIMUM_ROWS_PER_POLL)
+        else if (hasGap || rowCount > MAXIMUM_ROWS_PER_POLL)
         {
             // Gap = rows were pruned before this instance has read them; too many
             // rows = it is cheaper to reread everything

@@ -89,8 +89,8 @@ target_link_libraries(Pdf4QtLibApp PRIVATE unofficial::sqlite3::sqlite3)
 
 if(WIN32)
     # GetUserNameW, tokens of the processes (owner of the endpoint of the running
-    # instance), AllowSetForegroundWindow
-    target_link_libraries(Pdf4QtLibApp PRIVATE advapi32 user32)
+    # instance), AllowSetForegroundWindow, auto-hide taskbar of the maximized window
+    target_link_libraries(Pdf4QtLibApp PRIVATE advapi32 user32 shell32)
 endif()
 
 if(LINUX_GCC)

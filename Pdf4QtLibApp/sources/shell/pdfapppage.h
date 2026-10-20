@@ -86,6 +86,12 @@ public:
 
     PDFAppContext* getContext() const { return m_context; }
 
+    /// Name of an icon of the design for the layout direction: Qt does not mirror
+    /// icons, so a directional icon (chevron, arrow) is replaced by its mirror in
+    /// right-to-left (chevron-left <-> chevron-right, chevron-first <-> chevron-last,
+    /// arrow-left <-> arrow-right); other icons are returned unchanged
+    static QString getDirectionalIconName(const QString& iconName, Qt::LayoutDirection direction);
+
 Q_SIGNALS:
     /// The page asks for a route (only the navigator shows routes)
     void navigationRequested(const pdf::PDFAppRoute& route, pdf::PDFAppNavigationMode mode);

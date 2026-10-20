@@ -51,7 +51,7 @@ Hodnoty nastavení jsou typované v kódu: `PDFSettingDefinition` (klíč `secti
 - Volby, které závisí na systému (hlasy, jazyky řeči, ICC profily, jazyky rozhraní), dává poskytovatel voleb u definice. Uložená hodnota, která v systému chybí, se ukáže jako „(not available)“ a engine použije výchozí.
 - Ovládací prvky panelů dokumentu, které mění stejnou hodnotu jako Settings, zapisují stejný klíč: přepínač tématu, panel Speech (= Settings › Speech). Panel View mění jen `view_state` dokumentu.
 - *Restore defaults* sekce smaže klíče sekce; u Shortcuts řádky `shortcut`; Security certifikáty nemaže (dialog 941:135918 vypíše jen změněné hodnoty).
-- Další klíče: `update.autoCheck`, `update.lastCheck`, `update.latestVersion`, `update.lastError` (kontrola aktualizací, [newapp_whatsnew.md](newapp_whatsnew.md) 5), `mcp.*` (výchozí v [newapp_mcp.md](newapp_mcp.md) 1). Logy jsou soubory v `AppLocalDataLocation/logs` (About ukazuje cestu), katalog videí na Support je statický soubor v resources (filtr *For you* = videa toolů, které uživatel spouštěl, podle `tool_usage`).
+- Další klíče: `update.autoCheck`, `update.lastCheck`, `update.latestVersion`, `update.lastError` (kontrola aktualizací, [newapp_whatsnew.md](newapp_whatsnew.md) 5), `mcp.*` (výchozí v [newapp_mcp.md](newapp_mcp.md) 1). Logy jsou soubory v `AppLocalDataLocation/logs`, na Linuxu `StateLocation/logs` (About ukazuje cestu), katalog videí na Support je statická tabulka v kódu, zatím maketa (filtr *For you* = videa toolů, které uživatel spouštěl, podle `tool_usage`; [newapplication.md](newapplication.md), poznámka ke kroku 2).
 
 ## 5. Verze a chyby
 

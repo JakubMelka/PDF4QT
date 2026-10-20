@@ -36,6 +36,8 @@
 #include <QFrame>
 #include <QPointer>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QSpacerItem>
 #include <QUrl>
 #include <QWidget>
 
@@ -57,12 +59,66 @@ protected:
     virtual void paintEvent(QPaintEvent* event) override;
 };
 
+/// Wrapped plain text with the fixed line height of the design (QLabel takes the
+/// line spacing of the font, 17 px for Inter 14): the text of Page Not Found
+/// 14 / 21, the text of the storage banners 12 / 16. Each line is centered
+/// vertically in its line box, as Figma does. The height follows the width.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppParagraph : public PDFLabel
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFLabel;
+
+public:
+    explicit PDFAppParagraph(const QFont& font, int lineHeight, PDFThemeColors::Color color, QWidget* parent = nullptr);
+
+    int getLineHeight() const { return m_lineHeight; }
+
+    /// Lines of the text wrapped to the width
+    QStringList getLines(int width) const;
+
+    virtual bool hasHeightForWidth() const override;
+    virtual int heightForWidth(int width) const override;
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+
+private:
+    int m_lineHeight = 0;
+};
+
+/// Scroll area of the shell (the page area of the workspace, the navigation of the
+/// sidebar): no frame, the scroll bars of the style, the viewport and the content
+/// are transparent (they never fill the palette), the content follows the size of
+/// the viewport and scrolls, when it needs more space (the window has its minimal
+/// size 720 x 480, newapplication.md 3)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppScrollArea : public QScrollArea
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QScrollArea;
+
+public:
+    /// The area takes \p content over (it may be nullptr, setContent later)
+    explicit PDFAppScrollArea(QWidget* content, QWidget* parent = nullptr);
+    virtual ~PDFAppScrollArea() override;
+
+    /// Sets the content (the previous one is deleted by QScrollArea)
+    void setContent(QWidget* content);
+};
+
 /// Sidebar of the Home tab (pdf4qt-home 28:4, 210 px): the tile and the name of
 /// the application, the navigation in three groups and the switch of the color
 /// scheme Light / Dark / Auto. The switch is the setting appearance.colorScheme
 /// (the same as Settings › General › Color scheme): a choice writes the database,
 /// PDFAppContext applies it, and a change by another instance (notifier) moves
-/// the switch. A click on an item of the navigation asks for its route.
+/// the switch. A click on an item of the navigation asks for its route. The
+/// navigation scrolls in a low window, the switch stays at the bottom (8 px from
+/// the edge of the window, owner decision O11).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppSidebar : public QFrame
 {
     Q_OBJECT
@@ -84,6 +140,7 @@ public:
     static PDFAppRoute getRoute(PDFAppNavItem item);
 
     PDFNavList* getNavigation() const { return m_navigation; }
+    PDFAppScrollArea* getNavigationArea() const { return m_navigationArea; }
     PDFSegmentedControl* getThemeSwitch() const { return m_themeSwitch; }
 
     /// Index of the segment of the color scheme (Light 0, Dark 1, Auto 2)
@@ -102,6 +159,7 @@ private:
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFNavList> m_navigation;
+    QPointer<PDFAppScrollArea> m_navigationArea;
     QPointer<PDFSegmentedControl> m_themeSwitch;
     bool m_isUpdating = false;
 };
@@ -213,7 +271,13 @@ private:
 
 /// Footer of the Home tab (app-footer): "Free • Open Source • MIT License •
 /// Version x" with the tag of the storage (Portable, Not saved, Read only) and
-/// the targets Windows / Linux / macOS, divided from the page by a line.
+/// the targets Windows / Linux / macOS, divided from the page by a line. The
+/// footer holds the bottom padding of the workspace (16 px, owner decision O11),
+/// so the row of the texts is centered 24 px above the bottom edge - on the axis
+/// of the switch of the sidebar (8 px + 32 / 2). The tag (21 px) is centered on
+/// the text and reaches into the paddings, the height of the footer does not
+/// change with it. The targets are hidden, when the row is too narrow for them
+/// (minimal window).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppFooter : public QWidget
 {
     Q_OBJECT
@@ -225,8 +289,21 @@ public:
     explicit PDFAppFooter(QWidget* parent = nullptr);
     virtual ~PDFAppFooter() override;
 
+    /// Padding above the row (the line lies inside of it) and below it (the bottom
+    /// padding of the workspace)
+    static constexpr int PADDING = 16;
+
+    /// Gap between the version and the tag
+    static constexpr int TAG_GAP = 8;
+
     /// Address of the license (MIT License link)
     static QUrl getLicenseUrl();
+
+    /// Version as it is shown to the user: three parts (1.6.0 of the project
+    /// version 1.6.0.0, newapp_whatsnew.md 2), missing parts are zeros; a text,
+    /// which is not a version, is returned trimmed to 32 characters
+    static QString getDisplayVersion(const QString& version);
+    static QString getDisplayVersion();
 
     /// Shows the tag of the state of the storage
     void setState(const PDFDatabaseState& state);
@@ -236,19 +313,31 @@ public:
 
     PDFTextLink* getLicenseLink() const { return m_licenseLink; }
     PDFLabel* getVersionLabel() const { return m_versionLabel; }
+    PDFTag* getTag() const { return m_tag; }
+
+    /// Widget of the targets Windows / Linux / macOS (its labels are hidden, when
+    /// it is narrower than they need)
+    QWidget* getTargets() const { return m_targets; }
 
 Q_SIGNALS:
     void externalUrlRequested(const QUrl& url);
 
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual bool event(QEvent* event) override;
 
 private:
     void onLicenseClicked();
+    void updateTagSpace();
+    void placeTag();
 
     QPointer<PDFTextLink> m_licenseLink;
     QPointer<PDFLabel> m_versionLabel;
     QPointer<PDFTag> m_tag;
+    QPointer<QWidget> m_targets;
+
+    /// Place of the tag in the layout (owned by the layout, checked by indexOf)
+    QSpacerItem* m_tagSpacer = nullptr;
 };
 
 }   // namespace pdf

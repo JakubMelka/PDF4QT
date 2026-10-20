@@ -29,12 +29,15 @@
 #include <QWidget>
 #include <QWindow>
 
+#include <utility>
+
 #if defined(Q_OS_WIN)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <windowsx.h>
+#include <shellapi.h>
 #endif
 
 namespace pdf
@@ -49,7 +52,52 @@ public:
     /// Resize border in logical pixels: the 6 px above the shape of the tabs
     /// (components.md 4.9), the same on the other edges of the client area
     static constexpr int RESIZE_BORDER = 6;
+
+#if defined(Q_OS_WIN)
+    /// Edges of the monitor of the window, where an auto-hide taskbar (or another
+    /// auto-hide application bar) is
+    static Qt::Edges getAutoHideTaskbarEdges(HWND hwnd)
+    {
+        APPBARDATA state = { };
+        state.cbSize = sizeof(state);
+        if (!(SHAppBarMessage(ABM_GETSTATE, &state) & ABS_AUTOHIDE))
+        {
+            return Qt::Edges();
+        }
+
+        const HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo = { };
+        monitorInfo.cbSize = sizeof(monitorInfo);
+        if (!monitor || !GetMonitorInfoW(monitor, &monitorInfo))
+        {
+            return Qt::Edges();
+        }
+
+        Qt::Edges edges;
+        const std::pair<UINT, Qt::Edge> appBarEdges[] = { { ABE_LEFT, Qt::LeftEdge }, { ABE_TOP, Qt::TopEdge }, { ABE_RIGHT, Qt::RightEdge }, { ABE_BOTTOM, Qt::BottomEdge } };
+        for (const auto& appBarEdge : appBarEdges)
+        {
+            APPBARDATA data = { };
+            data.cbSize = sizeof(data);
+            data.uEdge = appBarEdge.first;
+            data.rc = monitorInfo.rcMonitor;
+            if (SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &data))
+            {
+                edges |= appBarEdge.second;
+            }
+        }
+        return edges;
+    }
+#endif
 };
+
+QRect PDFAppWindowFrame::adjustMaximizedClientRect(const QRect& clientRect, Qt::Edges autoHideTaskbarEdges)
+{
+    const int inset = AUTO_HIDE_TASKBAR_INSET;
+    const QRect result = clientRect.adjusted(autoHideTaskbarEdges.testFlag(Qt::LeftEdge) ? inset : 0, autoHideTaskbarEdges.testFlag(Qt::TopEdge) ? inset : 0,
+                                             autoHideTaskbarEdges.testFlag(Qt::RightEdge) ? -inset : 0, autoHideTaskbarEdges.testFlag(Qt::BottomEdge) ? -inset : 0);
+    return result.isValid() ? result : clientRect;
+}
 
 PDFAppWindowFrame::PDFAppWindowFrame(QWidget* window, PDFAppTopBar* topBar) :
     BaseClass(window),
@@ -111,12 +159,15 @@ void PDFAppWindowFrame::initialize()
         {
 #if defined(Q_OS_WIN)
             // The normal styles stay (snapping, shadow, system menu); the title bar is
-            // removed by WM_NCCALCSIZE, which is sent again by the change of the frame
-            const HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-            if (hwnd && !m_isFrameChanged)
+            // removed by WM_NCCALCSIZE, which is sent again by the change of the frame.
+            // The native window is never created here: a window created before it is
+            // shown gets no position from Qt (it appeared beyond the screens), it is
+            // framed when Qt creates it (the window calls this at QEvent::WinIdChange)
+            const WId windowId = m_window->internalWinId();
+            if (windowId && m_framedWindowId != windowId)
             {
-                m_isFrameChanged = true;
-                SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+                m_framedWindowId = windowId;
+                SetWindowPos(reinterpret_cast<HWND>(windowId), nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
             }
 #endif
             break;
@@ -124,15 +175,21 @@ void PDFAppWindowFrame::initialize()
 
         case Mode::Client:
             // Linux: no decoration of the window manager or of the compositor (client
-            // side decoration of Wayland is the top bar of the window)
-            m_window->setWindowFlag(Qt::FramelessWindowHint, true);
+            // side decoration of Wayland is the top bar of the window); a change of the
+            // flags creates a new native window, it is called again then (WinIdChange)
+            if (!m_window->windowFlags().testFlag(Qt::FramelessWindowHint))
+            {
+                m_window->setWindowFlag(Qt::FramelessWindowHint, true);
+            }
             installWindowFilter();
             break;
 
         case Mode::MacOS:
             // The content extends into the title bar, the traffic lights of the system stay
-            m_window->setWindowFlag(Qt::ExpandedClientAreaHint, true);
-            m_window->setWindowFlag(Qt::NoTitleBarBackgroundHint, true);
+            if (!m_window->windowFlags().testFlags(Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint))
+            {
+                m_window->setWindowFlags(m_window->windowFlags() | Qt::ExpandedClientAreaHint | Qt::NoTitleBarBackgroundHint);
+            }
             if (PDFWindowControls* controls = getControls())
             {
                 controls->setSystemButtons(true);
@@ -152,9 +209,10 @@ void PDFAppWindowFrame::installWindowFilter()
         return;
     }
 
-    // The window of the widget receives all mouse events, also those over children
-    m_window->winId();
-    QWindow* windowHandle = m_window->windowHandle();
+    // The window of the widget receives all mouse events, also those over children.
+    // It exists, when the widget is created (shown); the window calls initialize
+    // again then (QEvent::WinIdChange), a native window is never created here
+    QWindow* windowHandle = m_window->internalWinId() ? m_window->windowHandle() : nullptr;
     if (windowHandle && m_filteredWindow != windowHandle)
     {
         if (m_filteredWindow)
@@ -184,6 +242,15 @@ PDFAppHitTestResult PDFAppWindowFrame::hitTest(const QPoint& windowPosition) con
     input.isResizable = m_window->minimumSize() != m_window->maximumSize();
     input.resizeBorder = getResizeBorder();
     input.hasSideBorders = m_mode != Mode::Windows;
+
+    // A window of a fixed size has no Snap Layouts, also before the window controls
+    // have heard of it (they learn it from the state events of the window, a change
+    // of the minimal or maximal size sends none)
+    if (!input.isResizable && !input.maximizeButtonRect.isEmpty())
+    {
+        input.interactiveRects << input.maximizeButtonRect;
+        input.maximizeButtonRect = QRect();
+    }
     return PDFAppHitTest::hitTest(input);
 }
 
@@ -285,9 +352,13 @@ bool PDFAppWindowFrame::handleNativeEvent(const QByteArray& eventType, void* mes
         return false;
     }
 
+    // The messages come from the native window of the widget (QWidget::nativeEvent).
+    // Its id is not compared with internalWinId: a change of the flags of the window
+    // clears the id of the widget until the next show, and the frame changed in
+    // between (WM_NCCALCSIZE) must keep the window without the title bar
     MSG* msg = static_cast<MSG*>(message);
-    const HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
-    if (!hwnd || msg->hwnd != hwnd)
+    const HWND hwnd = msg->hwnd;
+    if (!hwnd || GetAncestor(hwnd, GA_ROOT) != hwnd)
     {
         return false;
     }
@@ -321,6 +392,19 @@ bool PDFAppWindowFrame::handleNativeEvent(const QByteArray& eventType, void* mes
                 // A maximized window reaches beyond the screen by its frame
                 const UINT dpi = GetDpiForWindow(hwnd);
                 params->rgrc[0].top += GetSystemMetricsForDpi(SM_CYFRAME, dpi) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+
+                // The work area of an auto-hide taskbar is the whole monitor: the
+                // window leaves the edge of the taskbar free, so the pointer shows it
+                const Qt::Edges taskbarEdges = PDFAppWindowFrameHelper::getAutoHideTaskbarEdges(hwnd);
+                if (taskbarEdges)
+                {
+                    RECT& client = params->rgrc[0];
+                    const QRect adjusted = adjustMaximizedClientRect(QRect(QPoint(client.left, client.top), QPoint(client.right - 1, client.bottom - 1)), taskbarEdges);
+                    client.left = adjusted.left();
+                    client.top = adjusted.top();
+                    client.right = adjusted.right() + 1;
+                    client.bottom = adjusted.bottom() + 1;
+                }
             }
             *result = 0;
             return true;

@@ -103,13 +103,27 @@ public:
     /// Copies the database \p source into \p target by the backup API
     static int copyDatabase(sqlite3* source, sqlite3* target);
 
-    /// Reads an integer value of the table storage_maintenance; \returns false, when
-    /// the value cannot be read (no table - an older schema, no row, an error)
-    static bool readMaintenanceValue(sqlite3* handle, const char* key, qint64* value);
+    /// Result of readMaintenanceValue
+    enum class MaintenanceValue
+    {
+        Read,       ///< An integer value was read
+        Missing,    ///< No row of the key
+        Invalid     ///< A value of another type, no table (an older schema) or an error
+    };
 
-    /// Writes an integer value into the table storage_maintenance (\p keepMaximum:
-    /// a smaller value does not replace a stored one). \returns the result code.
-    static int writeMaintenanceValue(sqlite3* handle, const char* key, qint64 value, bool keepMaximum);
+    /// Reads an integer value of the table storage_maintenance
+    static MaintenanceValue readMaintenanceValue(sqlite3* handle, const char* key, qint64* value);
+
+    /// Writes an integer value into the table storage_maintenance. \returns the result code.
+    static int writeMaintenanceValue(sqlite3* handle, const char* key, qint64 value);
+
+    /// Writes the request of the full integrity check (a damage met at \p reportTime).
+    /// The stored value is newer than the time of the last check also when the clock
+    /// has been set back since that check, and it never decreases. \returns the result code.
+    static int writeIntegrityRequest(sqlite3* handle, qint64 reportTime);
+
+    /// Time of the damage written into the marker file \p markerPath (-1 = no valid time)
+    static qint64 readMarkerTime(const QString& markerPath);
 };
 
 PDFDatabaseError::PDFDatabaseError(int code, int extendedCode, QString message) :
@@ -533,31 +547,34 @@ int PDFDatabaseHelper::copyDatabase(sqlite3* source, sqlite3* target)
     return result;
 }
 
-bool PDFDatabaseHelper::readMaintenanceValue(sqlite3* handle, const char* key, qint64* value)
+PDFDatabaseHelper::MaintenanceValue PDFDatabaseHelper::readMaintenanceValue(sqlite3* handle, const char* key, qint64* value)
 {
     sqlite3_stmt* statement = nullptr;
-    bool isRead = false;
+    MaintenanceValue result = MaintenanceValue::Invalid;
     if (sqlite3_prepare_v2(handle, "SELECT value FROM storage_maintenance WHERE key = ?1", -1, &statement, nullptr) == SQLITE_OK &&
-        sqlite3_bind_text(statement, 1, key, -1, SQLITE_STATIC) == SQLITE_OK &&
-        sqlite3_step(statement) == SQLITE_ROW &&
-        sqlite3_column_type(statement, 0) == SQLITE_INTEGER)
+        sqlite3_bind_text(statement, 1, key, -1, SQLITE_STATIC) == SQLITE_OK)
     {
-        // A value of another type (written by something else) is not trusted
-        *value = sqlite3_column_int64(statement, 0);
-        isRead = true;
+        const int stepResult = sqlite3_step(statement);
+        if (stepResult == SQLITE_DONE)
+        {
+            result = MaintenanceValue::Missing;
+        }
+        else if (stepResult == SQLITE_ROW && sqlite3_column_type(statement, 0) == SQLITE_INTEGER)
+        {
+            // A value of another type (written by something else) is not trusted
+            *value = sqlite3_column_int64(statement, 0);
+            result = MaintenanceValue::Read;
+        }
     }
     sqlite3_finalize(statement);
-    return isRead;
+    return result;
 }
 
-int PDFDatabaseHelper::writeMaintenanceValue(sqlite3* handle, const char* key, qint64 value, bool keepMaximum)
+int PDFDatabaseHelper::writeMaintenanceValue(sqlite3* handle, const char* key, qint64 value)
 {
-    const char* sql = keepMaximum ? "INSERT INTO storage_maintenance(key, value) VALUES (?1, ?2) "
-                                    "ON CONFLICT(key) DO UPDATE SET value = MAX(COALESCE(value, 0), excluded.value)"
-                                  : "INSERT INTO storage_maintenance(key, value) VALUES (?1, ?2) "
-                                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value";
     sqlite3_stmt* statement = nullptr;
-    int result = sqlite3_prepare_v2(handle, sql, -1, &statement, nullptr);
+    int result = sqlite3_prepare_v2(handle, "INSERT INTO storage_maintenance(key, value) VALUES (?1, ?2) "
+                                            "ON CONFLICT(key) DO UPDATE SET value = excluded.value", -1, &statement, nullptr);
     if (result == SQLITE_OK)
     {
         result = sqlite3_bind_text(statement, 1, key, -1, SQLITE_STATIC);
@@ -576,6 +593,56 @@ int PDFDatabaseHelper::writeMaintenanceValue(sqlite3* handle, const char* key, q
     }
     sqlite3_finalize(statement);
     return result;
+}
+
+int PDFDatabaseHelper::writeIntegrityRequest(sqlite3* handle, qint64 reportTime)
+{
+    // One statement (atomic against other instances): at least the time of the last
+    // check + 1, so a check, whose time was recorded by a clock running ahead, does not
+    // hide the request after the clock has been set back; a stored request of another
+    // type (not written by PDF4QT) is replaced
+    sqlite3_stmt* statement = nullptr;
+    int result = sqlite3_prepare_v2(handle, "INSERT INTO storage_maintenance(key, value) VALUES (?1, "
+                                            "MAX(?2, COALESCE((SELECT value + 1 FROM storage_maintenance WHERE key = ?3 AND typeof(value) = 'integer'), 0))) "
+                                            "ON CONFLICT(key) DO UPDATE SET value = CASE WHEN typeof(value) = 'integer' THEN MAX(value, excluded.value) ELSE excluded.value END",
+                                    -1, &statement, nullptr);
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_bind_text(statement, 1, PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY, -1, SQLITE_STATIC);
+    }
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_bind_int64(statement, 2, reportTime);
+    }
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_bind_text(statement, 3, PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY, -1, SQLITE_STATIC);
+    }
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_step(statement);
+        if (result == SQLITE_DONE)
+        {
+            result = SQLITE_OK;
+        }
+    }
+    sqlite3_finalize(statement);
+    return result;
+}
+
+qint64 PDFDatabaseHelper::readMarkerTime(const QString& markerPath)
+{
+    // The file is written by PDFDatabase::writeDamageReport (milliseconds since the
+    // epoch as a decimal number); anything else is no valid time
+    QFile marker(markerPath);
+    if (!marker.open(QIODevice::ReadOnly))
+    {
+        return -1;
+    }
+
+    bool isValid = false;
+    const qint64 time = marker.read(32).trimmed().toLongLong(&isValid);
+    return (isValid && time > 0) ? time : -1;
 }
 
 PDFDatabase::PDFDatabase(QObject* parent) :
@@ -798,16 +865,28 @@ bool PDFDatabase::isIntegrityCheckDue(sqlite3* handle, const QString& filePath) 
 
     // No time of the check (a new file, an older schema, the value cannot be read) = due
     qint64 lastCheck = 0;
-    if (!PDFDatabaseHelper::readMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY, &lastCheck))
+    if (PDFDatabaseHelper::readMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY, &lastCheck) != PDFDatabaseHelper::MaintenanceValue::Read)
     {
         return true;
     }
 
-    // An instance has met a damage since the start of the last check
+    // An instance has met a damage since the start of the last check (a request,
+    // which cannot be read, is a request too)
     qint64 requested = 0;
-    if (PDFDatabaseHelper::readMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY, &requested) && requested >= lastCheck)
+    switch (PDFDatabaseHelper::readMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY, &requested))
     {
-        return true;
+        case PDFDatabaseHelper::MaintenanceValue::Read:
+            if (requested >= lastCheck)
+            {
+                return true;
+            }
+            break;
+
+        case PDFDatabaseHelper::MaintenanceValue::Missing:
+            break;
+
+        case PDFDatabaseHelper::MaintenanceValue::Invalid:
+            return true;
     }
 
     // The time of the check is in the future (the clock was set back): due
@@ -825,7 +904,7 @@ void PDFDatabase::recordIntegrityCheck(sqlite3* handle, const QString& filePath,
     // The time of the start of the check: a damage reported during the check is newer,
     // so the next opening checks the file again. The table has no triggers, the write
     // is not a change of the data for the other instances.
-    const int result = PDFDatabaseHelper::writeMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY, checkTime, false);
+    const int result = PDFDatabaseHelper::writeMaintenanceValue(handle, PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY, checkTime);
     if (result != SQLITE_OK)
     {
         // The next opening checks the file again
@@ -833,10 +912,22 @@ void PDFDatabase::recordIntegrityCheck(sqlite3* handle, const QString& filePath,
         return;
     }
 
+    // A request of another type (not written by PDF4QT) would request the check at
+    // every opening; this check has answered it
+    sqlite3_exec(handle, "DELETE FROM storage_maintenance WHERE key = 'integrity.requested' AND typeof(value) <> 'integer'", nullptr, nullptr, nullptr);
+
+    // The marker is removed only, when the check has started after the damage: another
+    // instance may have written it during the check (the damage was met after the
+    // start). A time in the future (a clock set back, not written by PDF4QT) would
+    // request the check at every opening, it is not kept.
     const QString markerPath = getIntegrityCheckMarkerPath(filePath);
     if (QFileInfo::exists(markerPath))
     {
-        QFile::remove(markerPath);
+        const qint64 markerTime = PDFDatabaseHelper::readMarkerTime(markerPath);
+        if (markerTime < checkTime || markerTime > QDateTime::currentMSecsSinceEpoch() + 60 * 1000)
+        {
+            QFile::remove(markerPath);
+        }
     }
 }
 
@@ -890,18 +981,29 @@ bool PDFDatabase::writeDamageReport(bool isClosing)
     }
 
     bool isWritten = false;
-    bool isBusy = true;
-    PDFDatabaseConnection* connection = getConnection();
-    if (connection && connection->isValid() && !connection->isInTransaction())
-    {
-        // Never waits for another instance (the thread of the user interface)
-        const int busyTimeout = connection->getBusyTimeout();
-        connection->setBusyTimeout(0);
-        const int result = PDFDatabaseHelper::writeMaintenanceValue(connection->getHandle(), PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY, reportTime, true);
-        connection->setBusyTimeout(busyTimeout);
+    bool isBusy = false;
 
-        isWritten = (result == SQLITE_OK);
-        isBusy = (result & 0xFF) == SQLITE_BUSY || (result & 0xFF) == SQLITE_LOCKED;
+    // A closed database has no connection: the marker file is written at once (a damage
+    // met by close() itself or reported after it must not wait for a timer forever)
+    PDFDatabaseConnection* connection = getConnection();
+    if (connection && connection->isValid())
+    {
+        if (connection->isInTransaction())
+        {
+            // A transaction of this thread is open: the record would become a part of it
+            isBusy = true;
+        }
+        else
+        {
+            // Never waits for another instance (the thread of the user interface)
+            const int busyTimeout = connection->getBusyTimeout();
+            connection->setBusyTimeout(0);
+            const int result = PDFDatabaseHelper::writeIntegrityRequest(connection->getHandle(), reportTime);
+            connection->setBusyTimeout(busyTimeout);
+
+            isWritten = (result == SQLITE_OK);
+            isBusy = (result & 0xFF) == SQLITE_BUSY || (result & 0xFF) == SQLITE_LOCKED;
+        }
     }
 
     if (!isWritten)
@@ -912,11 +1014,11 @@ bool PDFDatabase::writeDamageReport(bool isClosing)
         }
 
         // The database refuses the write (a damaged page, a full disk, it is closing
-        // while another instance writes): a marker file next to the database
+        // while another instance writes, it is closed): a marker file next to the database
         QFile marker(getIntegrityCheckMarkerPath(state.filePath));
         if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate, QFileDevice::ReadOwner | QFileDevice::WriteOwner))
         {
-            marker.write(QDateTime::fromMSecsSinceEpoch(reportTime).toString(Qt::ISODateWithMs).toLatin1());
+            marker.write(QByteArray::number(reportTime));
             marker.close();
         }
         else
@@ -1098,6 +1200,12 @@ bool PDFDatabase::openDisk(PDFDatabaseError* error)
             return false;
         }
         state.damagedFilePath = damagedFilePath;
+
+        // The user must be told about the renamed file also when the opening of the new
+        // file is tried again (openDiskWithRetry, another instance holds its lock): the
+        // next attempt starts from the stored state (no signal, the opening goes on)
+        QMutexLocker locker(&m_stateMutex);
+        m_state.damagedFilePath = damagedFilePath;
     }
 
     if (!handle)
@@ -1302,14 +1410,14 @@ void PDFDatabase::close()
     m_damageReportTimer.stop();
     if (!m_isOpen)
     {
+        // A damage reported after the database was closed belongs to the file, which
+        // was open (the marker file; nothing, when it was a memory database)
+        writeDamageReport(true);
         m_damageReportTime.store(0);
         closeHandle(m_memoryKeeper);
         m_memoryKeeper = nullptr;
         return;
     }
-
-    // A damage met in this run must not be forgotten (newapp_storage.md 5)
-    writeDamageReport(true);
 
     if (getState().isPersistent())
     {
@@ -1323,6 +1431,10 @@ void PDFDatabase::close()
             }
         }
     }
+
+    // A damage met in this run must not be forgotten (newapp_storage.md 5), also
+    // a damage met by PRAGMA optimize above
+    writeDamageReport(true);
 
     closeConnections();
     closeHandle(m_memoryKeeper);

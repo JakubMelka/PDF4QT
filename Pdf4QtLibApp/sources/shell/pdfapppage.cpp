@@ -23,6 +23,8 @@
 #include "pdfapppage.h"
 #include "pdfappcontext.h"
 
+#include <utility>
+
 namespace pdf
 {
 
@@ -64,6 +66,33 @@ QVariantMap PDFAppPage::saveViewState() const
 void PDFAppPage::restoreViewState(const QVariantMap& state)
 {
     Q_UNUSED(state);
+}
+
+QString PDFAppPage::getDirectionalIconName(const QString& iconName, Qt::LayoutDirection direction)
+{
+    if (direction != Qt::RightToLeft)
+    {
+        return iconName;
+    }
+
+    static constexpr std::pair<const char*, const char*> MIRRORED_ICONS[] = {
+        { "chevron-left", "chevron-right" },
+        { "chevron-first", "chevron-last" },
+        { "arrow-left", "arrow-right" }
+    };
+
+    for (const auto& [first, second] : MIRRORED_ICONS)
+    {
+        if (iconName == QLatin1String(first))
+        {
+            return QString::fromLatin1(second);
+        }
+        if (iconName == QLatin1String(second))
+        {
+            return QString::fromLatin1(first);
+        }
+    }
+    return iconName;
 }
 
 bool PDFAppPage::requestNavigation(const PDFAppRoute& route, PDFAppNavigationMode mode)

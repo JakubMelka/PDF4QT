@@ -465,6 +465,8 @@ bool PDFAppInstanceServer::listen(const QString& serverName)
     closeServer();
     m_serverName = serverName;
     m_isSuspended = false;
+    m_isHolding = false;
+    m_isQuitting = false;
 
     m_server = new QLocalServer(this);
     m_server->setSocketOptions(QLocalServer::UserAccessOption);
@@ -500,12 +502,16 @@ bool PDFAppInstanceServer::listenRemovingStale(const QString& serverName)
 
 void PDFAppInstanceServer::close()
 {
+    // No retry of the listening is scheduled by the deleted connections
+    m_isSuspended = false;
+    m_isHolding = false;
     const QList<QObject*> connections = m_connections;
     m_connections.clear();
     qDeleteAll(connections);
 
     closeServer();
     m_isSuspended = false;
+    m_isHolding = false;
 }
 
 void PDFAppInstanceServer::closeServer()
@@ -525,8 +531,10 @@ void PDFAppInstanceServer::suspend()
         return;
     }
 
-    // Connections waiting in the backlog of the system are accepted first (the signal
-    // newConnection calls onNewConnection), so they are answered
+    // Requests are held from now on (resume or quit answers them). Connections
+    // waiting in the backlog of the system are accepted first (the signal
+    // newConnection calls onNewConnection), so they are answered.
+    m_isHolding = true;
     for (int i = 0; i <= MAXIMUM_CONNECTIONS && m_server && m_server->isListening(); ++i)
     {
         bool isTimedOut = false;
@@ -554,9 +562,118 @@ bool PDFAppInstanceServer::resume(int timeout, QString* error)
         return false;
     }
 
+    // The quitting is canceled: the window opens the held requests first (also when
+    // the server cannot listen again), their connections close then; this server
+    // may be deleted by a slot
+    m_isHolding = false;
+    QPointer<PDFAppInstanceServer> guard(this);
+    deliverHeldRequests();
+    if (!guard || m_isQuitting)
+    {
+        return false;
+    }
+
     const bool isListening = PDFAppInstanceGuard::resume(this, timeout, error);
     m_isSuspended = !isListening;
     return isListening;
+}
+
+void PDFAppInstanceServer::retryResume()
+{
+    if (!m_isSuspended || m_isHolding || m_isQuitting || isListening() || !m_connections.isEmpty())
+    {
+        return;
+    }
+
+    QString error;
+    if (PDFAppInstanceGuard::resume(this, RETRY_TIMEOUT, &error))
+    {
+        m_isSuspended = false;
+    }
+    else
+    {
+        qCInfo(lcPdf4QtInstance) << "The running instance does not listen again:" << error;
+    }
+}
+
+void PDFAppInstanceServer::quit()
+{
+    m_isQuitting = true;
+    m_isHolding = false;
+    m_isSuspended = false;
+    closeServer();
+
+    // Every connection, which has not been answered, is refused (also the ones,
+    // whose message has not arrived yet); a slot of requestRefused may delete this
+    QPointer<PDFAppInstanceServer> guard(this);
+    for (const QPointer<PDFAppInstanceConnection>& connection : getConnections())
+    {
+        if (!guard)
+        {
+            return;
+        }
+
+        if (connection && !connection->isFinished())
+        {
+            connection->refuse(QStringLiteral("The running instance is quitting."));
+        }
+    }
+}
+
+int PDFAppInstanceServer::getHeldRequestCount() const
+{
+    int count = 0;
+    for (const QPointer<PDFAppInstanceConnection>& connection : getConnections())
+    {
+        if (connection && connection->isHeld())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+QList<QPointer<PDFAppInstanceConnection>> PDFAppInstanceServer::getConnections() const
+{
+    QList<QPointer<PDFAppInstanceConnection>> connections;
+    for (QObject* object : m_connections)
+    {
+        if (PDFAppInstanceConnection* connection = qobject_cast<PDFAppInstanceConnection*>(object))
+        {
+            connections.append(connection);
+        }
+    }
+    return connections;
+}
+
+void PDFAppInstanceServer::deliver(PDFAppInstanceConnection* connection)
+{
+    if (!connection || !connection->isHeld())
+    {
+        return;
+    }
+
+    // The request is copied: the connection, which owns it, may be deleted by a slot
+    const PDFAppInstanceRequest request = connection->getRequest();
+    connection->acknowledge();
+    Q_EMIT openRequested(request);
+}
+
+void PDFAppInstanceServer::deliverHeldRequests()
+{
+    QPointer<PDFAppInstanceServer> guard(this);
+    for (const QPointer<PDFAppInstanceConnection>& connection : getConnections())
+    {
+        if (!guard)
+        {
+            return;
+        }
+
+        if (connection && connection->isHeld())
+        {
+            deliver(connection);
+        }
+    }
 }
 
 bool PDFAppInstanceServer::isListening() const
@@ -604,7 +721,7 @@ void PDFAppInstanceServer::onNewConnection()
         PDFAppInstanceConnection* connection = new PDFAppInstanceConnection(socket, m_readTimeout, this);
         m_connections.append(connection);
         connect(connection, &QObject::destroyed, this, &PDFAppInstanceServer::onConnectionDestroyed);
-        connect(connection, &PDFAppInstanceConnection::requestReceived, this, &PDFAppInstanceServer::onRequestReceived);
+        connect(connection, &PDFAppInstanceConnection::requestReady, this, &PDFAppInstanceServer::onRequestReady);
         connect(connection, &PDFAppInstanceConnection::requestRefused, this, &PDFAppInstanceServer::onRequestRefused);
     }
 }
@@ -613,14 +730,37 @@ void PDFAppInstanceServer::onConnectionDestroyed(QObject* object)
 {
     // Only the pointer is forgotten (the connection is being destroyed)
     m_connections.removeAll(object);
+
+    // The quitting was canceled, but an open connection held the name
+    if (m_connections.isEmpty() && m_isSuspended && !m_isHolding && !m_isQuitting)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppInstanceServer::retryResume, Qt::QueuedConnection);
+    }
 }
 
-void PDFAppInstanceServer::onRequestReceived(const PDFAppInstanceRequest& request)
+void PDFAppInstanceServer::onRequestReady()
 {
-    // The request is copied: the connection, which owns the argument, may be
-    // deleted by a slot
-    const PDFAppInstanceRequest requestCopy = request;
-    Q_EMIT openRequested(requestCopy);
+    // The connections do not identify themselves in the signal
+    PDFAppInstanceConnection* connection = qobject_cast<PDFAppInstanceConnection*>(sender());
+    if (!connection || !m_connections.contains(connection))
+    {
+        return;
+    }
+
+    if (m_isQuitting)
+    {
+        // The window is closing: the other process starts by itself
+        connection->refuse(QStringLiteral("The running instance is quitting."));
+        return;
+    }
+
+    if (m_isHolding)
+    {
+        // Answered by resume or quit
+        return;
+    }
+
+    deliver(connection);
 }
 
 void PDFAppInstanceServer::onRequestRefused(const QString& reason)
@@ -632,7 +772,8 @@ void PDFAppInstanceServer::onRequestRefused(const QString& reason)
 
 PDFAppInstanceConnection::PDFAppInstanceConnection(QLocalSocket* socket, int readTimeout, QObject* parent) :
     QObject(parent),
-    m_socket(socket)
+    m_socket(socket),
+    m_readTimeout(readTimeout)
 {
     socket->setParent(this);
     socket->setReadBufferSize(PDFAppInstanceProtocol::HEADER_SIZE + PDFAppInstanceProtocol::MAXIMUM_MESSAGE_SIZE + 1);
@@ -661,7 +802,7 @@ PDFAppInstanceConnection::~PDFAppInstanceConnection()
 
 void PDFAppInstanceConnection::onReadyRead()
 {
-    if (m_isFinished || !m_socket)
+    if (m_isFinished || m_isHeld || !m_socket)
     {
         if (m_socket)
         {
@@ -685,7 +826,7 @@ void PDFAppInstanceConnection::onReadyRead()
 void PDFAppInstanceConnection::processBuffer()
 {
     m_isProcessingScheduled = false;
-    if (m_isFinished || !m_socket)
+    if (m_isFinished || m_isHeld || !m_socket)
     {
         return;
     }
@@ -717,19 +858,31 @@ void PDFAppInstanceConnection::processBuffer()
         return;
     }
 
-    // Acknowledgment first, then the application opens the files
-    m_isFinished = true;
-    m_timer.stop();
-    m_socket->write(PDFAppInstanceProtocol::createFrame(PDFAppInstanceProtocol::encodeReply(true, QString())));
-    m_socket->flush();
+    // The server answers the request (at once, or later while the application is
+    // quitting); a held request waits at most the read timeout
+    m_request = std::move(request);
+    m_isHeld = true;
+    m_buffer.clear();
+    m_timer.start(m_readTimeout);
+    Q_EMIT requestReady();
+}
 
-    QPointer<PDFAppInstanceConnection> guard(this);
-    Q_EMIT requestReceived(request);
-    if (!guard)
+void PDFAppInstanceConnection::acknowledge()
+{
+    if (m_isFinished || !m_isHeld)
     {
         return;
     }
 
+    // Acknowledgment first, then the application opens the files
+    m_isHeld = false;
+    m_isFinished = true;
+    m_timer.stop();
+    if (m_socket)
+    {
+        m_socket->write(PDFAppInstanceProtocol::createFrame(PDFAppInstanceProtocol::encodeReply(true, QString())));
+        m_socket->flush();
+    }
     finish();
 }
 
@@ -740,6 +893,7 @@ void PDFAppInstanceConnection::refuse(const QString& reason)
         return;
     }
 
+    m_isHeld = false;
     m_isFinished = true;
     m_timer.stop();
     if (m_socket)
@@ -780,7 +934,7 @@ void PDFAppInstanceConnection::onTimeout()
 {
     if (!m_isFinished)
     {
-        refuse(QStringLiteral("Timeout of the message."));
+        refuse(m_isHeld ? QStringLiteral("The running instance is busy.") : QStringLiteral("Timeout of the message."));
         return;
     }
 
@@ -795,7 +949,13 @@ void PDFAppInstanceConnection::onTimeout()
 void PDFAppInstanceConnection::onDisconnected()
 {
     // A message read before is still processed (the queued call runs before the
-    // deferred deletion)
+    // deferred deletion); a held request is dropped (its peer has given up and
+    // starts by itself)
+    if (m_isHeld)
+    {
+        m_isHeld = false;
+        m_isFinished = true;
+    }
     m_timer.stop();
     deleteLater();
 }

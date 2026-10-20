@@ -40,12 +40,15 @@
 
 #include <QAction>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QDir>
+#include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
 #include <QStackedWidget>
 #include <QVBoxLayout>
+#include <QWindow>
 
 namespace pdf
 {
@@ -56,17 +59,30 @@ class PDFAppMainWindowHelper
 public:
     PDFAppMainWindowHelper() = delete;
 
-    /// Size of the frames of the design (1440 x 977), at most 90 % of the screen
-    static QSize getInitialSize(const QWidget* window)
+    /// Geometry of the new window: the size of the frames of the design (1440 x 977),
+    /// at most 90 % of the screen of the pointer, centered on it. The position is
+    /// set: Qt does not center a window larger than 8 / 9 of the screen, the system
+    /// placed such a window beyond the screens (Windows, two monitors at 200 %).
+    static QRect getInitialGeometry(const QWidget* window)
     {
         QSize size(1440, 977);
-        const QScreen* screen = window ? window->screen() : nullptr;
-        if (screen)
+        const QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
         {
-            const QSize available = screen->availableGeometry().size();
-            size = size.boundedTo(QSize(available.width() * 9 / 10, available.height() * 9 / 10));
+            screen = window ? window->screen() : QGuiApplication::primaryScreen();
         }
-        return size.expandedTo(window ? window->minimumSize() : QSize());
+
+        if (!screen)
+        {
+            return QRect(QPoint(0, 0), size.expandedTo(window ? window->minimumSize() : QSize()));
+        }
+
+        const QRect available = screen->availableGeometry();
+        size = size.boundedTo(QSize(available.width() * 9 / 10, available.height() * 9 / 10));
+        size = size.expandedTo(window ? window->minimumSize() : QSize());
+        QRect geometry(QPoint(0, 0), size);
+        geometry.moveCenter(available.center());
+        return geometry;
     }
 
     /// Commands bound to the actions of the window (step 1)
@@ -99,7 +115,7 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("mainWindow"));
     setWindowTitle(tr("PDF4QT"));
     setMinimumSize(720, 480);
-    resize(PDFAppMainWindowHelper::getInitialSize(this));
+    setGeometry(PDFAppMainWindowHelper::getInitialGeometry(this));
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -424,13 +440,31 @@ void PDFAppMainWindow::createCommands()
         action->setObjectName(id);
         action->setData(id);
         action->setShortcutContext(Qt::WindowShortcut);
-        if (!command->iconName.isEmpty())
-        {
-            action->setIcon(PDFThemeIcons::getIcon(command->iconName));
-        }
         addAction(action);
         connect(action, &QAction::triggered, this, &PDFAppMainWindow::onCommandTriggered);
         m_actions[id] = action;
+    }
+
+    updateActionIcons();
+}
+
+void PDFAppMainWindow::updateActionIcons()
+{
+    const PDFAppCommandRegistry* registry = m_context ? m_context->getCommandRegistry() : nullptr;
+    if (!registry)
+    {
+        return;
+    }
+
+    // Directional icons (Back, Forward, Next tab, Previous tab) are mirrored in
+    // right-to-left, Qt does not mirror icons
+    for (const auto& item : m_actions)
+    {
+        const PDFAppCommand* command = registry->findCommand(item.first);
+        if (item.second && command && !command->iconName.isEmpty())
+        {
+            item.second->setIcon(PDFThemeIcons::getIcon(PDFAppPage::getDirectionalIconName(command->iconName, layoutDirection())));
+        }
     }
 }
 
@@ -765,8 +799,9 @@ bool PDFAppMainWindow::confirmClose()
 
 void PDFAppMainWindow::closeEvent(QCloseEvent* event)
 {
-    // The server stops listening before the questions about unsaved changes, so an
-    // accepted request is never lost; a process started meanwhile runs by itself
+    // The server stops listening before the questions about unsaved changes and it
+    // holds the requests of the connections, which it has accepted before; a
+    // process started meanwhile runs by itself
     QPointer<PDFAppInstanceServer> server = m_context ? m_context->getInstanceServer() : nullptr;
     if (server && !m_isClosing)
     {
@@ -781,10 +816,17 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
         return;
     }
 
-    if (!confirmClose())
+    const bool isConfirmed = confirmClose();
+    if (!guard)
     {
-        // The user has canceled the quitting: listen again (another instance may
-        // have taken the name meanwhile, then this one runs without the forwarding)
+        return;
+    }
+
+    if (!isConfirmed)
+    {
+        // The user has canceled the quitting: the held requests are opened and the
+        // server listens again (another instance may have taken the name meanwhile,
+        // then this one runs without the forwarding)
         m_isClosing = false;
         if (server)
         {
@@ -798,6 +840,12 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
         return;
     }
 
+    // The quitting is accepted: the held and the incoming requests are refused, so
+    // their processes start by themselves (an acknowledged request would be lost)
+    if (server)
+    {
+        server->quit();
+    }
     event->accept();
 }
 
@@ -832,28 +880,95 @@ void PDFAppMainWindow::changeEvent(QEvent* event)
     {
         updateWindowState();
     }
+    else if (event->type() == QEvent::LayoutDirectionChange)
+    {
+        updateActionIcons();
+    }
 }
 
 bool PDFAppMainWindow::event(QEvent* event)
 {
-    // Back / forward buttons of the mouse anywhere in the window (the children do
-    // not accept them, they come here)
-    if (event->type() == QEvent::MouseButtonPress && m_navigator)
+    // Back / forward buttons of the mouse sent to the window itself (the buttons
+    // pressed over any child are taken by the filter of the QWindow)
+    if (handleNavigationButton(event))
     {
-        const QMouseEvent* mouseEvent = static_cast<const QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::BackButton)
-        {
-            m_navigator->goBack();
-            return true;
-        }
-        if (mouseEvent->button() == Qt::ForwardButton)
-        {
-            m_navigator->goForward();
-            return true;
-        }
+        return true;
+    }
+
+    // The native window is created, when the window is shown (or again after a
+    // change of its flags): the frame changes it then (initialize never creates it)
+    if (event->type() == QEvent::WinIdChange && m_frame && internalWinId())
+    {
+        m_frame->initialize();
+    }
+
+    if (event->type() == QEvent::WinIdChange || event->type() == QEvent::Show)
+    {
+        updateWindowFilter();
     }
 
     return BaseClass::event(event);
+}
+
+bool PDFAppMainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    // Events of the QWindow come before Qt delivers them to the child under the
+    // pointer: a child (the search field) would take the buttons back / forward
+    if (watched && watched == m_filteredWindow && handleNavigationButton(event))
+    {
+        return true;
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppMainWindow::updateWindowFilter()
+{
+    QWindow* window = windowHandle();
+    if (window == m_filteredWindow)
+    {
+        return;
+    }
+
+    if (m_filteredWindow)
+    {
+        m_filteredWindow->removeEventFilter(this);
+    }
+    m_filteredWindow = window;
+    if (window)
+    {
+        window->installEventFilter(this);
+    }
+}
+
+bool PDFAppMainWindow::handleNavigationButton(QEvent* event)
+{
+    if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseButtonRelease && event->type() != QEvent::MouseButtonDblClick)
+    {
+        return false;
+    }
+
+    const QMouseEvent* mouseEvent = static_cast<const QMouseEvent*>(event);
+    const Qt::MouseButton button = mouseEvent->button();
+    if (button != Qt::BackButton && button != Qt::ForwardButton)
+    {
+        return false;
+    }
+
+    // The press navigates, the release and the double click of the button are
+    // taken too (no child gets a part of the click); the navigation may delete
+    // anything, nothing is touched after it
+    if (event->type() == QEvent::MouseButtonPress && m_navigator)
+    {
+        if (button == Qt::BackButton)
+        {
+            m_navigator->goBack();
+        }
+        else
+        {
+            m_navigator->goForward();
+        }
+    }
+    return true;
 }
 
 void PDFAppMainWindow::paintEvent(QPaintEvent* event)

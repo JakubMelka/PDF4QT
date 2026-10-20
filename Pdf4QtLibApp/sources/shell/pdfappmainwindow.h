@@ -37,6 +37,7 @@
 #include <QAction>
 #include <QStackedWidget>
 #include <QWidget>
+#include <QWindow>
 
 #include <map>
 
@@ -131,6 +132,7 @@ protected:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
     virtual bool event(QEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
     /// Asked, when the window is being closed: false = the user has canceled the
     /// quitting (step 3: unsaved documents, pdf4qt-quit-unsaved). Until then
@@ -142,7 +144,13 @@ private:
     PDFAppTab* findTab(quint64 id) const;
     int findTabIndex(quint64 id) const;
     void createCommands();
+    void updateActionIcons();
     void updateShortcuts();
+    void updateWindowFilter();
+
+    /// Buttons back / forward of the mouse: a press navigates, the release and
+    /// the double click are taken too. \returns true, if the event is taken.
+    bool handleNavigationButton(QEvent* event);
     void updateWindowState();
     void updateWindowTitle();
 
@@ -179,6 +187,7 @@ private:
     QPointer<QStackedWidget> m_stack;
     QPointer<PDFAppNavigator> m_navigator;
     QPointer<PDFAppWindowFrame> m_frame;
+    QPointer<QWindow> m_filteredWindow;
     QPointer<PDFAppWorkspaceTab> m_homeTab;
     QList<QPointer<PDFAppTab>> m_tabs;
     std::map<QObject*, quint64> m_tabIds;

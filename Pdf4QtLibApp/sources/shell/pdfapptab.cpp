@@ -30,6 +30,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QScrollBar>
 #include <QVBoxLayout>
 
 namespace pdf
@@ -136,12 +137,14 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
         connect(m_sidebar, &PDFAppSidebar::navigationRequested, this, &PDFAppTab::navigationRequested);
     }
 
-    // workspace-pane: bg/canvas, padding 32, gaps 24 (header, banner, page, footer)
+    // workspace-pane: bg/canvas, padding 32, gaps 24 (header, banner, page, footer);
+    // the bottom padding of the Home tab is 16 (owner decision O11) and it is a part
+    // of the footer, which centers its row on the axis of the switch of the sidebar
     QWidget* workspace = new QWidget(this);
     workspace->setObjectName(QStringLiteral("workspace"));
     PDFWidgetStyleProperties::set(workspace, PDFWidgetStyleProperties::CANVAS);
     QVBoxLayout* workspaceLayout = new QVBoxLayout(workspace);
-    workspaceLayout->setContentsMargins(32, 32, 32, 32);
+    workspaceLayout->setContentsMargins(32, 32, 32, isHome ? 0 : 32);
     workspaceLayout->setSpacing(24);
     layout->addWidget(workspace, 1);
 
@@ -158,12 +161,16 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
         connect(m_banner, &PDFAppStorageBanner::checkForUpdatesRequested, this, &PDFAppWorkspaceTab::onCheckForUpdatesRequested);
     }
 
-    m_pageArea = new QWidget(workspace);
+    // The page scrolls (the minimal window, long pages), the header, the banner
+    // and the footer stay
+    m_pageArea = new QWidget();
     m_pageArea->setObjectName(QStringLiteral("pageArea"));
     m_pageLayout = new QVBoxLayout(m_pageArea);
     m_pageLayout->setContentsMargins(0, 0, 0, 0);
     m_pageLayout->setSpacing(0);
-    workspaceLayout->addWidget(m_pageArea, 1);
+    m_pageScrollArea = new PDFAppScrollArea(m_pageArea, workspace);
+    m_pageScrollArea->setObjectName(QStringLiteral("pageScrollArea"));
+    workspaceLayout->addWidget(m_pageScrollArea, 1);
 
     if (isHome)
     {
@@ -230,6 +237,14 @@ QVBoxLayout* PDFAppWorkspaceTab::getPageLayout() const
 
 void PDFAppWorkspaceTab::onPageChanged()
 {
+    // A new page starts at its top (not a page, which has changed its title)
+    if (m_pageScrollArea && m_scrolledPage != getPage())
+    {
+        m_scrolledPage = getPage();
+        m_pageScrollArea->verticalScrollBar()->setValue(0);
+        m_pageScrollArea->horizontalScrollBar()->setValue(0);
+    }
+
     if (!m_header)
     {
         return;

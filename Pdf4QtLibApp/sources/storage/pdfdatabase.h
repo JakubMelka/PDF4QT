@@ -306,7 +306,8 @@ public:
     /// data and it is never notified), so the next opening by any instance runs the
     /// full integrity check. The record is written later in the GUI thread without
     /// waiting for other instances, at the latest by close(); when the database
-    /// refuses it, a marker file next to the database is created instead.
+    /// refuses it or it has been closed already, a marker file next to the database
+    /// (the time of the damage) is created instead.
     void reportError(const PDFDatabaseError& error);
 
     /// Marker file requesting the full integrity check of \p filePath at the next

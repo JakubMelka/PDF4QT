@@ -1420,6 +1420,20 @@ void AppStorageTest::pruneAndReaders()
     QCOMPARE(AppStorageTestHelper::queryInteger(&writer, "SELECT COUNT(*) FROM change_log"), qint64(pdf::PDFDatabaseNotifier::LOG_MAXIMUM_ROWS));
     readerNotifier.poll();
     QCOMPARE(everythingSpy.count(), 2);
+
+    // The clock was set back: a newer row of the log has an older time, the pruning
+    // removes it from the middle of the rows, which the reader has not read - a hole
+    // after the first unread row is a gap too (the change of t.h2 is not lost)
+    QVERIFY(AppStorageTestHelper::execute(&writer, "INSERT INTO setting(key, value, modified) VALUES ('t.h1', 1, 0); "
+                                                   "INSERT INTO setting(key, value, modified) VALUES ('t.h2', 1, 0); "
+                                                   "INSERT INTO setting(key, value, modified) VALUES ('t.h3', 1, 0); "
+                                                   "UPDATE change_log SET time = 0 WHERE key = 't.h2'"));
+    QVERIFY(writerNotifier.prune());
+    QCOMPARE(AppStorageTestHelper::queryInteger(&writer, "SELECT COUNT(*) FROM change_log WHERE key LIKE 't.h%'"), qint64(2));
+    changedSpy.clear();
+    readerNotifier.poll();
+    QCOMPARE(everythingSpy.count(), 3);
+    QCOMPARE(changedSpy.count(), 0);
 }
 
 void AppStorageTest::concurrentProcesses_data()
@@ -1846,6 +1860,80 @@ void AppStorageTest::integrityCheckPolicy()
         QFile marker(markerPath);
         QVERIFY(marker.open(QIODevice::WriteOnly));
     }
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!QFile::exists(markerPath));
+    QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
+
+    // A marker written by another instance after the start of the check (its damage
+    // may be newer than the check) is kept for the next opening; a time far in the
+    // future (not written by PDF4QT, a clock set back) is not kept
+    auto writeMarker = [&markerPath](qint64 time)
+    {
+        QFile marker(markerPath);
+        return marker.open(QIODevice::WriteOnly | QIODevice::Truncate) && marker.write(QByteArray::number(time)) > 0;
+    };
+    QVERIFY(writeMarker(QDateTime::currentMSecsSinceEpoch() + 30000));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(QFile::exists(markerPath));
+    QVERIFY(writeMarker(QDateTime::currentMSecsSinceEpoch() - 1000));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!QFile::exists(markerPath));
+    QVERIFY(writeMarker(QDateTime::currentMSecsSinceEpoch() + day));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!QFile::exists(markerPath));
+    QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
+
+    // A request of another type (not written by PDF4QT) is a request, the check removes it
+    QVERIFY(AppStorageTestHelper::executeOnFile(filePath, "INSERT INTO storage_maintenance(key, value) VALUES ('integrity.requested', 'damaged') "
+                                                          "ON CONFLICT(key) DO UPDATE SET value = excluded.value"));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QCOMPARE(AppStorageTestHelper::getMaintenanceValue(filePath, pdf::PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY), qint64(-1));
+    QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
+
+    // The clock ran ahead at the last check and it has been set back since: a damage
+    // reported now is still newer than the check (also after the clock has passed the
+    // time of the check - both times are shifted back by two hours)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createOptions(filePath));
+        QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        const qint64 aheadTime = QDateTime::currentMSecsSinceEpoch() + 3600 * 1000;
+        QVERIFY(AppStorageTestHelper::setLastCheck(filePath, aheadTime));
+        database.reportError(pdf::PDFDatabaseError(11, 11, QStringLiteral("test")));
+        QTRY_VERIFY(AppStorageTestHelper::getMaintenanceValue(&database, pdf::PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY) > aheadTime);
+    }
+    QVERIFY(AppStorageTestHelper::executeOnFile(filePath, "UPDATE storage_maintenance SET value = value - 7200000"));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
+
+    // A damage reported after the database was closed (also by PRAGMA optimize of
+    // close()) is recorded by the marker file: by the event loop and by the destructor.
+    // A check started in the same tick of the clock as the damage keeps the marker
+    // (one more check), so the test waits for the next tick.
+    auto waitForClockAfterMarker = [&markerPath]()
+    {
+        QFile marker(markerPath);
+        const qint64 markerTime = marker.open(QIODevice::ReadOnly) ? marker.readAll().toLongLong() : 0;
+        QTRY_VERIFY(QDateTime::currentMSecsSinceEpoch() > markerTime);
+    };
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createOptions(filePath));
+        database.close();
+        database.reportError(pdf::PDFDatabaseError(11, 11, QStringLiteral("test")));
+        QTRY_VERIFY(QFile::exists(markerPath));
+    }
+    waitForClockAfterMarker();
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!QFile::exists(markerPath));
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createOptions(filePath));
+        database.close();
+        database.reportError(pdf::PDFDatabaseError(11, 11, QStringLiteral("test")));
+    }
+    QVERIFY(QFile::exists(markerPath));
+    waitForClockAfterMarker();
     QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
     QVERIFY(!QFile::exists(markerPath));
     QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));

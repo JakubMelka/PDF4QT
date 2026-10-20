@@ -141,6 +141,7 @@ public:
     PDFAppWorkspaceHeader* getHeader() const { return m_header; }
     PDFAppStorageBanner* getBanner() const { return m_banner; }
     PDFAppFooter* getFooter() const { return m_footer; }
+    PDFAppScrollArea* getPageScrollArea() const { return m_pageScrollArea; }
 
 protected:
     virtual QWidget* getPageArea() const override;
@@ -160,6 +161,8 @@ private:
     QPointer<PDFAppFooter> m_footer;
     QPointer<QWidget> m_pageArea;
     QPointer<QVBoxLayout> m_pageLayout;
+    QPointer<PDFAppScrollArea> m_pageScrollArea;
+    QPointer<PDFAppPage> m_scrolledPage;
 };
 
 }   // namespace pdf

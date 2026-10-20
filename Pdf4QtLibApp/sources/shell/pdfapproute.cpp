@@ -208,6 +208,14 @@ void PDFAppRoute::validate()
             return;
         }
 
+        // A lone surrogate (a created route) has no UTF-8 encoding: its text
+        // would not parse back to the same route
+        if (!segment.isValidUtf16())
+        {
+            m_error = Error::InvalidEncoding;
+            return;
+        }
+
         // A slash inside of a segment would change the path, a control character
         // (also an encoded %00) never belongs to a route
         if (hasControlCharacter(segment) || segment.contains(QLatin1Char('/')) || segment.contains(QLatin1Char('\\')))
@@ -238,6 +246,12 @@ void PDFAppRoute::validate()
             return;
         }
 
+        if (!item.second.isValidUtf16())
+        {
+            m_error = Error::InvalidEncoding;
+            return;
+        }
+
         if (keys.contains(item.first))
         {
             m_error = Error::DuplicateQueryKey;
@@ -246,7 +260,7 @@ void PDFAppRoute::validate()
         keys << item.first;
     }
 
-    if (m_fragment.size() > MAXIMUM_FRAGMENT_LENGTH || hasControlCharacter(m_fragment))
+    if (m_fragment.size() > MAXIMUM_FRAGMENT_LENGTH || hasControlCharacter(m_fragment) || !m_fragment.isValidUtf16())
     {
         m_error = Error::InvalidFragment;
         return;

@@ -28,6 +28,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QRect>
 
 class QWidget;
 
@@ -82,7 +83,8 @@ public:
 
     Mode getMode() const { return m_mode; }
 
-    /// Sets the flags of the window (before it is shown)
+    /// Sets the flags of the window (before it is shown); called again, when the
+    /// native window has been created again (QEvent::WinIdChange)
     void initialize();
 
     /// Called from QWidget::nativeEvent of the window
@@ -96,6 +98,15 @@ public:
 
     /// Starts the system move of the window (Client and MacOS modes)
     void startSystemMove();
+
+    /// Inset of the client area of a maximized window at an edge of the monitor
+    /// with an auto-hide taskbar (Windows): the taskbar appears, when the pointer
+    /// touches that edge, a window covering the whole edge would hide it forever
+    static constexpr int AUTO_HIDE_TASKBAR_INSET = 2;
+
+    /// Client area of a maximized window (physical pixels, Windows) moved off
+    /// the edges of the monitor, where an auto-hide taskbar is
+    static QRect adjustMaximizedClientRect(const QRect& clientRect, Qt::Edges autoHideTaskbarEdges);
 
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
@@ -112,7 +123,10 @@ private:
     QPointer<QObject> m_filteredWindow;
     Mode m_mode = Mode::None;
     bool m_isCursorOverridden = false;
-    bool m_isFrameChanged = false;
+
+    /// Native window, whose frame has been changed (a change of the flags of a
+    /// widget creates a new native window, its frame is changed again)
+    WId m_framedWindowId = 0;
 };
 
 }   // namespace pdf

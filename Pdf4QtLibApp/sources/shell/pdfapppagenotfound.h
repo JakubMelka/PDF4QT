@@ -126,6 +126,7 @@ private:
     void onSearchClicked();
     void onHomeClicked();
     void updateContent();
+    void updateIcons();
     void addKeyHint(QWidget* parent, const QKeySequence& shortcut, const QString& text, bool isFirst);
 
     PDFAppNotFoundRequest m_request;

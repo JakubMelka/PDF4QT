@@ -28,6 +28,7 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
@@ -44,7 +45,11 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QStyle>
+#include <QtMath>
 #include <QVBoxLayout>
+#include <QVersionNumber>
 
 namespace pdf
 {
@@ -63,17 +68,148 @@ public:
     static constexpr int ICON = 20;
     static constexpr int GAP = 12;
 
-    /// Hue of the banner: portable mode is information (blue), the others warn (amber)
+    /// Hue of the banner: portable mode and read only settings are information
+    /// (blue, storage-banner-read-only 958:28548), the fallback and the replaced
+    /// database warn (amber, 958:28449, 958:28641)
     static PDFAccentHue getHue(PDFAppStorageBanner::Kind kind)
     {
-        return kind == PDFAppStorageBanner::Kind::Portable ? PDFAccentHue::Blue : PDFAccentHue::Amber;
+        return kind == PDFAppStorageBanner::Kind::Portable || kind == PDFAppStorageBanner::Kind::ReadOnly ? PDFAccentHue::Blue : PDFAccentHue::Amber;
     }
 
     static QString getIconName(PDFAppStorageBanner::Kind kind)
     {
         return kind == PDFAppStorageBanner::Kind::Portable ? QStringLiteral("portable") : QStringLiteral("database");
     }
+
+    /// The icon circle is painted in the leading padding (border 1 + 14 + 36 + 12);
+    /// the margins of a layout are not mirrored, so they follow the direction here
+    static void updateMargins(QWidget* banner)
+    {
+        QLayout* layout = banner ? banner->layout() : nullptr;
+        if (!layout)
+        {
+            return;
+        }
+
+        const int leading = 1 + PADDING_LEFT + ICON_CIRCLE + GAP;
+        const int trailing = 1 + PADDING_RIGHT;
+        const bool isRightToLeft = banner->layoutDirection() == Qt::RightToLeft;
+        layout->setContentsMargins(isRightToLeft ? trailing : leading, 1 + PADDING_VERTICAL, isRightToLeft ? leading : trailing, 1 + PADDING_VERTICAL);
+    }
 };
+
+/// Targets of the footer (Windows / Linux / macOS, each after a gap of 16): the
+/// widget places its labels itself and hides them, when it is narrower than they
+/// need, so the row of the footer shrinks in a narrow window without overlaps
+class PDFAppFooterTargets : public QWidget
+{
+public:
+    static constexpr int GAP = 16;
+
+    explicit PDFAppFooterTargets(QWidget* parent) :
+        QWidget(parent)
+    {
+        setObjectName(QStringLiteral("footerTargets"));
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+        // The logos of Windows and macOS are drawings of the frame, not icons of
+        // the library - review I-35 -, they are left out with the one of Linux
+        for (const QString& target : { PDFAppFooter::tr("Windows"), PDFAppFooter::tr("Linux"), PDFAppFooter::tr("macOS") })
+        {
+            m_labels.append(new PDFLabel(target, PDFThemeFonts::Role::CaptionSemiBold, PDFThemeColors::TextTertiary, this));
+        }
+    }
+
+    virtual QSize sizeHint() const override
+    {
+        int width = 0;
+        int height = 0;
+        for (const QPointer<PDFLabel>& label : m_labels)
+        {
+            if (label)
+            {
+                const QSize labelSize = label->sizeHint();
+                width += GAP + labelSize.width();
+                height = qMax(height, labelSize.height());
+            }
+        }
+        return QSize(width, height);
+    }
+
+    virtual QSize minimumSizeHint() const override
+    {
+        return QSize(0, sizeHint().height());
+    }
+
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override
+    {
+        QWidget::resizeEvent(event);
+        placeLabels();
+    }
+
+    virtual void changeEvent(QEvent* event) override
+    {
+        QWidget::changeEvent(event);
+        if (event->type() == QEvent::LayoutDirectionChange || event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+        {
+            placeLabels();
+        }
+    }
+
+private:
+    void placeLabels()
+    {
+        // All targets or none (a part of the list would say something else)
+        const bool isShown = width() >= sizeHint().width();
+        int x = 0;
+        for (const QPointer<PDFLabel>& label : std::as_const(m_labels))
+        {
+            if (!label)
+            {
+                continue;
+            }
+
+            const QSize labelSize = label->sizeHint();
+            x += GAP;
+            const QRect labelRect(x, (height() - labelSize.height()) / 2, labelSize.width(), labelSize.height());
+            label->setGeometry(QStyle::visualRect(layoutDirection(), rect(), labelRect));
+            label->setVisible(isShown);
+            x += labelSize.width();
+        }
+    }
+
+    QList<QPointer<PDFLabel>> m_labels;
+};
+
+PDFAppScrollArea::PDFAppScrollArea(QWidget* content, QWidget* parent) :
+    BaseClass(parent)
+{
+    setObjectName(QStringLiteral("scrollArea"));
+    setFrameShape(QFrame::NoFrame);
+    setWidgetResizable(true);
+
+    // The area is no stop of Tab (QScrollArea scrolls to a focused child itself)
+    setFocusPolicy(Qt::NoFocus);
+
+    // The viewport shows what is below it (the canvas, the panel of the sidebar)
+    viewport()->setAutoFillBackground(false);
+    setContent(content);
+}
+
+PDFAppScrollArea::~PDFAppScrollArea() = default;
+
+void PDFAppScrollArea::setContent(QWidget* content)
+{
+    if (!content)
+    {
+        return;
+    }
+
+    // QScrollArea::setWidget fills the content by the palette (the leak color)
+    setWidget(content);
+    content->setAutoFillBackground(false);
+}
 
 PDFAppLogoTile::PDFAppLogoTile(QWidget* parent) :
     QWidget(parent)
@@ -101,6 +237,73 @@ void PDFAppLogoTile::paintEvent(QPaintEvent* event)
     PDFStylePainter::icon(&painter, PDFStylePainter::centered(rect, QSizeF(20.0, 20.0)), QStringLiteral("file-text"), PDFThemeColors::IconOnAccent);
 }
 
+PDFAppParagraph::PDFAppParagraph(const QFont& font, int lineHeight, PDFThemeColors::Color color, QWidget* parent) :
+    BaseClass(QString(), PDFThemeFonts::Role::Body, color, parent),
+    m_lineHeight(qMax(1, lineHeight))
+{
+    setFont(font);
+    setTextFormat(Qt::PlainText);
+    setWordWrap(true);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+}
+
+QStringList PDFAppParagraph::getLines(int width) const
+{
+    const QMargins margins = contentsMargins();
+    return PDFComponentPainter::wrapText(text(), font(), width - margins.left() - margins.right());
+}
+
+bool PDFAppParagraph::hasHeightForWidth() const
+{
+    return true;
+}
+
+int PDFAppParagraph::heightForWidth(int width) const
+{
+    // A layout asks with the width of its cell (an item with an alignment gets
+    // less), the widget never gets more than its maximum width
+    const QMargins margins = contentsMargins();
+    const int boundedWidth = qBound(minimumWidth(), width, maximumWidth());
+    return int(getLines(boundedWidth).size()) * m_lineHeight + margins.top() + margins.bottom();
+}
+
+QSize PDFAppParagraph::sizeHint() const
+{
+    // A paragraph of a fixed width (Page Not Found) knows its height, otherwise
+    // the text on one line (the layout asks heightForWidth for the real width)
+    const QMargins margins = contentsMargins();
+    int width = maximumWidth();
+    if (minimumWidth() != width)
+    {
+        width = qCeil(PDFStylePainter::textWidth(text(), font())) + margins.left() + margins.right();
+    }
+    return QSize(width, qMax(heightForWidth(width), m_lineHeight));
+}
+
+QSize PDFAppParagraph::minimumSizeHint() const
+{
+    const QMargins margins = contentsMargins();
+    const int width = qCeil(PDFComponentPainter::getLongestWordWidth(text(), font())) + margins.left() + margins.right();
+    return QSize(qMin(width, sizeHint().width()), m_lineHeight);
+}
+
+void PDFAppParagraph::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    const QRect rect = contentsRect();
+    const QStringList lines = getLines(width());
+    const Qt::Alignment horizontal = QStyle::visualAlignment(layoutDirection(), alignment()) & Qt::AlignHorizontal_Mask;
+    const QColor color = PDFStylePainter::color(isEnabled() ? getTextColor() : PDFThemeColors::TextDisabled);
+
+    QPainter painter(this);
+    for (qsizetype i = 0; i < lines.size(); ++i)
+    {
+        const QRectF lineRect(rect.left(), rect.top() + i * m_lineHeight, rect.width(), m_lineHeight);
+        PDFStylePainter::text(&painter, lineRect, int(horizontal | Qt::AlignVCenter | Qt::TextSingleLine), lines[i], font(), color);
+    }
+}
+
 PDFAppSidebar::PDFAppSidebar(PDFAppContext* context, QWidget* parent) :
     BaseClass(parent),
     m_context(context)
@@ -110,20 +313,33 @@ PDFAppSidebar::PDFAppSidebar(PDFAppContext* context, QWidget* parent) :
     setFixedWidth(WIDTH);
 
     // Paddings of the design: sidebar 20 / 16, logo-area 16 / 8 / 16, nav groups 10,
-    // bottom-area 14 / 8 (the switch is 182 wide)
+    // bottom-area 14 / 8 (the switch is 182 wide); the switch is 8 px above the
+    // bottom of the window (owner decision O11)
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(10, 20, 10, 24);
+    layout->setContentsMargins(10, 20, 10, 8);
     layout->setSpacing(0);
 
     QHBoxLayout* logoLayout = new QHBoxLayout();
     logoLayout->setContentsMargins(6, 8, 6, 16);
     logoLayout->setSpacing(10);
     logoLayout->addWidget(new PDFAppLogoTile(this), 0, Qt::AlignVCenter);
+    // logo-text-group: Bold 14 (letter spacing -0.2), 2, Regular 10, the group of
+    // 31 px centered on the tile, so 3 px below its top (the labels are not
+    // stretched to the height of the tile; the line of Regular 10 is 13 px here)
     QVBoxLayout* logoTexts = new QVBoxLayout();
     logoTexts->setContentsMargins(0, 0, 0, 0);
     logoTexts->setSpacing(2);
-    logoTexts->addWidget(new PDFLabel(tr("PDF4QT"), PDFThemeFonts::Role::TileTitle, PDFThemeColors::TextPrimary, this));
-    logoTexts->addWidget(new PDFLabel(tr("Open. Edit. Do more."), PDFThemeFonts::Role::Tiny, PDFThemeColors::TextMuted, this));
+    PDFLabel* logoTitle = new PDFLabel(tr("PDF4QT"), PDFThemeFonts::Role::TileTitle, PDFThemeColors::TextPrimary, this);
+    logoTitle->setObjectName(QStringLiteral("logoTitle"));
+    QFont logoTitleFont = logoTitle->font();
+    logoTitleFont.setLetterSpacing(QFont::AbsoluteSpacing, -0.2);
+    logoTitle->setFont(logoTitleFont);
+    PDFLabel* logoSubtitle = new PDFLabel(tr("Open. Edit. Do more."), PDFThemeFonts::Role::Tiny, PDFThemeColors::TextMuted, this);
+    logoSubtitle->setObjectName(QStringLiteral("logoSubtitle"));
+    logoTexts->addSpacing(3);
+    logoTexts->addWidget(logoTitle);
+    logoTexts->addWidget(logoSubtitle);
+    logoTexts->addStretch(1);
     logoLayout->addLayout(logoTexts, 1);
     layout->addLayout(logoLayout);
 
@@ -144,8 +360,13 @@ PDFAppSidebar::PDFAppSidebar(PDFAppContext* context, QWidget* parent) :
     m_navigation->addGroup();
     m_navigation->addItem(tr("Settings"), QStringLiteral("settings"));
     m_navigation->setCurrentIndex(-1);
-    layout->addWidget(m_navigation);
-    layout->addStretch(1);
+
+    // The navigation scrolls in a low window, the logo and the switch stay
+    m_navigationArea = new PDFAppScrollArea(m_navigation, this);
+    m_navigationArea->setObjectName(QStringLiteral("navigationArea"));
+    m_navigationArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    layout->addWidget(m_navigationArea, 1);
+    layout->addSpacing(14);
 
     // Switch of the color scheme (Segment 47:157, the sun of Light is icon/sun)
     m_themeSwitch = new PDFSegmentedControl(this);
@@ -349,11 +570,13 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     m_title->setFont(PDFThemeFonts::getFont(QFont::Bold, 28));
     m_title->setFixedHeight(34);
     m_title->setTextFormat(Qt::PlainText);
+    m_title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_title->hide();
     m_subtitle = new PDFLabel(QString(), PDFThemeFonts::Role::Body, PDFThemeColors::TextTertiary, this);
     m_subtitle->setObjectName(QStringLiteral("headerSubtitle"));
     m_subtitle->setFont(PDFThemeFonts::getFont(QFont::Normal, 14));
     m_subtitle->setTextFormat(Qt::PlainText);
+    m_subtitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_subtitle->hide();
     textLayout->addWidget(m_title);
     textLayout->addWidget(m_subtitle);
@@ -410,10 +633,9 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
     setObjectName(QStringLiteral("storageBanner"));
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    // The icon circle is painted in the left padding (border 1 + 14 + 36 + 12)
+    // The icon circle is painted in the leading padding (border 1 + 14 + 36 + 12)
     QHBoxLayout* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(1 + Helper::PADDING_LEFT + Helper::ICON_CIRCLE + Helper::GAP, 1 + Helper::PADDING_VERTICAL,
-                               1 + Helper::PADDING_RIGHT, 1 + Helper::PADDING_VERTICAL);
+    Helper::updateMargins(this);
     layout->setSpacing(Helper::GAP);
 
     QVBoxLayout* textLayout = new QVBoxLayout();
@@ -423,10 +645,9 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
     m_titleLabel->setObjectName(QStringLiteral("bannerTitle"));
     m_titleLabel->setTextFormat(Qt::PlainText);
     m_titleLabel->setWordWrap(true);
-    m_textLabel = new PDFLabel(QString(), PDFThemeFonts::Role::Small, PDFThemeColors::TextSecondary, this);
+    // The text Regular 12 with the line height 16 (portable-banner 941:138473)
+    m_textLabel = new PDFAppParagraph(PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 16, PDFThemeColors::TextSecondary, this);
     m_textLabel->setObjectName(QStringLiteral("bannerText"));
-    m_textLabel->setTextFormat(Qt::PlainText);
-    m_textLabel->setWordWrap(true);
     textLayout->addWidget(m_titleLabel);
     textLayout->addWidget(m_textLabel);
     layout->addLayout(textLayout, 1);
@@ -543,7 +764,7 @@ void PDFAppStorageBanner::updateContent()
 
         case Kind::ReadOnly:
             title = tr("Settings are read only – they were saved by a newer PDF4QT");
-            text = tr("PDF4QT %1 reads them but does not change them, so the newer version keeps working. Your changes apply until you close PDF4QT; the Recent history is not updated.").arg(QStringLiteral(PDF4QT_PROJECT_VERSION));
+            text = tr("PDF4QT %1 reads them but does not change them, so the newer version keeps working. Your changes apply until you close PDF4QT; the Recent history is not updated.").arg(PDFAppFooter::getDisplayVersion());
             break;
 
         case Kind::Replaced:
@@ -621,6 +842,10 @@ void PDFAppStorageBanner::changeEvent(QEvent* event)
     {
         updateContent();
     }
+    else if (event->type() == QEvent::LayoutDirectionChange)
+    {
+        PDFAppStorageBannerHelper::updateMargins(this);
+    }
 }
 
 PDFAppFooter::PDFAppFooter(QWidget* parent) :
@@ -628,33 +853,37 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
 {
     setObjectName(QStringLiteral("footer"));
 
-    // app-footer: the line border/default and the padding 16 above the line of texts
+    // app-footer: the padding 16 above the line of texts, the line border/default
+    // of 1 px lies inside of the padding (the stroke is not a part of the layout);
+    // the padding below the row is the bottom padding of the workspace (16, owner
+    // decision O11), so the tag can reach into it
     QHBoxLayout* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 17, 0, 0);
+    layout->setContentsMargins(0, PADDING, 0, PADDING);
     layout->setSpacing(0);
 
-    layout->addWidget(new PDFLabel(tr("Free • Open Source • "), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this), 0, Qt::AlignVCenter);
+    // The texts (15 px) end at the bottom of the row of the link (16 px): 16 px above
+    // the bottom of the window, their centers on the axis of the switch within 0.5 px
+    layout->addWidget(new PDFLabel(tr("Free • Open Source • "), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this), 0, Qt::AlignBottom);
     m_licenseLink = new PDFTextLink(tr("MIT License"), this);
     m_licenseLink->setObjectName(QStringLiteral("licenseLink"));
     m_licenseLink->setToolTip(getLicenseUrl().toString());
     layout->addWidget(m_licenseLink, 0, Qt::AlignVCenter);
-    m_versionLabel = new PDFLabel(tr(" • Version %1").arg(QStringLiteral(PDF4QT_PROJECT_VERSION)), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
+    m_versionLabel = new PDFLabel(tr(" • Version %1").arg(getDisplayVersion()), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
     m_versionLabel->setObjectName(QStringLiteral("versionLabel"));
-    layout->addWidget(m_versionLabel, 0, Qt::AlignVCenter);
-    layout->addSpacing(8);
+    layout->addWidget(m_versionLabel, 0, Qt::AlignBottom);
+
+    // The tag (21 px) does not change the height of the row: it is centered on the
+    // row and reaches into the paddings (pdf4qt-settings-general-portable 941:138507);
+    // the layout keeps only its place (8 + the width of the tag)
     m_tag = new PDFTag(QString(), this);
     m_tag->setObjectName(QStringLiteral("storageTag"));
     m_tag->hide();
-    layout->addWidget(m_tag, 0, Qt::AlignVCenter);
+    m_tagSpacer = new QSpacerItem(0, 0, QSizePolicy::Fixed, QSizePolicy::Minimum);
+    layout->addSpacerItem(m_tagSpacer);
     layout->addStretch(1);
 
-    // The targets (the logos of Windows and macOS are drawings of the frame, not
-    // icons of the library - review I-35 -, they are left out with the one of Linux)
-    for (const QString& target : { tr("Windows"), tr("Linux"), tr("macOS") })
-    {
-        layout->addSpacing(16);
-        layout->addWidget(new PDFLabel(target, PDFThemeFonts::Role::CaptionSemiBold, PDFThemeColors::TextTertiary, this), 0, Qt::AlignVCenter);
-    }
+    m_targets = new PDFAppFooterTargets(this);
+    layout->addWidget(m_targets, 0, Qt::AlignVCenter);
 
     connect(m_licenseLink, &QAbstractButton::clicked, this, &PDFAppFooter::onLicenseClicked);
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooter::update));
@@ -665,6 +894,82 @@ PDFAppFooter::~PDFAppFooter() = default;
 QUrl PDFAppFooter::getLicenseUrl()
 {
     return QUrl(QStringLiteral("https://github.com/JakubMelka/PDF4QT/blob/master/LICENSE"));
+}
+
+QString PDFAppFooter::getDisplayVersion(const QString& version)
+{
+    qsizetype suffixIndex = -1;
+    const QVersionNumber number = QVersionNumber::fromString(version, &suffixIndex);
+    if (number.isNull() || suffixIndex != version.size())
+    {
+        return version.trimmed().left(32);
+    }
+    return QStringLiteral("%1.%2.%3").arg(number.majorVersion()).arg(number.minorVersion()).arg(number.microVersion());
+}
+
+QString PDFAppFooter::getDisplayVersion()
+{
+    return getDisplayVersion(QStringLiteral(PDF4QT_PROJECT_VERSION));
+}
+
+void PDFAppFooter::updateTagSpace()
+{
+    QLayout* layout = this->layout();
+    if (!layout || !m_tagSpacer || layout->indexOf(m_tagSpacer) < 0)
+    {
+        return;
+    }
+
+    const int width = m_tag && !m_tag->isHidden() ? TAG_GAP + m_tag->sizeHint().width() : 0;
+    if (m_tagSpacer->sizeHint().width() != width)
+    {
+        m_tagSpacer->changeSize(width, 0, QSizePolicy::Fixed, QSizePolicy::Minimum);
+        layout->invalidate();
+    }
+    placeTag();
+}
+
+void PDFAppFooter::placeTag()
+{
+    QLayout* layout = this->layout();
+    if (!m_tag || m_tag->isHidden() || !layout || !m_tagSpacer || layout->indexOf(m_tagSpacer) < 0)
+    {
+        return;
+    }
+
+    // The place of the layout (mirrored in right-to-left by the layout), the tag
+    // is centered vertically on the text of the version (21 on 15: 3 px above and
+    // below it, Figma 941:138507)
+    const QRect place = m_tagSpacer->geometry();
+    const QRect text = m_versionLabel ? m_versionLabel->geometry() : layout->contentsRect();
+    const QSize tagSize = m_tag->sizeHint();
+    const int x = layoutDirection() == Qt::RightToLeft ? place.left() : place.left() + TAG_GAP;
+    const int y = text.top() + (text.height() - tagSize.height()) / 2;
+    m_tag->setGeometry(x, y, tagSize.width(), tagSize.height());
+}
+
+bool PDFAppFooter::event(QEvent* event)
+{
+    // The layout sets its geometry before the event reaches the widget
+    const bool result = BaseClass::event(event);
+
+    switch (event->type())
+    {
+        case QEvent::LayoutRequest:
+        case QEvent::Resize:
+        case QEvent::LayoutDirectionChange:
+            placeTag();
+            break;
+
+        case QEvent::FontChange:
+        case QEvent::StyleChange:
+            updateTagSpace();
+            break;
+
+        default:
+            break;
+    }
+    return result;
 }
 
 void PDFAppFooter::setState(const PDFDatabaseState& state)
@@ -692,6 +997,7 @@ void PDFAppFooter::setState(const PDFDatabaseState& state)
 
     m_tag->setText(text);
     m_tag->setVisible(!text.isEmpty());
+    updateTagSpace();
 }
 
 QString PDFAppFooter::getTagText() const

@@ -60,7 +60,8 @@ void PDFAppNavigator::navigateLink(const QString& link, PDFAppNavigationMode mod
 {
     if (link.startsWith(QLatin1String("https://"), Qt::CaseInsensitive))
     {
-        openExternalUrl(QUrl(link.left(PDFAppRoute::MAXIMUM_LENGTH), QUrl::StrictMode));
+        // An overlong address is refused, a shortened one would be another address
+        openExternalUrl(link.size() <= PDFAppRoute::MAXIMUM_LENGTH ? QUrl(link, QUrl::StrictMode) : QUrl());
         return;
     }
 
@@ -443,10 +444,19 @@ bool PDFAppNavigator::isExternalUrlAllowed(const QUrl& url)
         return !url.host().isEmpty() && url.userInfo().isEmpty();
     }
 
-    // Show in Folder: an existing local folder
+    // Show in Folder: an existing local folder. A folder of another computer
+    // (file://server/share, UNC path //server/share, \\?\ device path) is refused
+    // before it is touched: an access to it connects to the server (SMB) and
+    // gives it the credentials of the user
     if (url.isLocalFile())
     {
-        const QFileInfo info(url.toLocalFile());
+        const QString path = url.toLocalFile();
+        if (!url.host().isEmpty() || path.startsWith(QLatin1String("//")) || path.startsWith(QLatin1String("\\\\")))
+        {
+            return false;
+        }
+
+        const QFileInfo info(path);
         return info.isAbsolute() && info.isDir();
     }
 

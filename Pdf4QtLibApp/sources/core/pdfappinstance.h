@@ -124,7 +124,11 @@ class PDFAppInstanceConnection;
 /// Server of the running instance (QLocalServer, accessible only by the user).
 /// It answers each valid request with an acknowledgment and then emits
 /// openRequested; the shell opens the files and raises the window. Invalid,
-/// oversized and stalled messages are refused, nothing else happens.
+/// oversized and stalled messages are refused, nothing else happens. While the
+/// application is quitting (suspend), valid requests are held without an answer:
+/// a canceled quitting (resume) acknowledges and opens them, an accepted one
+/// (quit) refuses them - the other process then starts by itself, so it never
+/// thinks its files were delivered to a window, which is closing.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppInstanceServer : public QObject
 {
     Q_OBJECT
@@ -135,6 +139,9 @@ public:
 
     /// A connection, which does not send its message in this time, is closed
     static constexpr int DEFAULT_READ_TIMEOUT = 5000;
+
+    /// Time limit of the listening again after the last connection has closed
+    static constexpr int RETRY_TIMEOUT = 1000;
 
     explicit PDFAppInstanceServer(QObject* parent = nullptr);
     virtual ~PDFAppInstanceServer() override;
@@ -151,14 +158,32 @@ public:
 
     /// Start of the quitting of the application (newapplication.md 3): the server stops
     /// listening, before the questions about unsaved changes are asked. Connections,
-    /// which are waiting or already accepted, are still answered, so no accepted
-    /// request is lost; a process started later runs by itself.
+    /// which are waiting or already accepted, are kept and their requests are held
+    /// without an answer until resume or quit, so no request is lost; a process
+    /// started later runs by itself.
     void suspend();
 
-    /// The user has canceled the quitting: the server listens again under the name of
-    /// the last listen, unless another instance has taken the name meanwhile (then the
-    /// application runs without the forwarding). \returns true, if the server listens.
+    /// The user has canceled the quitting: the held requests are acknowledged and
+    /// emitted (openRequested) and the server listens again under the name of the
+    /// last listen, unless another instance has taken the name meanwhile (then the
+    /// application runs without the forwarding). An open connection of this server
+    /// holds the name too (an instance of the pipe on Windows): the server tries to
+    /// listen again, when its last connection has closed. \returns true, if the
+    /// server listens. The server may be deleted by a slot of openRequested.
     bool resume(int timeout, QString* error = nullptr);
+
+    /// The quitting has been accepted: the server stops listening and refuses every
+    /// connection, which has not been answered (held requests, messages still being
+    /// read, messages arriving later) - the other processes start by themselves.
+    /// The server does not listen again (resume returns false). The server may be
+    /// deleted by a slot of requestRefused.
+    void quit();
+
+    /// The quitting has been accepted (quit)
+    bool isQuitting() const { return m_isQuitting; }
+
+    /// Number of the held requests (suspended server)
+    int getHeldRequestCount() const;
 
     /// The server was suspended and it has not listened again
     bool isSuspended() const { return m_isSuspended; }
@@ -188,20 +213,39 @@ private:
     friend class PDFAppInstanceConnection;
 
     void onNewConnection();
-    void onRequestReceived(const pdf::PDFAppInstanceRequest& request);
+    void onRequestReady();
     void onRequestRefused(const QString& reason);
     void onConnectionDestroyed(QObject* object);
 
     void closeServer();
+
+    /// Acknowledges the request of the connection and emits openRequested (the
+    /// server may be deleted then)
+    void deliver(PDFAppInstanceConnection* connection);
+
+    /// Delivers all held requests (the server may be deleted then)
+    void deliverHeldRequests();
+
+    /// A suspended server, whose quitting was canceled, listens again, when its last
+    /// connection has closed (resume could not listen while it was open)
+    void retryResume();
+
+    /// Open connections, which are still connections of the server
+    QList<QPointer<PDFAppInstanceConnection>> getConnections() const;
 
     QLocalServer* m_server = nullptr;
     QList<QObject*> m_connections;
     QString m_serverName;
     int m_readTimeout = DEFAULT_READ_TIMEOUT;
     bool m_isSuspended = false;
+    bool m_isHolding = false;
+    bool m_isQuitting = false;
 };
 
-/// One connection of the server: reads one message, answers it and closes
+/// One connection of the server: reads one message, tells the server, that the
+/// request is ready (the server acknowledges it at once, holds it while the
+/// application is quitting, or refuses it), answers it and closes. A held request
+/// waits at most the read timeout, then it is refused (the peer starts by itself).
 class PDFAppInstanceConnection : public QObject
 {
     Q_OBJECT
@@ -210,8 +254,25 @@ public:
     PDFAppInstanceConnection(QLocalSocket* socket, int readTimeout, QObject* parent);
     virtual ~PDFAppInstanceConnection() override;
 
+    /// A valid request has been read and it waits for the answer
+    bool isHeld() const { return m_isHeld; }
+
+    /// The connection has answered
+    bool isFinished() const { return m_isFinished; }
+
+    /// Request of a held connection
+    const PDFAppInstanceRequest& getRequest() const { return m_request; }
+
+    /// Answers the held request with the acknowledgment and closes
+    void acknowledge();
+
+    /// Answers with the refusal (also before the message was read) and closes;
+    /// emits requestRefused (the connection may be deleted then)
+    void refuse(const QString& reason);
+
 Q_SIGNALS:
-    void requestReceived(const pdf::PDFAppInstanceRequest& request);
+    /// A valid request has been read (isHeld), the server answers it
+    void requestReady();
     void requestRefused(const QString& reason);
 
 private:
@@ -219,13 +280,15 @@ private:
     void processBuffer();
     void onTimeout();
     void onDisconnected();
-    void refuse(const QString& reason);
     void finish();
 
     QPointer<QLocalSocket> m_socket;
     QTimer m_timer;
     QByteArray m_buffer;
+    PDFAppInstanceRequest m_request;
+    int m_readTimeout = PDFAppInstanceServer::DEFAULT_READ_TIMEOUT;
     bool m_isFinished = false;
+    bool m_isHeld = false;
     bool m_isProcessingScheduled = false;
 };
 
