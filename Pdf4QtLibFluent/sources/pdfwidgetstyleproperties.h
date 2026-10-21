@@ -139,6 +139,8 @@ public:
     /// QTreeView, QTableView, QListView: look of the rows of the view, a row of a
     /// component of the design: "outline" (Outline row: radius 8, paddings 6 / 8,
     /// chevron 14 in the slot of 16, indentation 18, focus ring 2 px inside),
+    /// "contents" (contents of the manual: height 28, radius 6, chevron 14 at 8,
+    /// gap 8, indentation 24, otherwise as the outline),
     /// "certificate" (Certificate row: height 34, padding 10, focus ring 2 px inside,
     /// the selection keeps the colors of the texts), "library" (Library row: height
     /// 30, padding 10, no hover). Set it by PDFTreeView::setRowStyle.

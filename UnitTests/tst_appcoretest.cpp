@@ -505,8 +505,8 @@ void AppCoreTest::commandRegistry()
     pdf::PDFAppCommandRegistry registry;
     pdf::PDFAppCommands::registerBuiltinCommands(&registry);
 
-    const QStringList ids = { "window.newTab", "window.closeTab", "window.nextTab", "window.previousTab", "window.quit",
-                              "navigation.back", "navigation.forward", "navigation.search" };
+    const QStringList ids = { "window.newTab", "window.closeTab", "window.nextTab", "window.previousTab", "window.quit", "file.open",
+                              "navigation.back", "navigation.forward", "navigation.search", "navigation.help" };
     QCOMPARE(registry.getCommands().size(), size_t(ids.size()));
     for (const QString& id : ids)
     {
@@ -523,6 +523,8 @@ void AppCoreTest::commandRegistry()
     QCOMPARE(registry.findCommand("navigation.back")->defaultShortcut, QKeySequence(Qt::ALT | Qt::Key_Left));
     QCOMPARE(registry.findCommand("navigation.forward")->defaultShortcut, QKeySequence(Qt::ALT | Qt::Key_Right));
     QCOMPARE(registry.findCommand("navigation.search")->defaultShortcut, QKeySequence(Qt::CTRL | Qt::Key_K));
+    QCOMPARE(registry.findCommand("file.open")->defaultShortcut, QKeySequence(Qt::CTRL | Qt::Key_O));
+    QCOMPARE(registry.findCommand("file.open")->iconName, QStringLiteral("folder-open"));
     QVERIFY(!registry.findCommand("no.command"));
 
     // The built-in shortcuts do not conflict
@@ -816,15 +818,19 @@ void AppCoreTest::instanceInProcess()
     QCOMPARE(serverProcessId, QCoreApplication::applicationPid());
 #endif
 
-    // Empty request = raise the window
+    // Empty request = raise the window. The first connection is closed first, so the
+    // server has created its next instance of the pipe (on a loaded machine the event
+    // loop of the server may be late, a busy pipe is waited for only PIPE_WAIT_LIMIT)
+    QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 0, 10000 * AppCoreTestHelper::getTimeoutFactor());
     isFinished = false;
+    QString raiseError;
     std::thread raiseThread([&]()
     {
-        result = pdf::PDFAppInstanceClient::send(serverName, pdf::PDFAppInstanceRequest(), 10000, nullptr);
+        result = pdf::PDFAppInstanceClient::send(serverName, pdf::PDFAppInstanceRequest(), 10000, &raiseError);
         isFinished = true;
     });
     QVERIFY(AppCoreTestHelper::waitForThread(raiseThread, isFinished, 30000 * AppCoreTestHelper::getTimeoutFactor()));
-    QCOMPARE(result, pdf::PDFAppInstanceClient::Result::Delivered);
+    QVERIFY2(result == pdf::PDFAppInstanceClient::Result::Delivered, qPrintable(raiseError));
     QCOMPARE(openSpy.count(), 2);
     QVERIFY(openSpy[1][0].value<pdf::PDFAppInstanceRequest>().files.isEmpty());
 

@@ -27,6 +27,7 @@
 #include "gallerypages.h"
 
 #include "pdfaccenthue.h"
+#include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpainter.h"
@@ -457,6 +458,24 @@ void GalleryPages::addShellHomeCards(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Right-to-left"), Painter::getPinnedCardSize(pinned), false, GalleryPages::Default,
                      [pinned](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintPinnedCard(&painter, rect, pinned, state); }, QString(), Qt::RightToLeft);
     builder.row();
+
+    // States without a frame of Figma (proposals of the integration of step 2)
+    Painter::PinnedCard missingCard = pinned;
+    missingCard.status = Painter::FileStatus::Missing;
+    Helper::specimen(builder, QStringLiteral("Missing file (proposal)"), Painter::getPinnedCardSize(missingCard), false, GalleryPages::Default,
+                     [missingCard](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintPinnedCard(&painter, rect, missingCard, state); });
+    Painter::PinnedCard lockedCard = pinned;
+    lockedCard.locked = true;
+    Helper::specimen(builder, QStringLiteral("Protected by a password (proposal)"), Painter::getPinnedCardSize(lockedCard), false, GalleryPages::Default,
+                     [lockedCard](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintPinnedCard(&painter, rect, lockedCard, state); });
+    Helper::specimen(builder, QStringLiteral("Protected by a password, right-to-left"), Painter::getPinnedCardSize(lockedCard), false, GalleryPages::Hover,
+                     [lockedCard](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintPinnedCard(&painter, rect, lockedCard, state); }, QString(), Qt::RightToLeft);
+    builder.row();
+    pdf::PDFPinnedCard* liveMissing = builder.live(QStringLiteral("Live missing file"), new pdf::PDFPinnedCard(QStringLiteral("Building_Plan.pdf"), QStringLiteral("D:\\Projects\\Old"), QStringLiteral("Page 1 of 12"), 1.0 / 12.0, page));
+    liveMissing->setStatus(pdf::PDFPinnedCard::Status::Missing);
+    pdf::PDFPinnedCard* liveLocked = builder.live(QStringLiteral("Live protected by a password"), new pdf::PDFPinnedCard(QStringLiteral("Salary_Review_2026.pdf"), QStringLiteral("C:\\Users\\Jakub\\HR"), QStringLiteral("Page 2 of 6 · Aug 28"), 2.0 / 6.0, page));
+    liveLocked->setLocked(true);
+    builder.row();
     const QPixmap pagePicture = Helper::createPagePicture();
     Helper::liveStates(builder, false, [page, pagePicture]()
     {
@@ -465,9 +484,161 @@ void GalleryPages::addShellHomeCards(GalleryBuilder& builder)
         return card;
     });
 
+    // Elements of the pages of step 2 (frames of Main page, not components of
+    // Figma): icon badges, status badges, fact pills, avatars, status rows and
+    // tinted cards (the integration of step 2 moved them from the application)
+    addPageElements(builder);
+
     // The sample of the Home screen (Main page, frame pdf4qt-home 28:4)
     builder.block(QStringLiteral("Sample of the Home screen (Main page, pdf4qt-home) - composed of the widgets of the library"), QStringLiteral("28:4"));
     builder.wide(createHomeSample(page), QStringLiteral("Home screen"));
+}
+
+void GalleryPages::addPageElements(GalleryBuilder& builder)
+{
+    using Helper = GalleryCardPagesHelper;
+    using Color = Helper::Color;
+    using Painter = pdf::PDFComponentPainter;
+    QWidget* page = builder.page();
+
+    // Icon badge: the circle of a card, the rounded box of a logo, the circle of an empty state, a plain icon
+    builder.block(QStringLiteral("Icon badge (PDFIconBadge) - icon-circle of the cards, logo-box of About, empty states"), QStringLiteral("103:1951"));
+    struct BadgeSample
+    {
+        const char* name;
+        int extent;
+        int iconExtent;
+        qreal radius;
+        bool hasFill;
+        Color fill;
+        bool hasBorder;
+        Color border;
+        Color icon;
+        const char* iconName;
+        bool logo;
+    };
+    static constexpr BadgeSample badgeSamples[] =
+    {
+        { "Circle 40, hue Blue", 40, 20, -1.0, true, Color::AccentBlueBg, false, Color::BorderDefault, Color::AccentBlueIcon, "download", false },
+        { "Circle 36 on a tinted card", 36, 18, -1.0, true, Color::BgSurface, false, Color::BorderDefault, Color::AccentRedIcon, "heart", false },
+        { "Box 56, radius 14, accent", 56, 28, 14.0, true, Color::BgAccent, false, Color::BorderDefault, Color::IconOnAccent, "file-text", false },
+        { "Logo box 88, radius 16, border", 88, 64, 16.0, true, Color::BgSurface, true, Color::AccentBlueBorder, Color::IconDefault, "", true },
+        { "Empty state 72", 72, 32, -1.0, true, Color::AccentNeutralBg, false, Color::BorderDefault, Color::AccentNeutralIcon, "clock", false },
+        { "Icon only 14 (no fill)", 14, 14, 0.0, false, Color::BgSurface, false, Color::BorderDefault, Color::IconDanger, "alert-circle", false }
+    };
+    for (const BadgeSample& sample : badgeSamples)
+    {
+        Painter::IconBadge badge;
+        badge.iconName = QString::fromLatin1(sample.iconName);
+        badge.extent = sample.extent;
+        badge.iconExtent = sample.iconExtent;
+        badge.radius = sample.radius;
+        badge.fill = sample.hasFill ? std::optional<Color>(sample.fill) : std::nullopt;
+        badge.border = sample.hasBorder ? std::optional<Color>(sample.border) : std::nullopt;
+        badge.iconColor = sample.icon;
+        badge.logo = sample.logo;
+        Helper::specimen(builder, QString::fromLatin1(sample.name), Painter::getIconBadgeSize(badge), false, GalleryPages::Default,
+                         [badge](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintIconBadge(&painter, rect, badge, state); });
+    }
+    builder.row();
+    pdf::PDFIconBadge* liveBadge = builder.live(QStringLiteral("Live, hue Green"), new pdf::PDFIconBadge(QStringLiteral("check"), 40, 20, page));
+    liveBadge->setHue(pdf::PDFAccentHue::Green);
+    pdf::PDFIconBadge* liveLogo = builder.live(QStringLiteral("Live logo"), new pdf::PDFIconBadge(QString(), 56, 40, page));
+    liveLogo->setRadius(12.0);
+    liveLogo->setColors(Color::BgSurface, Color::IconDefault, Color::BorderDefault);
+    liveLogo->setLogo(true);
+    pdf::PDFIconBadge* disabledBadge = builder.live(QStringLiteral("Live disabled"), new pdf::PDFIconBadge(QStringLiteral("search"), 40, 20, page));
+    disabledBadge->setEnabled(false);
+    builder.row();
+
+    // Status badge
+    builder.block(QStringLiteral("Status badge (PDFStatusBadge) - badge of the release card of What's New"), QStringLiteral("103:1951"));
+    const Painter::StatusBadge upToDate{ QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green };
+    const Painter::StatusBadge available{ QStringLiteral("Update available"), QStringLiteral("download"), pdf::PDFAccentHue::Amber };
+    const Painter::StatusBadge previous{ QStringLiteral("Previous release"), QStringLiteral("clock"), pdf::PDFAccentHue::Neutral };
+    for (const Painter::StatusBadge& badge : { upToDate, available, previous })
+    {
+        Helper::specimen(builder, badge.text, Painter::getStatusBadgeSize(badge), false, GalleryPages::Default,
+                         [badge](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusBadge(&painter, rect, badge, state); });
+    }
+    Helper::specimen(builder, QStringLiteral("Right-to-left"), Painter::getStatusBadgeSize(upToDate), false, GalleryPages::Default,
+                     [upToDate](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusBadge(&painter, rect, upToDate, state); }, QString(), Qt::RightToLeft);
+    Helper::specimen(builder, QStringLiteral("Disabled"), Painter::getStatusBadgeSize(upToDate), false, GalleryPages::Disabled,
+                     [upToDate](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusBadge(&painter, rect, upToDate, state); });
+    builder.row();
+    builder.live(QStringLiteral("Live"), new pdf::PDFStatusBadge(QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green, page));
+    builder.row();
+
+    // Fact pill and avatar
+    builder.block(QStringLiteral("Fact pill (PDFFactPill) and Avatar (PDFAvatar) - hero cards of About and Sponsor"), QStringLiteral("111:2226"));
+    const Painter::FactPill pill{ QStringLiteral("shield"), QStringLiteral("MIT License") };
+    Helper::specimen(builder, QStringLiteral("Fact pill"), Painter::getFactPillSize(pill), false, GalleryPages::Default,
+                     [pill](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintFactPill(&painter, rect, pill, state); });
+    Helper::specimen(builder, QStringLiteral("Fact pill right-to-left"), Painter::getFactPillSize(pill), false, GalleryPages::Default,
+                     [pill](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintFactPill(&painter, rect, pill, state); }, QString(), Qt::RightToLeft);
+    const Painter::Avatar avatar{ QStringLiteral("JM"), 56, 18, pdf::PDFAccentHue::Blue };
+    const Painter::Avatar smallAvatar{ QStringLiteral("JM"), 40, 14, pdf::PDFAccentHue::Blue };
+    Helper::specimen(builder, QStringLiteral("Avatar 56"), Painter::getAvatarSize(avatar), false, GalleryPages::Default,
+                     [avatar](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintAvatar(&painter, rect, avatar, state); });
+    Helper::specimen(builder, QStringLiteral("Avatar 40"), Painter::getAvatarSize(smallAvatar), false, GalleryPages::Default,
+                     [smallAvatar](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintAvatar(&painter, rect, smallAvatar, state); });
+    builder.row();
+    builder.live(QStringLiteral("Live fact pill"), new pdf::PDFFactPill(QStringLiteral("github"), QStringLiteral("Open source"), page));
+    pdf::PDFAvatar* liveAvatar = builder.live(QStringLiteral("Live avatar"), new pdf::PDFAvatar(QStringLiteral("JM"), 40, 14, page));
+    liveAvatar->setAccessibleName(QStringLiteral("Jakub Melka"));
+    builder.row();
+
+    // Status row
+    builder.block(QStringLiteral("Status row (PDFStatusRow) - priorities of Sponsor"), QStringLiteral("123:2869"));
+    const Painter::StatusRow active{ QStringLiteral("The new application"), QStringLiteral("One window for every tool"), QStringLiteral("In progress"), true };
+    const Painter::StatusRow planned{ QStringLiteral("Accessibility of documents"), QStringLiteral("Tagged PDF and PDF/UA"), QStringLiteral("Planned"), false };
+    Helper::specimen(builder, QStringLiteral("Active"), QSize(400, Painter::getStatusRowSize(active).height()), true, GalleryPages::Default,
+                     [active](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusRow(&painter, rect, active, state); });
+    Helper::specimen(builder, QStringLiteral("Planned"), QSize(400, Painter::getStatusRowSize(planned).height()), true, GalleryPages::Default,
+                     [planned](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusRow(&painter, rect, planned, state); });
+    builder.row();
+    Helper::specimen(builder, QStringLiteral("Right-to-left"), QSize(400, Painter::getStatusRowSize(active).height()), true, GalleryPages::Default,
+                     [active](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusRow(&painter, rect, active, state); }, QString(), Qt::RightToLeft);
+    Helper::specimen(builder, QStringLiteral("Narrow (elided texts)"), Painter::getStatusRowMinimumSize(active), true, GalleryPages::Default,
+                     [active](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintStatusRow(&painter, rect, active, state); });
+    builder.row();
+    QWidget* statusCard = Helper::createCard(page, 9, 0);
+    statusCard->setFixedWidth(400);
+    statusCard->layout()->addWidget(new pdf::PDFStatusRow(QStringLiteral("The new application"), QStringLiteral("One window for every tool"), QStringLiteral("In progress"), true, statusCard));
+    statusCard->layout()->addWidget(new pdf::PDFStatusRow(QStringLiteral("Accessibility of documents"), QStringLiteral("Tagged PDF and PDF/UA"), QStringLiteral("Planned"), false, statusCard));
+    builder.live(QStringLiteral("Live on a card"), statusCard);
+    builder.row();
+
+    // Tinted card
+    builder.block(QStringLiteral("Tinted card (PDFTintedCard) - release card, hero cards, Thank you"), QStringLiteral("103:1951"));
+    struct TintSample
+    {
+        const char* name;
+        bool hasHue;
+        pdf::PDFAccentHue hue;
+    };
+    static constexpr TintSample tints[] =
+    {
+        { "Blue", true, pdf::PDFAccentHue::Blue },
+        { "Green", true, pdf::PDFAccentHue::Green },
+        { "No hue (bg/surface)", false, pdf::PDFAccentHue::Blue }
+    };
+    for (const TintSample& tint : tints)
+    {
+        const std::optional<pdf::PDFAccentHue> hue = tint.hasHue ? std::optional<pdf::PDFAccentHue>(tint.hue) : std::nullopt;
+        Helper::specimen(builder, QString::fromLatin1(tint.name), QSize(200, 80), false, GalleryPages::Default,
+                         [hue](QPainter& painter, const QRectF& rect, const Painter::State& state) { Q_UNUSED(state); Painter::paintTintedCard(&painter, rect, hue); });
+    }
+    builder.row();
+    pdf::PDFTintedCard* liveCard = builder.live(QStringLiteral("Live with content"), new pdf::PDFTintedCard(pdf::PDFAccentHue::Green, page));
+    QHBoxLayout* liveCardLayout = new QHBoxLayout(liveCard);
+    liveCardLayout->setContentsMargins(17, 17, 17, 17);
+    liveCardLayout->setSpacing(12);
+    pdf::PDFIconBadge* heart = new pdf::PDFIconBadge(QStringLiteral("heart"), 36, 18, liveCard);
+    heart->setColors(Color::BgSurface, Color::AccentRedIcon);
+    liveCardLayout->addWidget(heart);
+    liveCardLayout->addWidget(Helper::label(QStringLiteral("Thank you for using PDF4QT"), Helper::Font::BodySemiBold, Color::TextPrimary, liveCard));
+    builder.row();
 }
 
 QWidget* GalleryPages::createHomeSample(QWidget* parent)

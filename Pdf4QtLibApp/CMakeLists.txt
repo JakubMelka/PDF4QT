@@ -38,10 +38,18 @@ set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfdatabaseschema.h
     sources/storage/pdfdatabasestatement.cpp
     sources/storage/pdfdatabasestatement.h
+    sources/storage/pdfrecentrepository.cpp
+    sources/storage/pdfrecentrepository.h
+    sources/storage/pdfrepositoryhelper.cpp
+    sources/storage/pdfrepositoryhelper.h
     sources/storage/pdfsettingsrepository.cpp
     sources/storage/pdfsettingsrepository.h
     sources/storage/pdfshortcutrepository.cpp
     sources/storage/pdfshortcutrepository.h
+    sources/storage/pdftoolrepository.cpp
+    sources/storage/pdftoolrepository.h
+    sources/storage/pdfworkspacerepository.cpp
+    sources/storage/pdfworkspacerepository.h
 )
 
 set(PDF4QT_LIBAPP_CORE_SOURCES
@@ -51,12 +59,16 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfappcommandline.h
     sources/core/pdfappcontext.cpp
     sources/core/pdfappcontext.h
+    sources/core/pdfappfolderinfo.cpp
+    sources/core/pdfappfolderinfo.h
     sources/core/pdfappinstance.cpp
     sources/core/pdfappinstance.h
     sources/core/pdfapplog.cpp
     sources/core/pdfapplog.h
     sources/core/pdfapppaths.cpp
     sources/core/pdfapppaths.h
+    sources/core/pdfappthumbnailer.cpp
+    sources/core/pdfappthumbnailer.h
     sources/core/pdfappwindowfactory.cpp
     sources/core/pdfappwindowfactory.h
     sources/core/pdfsettingdefinition.cpp
@@ -65,15 +77,32 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfsettingdefinitions.h
 )
 
+# What's New, the update check, the Markdown parser and the catalog of the manual (step 2)
+list(APPEND PDF4QT_LIBAPP_CORE_SOURCES
+    sources/core/pdfapphelpcatalog.cpp
+    sources/core/pdfapphelpcatalog.h
+    sources/core/pdfappmarkdown.cpp
+    sources/core/pdfappmarkdown.h
+    sources/core/pdfupdatechecker.cpp
+    sources/core/pdfupdatechecker.h
+    sources/core/pdfwhatsnew.cpp
+    sources/core/pdfwhatsnew.h
+)
+
 # The window shell, the router and the pages add their files to
 # PDF4QT_LIBAPP_SHELL_SOURCES in this file
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources/shell/shell.cmake)
+
+# The pages of the routes (Home, Open, Recent, What's New, ...) add their files to
+# PDF4QT_LIBAPP_PAGES_SOURCES in this file
+include(${CMAKE_CURRENT_SOURCE_DIR}/sources/pages/pages.cmake)
 
 add_library(Pdf4QtLibApp SHARED
     sources/pdfappglobal.h
     ${PDF4QT_LIBAPP_STORAGE_SOURCES}
     ${PDF4QT_LIBAPP_CORE_SOURCES}
     ${PDF4QT_LIBAPP_SHELL_SOURCES}
+    ${PDF4QT_LIBAPP_PAGES_SOURCES}
 )
 
 include(GenerateExportHeader)
@@ -101,7 +130,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/shell)
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/shell
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 set_target_properties(Pdf4QtLibApp PROPERTIES

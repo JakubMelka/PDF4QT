@@ -226,6 +226,7 @@ void PDFAppCommands::registerBuiltinCommands(PDFAppCommandRegistry* registry)
     }
 
     registerWindowCommands(registry);
+    registerFileCommands(registry);
     registerNavigationCommands(registry);
 }
 
@@ -245,6 +246,16 @@ void PDFAppCommands::registerWindowCommands(PDFAppCommandRegistry* registry)
         QKeySequence(Qt::CTRL | Qt::Key_Q), { QStringLiteral("exit"), QStringLiteral("close") });
 }
 
+void PDFAppCommands::registerFileCommands(PDFAppCommandRegistry* registry)
+{
+    const char* group = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "File");
+
+    // Open… (Shortcuts of Settings, component Shortcut row 51:6118): the native
+    // dialog of the system, the chosen files are opened in the window
+    add(registry, open(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Open…"), group, QStringLiteral("folder-open"),
+        QKeySequence(Qt::CTRL | Qt::Key_O), { QStringLiteral("browse"), QStringLiteral("file"), QStringLiteral("document"), QStringLiteral("pdf") });
+}
+
 void PDFAppCommands::registerNavigationCommands(PDFAppCommandRegistry* registry)
 {
     const char* group = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Navigation");
@@ -255,6 +266,8 @@ void PDFAppCommands::registerNavigationCommands(PDFAppCommandRegistry* registry)
         QKeySequence(Qt::ALT | Qt::Key_Right), { QStringLiteral("history"), QStringLiteral("next page") });
     add(registry, search(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Search"), group, QStringLiteral("search"),
         QKeySequence(Qt::CTRL | Qt::Key_K), { QStringLiteral("find"), QStringLiteral("tools"), QStringLiteral("commands"), QStringLiteral("settings"), QStringLiteral("help") });
+    add(registry, help(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Help"), group, QStringLiteral("help-circle"),
+        QKeySequence(Qt::Key_F1), { QStringLiteral("user manual"), QStringLiteral("documentation"), QStringLiteral("guide") });
 }
 
 }   // namespace pdf

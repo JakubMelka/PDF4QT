@@ -112,6 +112,10 @@ Q_SIGNALS:
     /// An external address has been given to the system
     void externalUrlOpened(const QUrl& url);
 
+    /// The shown page of the tab has replaced its route (PDFAppPage::replaceRoute):
+    /// the current entry of the history has the route, the page stays
+    void routeReplaced(pdf::PDFAppTab* tab, const pdf::PDFAppRoute& route);
+
 private:
     enum class RequestKind
     {
@@ -144,6 +148,7 @@ private:
     void onPageNavigationRequested(const pdf::PDFAppRoute& route, pdf::PDFAppNavigationMode mode);
     void onPageBackRequested();
     void onPageExternalUrlRequested(const QUrl& url);
+    void onPageRouteReplaced(const pdf::PDFAppRoute& route);
     void onTabNavigationRequested(const pdf::PDFAppRoute& route, pdf::PDFAppNavigationMode mode);
     void onTabExternalUrlRequested(const QUrl& url);
 

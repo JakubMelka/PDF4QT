@@ -33,6 +33,8 @@
 class QAbstractButton;
 class QCheckBox;
 class QFrame;
+class QHBoxLayout;
+class QPushButton;
 class QVBoxLayout;
 
 namespace pdf
@@ -46,11 +48,26 @@ class PDFPlainTextEdit;
 /// QMessageBox, whose texts take their colors from a palette. The message box
 /// is a frameless card (radius 16, shadow 0 / 8 / 24) without the title bar of
 /// the system, centered over its parent widget, which is covered by a scrim.
+///
+/// A dialog of the design (a form, a list, facts) is the message box with its
+/// own parts: \p setBadgeVisible hides the badge (a form has none), \p addContent
+/// adds widgets between the head and the buttons, \p addActionButton creates the
+/// row of the buttons in the order of the design (not in the order of the
+/// platform of QDialogButtonBox; such a button does not close the dialog, the
+/// application connects it) and \p setCardWidth gives the card the width of the
+/// frame, the texts wrap and the height follows the content.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFMessageBox : public QDialog
 {
     Q_OBJECT
 
 public:
+    /// Place of a button of the own row of the buttons
+    enum class ActionPosition
+    {
+        Leading,    ///< At the leading edge (a destructive action), in the order of the calls
+        Trailing    ///< At the trailing edge, in the order of the calls
+    };
+
     /// Creates the message box
     /// \param badge Badge of the message
     /// \param title Title of the message
@@ -84,6 +101,38 @@ public:
 
     /// Adds a button with its own text
     QAbstractButton* addButton(const QString& text, QDialogButtonBox::ButtonRole role);
+
+    /// Shows or hides the badge of the head (a form has no badge; the title and
+    /// the text then start at the edge of the card)
+    bool isBadgeVisible() const;
+    void setBadgeVisible(bool isVisible);
+
+    /// Adds a part of the content below the head and the details, above the
+    /// buttons; the widget becomes a child of the message box. Null is ignored.
+    void addContent(QWidget* widget);
+
+    /// Adds a button to the own row of the buttons, which replaces the buttons
+    /// of the platform (the button box of the standard buttons is hidden, while
+    /// it has no button). Leading buttons come first, trailing ones after the
+    /// stretch, each in the order of the calls. The button does not close the
+    /// message box by itself. \p isPrimary gives it the look of the primary
+    /// button and makes it the default button (Enter). The focus is not moved
+    /// (a form keeps the focus of its field).
+    QPushButton* addActionButton(const QString& text, ActionPosition position, bool isPrimary);
+
+    /// Returns the buttons of the own row in the order of the row
+    QList<QPushButton*> getActionButtons() const;
+
+    /// Width of the card (without the shadow) - 0: the card follows its content.
+    /// A card of a fixed width wraps the texts and its height follows the content.
+    int getCardWidth() const { return m_cardWidth; }
+    void setCardWidth(int width);
+
+    /// Returns the width of the content of a card of a fixed width (the card
+    /// without its paddings), 0 for a card, which follows its content
+    int getContentWidth() const;
+
+    virtual QSize sizeHint() const override;
 
     /// Returns the button, by which the message box has been closed
     QDialogButtonBox::StandardButton getClickedStandardButton() const { return m_clickedStandardButton; }
@@ -122,6 +171,7 @@ protected:
 
 private:
     void updateMargins();
+    void updateSizeConstraint();
     void moveOverParent();
     void showScrim();
     void hideScrim();
@@ -143,6 +193,10 @@ private:
     // The parts are children of the message box, which the application may
     // delete (Qt deletes them with the message box), so they are held by QPointer
     QPointer<QVBoxLayout> m_mainLayout;
+    QPointer<QHBoxLayout> m_actionsLayout;
+    QPointer<QWidget> m_badgeWidget;
+    QList<QPointer<QPushButton>> m_actionButtons;
+    int m_cardWidth = 0;
     QPointer<PDFLabel> m_titleLabel;
     QPointer<PDFLabel> m_textLabel;
     QPointer<PDFLabel> m_detailsLabel;

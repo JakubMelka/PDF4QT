@@ -523,10 +523,15 @@ PDFAppRouteTable PDFAppRouteTable::createDefault()
     about.isFragmentAllowed = true;
     table.addDefaultEntry(about);
 
-    table.addDefaultEntry(createEntry(QStringLiteral("/support"), Tab::Home, Nav::Support, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Support")));
+    // Support: the filter of the video tutorials (topic of PDFSupportVideoCatalog or for-you, search text)
+    PDFAppRouteEntry support = createEntry(QStringLiteral("/support"), Tab::Home, Nav::Support, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Support"));
+    support.query[QStringLiteral("topic")] = Values::options({ QStringLiteral("for-you"), QStringLiteral("getting-started"), QStringLiteral("pages"), QStringLiteral("convert"),
+                                                               QStringLiteral("forms"), QStringLiteral("security"), QStringLiteral("optimize"), QStringLiteral("review") });
+    support.query[QStringLiteral("q")] = Values::text();
+    table.addDefaultEntry(support);
     table.addDefaultEntry(createEntry(QStringLiteral("/sponsor"), Tab::Home, Nav::Sponsor, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Sponsor")));
 
-    PDFAppRouteEntry help = createEntry(QStringLiteral("/help/{topic}"), Tab::Home, Nav::None, Subject::HelpTopic, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Help"));
+    PDFAppRouteEntry help = createEntry(QStringLiteral("/help/{topic}"), Tab::Help, Nav::None, Subject::HelpTopic, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Help"));
     help.parameters[QStringLiteral("topic")] = Values::slug();
     help.isFragmentAllowed = true;
     table.addDefaultEntry(help);

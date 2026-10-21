@@ -1046,11 +1046,12 @@ void PDFComponentPainter::paintRecentItemRow(QPainter* painter, const QRectF& re
 
     // Leading: the thumbnail of the first page, or the icon in the circle of the hue
     const QRectF leading = Helper::line(rect, rect.left() + Helper::RECENT_LEFT, Helper::RECENT_LEADING, Helper::RECENT_LEADING);
+    const bool isMissing = normalized(row.status) == FileStatus::Missing;
     if (type == RecentItemType::File)
     {
         const QSizeF thumbnailSize = QSizeF(getPageThumbnailSize(ThumbnailSize::Small));
         const QRectF frame = alignedCentered(state.visualRect(rect, leading), thumbnailSize);
-        paintPageThumbnail(painter, frame, PageThumbnail{ ThumbnailSize::Small, row.pixmap }, state);
+        paintPageThumbnail(painter, frame, PageThumbnail{ ThumbnailSize::Small, row.pixmap, row.locked }, state);
     }
     else
     {
@@ -1074,7 +1075,10 @@ void PDFComponentPainter::paintRecentItemRow(QPainter* painter, const QRectF& re
             moreFlags |= row.moreFlags & (QStyle::State_MouseOver | QStyle::State_Sunken);
         }
         paintMoreButton(painter, moreRect, State(moreFlags, state.direction));
-        paintStar(painter, starRect, StarSize::Small, Helper::nestedState(state, row.starFlags, row.pinned));
+        if (row.starVisible)
+        {
+            paintStar(painter, starRect, StarSize::Small, Helper::nestedState(state, row.starFlags, row.pinned));
+        }
     }
 
     const qreal openedLeft = rect.right() - Helper::RECENT_RIGHT - Helper::RECENT_MORE - 2 * Helper::RECENT_GAP - Helper::RECENT_STAR - Helper::RECENT_OPENED;
@@ -1082,21 +1086,31 @@ void PDFComponentPainter::paintRecentItemRow(QPainter* painter, const QRectF& re
                      Helper::text(state, Color::TextTertiary), Helper::TextKind::Interface, true);
 
     const qreal progressLeft = openedLeft - Helper::RECENT_GAP - Helper::RECENT_PROGRESS;
-    const bool hasBar = type == RecentItemType::File && row.progress >= 0.0 && qIsFinite(row.progress);
-    const qreal progressHeight = Helper::LINE_11 + (hasBar ? Helper::RECENT_PROGRESS_GAP + Helper::RECENT_BAR_HEIGHT : 0);
-    const qreal progressTop = rect.top() + qFloor((rect.height() - progressHeight) / 2.0);
-    Helper::drawText(painter, state, rect, QRectF(progressLeft, progressTop, Helper::RECENT_PROGRESS, Helper::LINE_11), row.progressText,
-                     Helper::font(PDFThemeFonts::Role::CaptionRegular), Helper::text(state, Color::TextTertiary), Helper::TextKind::Interface);
-    if (hasBar)
+    if (isMissing)
     {
-        const QRectF bar(progressLeft, progressTop + Helper::LINE_11 + Helper::RECENT_PROGRESS_GAP, Helper::RECENT_BAR_WIDTH, Helper::RECENT_BAR_HEIGHT);
-        paintProgressBar(painter, state.visualRect(rect, bar), row.progress, Helper::nestedState(state, QStyle::State_None));
+        // A missing item: the badge "No longer exists" in the column of the progress
+        const QSize badgeSize = getMissingFileBadgeSize();
+        const QRectF badge(progressLeft, rect.top() + qFloor((rect.height() - badgeSize.height()) / 2.0), qMin<qreal>(badgeSize.width(), Helper::RECENT_PROGRESS), badgeSize.height());
+        paintMissingFileBadge(painter, state.visualRect(rect, badge), state);
+    }
+    else
+    {
+        const bool hasBar = type == RecentItemType::File && row.progress >= 0.0 && qIsFinite(row.progress);
+        const qreal progressHeight = Helper::LINE_11 + (hasBar ? Helper::RECENT_PROGRESS_GAP + Helper::RECENT_BAR_HEIGHT : 0);
+        const qreal progressTop = rect.top() + qFloor((rect.height() - progressHeight) / 2.0);
+        Helper::drawText(painter, state, rect, QRectF(progressLeft, progressTop, Helper::RECENT_PROGRESS, Helper::LINE_11), row.progressText,
+                         Helper::font(PDFThemeFonts::Role::CaptionRegular), Helper::text(state, Color::TextTertiary), Helper::TextKind::Interface);
+        if (hasBar)
+        {
+            const QRectF bar(progressLeft, progressTop + Helper::LINE_11 + Helper::RECENT_PROGRESS_GAP, Helper::RECENT_BAR_WIDTH, Helper::RECENT_BAR_HEIGHT);
+            paintProgressBar(painter, state.visualRect(rect, bar), row.progress, Helper::nestedState(state, QStyle::State_None));
+        }
     }
 
     // The name (of a file elided in the middle) and the details are data
     const qreal textLeft = leading.right() + Helper::RECENT_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, progressLeft - Helper::RECENT_GAP - textLeft, Helper::RECENT_TEXT_GAP,
-                          row.name, Helper::text(state, Color::TextPrimary), type == RecentItemType::File ? Helper::TextKind::FileName : Helper::TextKind::Data,
+                          row.name, Helper::text(state, isMissing ? Color::TextMuted : Color::TextPrimary), type == RecentItemType::File ? Helper::TextKind::FileName : Helper::TextKind::Data,
                           row.details, Helper::text(state, Color::TextMuted), Helper::TextKind::Data);
 
     if (state.hasFocusRing())

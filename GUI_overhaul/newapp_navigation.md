@@ -39,7 +39,7 @@ Pravidlo: stránka nikdy nevolá jinou stránku přímo, jen `navigate`. Stránk
 | `/ai` | AI (běží / zastaveno / vzdálený přístup / jiné okno / obsazený port / nastavení jiného klienta jsou stavy stránky) | AI | 653:5231, 653:5814, 653:6384, 940:135321, 955:148587, 955:149138 |
 | `/whats-new`, `/whats-new/{verze}`, `/whats-new/{verze}/notes` | běžící nebo zvolená verze a plné poznámky k vydání ([newapp_whatsnew.md](newapp_whatsnew.md) 4) | What's New | 103:1951, 988:13320, 988:13824, 988:152102, 989:152125 |
 | `/about`, `/support`, `/sponsor` | | stejnojmenná | 110:2163, 116:2419, 122:2652 |
-| `/help/{topic}` | uživatelská příručka z Markdownu (stejné soubory jako `pdf4qt://docs`) | žádná | `pdf4qt-help` 955:152873 |
+| `/help/{topic}` | uživatelská příručka z Markdownu (stejné soubory jako `pdf4qt://docs`); otevře se v **tabu *Help*** (jeden v okně, znovu použitý, zavíratelný – [newapplication.md](newapplication.md) O13) | žádná | `pdf4qt-help` 955:152873 |
 | `/settings` → `/settings/general` | | Settings | |
 | `/settings/{section}` | `general`, `viewing`, `color-modes`, `editing`, `security`, `speech`, `shortcuts`, `color-management`, `advanced`; `#<id nastavení>` posune na řádek a zvýrazní ho; `/settings?q=` filtruje sekce a řádky podle `PDFSettingDefinition` | Settings | 146:2843 … 147:4565 |
 | `/search?q=` | *Show all results* globálního hledání (`?group=tools\|commands\|settings\|documents\|help`) | žádná | 941:7081 |

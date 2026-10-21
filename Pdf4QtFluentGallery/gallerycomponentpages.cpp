@@ -806,11 +806,39 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
     Helper::liveStates(builder, [page]() { return new pdf::PDFIssueRow(QStringLiteral("#598"), QStringLiteral("Wrong colors of some JPEG 2000 images"), QStringLiteral("Images with an embedded ICC profile are converted by the profile."), QStringLiteral("Aug 30, 2026"), page); });
 
     // Version row
-    builder.block(QStringLiteral("Version row (PDFVersionRow) - Current True / False, Show line"), QStringLiteral("103:1950"));
+    builder.block(QStringLiteral("Version row (PDFVersionRow) - Current x Selected x State, Show line"), QStringLiteral("103:1950"));
     Painter::VersionRow versionRow;
     versionRow.version = QStringLiteral("v1.5.3");
     versionRow.date = QStringLiteral("Sep 14, 2026");
     versionRow.summary = QStringLiteral("One unified app, faster loading, timestamped signatures.");
+
+    // The 16 variants of the design: Current True / False x Selected False / True x
+    // Default / Hover / Pressed / Focus (and Disabled of the library)
+    struct VersionStateVariant
+    {
+        const char* prefix;
+        bool current;
+        bool selected;
+        const char* nodes[5];
+    };
+    static constexpr VersionStateVariant versionStates[] =
+    {
+        { "Current", true, false, { "103:1932", "987:13304", "987:13313", "987:13322", nullptr } },
+        { "Current Selected", true, true, { "987:13331", "987:13340", "987:13349", "987:13358", nullptr } },
+        { "Not current", false, false, { "103:1941", "987:13367", "987:13376", "987:13385", nullptr } },
+        { "Not current Selected", false, true, { "987:13394", "987:13403", "987:13412", "987:13421", nullptr } }
+    };
+    for (const VersionStateVariant& variant : versionStates)
+    {
+        Painter::VersionRow content = versionRow;
+        content.current = variant.current;
+        content.selected = variant.selected;
+        Helper::stateSpecimens(builder, QString::fromLatin1(variant.prefix), Painter::getVersionRowSize(content), variant.nodes, [content](QPainter& painter, const QRectF& rect, const Painter::State& state)
+        {
+            Painter::paintVersionRow(&painter, rect, content, state);
+        });
+    }
+
     struct VersionVariant
     {
         const char* name;
@@ -846,6 +874,7 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
     pdf::PDFVersionRow* currentVersion = new pdf::PDFVersionRow(QStringLiteral("v1.5.3"), QStringLiteral("Sep 14, 2026"), QStringLiteral("One unified app, faster loading, timestamped signatures."), timeline);
     pdf::PDFVersionRow* previousVersion = new pdf::PDFVersionRow(QStringLiteral("v1.5.2"), QStringLiteral("Jun 2, 2026"), QStringLiteral("Optical character recognition of scanned documents with Tesseract, batch processing and export of the recognized text."), timeline);
     previousVersion->setCurrent(false);
+    previousVersion->setSelected(true);
     pdf::PDFVersionRow* oldestVersion = new pdf::PDFVersionRow(QStringLiteral("v1.5.0"), QStringLiteral("Jan 20, 2026"), QStringLiteral("MIT license."), timeline);
     oldestVersion->setCurrent(false);
     oldestVersion->setLineVisible(false);
@@ -856,7 +885,23 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
     pdf::PDFVersionRow* rightToLeftVersion = new pdf::PDFVersionRow(QStringLiteral("v1.5.3"), QStringLiteral("Sep 14, 2026"), QStringLiteral("One unified app, faster loading, timestamped signatures."), page);
     rightToLeftVersion->setLayoutDirection(Qt::RightToLeft);
     rightToLeftVersion->setFixedWidth(324);
-    Helper::liveOnCard(builder, QStringLiteral("Live right-to-left"), rightToLeftVersion);
+    rightToLeftVersion->setSelected(true);
+    Helper::liveOnCard(builder, QStringLiteral("Live right-to-left, selected"), rightToLeftVersion);
+    builder.row();
+    pdf::PDFVersionRow* textVersion = new pdf::PDFVersionRow(QStringLiteral("v1.4.0"), QStringLiteral("Mar 3, 2025"), QStringLiteral("A row, which is not clickable, is a text."), page);
+    textVersion->setCurrent(false);
+    textVersion->setClickable(false);
+    textVersion->setFixedWidth(324);
+    Helper::liveOnCard(builder, QStringLiteral("Live not clickable (a text)"), textVersion);
+    builder.row();
+    Helper::liveStates(builder, [page]()
+    {
+        pdf::PDFVersionRow* row = new pdf::PDFVersionRow(QStringLiteral("v1.5.2"), QStringLiteral("Jun 2, 2026"), QStringLiteral("Optical character recognition of scanned documents."), page);
+        row->setCurrent(false);
+        row->setSelected(true);
+        row->setFixedWidth(324);
+        return row;
+    });
 
     // Tool category header, Tool choice, Resource card, Highlight card, Video card, Logo
     addCatalogCards(builder);

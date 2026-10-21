@@ -24,6 +24,7 @@
 #define PDFAPPMAINWINDOW_H
 
 #include "pdfappglobal.h"
+#include "pdfappfiledrop.h"
 #include "pdfappinstance.h"
 #include "pdfappnavigator.h"
 #include "pdfapproutetable.h"
@@ -92,6 +93,13 @@ public:
     /// Command New tab: a new tab New tab with /open, activated
     PDFAppTab* openNewTab();
 
+    /// The Help tab of the window (nullptr, if there is none)
+    PDFAppTab* findHelpTab() const;
+
+    /// Adds the Help tab after the current tab (not shown, no route yet).
+    /// \returns nullptr, if there are too many tabs.
+    PDFAppTab* createHelpTab();
+
     /// Makes the tab current
     void activateTab(PDFAppTab* tab);
 
@@ -122,6 +130,27 @@ public:
     /// Processes a request of another process (the slot of PDFAppContext::openRequested)
     void handleOpenRequest(const pdf::PDFAppInstanceRequest& request);
 
+    /// Opens the documents (absolute paths; \p page from 1, 0 = the last page of
+    /// Recent): the command line, other processes, the pages Home / Open / Recent
+    /// and the files dropped onto the window. Each existing file is recorded in
+    /// Recent (PDFRecentRepository::recordOpened) and its thumbnail is requested.
+    /// STEP 3 HOOK: opening of documents is the step 3 of phase 1 (document tab).
+    /// Until then the files are kept in getRequestedFiles and listed in a message box.
+    void openDocuments(const QStringList& files, int page);
+
+    /// Command Open… (Ctrl+O): the native dialog of the system for PDF files in the
+    /// folder (empty = the default folder of the system); the chosen files are
+    /// opened (openDocuments). The dialog runs its own event loop: a second request
+    /// while it is shown does nothing, the window may be deleted meanwhile.
+    void browseDocuments(const QString& folder = QString());
+
+    /// A dialog of browseDocuments is shown
+    bool isBrowsingDocuments() const { return m_isBrowsingDocuments; }
+
+    /// Documents open in the window, in the order of their tabs (Save as workspace
+    /// 941:136915). STEP 3 HOOK: there are no document tabs in step 2, the list is empty.
+    std::vector<PDFAppOpenDocument> getOpenDocuments() const;
+
 Q_SIGNALS:
     /// The window has started to close (the server of the instance is suspended)
     void closing();
@@ -133,6 +162,12 @@ protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual bool event(QEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+    /// Drag and drop of PDF files onto the window (PDFAppFileDrop): local files
+    /// only, a PDF by its extension or content, folders and other files refused
+    virtual void dragEnterEvent(QDragEnterEvent* event) override;
+    virtual void dragMoveEvent(QDragMoveEvent* event) override;
+    virtual void dropEvent(QDropEvent* event) override;
 
     /// Asked, when the window is being closed: false = the user has canceled the
     /// quitting (step 3: unsaved documents, pdf4qt-quit-unsaved). Until then
@@ -153,10 +188,6 @@ private:
     bool handleNavigationButton(QEvent* event);
     void updateWindowState();
     void updateWindowTitle();
-
-    /// STEP 3 HOOK: opening of documents is the step 3 of phase 1 (document tab).
-    /// Until then the files are kept in getRequestedFiles and listed in a message box.
-    void openDocuments(const QStringList& files, int page);
 
     /// Errors of a command line in a message box (note 958:28033)
     void showCommandLineErrors(const QStringList& errors);
@@ -195,6 +226,7 @@ private:
     QStringList m_requestedFiles;
     QStringList m_forwardedErrors;
     bool m_isClosing = false;
+    bool m_isBrowsingDocuments = false;
 };
 
 }   // namespace pdf

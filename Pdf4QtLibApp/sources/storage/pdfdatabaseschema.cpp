@@ -47,6 +47,11 @@ std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
     version2.sql = createVersion2();
     migrations.push_back(std::move(version2));
 
+    PDFDatabaseMigration version3;
+    version3.version = 3;
+    version3.sql = createVersion3();
+    migrations.push_back(std::move(version3));
+
     return migrations;
 }
 
@@ -313,6 +318,18 @@ QByteArray PDFDatabaseSchema::createVersion2()
 CREATE TABLE storage_maintenance(
     key TEXT PRIMARY KEY NOT NULL,
     value INTEGER) WITHOUT ROWID;
+)SQL";
+}
+
+QByteArray PDFDatabaseSchema::createVersion3()
+{
+    // State of the thumbnail of a recent file (PDFRecentThumbnailState, step 2): the
+    // thumbnailer records also a document, which has no thumbnail (password protected,
+    // damaged, too large, no pages) together with thumbnail_mtime, so it does not try
+    // the same file again until the file changes (no retry loop). The update trigger
+    // of recent_file is not limited to columns, so the new column is notified too.
+    return R"SQL(
+ALTER TABLE recent_file ADD COLUMN thumbnail_state INTEGER NOT NULL DEFAULT 0;
 )SQL";
 }
 

@@ -161,8 +161,10 @@ public:
     static PDFAppRoute home();
     static PDFAppRoute open();
 
-    /// Recent (filter files, folders, workspaces, pinned; empty = all)
-    static PDFAppRoute recent(const QString& filter = QString());
+    /// Recent: the filter (files, folders, workspaces, pinned; empty = all), the
+    /// sort (last-opened, name, folder; empty = the default last-opened) and the
+    /// search text (empty = none); an empty part is not in the query
+    static PDFAppRoute recent(const QString& filter = QString(), const QString& sort = QString(), const QString& searchText = QString());
 
     /// Catalog of the tools (category: pages, convert, edit, protect, optimize, review, pinned)
     static PDFAppRoute tools(const QString& category = QString());
@@ -176,15 +178,24 @@ public:
 
     /// What's New of the running version (empty) or of the version
     static PDFAppRoute whatsNew(const QString& version = QString());
+
+    /// Release notes of the version (/whats-new/{version}/notes)
+    static PDFAppRoute releaseNotes(const QString& version);
     static PDFAppRoute about(const QString& anchor = QString());
-    static PDFAppRoute support();
+    /// Support: the topic of the video tutorials (for-you or a topic of
+    /// PDFSupportVideoCatalog; empty = all) and the search text (empty = none)
+    static PDFAppRoute support(const QString& topic = QString(), const QString& searchText = QString());
     static PDFAppRoute sponsor();
     static PDFAppRoute help(const QString& topic);
+
+    /// Topic of the manual opened by the command Help (F1)
+    static QString getDefaultHelpTopic() { return QStringLiteral("getting-started"); }
 
     /// Section of Settings (general when empty) with the anchor of a setting
     static PDFAppRoute settings(const QString& section = QString(), const QString& anchor = QString());
 
-    /// Global search (Show all results) of the text, optionally in the group
+    /// Global search (Show all results) of the text, optionally in the group; the
+    /// text is sanitized (PDFSearchQuery::sanitize), so the route is always valid
     static PDFAppRoute search(const QString& text, const QString& group = QString());
 
     /// Document tab (page = physical page from 1, 0 = none)

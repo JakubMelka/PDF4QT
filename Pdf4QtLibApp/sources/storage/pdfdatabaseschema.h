@@ -112,6 +112,7 @@ public:
 private:
     static QByteArray createVersion1();
     static QByteArray createVersion2();
+    static QByteArray createVersion3();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

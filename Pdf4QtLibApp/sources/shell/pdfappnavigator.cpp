@@ -24,6 +24,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppageregistry.h"
 #include "pdfapppagenotfound.h"
 #include "pdfapptab.h"
 
@@ -41,7 +42,10 @@ PDFAppNavigator::PDFAppNavigator(PDFAppMainWindow* window, PDFAppContext* contex
     m_context(context),
     m_routeTable(PDFAppRouteTable::createDefault())
 {
-
+    if (!m_context || m_context->isPagesEnabled())
+    {
+        PDFAppPageRegistry::registerFactories(m_routeTable);
+    }
 }
 
 PDFAppNavigator::~PDFAppNavigator() = default;
@@ -186,6 +190,21 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
         }
     }
 
+    // The manual: the Help tab of the window, a new one at the first use (owner
+    // decision O13); other routes from the Help tab go to the Home tab
+    if (entry && entry->tabKind == PDFAppTabKind::Help)
+    {
+        if (PDFAppTab* tab = m_window->findHelpTab())
+        {
+            return tab;
+        }
+        if (PDFAppTab* tab = m_window->createHelpTab())
+        {
+            return tab;
+        }
+        return m_window->getHomeTab();
+    }
+
     if (mode == PDFAppNavigationMode::NewTab && isNewTabRoute)
     {
         return m_window->createNewTab();
@@ -316,9 +335,11 @@ void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
     const PDFAppRouteMatch match = resolve(&resolvedRoute);
 
     // A route of a document or of a tool is shown only in its own tab (the tab of
-    // the id was not found, when another tab got it)
+    // the id was not found, when another tab got it); the manual is shown in the Home
+    // tab, when the window has no place for the Help tab (chooseTab)
     const bool isTabOfRoute = match.entry && (match.entry->tabKind == tab->getKind() ||
-                                              (match.entry->tabKind == PDFAppTabKind::Home && tab->getKind() == PDFAppTabKind::NewTab));
+                                              (match.entry->tabKind == PDFAppTabKind::Home && tab->getKind() == PDFAppTabKind::NewTab) ||
+                                              (match.entry->tabKind == PDFAppTabKind::Help && tab->getKind() == PDFAppTabKind::Home));
 
     // Page of the factory (code of the page: it may delete anything)
     QPointer<PDFAppPage> page;
@@ -411,6 +432,7 @@ void PDFAppNavigator::connectPage(PDFAppPage* page)
     connect(page, &PDFAppPage::navigationRequested, this, &PDFAppNavigator::onPageNavigationRequested, Qt::UniqueConnection);
     connect(page, &PDFAppPage::backRequested, this, &PDFAppNavigator::onPageBackRequested, Qt::UniqueConnection);
     connect(page, &PDFAppPage::externalUrlRequested, this, &PDFAppNavigator::onPageExternalUrlRequested, Qt::UniqueConnection);
+    connect(page, &PDFAppPage::routeReplaced, this, &PDFAppNavigator::onPageRouteReplaced, Qt::UniqueConnection);
 }
 
 void PDFAppNavigator::announce(PDFAppTab* tab, PDFAppPage* page)
@@ -520,6 +542,49 @@ void PDFAppNavigator::onPageBackRequested()
 void PDFAppNavigator::onPageExternalUrlRequested(const QUrl& url)
 {
     openExternalUrl(url);
+}
+
+void PDFAppNavigator::onPageRouteReplaced(const PDFAppRoute& route)
+{
+    // The page does not identify itself in the signal. Only the shown page of a
+    // tab changes the history: a page, which is being shown (its setRoute runs
+    // during a navigation) or which has been replaced already, has no entry.
+    PDFAppPage* page = qobject_cast<PDFAppPage*>(sender());
+    PDFAppTab* tab = page ? findTab(page) : nullptr;
+    if (!tab || tab->getPage() != page || !m_window)
+    {
+        return;
+    }
+
+    PDFAppHistory& history = tab->getHistory();
+    const PDFAppHistoryEntry* entry = history.getCurrentEntry();
+    if (!entry)
+    {
+        return;
+    }
+
+    // The route of another page would show a page, which is not there
+    PDFAppRoute currentRoute = entry->route;
+    PDFAppRoute replacedRoute = route;
+    const PDFAppRouteMatch currentMatch = resolve(&currentRoute);
+    const PDFAppRouteMatch replacedMatch = resolve(&replacedRoute);
+    if (!replacedMatch.isFound() || !currentMatch.entry || replacedMatch.entry != currentMatch.entry || replacedRoute != route)
+    {
+        qWarning("A page has replaced its route by a route of another page, it is refused: %s", qPrintable(route.toString().left(256)));
+        return;
+    }
+
+    history.replace(route);
+
+    // The title of the window follows the page (no announcement: the page stays)
+    QPointer<PDFAppNavigator> guard(this);
+    QPointer<PDFAppTab> tabGuard(tab);
+    m_window->updateTab(tab);
+    if (guard && tabGuard)
+    {
+        const PDFAppRoute replaced = route;
+        Q_EMIT routeReplaced(tab, replaced);
+    }
 }
 
 void PDFAppNavigator::onTabNavigationRequested(const PDFAppRoute& route, PDFAppNavigationMode mode)

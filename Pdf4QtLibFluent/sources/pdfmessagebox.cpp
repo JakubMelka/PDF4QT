@@ -148,6 +148,7 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     PDFMessageBoxBadge* badgeWidget = new PDFMessageBoxBadge(badge, this);
     badgeWidget->setAccessibleName(getBadgeName(badge));
     headLayout->addWidget(badgeWidget, 0, Qt::AlignVCenter);
+    m_badgeWidget = badgeWidget;
 
     QVBoxLayout* textLayout = new QVBoxLayout();
     textLayout->setContentsMargins(0, 0, 0, 0);
@@ -171,6 +172,10 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     detailsLayout->setContentsMargins(12, 8, 12, 8);
     m_detailsLabel = new PDFLabel(QString(), PDFThemeFonts::Role::CaptionRegular, PDFThemeColors::TextMuted, m_detailsFrame);
     m_detailsLabel->setWordWrap(true);
+
+    // The details are a plain text as the long details of the editor (QMessageBox
+    // as well): paths and names of files are never interpreted as rich text
+    m_detailsLabel->setTextFormat(Qt::PlainText);
     m_detailsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_detailsLabel->setFocusPolicy(Qt::NoFocus);
     detailsLayout->addWidget(m_detailsLabel);
@@ -196,6 +201,7 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     actionsLayout->addStretch(1);
     actionsLayout->addWidget(m_buttonBox);
     mainLayout->addLayout(actionsLayout);
+    m_actionsLayout = actionsLayout;
 
     mainLayout->setSizeConstraint(QLayout::SetFixedSize);
 
@@ -228,12 +234,162 @@ void PDFMessageBox::updateMargins()
     m_mainLayout->setContentsMargins(QMargins(PADDING_H, PADDING_V, PADDING_H, PADDING_V) + getShadowMargins());
 }
 
+void PDFMessageBox::updateSizeConstraint()
+{
+    if (!m_mainLayout)
+    {
+        return;
+    }
+
+    // A card of a fixed width has the height of its content at that width (the
+    // texts wrap), a card without it the size of its content
+    m_mainLayout->setSizeConstraint(m_cardWidth > 0 ? QLayout::SetDefaultConstraint : QLayout::SetFixedSize);
+    if (m_cardWidth > 0)
+    {
+        const QMargins shadow = getShadowMargins();
+        setFixedWidth(m_cardWidth + shadow.left() + shadow.right());
+    }
+}
+
+void PDFMessageBox::setCardWidth(int width)
+{
+    width = qMax(0, width);
+    if (m_cardWidth == width)
+    {
+        return;
+    }
+
+    m_cardWidth = width;
+    if (m_cardWidth == 0)
+    {
+        // The card follows its content again
+        setMinimumWidth(0);
+        setMaximumWidth(QWIDGETSIZE_MAX);
+    }
+    updateSizeConstraint();
+    updateGeometry();
+}
+
+int PDFMessageBox::getContentWidth() const
+{
+    return m_cardWidth > 0 ? qMax(0, m_cardWidth - 2 * PADDING_H) : 0;
+}
+
+QSize PDFMessageBox::sizeHint() const
+{
+    if (m_cardWidth <= 0)
+    {
+        return QDialog::sizeHint();
+    }
+
+    // QWidget::adjustSize of a window asks the height for the width of the size hint
+    const QMargins shadow = getShadowMargins();
+    const int width = m_cardWidth + shadow.left() + shadow.right();
+    int height = QDialog::sizeHint().height();
+    if (m_mainLayout && m_mainLayout->hasHeightForWidth())
+    {
+        height = m_mainLayout->totalHeightForWidth(width);
+    }
+    return QSize(width, height);
+}
+
+bool PDFMessageBox::isBadgeVisible() const
+{
+    return m_badgeWidget && !m_badgeWidget->isHidden();
+}
+
+void PDFMessageBox::setBadgeVisible(bool isVisible)
+{
+    if (m_badgeWidget)
+    {
+        m_badgeWidget->setVisible(isVisible);
+    }
+}
+
+void PDFMessageBox::addContent(QWidget* widget)
+{
+    if (!widget || !m_mainLayout)
+    {
+        return;
+    }
+
+    // Before the row of the buttons (the last item of the layout, unless the
+    // application has removed it)
+    widget->setParent(this);
+    const int actionsIndex = m_actionsLayout ? m_mainLayout->indexOf(m_actionsLayout.data()) : -1;
+    m_mainLayout->insertWidget(actionsIndex >= 0 ? actionsIndex : m_mainLayout->count(), widget);
+}
+
+QPushButton* PDFMessageBox::addActionButton(const QString& text, ActionPosition position, bool isPrimary)
+{
+    if (!m_actionsLayout)
+    {
+        return nullptr;
+    }
+
+    QPushButton* button = new QPushButton(text, this);
+    button->setAutoDefault(false);
+    if (isPrimary)
+    {
+        PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::PRIMARY);
+        button->setDefault(true);
+    }
+
+    // The own row replaces the buttons of the platform
+    if (m_buttonBox && m_buttonBox->buttons().isEmpty())
+    {
+        m_buttonBox->hide();
+    }
+
+    if (position == ActionPosition::Leading)
+    {
+        // Leading buttons come before the stretch (after the check box and the
+        // leading buttons added before)
+        int stretchIndex = m_actionsLayout->count();
+        for (int i = 0; i < m_actionsLayout->count(); ++i)
+        {
+            if (m_actionsLayout->itemAt(i)->spacerItem())
+            {
+                stretchIndex = i;
+                break;
+            }
+        }
+        m_actionsLayout->insertWidget(stretchIndex, button);
+    }
+    else
+    {
+        m_actionsLayout->addWidget(button);
+    }
+
+    m_actionButtons.append(button);
+    return button;
+}
+
+QList<QPushButton*> PDFMessageBox::getActionButtons() const
+{
+    // In the order of the row (leading buttons first)
+    QList<QPushButton*> buttons;
+    if (m_actionsLayout)
+    {
+        for (int i = 0; i < m_actionsLayout->count(); ++i)
+        {
+            QPushButton* button = qobject_cast<QPushButton*>(m_actionsLayout->itemAt(i)->widget());
+            if (button && m_actionButtons.contains(button))
+            {
+                buttons.append(button);
+            }
+        }
+    }
+    return buttons;
+}
+
 void PDFMessageBox::setVisible(bool visible)
 {
     if (visible && isWindow() && !isVisible())
     {
         // The window is placed before it is shown, so it does not jump
         updateMargins();
+        updateSizeConstraint();
         ensurePolished();
         adjustSize();
         moveOverParent();

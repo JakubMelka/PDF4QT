@@ -26,6 +26,7 @@
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
 #include "pdfappwindowfactory.h"
+#include "pdfupdatechecker.h"
 
 #include "pdfwidgetstyle.h"
 
@@ -104,6 +105,9 @@ int main(int argc, char* argv[])
 
         std::unique_ptr<QWidget> window(pdf::PDFAppWindowFactory::createMainWindow(&context));
         window->show();
+
+        // The automatic check for updates (at most once a day, newapp_whatsnew.md 5)
+        pdf::PDFUpdateChecker::getInstance(&context)->startAutomaticChecks();
 
         // Smoke tests of the executable quit it after the given time
         bool isQuitTimeValid = false;

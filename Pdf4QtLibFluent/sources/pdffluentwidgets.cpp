@@ -1417,6 +1417,9 @@ void PDFTreeView::setRowStyle(RowStyle rowStyle)
         case RowStyle::Outline:
             name = QStringLiteral("outline");
             break;
+        case RowStyle::Contents:
+            name = QStringLiteral("contents");
+            break;
         case RowStyle::Certificate:
             name = QStringLiteral("certificate");
             break;
@@ -1439,7 +1442,7 @@ QModelIndex PDFTreeView::getPressedRow() const
 
 bool PDFTreeView::isPressTracked() const
 {
-    return m_rowStyle == RowStyle::Outline || m_rowStyle == RowStyle::Certificate;
+    return m_rowStyle == RowStyle::Outline || m_rowStyle == RowStyle::Contents || m_rowStyle == RowStyle::Certificate;
 }
 
 qreal PDFTreeView::getRowRadius(RowStyle rowStyle)

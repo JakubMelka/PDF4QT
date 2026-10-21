@@ -32,8 +32,19 @@
 #include <QVariantMap>
 #include <QWidget>
 
+class QBoxLayout;
+
 namespace pdf
 {
+
+/// Part of the breadcrumbs of the header of a page (Help › Protect & Sign › Sign
+/// with Certificate): a link to the route, or the current page (invalid route)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppBreadcrumbItem
+{
+public:
+    QString text;
+    PDFAppRoute route;
+};
 
 /// How the navigator shows a route
 enum class PDFAppNavigationMode
@@ -75,8 +86,24 @@ public:
     virtual QString getHeaderTitle() const;
     virtual QString getHeaderSubtitle() const;
 
+    /// Part of the subtitle stressed by Semi Bold text/accent (the first occurrence;
+    /// empty = none - the subtitle of Home 28:35 stresses "PDF")
+    virtual QString getHeaderSubtitleAccent() const;
+
+    /// Breadcrumbs shown above the title of the header (empty = none; pdf4qt-help
+    /// 955:152873, pdf4qt-whatsnew-notes 989:152125)
+    virtual QList<PDFAppBreadcrumbItem> getHeaderBreadcrumbs() const;
+
     /// The workspace shows its header with the global search (Settings has none)
     virtual bool hasSearchHeader() const;
+
+    /// Layout, at the top of which the Home tab places its storage banner: the main
+    /// column of a page with a side column (958:28036 "at the top of the content
+    /// column", pdf4qt-recent-portable 955:150880 - the side column starts at the
+    /// top of the page). nullptr (the default) = above the whole page. The layout
+    /// must belong to a widget of the page; the tab takes the banner back, when the
+    /// page is replaced or destroyed (aboutToBeDestroyed).
+    virtual QBoxLayout* getBannerLayout() const;
 
     /// State of the view saved into the history, when the tab leaves the page
     /// (scroll position, expanded sections), and given back, when the history
@@ -105,10 +132,32 @@ Q_SIGNALS:
     /// Title or header of the page has changed
     void titleChanged();
 
+    /// The page has replaced its route (replaceRoute): the navigator puts the
+    /// route into the current entry of the history of the tab of the page
+    void routeReplaced(const pdf::PDFAppRoute& route);
+
+    /// Emitted by the destructor of the base, before the children of the page are
+    /// deleted (the derived parts do not exist any more): a widget placed into the
+    /// page by another object (the storage banner) is taken out. A slot must not
+    /// call the page.
+    void aboutToBeDestroyed();
+
 protected:
     /// Emits navigationRequested. The page may be deleted by the navigation:
     /// \returns false, if the page does not exist any more (do not touch members then)
     bool requestNavigation(const PDFAppRoute& route, PDFAppNavigationMode mode = PDFAppNavigationMode::Push);
+
+    /// Replaces the route of the shown page without showing it again: a filter, a
+    /// sort or a search text of the page, which is a part of its route (Recent,
+    /// Support, the groups of the search). The page stays (the focus stays in its
+    /// field), getRoute returns the new route and the navigator replaces the current
+    /// entry of the history of the tab, so Back, Forward and a copied link give the
+    /// filtered page; the window title follows, there is no announcement of a new
+    /// page. The route must be a route of the same page (the same pattern of the
+    /// route table) - the navigator refuses another one and keeps the history; an
+    /// invalid route is ignored.
+    /// \returns false, if the page does not exist any more (do not touch members then)
+    bool replaceRoute(const PDFAppRoute& route);
 
 private:
     QPointer<PDFAppContext> m_context;

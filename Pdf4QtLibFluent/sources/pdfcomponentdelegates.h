@@ -69,6 +69,9 @@ namespace pdf
 /// | \p ProgressTextRole | QString | empty | "Page 12 of 24" (Recent item) |
 /// | \p PinnedRole | bool | false | star (Recent item; written by the star) |
 /// | \p ShortcutRole | QKeySequence or QString | none ("Add shortcut") | shortcut (Shortcut; written by the recording) |
+/// | \p StarVisibleRole | bool | true | star (Recent item; false: no star and no pin action - an item, which cannot be pinned) |
+/// | \p MissingRole | bool | false | the badge "No longer exists" instead of the progress, the name text/muted (Recent item) |
+/// | \p LockedRole | bool | false | the lock instead of the thumbnail of a document protected by a password (Recent item, File) |
 ///
 /// Qt::ToolTipRole is the tooltip of the item outside of its actions. A valid
 /// QSize in Qt::SizeHintRole is the size of the item (as QStyledItemDelegate).
@@ -95,7 +98,10 @@ public:
         ProgressTextRole,
         PinnedRole,
         ShortcutRole,
-        LastRole = ShortcutRole
+        StarVisibleRole,
+        MissingRole,
+        LockedRole,
+        LastRole = LockedRole
     };
 };
 
@@ -562,8 +568,9 @@ protected:
 /// on the signal actionTriggered with MenuAction, \p getActionRect of
 /// \p getLastActionView places it). Roles: Qt::DisplayRole (name), SubtitleRole
 /// (details), ProgressTextRole, ProgressRole, DateRole (opened), ItemTypeRole,
-/// PixmapRole, PinnedRole. The rows of the screen (80:910) follow each other
-/// without a gap.
+/// PixmapRole, PinnedRole, StarVisibleRole (an item without the star has no pin
+/// action), MissingRole, LockedRole. The rows of the screen (80:910) follow each
+/// other without a gap.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFRecentItemDelegate : public PDFRowDelegate
 {
     Q_OBJECT

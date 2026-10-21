@@ -461,14 +461,20 @@ private:
 
 /// Release of the version history (component Version row 103:1950): the rail
 /// with the dot and the line, the version, the date and the summary, which
-/// wraps (the height of the row follows its width). Without interaction: no
-/// focus, no hover, announced as a text; the accessible description says
-/// "Current version" of the installed one, the date and the summary. The last
-/// row of a history hides the line by \p setLineVisible.
+/// wraps (the height of the row follows its width). The row is a link to its
+/// release (signal clicked): hover, press, the focus ring inside, Enter and
+/// Space; the selected row is the version shown by the page (bg/accent-subtle,
+/// the version text/accent), the current row the installed version (the dot
+/// bg/accent). A row, which is not clickable, is a text: no focus, no hover,
+/// announced as a text. The accessible description says "Current version" of
+/// the installed one, "Shown" of the selected one, the date and the summary.
+/// The last row of a history hides the line by \p setLineVisible.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFVersionRow : public PDFRowButton
 {
     Q_OBJECT
     Q_PROPERTY(bool current READ isCurrent WRITE setCurrent)
+    Q_PROPERTY(bool selected READ isSelected WRITE setSelected)
+    Q_PROPERTY(bool clickable READ isClickable WRITE setClickable)
 
 private:
     using BaseClass = PDFRowButton;
@@ -488,15 +494,24 @@ public:
     const QString& getSummary() const { return m_row.summary; }
     void setSummary(const QString& summary);
 
-    /// The installed version: the dot bg/accent and the version text/accent
+    /// The installed version: the dot bg/accent
     bool isCurrent() const { return m_row.current; }
     void setCurrent(bool isCurrent);
+
+    /// The version shown by the page: bg/accent-subtle and the version text/accent
+    bool isSelected() const { return m_row.selected; }
+    void setSelected(bool isSelected);
+
+    /// A clickable row (the default) is a link, which takes the focus; a row,
+    /// which stops being clickable, gives its focus away and is a text
+    bool isClickable() const { return m_isClickable; }
+    void setClickable(bool isClickable);
 
     /// The line of the rail below the dot (hidden on the last row)
     bool isLineVisible() const { return m_row.lineVisible; }
     void setLineVisible(bool isVisible);
 
-    virtual bool isInteractive() const override { return false; }
+    virtual bool isInteractive() const override { return m_isClickable; }
 
     PDFComponentPainter::VersionRow getContent() const;
 
@@ -512,6 +527,7 @@ private:
 
     PDFComponentPainter::VersionRow m_row;
     QString m_description;
+    bool m_isClickable = false;
 };
 
 /// Row of the Document properties dialog (component Property row 206:873): the

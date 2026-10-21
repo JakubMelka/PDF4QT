@@ -30,6 +30,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QVBoxLayout>
 
@@ -121,10 +122,10 @@ void PDFAppTab::onPageTitleChanged()
 }
 
 PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* context, QWidget* parent) :
-    BaseClass(kind == PDFAppTabKind::Home ? PDFAppTabKind::Home : PDFAppTabKind::NewTab, context, parent)
+    BaseClass((kind == PDFAppTabKind::Home || kind == PDFAppTabKind::Help) ? kind : PDFAppTabKind::NewTab, context, parent)
 {
     const bool isHome = getKind() == PDFAppTabKind::Home;
-    setObjectName(isHome ? QStringLiteral("homeTab") : QStringLiteral("newTab"));
+    setObjectName(isHome ? QStringLiteral("homeTab") : (getKind() == PDFAppTabKind::Help ? QStringLiteral("helpTab") : QStringLiteral("newTab")));
 
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -151,6 +152,7 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     m_header = new PDFAppWorkspaceHeader(workspace);
     workspaceLayout->addWidget(m_header);
     connect(m_header, &PDFAppWorkspaceHeader::searchRequested, this, &PDFAppWorkspaceTab::onSearchRequested);
+    connect(m_header, &PDFAppWorkspaceHeader::breadcrumbActivated, this, &PDFAppWorkspaceTab::onBreadcrumbActivated);
 
     // The page scrolls (the minimal window, long pages) together with the banner
     // at its top (the top of the content column, 958:28036), so a long banner in
@@ -166,6 +168,7 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     {
         m_banner = new PDFAppStorageBanner(m_pageArea);
         m_pageLayout->addWidget(m_banner);
+        m_bannerLayout = m_pageLayout;
         connect(m_banner, &PDFAppStorageBanner::tryAgainRequested, this, &PDFAppWorkspaceTab::onTryAgainRequested);
         connect(m_banner, &PDFAppStorageBanner::showInFolderRequested, this, &PDFAppWorkspaceTab::onShowInFolderRequested);
         connect(m_banner, &PDFAppStorageBanner::checkForUpdatesRequested, this, &PDFAppWorkspaceTab::onCheckForUpdatesRequested);
@@ -174,6 +177,16 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     m_pageScrollArea = new PDFAppScrollArea(m_pageArea, workspace);
     m_pageScrollArea->setObjectName(QStringLiteral("pageScrollArea"));
     workspaceLayout->addWidget(m_pageScrollArea, 1);
+
+    if (getKind() == PDFAppTabKind::Help)
+    {
+        // pdf4qt-help 955:152873 (owner decision O13): the page of the Help tab is at
+        // most 1166 px wide, centered in the view (the scroll bar stays at the edge);
+        // the header follows the page (updateHelpMargins)
+        m_pageArea->setMaximumWidth(HELP_CONTENT_WIDTH);
+        m_pageScrollArea->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        m_pageScrollArea->viewport()->installEventFilter(this);
+    }
 
     if (isHome)
     {
@@ -189,7 +202,15 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     }
 }
 
-PDFAppWorkspaceTab::~PDFAppWorkspaceTab() = default;
+PDFAppWorkspaceTab::~PDFAppWorkspaceTab()
+{
+    // The page is deleted with the children of the tab, after this destructor: its
+    // signal aboutToBeDestroyed must not reach the destroyed tab
+    if (PDFAppPage* page = getPage())
+    {
+        disconnect(page, &PDFAppPage::aboutToBeDestroyed, this, &PDFAppWorkspaceTab::onPageAboutToBeDestroyed);
+    }
+}
 
 void PDFAppWorkspaceTab::setNavItem(PDFAppNavItem item)
 {
@@ -206,12 +227,28 @@ PDFAppNavItem PDFAppWorkspaceTab::getNavItem() const
 
 QString PDFAppWorkspaceTab::getTabTitle() const
 {
-    return getKind() == PDFAppTabKind::Home ? tr("Home") : tr("New tab");
+    switch (getKind())
+    {
+        case PDFAppTabKind::Home:
+            return tr("Home");
+        case PDFAppTabKind::Help:
+            return tr("Help");
+        default:
+            return tr("New tab");
+    }
 }
 
 QString PDFAppWorkspaceTab::getTabIconName() const
 {
-    return getKind() == PDFAppTabKind::Home ? QStringLiteral("home") : QStringLiteral("folder");
+    switch (getKind())
+    {
+        case PDFAppTabKind::Home:
+            return QStringLiteral("home");
+        case PDFAppTabKind::Help:
+            return QStringLiteral("help-circle");
+        default:
+            return QStringLiteral("folder");
+    }
 }
 
 bool PDFAppWorkspaceTab::isClosable() const
@@ -248,6 +285,8 @@ void PDFAppWorkspaceTab::onPageChanged()
         m_pageScrollArea->horizontalScrollBar()->setValue(0);
     }
 
+    placeBanner();
+
     if (!m_header)
     {
         return;
@@ -256,7 +295,53 @@ void PDFAppWorkspaceTab::onPageChanged()
     // Settings have no header with the search
     PDFAppPage* page = getPage();
     m_header->setVisible(!page || page->hasSearchHeader());
-    m_header->setTexts(page ? page->getHeaderTitle() : QString(), page ? page->getHeaderSubtitle() : QString());
+    m_header->setTexts(page ? page->getHeaderTitle() : QString(), page ? page->getHeaderSubtitle() : QString(),
+                       page ? page->getHeaderSubtitleAccent() : QString());
+    m_header->setBreadcrumbs(page ? page->getHeaderBreadcrumbs() : QList<PDFAppBreadcrumbItem>());
+}
+
+void PDFAppWorkspaceTab::placeBanner()
+{
+    PDFAppPage* page = getPage();
+    if (page)
+    {
+        connect(page, &PDFAppPage::aboutToBeDestroyed, this, &PDFAppWorkspaceTab::onPageAboutToBeDestroyed, Qt::UniqueConnection);
+    }
+
+    // The top of the main column of a page with a side column (958:28036, 955:150880)
+    QBoxLayout* layout = page ? page->getBannerLayout() : nullptr;
+    if (!layout || !layout->parentWidget() || (layout->parentWidget() != page && !page->isAncestorOf(layout->parentWidget())))
+    {
+        layout = m_pageLayout;
+    }
+    moveBanner(layout);
+}
+
+void PDFAppWorkspaceTab::onPageAboutToBeDestroyed()
+{
+    // The page is being destroyed (its children still exist): the banner is not one
+    // of them. The page itself is not called.
+    moveBanner(m_pageLayout);
+}
+
+void PDFAppWorkspaceTab::moveBanner(QBoxLayout* layout)
+{
+    if (!m_banner || !layout || !layout->parentWidget() || (m_bannerLayout == layout && m_banner->parentWidget() == layout->parentWidget()))
+    {
+        return;
+    }
+
+    // A new parent hides the widget: the banner keeps its own visibility (the kind
+    // of the storage state, a dismissed banner)
+    const bool isHidden = m_banner->isHidden();
+    if (m_bannerLayout)
+    {
+        m_bannerLayout->removeWidget(m_banner);
+    }
+    m_banner->setParent(layout->parentWidget());
+    layout->insertWidget(0, m_banner);
+    m_bannerLayout = layout;
+    m_banner->setVisible(!isHidden);
 }
 
 void PDFAppWorkspaceTab::onStorageStateChanged()
@@ -277,6 +362,38 @@ void PDFAppWorkspaceTab::onStorageStateChanged()
     {
         m_footer->setState(state);
     }
+}
+
+bool PDFAppWorkspaceTab::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Resize && m_pageScrollArea && watched == m_pageScrollArea->viewport())
+    {
+        updateHelpMargins();
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppWorkspaceTab::updateHelpMargins()
+{
+    if (getKind() != PDFAppTabKind::Help || !m_pageScrollArea || !m_header)
+    {
+        return;
+    }
+
+    // The header has the horizontal position and the width of the centered page
+    const int viewportWidth = m_pageScrollArea->viewport()->width();
+    const int contentWidth = qMin(HELP_CONTENT_WIDTH, viewportWidth);
+    const int left = qMax(0, (viewportWidth - contentWidth) / 2);
+    const int right = qMax(0, m_pageScrollArea->width() - left - contentWidth);
+    if (m_header->contentsMargins() != QMargins(left, 0, right, 0))
+    {
+        m_header->setContentsMargins(left, 0, right, 0);
+    }
+}
+
+void PDFAppWorkspaceTab::onBreadcrumbActivated(const PDFAppRoute& route)
+{
+    Q_EMIT navigationRequested(route, PDFAppNavigationMode::Push);
 }
 
 void PDFAppWorkspaceTab::onSearchRequested(const QString& text)

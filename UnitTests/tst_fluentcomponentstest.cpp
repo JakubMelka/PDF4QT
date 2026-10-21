@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfaccenthue.h"
+#include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentdelegates.h"
@@ -30,6 +31,7 @@
 #include "pdfcomponentwindow.h"
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
+#include "pdfmessagebox.h"
 #include "pdfpreviewpainter.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
@@ -642,6 +644,13 @@ private slots:
     void windowDefensive();
     void windowControlsApplication();
     void documentTabPassword();
+
+    // Integration of step 2: elements of the pages, the states of the recent items, a dialog of the design
+    void pageElementPixels_data();
+    void pageElementPixels();
+    void pageElementWidgets();
+    void recentStates();
+    void messageBoxCustomContent();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -3127,20 +3136,53 @@ void FluentComponentsTest::rowPixels()
     QVERIFY(countPixels(image, QRect(46, 18, 44, 16), token(Color::TextAccent), 12) > 0);
     QVERIFY(countPixels(image, QRect(690, 19, 86, 13), token(Color::TextMuted), 12) > 0);
 
-    // Version row: the dot of the current version, the line, the hidden line
+    // Version row: the dot of the current version (only the dot, Figma 103:1950
+    // of 19. 10. 2026), the line, the hidden line
     Painter::VersionRow version = RowSamples::versionRow();
-    auto renderVersion = [&](const Painter::VersionRow& content) { return render([&](QPainter& painter) { Painter::paintVersionRow(&painter, QRectF(0, 0, 324, 60), content, state(none)); }, QSize(324, 60), scale); };
+    auto renderVersion = [&](const Painter::VersionRow& content, QStyle::State flags = QStyle::State_None)
+    {
+        return render([&](QPainter& painter) { Painter::paintVersionRow(&painter, QRectF(0, 0, 324, 60), content, state(flags)); }, QSize(324, 60), scale);
+    };
     image = renderVersion(version);
     QVERIFY(isNear(pixel(image, 13, 9), token(Color::BgAccent)));
     QVERIFY(isNear(pixel(image, 13, 40), token(Color::BgTrack)));
-    QVERIFY(countPixels(image, QRect(32, 0, 60, 16), token(Color::TextAccent), 12) > 0);
+    QCOMPARE(countPixels(image, QRect(32, 0, 60, 16), token(Color::TextAccent), 12), 0);
+    QVERIFY(countPixels(image, QRect(32, 0, 60, 16), token(Color::TextPrimary), 12) > 0);
     QVERIFY(countPixels(image, QRect(32, 18, 284, 28), token(Color::TextTertiary), 12) > 0);
+    QVERIFY(isNear(pixel(image, 200, 52), surface));
     version.current = false;
     version.lineVisible = false;
     image = renderVersion(version);
     QVERIFY(isNear(pixel(image, 13, 9), token(Color::BorderStrong)));
     QVERIFY(isNear(pixel(image, 13, 40), surface));
     QCOMPARE(countPixels(image, QRect(32, 0, 60, 16), token(Color::TextAccent), 12), 0);
+
+    // Version row: the states of the link (bg/hover, bg/pressed, the ring inside)
+    image = renderVersion(version, over);
+    QVERIFY(isNear(pixel(image, 200, 52), hover));
+    image = renderVersion(version, down);
+    QVERIFY(isNear(pixel(image, 200, 52), pressed));
+    image = renderVersion(version, focus);
+    QVERIFY(isNear(pixel(image, 160, 1), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 200, 52), surface));
+
+    // Selected (the shown version): bg/accent-subtle and the version text/accent,
+    // the pointer and the press in the tone of the selection; also State_Selected
+    version.selected = true;
+    const QColor selectedFill = blend(token(Color::BgAccentSubtle), surface);
+    image = renderVersion(version);
+    QVERIFY(isNear(pixel(image, 200, 52), selectedFill));
+    QVERIFY(countPixels(image, QRect(32, 0, 60, 16), token(Color::TextAccent), 12) > 0);
+    image = renderVersion(version, over);
+    QVERIFY(isNear(pixel(image, 200, 52), blend(token(Color::BgAccentSubtleHover), surface)));
+    image = renderVersion(version, down);
+    QVERIFY(isNear(pixel(image, 200, 52), blend(token(Color::BgAccentSubtlePressed), surface)));
+    image = renderVersion(version, focus);
+    QVERIFY(isNear(pixel(image, 160, 1), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 200, 52), selectedFill));
+    version.selected = false;
+    image = renderVersion(version, QStyle::State_Selected);
+    QVERIFY(isNear(pixel(image, 200, 52), selectedFill));
 
     // Property row: the states of the design
     auto renderProperty = [&](const Painter::PropertyRow& content, QStyle::State flags)
@@ -3465,14 +3507,35 @@ void FluentComponentsTest::rowKeyboard()
     QCOMPARE(shortcutClicked.count(), 1);
     QVERIFY(!shortcut->getComponentState().hasFocusRing());
 
-    // The version row and the property row are texts without the focus; the actions of the property row take it
-    QCOMPARE(versionRow->focusPolicy(), Qt::NoFocus);
+    // The version row is a link (Enter, Space, click, the ring inside); the
+    // property row is a text without the focus, the actions of the property row take it
+    QCOMPARE(versionRow->focusPolicy(), Qt::StrongFocus);
     QCOMPARE(propertyRow->focusPolicy(), Qt::NoFocus);
     QCOMPARE(propertyRow->getCopyButton()->focusPolicy(), Qt::TabFocus);
     QCOMPARE(propertyRow->getEditButton()->focusPolicy(), Qt::TabFocus);
     QSignalSpy versionClicked(versionRow, &QAbstractButton::clicked);
     QTest::mouseClick(versionRow, Qt::LeftButton);
-    QCOMPARE(versionClicked.count(), 0);
+    QCOMPARE(versionClicked.count(), 1);
+    versionRow->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(versionRow->hasFocus());
+    QTest::keyClick(versionRow, Qt::Key_Return);
+    QCOMPARE(versionClicked.count(), 2);
+    QVERIFY(versionRow->getComponentState().hasFocusRing());
+    QTest::keyClick(versionRow, Qt::Key_Space);
+    QCOMPARE(versionClicked.count(), 3);
+
+    // A version row, which is not clickable, is a text: it gives its focus away and ignores the mouse
+    versionRow->setClickable(false);
+    QVERIFY(!versionRow->hasFocus());
+    QCOMPARE(versionRow->focusPolicy(), Qt::NoFocus);
+    QVERIFY(!versionRow->testAttribute(Qt::WA_Hover));
+    QTest::mouseClick(versionRow, Qt::LeftButton);
+    QTest::keyClick(versionRow, Qt::Key_Return);
+    QCOMPARE(versionClicked.count(), 3);
+    versionRow->setClickable(false);
+    versionRow->setClickable(true);
+    QCOMPARE(versionRow->focusPolicy(), Qt::StrongFocus);
+    QVERIFY(versionRow->testAttribute(Qt::WA_Hover));
 
     // The copy button is shown, when it has the keyboard focus
     const QColor surface = token(Color::BgSurface);
@@ -3555,14 +3618,27 @@ void FluentComponentsTest::rowAccessibility()
     issueRow.setNumber(QString());
     QCOMPARE(QAccessible::queryAccessibleInterface(&issueRow)->text(QAccessible::Name), QStringLiteral("Crash when opening"));
 
-    // Version row: a text with the date and the summary as its description, without actions
+    // Version row: a link with the date and the summary as its description; the
+    // selected row says "Shown"; a row, which is not clickable, is a text without actions
     pdf::PDFVersionRow versionRow(QStringLiteral("v1.5.3"), QStringLiteral("Sep 14, 2026"), QStringLiteral("One unified app."));
     accessible = QAccessible::queryAccessibleInterface(&versionRow);
-    QCOMPARE(accessible->role(), QAccessible::StaticText);
+    QCOMPARE(accessible->role(), QAccessible::Button);
     QCOMPARE(accessible->text(QAccessible::Name), QStringLiteral("v1.5.3"));
     QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("Current version. Sep 14, 2026. One unified app."));
+    QVERIFY(accessible->actionInterface() && accessible->actionInterface()->actionNames().contains(QAccessibleActionInterface::pressAction()));
+    versionRow.setSelected(true);
+    QVERIFY(versionRow.isSelected());
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("Current version. Shown. Sep 14, 2026. One unified app."));
+    versionRow.setSelected(true);
     versionRow.setCurrent(false);
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("Shown. Sep 14, 2026. One unified app."));
+    versionRow.setSelected(false);
     QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("Sep 14, 2026. One unified app."));
+    QVERIFY(versionRow.setProperty("selected", true));
+    QVERIFY(versionRow.getContent().selected);
+    versionRow.setClickable(false);
+    QVERIFY(!versionRow.isClickable());
+    QCOMPARE(accessible->role(), QAccessible::StaticText);
     if (QAccessibleActionInterface* actions = accessible->actionInterface())
     {
         QVERIFY(!actions->actionNames().contains(QAccessibleActionInterface::pressAction()));
@@ -4675,6 +4751,29 @@ void FluentComponentsTest::rowDetails()
     QVERIFY(countPixels(longIssueImage, QRect(46, 8, 44, 9), token(Color::TextAccent), 40) > 0);
     QCOMPARE(countPixels(shortIssueImage, QRect(46, 8, 44, 9), token(Color::TextAccent), 40), 0);
     QCOMPARE(countPixels(longIssueImage, QRect(91, 0, 10, 52), token(Color::TextAccent), 40), 0);
+
+    // An issue without its description (the issues of RELEASES.txt) has the title
+    // centered in the row as the number, not at the place of the two lines (review R2-D2)
+    for (const bool hasDescription : { false, true })
+    {
+        Painter::IssueRow titleOnly = RowSamples::issueRow();
+        titleOnly.title = QStringLiteral("Crash");
+        titleOnly.description = hasDescription ? QStringLiteral("Fixed") : QString();
+        const QImage titleImage = render([&](QPainter& painter) { Painter::paintIssueRow(&painter, QRectF(0, 0, 786, 52), titleOnly, state(QStyle::State_None)); }, QSize(786, 52));
+        int inkTop = -1;
+        int inkBottom = -1;
+        for (int y = 0; y < 52; ++y)
+        {
+            if (countPixels(titleImage, QRect(101, y, 200, 1), token(Color::TextPrimary), 60) > 0)
+            {
+                inkTop = inkTop < 0 ? y : inkTop;
+                inkBottom = y;
+            }
+        }
+        QVERIFY(inkTop >= 0);
+        const qreal center = (inkTop + inkBottom) / 2.0;
+        QVERIFY2(hasDescription ? center < 22.0 : qAbs(center - 26.0) <= 2.0, qPrintable(QStringLiteral("%1 %2").arg(inkTop).arg(inkBottom)));
+    }
 
     // The height of a version row follows the summary also with the cached height (review N8)
     pdf::PDFVersionRow versionRow(QStringLiteral("v1.5.3"), QStringLiteral("Sep 14"), QStringLiteral("Short"));
@@ -6295,6 +6394,7 @@ void FluentComponentsTest::cardDetails()
     pdf::PDFHighlightCard highlight(QStringLiteral("One app"), QStringLiteral("All in one"), QStringLiteral("grid"), pdf::PDFAccentHue::Blue);
     pdf::PDFToolCategoryHeader header(QStringLiteral("Pages"), QStringLiteral("Merge"), QStringLiteral("6 tools"), QStringLiteral("grid"), pdf::PDFAccentHue::Blue);
     pdf::PDFVersionRow version(QStringLiteral("v1.5.3"), QStringLiteral("Sep 14"), QStringLiteral("Summary"));
+    version.setClickable(false);
     for (pdf::PDFComponentButton* label : std::initializer_list<pdf::PDFComponentButton*>{ &highlight, &header, &version })
     {
         QVERIFY(!label->testAttribute(Qt::WA_Hover));
@@ -13315,6 +13415,671 @@ void FluentComponentsTest::documentTabPassword()
         QCOMPARE(states.tabRect(i).width(), states.tabSizeHint(i).width());
     }
     QCOMPARE(statesAccessible->child(1)->text(QAccessible::Name), QStringLiteral("Bare.pdf, password protected, locked"));
+}
+
+void FluentComponentsTest::pageElementPixels_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::pageElementPixels()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    const Painter::State none = state(QStyle::State_None);
+    const Painter::State rtl = state(QStyle::State_None, Qt::RightToLeft);
+    const Painter::State disabled(QStyle::State_None);
+
+    // Nearer to the first token than to the second one
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other)
+    {
+        return colorDistance(color, expected) < colorDistance(color, other);
+    };
+
+    // Icon badge: a circle of the fill with the icon, the corners stay the surface
+    Painter::IconBadge badge;
+    badge.iconName = QStringLiteral("check");
+    badge.extent = 40;
+    badge.iconExtent = 20;
+    badge.fill = Color::AccentBlueBg;
+    badge.iconColor = Color::AccentBlueIcon;
+    QImage image = render([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 40, 40), badge, none); }, QSize(40, 40), scale);
+    const QColor blueFill = blend(token(Color::AccentBlueBg), surface);
+    QVERIFY(isNear(pixel(image, 5, 20), blueFill));
+    QVERIFY(isNear(pixel(image, 1, 1), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(10, 10, 20, 20), blueFill), token(Color::AccentBlueIcon), blueFill));
+
+    // A box of the radius 0 with a border, the badge keeps its size in a larger rectangle
+    badge.radius = 0.0;
+    badge.border = Color::AccentBlueBorder;
+    image = render([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 60, 40), badge, none); }, QSize(60, 40), scale);
+    QVERIFY(isNear(pixel(image, 2, 20), surface));
+    QVERIFY(isNear(pixel(image, 10, 20), blend(token(Color::AccentBlueBorder), surface)));
+    QVERIFY(isNear(pixel(image, 12, 2), blueFill));
+    QVERIFY(isNear(pixel(image, 55, 20), surface));
+
+    // Disabled: the icon icon/disabled; without the fill only the icon is drawn
+    image = render([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 60, 40), badge, disabled); }, QSize(60, 40), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(20, 10, 20, 20), blueFill), token(Color::IconDisabled), token(Color::AccentBlueIcon)));
+    badge.fill = std::nullopt;
+    badge.border = std::nullopt;
+    image = render([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 40, 40), badge, none); }, QSize(40, 40), scale);
+    QVERIFY(isNear(pixel(image, 2, 2), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(10, 10, 20, 20), surface), token(Color::AccentBlueIcon), surface));
+
+    // The logo of the application instead of the icon
+    badge.logo = true;
+    badge.fill = Color::BgSurface;
+    image = render([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 40, 40), badge, none); }, QSize(40, 40), scale);
+    QVERIFY(colorDistance(strongestInk(image, QRect(10, 10, 20, 20), surface), surface) > 60);
+
+    // Status badge: the background and the border of the hue, the icon at the leading edge (mirrored)
+    const Painter::StatusBadge status{ QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green };
+    const QSize statusSize = Painter::getStatusBadgeSize(status);
+    QCOMPARE(statusSize.height(), 21);
+    image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(statusSize)), status, none); }, statusSize, scale);
+    const QColor greenFill = blend(token(Color::AccentGreenBg), surface);
+    QVERIFY(isNear(pixel(image, statusSize.width() / 2, 0), blend(token(Color::AccentGreenBorder), surface)));
+    QVERIFY(isNear(pixel(image, 22, 2), greenFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(9, 4, 12, 13), greenFill), token(Color::AccentGreenIcon), greenFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(26, 3, statusSize.width() - 36, 15), greenFill), token(Color::AccentGreenIcon), greenFill));
+    image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(statusSize)), status, rtl); }, statusSize, scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(statusSize.width() - 21, 4, 12, 13), greenFill), token(Color::AccentGreenIcon), greenFill));
+
+    // Fact pill: bg/surface with the border, the icon icon/muted, the label text/secondary
+    const Painter::FactPill pill{ QStringLiteral("shield"), QStringLiteral("MIT License") };
+    const QSize pillSize = Painter::getFactPillSize(pill);
+    QCOMPARE(pillSize.height(), 25);
+    // pill-Open source 111:2227: the border 1 and the paddings 9 / 11 inside of it, the
+    // icon 13 and the gap 6 (review R2-D2)
+    QCOMPARE(pillSize.width(), 1 + 9 + 13 + 6 + qCeil(pdf::PDFStylePainter::textWidth(pill.text, pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium))) + 11 + 1);
+    image = render([&](QPainter& painter) { Painter::paintFactPill(&painter, QRectF(QPointF(0, 0), QSizeF(pillSize)), pill, none); }, pillSize, scale);
+    QVERIFY(isNear(pixel(image, pillSize.width() / 2, 0), blend(token(Color::BorderDefault), surface)));
+    QVERIFY(isNear(pixel(image, 24, 3), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(9, 6, 13, 13), surface), token(Color::IconMuted), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(28, 4, pillSize.width() - 39, 17), surface), token(Color::TextSecondary), surface));
+
+    // Avatar: the circle of the hue with its border and the initials
+    const Painter::Avatar avatar{ QStringLiteral("JM"), 56, 18, pdf::PDFAccentHue::Blue };
+    image = render([&](QPainter& painter) { Painter::paintAvatar(&painter, QRectF(0, 0, 56, 56), avatar, none); }, QSize(56, 56), scale);
+    QVERIFY(isNear(pixel(image, 1, 1), surface));
+    QVERIFY(isNear(pixel(image, 28, 0), blend(token(Color::AccentBlueBorder), surface)));
+    QVERIFY(isNear(pixel(image, 8, 28), blueFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(14, 16, 28, 24), blueFill), token(Color::AccentBlueIcon), blueFill));
+
+    // Status row: the dot of an active item bg/accent, of another one border/strong, the tag at the trailing edge
+    Painter::StatusRow row{ QStringLiteral("The new application"), QStringLiteral("One window"), QStringLiteral("In progress"), true };
+    image = render([&](QPainter& painter) { Painter::paintStatusRow(&painter, QRectF(0, 0, 400, 46), row, none); }, QSize(400, 46), scale);
+    QVERIFY(isNear(pixel(image, 14, 23), token(Color::BgAccent)));
+    QVERIFY(isCloser(strongestInk(image, QRect(28, 8, 120, 16), surface), token(Color::TextPrimary), surface));
+    const int tagWidth = Painter::getTagSize(Painter::Tag{ row.status }).width();
+    QVERIFY(colorDistance(strongestInk(image, QRect(400 - 8 - tagWidth, 12, tagWidth, 21), surface), surface) > 30);
+    QVERIFY(isNear(pixel(image, 300, 23), surface));
+    row.active = false;
+    image = render([&](QPainter& painter) { Painter::paintStatusRow(&painter, QRectF(0, 0, 400, 46), row, rtl); }, QSize(400, 46), scale);
+    QVERIFY(isNear(pixel(image, 400 - 15, 23), token(Color::BorderStrong)));
+    QVERIFY(colorDistance(strongestInk(image, QRect(8, 12, tagWidth, 21), surface), surface) > 30);
+
+    // Tinted card: the hue with its border, without a hue bg/surface with border/default
+    image = render([&](QPainter& painter) { Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), pdf::PDFAccentHue::Green); }, QSize(100, 60), scale);
+    QVERIFY(isNear(pixel(image, 50, 30), greenFill));
+    QVERIFY(isNear(pixel(image, 50, 0), blend(token(Color::AccentGreenBorder), surface)));
+    image = render([&](QPainter& painter) { painter.fillRect(QRectF(0, 0, 100, 60), token(Color::BgCanvas)); Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), std::nullopt); }, QSize(100, 60), scale);
+    QVERIFY(isNear(pixel(image, 50, 30), surface));
+    QVERIFY(isNear(pixel(image, 0, 0), token(Color::BgCanvas)));
+
+    // The widgets draw their painter functions (children: a window has the background bg/canvas)
+    QWidget holder;
+    pdf::PDFIconBadge iconBadge(QStringLiteral("download"), 40, 20, &holder);
+    iconBadge.setHue(pdf::PDFAccentHue::Blue);
+    iconBadge.resize(iconBadge.sizeHint());
+    QString difference = describeDifference(renderWidget(&iconBadge, scale), renderInWidget([&](QPainter& painter) { Painter::paintIconBadge(&painter, QRectF(0, 0, 40, 40), iconBadge.getBadge(), none); }, QSize(40, 40), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    pdf::PDFStatusBadge statusBadge(QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green, &holder);
+    statusBadge.resize(statusBadge.sizeHint());
+    difference = describeDifference(renderWidget(&statusBadge, scale), renderInWidget([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(statusSize)), status, none); }, statusSize, scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    pdf::PDFFactPill factPill(QStringLiteral("shield"), QStringLiteral("MIT License"), &holder);
+    factPill.resize(factPill.sizeHint());
+    difference = describeDifference(renderWidget(&factPill, scale), renderInWidget([&](QPainter& painter) { Painter::paintFactPill(&painter, QRectF(QPointF(0, 0), QSizeF(pillSize)), pill, none); }, pillSize, scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    pdf::PDFAvatar avatarWidget(QStringLiteral("JM"), 56, 18, &holder);
+    avatarWidget.resize(avatarWidget.sizeHint());
+    difference = describeDifference(renderWidget(&avatarWidget, scale), renderInWidget([&](QPainter& painter) { Painter::paintAvatar(&painter, QRectF(0, 0, 56, 56), avatar, none); }, QSize(56, 56), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    pdf::PDFStatusRow statusRow(row.title, row.subtitle, row.status, false, &holder);
+    statusRow.resize(400, 46);
+    difference = describeDifference(renderWidget(&statusRow, scale), renderInWidget([&](QPainter& painter) { Painter::paintStatusRow(&painter, QRectF(0, 0, 400, 46), statusRow.getRow(), none); }, QSize(400, 46), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    pdf::PDFTintedCard tintedCard(pdf::PDFAccentHue::Green, &holder);
+    tintedCard.resize(100, 60);
+    difference = describeDifference(renderWidget(&tintedCard, scale), renderInWidget([&](QPainter& painter) { Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), pdf::PDFAccentHue::Green); }, QSize(100, 60), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+
+    // No leak color in any of them
+    for (QWidget* widget : std::initializer_list<QWidget*>{ &iconBadge, &statusBadge, &factPill, &avatarWidget, &statusRow, &tintedCard })
+    {
+        QCOMPARE(countLeakPixels(renderWidget(widget, scale)), 0);
+    }
+}
+
+void FluentComponentsTest::pageElementWidgets()
+{
+    // Icon badge: sizes, setters, the colors of a hue, defensive values
+    pdf::PDFIconBadge badge;
+    QCOMPARE(badge.sizeHint(), QSize(40, 40));
+    QCOMPARE(badge.minimumSizeHint(), badge.sizeHint());
+    QVERIFY(badge.testAttribute(Qt::WA_TransparentForMouseEvents));
+    QCOMPARE(badge.getRadius(), -1.0);
+    badge.setExtent(-5);
+    QCOMPARE(badge.getExtent(), 0);
+    QCOMPARE(badge.sizeHint(), QSize(0, 0));
+    badge.setExtent(100000);
+    QCOMPARE(badge.sizeHint(), QSize(1024, 1024));
+    badge.setExtent(72);
+    badge.setIconExtent(-1);
+    QCOMPARE(badge.getIconExtent(), 0);
+    badge.setIconExtent(32);
+    badge.setIconName(QStringLiteral("clock"));
+    QCOMPARE(badge.getIconName(), QStringLiteral("clock"));
+    badge.setRadius(std::numeric_limits<qreal>::quiet_NaN());
+    QCOMPARE(badge.getRadius(), -1.0);
+    badge.setRadius(12.0);
+    QCOMPARE(badge.getRadius(), 12.0);
+    badge.setHue(pdf::PDFAccentHue::Violet);
+    QCOMPARE(badge.getFillColor(), std::optional<Color>(Color::AccentVioletBg));
+    QCOMPARE(badge.getIconColor(), Color::AccentVioletIcon);
+    QVERIFY(!badge.getBorderColor().has_value());
+    badge.setHue(static_cast<pdf::PDFAccentHue>(1000));
+    QCOMPARE(badge.getFillColor(), std::optional<Color>(Color::AccentNeutralBg));
+    badge.setColors(std::nullopt, Color::IconDanger, Color::BorderDefault);
+    QVERIFY(!badge.getFillColor().has_value());
+    QCOMPARE(badge.getBorderColor(), std::optional<Color>(Color::BorderDefault));
+    badge.setLogo(true);
+    QVERIFY(badge.isLogo());
+    QCOMPARE(badge.getBadge().extent, 72);
+
+    // Setting the same values changes nothing
+    badge.setLogo(true);
+    badge.setExtent(72);
+    badge.setIconExtent(32);
+    badge.setIconName(QStringLiteral("clock"));
+    badge.setRadius(12.0);
+    QCOMPARE(badge.getBadge().radius, 12.0);
+
+    // Defensive drawing: a null painter, empty and NaN rectangles, invalid colors and huge values
+    Painter::IconBadge hostile;
+    hostile.extent = std::numeric_limits<int>::max();
+    hostile.iconExtent = std::numeric_limits<int>::min();
+    hostile.radius = std::numeric_limits<qreal>::infinity();
+    hostile.fill = static_cast<Color>(-3);
+    hostile.border = static_cast<Color>(100000);
+    hostile.iconColor = static_cast<Color>(-1);
+    hostile.iconName = QStringLiteral("no-such-icon");
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    QImage image = render([&](QPainter& painter)
+    {
+        Painter::paintIconBadge(nullptr, QRectF(0, 0, 10, 10), hostile, state(QStyle::State_None));
+        Painter::paintIconBadge(&painter, QRectF(), hostile, state(QStyle::State_None));
+        Painter::paintIconBadge(&painter, QRectF(0, 0, nan, 10), hostile, state(QStyle::State_None));
+        Painter::paintIconBadge(&painter, QRectF(0, 0, 20, 20), hostile, state(QStyle::State_None));
+        hostile.iconExtent = 10;
+        Painter::paintIconBadge(&painter, QRectF(0, 0, 20, 20), hostile, state(QStyle::State_None));
+        Painter::paintStatusBadge(nullptr, QRectF(0, 0, 10, 10), Painter::StatusBadge(), state(QStyle::State_None));
+        Painter::paintStatusBadge(&painter, QRectF(0, 0, -5, 10), Painter::StatusBadge(), state(QStyle::State_None));
+        Painter::paintStatusBadge(&painter, QRectF(0, 0, 8, 21), Painter::StatusBadge{ QStringLiteral("Long text"), QString(), static_cast<pdf::PDFAccentHue>(-1) }, state(QStyle::State_None));
+        Painter::paintFactPill(nullptr, QRectF(0, 0, 10, 10), Painter::FactPill(), state(QStyle::State_None));
+        Painter::paintFactPill(&painter, QRectF(0, 0, 5, 25), Painter::FactPill{ QString(), QStringLiteral("Text") }, state(QStyle::State_None));
+        Painter::paintAvatar(nullptr, QRectF(0, 0, 10, 10), Painter::Avatar(), state(QStyle::State_None));
+        Painter::paintAvatar(&painter, QRectF(0, 0, 30, 30), Painter::Avatar{ QStringLiteral("ABCDEFG"), -10, -10, pdf::PDFAccentHue::Blue }, state(QStyle::State_None));
+        Painter::paintAvatar(&painter, QRectF(0, 0, 30, 30), Painter::Avatar{ QStringLiteral("ABCDEFG"), 30, 100000, static_cast<pdf::PDFAccentHue>(77) }, state(QStyle::State_None));
+        Painter::paintStatusRow(nullptr, QRectF(0, 0, 10, 10), Painter::StatusRow(), state(QStyle::State_None));
+        Painter::paintStatusRow(&painter, QRectF(0, 0, 20, 46), Painter::StatusRow{ QStringLiteral("Title"), QStringLiteral("Subtitle"), QStringLiteral("A long status"), true }, state(QStyle::State_None));
+        Painter::paintStatusRow(&painter, QRectF(0, 0, 200, 46), Painter::StatusRow{ QStringLiteral("Title"), QString(), QString(), false }, Painter::State(QStyle::State_None));
+        Painter::paintTintedCard(nullptr, QRectF(0, 0, 10, 10), std::nullopt);
+        Painter::paintTintedCard(&painter, QRectF(), pdf::PDFAccentHue::Blue);
+        Painter::paintTintedCard(&painter, QRectF(0, 0, 20, 20), static_cast<pdf::PDFAccentHue>(99));
+    }, QSize(40, 40), 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+    QCOMPARE(Painter::getIconBadgeSize(hostile), QSize(1024, 1024));
+    QCOMPARE(Painter::getAvatarSize(Painter::Avatar{ QString(), -1, 1, pdf::PDFAccentHue::Blue }), QSize(0, 0));
+
+    // Status badge: the size follows the text, the accessible name is the text (also after a change)
+    pdf::PDFStatusBadge statusBadge;
+    QCOMPARE(statusBadge.sizeHint().height(), 21);
+    statusBadge.setBadge(QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green);
+    const int width = statusBadge.sizeHint().width();
+    QCOMPARE(statusBadge.accessibleName(), QStringLiteral("Up to date"));
+    statusBadge.setBadge(QStringLiteral("Update available"), QStringLiteral("download"), pdf::PDFAccentHue::Amber);
+    QVERIFY(statusBadge.sizeHint().width() > width);
+    QCOMPARE(statusBadge.accessibleName(), QStringLiteral("Update available"));
+    QCOMPARE(statusBadge.getHue(), pdf::PDFAccentHue::Amber);
+    QCOMPARE(statusBadge.getIconName(), QStringLiteral("download"));
+    QCOMPARE(statusBadge.getText(), QStringLiteral("Update available"));
+    QCOMPARE(statusBadge.minimumSizeHint(), statusBadge.sizeHint());
+    statusBadge.setAccessibleName(QStringLiteral("Own name"));
+    statusBadge.setBadge(QStringLiteral("Previous release"), QStringLiteral("clock"), static_cast<pdf::PDFAccentHue>(-5));
+    QCOMPARE(statusBadge.accessibleName(), QStringLiteral("Own name"));
+    QCOMPARE(statusBadge.getHue(), pdf::PDFAccentHue::Neutral);
+
+    // Fact pill
+    pdf::PDFFactPill pill(QStringLiteral("github"), QStringLiteral("Open source"));
+    QCOMPARE(pill.sizeHint().height(), 25);
+    QCOMPARE(pill.accessibleName(), QStringLiteral("Open source"));
+    const int pillWidth = pill.sizeHint().width();
+    pill.setText(QStringLiteral("Open source software"));
+    QVERIFY(pill.sizeHint().width() > pillWidth);
+    QCOMPARE(pill.accessibleName(), QStringLiteral("Open source software"));
+    pill.setText(QStringLiteral("Open source software"));
+    pill.setIconName(QStringLiteral("shield"));
+    QCOMPARE(pill.getIconName(), QStringLiteral("shield"));
+    QCOMPARE(pill.getPill().text, pill.getText());
+    QCOMPARE(pill.minimumSizeHint(), pill.sizeHint());
+    pill.setIconName(QStringLiteral("shield"));
+    pill.setAccessibleName(QStringLiteral("Own name"));
+    pill.setText(QStringLiteral("Another fact"));
+    QCOMPARE(pill.accessibleName(), QStringLiteral("Own name"));
+    pdf::PDFFactPill emptyPill;
+    QCOMPARE(emptyPill.sizeHint().height(), 25);
+
+    // Avatar
+    pdf::PDFAvatar avatar(QStringLiteral("JM"), 56, 18);
+    QCOMPARE(avatar.sizeHint(), QSize(56, 56));
+    QCOMPARE(avatar.minimumSizeHint(), QSize(56, 56));
+    avatar.setExtent(40);
+    avatar.setFontPixelSize(0);
+    QCOMPARE(avatar.getFontPixelSize(), 1);
+    avatar.setFontPixelSize(14);
+    avatar.setInitials(QStringLiteral("AB"));
+    avatar.setHue(pdf::PDFAccentHue::Green);
+    QCOMPARE(avatar.getAvatar().initials, QStringLiteral("AB"));
+    QCOMPARE(avatar.getHue(), pdf::PDFAccentHue::Green);
+    QCOMPARE(avatar.sizeHint(), QSize(40, 40));
+    QCOMPARE(avatar.getExtent(), 40);
+    QCOMPARE(avatar.getInitials(), QStringLiteral("AB"));
+    avatar.setExtent(40);
+    avatar.setFontPixelSize(14);
+    avatar.setInitials(QStringLiteral("AB"));
+    avatar.setHue(pdf::PDFAccentHue::Green);
+    QCOMPARE(avatar.getFontPixelSize(), 14);
+
+    // Status row: sizes, accessibility (name = title, description = subtitle and status)
+    pdf::PDFStatusRow row(QStringLiteral("The new application"), QStringLiteral("One window"), QStringLiteral("In progress"), true);
+    QCOMPARE(row.sizeHint().height(), 46);
+    QVERIFY(row.minimumSizeHint().width() < row.sizeHint().width());
+    QCOMPARE(row.accessibleName(), QStringLiteral("The new application"));
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("One window, In progress"));
+    row.setStatus(QString());
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("One window"));
+    const int rowWidth = row.minimumSizeHint().width();
+    row.setStatus(QStringLiteral("Planned"));
+    QVERIFY(row.minimumSizeHint().width() > rowWidth);
+    row.setTitle(QStringLiteral("Accessibility"));
+    row.setSubtitle(QStringLiteral("Tagged PDF"));
+    row.setActive(false);
+    QVERIFY(!row.isActive());
+    QCOMPARE(row.accessibleName(), QStringLiteral("Accessibility"));
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Tagged PDF, Planned"));
+    row.setAccessibleName(QStringLiteral("Own"));
+    row.setTitle(QStringLiteral("Another"));
+    QCOMPARE(row.accessibleName(), QStringLiteral("Own"));
+    QCOMPARE(row.getTitle(), QStringLiteral("Another"));
+    QCOMPARE(row.getSubtitle(), QStringLiteral("Tagged PDF"));
+    QCOMPARE(row.getStatus(), QStringLiteral("Planned"));
+    row.setAccessibleDescription(QStringLiteral("Own description"));
+    row.setSubtitle(QStringLiteral("Other subtitle"));
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("Own description"));
+    row.setTitle(QStringLiteral("Another"));
+    row.setSubtitle(QStringLiteral("Other subtitle"));
+    row.setStatus(QStringLiteral("Planned"));
+    row.setActive(false);
+    QCOMPARE(row.getRow().subtitle, QStringLiteral("Other subtitle"));
+
+    // Tinted card
+    pdf::PDFTintedCard card;
+    QVERIFY(!card.getHue().has_value());
+    card.setHue(pdf::PDFAccentHue::Blue);
+    QCOMPARE(card.getHue(), std::optional<pdf::PDFAccentHue>(pdf::PDFAccentHue::Blue));
+    card.setHue(static_cast<pdf::PDFAccentHue>(55));
+    QCOMPARE(card.getHue(), std::optional<pdf::PDFAccentHue>(pdf::PDFAccentHue::Neutral));
+    card.setHue(std::nullopt);
+    card.setHue(std::nullopt);
+    QVERIFY(!card.getHue().has_value());
+
+    // The widgets follow the theme, the direction and the enabled state without a leak color
+    QWidget window;
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    layout->addWidget(new pdf::PDFIconBadge(QStringLiteral("check"), 32, 16, &window));
+    layout->addWidget(new pdf::PDFStatusBadge(QStringLiteral("Up to date"), QStringLiteral("check"), pdf::PDFAccentHue::Green, &window));
+    layout->addWidget(new pdf::PDFFactPill(QStringLiteral("shield"), QStringLiteral("MIT"), &window));
+    layout->addWidget(new pdf::PDFAvatar(QStringLiteral("JM"), 40, 14, &window));
+    layout->addWidget(new pdf::PDFStatusRow(QStringLiteral("Title"), QStringLiteral("Subtitle"), QStringLiteral("Planned"), true, &window));
+    layout->addWidget(new pdf::PDFTintedCard(pdf::PDFAccentHue::Blue, &window));
+    window.resize(900, 60);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto checkChildren = [&]()
+    {
+        for (QWidget* child : window.findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+        {
+            QCOMPARE(countLeakPixels(renderWidget(child, 1.0)), 0);
+        }
+    };
+    for (const char* theme : { "dark", "light" })
+    {
+        QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QString::fromLatin1(theme)));
+        window.setLayoutDirection(Qt::RightToLeft);
+        window.setEnabled(false);
+        window.setFont(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Small));
+        checkChildren();
+        window.setEnabled(true);
+        window.setLayoutDirection(Qt::LeftToRight);
+        checkChildren();
+    }
+}
+
+void FluentComponentsTest::recentStates()
+{
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
+    const QColor surface = token(Color::BgSurface);
+    const QColor redFill = blend(token(Color::AccentRedBg), surface);
+
+    // The badge of a missing file: accent/red/bg with text/danger
+    const QSize badgeSize = Painter::getMissingFileBadgeSize();
+    QCOMPARE(badgeSize.height(), 19);
+    QImage image = render([&](QPainter& painter) { Painter::paintMissingFileBadge(&painter, QRectF(QPointF(0, 0), QSizeF(badgeSize)), state(QStyle::State_None)); }, badgeSize);
+    QVERIFY(isNear(pixel(image, 5, 9), redFill));
+    QVERIFY(countPixels(image, QRect(8, 2, badgeSize.width() - 16, 15), token(Color::TextDanger), 40) > 0);
+    image = render([&](QPainter& painter)
+    {
+        Painter::paintMissingFileBadge(nullptr, QRectF(0, 0, 10, 10), state(QStyle::State_None));
+        Painter::paintMissingFileBadge(&painter, QRectF(), state(QStyle::State_None));
+    }, QSize(10, 10));
+    QVERIFY(isNear(pixel(image, 5, 5), surface));
+
+    // A locked thumbnail: bg/subtle with the lock icon/muted instead of the picture or the lines
+    for (const Painter::ThumbnailSize size : { Painter::ThumbnailSize::Small, Painter::ThumbnailSize::Medium, Painter::ThumbnailSize::Large })
+    {
+        const QSize frame = Painter::getPageThumbnailSize(size);
+        Painter::PageThumbnail thumbnail{ size, QPixmap(), true };
+        image = render([&](QPainter& painter) { Painter::paintPageThumbnailFrame(&painter, QRectF(QPointF(0, 0), QSizeF(frame)), thumbnail, state(QStyle::State_None)); }, frame);
+        QVERIFY(isNear(pixel(image, 3, frame.height() - 4), blend(token(Color::BgSubtle), surface)));
+        const QRect center(frame.width() / 2 - 6, frame.height() / 2 - 6, 12, 12);
+        QVERIFY(colorDistance(strongestInk(image, center, blend(token(Color::BgSubtle), surface)), token(Color::IconMuted)) < 60);
+        image = render([&](QPainter& painter) { Painter::paintPageThumbnailFrame(&painter, QRectF(QPointF(0, 0), QSizeF(frame)), thumbnail, Painter::State(QStyle::State_None)); }, frame);
+        QVERIFY(colorDistance(strongestInk(image, center, blend(token(Color::BgSubtle), surface)), token(Color::IconDisabled)) < 60);
+    }
+
+    // Recent item row: the missing file has the badge in the column of the progress
+    // and no bar, the locked file the lock, an item without the star has its place empty
+    Painter::RecentItemRow row;
+    row.name = QStringLiteral("Building_Plan.pdf");
+    row.details = QStringLiteral("D:\\Projects");
+    row.progressText = QStringLiteral("Page 2 of 4");
+    row.progress = 0.5;
+    row.opened = QStringLiteral("Sep 3");
+    const QRectF rect(0, 0, 802, 56);
+    const QRectF star = Painter::getRecentItemRowStarRect(rect, state(QStyle::State_None));
+    auto renderRow = [&](const Painter::RecentItemRow& content, Qt::LayoutDirection direction = Qt::LeftToRight)
+    {
+        return render([&](QPainter& painter) { Painter::paintRecentItemRow(&painter, rect, content, state(QStyle::State_None, direction)); }, QSize(802, 56));
+    };
+    image = renderRow(row);
+    QVERIFY(colorDistance(strongestInk(image, star.toRect(), surface), surface) > 60);
+    const QRect progressColumn(802 - 8 - 16 - 2 * 14 - 24 - 96 - 14 - 132, 0, 132, 56);
+    QCOMPARE(countPixels(image, progressColumn, redFill, 3), 0);
+    row.status = Painter::FileStatus::Missing;
+    image = renderRow(row);
+    QVERIFY(countPixels(image, progressColumn, redFill, 3) > 100);
+    QCOMPARE(countPixels(image, progressColumn, token(Color::AccentGreenIcon), 3), 0);
+    QVERIFY(countPixels(image, QRect(60, 8, 120, 20), token(Color::TextMuted), 40) > 0);
+    QCOMPARE(countPixels(image, QRect(60, 8, 120, 20), token(Color::TextPrimary), 10), 0);
+    image = renderRow(row, Qt::RightToLeft);
+    QVERIFY(countPixels(image, QRect(802 - progressColumn.right() - 1, 0, 132, 56), redFill, 3) > 100);
+    row.status = static_cast<Painter::FileStatus>(9);
+    image = renderRow(row);
+    QCOMPARE(countPixels(image, progressColumn, redFill, 3), 0);
+    row.status = Painter::FileStatus::Available;
+    row.starVisible = false;
+    image = renderRow(row);
+    QVERIFY(colorDistance(strongestInk(image, star.toRect(), surface), surface) < 10);
+    row.starVisible = true;
+    row.locked = true;
+    image = renderRow(row);
+    QVERIFY(isNear(pixel(image, 14, 28 + 12), blend(token(Color::BgSubtle), surface)));
+
+    // Pinned card: the missing file has the badge at the bottom instead of the progress,
+    // the locked one the lock in its thumbnail
+    Painter::PinnedCard card;
+    card.name = QStringLiteral("Project_Report.pdf");
+    card.path = QStringLiteral("C:\\Users\\Jakub");
+    card.progressText = QStringLiteral("Page 12 of 24");
+    card.progress = 0.5;
+    auto renderCard = [&](const Painter::PinnedCard& content) { return render([&](QPainter& painter) { Painter::paintPinnedCard(&painter, QRectF(0, 0, 259, 100), content, state(QStyle::State_None)); }, QSize(259, 100)); };
+    image = renderCard(card);
+    QCOMPARE(countPixels(image, QRect(81, 60, 140, 30), redFill, 3), 0);
+    QVERIFY(countPixels(image, QRect(81, 82, 140, 6), token(Color::BgAccent), 20) > 0);
+    card.status = Painter::FileStatus::Missing;
+    image = renderCard(card);
+    QVERIFY(countPixels(image, QRect(81, 60, 140, 30), redFill, 3) > 100);
+    QCOMPARE(countPixels(image, QRect(81, 82, 140, 6), token(Color::BgAccent), 20), 0);
+    QVERIFY(countPixels(image, QRect(81, 13, 140, 16), token(Color::TextMuted), 40) > 0);
+    card.status = Painter::FileStatus::Available;
+    card.locked = true;
+    image = renderCard(card);
+    QVERIFY(isNear(pixel(image, 16, 80), blend(token(Color::BgSubtle), surface)));
+
+    // The widget of the pinned card: status, lock and the accessible description
+    pdf::PDFPinnedCard pinned(QStringLiteral("Project_Report.pdf"), QStringLiteral("C:\\Users\\Jakub"), QStringLiteral("Page 12 of 24"), 0.5);
+    QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(&pinned);
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("C:\\Users\\Jakub, Page 12 of 24"));
+    pinned.setStatus(pdf::PDFPinnedCard::Status::Missing);
+    QCOMPARE(pinned.getStatus(), pdf::PDFPinnedCard::Status::Missing);
+    QCOMPARE(pinned.getContent().status, Painter::FileStatus::Missing);
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("No longer exists, C:\\Users\\Jakub"));
+    pinned.setLocked(true);
+    QVERIFY(pinned.isLocked());
+    QVERIFY(pinned.getContent().locked);
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("No longer exists, C:\\Users\\Jakub, Protected by a password"));
+    pinned.setStatus(static_cast<pdf::PDFPinnedCard::Status>(42));
+    QCOMPARE(pinned.getStatus(), pdf::PDFPinnedCard::Status::Available);
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("C:\\Users\\Jakub, Page 12 of 24, Protected by a password"));
+    QVERIFY(pinned.setProperty("locked", false));
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("C:\\Users\\Jakub, Page 12 of 24"));
+    pinned.resize(pinned.sizeHint());
+    pinned.setLocked(true);
+    pinned.setStatus(pdf::PDFPinnedCard::Status::Missing);
+    Painter::PinnedCard pinnedContent = pinned.getContent();
+    pinnedContent.paintNested = true;
+    const QString difference = describeDifference(renderWidget(&pinned, 1.0), renderInWidget([&](QPainter& painter) { Painter::paintPinnedCard(&painter, QRectF(0, 0, 259, 100), pinnedContent, state(QStyle::State_None)); }, QSize(259, 100), 1.0), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+
+    // The delegate: the roles StarVisibleRole, MissingRole and LockedRole; an item
+    // without the star has only the menu action
+    using Roles = pdf::PDFComponentRoles;
+    QStandardItemModel model;
+    QStandardItem* file = new QStandardItem(QStringLiteral("Building_Plan.pdf"));
+    file->setData(true, Roles::MissingRole);
+    file->setData(true, Roles::LockedRole);
+    model.appendRow(file);
+    QStandardItem* workspace = new QStandardItem(QStringLiteral("Thesis review"));
+    workspace->setData(static_cast<int>(Painter::RecentItemType::Workspace), Roles::ItemTypeRole);
+    workspace->setData(false, Roles::StarVisibleRole);
+    model.appendRow(workspace);
+    QStandardItem* other = new QStandardItem(QStringLiteral("Other.pdf"));
+    other->setData(QStringLiteral("yes"), Roles::StarVisibleRole);
+    model.appendRow(other);
+    pdf::PDFRecentItemDelegate delegate;
+    QCOMPARE(delegate.getContent(model.index(0, 0)).status, Painter::FileStatus::Missing);
+    QVERIFY(delegate.getContent(model.index(0, 0)).locked);
+    QVERIFY(delegate.getContent(model.index(0, 0)).starVisible);
+    QVERIFY(!delegate.getContent(model.index(1, 0)).starVisible);
+    QCOMPARE(delegate.getContent(model.index(1, 0)).status, Painter::FileStatus::Available);
+    QVERIFY(delegate.getContent(model.index(2, 0)).starVisible);
+
+    pdf::PDFListView view;
+    view.setModel(&model);
+    view.setItemDelegate(&delegate);
+    view.resize(830, 3 * 56 + 16);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QCOMPARE(delegate.getActions(DelegateSamples::viewOption(&view, model.index(0, 0)), model.index(0, 0)).size(), 2);
+    const QList<pdf::PDFRowDelegate::Action> workspaceActions = delegate.getActions(DelegateSamples::viewOption(&view, model.index(1, 0)), model.index(1, 0));
+    QCOMPARE(workspaceActions.size(), 1);
+    QCOMPARE(workspaceActions.front().id, int(pdf::PDFRecentItemDelegate::MenuAction));
+    QVERIFY(delegate.getActionRect(&view, model.index(1, 0), pdf::PDFRecentItemDelegate::PinAction).isEmpty());
+    QSignalSpy triggered(&delegate, &pdf::PDFRowDelegate::actionTriggered);
+    delegate.triggerAction(&view, model.index(1, 0), pdf::PDFRecentItemDelegate::PinAction);
+    QCOMPARE(triggered.count(), 0);
+    QVERIFY(!model.index(1, 0).data(Roles::PinnedRole).toBool());
+    delegate.triggerAction(&view, model.index(1, 0), pdf::PDFRecentItemDelegate::MenuAction);
+    QCOMPARE(triggered.count(), 1);
+    view.setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::messageBoxCustomContent()
+{
+    QWidget host;
+    host.resize(800, 600);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Rename workspace"),
+                                                              QStringLiteral("A text of the dialog, which is long enough to wrap in the card of the width of the frame of the design."),
+                                                              QDialogButtonBox::NoButton, &host);
+    QVERIFY(box->isBadgeVisible());
+    box->setBadgeVisible(false);
+    QVERIFY(!box->isBadgeVisible());
+    box->setBadgeVisible(true);
+    QVERIFY(box->isBadgeVisible());
+    box->setBadgeVisible(false);
+
+    QCOMPARE(box->getCardWidth(), 0);
+    QCOMPARE(box->getContentWidth(), 0);
+    box->setCardWidth(-100);
+    QCOMPARE(box->getCardWidth(), 0);
+    box->setCardWidth(440);
+    QCOMPARE(box->getCardWidth(), 440);
+    QCOMPARE(box->getContentWidth(), 440 - 2 * 22);
+    box->setCardWidth(440);
+
+    // The content lies between the head and the buttons, in the order of the calls
+    pdf::PDFLineEdit* field = new pdf::PDFLineEdit(QStringLiteral("Thesis review"));
+    pdf::PDFLabel* note = new pdf::PDFLabel(QStringLiteral("Note"), pdf::PDFThemeFonts::Role::Small, Color::TextMuted);
+    box->addContent(field);
+    box->addContent(note);
+    box->addContent(nullptr);
+    QCOMPARE(field->parentWidget(), box.data());
+    QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(box->layout());
+    QVERIFY(mainLayout);
+    QVERIFY(mainLayout->indexOf(field) < mainLayout->indexOf(note));
+    QCOMPARE(mainLayout->indexOf(note), mainLayout->count() - 2);
+
+    // The own row of the buttons: leading buttons first, trailing ones in the order of the calls
+    QPushButton* cancel = box->addActionButton(QStringLiteral("Cancel"), pdf::PDFMessageBox::ActionPosition::Trailing, false);
+    QPushButton* rename = box->addActionButton(QStringLiteral("Rename"), pdf::PDFMessageBox::ActionPosition::Trailing, true);
+    QPushButton* remove = box->addActionButton(QStringLiteral("Delete"), pdf::PDFMessageBox::ActionPosition::Leading, false);
+    QPushButton* other = box->addActionButton(QStringLiteral("Other"), pdf::PDFMessageBox::ActionPosition::Leading, false);
+    QCOMPARE(box->getActionButtons(), QList<QPushButton*>({ remove, other, cancel, rename }));
+    QVERIFY(rename->isDefault());
+    QVERIFY(!cancel->isDefault());
+    QVERIFY(!rename->autoDefault());
+    QVERIFY(pdf::PDFWidgetStyleProperties::isSet(rename, pdf::PDFWidgetStyleProperties::PRIMARY));
+    QVERIFY(!pdf::PDFWidgetStyleProperties::isSet(cancel, pdf::PDFWidgetStyleProperties::PRIMARY));
+    QVERIFY(box->getButtonBox()->isHidden());
+
+    // The width of the card, the height of the content at it, the field keeps the focus
+    field->setFocus();
+    box->show();
+    QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+    const QMargins shadow = box->getShadowMargins();
+    QCOMPARE(box->width(), 440 + shadow.left() + shadow.right());
+    QCOMPARE(box->sizeHint().width(), box->width());
+    QVERIFY(box->height() >= box->sizeHint().height() - 1);
+    QTRY_VERIFY(field->hasFocus());
+    QVERIFY(remove->geometry().left() < cancel->geometry().left());
+    QVERIFY(cancel->geometry().left() < rename->geometry().left());
+
+    // An action button does not close the dialog; Escape rejects it (no button box button)
+    QSignalSpy finished(box.data(), &QDialog::finished);
+    rename->click();
+    QVERIFY(box->isVisible());
+    QCOMPARE(finished.count(), 0);
+    QTest::keyClick(box.data(), Qt::Key_Escape);
+    QTRY_VERIFY(!box->isVisible());
+    QCOMPARE(finished.count(), 1);
+
+    // A deleted button leaves the row; the card follows its content again
+    delete other;
+    QCOMPARE(box->getActionButtons(), QList<QPushButton*>({ remove, cancel, rename }));
+    box->setCardWidth(0);
+    QCOMPARE(box->getContentWidth(), 0);
+    QCOMPARE(box->maximumWidth(), QWIDGETSIZE_MAX);
+    box->show();
+    QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+    box->hide();
+
+    // A message box with standard buttons keeps them beside the own row
+    pdf::PDFMessageBox standard(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok);
+    QPushButton* extra = standard.addActionButton(QStringLiteral("Details"), pdf::PDFMessageBox::ActionPosition::Leading, false);
+    QVERIFY(extra);
+    QVERIFY(!standard.getButtonBox()->isHidden());
+
+    // The badge, the button box and the row of the buttons deleted by the application
+    {
+        pdf::PDFMessageBox parts(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::NoButton);
+        QWidget* badgeWidget = nullptr;
+        for (QWidget* child : parts.findChildren<QWidget*>())
+        {
+            if (child->accessibleName() == QStringLiteral("Information"))
+            {
+                badgeWidget = child;
+            }
+        }
+        QVERIFY(badgeWidget);
+        delete badgeWidget;
+        QVERIFY(!parts.isBadgeVisible());
+        parts.setBadgeVisible(true);
+        QVERIFY(!parts.isBadgeVisible());
+
+        delete parts.getButtonBox();
+        QVERIFY(parts.addActionButton(QStringLiteral("First"), pdf::PDFMessageBox::ActionPosition::Trailing, false));
+
+        // A row without its stretch puts a leading button at its end
+        QBoxLayout* partsLayout = qobject_cast<QBoxLayout*>(parts.layout());
+        QVERIFY(partsLayout);
+        QBoxLayout* actions = qobject_cast<QBoxLayout*>(partsLayout->itemAt(partsLayout->count() - 1)->layout());
+        QVERIFY(actions);
+        for (int i = actions->count() - 1; i >= 0; --i)
+        {
+            if (actions->itemAt(i)->spacerItem())
+            {
+                delete actions->takeAt(i);
+            }
+        }
+        QPushButton* leading = parts.addActionButton(QStringLiteral("Leading"), pdf::PDFMessageBox::ActionPosition::Leading, false);
+        QCOMPARE(actions->indexOf(leading), actions->count() - 1);
+
+        // Without the row: no button, the content at the end of the layout
+        delete actions;
+        QCOMPARE(parts.addActionButton(QStringLiteral("Late"), pdf::PDFMessageBox::ActionPosition::Trailing, false), nullptr);
+        QVERIFY(parts.getActionButtons().isEmpty());
+        QWidget* content = new QWidget();
+        parts.addContent(content);
+        QCOMPARE(partsLayout->indexOf(content), partsLayout->count() - 1);
+    }
+
+    // The parts deleted by the application
+    delete box->layout();
+    QCOMPARE(box->addActionButton(QStringLiteral("Late"), pdf::PDFMessageBox::ActionPosition::Trailing, false), nullptr);
+    QVERIFY(box->getActionButtons().isEmpty());
+    box->addContent(new QWidget(box.data()));
+    box->setCardWidth(300);
+    QCOMPARE(box->sizeHint().width(), 300 + box->getShadowMargins().left() + box->getShadowMargins().right());
+    delete box.data();
 }
 
 QTEST_MAIN(FluentComponentsTest)

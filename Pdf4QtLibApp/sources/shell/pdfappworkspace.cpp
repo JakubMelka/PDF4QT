@@ -23,6 +23,7 @@
 #include "pdfappworkspace.h"
 #include "pdfappcontext.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfappsearchwidgets.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 
@@ -46,6 +47,7 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QStyle>
 #include <QtMath>
@@ -645,6 +647,168 @@ void PDFAppSidebar::updateThemeSwitch()
     }
 }
 
+PDFAppCrumbLink::PDFAppCrumbLink(const QString& text, QWidget* parent) :
+    BaseClass(FocusRing::Outside, parent)
+{
+    setFocusRingRadius(4.0);
+    setFocusPolicy(Qt::TabFocus);
+    setCursor(Qt::PointingHandCursor);
+    setText(text);
+}
+
+QFont PDFAppCrumbLink::getCrumbFont(bool isUnderlined)
+{
+    QFont font = PDFThemeFonts::getFont(QFont::Medium, 12);
+    font.setUnderline(isUnderlined);
+    return font;
+}
+
+void PDFAppCrumbLink::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::DirectionGuard directionGuard(painter, state);
+    PDFThemeColors::Color color = PDFThemeColors::TextAccent;
+    if (!state.isEnabled())
+    {
+        color = PDFThemeColors::TextDisabled;
+    }
+    else if (state.isPressed())
+    {
+        color = PDFThemeColors::TextAccentPressed;
+    }
+
+    PDFStylePainter::text(painter, rect, int(Qt::AlignVCenter | Qt::AlignHCenter | Qt::TextSingleLine), text(), getCrumbFont(state.isHovered()), PDFStylePainter::color(color));
+}
+
+QSize PDFAppCrumbLink::getContentSizeHint() const
+{
+    return QSize(int(std::ceil(PDFStylePainter::textWidth(text(), getCrumbFont()))), 15);
+}
+
+PDFAppBreadcrumb::PDFAppBreadcrumb(QWidget* parent) :
+    BaseClass(parent)
+{
+    setObjectName(QStringLiteral("breadcrumb"));
+    m_layout = new QHBoxLayout(this);
+    m_layout->setContentsMargins(0, 0, 0, 0);
+    m_layout->setSpacing(6);
+    m_layout->addStretch(1);
+}
+
+void PDFAppBreadcrumb::clear()
+{
+    if (!m_layout)
+    {
+        return;
+    }
+
+    // A link may be the sender of the navigation, which has replaced the items
+    while (m_layout->count() > 1)
+    {
+        QLayoutItem* item = m_layout->takeAt(0);
+        if (QWidget* widget = item->widget())
+        {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    m_links.clear();
+    m_routes.clear();
+}
+
+void PDFAppBreadcrumb::setItems(const QList<PDFAppBreadcrumbItem>& items)
+{
+    clear();
+    for (const PDFAppBreadcrumbItem& item : items)
+    {
+        if (item.route.isValid())
+        {
+            addLink(item.text, item.route.toString());
+        }
+        else
+        {
+            addCurrent(item.text);
+        }
+    }
+}
+
+void PDFAppBreadcrumb::addSeparator()
+{
+    if (!m_layout || m_layout->count() <= 1)
+    {
+        return;
+    }
+
+    PDFLabel* separator = new PDFLabel(QString(QChar(0x203A)), PDFThemeFonts::Role::SmallMedium, PDFThemeColors::TextTertiary, this);
+    separator->setFont(PDFThemeFonts::getFont(QFont::Medium, 12));
+    m_layout->insertWidget(m_layout->count() - 1, separator);
+}
+
+void PDFAppBreadcrumb::addLink(const QString& text, const QString& route)
+{
+    if (!m_layout)
+    {
+        return;
+    }
+
+    addSeparator();
+    PDFAppCrumbLink* link = new PDFAppCrumbLink(text, this);
+    m_layout->insertWidget(m_layout->count() - 1, link);
+    m_links.append(link);
+    m_routes.append(route);
+    connect(link, &PDFAppCrumbLink::clicked, this, &PDFAppBreadcrumb::onLinkClicked);
+}
+
+void PDFAppBreadcrumb::addCurrent(const QString& text)
+{
+    if (!m_layout)
+    {
+        return;
+    }
+
+    addSeparator();
+    PDFLabel* label = new PDFLabel(QString(), PDFThemeFonts::Role::SmallMedium, PDFThemeColors::TextTertiary, this);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
+    label->setFont(PDFThemeFonts::getFont(QFont::Medium, 12));
+    m_layout->insertWidget(m_layout->count() - 1, label);
+}
+
+QList<PDFAppCrumbLink*> PDFAppBreadcrumb::getLinks() const
+{
+    QList<PDFAppCrumbLink*> links;
+    for (const QPointer<PDFAppCrumbLink>& link : m_links)
+    {
+        if (link)
+        {
+            links.append(link);
+        }
+    }
+    return links;
+}
+
+QString PDFAppBreadcrumb::getRoute(const PDFAppCrumbLink* link) const
+{
+    for (qsizetype i = 0; i < m_links.size(); ++i)
+    {
+        if (m_links.at(i) == link)
+        {
+            return m_routes.value(i);
+        }
+    }
+    return QString();
+}
+
+void PDFAppBreadcrumb::onLinkClicked()
+{
+    const PDFAppCrumbLink* link = qobject_cast<const PDFAppCrumbLink*>(sender());
+    const QString route = getRoute(link);
+    if (!route.isEmpty())
+    {
+        Q_EMIT linkActivated(route);
+    }
+}
+
 PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     BaseClass(parent)
 {
@@ -659,18 +823,16 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     QVBoxLayout* textLayout = new QVBoxLayout();
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(4);
-    m_title = new PDFLabel(QString(), PDFThemeFonts::Role::Title, PDFThemeColors::TextPrimary, this);
+    m_breadcrumb = new PDFAppBreadcrumb(this);
+    m_breadcrumb->hide();
+    textLayout->addWidget(m_breadcrumb);
+    connect(m_breadcrumb, &PDFAppBreadcrumb::linkActivated, this, &PDFAppWorkspaceHeader::onBreadcrumbActivated);
+    m_title = new PDFAppHeaderText(PDFThemeFonts::getFont(QFont::Bold, 28), PDFThemeColors::TextPrimary, this);
     m_title->setObjectName(QStringLiteral("headerTitle"));
-    m_title->setFont(PDFThemeFonts::getFont(QFont::Bold, 28));
     m_title->setFixedHeight(34);
-    m_title->setTextFormat(Qt::PlainText);
-    m_title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     m_title->hide();
-    m_subtitle = new PDFLabel(QString(), PDFThemeFonts::Role::Body, PDFThemeColors::TextTertiary, this);
+    m_subtitle = new PDFAppHeaderText(PDFThemeFonts::getFont(QFont::Normal, 14), PDFThemeColors::TextTertiary, this);
     m_subtitle->setObjectName(QStringLiteral("headerSubtitle"));
-    m_subtitle->setFont(PDFThemeFonts::getFont(QFont::Normal, 14));
-    m_subtitle->setTextFormat(Qt::PlainText);
-    m_subtitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     m_subtitle->hide();
     textLayout->addWidget(m_title);
     textLayout->addWidget(m_subtitle);
@@ -679,29 +841,190 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     m_searchField = new PDFLineEdit(this);
     m_searchField->setObjectName(QStringLiteral("globalSearch"));
     m_searchField->setSearchField();
+    // Search field Filled=True (49:143, 941:7123): the clear button x-circle at the right
+    m_searchField->setClearButtonEnabled(true);
     m_searchField->setPlaceholderText(tr("Search tools, documents, or help..."));
     m_searchField->setAccessibleName(tr("Search tools, documents, or help"));
     m_searchField->setFixedWidth(320);
     m_searchField->setMaxLength(256);
     layout->addWidget(m_searchField, 0, Qt::AlignVCenter);
 
+    // The popup of the results while typing (a child of the field, PDFAppSearchController)
+    new PDFAppSearchController(m_searchField);
+
     connect(m_searchField, &QLineEdit::returnPressed, this, &PDFAppWorkspaceHeader::onReturnPressed);
 }
 
 PDFAppWorkspaceHeader::~PDFAppWorkspaceHeader() = default;
 
-void PDFAppWorkspaceHeader::setTexts(const QString& title, const QString& subtitle)
+void PDFAppWorkspaceHeader::setTexts(const QString& title, const QString& subtitle, const QString& subtitleAccent)
 {
     if (m_title)
     {
-        m_title->setText(title);
+        m_title->setHeaderText(title);
         m_title->setVisible(!title.isEmpty());
     }
 
     if (m_subtitle)
     {
-        m_subtitle->setText(subtitle);
+        m_subtitle->setHeaderText(subtitle, subtitleAccent);
         m_subtitle->setVisible(!subtitle.isEmpty());
+    }
+}
+
+PDFAppHeaderText::PDFAppHeaderText(const QFont& font, PDFThemeColors::Color color, QWidget* parent) :
+    BaseClass(parent)
+{
+    setFont(font);
+    setTextColor(color);
+    setTextFormat(Qt::PlainText);
+
+    // The layout gives the width (the search field keeps its width), the text is elided
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+}
+
+PDFAppHeaderText::~PDFAppHeaderText() = default;
+
+void PDFAppHeaderText::setHeaderText(const QString& text, const QString& accent)
+{
+    // A text of a page is never a rich text, the tooltip shows the whole text of
+    // an elided text only (event)
+    setText(text);
+    setToolTip(text);
+    if (m_accent != accent)
+    {
+        m_accent = accent;
+        updateGeometry();
+        update();
+    }
+}
+
+qsizetype PDFAppHeaderText::getAccentIndex() const
+{
+    return m_accent.isEmpty() ? -1 : text().indexOf(m_accent);
+}
+
+QList<QTextLayout::FormatRange> PDFAppHeaderText::getFormats() const
+{
+    QList<QTextLayout::FormatRange> formats;
+    const qsizetype index = getAccentIndex();
+    if (index >= 0)
+    {
+        QTextLayout::FormatRange range;
+        range.start = int(index);
+        range.length = int(m_accent.size());
+        range.format.setFontWeight(QFont::DemiBold);
+        range.format.setForeground(PDFThemeManager::getInstance()->getColor(PDFThemeColors::TextAccent));
+        formats << range;
+    }
+    return formats;
+}
+
+qreal PDFAppHeaderText::getTextWidth() const
+{
+    if (text().isEmpty())
+    {
+        return 0.0;
+    }
+
+    if (getAccentIndex() < 0)
+    {
+        return PDFStylePainter::textWidth(text(), font());
+    }
+
+    QTextLayout layout(text(), font());
+    layout.setFormats(getFormats());
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    layout.endLayout();
+    return line.isValid() ? line.naturalTextWidth() : 0.0;
+}
+
+bool PDFAppHeaderText::isElided() const
+{
+    return getTextWidth() > contentsRect().width();
+}
+
+QSize PDFAppHeaderText::sizeHint() const
+{
+    return QSize(qCeil(getTextWidth()), QFontMetrics(font()).height());
+}
+
+QSize PDFAppHeaderText::minimumSizeHint() const
+{
+    return QSize(1, QFontMetrics(font()).height());
+}
+
+void PDFAppHeaderText::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    if (text().isEmpty())
+    {
+        return;
+    }
+
+    QPainter painter(this);
+    PDFStylePainterGuard guard(&painter);
+    const QRectF box(contentsRect());
+    const qsizetype accentIndex = getAccentIndex();
+    if (accentIndex < 0 || isElided())
+    {
+        const PDFComponentPainter::State state(QStyle::State_Enabled, layoutDirection());
+        PDFComponentPainter::drawElidedText(&painter, state, box, text(), font(), getTextColor(), PDFComponentPainter::TextKind::Interface);
+        return;
+    }
+
+    // The whole text with its stressed part: one line at the leading edge,
+    // centered vertically (the text fits, isElided)
+    QTextLayout layout(text(), font());
+    QTextOption option;
+    option.setTextDirection(layoutDirection());
+    option.setWrapMode(QTextOption::NoWrap);
+    layout.setTextOption(option);
+    layout.setFormats(getFormats());
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    layout.endLayout();
+    if (!line.isValid())
+    {
+        return;
+    }
+
+    const qreal width = line.naturalTextWidth();
+    const qreal x = layoutDirection() == Qt::RightToLeft ? box.right() + 1.0 - width : box.left();
+    const qreal y = box.top() + (box.height() - line.height()) / 2.0;
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setPen(PDFThemeManager::getInstance()->getColor(getTextColor()));
+    layout.draw(&painter, QPointF(x - line.x(), y - line.y()));
+}
+
+bool PDFAppHeaderText::event(QEvent* event)
+{
+    // The whole text is the tooltip of an elided text only
+    if (event->type() == QEvent::ToolTip && !isElided())
+    {
+        event->ignore();
+        return true;
+    }
+    return BaseClass::event(event);
+}
+
+void PDFAppWorkspaceHeader::setBreadcrumbs(const QList<PDFAppBreadcrumbItem>& items)
+{
+    if (m_breadcrumb)
+    {
+        m_breadcrumb->setItems(items);
+        m_breadcrumb->setVisible(!items.isEmpty());
+    }
+}
+
+void PDFAppWorkspaceHeader::onBreadcrumbActivated(const QString& route)
+{
+    const PDFAppRoute parsedRoute = PDFAppRoute::parse(route);
+    if (parsedRoute.isValid())
+    {
+        Q_EMIT breadcrumbActivated(parsedRoute);
     }
 }
 
@@ -1035,12 +1358,14 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
 {
     setObjectName(QStringLiteral("footer"));
 
-    // app-footer: the padding 16 above the line of texts, the line border/default
-    // of 1 px lies inside of the padding (the stroke is not a part of the layout);
-    // the padding below the row is the bottom padding of the workspace (16, owner
-    // decision O11), so the tag can reach into it
+    // app-footer (31 px: the padding 16 and the text 15): the padding 16 above the
+    // texts, the line border/default of 1 px lies inside of the padding (the stroke
+    // is not a part of the layout); the row is 16 px high (the link), its texts end
+    // at its bottom, so the link reaches 1 px into the padding above them. The
+    // padding below the row is the bottom padding of the workspace (16, owner
+    // decision O11), so the tag can reach into it.
     QHBoxLayout* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, PADDING, 0, PADDING);
+    layout->setContentsMargins(0, PADDING - LINK_OVERHANG, 0, PADDING);
     layout->setSpacing(0);
 
     // The texts (15 px) end at the bottom of the row of the link (16 px): 16 px above

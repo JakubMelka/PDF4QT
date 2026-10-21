@@ -404,7 +404,7 @@ public:
 /// Tree view with the inner margin of the design around its rows. A tree
 /// with a visible header has no margin, as the table of the design.
 ///
-/// The rows of the presets Outline and Certificate have the state Pressed of
+/// The rows of the presets Outline, Contents and Certificate have the state Pressed of
 /// the design (bg/pressed, bg/accent-subtle-pressed). Qt never sets
 /// State_Sunken on the items of a view, so the view tracks the press of the
 /// left button itself: the pressed row (all its cells) gets State_Sunken in
@@ -434,6 +434,7 @@ public:
     {
         Default,        ///< Rows of the page Widgets: height 30, radius 6, padding 8
         Outline,        ///< Outline row: radius 8, paddings 6 / 8, indentation 18
+        Contents,       ///< Contents of the manual (help-contents 955:152873): height 28, radius 6, chevron 14 at 8, gap 8, indentation 24
         Certificate,    ///< Certificate row: height 34, padding 10, the selection keeps the texts
         Library         ///< Library row: height 30, padding 10, no hover
     };
@@ -467,7 +468,7 @@ protected:
     virtual bool viewportEvent(QEvent* event) override;
 
 private:
-    /// Returns true, if the preset has the state Pressed (Outline, Certificate)
+    /// Returns true, if the preset has the state Pressed (Outline, Contents, Certificate)
     bool isPressTracked() const;
     void startPress(const QPoint& position, Qt::MouseButton button);
     void setPressedInside(bool isInside);

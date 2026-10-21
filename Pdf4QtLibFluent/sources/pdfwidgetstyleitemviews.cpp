@@ -69,6 +69,15 @@ public:
     static constexpr int HEADER_ARROW_GAP = 4;
     static constexpr int HEADER_VERTICAL_WIDTH = 40;
 
+    /// Columns of a plain table (Library row, columns 111:2291): no band and no
+    /// separators, the label 13 px at 6 px, the divider below it at 27 and the gap
+    /// of 4 px before the first row, the paddings 10 of the cells
+    static constexpr int PLAIN_HEADER_HEIGHT = 32;
+    static constexpr int PLAIN_HEADER_LABEL_TOP = 6;
+    static constexpr int PLAIN_HEADER_LABEL_HEIGHT = 13;
+    static constexpr int PLAIN_HEADER_DIVIDER = 27;
+    static constexpr int PLAIN_HEADER_PADDING = 10;
+
     /// The row of a tree has the padding of 8 px before the slot of the branch,
     /// the tree view starts the slot at the edge of the row. The chevron and
     /// the contents of the item are shifted by this distance.
@@ -76,6 +85,9 @@ public:
 
     /// Indentation of a level of the outline (Outline row: 14 + gap 4)
     static constexpr int OUTLINE_INDENTATION = 18;
+
+    /// Indentation of a level of the contents of the manual (help-contents 955:152873)
+    static constexpr int CONTENTS_INDENTATION = 24;
 
     static constexpr const char* SAVED_HEADER_ALIGNMENT = "_pdf4qt_savedHeaderAlignment";
     static constexpr const char* SAVED_TREE_ANIMATED = "_pdf4qt_savedTreeAnimated";
@@ -90,6 +102,8 @@ private:
     };
 
     static bool isComboPopup(const QWidget* widget);
+    /// Header of a view with the plain columns of a table (row style Library)
+    static bool isPlainHeader(const QWidget* widget);
     static bool isTreeBranchColumn(const QStyleOptionViewItem* option, const QWidget* widget);
     /// Part of the tree column, for which the panel of a row is drawn
     enum class TreeArea
@@ -117,10 +131,15 @@ private:
         bool hasPressed = false;                ///< The row has the state Pressed (State_Sunken set by PDFTreeView)
         bool keepsTextOnSelection = false;      ///< The selection changes only the fill of the row
         bool isOutline = false;                 ///< Texts of the outline: secondary, primary under the pointer
+        bool hasLeavesAtLevel = false;          ///< An item without children has no slot of the chevron: its text starts at its level
     };
 
     static RowMetrics getRowMetrics(const QWidget* widget);
     static QRect getDisclosureRect(const QStyleOption* option, const QWidget* widget);
+    /// Returns the start of the contents of an item without children of a tree, whose
+    /// row style has the leaves at their level (the item is in the left-to-right
+    /// layout of the shape starting at \p itemLeft), or \p left of another item
+    static int getLeafLeft(const QStyleOptionViewItem* option, const QWidget* widget, int itemLeft, int left, int padding);
     static QSize getDecorationSize(const QStyleOptionViewItem* option);
     static QFont getItemFont(const QStyleOptionViewItem* option, const QWidget* widget, bool isSelected);
     static bool isViewFocused(const QWidget* widget);
@@ -146,6 +165,13 @@ std::unique_ptr<PDFWidgetStyleArea> PDFWidgetStyleAreas::createItemViews(PDFWidg
 bool PDFWidgetStyleItemViews::isComboPopup(const QWidget* widget)
 {
     return widget && widget->parentWidget() && widget->parentWidget()->inherits("QComboBoxPrivateContainer");
+}
+
+bool PDFWidgetStyleItemViews::isPlainHeader(const QWidget* widget)
+{
+    const QHeaderView* header = qobject_cast<const QHeaderView*>(widget);
+    const QWidget* view = header ? header->parentWidget() : nullptr;
+    return view && header->orientation() == Qt::Horizontal && view->property(PDFWidgetStyleProperties::ROW_STYLE).toString() == QLatin1String("library");
 }
 
 bool PDFWidgetStyleItemViews::isTreeBranchColumn(const QStyleOptionViewItem* option, const QWidget* widget)
@@ -219,6 +245,26 @@ PDFWidgetStyleItemViews::RowMetrics PDFWidgetStyleItemViews::getRowMetrics(const
         metrics.keepsSelectionWithoutFocus = true;
         metrics.hasRowFocusRing = qobject_cast<const PDFTreeView*>(widget) != nullptr;
     }
+    else if (rowStyle == QLatin1String("contents"))
+    {
+        // Contents of the manual: height 28, radius 6, chevron 14 at the padding 8,
+        // gap 8 before the title (8 + 14 + 8 = 30 from the edge of a chapter),
+        // padding 8 at the end, indentation 24 per level; texts and states as the outline
+        metrics.height = 28;
+        metrics.radius = 6;
+        metrics.padding = 8;
+        metrics.branchShift = 8;
+        metrics.branchSlot = 14;
+        metrics.branchPadding = 8 + 14 + 8 - CONTENTS_INDENTATION - metrics.branchShift;
+        metrics.focusWidth = 2.0;
+        metrics.hasPressed = true;
+        metrics.isOutline = true;
+        metrics.keepsSelectionWithoutFocus = true;
+        metrics.hasRowFocusRing = qobject_cast<const PDFTreeView*>(widget) != nullptr;
+        // The topics (items without children) have no chevron: their texts start
+        // at 24 per level (toc-Protect with Password: 24, toc-Protect & Sign: 30)
+        metrics.hasLeavesAtLevel = true;
+    }
     else if (rowStyle == QLatin1String("certificate"))
     {
         metrics.height = 34;
@@ -239,6 +285,29 @@ PDFWidgetStyleItemViews::RowMetrics PDFWidgetStyleItemViews::getRowMetrics(const
     }
 
     return metrics;
+}
+
+int PDFWidgetStyleItemViews::getLeafLeft(const QStyleOptionViewItem* option, const QWidget* widget, int itemLeft, int left, int padding)
+{
+    const QTreeView* treeView = qobject_cast<const QTreeView*>(widget);
+    const QAbstractItemModel* model = option->index.model();
+    if (!treeView || !model || model->hasChildren(option->index))
+    {
+        return left;
+    }
+
+    // The depth below the root of the view; the row starts at the indentation
+    // steps of the depth (and of the decorated root) before the item
+    int depth = 0;
+    const QModelIndex root = treeView->rootIndex();
+    for (QModelIndex parent = option->index.parent(); parent.isValid() && parent != root && depth < 4096; parent = parent.parent())
+    {
+        ++depth;
+    }
+
+    const int indentation = treeView->indentation();
+    const int rowLeft = itemLeft - (depth + (treeView->rootIsDecorated() ? 1 : 0)) * indentation;
+    return rowLeft + qMax(depth * indentation, padding);
 }
 
 QRect PDFWidgetStyleItemViews::getDisclosureRect(const QStyleOption* option, const QWidget* widget)
@@ -396,6 +465,11 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
         // The slot of the branch lies inside of the row and the contents
         // of the item follow it after the gap
         left += metrics.branchShift + metrics.branchPadding - padding;
+
+        if (metrics.hasLeavesAtLevel)
+        {
+            left = getLeafLeft(option, widget, layout.shape.left(), left, padding);
+        }
     }
 
     if (hasCheck)
@@ -716,6 +790,12 @@ bool PDFWidgetStyleItemViews::drawControl(QStyle::ControlElement element, const 
             // Band of the header with the border on the side of the cells
             const QRectF rect(option->rect);
             const bool isHorizontal = option->state.testFlag(QStyle::State_Horizontal);
+            if (isPlainHeader(widget))
+            {
+                PDFStylePainter::fillRect(painter, rect, Color::BgSurface);
+                PDFStylePainter::fillRect(painter, QRectF(rect.left(), rect.top() + PLAIN_HEADER_DIVIDER, rect.width(), 1.0), Color::BorderDivider);
+                return true;
+            }
             PDFStylePainter::fillRect(painter, rect, Color::BgSubtle);
             PDFStylePainter::fillRect(painter, isHorizontal ? QRectF(rect.left(), rect.bottom() - 1.0, rect.width(), 1.0)
                                                             : QRectF(rect.right() - 1.0, rect.top(), 1.0, rect.height()), Color::BorderDefault);
@@ -897,7 +977,11 @@ bool PDFWidgetStyleItemViews::sizeFromContents(QStyle::ContentsType type, const 
                 width += HEADER_ARROW_GAP + HEADER_ARROW;
             }
 
-            if (header->orientation == Qt::Horizontal)
+            if (isPlainHeader(widget))
+            {
+                size = QSize(width - 2 * (HEADER_PADDING - PLAIN_HEADER_PADDING), PLAIN_HEADER_HEIGHT);
+            }
+            else if (header->orientation == Qt::Horizontal)
             {
                 size = QSize(width, HEADER_HEIGHT);
             }
@@ -1183,7 +1267,8 @@ QRect PDFWidgetStyleItemViews::getHeaderRect(const QStyleOptionHeader* option, c
         return isArrow ? QRect() : rect;
     }
 
-    const QRect contents = rect.adjusted(HEADER_PADDING, 0, -HEADER_PADDING, -1);
+    const QRect contents = isPlainHeader(widget) ? QRect(rect.left() + PLAIN_HEADER_PADDING, rect.top() + PLAIN_HEADER_LABEL_TOP, qMax(0, rect.width() - 2 * PLAIN_HEADER_PADDING), PLAIN_HEADER_LABEL_HEIGHT)
+                                                 : rect.adjusted(HEADER_PADDING, 0, -HEADER_PADDING, -1);
     const bool hasArrow = option->sortIndicator != QStyleOptionHeader::None;
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::Caption);
     const int iconWidth = option->icon.isNull() ? 0 : 14 + (option->text.isEmpty() ? 0 : HEADER_ARROW_GAP);
@@ -1220,9 +1305,16 @@ QRect PDFWidgetStyleItemViews::getHeaderRect(const QStyleOptionHeader* option, c
 
 void PDFWidgetStyleItemViews::drawHeaderSection(const QStyleOptionHeader* option, QPainter* painter, const QWidget* widget) const
 {
-    Q_UNUSED(widget);
-
     const QRectF rect(option->rect);
+
+    if (isPlainHeader(widget))
+    {
+        // Columns of a plain table: the surface of the card, the divider below the labels
+        PDFStylePainter::fillRect(painter, rect, Color::BgSurface);
+        PDFStylePainter::fillRect(painter, QRectF(rect.left(), rect.top() + PLAIN_HEADER_DIVIDER, rect.width(), 1.0), Color::BorderDivider);
+        return;
+    }
+
     const bool isHorizontal = option->orientation == Qt::Horizontal;
     const bool isEnabled = option->state.testFlag(QStyle::State_Enabled);
     // The header view sets State_On to a section, which intersects the selection,

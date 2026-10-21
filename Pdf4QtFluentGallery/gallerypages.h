@@ -212,6 +212,7 @@ private:
     // Tiles, cards and pictures of the components (gallerycardpages.cpp), added
     // to the pages of their chapters, and the sample of the Home screen
     static void addShellHomeCards(GalleryBuilder& builder);
+    static void addPageElements(GalleryBuilder& builder);
     static void addCatalogCards(GalleryBuilder& builder);
     static void addPanelsCards(GalleryBuilder& builder);
     static QWidget* createHomeSample(QWidget* parent);

@@ -115,8 +115,9 @@ private:
 };
 
 /// Tab Home (pdf4qt-home 28:4: the sidebar, the workspace with the header, the
-/// banner of the storage, the page and the footer) and tab New tab
-/// (pdf4qt-new-tab 955:152339: the workspace with the header and the page only)
+/// banner of the storage, the page and the footer), tab New tab (pdf4qt-new-tab
+/// 955:152339: the workspace with the header and the page only) and the Help tab
+/// (the manual /help/{topic}, owner decision O13: the structure of New tab)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppWorkspaceTab : public PDFAppTab
 {
     Q_OBJECT
@@ -125,7 +126,10 @@ private:
     using BaseClass = PDFAppTab;
 
 public:
-    /// \p kind is Home or NewTab (anything else is NewTab)
+    /// Widest header and page of the Help tab (centered in a wider window)
+    static constexpr int HELP_CONTENT_WIDTH = 1166;
+
+    /// \p kind is Home, NewTab or Help (anything else is NewTab)
     explicit PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* context, QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceTab() override;
 
@@ -147,10 +151,22 @@ protected:
     virtual QWidget* getPageArea() const override;
     virtual QVBoxLayout* getPageLayout() const override;
     virtual void onPageChanged() override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void updateHelpMargins();
+
+    /// The storage banner at the top of the layout of the page (PDFAppPage::getBannerLayout)
+    /// or above the page; its own visibility is kept
+    void placeBanner();
+
+    /// The page is going away: the banner is taken back above the page
+    void onPageAboutToBeDestroyed();
+    void moveBanner(QBoxLayout* layout);
+
     void onStorageStateChanged();
     void onSearchRequested(const QString& text);
+    void onBreadcrumbActivated(const pdf::PDFAppRoute& route);
     void onTryAgainRequested();
     void onShowInFolderRequested();
     void onCheckForUpdatesRequested();
@@ -158,6 +174,7 @@ private:
     QPointer<PDFAppSidebar> m_sidebar;
     QPointer<PDFAppWorkspaceHeader> m_header;
     QPointer<PDFAppStorageBanner> m_banner;
+    QPointer<QBoxLayout> m_bannerLayout;
     QPointer<PDFAppFooter> m_footer;
     QPointer<QWidget> m_pageArea;
     QPointer<QVBoxLayout> m_pageLayout;

@@ -141,6 +141,7 @@ void PDFSettingDefinitions::registerState(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastCheck(), 0, 0, std::numeric_limits<qint64>::max()));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::updateLatestVersion(), QString(), 64));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::updateLastError(), QString(), 4096));
+    add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastSuccess(), 0, 0, std::numeric_limits<qint64>::max()));
 }
 
 }   // namespace pdf

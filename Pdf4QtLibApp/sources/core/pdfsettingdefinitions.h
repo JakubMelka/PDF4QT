@@ -54,6 +54,7 @@ public:
     static QString updateLastCheck() { return QStringLiteral("update.lastCheck"); }
     static QString updateLatestVersion() { return QStringLiteral("update.latestVersion"); }
     static QString updateLastError() { return QStringLiteral("update.lastError"); }
+    static QString updateLastSuccess() { return QStringLiteral("update.lastSuccess"); }
 
     // Panel My Bookmarks of the document
     static QString bookmarksAutoGenerate() { return QStringLiteral("bookmarks.autoGenerate"); }

@@ -23,6 +23,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
+#include "pdfappfiledrop.h"
 #include "pdfappnavigator.h"
 #include "pdfapptab.h"
 #include "pdfapptopbar.h"
@@ -42,6 +43,10 @@
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
@@ -89,7 +94,8 @@ public:
     static QStringList getWindowCommands()
     {
         return { PDFAppCommands::newTab(), PDFAppCommands::closeTab(), PDFAppCommands::nextTab(), PDFAppCommands::previousTab(),
-                 PDFAppCommands::quit(), PDFAppCommands::back(), PDFAppCommands::forward(), PDFAppCommands::search() };
+                 PDFAppCommands::quit(), PDFAppCommands::open(), PDFAppCommands::back(), PDFAppCommands::forward(), PDFAppCommands::search(),
+                 PDFAppCommands::help() };
     }
 
     /// Text of a list of files or errors for a message box (bounded)
@@ -115,6 +121,9 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("mainWindow"));
     setWindowTitle(tr("PDF4QT"));
     setMinimumSize(720, 480);
+
+    // PDF files dropped anywhere onto the window are opened (step 2)
+    setAcceptDrops(true);
     setGeometry(PDFAppMainWindowHelper::getInitialGeometry(this));
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -308,6 +317,30 @@ PDFAppTab* PDFAppMainWindow::createNewTab()
     }
 
     PDFAppWorkspaceTab* tab = new PDFAppWorkspaceTab(PDFAppTabKind::NewTab, m_context, m_stack);
+    return addTab(tab, tabBar->currentIndex() + 1);
+}
+
+PDFAppTab* PDFAppMainWindow::findHelpTab() const
+{
+    for (const QPointer<PDFAppTab>& tab : m_tabs)
+    {
+        if (tab && tab->getKind() == PDFAppTabKind::Help)
+        {
+            return tab;
+        }
+    }
+    return nullptr;
+}
+
+PDFAppTab* PDFAppMainWindow::createHelpTab()
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    if (!tabBar || !m_stack || tabBar->count() >= MAXIMUM_TABS)
+    {
+        return nullptr;
+    }
+
+    PDFAppWorkspaceTab* tab = new PDFAppWorkspaceTab(PDFAppTabKind::Help, m_context, m_stack);
     return addTab(tab, tabBar->currentIndex() + 1);
 }
 
@@ -533,6 +566,10 @@ void PDFAppMainWindow::onCommandTriggered()
     {
         close();
     }
+    else if (id == PDFAppCommands::open())
+    {
+        browseDocuments();
+    }
     else if (id == PDFAppCommands::back() && m_navigator)
     {
         m_navigator->goBack();
@@ -544,6 +581,11 @@ void PDFAppMainWindow::onCommandTriggered()
     else if (id == PDFAppCommands::search())
     {
         focusSearch();
+    }
+    else if (id == PDFAppCommands::help() && m_navigator)
+    {
+        // The manual opens in the Help tab, the current tab stays as it is
+        m_navigator->navigate(PDFAppRoutes::help(PDFAppRoutes::getDefaultHelpTopic()));
     }
 }
 
@@ -766,17 +808,75 @@ void PDFAppMainWindow::openDocuments(const QStringList& files, int page)
     // ===================================================================================
     Q_UNUSED(page);
 
+    // Step 2: the files are recorded in Recent (so Home, Open and Recent have real
+    // data) and their thumbnails are made by the thumbnailer (worker thread); the
+    // pages read them after the notification of the database
+    PDFAppThumbnailer* thumbnailer = m_context ? m_context->getThumbnailer() : nullptr;
+    const bool hasDatabase = m_context && m_context->getDatabase();
+    int recorded = 0;
+
     for (const QString& file : files)
     {
         if (!m_requestedFiles.contains(file) && m_requestedFiles.size() < PDFAppInstanceProtocol::MAXIMUM_FILES)
         {
             m_requestedFiles << file;
         }
+
+        // Only an existing file (a missing file of a command line is not recorded),
+        // at most the number of the files of one request
+        if (!hasDatabase || recorded >= PDFAppInstanceProtocol::MAXIMUM_FILES || !QFileInfo(file).isFile())
+        {
+            continue;
+        }
+        ++recorded;
+
+        QString storedPath;
+        const PDFDatabaseError error = m_context->getRecent().recordOpened(file, &storedPath);
+        if (error.isError())
+        {
+            qWarning("The file cannot be recorded in Recent: %s", qPrintable(error.toString()));
+        }
+        else if (thumbnailer && !storedPath.isEmpty())
+        {
+            thumbnailer->requestThumbnail(storedPath);
+        }
     }
 
     showMessage(int(PDFThemeIcons::Badge::Information), tr("Documents cannot be opened yet"),
                 tr("This version of PDF4QT does not open documents yet. The following files were requested:"),
                 PDFAppMainWindowHelper::createList(files, 20));
+}
+
+void PDFAppMainWindow::browseDocuments(const QString& folder)
+{
+    if (m_isBrowsingDocuments)
+    {
+        return;
+    }
+
+    // The native dialog runs its own event loop (a request of another process, a
+    // drop or the code of a page may delete the window meanwhile)
+    QPointer<PDFAppMainWindow> guard(this);
+    m_isBrowsingDocuments = true;
+    const QStringList files = PDFAppFileDialogs::getOpenFileNames(this, folder);
+    if (!guard)
+    {
+        return;
+    }
+    m_isBrowsingDocuments = false;
+
+    if (!files.isEmpty())
+    {
+        openDocuments(files, 0);
+    }
+}
+
+std::vector<PDFAppOpenDocument> PDFAppMainWindow::getOpenDocuments() const
+{
+    // ===================================================================================
+    // STEP 3 HOOK: the document tabs of step 3 give their documents here.
+    // ===================================================================================
+    return std::vector<PDFAppOpenDocument>();
 }
 
 void PDFAppMainWindow::showCommandLineErrors(const QStringList& errors)
@@ -855,6 +955,54 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
         server->quit();
     }
     event->accept();
+}
+
+void PDFAppMainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    // Only local files are offered for a drop (nothing is read during the drag)
+    if (PDFAppFileDrop::hasLocalFiles(event->mimeData()))
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        return;
+    }
+    event->ignore();
+}
+
+void PDFAppMainWindow::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (PDFAppFileDrop::hasLocalFiles(event->mimeData()))
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        return;
+    }
+    event->ignore();
+}
+
+void PDFAppMainWindow::dropEvent(QDropEvent* event)
+{
+    const PDFAppFileDrop::Result result = PDFAppFileDrop::getFiles(event->mimeData());
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+
+    // The refused items are listed (folders, other files, files of other computers)
+    if (!result.refused.empty())
+    {
+        QStringList items;
+        for (const PDFAppFileDrop::RefusedItem& item : result.refused)
+        {
+            items << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
+        }
+        showMessage(int(PDFThemeIcons::Badge::Warning), tr("Some items were not opened"),
+                    tr("Only PDF files on this computer can be opened. These items were left out:"),
+                    PDFAppMainWindowHelper::createList(items, 20));
+    }
+
+    if (!result.files.isEmpty())
+    {
+        openDocuments(result.files, 0);
+    }
 }
 
 bool PDFAppMainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr* result)

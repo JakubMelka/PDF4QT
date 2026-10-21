@@ -32,6 +32,11 @@
 #include "pdfsettingdefinition.h"
 #include "pdfsettingsrepository.h"
 #include "pdfshortcutrepository.h"
+#include "pdfrecentrepository.h"
+#include "pdfworkspacerepository.h"
+#include "pdftoolrepository.h"
+#include "pdfappthumbnailer.h"
+#include "pdfappfolderinfo.h"
 
 #include <QObject>
 #include <QPointer>
@@ -75,6 +80,17 @@ public:
     /// Repositories (value objects, they read the database at each call)
     PDFSettingsRepository getSettings() const;
     PDFShortcutRepository getShortcuts() const;
+    PDFRecentRepository getRecent() const;
+    PDFWorkspaceRepository getWorkspaces() const;
+    PDFToolRepository getTools() const;
+
+    /// Services of step 2, owned by the context (created by open, destroyed by
+    /// close before the database); nullptr when the storage is not open.
+    /// Thumbnails of the recent files (worker thread, results by the notifier)
+    PDFAppThumbnailer* getThumbnailer() const { return m_thumbnailer; }
+
+    /// Existence of paths and PDF counts of folders (worker threads, signal infoReady)
+    PDFAppFolderInfoService* getFolderInfo() const { return m_folderInfo; }
 
     /// State of the storage for the banners of the Home tab
     PDFDatabaseState getStorageState() const;
@@ -91,6 +107,12 @@ public:
 
     /// Applies the color scheme of the settings (or of the system for Auto)
     void applyColorScheme();
+
+    /// Pages of the application (PDFAppPageRegistry) are registered by the navigator
+    /// of a new window. false = the window is the shell only, every route ends on
+    /// Page Not Found until a factory is set (tests of the shell). Default true.
+    void setPagesEnabled(bool enabled) { m_isPagesEnabled = enabled; }
+    bool isPagesEnabled() const { return m_isPagesEnabled; }
 
 Q_SIGNALS:
     /// Another process asks to open the files (absolute paths) at the page, or only
@@ -114,6 +136,9 @@ private:
     QPointer<PDFDatabase> m_database;
     QPointer<PDFDatabaseNotifier> m_notifier;
     QPointer<PDFAppInstanceServer> m_instanceServer;
+    QPointer<PDFAppThumbnailer> m_thumbnailer;
+    QPointer<PDFAppFolderInfoService> m_folderInfo;
+    bool m_isPagesEnabled = true;
 };
 
 }   // namespace pdf

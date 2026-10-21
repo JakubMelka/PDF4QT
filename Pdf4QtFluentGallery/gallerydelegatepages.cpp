@@ -222,15 +222,16 @@ public:
         return view;
     }
 
-    /// Creates the sample of a preset of the rows of PDFTreeView in a state (Outline or Certificate)
+    /// Creates the sample of a preset of the rows of PDFTreeView in a state (Outline, Contents or Certificate)
     static pdf::PDFTreeView* createRowStateView(QWidget* parent, pdf::PDFTreeView::RowStyle rowStyle, bool isSelected, bool isPressed, bool hasFocusRing)
     {
         QStandardItemModel* model = new QStandardItemModel(parent);
-        const bool isOutline = rowStyle == pdf::PDFTreeView::RowStyle::Outline;
+        const bool isContents = rowStyle == pdf::PDFTreeView::RowStyle::Contents;
+        const bool isOutline = rowStyle == pdf::PDFTreeView::RowStyle::Outline || isContents;
         if (isOutline)
         {
-            QStandardItem* chapter = new QStandardItem(QStringLiteral("Market Analysis"));
-            chapter->appendRow(new QStandardItem(QStringLiteral("4.1 Regional revenue")));
+            QStandardItem* chapter = new QStandardItem(isContents ? QStringLiteral("Protect & Sign") : QStringLiteral("Market Analysis"));
+            chapter->appendRow(new QStandardItem(isContents ? QStringLiteral("Sign with Certificate") : QStringLiteral("4.1 Regional revenue")));
             model->appendRow(chapter);
         }
         else
@@ -254,7 +255,7 @@ public:
         view->selectionModel()->setCurrentIndex(first, isSelected ? (QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows) : QItemSelectionModel::NoUpdate);
         if (isOutline)
         {
-            view->setFixedSize(276 + 14, 30 + 14);
+            view->setFixedSize(276 + 14, (isContents ? 28 : 30) + 14);
         }
         else
         {
@@ -470,7 +471,20 @@ public:
         workspace->setData(QStringLiteral("4 documents"), Roles::ProgressTextRole);
         workspace->setData(QStringLiteral("Sep 12"), Roles::DateRole);
         workspace->setData(static_cast<int>(pdf::PDFComponentPainter::RecentItemType::Workspace), Roles::ItemTypeRole);
+        workspace->setData(false, Roles::StarVisibleRole);
         model->appendRow(workspace);
+        QStandardItem* missing = item(QStringLiteral("Building_Plan.pdf"));
+        missing->setData(QStringLiteral("D:\\Projects\\Old · 12 pages"), Roles::SubtitleRole);
+        missing->setData(QStringLiteral("Sep 3"), Roles::DateRole);
+        missing->setData(true, Roles::MissingRole);
+        model->appendRow(missing);
+        QStandardItem* locked = item(QStringLiteral("Salary_Review_2026.pdf"));
+        locked->setData(QStringLiteral("C:\\Users\\Jakub\\HR · 6 pages"), Roles::SubtitleRole);
+        locked->setData(QStringLiteral("Page 2 of 6"), Roles::ProgressTextRole);
+        locked->setData(2.0 / 6.0, Roles::ProgressRole);
+        locked->setData(QStringLiteral("Aug 28"), Roles::DateRole);
+        locked->setData(true, Roles::LockedRole);
+        model->appendRow(locked);
         return model;
     }
 
@@ -568,6 +582,25 @@ void GalleryPages::addShellHomeDelegates(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Disabled (O-08)"), Painter::getRecentItemRowSize(file), GalleryPages::Disabled,
                      [file](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintRecentItemRow(&painter, rect, file, state); });
     builder.row();
+
+    // States without a frame of Figma (proposals of the integration of step 2):
+    // a missing file, a document protected by a password, an item without the star
+    Painter::RecentItemRow missing = Helper::recentItem(Type::File);
+    missing.status = Painter::FileStatus::Missing;
+    Helper::specimen(builder, QStringLiteral("Missing file (proposal): the name text/muted, the badge instead of the progress"), Painter::getRecentItemRowSize(missing), GalleryPages::Default,
+                     [missing](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintRecentItemRow(&painter, rect, missing, state); });
+    Helper::specimen(builder, QStringLiteral("Missing file, hover"), Painter::getRecentItemRowSize(missing), GalleryPages::Hover,
+                     [missing](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintRecentItemRow(&painter, rect, missing, state); });
+    builder.row();
+    Painter::RecentItemRow locked = Helper::recentItem(Type::File);
+    locked.locked = true;
+    Helper::specimen(builder, QStringLiteral("Protected by a password (proposal): the lock instead of the thumbnail"), Painter::getRecentItemRowSize(locked), GalleryPages::Default,
+                     [locked](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintRecentItemRow(&painter, rect, locked, state); });
+    Painter::RecentItemRow noStar = Helper::recentItem(Type::Workspace);
+    noStar.starVisible = false;
+    Helper::specimen(builder, QStringLiteral("Workspace without the star (it cannot be pinned), hover"), Painter::getRecentItemRowSize(noStar), GalleryPages::Hover,
+                     [noStar](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintRecentItemRow(&painter, rect, noStar, state); });
+    builder.row();
     Painter::RecentItemRow longName = Helper::recentItem(Type::File);
     longName.name = QStringLiteral("Annual_Report_2026_with_all_the_appendices_and_the_corrections_of_the_board.pdf");
     Helper::specimen(builder, QStringLiteral("Right-to-left, Latin data keep their direction (the name elided in the middle)"), Painter::getRecentItemRowSize(longName), GalleryPages::Default,
@@ -575,7 +608,7 @@ void GalleryPages::addShellHomeDelegates(GalleryBuilder& builder)
                      QString(), Qt::RightToLeft);
     builder.row();
 
-    Helper::liveViews<pdf::PDFRecentItemDelegate>(builder, &Helper::recentModel, QSize(830, 3 * 56 + 16), -1, 0, true);
+    Helper::liveViews<pdf::PDFRecentItemDelegate>(builder, &Helper::recentModel, QSize(830, 5 * 56 + 16), -1, 0, true);
     builder.note(QStringLiteral("The star writes PinnedRole into the model, the menu button emits actionTriggered with MenuAction (the application shows its menu). Both are also in the context menu of the row."));
 }
 
@@ -725,7 +758,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
 
     // Outline row and Certificate row: the press tracked by PDFTreeView (review
     // I-23) and the focus ring around the whole row (review F2, F4 of step 5)
-    builder.block(QStringLiteral("Outline row and Certificate row (PDFTreeView presets) - Pressed and Focus, the ring encloses the whole row"), QStringLiteral("191:840"));
+    builder.block(QStringLiteral("Outline row, Contents row and Certificate row (PDFTreeView presets) - Pressed and Focus, the ring encloses the whole row"), QStringLiteral("191:840"));
     struct RowStateSample
     {
         pdf::PDFTreeView::RowStyle rowStyle;
@@ -741,6 +774,10 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
         { pdf::PDFTreeView::RowStyle::Outline, "Outline Focus", false, false, true, "191:805" },
         { pdf::PDFTreeView::RowStyle::Outline, "Outline Selected Pressed", true, true, false, "191:826" },
         { pdf::PDFTreeView::RowStyle::Outline, "Outline Selected Focus", true, false, true, "191:833" },
+        { pdf::PDFTreeView::RowStyle::Contents, "Contents Pressed", false, true, false, "955:154338" },
+        { pdf::PDFTreeView::RowStyle::Contents, "Contents Focus", false, false, true, "955:154338" },
+        { pdf::PDFTreeView::RowStyle::Contents, "Contents Selected Pressed", true, true, false, "955:154366" },
+        { pdf::PDFTreeView::RowStyle::Contents, "Contents Selected Focus", true, false, true, "955:154366" },
         { pdf::PDFTreeView::RowStyle::Certificate, "Certificate Pressed", false, true, false, "706:147107" },
         { pdf::PDFTreeView::RowStyle::Certificate, "Certificate Focus", false, false, true, "706:147113" },
         { pdf::PDFTreeView::RowStyle::Certificate, "Certificate Selected Pressed", true, true, false, "706:147119" },
@@ -756,7 +793,33 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
             builder.row();
         }
     }
-    builder.note(QStringLiteral("PDFTreeView with the presets Outline and Certificate sets State_Sunken to the pressed row (bg/pressed, the selected row bg/accent-subtle-pressed) and draws the focus ring of 2 px around the whole current row. The selection stays bg/accent-subtle without the focus of the view. The delegates of the view are not replaced."));
+    // Contents of the manual (help-contents of the page Help 955:152873): rows 28,
+    // chevron 14 at 8, indentation 24, the chapter of the shown topic expanded
+    QStandardItemModel* contentsModel = new QStandardItemModel(builder.page());
+    for (const char* chapterName : { "Getting started", "Open and view", "Protect & Sign", "Optimize" })
+    {
+        QStandardItem* chapter = new QStandardItem(QString::fromLatin1(chapterName));
+        for (const char* topicName : { "Protect with Password", "Sign with Certificate", "Sign by Hand" })
+        {
+            chapter->appendRow(new QStandardItem(QString::fromLatin1(topicName)));
+        }
+        contentsModel->appendRow(chapter);
+    }
+    contentsModel->item(2)->setFont(pdf::PDFThemeFonts::getFont(QFont::DemiBold, 13));
+    pdf::PDFTreeView* contentsView = new pdf::PDFTreeView(builder.page());
+    contentsView->setModel(contentsModel);
+    contentsModel->setParent(contentsView);
+    contentsView->setHeaderHidden(true);
+    contentsView->setRowStyle(pdf::PDFTreeView::RowStyle::Contents);
+    contentsView->expand(contentsModel->index(2, 0));
+    contentsView->selectionModel()->setCurrentIndex(contentsModel->index(1, 0, contentsModel->index(2, 0)), QItemSelectionModel::ClearAndSelect);
+    contentsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    contentsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    contentsView->setFixedSize(322 + 12, 7 * 28 + 12 + 2 * contentsView->frameWidth());
+    builder.live(QStringLiteral("Contents of the manual (RowStyle::Contents)"), contentsView, QStringLiteral("955:154306"));
+    builder.row();
+
+    builder.note(QStringLiteral("PDFTreeView with the presets Outline, Contents and Certificate sets State_Sunken to the pressed row (bg/pressed, the selected row bg/accent-subtle-pressed) and draws the focus ring of 2 px around the whole current row. The selection stays bg/accent-subtle without the focus of the view. The delegates of the view are not replaced."));
 
     // A delegate of the components in a tree: the area of the branches is not
     // filled by the style, the nested item has one shape (review C7 of step 5)

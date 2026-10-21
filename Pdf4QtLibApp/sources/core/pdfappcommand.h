@@ -144,16 +144,21 @@ public:
     static QString previousTab() { return QStringLiteral("window.previousTab"); }
     static QString quit() { return QStringLiteral("window.quit"); }
 
+    // File (step 2)
+    static QString open() { return QStringLiteral("file.open"); }
+
     // Navigation (step 1)
     static QString back() { return QStringLiteral("navigation.back"); }
     static QString forward() { return QStringLiteral("navigation.forward"); }
     static QString search() { return QStringLiteral("navigation.search"); }
+    static QString help() { return QStringLiteral("navigation.help"); }
 
     /// Registers all built-in commands
     static void registerBuiltinCommands(PDFAppCommandRegistry* registry);
 
 private:
     static void registerWindowCommands(PDFAppCommandRegistry* registry);
+    static void registerFileCommands(PDFAppCommandRegistry* registry);
     static void registerNavigationCommands(PDFAppCommandRegistry* registry);
     static void add(PDFAppCommandRegistry* registry, QString id, const char* title, const char* group,
                     QString iconName, QKeySequence shortcut, QStringList keywords);

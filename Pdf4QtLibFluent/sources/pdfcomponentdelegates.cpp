@@ -2054,6 +2054,9 @@ PDFComponentPainter::RecentItemRow PDFRecentItemDelegate::getContent(const QMode
     row.type = PDFComponentPainter::normalized(static_cast<PDFComponentPainter::RecentItemType>(getInt(index, PDFComponentRoles::ItemTypeRole, 0)));
     row.pixmap = (withPixmap && row.type == PDFComponentPainter::RecentItemType::File) ? getPixmap(index) : QPixmap();
     row.pinned = getBool(index, PDFComponentRoles::PinnedRole, false);
+    row.starVisible = getBool(index, PDFComponentRoles::StarVisibleRole, true);
+    row.status = getBool(index, PDFComponentRoles::MissingRole, false) ? PDFComponentPainter::FileStatus::Missing : PDFComponentPainter::FileStatus::Available;
+    row.locked = getBool(index, PDFComponentRoles::LockedRole, false);
     return row;
 }
 
@@ -2077,6 +2080,12 @@ QList<PDFRowDelegate::Action> PDFRecentItemDelegate::getActions(const QStyleOpti
     menu.id = MenuAction;
     menu.rect = PDFComponentPainter::getRecentItemRowMoreRect(QRectF(option.rect), state);
     menu.text = tr("More actions");
+
+    // An item without the star (it cannot be pinned) has only the menu
+    if (!getBool(index, PDFComponentRoles::StarVisibleRole, true))
+    {
+        return { menu };
+    }
 
     return { pin, menu };
 }

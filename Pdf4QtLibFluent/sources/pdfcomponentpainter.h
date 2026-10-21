@@ -300,6 +300,130 @@ public:
     /// replaces the border. A too narrow rectangle elides the label.
     static void paintTag(QPainter* painter, const QRectF& rect, const Tag& tag, const State& state);
 
+    // -------------------------------------------------------------- Icon badge
+
+    /// Content of an icon badge (icon-circle of the cards of What's New, About,
+    /// Support and Sponsor, logo-box of About, the circles of the empty states;
+    /// frames of Main page, not a component of Figma): a box of \p extent with
+    /// the fill, an optional border (1 px inside) and the radius (a negative
+    /// radius is a circle), the icon of \p iconExtent (or the logo of the
+    /// application) in its center. A badge without the fill is only the icon. The
+    /// colors are tokens; for a hue use PDFAccentHueColors::getColor. Without states;
+    /// a disabled badge has the icon icon/disabled.
+    struct IconBadge
+    {
+        QString iconName;
+        int extent = 40;
+        int iconExtent = 20;
+        qreal radius = -1.0;    ///< Radius of the box, a negative value = a circle
+        std::optional<PDFThemeColors::Color> fill = PDFThemeColors::BgSubtle;
+        std::optional<PDFThemeColors::Color> border;
+        PDFThemeColors::Color iconColor = PDFThemeColors::IconDefault;
+        bool logo = false;      ///< Draw the logo of the application (PDFPreviewPainter::paintLogo) instead of the icon
+    };
+
+    /// Returns the size of the badge (extent x extent, a negative extent is 0)
+    static QSize getIconBadgeSize(const IconBadge& badge);
+
+    /// Draws the badge centered in the rectangle (it keeps its size, a smaller
+    /// rectangle makes it smaller)
+    static void paintIconBadge(QPainter* painter, const QRectF& rect, const IconBadge& badge, const State& state);
+
+    // ------------------------------------------------------------ Status badge
+
+    /// Content of a status badge (badge-up-to-date of the release card of
+    /// What's New 103:1951; a frame of Main page): a pill of the background and
+    /// the border of the hue, the icon 12 and the text Semi Bold 11 in the icon
+    /// color of the hue; paddings 3 / 10 / 3 / 8 inside of the border, gap 5,
+    /// height 21. Announced as a text.
+    struct StatusBadge
+    {
+        QString text;
+        QString iconName = QStringLiteral("check");
+        PDFAccentHue hue = PDFAccentHue::Green;
+    };
+
+    /// Returns the size of the badge (its text is not elided)
+    static QSize getStatusBadgeSize(const StatusBadge& badge);
+
+    /// Draws the badge into the rectangle (a narrower rectangle elides the text)
+    static void paintStatusBadge(QPainter* painter, const QRectF& rect, const StatusBadge& badge, const State& state);
+
+    // --------------------------------------------------------------- Fact pill
+
+    /// Content of a fact of a hero card (pill-… of About 111:2226 and Sponsor
+    /// 122:2954; frames of Main page): a pill bg/surface with the border
+    /// border/default, the icon 13 icon/muted and the label Medium 12
+    /// text/secondary; paddings 9 / 11, gap 6, height 25. Not interactive.
+    struct FactPill
+    {
+        QString iconName;
+        QString text;
+    };
+
+    /// Returns the size of the pill (its text is not elided)
+    static QSize getFactPillSize(const FactPill& pill);
+
+    /// Draws the pill into the rectangle (a narrower rectangle elides the label)
+    static void paintFactPill(QPainter* painter, const QRectF& rect, const FactPill& pill, const State& state);
+
+    // ------------------------------------------------------------------ Avatar
+
+    /// Content of an avatar of a person (avatar of About and Sponsor; frames of
+    /// Main page): a circle of the background of the hue with the border of the
+    /// hue and the initials Bold in the icon color of the hue (at most three
+    /// characters are drawn)
+    struct Avatar
+    {
+        QString initials;
+        int extent = 40;
+        int fontPixelSize = 14;
+        PDFAccentHue hue = PDFAccentHue::Blue;
+    };
+
+    /// Returns the size of the avatar (extent x extent)
+    static QSize getAvatarSize(const Avatar& avatar);
+
+    /// Draws the avatar centered in the rectangle
+    static void paintAvatar(QPainter* painter, const QRectF& rect, const Avatar& avatar, const State& state);
+
+    // -------------------------------------------------------------- Status row
+
+    /// Content of a row of a list of states (priority-… of Sponsor 123:2869,
+    /// "What the time goes into now"; a frame of Main page): the dot 8 (bg/accent
+    /// for an active item, border/strong otherwise), the title Semi Bold 13
+    /// text/primary and the subtitle Regular 11 text/muted (both elided, data) and
+    /// the status as a Tag at the trailing side; paddings 10 / 8, gaps 10,
+    /// height 46. Without interaction.
+    struct StatusRow
+    {
+        QString title;
+        QString subtitle;
+        QString status;
+        bool active = false;
+    };
+
+    /// Returns the size of the row (the texts are not elided)
+    static QSize getStatusRowSize(const StatusRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided, the tag is not)
+    static QSize getStatusRowMinimumSize(const StatusRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintStatusRow(QPainter* painter, const QRectF& rect, const StatusRow& row, const State& state);
+
+    // ------------------------------------------------------------- Tinted card
+
+    /// Draws the surface of a card of a hue (the release card of the running
+    /// version and the hero cards accent/blue, Thank you and the promise of
+    /// Sponsor accent/green; frames of Main page): the background and the border
+    /// of the hue, radius 12. Without a hue it is the plain card bg/surface with
+    /// border/default.
+    static void paintTintedCard(QPainter* painter, const QRectF& rect, std::optional<PDFAccentHue> hue);
+
+    /// Radius of a tinted card
+    static constexpr qreal TINTED_CARD_RADIUS = 12.0;
+
     // --------------------------------------------------------------- Text link
 
     /// Content of a link (component Text link 49:152): Semi Bold 13 in
@@ -387,11 +511,15 @@ public:
 
     /// Content of a page thumbnail: the frame of the page with a shadow. The
     /// picture of the page is drawn into the frame; without it the frame shows
-    /// the placeholder lines of the component.
+    /// the placeholder lines of the component. A document protected by a
+    /// password (\p locked) has no picture: the frame is bg/subtle with the icon
+    /// lock (icon/muted, 14 / 20 / 28 px by the size) in its center - a proposal
+    /// consistent with the tokens, Figma has no frame of this state.
     struct PageThumbnail
     {
         ThumbnailSize size = ThumbnailSize::Small;
         QPixmap pixmap;
+        bool locked = false;    ///< Protected by a password: the lock instead of the picture
     };
 
     /// Returns the valid size (an invalid value is replaced by Small)
@@ -517,6 +645,14 @@ public:
 
     /// Returns the text of the badge of a missing file ("No longer exists", translated)
     static QString getMissingFileText();
+
+    /// Returns the size of the badge of a missing file (Tag font, padding 8,
+    /// height 19, the badge of Recent file row 49:280 in the state Missing)
+    static QSize getMissingFileBadgeSize();
+
+    /// Draws the badge of a missing file into the rectangle: accent/red/bg,
+    /// radius 10 and the text text/danger centered (text/disabled when disabled)
+    static void paintMissingFileBadge(QPainter* painter, const QRectF& rect, const State& state);
 
     /// Draws the row into the rectangle
     static void paintRecentFileRow(QPainter* painter, const QRectF& rect, const RecentFileRow& row, const State& state);
@@ -679,14 +815,19 @@ public:
 
     /// Content of a release of the version history (component Version row
     /// 103:1950): the rail with the dot and the line, the version, the date and
-    /// the summary, which wraps (Regular 11, line 130 %). The current version has
-    /// the dot bg/accent and the version text/accent. Without interaction.
+    /// the summary, which wraps (Regular 11, line 130 %). The current (installed)
+    /// version has only the dot bg/accent. The selected version (the version
+    /// shown by the page, also the flag State_Selected of the state) has the fill
+    /// bg/accent-subtle and the version text/accent. The row is a link: hover
+    /// bg/hover (selected bg/accent-subtle-hover), pressed bg/pressed (selected
+    /// bg/accent-subtle-pressed), the focus ring 2 px inside, radius 8.
     struct VersionRow
     {
         QString version;
         QString date;
         QString summary;
         bool current = true;
+        bool selected = false;
         bool lineVisible = true;
     };
 
@@ -890,6 +1031,8 @@ public:
         QPixmap pixmap;             ///< Picture of the first page (the placeholder lines without it)
         bool pinned = true;
         bool paintNested = true;    ///< Draw the star and the menu button
+        FileStatus status = FileStatus::Available;  ///< Missing: the name text/muted, the badge "No longer exists" instead of the progress (a proposal, no frame in Figma)
+        bool locked = false;        ///< Protected by a password: the thumbnail shows the lock (PageThumbnail::locked)
     };
 
     /// Returns the size of the card (259 x 100)
@@ -1662,6 +1805,9 @@ public:
         QStyle::State starFlags = QStyle::State_None;   ///< Hover and press of the star itself
         QStyle::State moreFlags = QStyle::State_None;   ///< Hover and press of the menu button itself
         bool paintNested = true;    ///< Draw the star and the menu button
+        bool starVisible = true;    ///< Draw the star (an item, which cannot be pinned, a workspace, has none; its place stays, so the columns of a list stay aligned)
+        FileStatus status = FileStatus::Available;  ///< Missing: the name text/muted, the badge "No longer exists" instead of the progress (a proposal, no frame in Figma)
+        bool locked = false;        ///< Protected by a password: the thumbnail of a file shows the lock (PageThumbnail::locked)
     };
 
     /// Returns the valid type (an invalid value is File)

@@ -44,7 +44,8 @@ enum class PDFAppTabKind
     Home,       ///< The Home tab with the sidebar (one per window, not closable)
     NewTab,     ///< Tab New tab: only the route /open, without the sidebar
     Document,   ///< Tab of a document (step 3)
-    Tool        ///< Tool with its own tab (phase 2)
+    Tool,       ///< Tool with its own tab (phase 2)
+    Help        ///< The user manual /help/{topic}: at most one per window, closable, without the sidebar (owner decision O13)
 };
 
 /// Item of the navigation of the sidebar of the Home tab, which a route

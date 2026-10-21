@@ -798,7 +798,7 @@ void PDFComponentPainter::paintPinnedCard(QPainter* painter, const QRectF& rect,
     // The thumbnail of the first page with its shadow (inside of the card)
     const QSize thumbnailSize = getPageThumbnailSize(ThumbnailSize::Medium);
     const QRectF thumbnail(rect.left() + Helper::PINNED_INSET, rect.top() + Helper::PINNED_INSET, thumbnailSize.width(), thumbnailSize.height());
-    paintPageThumbnail(painter, state.visualRect(rect, thumbnail), PageThumbnail{ ThumbnailSize::Medium, card.pixmap }, Helper::nestedState(state, false));
+    paintPageThumbnail(painter, state.visualRect(rect, thumbnail), PageThumbnail{ ThumbnailSize::Medium, card.pixmap, card.locked }, Helper::nestedState(state, false));
 
     // The column of the star and the menu button
     const qreal actionsLeft = rect.right() - Helper::PINNED_RIGHT - Helper::PINNED_STAR;
@@ -816,8 +816,22 @@ void PDFComponentPainter::paintPinnedCard(QPainter* painter, const QRectF& rect,
     const qreal top = rect.top() + Helper::PINNED_INSET;
     const qreal bottom = qMin(rect.bottom(), thumbnail.bottom());
     const QFont smallFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
-    Helper::drawDataText(painter, state, rect, QRectF(textLeft, top, textWidth, Helper::LINE_SEMIBOLD_13), card.name, PDFThemeFonts::getFont(PDFThemeFonts::Role::BodySemiBold), Helper::text(state, Color::TextPrimary));
+    const bool isMissing = normalized(card.status) == FileStatus::Missing;
+    Helper::drawDataText(painter, state, rect, QRectF(textLeft, top, textWidth, Helper::LINE_SEMIBOLD_13), card.name, PDFThemeFonts::getFont(PDFThemeFonts::Role::BodySemiBold),
+                         Helper::text(state, isMissing ? Color::TextMuted : Color::TextPrimary));
     Helper::drawDataText(painter, state, rect, QRectF(textLeft, top + Helper::LINE_SEMIBOLD_13 + Helper::PINNED_TEXT_GAP, textWidth, Helper::LINE_REGULAR_11), card.path, smallFont, Helper::text(state, Color::TextMuted));
+
+    if (isMissing)
+    {
+        // A missing file: the badge "No longer exists" instead of the progress, at the bottom
+        const QSize badgeSize = getMissingFileBadgeSize();
+        const QRectF badge(textLeft, bottom - badgeSize.height(), qMin<qreal>(badgeSize.width(), qMax<qreal>(0.0, textWidth)), badgeSize.height());
+        if (badge.top() > top && badge.width() > 0.0)
+        {
+            paintMissingFileBadge(painter, state.visualRect(rect, badge), state);
+        }
+        return;
+    }
 
     const QRectF barRect(textLeft, bottom - Helper::PINNED_BAR, qMax<qreal>(0.0, textWidth), Helper::PINNED_BAR);
     const QRectF progressRect(textLeft, barRect.top() - Helper::PINNED_TEXT_GAP - Helper::LINE_REGULAR_11, textWidth, Helper::LINE_REGULAR_11);

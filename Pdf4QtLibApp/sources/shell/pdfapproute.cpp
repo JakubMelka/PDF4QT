@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapproute.h"
+#include "pdfdocumenttoolsearch.h"
 
 #include <QStringDecoder>
 #include <QUrl>
@@ -519,12 +520,20 @@ PDFAppRoute PDFAppRoutes::open()
     return PDFAppRoute::create({ QStringLiteral("open") });
 }
 
-PDFAppRoute PDFAppRoutes::recent(const QString& filter)
+PDFAppRoute PDFAppRoutes::recent(const QString& filter, const QString& sort, const QString& searchText)
 {
     QList<PDFAppRoute::QueryItem> query;
     if (!filter.isEmpty())
     {
         query.append(PDFAppRoute::QueryItem(QStringLiteral("filter"), filter));
+    }
+    if (!sort.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("sort"), sort));
+    }
+    if (!searchText.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("q"), searchText));
     }
     return PDFAppRoute::create({ QStringLiteral("recent") }, query);
 }
@@ -568,14 +577,28 @@ PDFAppRoute PDFAppRoutes::whatsNew(const QString& version)
     return PDFAppRoute::create({ QStringLiteral("whats-new"), version });
 }
 
+PDFAppRoute PDFAppRoutes::releaseNotes(const QString& version)
+{
+    return PDFAppRoute::create({ QStringLiteral("whats-new"), version, QStringLiteral("notes") });
+}
+
 PDFAppRoute PDFAppRoutes::about(const QString& anchor)
 {
     return PDFAppRoute::create({ QStringLiteral("about") }, QList<PDFAppRoute::QueryItem>(), anchor);
 }
 
-PDFAppRoute PDFAppRoutes::support()
+PDFAppRoute PDFAppRoutes::support(const QString& topic, const QString& searchText)
 {
-    return PDFAppRoute::create({ QStringLiteral("support") });
+    QList<PDFAppRoute::QueryItem> query;
+    if (!topic.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("topic"), topic));
+    }
+    if (!searchText.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("q"), searchText));
+    }
+    return PDFAppRoute::create({ QStringLiteral("support") }, query);
 }
 
 PDFAppRoute PDFAppRoutes::sponsor()
@@ -595,8 +618,11 @@ PDFAppRoute PDFAppRoutes::settings(const QString& section, const QString& anchor
 
 PDFAppRoute PDFAppRoutes::search(const QString& text, const QString& group)
 {
+    // The text of a field is sanitized as the page does it: a control character or a
+    // lone surrogate (a field cut at its maximum length) would make the route invalid
+    // (Page Not Found), a longer text would be refused by the route table
     QList<PDFAppRoute::QueryItem> query;
-    query.append(PDFAppRoute::QueryItem(QStringLiteral("q"), text));
+    query.append(PDFAppRoute::QueryItem(QStringLiteral("q"), PDFSearchQuery::sanitize(text)));
     if (!group.isEmpty())
     {
         query.append(PDFAppRoute::QueryItem(QStringLiteral("group"), group));

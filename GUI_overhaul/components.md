@@ -312,7 +312,7 @@ Tlačítko nabídky řádků a karet (`more`) instancí Icon button ve Figmě ne
 | `PDFRecentFileRow` | `setFileName`, `setPath`, `setTime`, `setStatus(Available / Missing)`, `setStarVisible`, `setPinned` | `PDFStarButton`, tlačítko nabídky |
 | `PDFWorkspaceRow` | `setName`, `setMeta`, `setHue`, `setIconName` | `PDFToolBadge` (výchozí Violet s ikonou `layers`), tlačítko nabídky |
 | `PDFIssueRow` | `setNumber`, `setTitle`, `setDescription`, `setDate`, `setStatusIconName` | zelený kruh s ikonou stavu (vlastnost `Status icon`, výchozí zatržítko); barva kruhu je pevná |
-| `PDFVersionRow` | `setVersion`, `setDate`, `setSummary`, `setCurrent`, `setLineVisible` | bez interakce; `setLineVisible(false)` skrývá linku posledního řádku (vlastnost `Show line`) |
+| `PDFVersionRow` | `setVersion`, `setDate`, `setSummary`, `setCurrent`, `setSelected`, `setClickable`, `setLineVisible` | odkaz na vydání (od 21. 10. 2026, vlastnosti `Selected` a `State` 103:1950): hover `bg/hover`, stisk `bg/pressed`, kroužek 2 px uvnitř, Enter a mezerník, signál `clicked`; `Selected` (verze zobrazená stránkou) má `bg/accent-subtle` (hover / stisk `bg/accent-subtle-hover` / `-pressed`) a verzi `text/accent`, `Current` je jen tečka `bg/accent` běžící verze; `setClickable(false)` = text bez fokusu a hoveru; `setLineVisible(false)` skrývá linku posledního řádku (vlastnost `Show line`) |
 | `PDFPropertyRow` | `setKey`, `setValue`, `setEditable`, signály `copied`, `edited` | čtyři `PDFIconButton` 24: kopírovat, upravit, potvrdit (`icon/accent`), zrušit. Editovatelný řádek ukazuje upravit stále, hover přidává kopírovat. Stav `Copied` na čas: tlačítko kopírovat ukáže zelené zatržítko (`accent/green/icon`) a tooltip „Copied“; nic se neposouvá. Stav `Editing` s polem, Enter potvrdí a Esc zruší. |
 | `PDFNavItem` | `setText`, `setSubtitle`, `setIconName`, zaškrtávací | Jedna třída se dvěma předvolbami, každá přesně podle své karty: Nav item (190×38, text Regular, kroužek uvnitř, vybraná na myš nereaguje) a Settings nav item (300×52 s podtitulkem, název Semi Bold, kroužek uvnitř). |
 
@@ -326,7 +326,7 @@ Odstín a ikona odznaku, štítek a hvězda jsou ve Figmě vystavené vnořené 
 | --- | --- | --- |
 | `PDFQuickActionTile` | `setTitle`, `setDescription`, `setIconName`, `setHue`, `setStarVisible`, `setPinned` | Výška pevná 88, šířku určuje mřížka. |
 | `PDFFolderCard` | `setName`, `setPath`, `setMeta`, `setMetaVisible`, `setIconName`, `setHue` (Blue, Neutral, Green, Violet) | tlačítko nabídky |
-| `PDFPinnedCard` | `setName`, `setPath`, `setProgressText`, `setProgress`, `setPixmap`, `setPinned` | `PDFPageThumbnail`, `QProgressBar`, `PDFStarButton`, tlačítko nabídky |
+| `PDFPinnedCard` | `setName`, `setPath`, `setProgressText`, `setProgress`, `setPixmap`, `setPinned`, `setStatus(Available / Missing)`, `setLocked` | `PDFPageThumbnail`, `QProgressBar`, `PDFStarButton`, tlačítko nabídky; chybějící soubor a dokument chráněný heslem jsou návrhy (4.10) |
 | `PDFResourceCard` | `setTitle`, `setDescription`, `setIconName`, `setHue` (Neutral, Green, Amber) | |
 | `PDFHighlightCard` | `setTitle`, `setDescription`, `setIconName`, `setHue` | Bez stavů, není tlačítko. |
 | `PDFVideoCard` | `setTitle`, `setDescription`, `setDuration`, `setTags`, `setPixmap` | Náhled videa je obrázek od aplikace; vyplňuje vnitřní šířku karty. |
@@ -362,7 +362,7 @@ Quick action tile, Folder card a Resource card mají jeden recept barev odstínu
 | `PDFAttachmentDelegate` | `PDFAttachmentsTreeItemModel` | uložit |
 | `PDFSearchResultDelegate` | výsledky hledání | – |
 | `PDFFontDelegate` | seznam písem dokumentu | kopírovat |
-| `PDFRecentItemDelegate` | historie (nový model) | hvězda, nabídka |
+| `PDFRecentItemDelegate` | historie (nový model) | hvězda, nabídka; role `StarVisibleRole` (bez hvězdy a bez akce Pin), `MissingRole`, `LockedRole` (4.10) |
 | `PDFShortcutDelegate` | akce aplikace (nový model) | záznam zkratky |
 
 Delegát bere texty, ikonu a odstín z rolí modelu. Role, které dnešní modely nemají (podtitulek, odstín odznaku, autor a datum poznámky), se doplní při zapojení do aplikace; v tomto kroku je dodá model galerie.
@@ -439,6 +439,27 @@ Co musí udělat okno (shell), knihovna to nedělá:
 - **Všude:** dvojklik na volné ploše lišty = maximalizace / obnovení (`QTabBar::tabBarDoubleClicked(-1)` pro prázdnou plochu tab baru, jinak vlastní plocha lišty), `setMaximized` a `setResizable` podle událostí okna (`QEvent::WindowStateChange`), sloty signálů skupiny (`showMinimized`, `showMaximized` / `showNormal`, `close`). Lišta má odsazení 16 vlevo a 200 vpravo (16 + 46 volných + 138), taby zarovnané dolů; v maximalizovaném okně leží lišta u horního okraje obrazovky a tab je trefitelný na okraji, protože obdélník tabu `PDFDocumentTabBar` obsahuje i 6 px nad tvarem (v normálním okně tuto plochu dostane změna velikosti `HTTOP`).
 
 `PDFDocumentTabBar` dostal pro lištu jen `setTabPasswordProtected` / `isTabPasswordProtected`: tab dokumentu chráněného heslem ukazuje ikonu `password` místo své ikony (Figma 228:8709; ikona tabu se zachová a vrátí, čtečka slyší „password protected“, tab bez ikony dostane její místo). Tab *New tab* (955:152339) je obyčejný tab s ikonou `folder` a křížkem, Home je nezavíratelný (`setTabClosable(false)`); obojí knihovna už uměla.
+
+### 4.10 Prvky stránek kroku 2 (doplněno 21. 10. 2026)
+
+Integrace kroku 2 aplikace (I2) přesunula do knihovny prvky, které stránky Home, Open, Recent, What's New, About, Support a Sponsor kreslily samy, a doplnila stavy, které stránky potřebovaly. Rámce *Main page*, které nejsou komponentami Figmy, jsou v knihovně komponentami s jednou kreslicí funkcí v `PDFComponentPainter` (`pdfcomponentpainterbadges.cpp`) a widgetem v `pdfcomponentbadges.h`; vzorky jsou na stránce galerie *19-shell-home* (blok „Elements of the pages“).
+
+| Třída | API | Chování |
+| --- | --- | --- |
+| `PDFIconBadge : QWidget` | `setIconName`, `setExtent`, `setIconExtent`, `setRadius` (záporný = kruh), `setColors(výplň nebo nic, ikona, okraj)`, `setHue`, `setLogo` | icon-circle karet (What's New, About, Sponsor, prázdné stavy), logo-box About; bez výplně jen ikona (ikony dialogů 14 / 16). Pevná velikost i ve větším obdélníku, myš prochází, zakázaný má ikonu `icon/disabled`. Nahrazuje `PDFAppIconBadge` a `PDFAppIconCircle`. |
+| `PDFStatusBadge : QWidget` | `setBadge(text, ikona, odstín)` | badge-up-to-date karty vydání: pilulka odstínu s okrajem, ikona 12 a text Semi Bold 11 barvou ikony odstínu, výška 21; jméno pro čtečku je text. |
+| `PDFFactPill : QWidget` | `setText`, `setIconName` | fakta hero karet About a Sponsor: `bg/surface` s `border/default`, ikona 13 `icon/muted`, text Medium 12 `text/secondary`, výška 25; odsazení 9 / 11 leží uvnitř okraje 1 px (ikona na 10, text 12 px před koncem, pill-Open source 111:2227; revize R2-D2). |
+| `PDFAvatar : QWidget` | `setInitials` (nejvýš 3 znaky), `setExtent`, `setFontPixelSize`, `setHue` | iniciály Bold v kruhu odstínu (Blue) s okrajem. |
+| `PDFStatusRow : QWidget` | `setTitle`, `setSubtitle`, `setStatus`, `setActive` | priority Sponsor: tečka 8 (`bg/accent` aktivní, jinak `border/strong`), titulek a podtitulek (data, zkrácené), štítek Tag stavu vpravo (kreslený, ne vnořený widget), výška 46; jméno titulek, popis podtitulek a stav. |
+| `PDFTintedCard : QFrame` | `setHue(odstín nebo nic)` | karta vydání, hero karty, Thank you, slib Sponsor: pozadí a okraj odstínu, radius 12; bez odstínu `bg/surface` s `border/default`. Rozložení dává aplikace. |
+
+Stavy doplněné k existujícím komponentám (Figma je nemá, jsou to **návrhy** podle tokenů; k potvrzení vlastníkem):
+
+- **Chybějící soubor** v Recent item row a Pinned card: název `text/muted` a odznak „No longer exists“ (`accent/red/bg`, `text/danger`, jako Recent file row `Status=Missing`) místo průběhu čtení (u Recent item row ve sloupci průběhu, u karty dole místo textu a pruhu). Odznak kreslí `PDFComponentPainter::paintMissingFileBadge` (i Recent file row).
+- **Dokument chráněný heslem**: náhled stránky (`PageThumbnail::locked`) je `bg/subtle` s ikonou `lock` `icon/muted` (14 / 20 / 28 px podle velikosti) a okrajem `border/strong` místo obrázku.
+- **Bez hvězdy** v Recent item row (`starVisible`, role `StarVisibleRole`): místo hvězdy zůstává prázdné, aby sloupce seznamu lícovaly; delegát pak nemá akci Pin (pracovní prostory se nepřipínají).
+
+Další doplňky: `PDFTreeView::RowStyle::Contents` (obsah příručky help-contents 955:152873: řádky 28, radius 6, šipka 14 na 8, mezera 8, odsazení 24 na úroveň; texty a stavy jako Outline). Položka bez potomků (téma) nemá místo šipky: její text začíná na 24 px za úroveň (toc-Protect with Password na 24, kapitola na 30), styl ho posune před obdélník položky (`getLeafLeft`, zrcadlí se pro RTL; revize R2-D2). Hlavička pohledu s předvolbou Library jsou sloupce tabulky About (columns 111:2291): bez pásu `bg/subtle` a bez oddělovačů sekcí, popisky Medium 11 `text/muted` 6 px pod horním okrajem s odsazením 10 jako buňky, `border/divider` na 27 a mezera 4 před prvním řádkem (výška hlavičky 32). `PDFMessageBox` má veřejné API dialogu návrhu: `setBadgeVisible`, `addContent`, `addActionButton(text, Leading / Trailing, primární)` (vlastní řada tlačítek v pořadí návrhu, tlačítko dialog samo nezavírá, standardní `QDialogButtonBox` se skryje, dokud nemá tlačítko), `getActionButtons`, `setCardWidth` / `getContentWidth` (texty se zalamují, výška podle obsahu); `PDFAppCardDialog` ho používá místo hledání odznaku v rozložení. Ikony `hourglass` a `timer-off` (karta Update status) vyexportované z *Components / Icons* beze změny.
 
 ---
 

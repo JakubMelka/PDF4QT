@@ -39,6 +39,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpacerItem>
+#include <QTextLayout>
 #include <QUrl>
 #include <QWidget>
 
@@ -170,7 +171,111 @@ private:
     bool m_isUpdating = false;
 };
 
-/// Header of the workspace (workspace-header): a title Bold 28 and a subtitle
+/// Link of a breadcrumb (crumb of pdf4qt-help 955:152873): Medium 12 text/accent,
+/// underlined under the pointer, the focus ring outside (radius 4)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppCrumbLink : public PDFComponentButton
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFComponentButton;
+
+public:
+    explicit PDFAppCrumbLink(const QString& text, QWidget* parent = nullptr);
+
+    static QFont getCrumbFont(bool isUnderlined = false);
+
+protected:
+    virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
+    virtual QSize getContentSizeHint() const override;
+};
+
+/// Breadcrumb of a page (Help > Protect & Sign > Sign with Certificate): links of
+/// the parents, separators text/tertiary and the current page text/tertiary,
+/// all Medium 12, gaps 6. A click on a link emits linkActivated with its route.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppBreadcrumb : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    explicit PDFAppBreadcrumb(QWidget* parent = nullptr);
+
+    /// Shows the items (a link for an item with a valid route, the current page
+    /// otherwise); the previous parts are deleted later (a part may be the sender)
+    void setItems(const QList<PDFAppBreadcrumbItem>& items);
+
+    /// Adds a link to the route (a route of the application)
+    void addLink(const QString& text, const QString& route);
+
+    /// Adds the current page (the last part, not a link)
+    void addCurrent(const QString& text);
+
+    /// Links of the breadcrumb and their routes
+    QList<PDFAppCrumbLink*> getLinks() const;
+    QString getRoute(const PDFAppCrumbLink* link) const;
+
+Q_SIGNALS:
+    void linkActivated(const QString& route);
+
+private:
+    void addSeparator();
+    void onLinkClicked();
+    void clear();
+
+    QPointer<QHBoxLayout> m_layout;
+    QList<QPointer<PDFAppCrumbLink>> m_links;
+    QStringList m_routes;
+};
+
+/// Text of the header of the workspace (the title, the subtitle): one line, elided
+/// at its end to the width of the header (PDFComponentPainter::drawElidedText, the
+/// header has the fixed height of the frames, a narrow window never wraps it); the
+/// whole text is the tooltip of an elided text. A part of the text may be stressed
+/// (the subtitle of Home 28:35: "PDF" Semi Bold in text/accent). The colors are
+/// tokens read at paint time and the text is never a rich text; an elided text is
+/// drawn without the stress.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppHeaderText : public PDFLabel
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFLabel;
+
+public:
+    explicit PDFAppHeaderText(const QFont& font, PDFThemeColors::Color color, QWidget* parent = nullptr);
+    virtual ~PDFAppHeaderText() override;
+
+    /// Sets the text and its stressed part (the first occurrence of \p accent in
+    /// the text; empty or not found = none)
+    void setHeaderText(const QString& text, const QString& accent = QString());
+
+    /// Index of the stressed part in the text (-1 = none) and its length
+    qsizetype getAccentIndex() const;
+    qsizetype getAccentLength() const { return getAccentIndex() >= 0 ? m_accent.size() : 0; }
+
+    /// Width of the whole text with its stressed part
+    qreal getTextWidth() const;
+
+    /// The text is elided at the current width
+    bool isElided() const;
+
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+    virtual bool event(QEvent* event) override;
+
+private:
+    QList<QTextLayout::FormatRange> getFormats() const;
+
+    QString m_accent;
+};
+
+/// Header of the workspace (workspace-header): the breadcrumbs (optional), a title Bold 28 and a subtitle
 /// Regular 14 (both optional) and the global search field 320 px "Search tools,
 /// documents, or help..." (Ctrl+K). Enter asks for the search of the text.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppWorkspaceHeader : public QWidget
@@ -184,22 +289,32 @@ public:
     explicit PDFAppWorkspaceHeader(QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceHeader() override;
 
-    /// Texts of the page (empty = the line is hidden)
-    void setTexts(const QString& title, const QString& subtitle);
+    /// Texts of the page (empty = the line is hidden); \p subtitleAccent is the
+    /// stressed part of the subtitle (PDFAppPage::getHeaderSubtitleAccent)
+    void setTexts(const QString& title, const QString& subtitle, const QString& subtitleAccent = QString());
 
     PDFLineEdit* getSearchField() const { return m_searchField; }
-    PDFLabel* getTitleLabel() const { return m_title; }
-    PDFLabel* getSubtitleLabel() const { return m_subtitle; }
+    PDFAppHeaderText* getTitleLabel() const { return m_title; }
+    PDFAppHeaderText* getSubtitleLabel() const { return m_subtitle; }
+    PDFAppBreadcrumb* getBreadcrumb() const { return m_breadcrumb; }
+
+    /// Breadcrumbs above the title (empty = hidden)
+    void setBreadcrumbs(const QList<PDFAppBreadcrumbItem>& items);
 
 Q_SIGNALS:
     /// Enter in the search field with a non-empty text
     void searchRequested(const QString& text);
 
+    /// A link of the breadcrumbs has been clicked
+    void breadcrumbActivated(const pdf::PDFAppRoute& route);
+
 private:
     void onReturnPressed();
+    void onBreadcrumbActivated(const QString& route);
 
-    QPointer<PDFLabel> m_title;
-    QPointer<PDFLabel> m_subtitle;
+    QPointer<PDFAppBreadcrumb> m_breadcrumb;
+    QPointer<PDFAppHeaderText> m_title;
+    QPointer<PDFAppHeaderText> m_subtitle;
     QPointer<PDFLineEdit> m_searchField;
 };
 
@@ -311,9 +426,14 @@ public:
     explicit PDFAppFooter(QWidget* parent = nullptr);
     virtual ~PDFAppFooter() override;
 
-    /// Padding above the row (the line lies inside of it) and below it (the bottom
-    /// padding of the workspace)
+    /// Padding above the texts (the line lies inside of it) and below the row (the
+    /// bottom padding of the workspace)
     static constexpr int PADDING = 16;
+
+    /// The MIT License link (Text link, 16 px) is 1 px higher than the texts (15 px,
+    /// one text of 15 px in app-footer 28:217): it reaches 1 px into the padding
+    /// above the texts, so the footer is 16 + 15 + 16 = 47 px as the frames
+    static constexpr int LINK_OVERHANG = 1;
 
     /// Gap between the version and the tag
     static constexpr int TAG_GAP = 8;

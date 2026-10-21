@@ -81,11 +81,27 @@ void PDFAppContext::open(PDFDatabaseOptions options)
     connect(m_notifier, &PDFDatabaseNotifier::changed, this, &PDFAppContext::onSettingChanged);
     connect(m_notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppContext::onEverythingChanged);
 
+    m_thumbnailer = new PDFAppThumbnailer(m_database, this);
+    m_folderInfo = new PDFAppFolderInfoService(this);
+
     applyColorScheme();
 }
 
 void PDFAppContext::close()
 {
+    // The worker threads use the database: they stop before it is closed
+    if (m_thumbnailer)
+    {
+        delete m_thumbnailer;
+        m_thumbnailer = nullptr;
+    }
+
+    if (m_folderInfo)
+    {
+        delete m_folderInfo;
+        m_folderInfo = nullptr;
+    }
+
     if (m_notifier)
     {
         delete m_notifier;
@@ -110,6 +126,21 @@ PDFSettingsRepository PDFAppContext::getSettings() const
 PDFShortcutRepository PDFAppContext::getShortcuts() const
 {
     return PDFShortcutRepository(m_database);
+}
+
+PDFRecentRepository PDFAppContext::getRecent() const
+{
+    return PDFRecentRepository(m_database, &m_settingRegistry);
+}
+
+PDFWorkspaceRepository PDFAppContext::getWorkspaces() const
+{
+    return PDFWorkspaceRepository(m_database);
+}
+
+PDFToolRepository PDFAppContext::getTools() const
+{
+    return PDFToolRepository(m_database);
 }
 
 PDFDatabaseState PDFAppContext::getStorageState() const

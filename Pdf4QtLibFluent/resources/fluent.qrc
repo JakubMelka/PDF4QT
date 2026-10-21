@@ -142,6 +142,7 @@
         <file>icons/highlighter.svg</file>
         <file>icons/histogram.svg</file>
         <file>icons/home.svg</file>
+        <file>icons/hourglass.svg</file>
         <file>icons/html.svg</file>
         <file>icons/icc-profile.svg</file>
         <file>icons/image-replace.svg</file>
@@ -176,6 +177,7 @@
         <file>icons/link.svg</file>
         <file>icons/linux.svg</file>
         <file>icons/list-ordered.svg</file>
+        <file>icons/list-remove.svg</file>
         <file>icons/list.svg</file>
         <file>icons/locate.svg</file>
         <file>icons/lock.svg</file>
@@ -271,6 +273,7 @@
         <file>icons/regex.svg</file>
         <file>icons/region-add.svg</file>
         <file>icons/region-exclude.svg</file>
+        <file>icons/rename.svg</file>
         <file>icons/repeat.svg</file>
         <file>icons/replace.svg</file>
         <file>icons/report.svg</file>
@@ -306,6 +309,7 @@
         <file>icons/shield-lock.svg</file>
         <file>icons/shield-plus.svg</file>
         <file>icons/shield.svg</file>
+        <file>icons/show-in-folder.svg</file>
         <file>icons/sign-certificate.svg</file>
         <file>icons/signature-field.svg</file>
         <file>icons/signature.svg</file>
@@ -344,6 +348,7 @@
         <file>icons/text-label.svg</file>
         <file>icons/text-line-add.svg</file>
         <file>icons/text-lines.svg</file>
+        <file>icons/timer-off.svg</file>
         <file>icons/timestamp.svg</file>
         <file>icons/to-annotation.svg</file>
         <file>icons/tools.svg</file>

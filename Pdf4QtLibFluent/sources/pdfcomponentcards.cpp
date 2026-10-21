@@ -410,6 +410,27 @@ void PDFPinnedCard::setPixmap(const QPixmap& pixmap)
     }
 }
 
+void PDFPinnedCard::setStatus(Status status)
+{
+    status = PDFComponentPainter::normalized(status);
+    if (m_card.status != status)
+    {
+        m_card.status = status;
+        updateDescription();
+        update();
+    }
+}
+
+void PDFPinnedCard::setLocked(bool isLocked)
+{
+    if (m_card.locked != isLocked)
+    {
+        m_card.locked = isLocked;
+        updateDescription();
+        update();
+    }
+}
+
 bool PDFPinnedCard::isPinned() const
 {
     return m_star && m_star->isPinned();
@@ -438,7 +459,11 @@ void PDFPinnedCard::setMenu(QMenu* menu)
 
 void PDFPinnedCard::updateDescription()
 {
-    const QString description = joinTexts({ m_card.path, m_card.progressText }, getListPattern());
+    // A missing file says so before its folder and has no progress, a locked one says it is protected
+    const bool isMissing = m_card.status == Status::Missing;
+    const QString lockedText = m_card.locked ? tr("Protected by a password") : QString();
+    const QString description = isMissing ? joinTexts({ PDFComponentPainter::getMissingFileText(), m_card.path, lockedText }, getListPattern())
+                                          : joinTexts({ m_card.path, m_card.progressText, lockedText }, getListPattern());
     replaceAccessibleDescription(m_description, description);
     m_description = description;
 }

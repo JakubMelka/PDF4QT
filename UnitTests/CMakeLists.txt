@@ -634,4 +634,93 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsAppNavigation "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppNavigation")
     set_tests_properties(UnitTestsAppNavigation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Data and services of step 2 of the new application: static tool catalog of the
+    # core, repositories of the recent files / folders / pinned locations / workspaces /
+    # tools, thumbnailer and folder information (the test starts itself as a second
+    # process; it never links SQLite itself)
+    add_executable(UnitTestsAppData
+        tst_appdatatest.cpp
+    )
+    target_link_libraries(UnitTestsAppData PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAppData PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppData "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppData")
+    set_tests_properties(UnitTestsAppData PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Pages About, Support and Sponsor of the new application (step 2): routes,
+    # build information, third-party libraries, video catalog, For you, geometry
+    # and pixels against Figma, deletion of the pages
+    add_executable(UnitTestsAppInfoPages
+        tst_appinfopagestest.cpp
+    )
+    target_link_libraries(UnitTestsAppInfoPages PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAppInfoPages PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppInfoPages "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppInfoPages")
+    set_tests_properties(UnitTestsAppInfoPages PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Content of the new application (step 2): What's New files, catalog and the
+    # bundled files against RELEASES.txt, the update check against a loopback
+    # HTTP server, What's New pages, the Markdown parser and view, the manual /help
+    add_executable(UnitTestsAppContent
+        tst_appcontenttest.cpp
+    )
+    target_link_libraries(UnitTestsAppContent PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    target_compile_definitions(UnitTestsAppContent PRIVATE PDF4QT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
+    set_target_properties(UnitTestsAppContent PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppContent "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppContent")
+    set_tests_properties(UnitTestsAppContent PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Global search of the new application (step 2): the matching of the core, the
+    # engine and its providers, the page /search and the popup of the field
+    add_executable(UnitTestsAppSearch
+        tst_appsearchtest.cpp
+    )
+    target_link_libraries(UnitTestsAppSearch PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAppSearch PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppSearch "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppSearch")
+    set_tests_properties(UnitTestsAppSearch PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Pages Home, Open and Recent of the new application (step 2): data of the
+    # repositories, menus, dialogs of workspaces and of the history, drop of files,
+    # thumbnails, notifications, geometry and pixels against Figma, lifetime
+    add_executable(UnitTestsAppHome
+        tst_apphometest.cpp
+    )
+    target_link_libraries(UnitTestsAppHome PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAppHome PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppHome "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppHome")
+    set_tests_properties(UnitTestsAppHome PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

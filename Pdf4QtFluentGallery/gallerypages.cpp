@@ -2386,6 +2386,24 @@ GalleryPages::Page GalleryPages::createDialogsPage(QWidget* parent)
     embedded->setDefaultButton(QDialogButtonBox::Retry);
     builder.live(QStringLiteral("Message box shown inside of a tab (property \"overlay\")"), embedded, QStringLiteral("626:1744"));
 
+    // A dialog of the design built on the message box: no badge, own content,
+    // own row of the buttons in the order of the design, the width of the frame
+    pdf::PDFMessageBox* form = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Rename workspace"),
+                                                      QStringLiteral("The workspace keeps its documents."), QDialogButtonBox::NoButton, builder.page());
+    form->setWindowFlags(Qt::Widget);
+    form->setProperty(Properties::OVERLAY, true);
+    form->setBadgeVisible(false);
+    form->setCardWidth(440);
+    pdf::PDFLineEdit* formField = new pdf::PDFLineEdit(QStringLiteral("Thesis review"));
+    formField->setAccessibleName(QStringLiteral("Name"));
+    form->addContent(formField);
+    QPushButton* formDelete = form->addActionButton(QStringLiteral("Delete"), pdf::PDFMessageBox::ActionPosition::Leading, false);
+    formDelete->setProperty(Properties::DESTRUCTIVE, true);
+    QPushButton* formCancel = form->addActionButton(QStringLiteral("Cancel"), pdf::PDFMessageBox::ActionPosition::Trailing, false);
+    form->addActionButton(QStringLiteral("Rename"), pdf::PDFMessageBox::ActionPosition::Trailing, true);
+    QObject::connect(formCancel, &QPushButton::clicked, form, &pdf::PDFMessageBox::reject);
+    builder.live(QStringLiteral("Dialog of the design: no badge, own content and buttons, width 440"), form, QStringLiteral("955:150171"));
+
     builder.row();
     struct MessageSample
     {

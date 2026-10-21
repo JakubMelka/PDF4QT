@@ -60,6 +60,7 @@
 #include <QLabel>
 #include <QLocalSocket>
 #include <QLockFile>
+#include <QMimeData>
 #include <QMenu>
 #include <QPainter>
 #include <QPushButton>
@@ -70,6 +71,7 @@
 #include <QTranslator>
 #include <QToolButton>
 #include <QTextDocumentFragment>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QStyleHints>
 #include <QtMath>
@@ -126,6 +128,7 @@ public:
 
     virtual QString getTitle() const override { return m_title; }
     virtual QString getHeaderTitle() const override { return m_title; }
+    virtual QBoxLayout* getBannerLayout() const override { return bannerLayout ? bannerLayout.data() : pdf::PDFAppPage::getBannerLayout(); }
 
     virtual QVariantMap saveViewState() const override
     {
@@ -149,6 +152,11 @@ public:
         return requestNavigation(route, mode);
     }
 
+    bool replaceRouteTo(const pdf::PDFAppRoute& route)
+    {
+        return replaceRoute(route);
+    }
+
     void requestBack()
     {
         Q_EMIT backRequested();
@@ -157,6 +165,7 @@ public:
     int value = 0;
     int setRouteCount = 0;
     bool isRestored = false;
+    QPointer<QBoxLayout> bannerLayout;
     std::function<void(NavigationTestPage*)> onSetRoute;
     std::function<void(NavigationTestPage*)> onRestore;
 
@@ -246,6 +255,9 @@ public:
         QStringList commandLineArguments = { QStringLiteral("PDF4QT"), QStringLiteral("--portable") };
         commandLineArguments << arguments;
         context = std::make_unique<pdf::PDFAppContext>(pdf::PDFAppCommandLine::parse(commandLineArguments, QDir::currentPath()));
+
+        // The shell only: the tests register their own pages
+        context->setPagesEnabled(false);
 
         pdf::PDFDatabaseOptions options;
         memoryName = QStringLiteral("/pdf4qt-navigation-%1-%2").arg(QCoreApplication::applicationPid()).arg(++s_counter);
@@ -373,9 +385,11 @@ private slots:
     void notFoundUntrustedText();
     void historyAndViewState();
     void navigationFromOwnSignal();
+    void replaceRoute();
     void deletionDuringNavigation();
     void deletionInAnyOrder();
     void newTab();
+    void helpTab();
     void externalLinks();
     void themeSwitch();
     void themeSwitchSystemScheme_data();
@@ -401,11 +415,17 @@ private slots:
     void instanceRequests();
     void shellDesign();
     void footerAxis();
+    void headerTexts();
     void minimumWindow();
     void notFoundNarrowWindow();
     void rightToLeftIcons();
     void navigationButtonsFilter();
     void scrollAreas();
+    void openDocumentsRecent();
+    void helpTabLimit();
+    void breadcrumbParts();
+    void fileDragOver();
+    void bannerLayoutOfPage();
     void screenshots();
 
 private:
@@ -668,6 +688,9 @@ void AppNavigationTest::routeBuilders()
     QCOMPARE(Routes::open().toString(), QStringLiteral("/open"));
     QCOMPARE(Routes::recent().toString(), QStringLiteral("/recent"));
     QCOMPARE(Routes::recent("pinned").toString(), QStringLiteral("/recent?filter=pinned"));
+    QCOMPARE(Routes::recent("files", "name", "a & b").toString(), QStringLiteral("/recent?filter=files&sort=name&q=a%20%26%20b"));
+    QCOMPARE(Routes::recent(QString(), "folder").toString(), QStringLiteral("/recent?sort=folder"));
+    QCOMPARE(Routes::recent(QString(), QString(), "x").toString(), QStringLiteral("/recent?q=x"));
     QCOMPARE(Routes::tools().toString(), QStringLiteral("/tools"));
     QCOMPARE(Routes::tools("protect").toString(), QStringLiteral("/tools?category=protect"));
     QCOMPARE(Routes::tool("compress").toString(), QStringLiteral("/tools/compress"));
@@ -676,14 +699,40 @@ void AppNavigationTest::routeBuilders()
     QCOMPARE(Routes::ai().toString(), QStringLiteral("/ai"));
     QCOMPARE(Routes::whatsNew().toString(), QStringLiteral("/whats-new"));
     QCOMPARE(Routes::whatsNew("1.6.0").toString(), QStringLiteral("/whats-new/1.6.0"));
+    QCOMPARE(Routes::releaseNotes("1.6.0").toString(), QStringLiteral("/whats-new/1.6.0/notes"));
     QCOMPARE(Routes::about("third-party").toString(), QStringLiteral("/about#third-party"));
     QCOMPARE(Routes::support().toString(), QStringLiteral("/support"));
+    QCOMPARE(Routes::support("forms").toString(), QStringLiteral("/support?topic=forms"));
+    QCOMPARE(Routes::support("for-you", "sign").toString(), QStringLiteral("/support?topic=for-you&q=sign"));
+    QCOMPARE(Routes::support(QString(), "sign").toString(), QStringLiteral("/support?q=sign"));
     QCOMPARE(Routes::sponsor().toString(), QStringLiteral("/sponsor"));
     QCOMPARE(Routes::help("getting-started").toString(), QStringLiteral("/help/getting-started"));
     QCOMPARE(Routes::settings().toString(), QStringLiteral("/settings/general"));
     QCOMPARE(Routes::settings("security", "signature-verification").toString(), QStringLiteral("/settings/security#signature-verification"));
     QCOMPARE(Routes::search("merge pdf").toString(), QStringLiteral("/search?q=merge%20pdf"));
     QCOMPARE(Routes::search("x", "tools").toString(), QStringLiteral("/search?q=x&group=tools"));
+
+    // A text of the search field with control characters, a lone surrogate (the field
+    // cut at its maximum length in an emoji) or too long gives a valid route of the table
+    {
+        const pdf::PDFAppRouteTable searchTable = pdf::PDFAppRouteTable::createDefault();
+        const QString hostileTexts[] =
+        {
+            QStringLiteral("a") + QChar(0x0001) + QStringLiteral("b") + QChar(0x007F) + QChar(0x0090),
+            QString(255, QLatin1Char('x')) + QChar(0xD83D),
+            QString(1000, QLatin1Char('y')),
+            QStringLiteral("  merge \t pdf  "),
+        };
+        for (const QString& text : hostileTexts)
+        {
+            const pdf::PDFAppRoute route = Routes::search(text);
+            QVERIFY(route.isValid());
+            QVERIFY2(searchTable.match(route).result == pdf::PDFAppRouteMatch::Result::NotImplemented, qPrintable(route.toString()));
+            QCOMPARE(pdf::PDFAppRoute::parse(route.toString()), route);
+        }
+        QCOMPARE(Routes::search(hostileTexts[0]).toString(), QStringLiteral("/search?q=ab"));
+        QCOMPARE(Routes::search(hostileTexts[3]).toString(), QStringLiteral("/search?q=merge%20pdf"));
+    }
     QCOMPARE(Routes::document(documentId(), 12).toString(), QStringLiteral("/document/%1?page=12").arg(documentId()));
     QCOMPARE(Routes::document(documentId()).toString(), QStringLiteral("/document/%1").arg(documentId()));
     QCOMPARE(Routes::documentProperties(documentId(), "fonts").toString(), QStringLiteral("/document/%1/properties/fonts").arg(documentId()));
@@ -695,6 +744,7 @@ void AppNavigationTest::routeBuilders()
     for (const pdf::PDFAppRoute& route : { Routes::home(), Routes::open(), Routes::recent("files"), Routes::tools("pages"), Routes::tool("compress"),
                                             Routes::toolCollections(), Routes::toolCollection("mine"), Routes::ai(), Routes::whatsNew(), Routes::whatsNew("1.6"),
                                             Routes::about("third-party"), Routes::support(), Routes::sponsor(), Routes::help("topic"), Routes::settings(),
+                                            Routes::recent("workspaces", "last-opened", "q"), Routes::support("pages", "merge"), Routes::releaseNotes("1.6.0"),
                                             Routes::settings("advanced", "row"), Routes::search("x", "help"), Routes::document(documentId(), 3),
                                             Routes::documentProperties(documentId(), "xmp"), Routes::documentTool(documentId(), "ocr"), Routes::toolTab("merge", "m1") })
     {
@@ -778,7 +828,7 @@ void AppNavigationTest::routeTable_data()
     add("/about#third-party", "/about", "/about#third-party", Tab::Home, Nav::About);
     add("/support", "/support", "/support", Tab::Home, Nav::Support);
     add("/sponsor", "/sponsor", "/sponsor", Tab::Home, Nav::Sponsor);
-    add("/help/getting-started", "/help/{topic}", "/help/getting-started", Tab::Home, Nav::None);
+    add("/help/getting-started", "/help/{topic}", "/help/getting-started", Tab::Help, Nav::None);
     add("/settings", "/settings/{section}", "/settings/general", Tab::Home, Nav::Settings);
     add("/settings?q=color", "/settings", "/settings?q=color", Tab::Home, Nav::Settings);
     for (const char* section : { "general", "viewing", "color-modes", "editing", "security", "speech", "shortcuts", "color-management", "advanced" })
@@ -1010,10 +1060,19 @@ void AppNavigationTest::navigationAllRoutes()
     QSignalSpy navigated(fixture.navigator(), &pdf::PDFAppNavigator::navigated);
 
     // Step 1: no page exists, every route ends on Page Not Found in the Home tab
+    // (the manual in the Help tab, owner decision O13)
     fixture.navigate(route);
     QCOMPARE(navigated.count(), 1);
     QVERIFY(navigated.last().at(2).toBool());
-    QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
+    if (tabKind == int(pdf::PDFAppTabKind::Help))
+    {
+        QCOMPARE(fixture.currentTab()->getKind(), pdf::PDFAppTabKind::Help);
+        QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+    }
+    else
+    {
+        QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
+    }
     QVERIFY(qobject_cast<pdf::PDFPageNotFoundPage*>(fixture.currentPage()));
     QCOMPARE(fixture.currentTab()->getNavItem(), pdf::PDFAppNavItem::None);
     QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route.toString(), resolved);
@@ -1025,19 +1084,20 @@ void AppNavigationTest::navigationAllRoutes()
     QVERIFY(fixture.navigator()->getRouteTable().setFactory(pattern, factory));
     fixture.navigate(route);
 
-    if (tabKind == int(pdf::PDFAppTabKind::Home))
+    if (tabKind == int(pdf::PDFAppTabKind::Home) || tabKind == int(pdf::PDFAppTabKind::Help))
     {
         NavigationTestPage* page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
         QVERIFY(page);
         QCOMPARE(page->getRoute().toString(), resolved);
         QCOMPARE(int(fixture.currentTab()->getNavItem()), navItem);
+        QCOMPARE(int(fixture.currentTab()->getKind()), tabKind);
         QCOMPARE(fixture.window->windowTitle(), QString::fromUtf8("%1 – PDF4QT").arg(pattern));
         QCOMPARE(fixture.navigator()->getLastAnnouncement(), QStringLiteral("%1 page").arg(pattern));
 
         // The header shows the texts of the page, the search stays
-        pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
-        QCOMPARE(homeTab->getHeader()->getTitleLabel()->text(), pattern);
-        QVERIFY(homeTab->getSearchField());
+        pdf::PDFAppWorkspaceTab* workspaceTab = static_cast<pdf::PDFAppWorkspaceTab*>(fixture.currentTab());
+        QCOMPARE(workspaceTab->getHeader()->getTitleLabel()->text(), pattern);
+        QVERIFY(workspaceTab->getSearchField());
     }
     else
     {
@@ -1392,6 +1452,105 @@ void AppNavigationTest::navigationFromOwnSignal()
     QVERIFY(!pdf::PDFAppSidebar::getRoute(pdf::PDFAppNavItem::None).isValid());
 }
 
+void AppNavigationTest::replaceRoute()
+{
+    NavigationFixture fixture;
+    auto recent = std::make_shared<NavigationTestFactory>("Recent");
+    auto about = std::make_shared<NavigationTestFactory>("About");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/recent"), recent);
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), about);
+    QSignalSpy replacedSpy(fixture.navigator(), &pdf::PDFAppNavigator::routeReplaced);
+    QSignalSpy navigatedSpy(fixture.navigator(), &pdf::PDFAppNavigator::navigated);
+
+    fixture.navigate("/about");
+    fixture.navigate("/recent");
+    QPointer<NavigationTestPage> page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(page);
+    page->value = 7;
+    const QString announcement = fixture.navigator()->getLastAnnouncement();
+    const int entryCount = fixture.currentTab()->getHistory().getCount();
+    navigatedSpy.clear();
+
+    // The filter of the page: the same page, the current entry has the route, no
+    // new entry, no announcement, no navigation, the window title follows
+    const pdf::PDFAppRoute filtered = pdf::PDFAppRoutes::recent("pinned", "name", "report");
+    QVERIFY(page->replaceRouteTo(filtered));
+    QCOMPARE(fixture.currentPage(), page.data());
+    QCOMPARE(page->getRoute(), filtered);
+    QCOMPARE(page->setRouteCount, 1);
+    QCOMPARE(recent->createCount, 1);
+    QCOMPARE(fixture.currentTab()->getHistory().getCount(), entryCount);
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, filtered);
+    QCOMPARE(replacedSpy.count(), 1);
+    QCOMPARE(replacedSpy[0].at(0).value<pdf::PDFAppTab*>(), fixture.currentTab());
+    QCOMPARE(replacedSpy[0].at(1).value<pdf::PDFAppRoute>(), filtered);
+    QCOMPARE(navigatedSpy.count(), 0);
+    QCOMPARE(fixture.navigator()->getLastAnnouncement(), announcement);
+    QVERIFY(fixture.window->windowTitle().startsWith(QStringLiteral("Recent")));
+
+    // The same route again does nothing
+    QVERIFY(page->replaceRouteTo(filtered));
+    QCOMPARE(replacedSpy.count(), 1);
+
+    // An invalid route is ignored, a route of another page or with a refused value
+    // is refused (the history keeps its entry)
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("invalid route"));
+    QVERIFY(page->replaceRouteTo(pdf::PDFAppRoute::parse(QStringLiteral("recent"))));
+    QCOMPARE(page->getRoute(), filtered);
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("route of another page"));
+    QVERIFY(page->replaceRouteTo(pdf::PDFAppRoutes::about()));
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, filtered);
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("route of another page"));
+    QVERIFY(page->replaceRouteTo(pdf::PDFAppRoute::parse(QStringLiteral("/recent?filter=everything"))));
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, filtered);
+    QCOMPARE(replacedSpy.count(), 1);
+    QVERIFY(page->replaceRouteTo(filtered));
+    QCOMPARE(replacedSpy.count(), 2);
+
+    // Back and Forward show the filtered route again (a new page of it with the
+    // state of the view saved, when the tab left it)
+    QVERIFY(fixture.navigator()->goBack());
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::about());
+    QVERIFY(fixture.navigator()->goForward());
+    QPointer<NavigationTestPage> forwardPage = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(forwardPage && forwardPage != page);
+    QCOMPARE(forwardPage->getRoute(), filtered);
+    QCOMPARE(forwardPage->value, 7);
+
+    // A page, which is not the shown page of a tab, or a page outside of a tab
+    // changes only its own route
+    QTRY_VERIFY(page.isNull());
+    {
+        NavigationTestPage loosePage(fixture.context.get(), nullptr, QStringLiteral("Loose"), true);
+        QVERIFY(loosePage.replaceRouteTo(pdf::PDFAppRoutes::recent("files")));
+        QCOMPARE(loosePage.getRoute(), pdf::PDFAppRoutes::recent("files"));
+    }
+    QCOMPARE(replacedSpy.count(), 2);
+
+    // A page replacing its route from setRoute (it is not shown yet): only the page
+    recent->onSetRoute = [](NavigationTestPage* recentPage) { recentPage->replaceRouteTo(pdf::PDFAppRoutes::recent("folders")); };
+    fixture.navigate("/recent?filter=files");
+    QCOMPARE(fixture.currentPage()->getRoute(), pdf::PDFAppRoutes::recent("folders"));
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::recent("files"));
+    recent->onSetRoute = nullptr;
+    QCOMPARE(replacedSpy.count(), 2);
+
+    // The page deleted by a slot of its signal: replaceRoute reports it
+    QPointer<NavigationTestPage> deletedPage = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(deletedPage);
+    QObject::connect(deletedPage.data(), &pdf::PDFAppPage::routeReplaced, fixture.window.data(), [&deletedPage]() { delete deletedPage.data(); });
+    QVERIFY(!deletedPage->replaceRouteTo(pdf::PDFAppRoutes::recent("workspaces")));
+    QVERIFY(deletedPage.isNull());
+
+    // The window deleted by a slot of routeReplaced of the navigator
+    fixture.navigate("/recent");
+    QPointer<NavigationTestPage> lastPage = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(lastPage);
+    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::routeReplaced, fixture.context.get(), [&fixture]() { delete fixture.window.data(); });
+    QVERIFY(!lastPage->replaceRouteTo(pdf::PDFAppRoutes::recent("pinned")));
+    QVERIFY(fixture.window.isNull());
+}
+
 void AppNavigationTest::deletionDuringNavigation()
 {
     // The window is deleted by the factory of the page
@@ -1584,6 +1743,108 @@ void AppNavigationTest::deletionInAnyOrder()
         tab.setPage(nullptr);
         QVERIFY(!tab.getPage());
     }
+}
+
+void AppNavigationTest::helpTab()
+{
+    // The manual opens in its own Help tab (owner decision O13): at most one per
+    // window, reused by the next help link, closable, without the sidebar; links to
+    // other routes go to the Home tab
+    NavigationFixture fixture;
+    auto help = std::make_shared<NavigationTestFactory>("Help topic");
+    auto recent = std::make_shared<NavigationTestFactory>("Recent");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), help);
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/recent"), recent);
+    pdf::PDFDocumentTabBar* tabBar = fixture.window->getTabBar();
+    QVERIFY(!fixture.window->findHelpTab());
+
+    // F1 opens the default topic in a new Help tab
+    QAction* helpAction = fixture.window->getCommandAction(pdf::PDFAppCommands::help());
+    QVERIFY(helpAction);
+    QCOMPARE(helpAction->shortcut(), QKeySequence(Qt::Key_F1));
+    helpAction->trigger();
+    pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+    QVERIFY(helpTab);
+    QCOMPARE(fixture.currentTab(), helpTab);
+    QCOMPARE(helpTab->getKind(), pdf::PDFAppTabKind::Help);
+    QCOMPARE(helpTab->objectName(), QStringLiteral("helpTab"));
+    QCOMPARE(tabBar->count(), 2);
+    QCOMPARE(tabBar->tabText(1), QStringLiteral("Help"));
+    QVERIFY(tabBar->isTabClosable(1));
+    QVERIFY(helpTab->isClosable());
+    QCOMPARE(helpTab->getTabIconName(), QStringLiteral("help-circle"));
+    pdf::PDFAppWorkspaceTab* workspaceTab = static_cast<pdf::PDFAppWorkspaceTab*>(helpTab);
+    QVERIFY(!workspaceTab->getSidebar());
+    QVERIFY(!workspaceTab->getFooter());
+    QVERIFY(workspaceTab->getHeader());
+    QVERIFY(helpTab->getSearchField());
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(pdf::PDFAppRoutes::getDefaultHelpTopic()));
+    QCOMPARE(qobject_cast<NavigationTestPage*>(helpTab->getPage())->getTitle(), QStringLiteral("Help topic"));
+
+    // Another help link from the Home tab reuses the tab (its own history)
+    fixture.window->activateTab(fixture.window->getHomeTab());
+    fixture.navigate("/help/window-and-tabs#tabs");
+    QCOMPARE(fixture.currentTab(), helpTab);
+    QCOMPARE(tabBar->count(), 2);
+    QCOMPARE(helpTab->getHistory().getCount(), 2);
+    QCOMPARE(fixture.window->getHomeTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::home());
+
+    // Back / Forward between the topics of the Help tab
+    QVERIFY(fixture.navigator()->goBack());
+    QCOMPARE(fixture.currentTab(), helpTab);
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(pdf::PDFAppRoutes::getDefaultHelpTopic()));
+    QVERIFY(fixture.navigator()->goForward());
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route.getFragment(), QStringLiteral("tabs"));
+
+    // A link of the help page to another route goes to the Home tab
+    qobject_cast<NavigationTestPage*>(helpTab->getPage())->navigateTo(pdf::PDFAppRoutes::recent());
+    QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
+    QCOMPARE(qobject_cast<NavigationTestPage*>(fixture.currentPage())->getTitle(), QStringLiteral("Recent"));
+    QCOMPARE(helpTab->getHistory().getCount(), 2);
+
+    // A help link from the help page stays in the tab; an unknown topic is Page Not
+    // Found in the Help tab
+    fixture.window->activateTab(helpTab);
+    qobject_cast<NavigationTestPage*>(helpTab->getPage())->navigateTo(pdf::PDFAppRoutes::help(QStringLiteral("settings")));
+    QCOMPARE(fixture.currentTab(), helpTab);
+    help->onCreate = []() { return false; };
+    fixture.navigate("/help/unknown");
+    QCOMPARE(fixture.currentTab(), helpTab);
+    QVERIFY(qobject_cast<pdf::PDFPageNotFoundPage*>(helpTab->getPage()));
+    help->onCreate = nullptr;
+
+    // Ctrl+W closes it, the next help link creates a new one
+    QPointer<pdf::PDFAppTab> closedTab = helpTab;
+    fixture.window->getCommandAction(pdf::PDFAppCommands::closeTab())->trigger();
+    QTRY_VERIFY(closedTab.isNull());
+    QCOMPARE(tabBar->count(), 1);
+    QVERIFY(!fixture.window->findHelpTab());
+    fixture.navigate("/help/search");
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.window->findHelpTab()->getHistory().getCount(), 1);
+
+    // The page of the Help tab deletes its tab from its own navigation (close from setRoute)
+    help->onSetRoute = [&fixture](NavigationTestPage* page)
+    {
+        pdf::PDFAppTab* tab = fixture.window->findHelpTab();
+        if (tab && page->getRoute().getSegment(1) == QStringLiteral("close"))
+        {
+            fixture.window->closeTab(tab);
+        }
+    };
+    fixture.navigate("/help/close");
+    QCoreApplication::processEvents();
+    QTRY_VERIFY(!fixture.window->findHelpTab());
+    help->onSetRoute = nullptr;
+
+    // The Help tab deleted by the application, then the window (in both orders)
+    fixture.navigate("/help/a");
+    delete fixture.window->findHelpTab();
+    QCoreApplication::processEvents();
+    QVERIFY(!fixture.window->findHelpTab());
+    fixture.navigate("/help/b");
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
 }
 
 void AppNavigationTest::newTab()
@@ -3052,15 +3313,19 @@ void AppNavigationTest::shellDesign()
     QVERIFY(keyCaps.size() >= 3 && !hintLabels.isEmpty());
     QCOMPARE(keyCaps[2]->x() - (hintLabels[0]->x() + hintLabels[0]->width()), 18);
 
-    // app-footer: the line of 1 px lies inside of the padding 16, the row of the
-    // link 16, the bottom padding of the workspace 16 (owner decision O11) is a
-    // part of the footer; the tag 21 does not change the height (footerAxis)
+    // app-footer 28:217 (31 = the padding 16 + the text 15): the line of 1 px lies
+    // inside of the padding 16, the link (16) reaches 1 px into it, the bottom
+    // padding of the workspace 16 (owner decision O11) is a part of the footer; the
+    // tag 21 does not change the height (footerAxis)
     pdf::PDFAppFooter* footer = homeTab->findChild<pdf::PDFAppFooter*>();
     QVERIFY(footer && footer->isVisible());
-    QCOMPARE(footer->height(), 16 + 16 + 16);
+    QCOMPARE(footer->height(), 31 + 16);
     QCOMPARE(geometry(footer).bottom() + 1, window->height());
+    QCOMPARE(footer->getVersionLabel()->y(), 16);
+    QCOMPARE(footer->getVersionLabel()->height(), 15);
+    QCOMPARE(footer->getLicenseLink()->y(), 15);
     QVERIFY(footer->getTag()->isVisible());
-    QCOMPARE(footer->getTag()->y(), 16 - 3 + 1);
+    QCOMPARE(footer->getTag()->y(), 16 - 3);
 
     // Banners 842 wide: two lines of 16 px give the height 76; read only is blue,
     // the fallback amber
@@ -3108,6 +3373,103 @@ void AppNavigationTest::shellDesign()
     banner->setLayoutDirection(Qt::LeftToRight);
 }
 
+void AppNavigationTest::headerTexts()
+{
+    // The title and the subtitle of the header are one line each, elided with the
+    // whole text as the tooltip; a stressed part of the subtitle is Semi Bold in
+    // text/accent (Home 28:35), never a rich text
+    const QString subtitle = QStringLiteral("A fast, modern and open-source PDF editor for Windows, Linux and macOS.");
+    pdf::PDFAppWorkspaceHeader header;
+    header.setTexts(QStringLiteral("Welcome to PDF4QT"), subtitle, QStringLiteral("PDF"));
+    header.resize(1166, 55);
+    header.show();
+    QCoreApplication::processEvents();
+
+    pdf::PDFAppHeaderText* label = header.getSubtitleLabel();
+    QCOMPARE(label->text(), subtitle);
+    QCOMPARE(label->textFormat(), Qt::PlainText);
+    QCOMPARE(label->getAccentIndex(), 31);
+    QCOMPARE(label->getAccentLength(), 3);
+    QVERIFY(!label->isElided());
+    QCOMPARE(label->height(), QFontMetrics(label->font()).height());
+    QVERIFY(label->sizeHint().width() >= qCeil(label->getTextWidth()));
+    QCOMPARE(label->minimumSizeHint().width(), 1);
+    QCOMPARE(header.getTitleLabel()->height(), 34);
+
+    // Pixels: the accent color only in the stressed word, in both themes
+    auto countAccent = [](pdf::PDFAppHeaderText* text, int left, int right)
+    {
+        QImage image(text->size(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        text->render(&image);
+        const QColor accent = pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::TextAccent);
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+        {
+            for (int x = qMax(0, left); x < qMin(image.width(), right); ++x)
+            {
+                const QColor pixel = image.pixelColor(x, y);
+                count += (pixel.alpha() == 255 && qAbs(pixel.red() - accent.red()) <= 8 && qAbs(pixel.green() - accent.green()) <= 8 && qAbs(pixel.blue() - accent.blue()) <= 8) ? 1 : 0;
+            }
+        }
+        return count;
+    };
+    const QFontMetricsF metrics(label->font());
+    const int accentLeft = qFloor(metrics.horizontalAdvance(subtitle.left(31)));
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        QVERIFY(countAccent(label, accentLeft - 2, accentLeft + 32) > 10);
+        QCOMPARE(countAccent(label, 0, accentLeft - 4), 0);
+        QCOMPARE(countAccent(label, accentLeft + 40, label->width()), 0);
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // No tooltip of a text, which is whole
+    // (the event is given to the label itself: QApplication does not deliver a
+    // tooltip event to an inactive window)
+    QHelpEvent wholeEvent(QEvent::ToolTip, QPoint(5, 5), label->mapToGlobal(QPoint(5, 5)));
+    QVERIFY(static_cast<QObject*>(label)->event(&wholeEvent));
+    QVERIFY(!wholeEvent.isAccepted());
+
+    // Right-to-left: the text at the right edge (the base direction of the line is
+    // the direction of the interface)
+    header.setLayoutDirection(Qt::RightToLeft);
+    QCoreApplication::processEvents();
+    const int textLeft = label->width() - qCeil(label->getTextWidth());
+    QVERIFY(countAccent(label, textLeft, label->width()) > 10);
+    QCOMPARE(countAccent(label, 0, textLeft - 2), 0);
+    header.setLayoutDirection(Qt::LeftToRight);
+
+    // A narrow header (the minimal window): elided, the tooltip has the whole text,
+    // the elided text has no accent
+    header.resize(400, 55);
+    QCoreApplication::processEvents();
+    QVERIFY(label->isElided());
+    QVERIFY(header.getTitleLabel()->isElided());
+    QCOMPARE(label->toolTip(), subtitle);
+    QCOMPARE(countAccent(label, 0, label->width()), 0);
+    QHelpEvent elidedEvent(QEvent::ToolTip, QPoint(5, 5), label->mapToGlobal(QPoint(5, 5)));
+    static_cast<QObject*>(label)->event(&elidedEvent);
+    QVERIFY(elidedEvent.isAccepted());
+    QToolTip::hideText();
+
+    // An accent, which is not in the text (a translation), and no accent
+    header.resize(1166, 55);
+    header.setTexts(QStringLiteral("Title"), QStringLiteral("Ein schneller PDF-Editor"), QStringLiteral("XYZ"));
+    QCOMPARE(label->getAccentIndex(), -1);
+    QCOMPARE(label->getAccentLength(), 0);
+    header.setTexts(QStringLiteral("Title"), subtitle);
+    QCOMPARE(label->getAccentIndex(), -1);
+    QCOMPARE(qCeil(label->getTextWidth()), qCeil(pdf::PDFStylePainter::textWidth(subtitle, label->font())));
+
+    // Empty texts hide the lines
+    header.setTexts(QString(), QString());
+    QVERIFY(label->isHidden());
+    QVERIFY(header.getTitleLabel()->isHidden());
+    QCOMPARE(label->getTextWidth(), 0.0);
+}
+
 void AppNavigationTest::footerAxis()
 {
     // Owner decision O11 (Figma 941:138200, 955:150880): the workspace ends 16 px
@@ -3145,7 +3507,7 @@ void AppNavigationTest::footerAxis()
             QVERIFY2(window->height() == size.height(), qPrintable(context));
             QVERIFY2(window->height() - (switchRect.bottom() + 1) == 8, qPrintable(context));
             QVERIFY2(window->height() - (textRect.bottom() + 1) == 16, qPrintable(context));
-            QVERIFY2(footer->height() == 16 + 16 + 16, qPrintable(context));
+            QVERIFY2(footer->height() == 31 + 16, qPrintable(context));
 
             // Centers (doubled, so the halves are integers) within 1 px
             const int switchCenter2 = 2 * switchRect.top() + switchRect.height();
@@ -4029,6 +4391,271 @@ void AppNavigationTest::scrollAreas()
         QVERIFY(tall->hasFocus());
         QVERIFY(bar->value() > 0);
     }
+}
+
+/// The pixel of \p image most different from its corner (the background): the
+/// color of a fully covered pixel of a text
+static QColor strongestPixel(const QImage& image)
+{
+    const QColor background = image.pixelColor(0, 0);
+    QColor result = background;
+    int bestDistance = -1;
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            const QColor color = image.pixelColor(x, y);
+            const int distance = qAbs(color.red() - background.red()) + qAbs(color.green() - background.green()) + qAbs(color.blue() - background.blue());
+            if (distance > bestDistance)
+            {
+                bestDistance = distance;
+                result = color;
+            }
+        }
+    }
+    return result;
+}
+
+static int colorDistance(const QColor& first, const QColor& second)
+{
+    return qAbs(first.red() - second.red()) + qAbs(first.green() - second.green()) + qAbs(first.blue() - second.blue());
+}
+
+void AppNavigationTest::openDocumentsRecent()
+{
+    // Step 2: openDocuments records the existing files in Recent (at most the files of
+    // one request), keeps the requested files once, reports a failed record and
+    // records nothing without a database
+    NavigationFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QStringList files;
+    for (int i = 0; i < int(pdf::PDFAppInstanceProtocol::MAXIMUM_FILES) + 2; ++i)
+    {
+        const QString path = directory.filePath(QStringLiteral("file%1.pdf").arg(i, 3, 10, QLatin1Char('0')));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("%PDF-1.7\n");
+        files << path;
+    }
+    const QString missing = directory.filePath(QStringLiteral("missing.pdf"));
+
+    // A duplicate is requested once, but recorded twice (opened twice); a missing file
+    // and a folder are requested, not recorded
+    fixture.window->openDocuments({ files[0], files[0], missing, directory.path() }, 0);
+    QCOMPARE(fixture.window->getRequestedFiles(), QStringList({ files[0], missing, directory.path() }));
+    QCOMPARE(fixture.context->getRecent().getFileCount(), 1);
+    QCOMPARE(fixture.context->getRecent().getFile(files[0])->openCount, qint64(2));
+    QTRY_COMPARE(fixture.window->findChildren<pdf::PDFMessageBox*>().size(), 1);
+
+    // At most MAXIMUM_FILES files of one request are recorded and requested (the list
+    // of Recent keeps the newest of them by its own limit)
+    fixture.window->openDocuments(files, 0);
+    QVERIFY(fixture.context->getRecent().getFile(files[pdf::PDFAppInstanceProtocol::MAXIMUM_FILES - 1]));
+    QVERIFY(!fixture.context->getRecent().getFile(files[pdf::PDFAppInstanceProtocol::MAXIMUM_FILES]));
+    QVERIFY(!fixture.context->getRecent().getFile(files.last()));
+    QCOMPARE(fixture.window->getRequestedFiles().size(), qsizetype(pdf::PDFAppInstanceProtocol::MAXIMUM_FILES));
+
+    // A failed record is reported and the next request is still recorded
+    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
+    QVERIFY(connection);
+    const QString kept = files[pdf::PDFAppInstanceProtocol::MAXIMUM_FILES - 1];
+    const std::optional<pdf::PDFRecentFile> keptFile = fixture.context->getRecent().getFile(kept);
+    QVERIFY(keptFile);
+    const qint64 openCount = keptFile->openCount;
+    QVERIFY(!connection->execute("CREATE TEMP TRIGGER fault_update BEFORE UPDATE ON main.recent_file BEGIN SELECT RAISE(ABORT, 'injected fault'); END").isError());
+    QVERIFY(!connection->execute("CREATE TEMP TRIGGER fault_insert BEFORE INSERT ON main.recent_file BEGIN SELECT RAISE(ABORT, 'injected fault'); END").isError());
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("The file cannot be recorded in Recent"));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("The file cannot be recorded in Recent"));
+    fixture.window->openDocuments({ kept, files[0] }, 0);
+    QCOMPARE(fixture.context->getRecent().getFile(kept)->openCount, openCount);
+    QVERIFY(!fixture.context->getRecent().getFile(files[0]));
+    QVERIFY(!connection->execute("DROP TRIGGER temp.fault_update").isError());
+    QVERIFY(!connection->execute("DROP TRIGGER temp.fault_insert").isError());
+    fixture.window->openDocuments({ kept }, 0);
+    QCOMPARE(fixture.context->getRecent().getFile(kept)->openCount, openCount + 1);
+
+    // Without a database (the storage is not opened) the files are only requested
+    pdf::PDFAppContext context(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT"), QStringLiteral("--portable") }, QDir::currentPath()));
+    context.setPagesEnabled(false);
+    QVERIFY(!context.getDatabase());
+    QPointer<pdf::PDFAppMainWindow> window = new pdf::PDFAppMainWindow(&context);
+    window->openDocuments({ files[1] }, 3);
+    QCOMPARE(window->getRequestedFiles(), QStringList({ files[1] }));
+    QVERIFY(context.getRecent().getFiles().empty());
+    QTRY_COMPARE(window->findChildren<pdf::PDFMessageBox*>().size(), 1);
+    delete window.data();
+}
+
+void AppNavigationTest::helpTabLimit()
+{
+    // A window with the largest number of tabs has no place for the Help tab: the
+    // manual opens in the Home tab
+    NavigationFixture fixture;
+    auto help = std::make_shared<NavigationTestFactory>("Help topic");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), help);
+    while (fixture.window->getTabBar()->count() < pdf::PDFAppMainWindow::MAXIMUM_TABS)
+    {
+        QVERIFY(fixture.window->createNewTab());
+    }
+    QVERIFY(!fixture.window->createHelpTab());
+
+    fixture.navigate("/help/search");
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
+    const pdf::PDFAppHistoryEntry* entry = fixture.window->getHomeTab()->getHistory().getCurrentEntry();
+    QVERIFY(entry);
+    QCOMPARE(entry->route, pdf::PDFAppRoutes::help(QStringLiteral("search")));
+    NavigationTestPage* page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(page);
+    QCOMPARE(page->getTitle(), QStringLiteral("Help topic"));
+    QCOMPARE(fixture.window->getTabBar()->count(), pdf::PDFAppMainWindow::MAXIMUM_TABS);
+}
+
+void AppNavigationTest::breadcrumbParts()
+{
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    pdf::PDFAppBreadcrumb breadcrumb;
+    QSignalSpy activated(&breadcrumb, &pdf::PDFAppBreadcrumb::linkActivated);
+
+    // A valid route is a link, an invalid one the current page (not a link)
+    breadcrumb.setItems({ { QStringLiteral("Help"), pdf::PDFAppRoutes::help(QStringLiteral("getting-started")) },
+                          { QStringLiteral("Category"), pdf::PDFAppRoutes::help(QStringLiteral("search")) },
+                          { QStringLiteral("Topic"), pdf::PDFAppRoute() } });
+    QList<pdf::PDFAppCrumbLink*> links = breadcrumb.getLinks();
+    QCOMPARE(links.size(), 2);
+    QCOMPARE(breadcrumb.getRoute(links[1]), pdf::PDFAppRoutes::help(QStringLiteral("search")).toString());
+
+    // A link of another breadcrumb or no link has no route
+    pdf::PDFAppCrumbLink foreignLink(QStringLiteral("Foreign"));
+    QVERIFY(breadcrumb.getRoute(&foreignLink).isEmpty());
+    QVERIFY(breadcrumb.getRoute(nullptr).isEmpty());
+
+    // A click emits the route of the link
+    links[0]->click();
+    QCOMPARE(activated.count(), 1);
+    QCOMPARE(activated[0][0].toString(), pdf::PDFAppRoutes::help(QStringLiteral("getting-started")).toString());
+
+    // A link deleted by the application is no more listed
+    delete links[0];
+    links = breadcrumb.getLinks();
+    QCOMPARE(links.size(), 1);
+    QCOMPARE(breadcrumb.getRoute(links[0]), pdf::PDFAppRoutes::help(QStringLiteral("search")).toString());
+
+    // Colors of the states: text/accent, text/accent-pressed, text/disabled
+    pdf::PDFAppCrumbLink link(QStringLiteral("Protect & Sign"));
+    link.resize(link.sizeHint());
+    const pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    const QColor accent = themeManager->getColor(pdf::PDFThemeColors::TextAccent);
+    const QColor pressed = themeManager->getColor(pdf::PDFThemeColors::TextAccentPressed);
+    const QColor disabled = themeManager->getColor(pdf::PDFThemeColors::TextDisabled);
+
+    const QColor normalColor = strongestPixel(link.grab().toImage());
+    QVERIFY2(colorDistance(normalColor, accent) < colorDistance(normalColor, pressed), qPrintable(normalColor.name()));
+    QVERIFY2(colorDistance(normalColor, accent) <= 24, qPrintable(normalColor.name()));
+
+    link.setDown(true);
+    const QColor pressedColor = strongestPixel(link.grab().toImage());
+    QVERIFY2(colorDistance(pressedColor, pressed) < colorDistance(pressedColor, accent), qPrintable(pressedColor.name()));
+    link.setDown(false);
+
+    link.setEnabled(false);
+    const QColor disabledColor = strongestPixel(link.grab().toImage());
+    QVERIFY2(colorDistance(disabledColor, disabled) < colorDistance(disabledColor, accent), qPrintable(disabledColor.name()));
+    QVERIFY2(colorDistance(disabledColor, disabled) <= 24, qPrintable(disabledColor.name()));
+}
+
+void AppNavigationTest::fileDragOver()
+{
+    // A drag of local files is accepted over the whole window (as a copy), any
+    // other data is refused; nothing is read during the drag
+    NavigationFixture fixture;
+    QTemporaryDir directory;
+    const QString path = directory.filePath(QStringLiteral("drag.pdf"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.close();
+
+    QMimeData files;
+    files.setUrls({ QUrl::fromLocalFile(path) });
+    QMimeData text;
+    text.setText(QStringLiteral("not a file"));
+    QMimeData remote;
+    remote.setUrls({ QUrl(QStringLiteral("https://example.com/remote.pdf")) });
+
+    const QPoint position(200, 200);
+    for (QEvent::Type type : { QEvent::DragEnter, QEvent::DragMove })
+    {
+        for (QMimeData* data : { &files, &text, &remote })
+        {
+            const bool isFile = data == &files;
+            std::unique_ptr<QDragMoveEvent> event;
+            if (type == QEvent::DragEnter)
+            {
+                event = std::make_unique<QDragEnterEvent>(position, Qt::CopyAction | Qt::MoveAction, data, Qt::LeftButton, Qt::NoModifier);
+            }
+            else
+            {
+                event = std::make_unique<QDragMoveEvent>(position, Qt::CopyAction | Qt::MoveAction, data, Qt::LeftButton, Qt::NoModifier);
+            }
+            event->setAccepted(!isFile);
+            QCoreApplication::sendEvent(fixture.window.data(), event.get());
+            QCOMPARE(event->isAccepted(), isFile);
+            if (isFile)
+            {
+                QCOMPARE(event->dropAction(), Qt::CopyAction);
+            }
+        }
+    }
+}
+
+void AppNavigationTest::bannerLayoutOfPage()
+{
+    // The storage banner of the Home tab is placed at the top of the layout, which
+    // the page names; a layout outside of the page is refused (the banner stays
+    // above the page), the banner returns, when the page is destroyed
+    NavigationFixture fixture;
+    auto recent = std::make_shared<NavigationTestFactory>("Recent");
+    auto about = std::make_shared<NavigationTestFactory>("About");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/recent"), recent);
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), about);
+    pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
+    QPointer<QWidget> banner = homeTab->getBanner();
+    QVERIFY(banner);
+    QWidget* pageArea = banner->parentWidget();
+    QVERIFY(pageArea);
+
+    QWidget foreignWidget;
+    QVBoxLayout* foreignLayout = new QVBoxLayout(&foreignWidget);
+    QPointer<QWidget> column;
+    recent->onSetRoute = [&column](NavigationTestPage* page)
+    {
+        column = new QWidget(page);
+        page->bannerLayout = new QVBoxLayout(column);
+    };
+    about->onSetRoute = [foreignLayout](NavigationTestPage* page) { page->bannerLayout = foreignLayout; };
+
+    fixture.navigate("/recent");
+    QVERIFY(column);
+    QCOMPARE(banner->parentWidget(), column.data());
+
+    // The same page shown again (its title changed): the banner stays
+    fixture.window->updateTab(homeTab);
+    QCOMPARE(banner->parentWidget(), column.data());
+
+    // A layout of another widget: the banner is above the page
+    fixture.navigate("/about");
+    QTRY_VERIFY(column.isNull());
+    QVERIFY(banner);
+    QCOMPARE(banner->parentWidget(), pageArea);
+    QCOMPARE(foreignLayout->count(), 0);
+
+    // A page without its own layout
+    about->onSetRoute = nullptr;
+    recent->onSetRoute = nullptr;
+    fixture.navigate("/recent");
+    QVERIFY(banner);
+    QCOMPARE(banner->parentWidget(), pageArea);
 }
 
 void AppNavigationTest::screenshots()

@@ -832,6 +832,16 @@ void PDFComponentPainter::paintPageThumbnailFrame(QPainter* painter, const QRect
 
     const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
+    if (thumbnail.locked)
+    {
+        // A document protected by a password: no picture, the lock in the center
+        PDFStylePainter::fill(painter, frame, radii, PDFThemeColors::BgSubtle);
+        const qreal extent = qMin<qreal>(geometry.width >= 80 ? 28.0 : (geometry.width >= 56 ? 20.0 : 14.0), qMin(frame.width(), frame.height()));
+        PDFStylePainter::icon(painter, alignedCentered(frame, QSizeF(extent, extent)), QStringLiteral("lock"), state.isEnabled() ? PDFThemeColors::IconMuted : PDFThemeColors::IconDisabled);
+        PDFStylePainter::strokeInside(painter, frame, radii, PDFThemeColors::BorderStrong, 1.0);
+        return;
+    }
+
     PDFStylePainter::fill(painter, frame, radii, PDFThemeColors::BgSurface);
 
     if (!thumbnail.pixmap.isNull() && thumbnail.pixmap.width() > 0 && thumbnail.pixmap.height() > 0)
@@ -1062,13 +1072,20 @@ public:
     }
 
     /// Draws a title (Semi Bold 13, line 16) and a subtitle (Regular 11, line 13)
-    /// as a block centered vertically in the outer rectangle
+    /// as a block centered vertically in the outer rectangle; a title without the
+    /// subtitle is centered alone (an issue of the release without its description)
     static void drawTextBlock(QPainter* painter, const State& state, const QRectF& outer, qreal left, qreal width,
                               const QString& title, Color titleColor, const QString& subtitle, Color subtitleColor,
                               int gap, TextKind titleKind = TextKind::Interface, TextKind subtitleKind = TextKind::Interface)
     {
         if (width <= 0.0)
         {
+            return;
+        }
+
+        if (subtitle.isEmpty())
+        {
+            drawText(painter, state, outer, line(outer, left, width, TITLE_LINE), title, titleFont(), titleColor, false, titleKind);
             return;
         }
 
@@ -1383,6 +1400,29 @@ QString PDFComponentPainter::getMissingFileText()
     return QCoreApplication::translate("PDFComponentPainter", "No longer exists");
 }
 
+QSize PDFComponentPainter::getMissingFileBadgeSize()
+{
+    using Helper = PDFComponentRowPainterHelper;
+    return QSize(Helper::textWidth(getMissingFileText(), getTagFont()) + 2 * Helper::FILE_BADGE_PADDING, Helper::FILE_BADGE_HEIGHT);
+}
+
+void PDFComponentPainter::paintMissingFileBadge(QPainter* painter, const QRectF& rect, const State& state)
+{
+    if (!painter || rect.isEmpty())
+    {
+        return;
+    }
+
+    using Helper = PDFComponentRowPainterHelper;
+    using Color = PDFThemeColors::Color;
+
+    const DirectionGuard directionGuard(painter, state);
+    const PDFStylePainterGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    PDFStylePainter::fill(painter, rect, PDFStylePainter::Radii(Helper::FILE_BADGE_RADIUS), Color::AccentRedBg);
+    PDFStylePainter::text(painter, rect, Qt::AlignCenter | Qt::TextSingleLine, getMissingFileText(), getTagFont(), PDFStylePainter::color(Helper::text(state, Color::TextDanger)));
+}
+
 QSize PDFComponentPainter::getRecentFileRowSize(const RecentFileRow& row)
 {
     Q_UNUSED(row);
@@ -1465,17 +1505,13 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
     qreal statusLeft = trailingLeft;
     if (isMissing)
     {
-        const QFont badgeFont = getTagFont();
-        const QString badgeText = getMissingFileText();
-        const qreal badgeWidth = Helper::textWidth(badgeText, badgeFont) + 2 * Helper::FILE_BADGE_PADDING;
+        const qreal badgeWidth = getMissingFileBadgeSize().width();
         const QRectF badgeRect = Helper::line(rect, trailingLeft - Helper::FILE_GAP - badgeWidth, badgeWidth, Helper::FILE_BADGE_HEIGHT);
         statusLeft = badgeRect.left();
 
         if (badgeRect.left() > iconRect.right())
         {
-            const QRectF visualBadge = state.visualRect(rect, badgeRect);
-            PDFStylePainter::fill(painter, visualBadge, PDFStylePainter::Radii(Helper::FILE_BADGE_RADIUS), Color::AccentRedBg);
-            PDFStylePainter::text(painter, visualBadge, Qt::AlignCenter | Qt::TextSingleLine, badgeText, badgeFont, PDFStylePainter::color(Helper::text(state, Color::TextDanger)));
+            paintMissingFileBadge(painter, state.visualRect(rect, badgeRect), state);
         }
     }
     else if (!row.time.isEmpty())
@@ -1933,6 +1969,28 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
 
+    // Selected (the shown version) bg/accent-subtle, the pointer and the press
+    // in the tone of the fill, the focus ring inside
+    const bool isSelected = row.selected || state.isSelected();
+    const PDFStylePainter::Radii radii(Helper::ROW_RADIUS);
+    if (state.isPressed())
+    {
+        PDFStylePainter::fill(painter, rect, radii, isSelected ? Color::BgAccentSubtlePressed : Color::BgPressed);
+    }
+    else if (state.isHovered())
+    {
+        PDFStylePainter::fill(painter, rect, radii, isSelected ? Color::BgAccentSubtleHover : Color::BgHover);
+    }
+    else if (isSelected)
+    {
+        PDFStylePainter::fill(painter, rect, radii, Color::BgAccentSubtle);
+    }
+
+    if (state.hasFocusRing())
+    {
+        paintFocusRingInside(painter, rect, radii);
+    }
+
     // Rail: the dot at the top, the line below it to the bottom of the row
     const qreal railLeft = rect.left() + Helper::VERSION_SIDE;
     const QRectF dotRect(railLeft + (Helper::VERSION_RAIL - Helper::VERSION_DOT) / 2.0, rect.top() + Helper::VERSION_DOT_TOP, Helper::VERSION_DOT, Helper::VERSION_DOT);
@@ -1955,7 +2013,7 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
 
     const qreal versionWidth = textWidth - (dateWidth > 0.0 ? dateWidth + Helper::VERSION_TOP_GAP : 0.0);
     Helper::drawDataText(painter, state, rect, QRectF(textLeft, rect.top(), versionWidth, Helper::TITLE_LINE), row.version, Helper::titleFont(),
-                     Helper::text(state, row.current ? Color::TextAccent : Color::TextPrimary));
+                     Helper::text(state, isSelected ? Color::TextAccent : Color::TextPrimary));
 
     // Summary wraps into lines of 14 px
     QTextLayout layout;

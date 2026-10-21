@@ -210,16 +210,22 @@ private:
 /// card with its shadow), the name, the path, the reading progress (text and
 /// bar), the star (pinned by default; a click unpins the document) and the menu
 /// button. A click opens the document. The accessible description is the path
-/// and the progress text.
+/// and the progress text. A missing file (\p setStatus) has the name text/muted
+/// and the badge "No longer exists" instead of the progress, a document
+/// protected by a password (\p setLocked) the lock instead of the thumbnail
+/// (both proposals consistent with the tokens, Figma has no frame of them).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFPinnedCard : public PDFCardButton
 {
     Q_OBJECT
     Q_PROPERTY(bool pinned READ isPinned WRITE setPinned NOTIFY pinnedChanged)
+    Q_PROPERTY(bool locked READ isLocked WRITE setLocked)
 
 private:
     using BaseClass = PDFCardButton;
 
 public:
+    using Status = PDFComponentPainter::FileStatus;
+
     explicit PDFPinnedCard(QWidget* parent = nullptr);
     explicit PDFPinnedCard(const QString& name, const QString& path, const QString& progressText, qreal progress, QWidget* parent = nullptr);
 
@@ -243,6 +249,14 @@ public:
 
     bool isPinned() const;
     void setPinned(bool isPinned);
+
+    /// Status of the file (an invalid value is Available)
+    Status getStatus() const { return m_card.status; }
+    void setStatus(Status status);
+
+    /// The document is protected by a password: the thumbnail shows the lock
+    bool isLocked() const { return m_card.locked; }
+    void setLocked(bool isLocked);
 
     QMenu* getMenu() const;
     void setMenu(QMenu* menu);

@@ -456,6 +456,15 @@ bool PDFWidgetStyleImpl::paintLineEditButton(QObject* watched)
         color = Color::IconDefault;
     }
 
+    // The magnifier of a focused search field is icon/accent (Search field
+    // State=Focus, 49:143); the clear button stays muted. The line edit repaints
+    // its children at the change of its focus.
+    const QLineEdit* lineEdit = qobject_cast<const QLineEdit*>(button->parentWidget());
+    if (button->isEnabled() && lineEdit && lineEdit->hasFocus() && PDFThemeIcons::getIconName(button->icon()) == QLatin1String("search"))
+    {
+        color = Color::IconAccent;
+    }
+
     PDFStyleState state;
     state.enabled = button->isEnabled();
     state.hover = button->underMouse();

@@ -98,6 +98,7 @@
 
 #include <cstdlib>
 #include <limits>
+#include <map>
 #include <memory>
 
 using Color = pdf::PDFThemeColors::Color;
@@ -181,6 +182,7 @@ private slots:
     void reviewSegmentRemoval();
     void reviewDialDeletedBySignal();
     void reviewClassFontsRestored();
+    void searchFieldFocusIcon();
 
 private:
     static constexpr const char* CORE_FONTS_VARIABLE = "PDF4QT_WIDGET_STYLE_TEST_CORE_FONTS";
@@ -3031,6 +3033,45 @@ void WidgetStyleTest::rowStyles()
     branch.rect = QRect(0, option.rect.top(), 18, option.rect.height());
     QCOMPARE(tree.style()->subElementRect(QStyle::SE_TreeViewDisclosureItem, &branch, &tree), QRect(6, option.rect.top(), 16, option.rect.height()));
 
+    // Contents of the manual (help-contents 955:152873): rows 28, indentation 24,
+    // the chevron 14 at 8, the title of a chapter at 8 + 14 + 8, the press tracked
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Contents);
+    QCOMPARE(tree.getRowStyle(), pdf::PDFTreeView::RowStyle::Contents);
+    QCOMPARE(tree.property(pdf::PDFWidgetStyleProperties::ROW_STYLE).toString(), QStringLiteral("contents"));
+    QCOMPARE(tree.indentation(), 24);
+    QCOMPARE(pdf::PDFTreeView::getRowRadius(pdf::PDFTreeView::RowStyle::Contents), 6.0);
+    tree.doItemsLayout();
+    option.rect = tree.visualRect(index);
+    QCOMPARE(option.rect.left(), 24);
+    QCOMPARE(option.rect.height(), 28);
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, &tree).left(), 30);
+    branch.rect = QRect(0, option.rect.top(), 24, option.rect.height());
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_TreeViewDisclosureItem, &branch, &tree), QRect(8, option.rect.top(), 14, option.rect.height()));
+    const QModelIndex topic = model.index(0, 0, index);
+    QCOMPARE(tree.visualRect(topic).height(), 28);
+    QCOMPARE(tree.visualRect(topic).left(), 48);
+
+    // A topic has no chevron: its text starts at 24 per level (toc-Protect with
+    // Password at 24, the chapter toc-Protect & Sign at 30), mirrored in
+    // right-to-left (review R2-D2)
+    QStyleOptionViewItem topicOption = option;
+    topicOption.rect = tree.visualRect(topic);
+    topicOption.index = topic;
+    topicOption.text = topic.data().toString();
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &topicOption, &tree).left(), 24);
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &option, &tree).left(), 30);
+    tree.setLayoutDirection(Qt::RightToLeft);
+    tree.doItemsLayout();
+    topicOption.rect = tree.visualRect(topic);
+    topicOption.direction = Qt::RightToLeft;
+    QCOMPARE(tree.style()->subElementRect(QStyle::SE_ItemViewItemText, &topicOption, &tree).right() + 1, tree.viewport()->width() - 24);
+    tree.setLayoutDirection(Qt::LeftToRight);
+    tree.doItemsLayout();
+    QTest::mousePress(tree.viewport(), Qt::LeftButton, Qt::NoModifier, tree.visualRect(topic).center());
+    QCOMPARE(tree.getPressedRow(), topic);
+    QTest::mouseRelease(tree.viewport(), Qt::LeftButton, Qt::NoModifier, tree.visualRect(topic).center());
+    QVERIFY(!tree.getPressedRow().isValid());
+
     // Certificate row: height 34
     tree.setRowStyle(pdf::PDFTreeView::RowStyle::Certificate);
     tree.setRootIsDecorated(false);
@@ -3735,6 +3776,67 @@ void WidgetStyleTest::reviewClassFontsRestored()
     }
     m_style->polish(qApp);
     QVERIFY(pdf::PDFWidgetStyle::isActive());
+}
+
+void WidgetStyleTest::searchFieldFocusIcon()
+{
+    // Search field (49:143): the magnifier is icon/muted, icon/accent in the state
+    // Focus; the clear button of Filled=True stays icon/muted
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    QPushButton* other = new QPushButton(QStringLiteral("Other"), &window);
+    pdf::PDFLineEdit* field = new pdf::PDFLineEdit(QStringLiteral("sign"), &window);
+    field->setSearchField();
+    field->setClearButtonEnabled(true);
+    field->setFixedWidth(320);
+    layout->addWidget(other);
+    layout->addWidget(field);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    auto iconColors = [field]()
+    {
+        // The darkest pixel of each icon button (the strokes)
+        std::map<bool, QColor> colors;
+        for (QWidget* child : field->findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+        {
+            if (!child->inherits("QLineEditIconButton") || !child->isVisibleTo(field))
+            {
+                continue;
+            }
+            // The field with its buttons (a button alone has no background)
+            const QImage image = field->grab().toImage();
+            const QRect area = child->geometry();
+            QColor darkest = Qt::white;
+            for (int y = area.top(); y <= area.bottom(); ++y)
+            {
+                for (int x = area.left(); x <= area.right(); ++x)
+                {
+                    const QColor color = image.pixelColor(x, y);
+                    if (color.alpha() == 255 && color.lightness() < darkest.lightness())
+                    {
+                        darkest = color;
+                    }
+                }
+            }
+            colors[child->geometry().center().x() < field->width() / 2] = darkest;
+        }
+        return colors;
+    };
+
+    other->setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(other->hasFocus());
+    std::map<bool, QColor> colors = iconColors();
+    QCOMPARE(colors.size(), size_t(2));
+    QVERIFY2(isNear(colors[true], token(pdf::PDFThemeColors::IconMuted), 24), qPrintable(colors[true].name()));
+    QVERIFY2(isNear(colors[false], token(pdf::PDFThemeColors::IconMuted), 24), qPrintable(colors[false].name()));
+
+    field->setFocus(Qt::MouseFocusReason);
+    QTRY_VERIFY(field->hasFocus());
+    colors = iconColors();
+    QVERIFY2(isNear(colors[true], token(pdf::PDFThemeColors::IconAccent), 24), qPrintable(colors[true].name()));
+    QVERIFY2(isNear(colors[false], token(pdf::PDFThemeColors::IconMuted), 24), qPrintable(colors[false].name()));
 }
 
 QTEST_MAIN(WidgetStyleTest)

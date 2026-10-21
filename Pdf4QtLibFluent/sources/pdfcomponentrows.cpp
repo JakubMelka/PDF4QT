@@ -844,12 +844,11 @@ QSize PDFIssueRow::getContentMinimumSizeHint() const
 PDFVersionRow::PDFVersionRow(QWidget* parent) :
     BaseClass(parent)
 {
-    // Without interaction: no focus, no hover, the height follows the width
-    setFocusPolicy(Qt::NoFocus);
-    setAttribute(Qt::WA_Hover, false);
+    // A link to the release, the height follows the width
     QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     policy.setHeightForWidth(true);
     setSizePolicy(policy);
+    setClickable(true);
     updateDescription();
 }
 
@@ -896,6 +895,46 @@ void PDFVersionRow::setCurrent(bool isCurrent)
     }
 }
 
+void PDFVersionRow::setSelected(bool isSelected)
+{
+    if (m_row.selected != isSelected)
+    {
+        m_row.selected = isSelected;
+        updateDescription();
+        update();
+    }
+}
+
+void PDFVersionRow::setClickable(bool isClickable)
+{
+    if (m_isClickable == isClickable)
+    {
+        return;
+    }
+
+    m_isClickable = isClickable;
+    setFocusPolicy(isClickable ? Qt::StrongFocus : Qt::NoFocus);
+    setAttribute(Qt::WA_Hover, isClickable);
+
+    if (isClickable)
+    {
+        setCursor(Qt::PointingHandCursor);
+    }
+    else
+    {
+        unsetCursor();
+        setDown(false);
+
+        // A text takes no focus
+        if (hasFocus())
+        {
+            clearFocus();
+        }
+    }
+
+    update();
+}
+
 void PDFVersionRow::setLineVisible(bool isVisible)
 {
     if (m_row.lineVisible != isVisible)
@@ -907,9 +946,10 @@ void PDFVersionRow::setLineVisible(bool isVisible)
 
 void PDFVersionRow::updateDescription()
 {
-    // "Current version. Sep 14, 2026. One unified app, faster loading."
+    // "Current version. Shown. Sep 14, 2026. One unified app, faster loading."
     const QString currentText = m_row.current ? tr("Current version") : QString();
-    const QString description = joinTexts({ currentText, m_row.date, m_row.summary }, tr("%1. %2"));
+    const QString selectedText = m_row.selected ? tr("Shown") : QString();
+    const QString description = joinTexts({ currentText, selectedText, m_row.date, m_row.summary }, tr("%1. %2"));
     replaceAccessibleDescription(m_description, description);
     m_description = description;
 }

@@ -35,7 +35,16 @@ PDFAppPage::PDFAppPage(PDFAppContext* context, QWidget* parent) :
 
 }
 
-PDFAppPage::~PDFAppPage() = default;
+PDFAppPage::~PDFAppPage()
+{
+    // The page says it is going away while it is still a page (its children exist)
+    Q_EMIT aboutToBeDestroyed();
+}
+
+QBoxLayout* PDFAppPage::getBannerLayout() const
+{
+    return nullptr;
+}
 
 bool PDFAppPage::setRoute(const PDFAppRoute& route)
 {
@@ -51,6 +60,16 @@ QString PDFAppPage::getHeaderTitle() const
 QString PDFAppPage::getHeaderSubtitle() const
 {
     return QString();
+}
+
+QString PDFAppPage::getHeaderSubtitleAccent() const
+{
+    return QString();
+}
+
+QList<PDFAppBreadcrumbItem> PDFAppPage::getHeaderBreadcrumbs() const
+{
+    return QList<PDFAppBreadcrumbItem>();
 }
 
 bool PDFAppPage::hasSearchHeader() const
@@ -99,6 +118,25 @@ bool PDFAppPage::requestNavigation(const PDFAppRoute& route, PDFAppNavigationMod
 {
     QPointer<PDFAppPage> guard(this);
     Q_EMIT navigationRequested(route, mode);
+    return !guard.isNull();
+}
+
+bool PDFAppPage::replaceRoute(const PDFAppRoute& route)
+{
+    if (!route.isValid())
+    {
+        qWarning("A page has replaced its route by an invalid route, it is ignored: %s", qPrintable(route.getRequestedText().left(256)));
+        return true;
+    }
+
+    if (route == m_route)
+    {
+        return true;
+    }
+
+    m_route = route;
+    QPointer<PDFAppPage> guard(this);
+    Q_EMIT routeReplaced(route);
     return !guard.isNull();
 }
 
