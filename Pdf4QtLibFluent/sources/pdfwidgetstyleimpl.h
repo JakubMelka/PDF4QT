@@ -317,6 +317,10 @@ protected:
 
 private:
     void onThemeChanged();
+    void onFollowingSystemColorSchemeChanged();
+    /// Requests the color scheme of the active theme, or leaves the scheme to the system
+    /// \returns False, if the style was deleted by the application meanwhile
+    bool applyColorScheme();
     void onToolBarOrientationChanged();
     void onTabBarCurrentChanged();
     void scheduleToolBarMargins(QToolBar* toolBar);

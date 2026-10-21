@@ -76,9 +76,22 @@ public:
     bool isReducedMotion() const { return m_reducedMotion; }
     void setReducedMotion(bool reducedMotion);
 
+    /// The application chooses its theme by the color scheme of the system (option Auto).
+    /// The style then leaves the color scheme of the application to the system
+    /// (QStyleHints::unsetColorScheme), so QStyleHints::colorScheme returns the scheme
+    /// of the system and QStyleHints::colorSchemeChanged reports its changes. Otherwise
+    /// (default) the style requests the scheme of the active theme, so the native dialogs
+    /// and the title bars of the windows match the theme, and the changes of the system
+    /// are hidden from the application.
+    bool isFollowingSystemColorScheme() const { return m_followingSystemColorScheme; }
+    void setFollowingSystemColorScheme(bool followingSystemColorScheme);
+
 Q_SIGNALS:
     /// Colors of the user interface have been changed
     void themeChanged();
+
+    /// The value of isFollowingSystemColorScheme has been changed
+    void followingSystemColorSchemeChanged();
 
 private:
     explicit PDFThemeManager();
@@ -89,6 +102,7 @@ private:
     PDFThemeColors m_theme;
     quint64 m_serial = 1;
     bool m_reducedMotion = false;
+    bool m_followingSystemColorScheme = false;
 };
 
 }   // namespace pdf

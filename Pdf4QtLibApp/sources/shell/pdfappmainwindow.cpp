@@ -170,6 +170,14 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
 
 PDFAppMainWindow::~PDFAppMainWindow()
 {
+    // The QWindow lives until ~QWidget: it does not call the filter of a window,
+    // which is being destroyed
+    if (m_filteredWindow)
+    {
+        m_filteredWindow->removeEventFilter(this);
+        m_filteredWindow = nullptr;
+    }
+
     // The navigator (a child) does not use the window any more, the tabs are
     // deleted while the window is whole (their signals reach it)
     if (m_navigator)
@@ -831,9 +839,9 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
         if (server)
         {
             QString error;
-            if (!server->resume(PDFAppInstanceClient::DEFAULT_TIMEOUT, &error))
+            if (!server->resume(PDFAppInstanceServer::DEFAULT_RETRY_LIMIT, &error))
             {
-                qInfo("The running instance does not receive forwarded files any more: %s", qPrintable(error));
+                qInfo("The running instance does not receive forwarded files now: %s", qPrintable(error));
             }
         }
         event->ignore();

@@ -38,6 +38,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
@@ -50,6 +51,9 @@
 #include <QtMath>
 #include <QVBoxLayout>
 #include <QVersionNumber>
+
+#include <array>
+#include <utility>
 
 namespace pdf
 {
@@ -98,13 +102,49 @@ public:
     }
 };
 
-/// Targets of the footer (Windows / Linux / macOS, each after a gap of 16): the
-/// widget places its labels itself and hides them, when it is narrower than they
-/// need, so the row of the footer shrinks in a narrow window without overlaps
+/// Logo of a target of the footer (windows-logo 30:102, linux-logo 74:799,
+/// apple-logo 30:106 of pdf4qt-home 28:4): a filled icon of 14 px in icon/default
+class PDFAppFooterLogo : public QWidget
+{
+public:
+    static constexpr int SIZE = 14;
+
+    explicit PDFAppFooterLogo(const QString& iconName, QWidget* parent) :
+        QWidget(parent),
+        m_iconName(iconName)
+    {
+        setObjectName(QStringLiteral("footerLogo"));
+        setFixedSize(SIZE, SIZE);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooterLogo::update));
+    }
+
+    const QString& getIconName() const { return m_iconName; }
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        // The logos are filled shapes: the icon engine fills them by the color
+        QPainter painter(this);
+        PDFStylePainter::icon(&painter, QRectF(0, 0, SIZE, SIZE), m_iconName, PDFThemeColors::IconDefault);
+    }
+
+private:
+    QString m_iconName;
+};
+
+/// Targets of the footer (footer-os-targets 28:219): Windows / Linux / macOS, each
+/// a logo of 14 px, 6 px and the text, the targets after a gap of 16. The widget
+/// places its parts itself and hides them, when it is narrower than they need (a
+/// logo always with its text), so the row of the footer shrinks in a narrow window
+/// without overlaps
 class PDFAppFooterTargets : public QWidget
 {
 public:
     static constexpr int GAP = 16;
+    static constexpr int LOGO_GAP = 6;
 
     explicit PDFAppFooterTargets(QWidget* parent) :
         QWidget(parent)
@@ -112,24 +152,24 @@ public:
         setObjectName(QStringLiteral("footerTargets"));
         setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
-        // The logos of Windows and macOS are drawings of the frame, not icons of
-        // the library - review I-35 -, they are left out with the one of Linux
-        for (const QString& target : { PDFAppFooter::tr("Windows"), PDFAppFooter::tr("Linux"), PDFAppFooter::tr("macOS") })
+        for (const QString& iconName : { QStringLiteral("windows"), QStringLiteral("linux"), QStringLiteral("macos") })
         {
-            m_labels.append(new PDFLabel(target, PDFThemeFonts::Role::CaptionSemiBold, PDFThemeColors::TextTertiary, this));
+            m_logos.append(new PDFAppFooterLogo(iconName, this));
+            m_labels.append(new PDFLabel(QString(), PDFThemeFonts::Role::CaptionSemiBold, PDFThemeColors::TextTertiary, this));
         }
+        updateTexts();
     }
 
     virtual QSize sizeHint() const override
     {
         int width = 0;
-        int height = 0;
+        int height = PDFAppFooterLogo::SIZE;
         for (const QPointer<PDFLabel>& label : m_labels)
         {
             if (label)
             {
                 const QSize labelSize = label->sizeHint();
-                width += GAP + labelSize.width();
+                width += GAP + PDFAppFooterLogo::SIZE + LOGO_GAP + labelSize.width();
                 height = qMax(height, labelSize.height());
             }
         }
@@ -145,40 +185,68 @@ protected:
     virtual void resizeEvent(QResizeEvent* event) override
     {
         QWidget::resizeEvent(event);
-        placeLabels();
+        placeTargets();
     }
 
     virtual void changeEvent(QEvent* event) override
     {
         QWidget::changeEvent(event);
-        if (event->type() == QEvent::LayoutDirectionChange || event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+        if (event->type() == QEvent::LanguageChange)
         {
-            placeLabels();
+            updateTexts();
+        }
+        else if (event->type() == QEvent::LayoutDirectionChange || event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+        {
+            placeTargets();
         }
     }
 
 private:
-    void placeLabels()
+    void updateTexts()
+    {
+        const std::array<QString, 3> texts = { PDFAppFooter::tr("Windows"), PDFAppFooter::tr("Linux"), PDFAppFooter::tr("macOS") };
+        for (qsizetype i = 0; i < m_labels.size() && i < qsizetype(texts.size()); ++i)
+        {
+            if (m_labels[i])
+            {
+                m_labels[i]->setText(texts[size_t(i)]);
+            }
+        }
+        updateGeometry();
+        placeTargets();
+    }
+
+    void placeTargets()
     {
         // All targets or none (a part of the list would say something else)
         const bool isShown = width() >= sizeHint().width();
         int x = 0;
-        for (const QPointer<PDFLabel>& label : std::as_const(m_labels))
+        for (qsizetype i = 0; i < m_labels.size() && i < m_logos.size(); ++i)
         {
-            if (!label)
+            PDFLabel* label = m_labels[i];
+            PDFAppFooterLogo* logo = m_logos[i];
+            if (!label || !logo)
             {
                 continue;
             }
 
-            const QSize labelSize = label->sizeHint();
+            // The logo and the text are centered on the row (the text 0.5 px below
+            // the top of the logo in Figma, 13 of 14)
             x += GAP;
+            const QRect logoRect(x, (height() - PDFAppFooterLogo::SIZE) / 2, PDFAppFooterLogo::SIZE, PDFAppFooterLogo::SIZE);
+            x += PDFAppFooterLogo::SIZE + LOGO_GAP;
+            const QSize labelSize = label->sizeHint();
             const QRect labelRect(x, (height() - labelSize.height()) / 2, labelSize.width(), labelSize.height());
-            label->setGeometry(QStyle::visualRect(layoutDirection(), rect(), labelRect));
-            label->setVisible(isShown);
             x += labelSize.width();
+
+            logo->setGeometry(QStyle::visualRect(layoutDirection(), rect(), logoRect));
+            label->setGeometry(QStyle::visualRect(layoutDirection(), rect(), labelRect));
+            logo->setVisible(isShown);
+            label->setVisible(isShown);
         }
     }
 
+    QList<QPointer<PDFAppFooterLogo>> m_logos;
     QList<QPointer<PDFLabel>> m_labels;
 };
 
@@ -189,8 +257,12 @@ PDFAppScrollArea::PDFAppScrollArea(QWidget* content, QWidget* parent) :
     setFrameShape(QFrame::NoFrame);
     setWidgetResizable(true);
 
-    // The area is no stop of Tab (QScrollArea scrolls to a focused child itself)
+    // The area is no stop of Tab; a focused child is scrolled into the view
     setFocusPolicy(Qt::NoFocus);
+    if (QApplication* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
+    {
+        connect(application, &QApplication::focusChanged, this, &PDFAppScrollArea::onFocusChanged);
+    }
 
     // The viewport shows what is below it (the canvas, the panel of the sidebar)
     viewport()->setAutoFillBackground(false);
@@ -198,6 +270,28 @@ PDFAppScrollArea::PDFAppScrollArea(QWidget* content, QWidget* parent) :
 }
 
 PDFAppScrollArea::~PDFAppScrollArea() = default;
+
+void PDFAppScrollArea::onFocusChanged(QWidget* old, QWidget* now)
+{
+    Q_UNUSED(old);
+
+    // A child focused by the keyboard is moved into the view, no margin is added
+    // (the paddings belong to the content). A click focuses a widget under the
+    // pointer, which is visible: the view does not move then (a widget taller than
+    // the view would be centered by the press, and the release would hit another
+    // place of the content)
+    if (QGuiApplication::mouseButtons() != Qt::NoButton)
+    {
+        return;
+    }
+
+    QWidget* content = widget();
+    if (!now || !content || !content->isAncestorOf(now) || !now->isVisibleTo(content))
+    {
+        return;
+    }
+    ensureWidgetVisible(now, 0, 0);
+}
 
 void PDFAppScrollArea::setContent(QWidget* content)
 {
@@ -635,10 +729,12 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
 
     // The icon circle is painted in the leading padding (border 1 + 14 + 36 + 12)
     QHBoxLayout* layout = new QHBoxLayout(this);
+    m_mainLayout = layout;
     Helper::updateMargins(this);
     layout->setSpacing(Helper::GAP);
 
     QVBoxLayout* textLayout = new QVBoxLayout();
+    m_textLayout = textLayout;
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(2);
     m_titleLabel = new PDFLabel(QString(), PDFThemeFonts::Role::BodySemiBold, PDFThemeColors::TextPrimary, this);
@@ -652,6 +748,14 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
     textLayout->addWidget(m_textLabel);
     layout->addLayout(textLayout, 1);
 
+    // The buttons are created in their container (beside or below the text)
+    m_actions = new QWidget(this);
+    m_actions->setObjectName(QStringLiteral("bannerActions"));
+    m_actions->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    QHBoxLayout* actions = new QHBoxLayout(m_actions);
+    actions->setContentsMargins(0, 0, 0, 0);
+    actions->setSpacing(8);
+
     m_tryAgainButton = createButton(tr("Try Again"));
     m_tryAgainButton->setObjectName(QStringLiteral("bannerTryAgain"));
     m_showInFolderButton = createButton(tr("Show in Folder"));
@@ -661,14 +765,11 @@ PDFAppStorageBanner::PDFAppStorageBanner(QWidget* parent) :
     m_dismissButton = createButton(tr("Dismiss"));
     m_dismissButton->setObjectName(QStringLiteral("bannerDismiss"));
 
-    QHBoxLayout* actions = new QHBoxLayout();
-    actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(8);
     actions->addWidget(m_tryAgainButton);
     actions->addWidget(m_showInFolderButton);
     actions->addWidget(m_checkForUpdatesButton);
     actions->addWidget(m_dismissButton);
-    layout->addLayout(actions);
+    layout->addWidget(m_actions, 0, Qt::AlignVCenter);
 
     connect(m_tryAgainButton, &QPushButton::clicked, this, &PDFAppStorageBanner::tryAgainRequested);
     connect(m_showInFolderButton, &QPushButton::clicked, this, &PDFAppStorageBanner::showInFolderRequested);
@@ -683,7 +784,7 @@ PDFAppStorageBanner::~PDFAppStorageBanner() = default;
 
 QPushButton* PDFAppStorageBanner::createButton(const QString& text)
 {
-    QPushButton* button = new QPushButton(text, this);
+    QPushButton* button = new QPushButton(text, m_actions ? m_actions.data() : static_cast<QWidget*>(this));
     button->setAutoDefault(false);
     return button;
 }
@@ -782,6 +883,19 @@ void PDFAppStorageBanner::updateContent()
         m_textLabel->setText(text);
     }
 
+    // The buttons in the current language (a change of the language comes here)
+    const std::array<std::pair<QPushButton*, QString>, 4> buttonTexts = { std::make_pair(m_tryAgainButton.data(), tr("Try Again")),
+                                                                          std::make_pair(m_showInFolderButton.data(), tr("Show in Folder")),
+                                                                          std::make_pair(m_checkForUpdatesButton.data(), tr("Check for Updates")),
+                                                                          std::make_pair(m_dismissButton.data(), tr("Dismiss")) };
+    for (const std::pair<QPushButton*, QString>& buttonText : buttonTexts)
+    {
+        if (buttonText.first)
+        {
+            buttonText.first->setText(buttonText.second);
+        }
+    }
+
     const bool hasFile = !m_state.filePath.isEmpty();
     if (m_tryAgainButton)
     {
@@ -799,6 +913,25 @@ void PDFAppStorageBanner::updateContent()
     {
         m_dismissButton->setVisible(kind == Kind::Replaced);
     }
+    if (m_actions)
+    {
+        // An empty container would keep the gap of 12 beside the text
+        bool hasButtons = false;
+        for (const QPushButton* button : m_actions->findChildren<QPushButton*>(Qt::FindDirectChildrenOnly))
+        {
+            hasButtons = hasButtons || !button->isHidden();
+        }
+        m_actions->setVisible(hasButtons);
+
+        // The size of the buttons is needed now (the placement and the layout of the
+        // banner), not after the posted layout request of the container
+        if (QLayout* actionsLayout = m_actions->layout())
+        {
+            actionsLayout->invalidate();
+        }
+        m_actions->updateGeometry();
+    }
+    updateActionsPlacement();
 
     setAccessibleName(title);
     setAccessibleDescription(text);
@@ -846,6 +979,55 @@ void PDFAppStorageBanner::changeEvent(QEvent* event)
     {
         PDFAppStorageBannerHelper::updateMargins(this);
     }
+    else if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+    {
+        updateActionsPlacement();
+    }
+}
+
+void PDFAppStorageBanner::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateActionsPlacement();
+}
+
+void PDFAppStorageBanner::updateActionsPlacement()
+{
+    using Helper = PDFAppStorageBannerHelper;
+    if (!m_actions || !m_mainLayout || !m_textLayout)
+    {
+        return;
+    }
+
+    // The width of the text beside the buttons decides (the placement depends only
+    // on the width, so the height for the width of the layout stays consistent)
+    const int leading = 1 + Helper::PADDING_LEFT + Helper::ICON_CIRCLE + Helper::GAP;
+    const int trailing = 1 + Helper::PADDING_RIGHT;
+    const int textWidth = width() - leading - trailing - Helper::GAP - m_actions->sizeHint().width();
+    const bool isBelowText = !m_actions->isHidden() && textWidth < MIN_TEXT_WIDTH;
+    const bool isPlaced = m_mainLayout->indexOf(m_actions) >= 0 || m_textLayout->indexOf(m_actions) >= 0;
+    if (isPlaced && isBelowText == m_isActionsBelowText)
+    {
+        return;
+    }
+
+    m_isActionsBelowText = isBelowText;
+    m_mainLayout->removeWidget(m_actions);
+    m_textLayout->removeWidget(m_actions);
+    if (QLayout* actionsLayout = m_actions->layout())
+    {
+        // Below the text: 12 px under it (the spacing of the text layout is 2)
+        actionsLayout->setContentsMargins(0, isBelowText ? Helper::GAP - 2 : 0, 0, 0);
+    }
+
+    if (isBelowText)
+    {
+        m_textLayout->addWidget(m_actions, 0, Qt::AlignLeading);
+    }
+    else
+    {
+        m_mainLayout->addWidget(m_actions, 0, Qt::AlignVCenter);
+    }
 }
 
 PDFAppFooter::PDFAppFooter(QWidget* parent) :
@@ -862,13 +1044,20 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
     layout->setSpacing(0);
 
     // The texts (15 px) end at the bottom of the row of the link (16 px): 16 px above
-    // the bottom of the window, their centers on the axis of the switch within 0.5 px
-    layout->addWidget(new PDFLabel(tr("Free • Open Source • "), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this), 0, Qt::AlignBottom);
-    m_licenseLink = new PDFTextLink(tr("MIT License"), this);
+    // the bottom of the window, their centers on the axis of the switch within 0.5 px.
+    // The separators " • " are labels of their own between the parts, so they stay
+    // between the parts also right-to-left (a separator at the end of the text of
+    // a part would move to its other side)
+    m_freeLabel = new PDFLabel(QString(), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
+    m_freeLabel->setObjectName(QStringLiteral("freeLabel"));
+    layout->addWidget(m_freeLabel, 0, Qt::AlignBottom);
+    layout->addWidget(createSeparator(), 0, Qt::AlignBottom);
+    m_licenseLink = new PDFTextLink(QString(), this);
     m_licenseLink->setObjectName(QStringLiteral("licenseLink"));
     m_licenseLink->setToolTip(getLicenseUrl().toString());
     layout->addWidget(m_licenseLink, 0, Qt::AlignVCenter);
-    m_versionLabel = new PDFLabel(tr(" • Version %1").arg(getDisplayVersion()), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
+    layout->addWidget(createSeparator(), 0, Qt::AlignBottom);
+    m_versionLabel = new PDFLabel(QString(), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
     m_versionLabel->setObjectName(QStringLiteral("versionLabel"));
     layout->addWidget(m_versionLabel, 0, Qt::AlignBottom);
 
@@ -887,9 +1076,18 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
 
     connect(m_licenseLink, &QAbstractButton::clicked, this, &PDFAppFooter::onLicenseClicked);
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppFooter::update));
+
+    updateTexts();
 }
 
 PDFAppFooter::~PDFAppFooter() = default;
+
+PDFLabel* PDFAppFooter::createSeparator()
+{
+    PDFLabel* separator = new PDFLabel(QStringLiteral(" \u2022 "), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, this);
+    separator->setObjectName(QStringLiteral("footerSeparator"));
+    return separator;
+}
 
 QUrl PDFAppFooter::getLicenseUrl()
 {
@@ -902,7 +1100,24 @@ QString PDFAppFooter::getDisplayVersion(const QString& version)
     const QVersionNumber number = QVersionNumber::fromString(version, &suffixIndex);
     if (number.isNull() || suffixIndex != version.size())
     {
-        return version.trimmed().left(32);
+        // A text of one line (control and format characters, separators of lines
+        // are left out) of at most 32 characters, a surrogate pair is never cut
+        QString text;
+        for (const QChar character : version.trimmed())
+        {
+            const QChar::Category category = character.category();
+            if (category != QChar::Other_Control && category != QChar::Other_Format &&
+                category != QChar::Separator_Line && category != QChar::Separator_Paragraph)
+            {
+                text += character;
+            }
+        }
+        text.truncate(32);
+        if (!text.isEmpty() && text.back().isHighSurrogate())
+        {
+            text.chop(1);
+        }
+        return text;
     }
     return QStringLiteral("%1.%2.%3").arg(number.majorVersion()).arg(number.minorVersion()).arg(number.microVersion());
 }
@@ -966,13 +1181,36 @@ bool PDFAppFooter::event(QEvent* event)
             updateTagSpace();
             break;
 
+        case QEvent::LanguageChange:
+            updateTexts();
+            break;
+
         default:
             break;
     }
     return result;
 }
 
-void PDFAppFooter::setState(const PDFDatabaseState& state)
+void PDFAppFooter::updateTexts()
+{
+    // Texts of the current language (also the tag of the stored state and the
+    // place of the tag, whose width follows its text)
+    if (m_freeLabel)
+    {
+        m_freeLabel->setText(tr("Free • Open Source"));
+    }
+    if (m_licenseLink)
+    {
+        m_licenseLink->setText(tr("MIT License"));
+    }
+    if (m_versionLabel)
+    {
+        m_versionLabel->setText(tr("Version %1").arg(getDisplayVersion()));
+    }
+    updateTag();
+}
+
+void PDFAppFooter::updateTag()
 {
     if (!m_tag)
     {
@@ -980,7 +1218,7 @@ void PDFAppFooter::setState(const PDFDatabaseState& state)
     }
 
     QString text;
-    switch (state.mode)
+    switch (m_storageMode)
     {
         case PDFDatabaseStorageMode::Portable:
             text = tr("Portable");
@@ -998,6 +1236,12 @@ void PDFAppFooter::setState(const PDFDatabaseState& state)
     m_tag->setText(text);
     m_tag->setVisible(!text.isEmpty());
     updateTagSpace();
+}
+
+void PDFAppFooter::setState(const PDFDatabaseState& state)
+{
+    m_storageMode = state.mode;
+    updateTag();
 }
 
 QString PDFAppFooter::getTagText() const

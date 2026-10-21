@@ -110,6 +110,17 @@ void PDFThemeManager::setReducedMotion(bool reducedMotion)
     m_reducedMotion = reducedMotion;
 }
 
+void PDFThemeManager::setFollowingSystemColorScheme(bool followingSystemColorScheme)
+{
+    if (m_followingSystemColorScheme == followingSystemColorScheme)
+    {
+        return;
+    }
+
+    m_followingSystemColorScheme = followingSystemColorScheme;
+    Q_EMIT followingSystemColorSchemeChanged();
+}
+
 void PDFThemeManager::activate(const PDFThemeColors& theme)
 {
     if (m_theme == theme)

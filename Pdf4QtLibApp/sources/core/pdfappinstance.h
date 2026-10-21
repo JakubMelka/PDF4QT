@@ -26,6 +26,8 @@
 #include "pdfappglobal.h"
 
 #include <QByteArray>
+#include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QMetaType>
 #include <QObject>
 #include <QPointer>
@@ -140,8 +142,14 @@ public:
     /// A connection, which does not send its message in this time, is closed
     static constexpr int DEFAULT_READ_TIMEOUT = 5000;
 
-    /// Time limit of the listening again after the last connection has closed
-    static constexpr int RETRY_TIMEOUT = 1000;
+    /// Interval of the attempts to listen again after a canceled quitting, while
+    /// another process holds the lock of the instances (PDFAppInstanceGuard)
+    static constexpr int RETRY_INTERVAL = 200;
+
+    /// Default time limit of these attempts: a starting process holds the lock for
+    /// its time limit of the forwarding, a lock of a hung process is stale after
+    /// PDFAppInstanceGuard::STALE_LOCK_TIME and it is removed by the next attempt
+    static constexpr int DEFAULT_RETRY_LIMIT = 40000;
 
     explicit PDFAppInstanceServer(QObject* parent = nullptr);
     virtual ~PDFAppInstanceServer() override;
@@ -160,7 +168,8 @@ public:
     /// listening, before the questions about unsaved changes are asked. Connections,
     /// which are waiting or already accepted, are kept and their requests are held
     /// without an answer until resume or quit, so no request is lost; a process
-    /// started later runs by itself.
+    /// started later runs by itself. A server, which has not listened again after
+    /// a canceled quitting yet, holds the requests again (and does not listen).
     void suspend();
 
     /// The user has canceled the quitting: the held requests are acknowledged and
@@ -168,9 +177,13 @@ public:
     /// last listen, unless another instance has taken the name meanwhile (then the
     /// application runs without the forwarding). An open connection of this server
     /// holds the name too (an instance of the pipe on Windows): the server tries to
-    /// listen again, when its last connection has closed. \returns true, if the
-    /// server listens. The server may be deleted by a slot of openRequested.
-    bool resume(int timeout, QString* error = nullptr);
+    /// listen again, when its last connection has closed. The call never waits for
+    /// the lock of the instances (it runs in the GUI thread): while a starting process
+    /// holds it, the server tries again from the event loop every RETRY_INTERVAL for
+    /// at most \p retryLimit milliseconds (counted from this call, or from the closing
+    /// of the last connection). \returns true, if the server listens now. The server
+    /// may be deleted by a slot of openRequested.
+    bool resume(int retryLimit, QString* error = nullptr);
 
     /// The quitting has been accepted: the server stops listening and refuses every
     /// connection, which has not been answered (held requests, messages still being
@@ -227,15 +240,27 @@ private:
     void deliverHeldRequests();
 
     /// A suspended server, whose quitting was canceled, listens again, when its last
-    /// connection has closed (resume could not listen while it was open)
+    /// connection has closed (resume could not listen while it was open) or when the
+    /// lock of the instances is free (m_retryTimer)
     void retryResume();
+
+    /// One attempt to listen again without waiting for the lock; schedules the next
+    /// attempt, when the lock is held by another process and the time limit allows it
+    bool listenAgain(QString* error);
 
     /// Open connections, which are still connections of the server
     QList<QPointer<PDFAppInstanceConnection>> getConnections() const;
 
+    /// A connection of the server has its socket still open (Windows: it holds the
+    /// name of the pipe)
+    bool hasOpenConnection() const;
+
     QLocalServer* m_server = nullptr;
     QList<QObject*> m_connections;
     QString m_serverName;
+    QTimer m_retryTimer;
+    QDeadlineTimer m_retryDeadline;
+    int m_retryLimit = DEFAULT_RETRY_LIMIT;
     int m_readTimeout = DEFAULT_READ_TIMEOUT;
     bool m_isSuspended = false;
     bool m_isHolding = false;
@@ -245,7 +270,8 @@ private:
 /// One connection of the server: reads one message, tells the server, that the
 /// request is ready (the server acknowledges it at once, holds it while the
 /// application is quitting, or refuses it), answers it and closes. A held request
-/// waits at most the read timeout, then it is refused (the peer starts by itself).
+/// is refused (the peer starts by itself) three quarters of the read timeout after
+/// the connection was accepted, so before its client gives up waiting.
 class PDFAppInstanceConnection : public QObject
 {
     Q_OBJECT
@@ -259,6 +285,9 @@ public:
 
     /// The connection has answered
     bool isFinished() const { return m_isFinished; }
+
+    /// The socket is not closed yet
+    bool isOpen() const;
 
     /// Request of a held connection
     const PDFAppInstanceRequest& getRequest() const { return m_request; }
@@ -284,6 +313,7 @@ private:
 
     QPointer<QLocalSocket> m_socket;
     QTimer m_timer;
+    QElapsedTimer m_age;
     QByteArray m_buffer;
     PDFAppInstanceRequest m_request;
     int m_readTimeout = PDFAppInstanceServer::DEFAULT_READ_TIMEOUT;
@@ -309,12 +339,23 @@ public:
     /// Default time to wait for the acknowledgment
     static constexpr int DEFAULT_TIMEOUT = 5000;
 
+    /// Windows: the longest wait for a free instance of the pipe. A live server keeps
+    /// free instances (the backlog of QLocalServer) and creates a new one from its
+    /// event loop within milliseconds; a pipe busy for longer is a server, which is
+    /// quitting with an open connection (no instance comes until the user answers
+    /// its questions), so the starting process runs by itself without waiting the
+    /// whole timeout.
+    static constexpr int PIPE_WAIT_LIMIT = 1000;
+
     /// Sends the request. The server must be a process of the same user (Windows: the
     /// owner of the process of the pipe, Linux: the credentials of the socket), else
     /// nothing is sent (Failed). On Windows the server process is then allowed to bring
     /// its window to the foreground (AllowSetForegroundWindow) before the request is
     /// sent. \p serverProcessId receives the process id of the server, when the
-    /// platform tells it (0 otherwise).
+    /// platform tells it (0 otherwise). \p timeout limits the whole exchange including
+    /// the connection: on Windows a pipe without a free instance (a server, which is
+    /// busy or quitting with an open connection) is waited for at most PIPE_WAIT_LIMIT
+    /// within it (QLocalSocket::connectToServer would wait a fixed 5 s), then Failed.
     static Result send(const QString& serverName, const PDFAppInstanceRequest& request, int timeout, QString* error,
                        qint64* serverProcessId = nullptr);
 };
@@ -346,6 +387,12 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppInstanceGuard
 {
 public:
     PDFAppInstanceGuard() = delete;
+
+    /// A lock file older than this (or of a process, which does not run) is stale
+    static constexpr int STALE_LOCK_TIME = 30000;
+
+    /// Time limit of the probe of the name by resume (a busy name is held anyway)
+    static constexpr int PROBE_TIMEOUT = 100;
 
     enum class Result
     {
@@ -384,8 +431,11 @@ public:
                         PDFAppInstanceServer* server, int timeout, QString* error, Mode mode = Mode::Forward);
 
     /// PDFAppInstanceServer::resume: under the lock, the server listens again under
-    /// its name, unless another instance answers on it
-    static bool resume(PDFAppInstanceServer* server, int timeout, QString* error);
+    /// its name, unless another instance answers on it. \p timeout is the wait for
+    /// the lock (0 = a single attempt, which never waits - the GUI thread), the probe
+    /// of the name waits at most PROBE_TIMEOUT. \p isLockBusy is set, when the lock is
+    /// held by another process (the caller may try again later).
+    static bool resume(PDFAppInstanceServer* server, int timeout, QString* error, bool* isLockBusy = nullptr);
 };
 
 }   // namespace pdf

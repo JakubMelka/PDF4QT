@@ -150,15 +150,27 @@ QString PDFAppContext::getLogFile() const
 void PDFAppContext::applyColorScheme()
 {
     const QString colorScheme = getSettings().getString(PDFSettingKeys::colorScheme());
+    const bool isLight = colorScheme == PDFSettingValues::colorSchemeLight();
+    const bool isDark = colorScheme == PDFSettingValues::colorSchemeDark();
 
-    PDFThemeColors::Scheme scheme = PDFThemeColors::Scheme::Light;
-    if (colorScheme == PDFSettingValues::colorSchemeDark())
+    // Auto (also the default, when the database cannot be read) leaves the color scheme
+    // of the application to the system: the style removes its request of the scheme of
+    // the theme (Light / Dark), otherwise QStyleHints::colorScheme would return the
+    // requested scheme and the changes of the system would not be signaled. The removal
+    // can signal a change of the scheme at once, this function is then entered again
+    // (it converges: the second call sees the same setting and the same scheme).
+    QPointer<PDFAppContext> self(this);
+    PDFThemeManager* themeManager = PDFThemeManager::getInstance();
+    themeManager->setFollowingSystemColorScheme(!isLight && !isDark);
+    if (!self)
     {
-        scheme = PDFThemeColors::Scheme::Dark;
+        return;
     }
-    else if (colorScheme != PDFSettingValues::colorSchemeLight())
+
+    PDFThemeColors::Scheme scheme = isDark ? PDFThemeColors::Scheme::Dark : PDFThemeColors::Scheme::Light;
+    if (!isLight && !isDark)
     {
-        // Auto (also the default, when the database cannot be read)
+        // Unknown (no scheme of the system, high contrast) is Light
         QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance());
         if (application && application->styleHints()->colorScheme() == Qt::ColorScheme::Dark)
         {
@@ -166,7 +178,6 @@ void PDFAppContext::applyColorScheme()
         }
     }
 
-    PDFThemeManager* themeManager = PDFThemeManager::getInstance();
     if (themeManager->getTheme().getScheme() != scheme)
     {
         themeManager->setScheme(scheme);

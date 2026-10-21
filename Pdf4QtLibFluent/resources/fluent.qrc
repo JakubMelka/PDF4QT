@@ -180,6 +180,7 @@
         <file>icons/locate.svg</file>
         <file>icons/lock.svg</file>
         <file>icons/loupe.svg</file>
+        <file>icons/macos.svg</file>
         <file>icons/mail.svg</file>
         <file>icons/margins.svg</file>
         <file>icons/mark-accept.svg</file>
@@ -370,6 +371,7 @@
         <file>icons/window-maximize.svg</file>
         <file>icons/window-minimize.svg</file>
         <file>icons/window-restore.svg</file>
+        <file>icons/windows.svg</file>
         <file>icons/word-overlay.svg</file>
         <file>icons/x-circle.svg</file>
         <file>icons/x.svg</file>

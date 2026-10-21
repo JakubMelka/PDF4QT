@@ -137,7 +137,7 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
         connect(m_sidebar, &PDFAppSidebar::navigationRequested, this, &PDFAppTab::navigationRequested);
     }
 
-    // workspace-pane: bg/canvas, padding 32, gaps 24 (header, banner, page, footer);
+    // workspace-pane: bg/canvas, padding 32, gaps 24 (header, banner and page, footer);
     // the bottom padding of the Home tab is 16 (owner decision O11) and it is a part
     // of the footer, which centers its row on the axis of the switch of the sidebar
     QWidget* workspace = new QWidget(this);
@@ -152,22 +152,25 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     workspaceLayout->addWidget(m_header);
     connect(m_header, &PDFAppWorkspaceHeader::searchRequested, this, &PDFAppWorkspaceTab::onSearchRequested);
 
+    // The page scrolls (the minimal window, long pages) together with the banner
+    // at its top (the top of the content column, 958:28036), so a long banner in
+    // a low window is never cut; the header and the footer stay. The gap 24 below
+    // the banner disappears with it (a hidden widget has no spacing).
+    m_pageArea = new QWidget();
+    m_pageArea->setObjectName(QStringLiteral("pageArea"));
+    m_pageLayout = new QVBoxLayout(m_pageArea);
+    m_pageLayout->setContentsMargins(0, 0, 0, 0);
+    m_pageLayout->setSpacing(24);
+
     if (isHome)
     {
-        m_banner = new PDFAppStorageBanner(workspace);
-        workspaceLayout->addWidget(m_banner);
+        m_banner = new PDFAppStorageBanner(m_pageArea);
+        m_pageLayout->addWidget(m_banner);
         connect(m_banner, &PDFAppStorageBanner::tryAgainRequested, this, &PDFAppWorkspaceTab::onTryAgainRequested);
         connect(m_banner, &PDFAppStorageBanner::showInFolderRequested, this, &PDFAppWorkspaceTab::onShowInFolderRequested);
         connect(m_banner, &PDFAppStorageBanner::checkForUpdatesRequested, this, &PDFAppWorkspaceTab::onCheckForUpdatesRequested);
     }
 
-    // The page scrolls (the minimal window, long pages), the header, the banner
-    // and the footer stay
-    m_pageArea = new QWidget();
-    m_pageArea->setObjectName(QStringLiteral("pageArea"));
-    m_pageLayout = new QVBoxLayout(m_pageArea);
-    m_pageLayout->setContentsMargins(0, 0, 0, 0);
-    m_pageLayout->setSpacing(0);
     m_pageScrollArea = new PDFAppScrollArea(m_pageArea, workspace);
     m_pageScrollArea->setObjectName(QStringLiteral("pageScrollArea"));
     workspaceLayout->addWidget(m_pageScrollArea, 1);

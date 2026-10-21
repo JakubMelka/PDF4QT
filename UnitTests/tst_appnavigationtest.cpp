@@ -54,20 +54,30 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDialog>
 #include <QDir>
 #include <QFocusFrame>
 #include <QLabel>
 #include <QLocalSocket>
+#include <QLockFile>
+#include <QMenu>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStackedWidget>
 #include <QTemporaryDir>
+#include <QTranslator>
 #include <QToolButton>
 #include <QTextDocumentFragment>
+#include <QVBoxLayout>
+#include <QStyleHints>
 #include <QtMath>
 #include <QtTest>
+
+#ifdef PDF4QT_TEST_PLATFORM_THEME
+#include "colorschemetesttheme.h"
+#endif
 
 #if defined(Q_OS_WIN)
 #ifndef NOMINMAX
@@ -76,6 +86,7 @@
 #include <windows.h>
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <functional>
@@ -288,6 +299,50 @@ public:
 
 int NavigationFixture::s_counter = 0;
 
+/// Translator of the texts of the footer and of the banner ("[text]"), a language with longer texts
+class FooterTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        if (QByteArray(context) == QByteArrayLiteral("pdf::PDFAppFooter") || QByteArray(context) == QByteArrayLiteral("pdf::PDFAppStorageBanner"))
+        {
+            return QStringLiteral("[%1]").arg(QString::fromUtf8(sourceText));
+        }
+        return QString();
+    }
+
+    virtual bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
+/// Translator of the buttons of Page Not Found only ("[text]", longer texts)
+class NotFoundButtonTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        const QByteArray text(sourceText);
+        if (QByteArray(context) == QByteArrayLiteral("pdf::PDFPageNotFoundPage") &&
+            (text == QByteArrayLiteral("Back") || text == QByteArrayLiteral("Go to Home") || text.startsWith(QByteArrayLiteral("Search for "))))
+        {
+            return QStringLiteral("[%1]").arg(QString::fromUtf8(sourceText));
+        }
+        return QString();
+    }
+
+    virtual bool isEmpty() const override
+    {
+        return false;
+    }
+};
+
 class AppNavigationTest : public QObject
 {
     Q_OBJECT
@@ -323,6 +378,10 @@ private slots:
     void newTab();
     void externalLinks();
     void themeSwitch();
+    void themeSwitchSystemScheme_data();
+    void themeSwitchSystemScheme();
+    void themeSwitchTestThemeRestored();
+    void themeSwitchNativeScheme();
     void shortcutsFromDatabase();
     void searchField();
     void banners_data();
@@ -338,11 +397,15 @@ private slots:
     void windowControls();
     void closeAndCancel();
     void quitWithPendingRequests();
+    void cancelQuitWhileLocked();
     void instanceRequests();
     void shellDesign();
     void footerAxis();
     void minimumWindow();
+    void notFoundNarrowWindow();
     void rightToLeftIcons();
+    void navigationButtonsFilter();
+    void scrollAreas();
     void screenshots();
 
 private:
@@ -356,6 +419,9 @@ private:
 
     /// Image of an icon (16 px) for a comparison
     static QImage iconImage(const QIcon& icon);
+
+    /// Color scheme of the system before the style has requested any
+    Qt::ColorScheme m_systemColorScheme = Qt::ColorScheme::Unknown;
 };
 
 bool AppNavigationTest::readReply(QLocalSocket& socket, int timeout, bool* ok)
@@ -394,6 +460,7 @@ QImage AppNavigationTest::iconImage(const QIcon& icon)
 
 void AppNavigationTest::initTestCase()
 {
+    m_systemColorScheme = QGuiApplication::styleHints()->colorScheme();
     QApplication::setStyle(new pdf::PDFWidgetStyle());
     qRegisterMetaType<pdf::PDFAppRoute>();
     qRegisterMetaType<pdf::PDFAppNavigationMode>();
@@ -1690,6 +1757,12 @@ void AppNavigationTest::externalLinks()
     QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QStringLiteral("1.6.0.0-rc1")), QStringLiteral("1.6.0.0-rc1"));
     QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QString()), QString());
     QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QString(100, QLatin1Char('x'))).size(), 32);
+
+    // An untrusted text: one line, a surrogate pair is never cut at the limit
+    const QString emoji = QString::fromUcs4(U"\U0001F600");
+    QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QString(31, QLatin1Char('x')) + emoji + QStringLiteral("yy")), QString(31, QLatin1Char('x')));
+    QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QString(30, QLatin1Char('x')) + emoji + QStringLiteral("yy")), QString(30, QLatin1Char('x')) + emoji);
+    QCOMPARE(pdf::PDFAppFooter::getDisplayVersion(QStringLiteral("1.6\nbeta") + QChar(0x202E) + QChar(0x200B) + QStringLiteral("\t1")), QStringLiteral("1.6beta1"));
 }
 
 void AppNavigationTest::themeSwitch()
@@ -1742,6 +1815,152 @@ void AppNavigationTest::themeSwitch()
     }
     QCOMPARE(texts, QStringList({ "Home", "Open", "Recent", "Tools", "AI", "What's New", "About", "Support", "Sponsor", "Settings" }));
     QCOMPARE(sidebar->width(), pdf::PDFAppSidebar::WIDTH);
+}
+
+void AppNavigationTest::themeSwitchSystemScheme_data()
+{
+    QTest::addColumn<bool>("synchronous");
+    QTest::newRow("synchronous (Windows)") << true;
+    QTest::newRow("event loop (GNOME, GTK)") << false;
+}
+
+void AppNavigationTest::themeSwitchSystemScheme()
+{
+#ifdef PDF4QT_TEST_PLATFORM_THEME
+    // A platform theme, which keeps the scheme requested by the application (as QWindowsTheme):
+    // a scheme requested for Light / Dark must not hide the scheme of the system from Auto
+    QFETCH(bool, synchronous);
+    ColorSchemeTestTheme platformTheme(Qt::ColorScheme::Light, synchronous);
+    NavigationFixture fixture;
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    pdf::PDFSegmentedControl* themeSwitch = fixture.window->getHomeTab()->getSidebar()->getThemeSwitch();
+    QCOMPARE(themeSwitch->getCurrentIndex(), 2);    // Auto (default)
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+
+    // Dark, then Auto with a light system: the theme of the system (report of the owner)
+    themeSwitch->setCurrentIndex(1);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QTRY_COMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Dark);    // native dialogs, title bars
+    themeSwitch->setCurrentIndex(2);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    QTRY_COMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Light);
+
+    // Auto follows a change of the system
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    // No scheme of the system (Windows in high contrast reports Unknown): Light
+    platformTheme.setSystemScheme(Qt::ColorScheme::Unknown);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Light);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+
+    // Light, then Auto with a dark system
+    themeSwitch->setCurrentIndex(0);
+    QTRY_COMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    QTest::qWait(50);
+    QCOMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    themeSwitch->setCurrentIndex(2);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+
+    // A chosen theme does not follow the system
+    themeSwitch->setCurrentIndex(0);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Light);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    QTest::qWait(50);
+    QCOMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+    themeSwitch->setCurrentIndex(1);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Light);
+    QTest::qWait(50);
+    QCOMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Dark);
+
+    // Another connection writes Auto: the scheme of the system again
+    pdf::PDFDatabaseError error;
+    sqlite3* handle = pdf::PDFDatabase::openMemoryConnection(fixture.memoryName, &error);
+    QVERIFY2(handle, qPrintable(error.toString()));
+    QVERIFY(!pdf::PDFDatabase::executeOnHandle(handle, "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'auto', 1)").isError());
+    pdf::PDFDatabase::closeHandle(handle);
+    QTRY_COMPARE(themeSwitch->getCurrentIndex(), 2);
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+
+    // The requests converge (a change of the scheme notifies the context, which applies
+    // the setting again), they do not repeat endlessly
+    const int requestCount = platformTheme.getRequestCount();
+    QTest::qWait(100);
+    QCOMPARE(platformTheme.getRequestCount(), requestCount);
+#else
+    QSKIP("Needs the private headers of QtGui (Qt6::GuiPrivate)");
+#endif
+}
+
+void AppNavigationTest::themeSwitchTestThemeRestored()
+{
+#ifdef PDF4QT_TEST_PLATFORM_THEME
+    // The platform theme of a test passes its last request to the theme it has replaced.
+    // The outer theme plays the native theme of a dark system, which keeps a request
+    // (QWindowsTheme): the scheme requested before the test theme was installed would
+    // hide the dark system from Auto of the next test (themeSwitchNativeScheme of a serial
+    // run after themeSwitchSystemScheme, "-platform windows", dark system)
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    ColorSchemeTestTheme nativeTheme(Qt::ColorScheme::Dark);
+    themeManager->setFollowingSystemColorScheme(false);
+    QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    QCOMPARE(nativeTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+
+    {
+        ColorSchemeTestTheme testTheme(Qt::ColorScheme::Light);
+        NavigationFixture fixture;      // Auto
+        QVERIFY(themeManager->isFollowingSystemColorScheme());
+        QCOMPARE(testTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+        QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    }
+    QCOMPARE(nativeTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Dark);
+
+    // The next window with Auto (the theme manager follows the system already, nothing is requested)
+    NavigationFixture fixture;
+    QVERIFY(themeManager->isFollowingSystemColorScheme());
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+#else
+    QSKIP("Needs the private headers of QtGui (Qt6::GuiPrivate)");
+#endif
+}
+
+void AppNavigationTest::themeSwitchNativeScheme()
+{
+    // The platform theme of the run: offscreen ignores a requested scheme, run this test also
+    // by "UnitTestsAppNavigation -platform windows themeSwitchNativeScheme" (QWindowsTheme
+    // keeps the requested scheme and reports it as the scheme of the system)
+    NavigationFixture fixture;
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    pdf::PDFSegmentedControl* themeSwitch = fixture.window->getHomeTab()->getSidebar()->getThemeSwitch();
+    const pdf::PDFThemeColors::Scheme systemScheme = m_systemColorScheme == Qt::ColorScheme::Dark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light;
+    const pdf::PDFThemeColors::Scheme otherScheme = systemScheme == pdf::PDFThemeColors::Scheme::Dark ? pdf::PDFThemeColors::Scheme::Light : pdf::PDFThemeColors::Scheme::Dark;
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), systemScheme);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        // The scheme other than the scheme of the system, then Auto
+        themeSwitch->setCurrentIndex(otherScheme == pdf::PDFThemeColors::Scheme::Dark ? 1 : 0);
+        QTRY_COMPARE(themeManager->getTheme().getScheme(), otherScheme);
+        themeSwitch->setCurrentIndex(2);
+        QTRY_COMPARE(themeManager->getTheme().getScheme(), systemScheme);
+        if (m_systemColorScheme != Qt::ColorScheme::Unknown)
+        {
+            QTRY_COMPARE(QGuiApplication::styleHints()->colorScheme(), m_systemColorScheme);
+        }
+    }
 }
 
 void AppNavigationTest::shortcutsFromDatabase()
@@ -2565,7 +2784,7 @@ void AppNavigationTest::closeAndCancel()
         pdf::PDFAppInstanceRequest request;
         request.errors << QStringLiteral("Unknown argument --x.");
         std::atomic<int> sendResult = -1;
-        std::thread sender([&sendResult, serverName, request]()
+        std::jthread sender([&sendResult, serverName, request]()
         {
             QString sendError;
             sendResult = int(pdf::PDFAppInstanceClient::send(serverName, request, 10000, &sendError));
@@ -2648,6 +2867,68 @@ void AppNavigationTest::quitWithPendingRequests()
         fixture.context->setInstanceServer(nullptr);
         delete server;
     }
+}
+
+void AppNavigationTest::cancelQuitWhileLocked()
+{
+    // The user cancels the quitting, while a starting process decides under the lock
+    // of the instances: the window does not freeze waiting for the lock, the server
+    // listens again from the event loop, when the lock is free
+    const int factor = qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")) ? 20 : 1;
+    const QString serverName = QStringLiteral("pdf4qt-navigation-%1-locked").arg(QCoreApplication::applicationPid());
+    NavigationFixture fixture(false);
+    pdf::PDFAppInstanceServer* server = new pdf::PDFAppInstanceServer();
+    QString error;
+    QCOMPARE(pdf::PDFAppInstanceGuard::start(serverName, pdf::PDFAppInstanceRequest(), server, 5000, &error), pdf::PDFAppInstanceGuard::Result::Listening);
+    fixture.context->setInstanceServer(server);
+
+    QuestioningMainWindow* window = new QuestioningMainWindow(fixture.context.get());
+    fixture.window = window;
+    fixture.prepareWindow();
+
+    // The lock is taken during the questions (a process starts meanwhile)
+    QLockFile lockFile(pdf::PDFAppInstanceGuard::getLockFilePath(serverName));
+    lockFile.setStaleLockTime(pdf::PDFAppInstanceGuard::STALE_LOCK_TIME);
+    bool isLocked = false;
+    window->onConfirm = [&lockFile, &isLocked]()
+    {
+        isLocked = lockFile.tryLock(5000);
+        return false;
+    };
+
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(!window->close());
+    qInfo("canceled quitting with the lock held: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 1000 * factor, qPrintable(QStringLiteral("closing took %1 ms").arg(timer.elapsed())));
+    QVERIFY(isLocked);
+    QVERIFY(window->isVisible());
+    QVERIFY(server->isSuspended());
+    QVERIFY(!server->isListening());
+    QTest::qWait(3 * pdf::PDFAppInstanceServer::RETRY_INTERVAL);
+    QVERIFY(!server->isListening());
+
+    // The lock is released: the server listens again and a request reaches the window
+    lockFile.unlock();
+    QTRY_VERIFY_WITH_TIMEOUT(server->isListening(), 10000 * factor);
+    QVERIFY(!server->isSuspended());
+
+    QSignalSpy openSpy(fixture.context.get(), &pdf::PDFAppContext::openRequested);
+    pdf::PDFAppInstanceRequest request;
+    request.errors << QStringLiteral("Unknown argument --locked.");
+    std::atomic<int> sendResult = -1;
+    std::jthread sender([&sendResult, serverName, request, factor]()
+    {
+        QString sendError;
+        sendResult = int(pdf::PDFAppInstanceClient::send(serverName, request, 10000 * factor, &sendError));
+    });
+    QTRY_COMPARE_WITH_TIMEOUT(sendResult.load(), int(pdf::PDFAppInstanceClient::Result::Delivered), 15000 * factor);
+    sender.join();
+    QTRY_COMPARE(openSpy.count(), 1);
+    QTRY_COMPARE(window->getForwardedErrors(), QStringList({ QStringLiteral("Unknown argument --locked.") }));
+
+    fixture.context->setInstanceServer(nullptr);
+    delete server;
 }
 
 void AppNavigationTest::instanceRequests()
@@ -2937,7 +3218,132 @@ void AppNavigationTest::footerAxis()
     QCoreApplication::processEvents();
     QCoreApplication::processEvents();
     QCOMPARE(geometry(footer->getVersionLabel()).left() - (geometry(footer->getTag()).right() + 1), 8);
+
+    // The separators " • " are labels of their own between the parts (Free • Open
+    // Source, MIT License, Version), in both directions: a separator at the end of
+    // the text of a part was drawn at the outer side of the part right-to-left
+    // ("• Version 1.6.0 MIT License Free • Open Source •")
+    QWidget* freeLabel = footer->findChild<QWidget*>(QStringLiteral("freeLabel"));
+    const QList<pdf::PDFLabel*> separators = footer->findChildren<pdf::PDFLabel*>(QStringLiteral("footerSeparator"));
+    QVERIFY(freeLabel);
+    QCOMPARE(separators.size(), 2);
+    for (const pdf::PDFLabel* label : footer->findChildren<pdf::PDFLabel*>())
+    {
+        if (!label->objectName().startsWith(QStringLiteral("footerSeparator")) && label->parentWidget() == footer)
+        {
+            const QString text = label->text().trimmed();
+            QVERIFY2(!text.startsWith(QChar(0x2022)) && !text.endsWith(QChar(0x2022)), qPrintable(label->text()));
+        }
+    }
+    for (const Qt::LayoutDirection direction : { Qt::RightToLeft, Qt::LeftToRight })
+    {
+        fixture.window->setLayoutDirection(direction);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+
+        // Reading order: Free • Open Source, separator, MIT License, separator, Version
+        QList<QRect> parts = { geometry(freeLabel), geometry(separators[0]), geometry(footer->getLicenseLink()), geometry(separators[1]), geometry(footer->getVersionLabel()) };
+        if (direction == Qt::RightToLeft)
+        {
+            std::reverse(parts.begin(), parts.end());
+        }
+        for (qsizetype i = 1; i < parts.size(); ++i)
+        {
+            QVERIFY2(parts[i].left() == parts[i - 1].right() + 1, qPrintable(QStringLiteral("direction %1 part %2").arg(int(direction)).arg(i)));
+        }
+
+        // The separator is drawn in its own box: the ink of the bullet lies in the
+        // middle third of it (pixels at the device pixel ratio 1)
+        const QImage image = renderWindow(window, 1.0);
+        const QColor canvas = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas);
+        for (const pdf::PDFLabel* separator : separators)
+        {
+            const QRect rect = geometry(separator);
+            int inkLeft = -1;
+            int inkRight = -1;
+            for (int x = rect.left(); x <= rect.right(); ++x)
+            {
+                for (int y = rect.top(); y <= rect.bottom(); ++y)
+                {
+                    const QColor color = image.pixelColor(x, y);
+                    if (qAbs(color.red() - canvas.red()) + qAbs(color.green() - canvas.green()) + qAbs(color.blue() - canvas.blue()) > 60)
+                    {
+                        inkLeft = inkLeft < 0 ? x : inkLeft;
+                        inkRight = x;
+                        break;
+                    }
+                }
+            }
+            QVERIFY(inkLeft >= 0);
+            QVERIFY2(inkLeft - rect.left() >= rect.width() / 4 && rect.right() - inkRight >= rect.width() / 4,
+                     qPrintable(QStringLiteral("separator %1 - %2, ink %3 - %4").arg(rect.left()).arg(rect.right()).arg(inkLeft).arg(inkRight)));
+        }
+    }
     fixture.window->setLayoutDirection(Qt::LeftToRight);
+
+    // A change of the language translates every text of the footer again: the tag
+    // of the stored state, its place in the layout (8 + its width), the version,
+    // the license and the targets (the texts kept the old language before)
+    {
+        auto tagSpacerWidth = [footer]() -> int
+        {
+            for (int i = 0; i < footer->layout()->count(); ++i)
+            {
+                QSpacerItem* spacer = footer->layout()->itemAt(i)->spacerItem();
+                if (spacer && spacer->sizePolicy().horizontalPolicy() == QSizePolicy::Fixed)
+                {
+                    return spacer->geometry().width();
+                }
+            }
+            return -1;
+        };
+        pdf::PDFDatabaseState portable;
+        portable.mode = pdf::PDFDatabaseStorageMode::Portable;
+        footer->setState(portable);
+        QCoreApplication::processEvents();
+        const int tagWidth = footer->getTag()->width();
+        QCOMPARE(tagSpacerWidth(), 8 + tagWidth);
+
+        // The buttons of the banner follow the language too
+        pdf::PDFAppStorageBanner* banner = homeTab->getBanner();
+        pdf::PDFDatabaseState fallback;
+        fallback.mode = pdf::PDFDatabaseStorageMode::MemoryFallback;
+        fallback.filePath = QStringLiteral("C:/data/pdf4qt.db");
+        banner->setState(fallback);
+
+        FooterTranslator translator;
+        QVERIFY(QCoreApplication::installTranslator(&translator));
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        QCOMPARE(banner->getTryAgainButton()->text(), QStringLiteral("[Try Again]"));
+        QCOMPARE(banner->getShowInFolderButton()->text(), QStringLiteral("[Show in Folder]"));
+        QVERIFY(banner->getTitle().startsWith(QLatin1Char('[')));
+        QCOMPARE(footer->getTagText(), QStringLiteral("[Portable]"));
+        QCOMPARE(footer->getVersionLabel()->text(), QStringLiteral("[Version %1]").arg(pdf::PDFAppFooter::getDisplayVersion()));
+        QCOMPARE(footer->getLicenseLink()->text(), QStringLiteral("[MIT License]"));
+        QCOMPARE(footer->findChild<pdf::PDFLabel*>(QStringLiteral("freeLabel"))->text(), QString::fromUtf8("[Free \xE2\x80\xA2 Open Source]"));
+        QStringList targetTexts;
+        for (const pdf::PDFLabel* label : footer->getTargets()->findChildren<pdf::PDFLabel*>())
+        {
+            targetTexts << label->text();
+            QVERIFY(label->isVisible());
+            QCOMPARE(label->width(), label->sizeHint().width());
+        }
+        QCOMPARE(targetTexts, QStringList({ QStringLiteral("[Windows]"), QStringLiteral("[Linux]"), QStringLiteral("[macOS]") }));
+        QVERIFY(footer->getTag()->width() > tagWidth);
+        QCOMPARE(footer->getTag()->width(), footer->getTag()->sizeHint().width());
+        QCOMPARE(tagSpacerWidth(), 8 + footer->getTag()->width());
+        QCOMPARE(geometry(footer->getTag()).left() - (geometry(footer->getVersionLabel()).right() + 1), 8);
+
+        QVERIFY(QCoreApplication::removeTranslator(&translator));
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        QCOMPARE(footer->getTagText(), QStringLiteral("Portable"));
+        QCOMPARE(footer->getLicenseLink()->text(), QStringLiteral("MIT License"));
+        QCOMPARE(banner->getTryAgainButton()->text(), QStringLiteral("Try Again"));
+        banner->setState(portable);
+        QCOMPARE(tagSpacerWidth(), 8 + tagWidth);
+    }
 
     // The New tab has no footer, its workspace keeps the bottom padding 32
     pdf::PDFAppTab* newTab = fixture.window->openNewTab();
@@ -3038,6 +3444,14 @@ void AppNavigationTest::minimumWindow()
         QVERIFY(!label->isVisible());
     }
 
+    // A logo hides with its text
+    const QList<QWidget*> logos = footer->getTargets()->findChildren<QWidget*>(QStringLiteral("footerLogo"));
+    QCOMPARE(logos.size(), 3);
+    for (const QWidget* logo : logos)
+    {
+        QVERIFY(!logo->isVisible());
+    }
+
     // The targets come back in a wide window
     fixture.window->resize(1440, 977);
     QCoreApplication::processEvents();
@@ -3047,6 +3461,71 @@ void AppNavigationTest::minimumWindow()
     for (const pdf::PDFLabel* label : targets)
     {
         QVERIFY(label->isVisible());
+    }
+
+    // footer-os-targets 28:219: each target is a logo of 14 px (windows-logo 30:102,
+    // linux-logo 74:799, apple-logo 30:106 in icon/default), 6 px and its text; the
+    // logos lie on the axis of the switch and the targets end at the right edge of
+    // the content (32 px from the window)
+    {
+        QWidget* targetsWidget = footer->getTargets();
+        auto geometry = [window](const QWidget* widget) -> QRect
+        {
+            return QRect(widget->mapTo(window, QPoint(0, 0)), widget->size());
+        };
+        const QRect switchRect = geometry(themeSwitch);
+        const QList<QWidget*> wideLogos = targetsWidget->findChildren<QWidget*>(QStringLiteral("footerLogo"));
+        QCOMPARE(wideLogos.size(), 3);
+        QCOMPARE(geometry(targets.last()).right() + 1, window->width() - 32);
+        const QColor iconColor = pdf::PDFStylePainter::color(pdf::PDFThemeColors::IconDefault);
+        for (qsizetype i = 0; i < wideLogos.size(); ++i)
+        {
+            const QRect logoRect = geometry(wideLogos[i]);
+            const QRect labelRect = geometry(targets[i]);
+            QVERIFY(wideLogos[i]->isVisible());
+            QCOMPARE(logoRect.size(), QSize(14, 14));
+            QCOMPARE(labelRect.left() - (logoRect.right() + 1), 6);
+            QVERIFY(qAbs((2 * logoRect.top() + logoRect.height()) - (2 * switchRect.top() + switchRect.height())) <= 2);
+            if (i > 0)
+            {
+                QCOMPARE(logoRect.left() - (geometry(targets[i - 1]).right() + 1), 16);
+            }
+
+            // The logo is drawn: ink of icon/default inside of its box at 1, 1.5 and 2
+            for (const qreal scale : { 1.0, 1.5, 2.0 })
+            {
+                const QImage image = renderWindow(window, scale);
+                int ink = 0;
+                int exact = 0;
+                for (int y = qFloor(logoRect.top() * scale); y < qCeil((logoRect.bottom() + 1) * scale); ++y)
+                {
+                    for (int x = qFloor(logoRect.left() * scale); x < qCeil((logoRect.right() + 1) * scale); ++x)
+                    {
+                        const QColor color = image.pixelColor(x, y);
+                        if (color.lightness() < 200)
+                        {
+                            ++ink;
+                        }
+                        if (color.rgb() == iconColor.rgb())
+                        {
+                            ++exact;
+                        }
+                    }
+                }
+                const int area = int(14 * 14 * scale * scale);
+                QVERIFY2(ink > area / 6 && exact > area / 20, qPrintable(QStringLiteral("logo %1 scale %2: ink %3, exact %4").arg(i).arg(scale).arg(ink).arg(exact)));
+            }
+        }
+
+        // Right-to-left the logo is at the right side of its text
+        fixture.window->setLayoutDirection(Qt::RightToLeft);
+        QCoreApplication::processEvents();
+        for (qsizetype i = 0; i < wideLogos.size(); ++i)
+        {
+            QCOMPARE(geometry(wideLogos[i]).left() - (geometry(targets[i]).right() + 1), 6);
+        }
+        fixture.window->setLayoutDirection(Qt::LeftToRight);
+        QCoreApplication::processEvents();
     }
     QCOMPARE(pageArea->verticalScrollBar()->maximum(), 0);
     QCOMPARE(navigationArea->verticalScrollBar()->maximum(), 0);
@@ -3061,6 +3540,246 @@ void AppNavigationTest::minimumWindow()
             QVERIFY2((image.pixel(x, y) & 0xFFFFFF) != (leak & 0xFFFFFF), qPrintable(QStringLiteral("%1,%2").arg(x).arg(y)));
         }
     }
+
+    // The banners with buttons (958:28036) in the minimal window: the banner scrolls
+    // with the page (a fixed banner of the fallback was cut to 185 px: its text ended
+    // after four lines and the page kept 55 px), the buttons move below the text
+    // (beside it the text was a column of 120 px); in a wide window they are beside
+    // the text, centered on the banner
+    pdf::PDFAppStorageBanner* banner = homeTab->getBanner();
+    QVERIFY(pageArea->widget()->isAncestorOf(banner));
+    struct BannerCase
+    {
+        pdf::PDFDatabaseStorageMode mode;
+        QString damaged;
+    };
+    for (const BannerCase& bannerCase : { BannerCase{ pdf::PDFDatabaseStorageMode::MemoryFallback, QString() },
+                                          BannerCase{ pdf::PDFDatabaseStorageMode::ReadOnlyNewerSchema, QString() },
+                                          BannerCase{ pdf::PDFDatabaseStorageMode::Disk, QStringLiteral("C:/data/pdf4qt.db.damaged-2026-10-18") } })
+    {
+        pdf::PDFDatabaseState state;
+        state.mode = bannerCase.mode;
+        state.filePath = QStringLiteral("C:/data/pdf4qt.db");
+        state.damagedFilePath = bannerCase.damaged;
+        state.error = pdf::PDFDatabaseError::fromMessage(QString(200, QLatin1Char('x')).replace(QLatin1Char('x'), QStringLiteral("disk I/O error ")));
+        banner->setState(state);
+        QVERIFY(banner->isVisible());
+
+        for (const QSize& size : { QSize(720, 480), QSize(1440, 977) })
+        {
+            for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+            {
+                fixture.window->resize(size);
+                fixture.window->setLayoutDirection(direction);
+                QTest::qWait(50);
+                pageArea->verticalScrollBar()->setValue(0);
+                QCoreApplication::processEvents();
+                const QString context = QStringLiteral("mode %1, %2x%3, direction %4").arg(int(bannerCase.mode)).arg(size.width()).arg(size.height()).arg(int(direction));
+
+                // The paragraph has all its lines, the buttons lie inside of the banner
+                pdf::PDFAppParagraph* text = banner->findChild<pdf::PDFAppParagraph*>(QStringLiteral("bannerText"));
+                QWidget* actions = banner->findChild<QWidget*>(QStringLiteral("bannerActions"));
+                QVERIFY2(text && actions && actions->isVisible(), qPrintable(context));
+                QVERIFY2(text->height() >= text->heightForWidth(text->width()), qPrintable(context));
+                QVERIFY2(banner->height() >= banner->heightForWidth(banner->width()), qPrintable(context));
+                const QRect actionsRect(actions->mapTo(banner, QPoint(0, 0)), actions->size());
+                const QRect textRect(text->mapTo(banner, QPoint(0, 0)), text->size());
+                QVERIFY2(banner->rect().contains(actionsRect), qPrintable(context));
+                QVERIFY2(textRect.width() >= pdf::PDFAppStorageBanner::MIN_TEXT_WIDTH || size.width() == 720, qPrintable(context));
+
+                const bool isBelow = size.width() == 720;
+                QVERIFY2(banner->isActionsBelowText() == isBelow, qPrintable(context));
+                if (isBelow)
+                {
+                    // 12 px below the text, at its leading edge
+                    const QRect visibleButtons = actions->childrenRect().translated(actionsRect.topLeft());
+                    QVERIFY2(visibleButtons.top() == textRect.bottom() + 1 + 12, qPrintable(context));
+                    if (direction == Qt::LeftToRight)
+                    {
+                        QVERIFY2(visibleButtons.left() == textRect.left(), qPrintable(context));
+                    }
+                    else
+                    {
+                        QVERIFY2(visibleButtons.right() == textRect.right(), qPrintable(context));
+                    }
+                }
+                else
+                {
+                    // Beside the text, 12 px from it, centered on the banner
+                    QVERIFY2(qAbs((2 * actionsRect.top() + actionsRect.height()) - banner->height()) <= 1, qPrintable(context));
+                    QVERIFY2(direction == Qt::LeftToRight ? actionsRect.left() == textRect.right() + 1 + 12 : textRect.left() == actionsRect.right() + 1 + 12, qPrintable(context));
+                }
+
+                // The whole banner is reachable by the scroll bar, nothing overlaps the footer
+                const QRect bannerInViewport(banner->mapTo(pageArea->viewport(), QPoint(0, 0)), banner->size());
+                QVERIFY2(bannerInViewport.top() == 0, qPrintable(context));
+                QVERIFY2(pageArea->widget()->height() >= banner->height() + 24, qPrintable(context));
+
+                // No horizontal scroll bar: the banner is whole in the viewport (the
+                // text 460 and the row of the buttons 473 of Page Not Found made the
+                // page wider than the minimal window and cut the banner at its right)
+                QVERIFY2(pageArea->horizontalScrollBar()->maximum() == 0, qPrintable(context));
+                QVERIFY2(pageArea->viewport()->rect().contains(bannerInViewport), qPrintable(context));
+
+                // The buttons of Page Not Found: a row (Figma) or a column in the minimal window
+                QWidget* notFoundActions = window->findChild<QWidget*>(QStringLiteral("notFoundActions"));
+                QVERIFY2(notFoundActions, qPrintable(context));
+                QList<QRect> buttonRects;
+                for (const char* name : { "notFoundBack", "notFoundSearch", "notFoundHome" })
+                {
+                    const QWidget* button = notFoundActions->findChild<QWidget*>(QString::fromLatin1(name));
+                    QVERIFY2(button && button->isVisibleTo(notFoundActions), qPrintable(context));
+                    QVERIFY2(notFoundActions->rect().contains(button->geometry()), qPrintable(context));
+                    buttonRects << button->geometry();
+                }
+                for (qsizetype i = 1; i < buttonRects.size(); ++i)
+                {
+                    const QRect& previous = buttonRects[i - 1];
+                    const QRect& current = buttonRects[i];
+                    if (isBelow)
+                    {
+                        QVERIFY2(current.top() == previous.bottom() + 1 + 12 && current.center().x() / 2 == previous.center().x() / 2, qPrintable(context));
+                    }
+                    else if (direction == Qt::LeftToRight)
+                    {
+                        QVERIFY2(current.top() == previous.top() && current.left() == previous.right() + 1 + 12, qPrintable(context));
+                    }
+                    else
+                    {
+                        QVERIFY2(current.top() == previous.top() && previous.left() == current.right() + 1 + 12, qPrintable(context));
+                    }
+                }
+                pdf::PDFAppParagraph* notFoundText = window->findChild<pdf::PDFAppParagraph*>(QStringLiteral("notFoundText"));
+                QVERIFY2(notFoundText && notFoundText->height() == notFoundText->heightForWidth(notFoundText->width()), qPrintable(context));
+                QVERIFY2(notFoundText->width() == (isBelow ? pageArea->viewport()->width() : 460), qPrintable(context));
+            }
+        }
+    }
+    fixture.window->setLayoutDirection(Qt::LeftToRight);
+}
+
+void AppNavigationTest::notFoundNarrowWindow()
+{
+    // Page Not Found of a long requested route in the minimal window: the requested
+    // item, the route and Search for … are elided to the page (they were elided to
+    // 460 px and the search text not at all, so the page was wider than the window
+    // and had a horizontal scroll bar); the whole texts stay in the tooltips
+    NavigationFixture fixture;
+    QWidget* window = fixture.window.data();
+    pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
+    pdf::PDFAppScrollArea* pageArea = homeTab->getPageScrollArea();
+    const QString toolId = QStringLiteral("split-pages-by-bookmarks-and-merge-them-into-one-file-quickly-and-safely");
+    fixture.navigate(QStringLiteral("/tools/") + toolId);
+    pdf::PDFPageNotFoundPage* page = qobject_cast<pdf::PDFPageNotFoundPage*>(fixture.currentPage());
+    QVERIFY(page);
+    QTest::qWait(50);
+    const QString searchText = page->getRequest().searchText;
+    QVERIFY(searchText.size() >= 40);
+    const QString fullSearchText = QStringLiteral("Search for \u201C%1\u201D").arg(searchText);
+
+    auto checkPage = [&](const QString& context)
+    {
+        QVERIFY2(pageArea->horizontalScrollBar()->maximum() == 0, qPrintable(context));
+        const QRect viewport = pageArea->viewport()->rect();
+        QList<QWidget*> parts = { page->findChild<QWidget*>(QStringLiteral("requestedPath")), page->findChild<QWidget*>(QStringLiteral("notFoundActions")),
+                                  page->getBackButton(), page->getSearchButton(), page->getHomeButton() };
+        for (QWidget* part : parts)
+        {
+            QVERIFY2(part && part->isVisible(), qPrintable(context));
+            const QRect rect(part->mapTo(pageArea->viewport(), QPoint(0, 0)), part->size());
+            QVERIFY2(rect.left() >= viewport.left() && rect.right() <= viewport.right(), qPrintable(QStringLiteral("%1: %2").arg(context, part->objectName())));
+            if (QPushButton* button = qobject_cast<QPushButton*>(part))
+            {
+                // A button has its whole (elided) text
+                QVERIFY2(button->width() == button->sizeHint().width(), qPrintable(QStringLiteral("%1: %2").arg(context, part->objectName())));
+            }
+        }
+        for (const char* name : { "requestedItem", "requestedRoute" })
+        {
+            const QLabel* label = page->findChild<QLabel*>(QString::fromLatin1(name));
+            QVERIFY2(label && label->width() >= label->sizeHint().width(), qPrintable(QStringLiteral("%1: %2").arg(context, QString::fromLatin1(name))));
+        }
+    };
+
+    // The wide window: the search text is whole
+    QCOMPARE(page->getSearchButton()->text(), fullSearchText);
+    QVERIFY(page->getSearchButton()->toolTip().isEmpty());
+    checkPage(QStringLiteral("wide"));
+
+    fixture.window->resize(fixture.window->minimumSize());
+    QTest::qWait(50);
+    QCOMPARE(window->size(), QSize(720, 480));
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        fixture.window->setLayoutDirection(direction);
+        QTest::qWait(50);
+        const QString context = QStringLiteral("minimal window, direction %1").arg(int(direction));
+        checkPage(context);
+        QVERIFY2(page->getSearchButton()->text() != fullSearchText && page->getSearchButton()->text().contains(QChar(0x2026)), qPrintable(page->getSearchButton()->text()));
+        QCOMPARE(page->getSearchButton()->toolTip(), fullSearchText);
+        QVERIFY2(page->getPathText().contains(QChar(0x2026)), qPrintable(page->getPathText()));
+        QCOMPARE(page->getRequest().searchText, searchText);
+    }
+    fixture.window->setLayoutDirection(Qt::LeftToRight);
+    QTest::qWait(50);
+
+    // A request shown while the window is hidden is elided, when the page is shown
+    pdf::PDFAppNotFoundRequest request = page->getRequest();
+    request.description = QStringLiteral("Tool %1").arg(toolId + toolId);
+    request.route = pdf::PDFAppRoute::parse(QStringLiteral("/tools/") + toolId + QStringLiteral("-") + toolId);
+    fixture.window->hide();
+    QCoreApplication::processEvents();
+    page->setRequest(request);
+    fixture.window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    QTest::qWait(50);
+    checkPage(QStringLiteral("shown again"));
+    QVERIFY2(page->getDescriptionText().contains(QChar(0x2026)), qPrintable(page->getDescriptionText()));
+
+    // A clicked search looks for the whole text
+    QTest::mouseClick(page->getSearchButton(), Qt::LeftButton);
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::search(searchText));
+
+    // The buttons of a page in a hidden window follow a change of their texts, when
+    // the window is shown again: the row has no layout, a button tells only a visible
+    // parent about its new size, so the row places its buttons again at its show
+    fixture.window->resize(1440, 977);
+    fixture.navigate(QStringLiteral("/tools/convert.epub"));
+    page = qobject_cast<pdf::PDFPageNotFoundPage*>(fixture.currentPage());
+    QVERIFY(page);
+    QTest::qWait(50);
+    checkPage(QStringLiteral("wide again"));
+    fixture.window->hide();
+    QCoreApplication::processEvents();
+    page->getBackButton()->setText(QStringLiteral("Back to the previous page"));
+    fixture.window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    QTest::qWait(50);
+    checkPage(QStringLiteral("changed while hidden"));
+    QCOMPARE(page->getSearchButton()->geometry().left(), page->getBackButton()->geometry().right() + 1 + 12);
+
+    // A new language (also the hints of the page change then)
+    fixture.window->hide();
+    QCoreApplication::processEvents();
+    NotFoundButtonTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QCOMPARE(page->getHomeButton()->text(), QStringLiteral("[Go to Home]"));
+    fixture.window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    QTest::qWait(50);
+    checkPage(QStringLiteral("translated"));
+    const QRect back = page->getBackButton()->geometry();
+    const QRect search = page->getSearchButton()->geometry();
+    const QRect home = page->getHomeButton()->geometry();
+    QCOMPARE(search.left(), back.right() + 1 + 12);
+    QCOMPARE(home.left(), search.right() + 1 + 12);
+    QVERIFY(QCoreApplication::removeTranslator(&translator));
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QTest::qWait(50);
+    checkPage(QStringLiteral("translator removed"));
 }
 
 void AppNavigationTest::rightToLeftIcons()
@@ -3106,6 +3825,210 @@ void AppNavigationTest::rightToLeftIcons()
     QCoreApplication::processEvents();
     QCOMPARE(iconImage(otherPage->getBackButton()->icon()), left);
     QCOMPARE(iconImage(fixture.window->getCommandAction(pdf::PDFAppCommands::back())->icon()), left);
+}
+
+void AppNavigationTest::navigationButtonsFilter()
+{
+    // The buttons back / forward of the mouse are taken from the QWindow of the main
+    // window: one press is one step (the release and the double click do nothing),
+    // a QWindow created again (a change of the flags of the window) is filtered once,
+    // a modal dialog or a menu over the window blocks them, other buttons pass
+    NavigationFixture fixture;
+    for (int i = 1; i <= 5; ++i)
+    {
+        fixture.navigate(QStringLiteral("/tools/page%1.tool").arg(i));
+    }
+    QSignalSpy navigated(fixture.navigator(), &pdf::PDFAppNavigator::navigated);
+    auto lastPath = [&navigated]() -> QString
+    {
+        return navigated.isEmpty() ? QString() : navigated.last().at(1).value<pdf::PDFAppRoute>().getPath();
+    };
+
+    pdf::PDFLineEdit* searchField = fixture.window->getHomeTab()->getSearchField();
+    QVERIFY(searchField);
+    auto fieldCenter = [&fixture, searchField]() -> QPoint
+    {
+        return searchField->mapTo(fixture.window.data(), searchField->rect().center());
+    };
+
+    QPointer<QWindow> windowHandle = fixture.window->windowHandle();
+    QVERIFY(windowHandle);
+    QTest::mousePress(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+    QTest::mouseRelease(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 1);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page4.tool"));
+
+    // A double click of the button: two presses are two steps, the double click
+    // event itself does nothing
+    QTest::mouseDClick(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 3);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page2.tool"));
+    QTest::mouseClick(windowHandle, Qt::ForwardButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 4);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page3.tool"));
+
+    // Other buttons are not taken
+    QTest::mouseClick(windowHandle, Qt::MiddleButton, Qt::NoModifier, fieldCenter());
+    QTest::mouseClick(windowHandle, Qt::RightButton, Qt::NoModifier, fieldCenter());
+    QTest::qWait(50);
+    for (QWidget* popup = QApplication::activePopupWidget(); popup; popup = QApplication::activePopupWidget())
+    {
+        popup->close();
+    }
+    QCOMPARE(navigated.count(), 4);
+
+    // A window modal dialog over the window
+    {
+        QDialog dialog(fixture.window.data());
+        dialog.setWindowModality(Qt::WindowModal);
+        dialog.resize(200, 100);
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        QTest::mouseClick(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+        QCOMPARE(navigated.count(), 4);
+        dialog.close();
+    }
+
+    // A menu (a popup) over the window: the press closes the menu, nothing more
+    {
+        QMenu menu(fixture.window.data());
+        menu.addAction(QStringLiteral("Item"));
+        menu.popup(fixture.window->mapToGlobal(QPoint(fixture.window->width() - 300, fixture.window->height() - 300)));
+        QVERIFY(QTest::qWaitForWindowExposed(&menu));
+        QTRY_VERIFY(QApplication::activePopupWidget() == &menu);
+        QTest::mousePress(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+        QTest::mouseRelease(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+        QCOMPARE(navigated.count(), 4);
+        QTRY_VERIFY(!menu.isVisible());
+    }
+    QTest::mouseClick(windowHandle, Qt::BackButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 5);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page2.tool"));
+
+    // The window is created again (a change of its flags): the new QWindow is
+    // filtered, a press is still one step
+    fixture.window->setWindowFlags(fixture.window->windowFlags() | Qt::WindowStaysOnTopHint);
+    fixture.window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(fixture.window.data()));
+    fixture.window->activateWindow();
+    (void)QTest::qWaitForWindowActive(fixture.window.data());
+    QVERIFY(fixture.window->windowHandle());
+    QTest::mouseClick(fixture.window->windowHandle(), Qt::ForwardButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 6);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page3.tool"));
+
+    // Shown again after a hide (the event Show comes again)
+    fixture.window->hide();
+    fixture.window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(fixture.window.data()));
+    QTest::mouseClick(fixture.window->windowHandle(), Qt::ForwardButton, Qt::NoModifier, fieldCenter());
+    QCOMPARE(navigated.count(), 7);
+    QCOMPARE(lastPath(), QStringLiteral("/tools/page4.tool"));
+
+    // The window is deleted: its QWindow does not call it any more
+    delete fixture.window.data();
+    QVERIFY(!windowHandle);
+}
+
+void AppNavigationTest::scrollAreas()
+{
+    // The minimal window: a new page starts at its top (a changed title keeps the
+    // position), and a child focused by the keyboard (the arrows of the navigation,
+    // Tab) is scrolled into the view
+    NavigationFixture fixture;
+    fixture.navigate("/tools/convert.epub");
+    fixture.window->resize(fixture.window->minimumSize());
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+
+    pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
+    pdf::PDFAppScrollArea* pageArea = homeTab->getPageScrollArea();
+    QScrollBar* pageBar = pageArea->verticalScrollBar();
+    QVERIFY(pageBar->maximum() > 0);
+    pageBar->setValue(pageBar->maximum());
+    QVERIFY(pageBar->value() > 0);
+
+    // The same page with a new title keeps the position
+    const int position = pageBar->value();
+    Q_EMIT homeTab->getPage()->titleChanged();
+    QCOMPARE(pageBar->value(), position);
+
+    fixture.navigate("/tools/other.tool");
+    QCoreApplication::processEvents();
+    QCOMPARE(pageBar->value(), 0);
+
+    // Back: a page of the history starts at its top too
+    pageBar->setValue(pageBar->maximum());
+    QVERIFY(fixture.navigator()->goBack());
+    QCoreApplication::processEvents();
+    QCOMPARE(pageBar->value(), 0);
+
+    // The navigation of the sidebar: the arrows move the focus to Settings, the
+    // last item, which is below the visible part
+    pdf::PDFAppScrollArea* navigationArea = homeTab->getSidebar()->getNavigationArea();
+    pdf::PDFNavList* navigation = homeTab->getSidebar()->getNavigation();
+    QScrollBar* navigationBar = navigationArea->verticalScrollBar();
+    QVERIFY(navigationBar->maximum() > 0);
+    navigationBar->setValue(0);
+    pdf::PDFNavItem* first = navigation->getItem(0);
+    pdf::PDFNavItem* settings = navigation->getItem(int(pdf::PDFAppNavItem::Settings));
+    QVERIFY(first && settings);
+    first->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(first->hasFocus());
+    for (int i = 0; i < 20 && !settings->hasFocus(); ++i)
+    {
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_Down);
+    }
+    QVERIFY(settings->hasFocus());
+    QCoreApplication::processEvents();
+    const QRect visible = navigationArea->viewport()->rect();
+    const QRect settingsRect(settings->mapTo(navigationArea->viewport(), QPoint(0, 0)), settings->size());
+    QVERIFY2(visible.contains(settingsRect), qPrintable(QStringLiteral("viewport %1, item %2").arg(visible.height()).arg(settingsRect.top())));
+
+    // A click focuses a widget without moving the content under the pointer (a
+    // widget taller than the view was centered by the press, so the release hit
+    // another place); the keyboard focus still moves it into the view
+    {
+        QWidget container;
+        container.resize(300, 200);
+        QVBoxLayout* containerLayout = new QVBoxLayout(&container);
+        containerLayout->setContentsMargins(0, 0, 0, 0);
+        QWidget* content = new QWidget();
+        QVBoxLayout* contentLayout = new QVBoxLayout(content);
+        contentLayout->setContentsMargins(0, 0, 0, 0);
+        contentLayout->addSpacing(100);
+        QWidget* tall = new QWidget(content);
+        tall->setObjectName(QStringLiteral("tall"));
+        tall->setFocusPolicy(Qt::StrongFocus);
+        tall->setFixedHeight(1000);
+        contentLayout->addWidget(tall);
+        pdf::PDFAppScrollArea* area = new pdf::PDFAppScrollArea(content, &container);
+        containerLayout->addWidget(area);
+        container.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&container));
+        container.activateWindow();
+        (void)QTest::qWaitForWindowActive(&container);
+        QCoreApplication::processEvents();
+
+        // The activation of the window may have focused the widget already
+        tall->clearFocus();
+        QVERIFY(!tall->hasFocus());
+        QScrollBar* bar = area->verticalScrollBar();
+        QVERIFY(bar->maximum() > 0);
+        bar->setValue(50);
+        const QPoint windowPoint = tall->mapTo(&container, QPoint(20, 30));
+        QTest::mousePress(container.windowHandle(), Qt::LeftButton, Qt::NoModifier, windowPoint);
+        QVERIFY(tall->hasFocus());
+        QCOMPARE(bar->value(), 50);
+        QTest::mouseRelease(container.windowHandle(), Qt::LeftButton, Qt::NoModifier, windowPoint);
+        QCOMPARE(bar->value(), 50);
+
+        tall->clearFocus();
+        bar->setValue(0);
+        tall->setFocus(Qt::TabFocusReason);
+        QVERIFY(tall->hasFocus());
+        QVERIFY(bar->value() > 0);
+    }
 }
 
 void AppNavigationTest::screenshots()
@@ -3185,6 +4108,56 @@ void AppNavigationTest::screenshots()
         rightToLeft.save(QDir(folder).filePath(QStringLiteral("rtl-light.png")));
         minimum.save(QDir(folder).filePath(QStringLiteral("minimum-light.png")));
     }
+
+    // The banners of the storage with buttons (pdf4qt-settings-storage-banners 958:28036)
+    // in the wide and in the minimal window, in both themes and right-to-left
+    struct BannerShot
+    {
+        const char* name;
+        pdf::PDFDatabaseStorageMode mode;
+        const char* damaged;
+    };
+    const BannerShot bannerShots[] = { { "fallback", pdf::PDFDatabaseStorageMode::MemoryFallback, "" },
+                                       { "read-only", pdf::PDFDatabaseStorageMode::ReadOnlyNewerSchema, "" },
+                                       { "replaced", pdf::PDFDatabaseStorageMode::Disk, "C:/data/pdf4qt.db.damaged-2026-10-18" } };
+    pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
+    for (const BannerShot& shot : bannerShots)
+    {
+        pdf::PDFDatabaseState state;
+        state.mode = shot.mode;
+        state.filePath = QStringLiteral("C:/data/pdf4qt.db");
+        state.damagedFilePath = QString::fromLatin1(shot.damaged);
+        state.error = pdf::PDFDatabaseError::fromMessage(QStringLiteral("disk I/O error"));
+        homeTab->getBanner()->setState(state);
+        homeTab->getFooter()->setState(state);
+
+        for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            const QString suffix = scheme == pdf::PDFThemeColors::Scheme::Light ? QStringLiteral("light") : QStringLiteral("dark");
+            for (const QSize& size : { QSize(1440, 977), QSize(720, 480) })
+            {
+                for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+                {
+                    fixture.window->resize(size);
+                    fixture.window->setLayoutDirection(direction);
+                    QCoreApplication::processEvents();
+                    QCoreApplication::processEvents();
+                    const QImage image = fixture.window->grab().toImage();
+                    QVERIFY(!image.isNull());
+                    if (!folder.isEmpty())
+                    {
+                        const QString name = QStringLiteral("%1-%2%3%4.png").arg(QString::fromLatin1(shot.name),
+                                                                                 size.width() == 720 ? QStringLiteral("minimum-") : QString(),
+                                                                                 direction == Qt::RightToLeft ? QStringLiteral("rtl-") : QString(),
+                                                                                 suffix);
+                        image.save(QDir(folder).filePath(name));
+                    }
+                }
+            }
+        }
+    }
+    fixture.window->setLayoutDirection(Qt::LeftToRight);
 }
 
 QTEST_MAIN(AppNavigationTest)

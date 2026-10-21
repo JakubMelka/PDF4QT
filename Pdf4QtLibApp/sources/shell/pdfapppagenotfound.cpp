@@ -38,6 +38,10 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <QStyle>
+#include <QtMath>
 #include <QTextDocument>
 #include <QVBoxLayout>
 
@@ -91,6 +95,169 @@ protected:
         PDFStylePainter::fill(&painter, box, PDFStylePainter::Radii(8.0), PDFThemeColors::BgSubtle);
         PDFStylePainter::strokeInside(&painter, box, PDFStylePainter::Radii(8.0), PDFThemeColors::BorderDefault);
     }
+};
+
+/// Buttons of Page Not Found (actions 940:135288: Back, Search for …, Go to Home,
+/// gaps 12). They stand in a row; a page narrower than the row (the minimal
+/// window) has them in a column, each centered, so the page never needs a
+/// horizontal scroll bar (the row of three buttons is 473 px with a search text)
+class PDFAppNotFoundActions : public QWidget
+{
+public:
+    static constexpr int GAP = 12;
+
+    explicit PDFAppNotFoundActions(QWidget* parent) :
+        QWidget(parent)
+    {
+        setObjectName(QStringLiteral("notFoundActions"));
+        // Not Fixed vertically: the layout would cap the height at the size hint (a row)
+        QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        policy.setHeightForWidth(true);
+        setSizePolicy(policy);
+    }
+
+    void addButton(QPushButton* button)
+    {
+        if (button)
+        {
+            if (button->parentWidget() != this)
+            {
+                button->setParent(this);
+            }
+            m_buttons.append(button);
+            updateGeometry();
+        }
+    }
+
+    /// The buttons are in a column (the widget is narrower than the row)
+    bool isColumn() const { return width() < getRowWidth(); }
+
+    virtual QSize sizeHint() const override
+    {
+        return QSize(getRowWidth(), getButtonHeight());
+    }
+
+    virtual QSize minimumSizeHint() const override
+    {
+        // The buttons never set the minimal width of the page: the page elides the
+        // text of Search for … to its width (a long requested text would make the
+        // page wider than the window and the elision would never shorten it)
+        return QSize(0, getButtonHeight());
+    }
+
+    virtual bool hasHeightForWidth() const override
+    {
+        return true;
+    }
+
+    virtual int heightForWidth(int width) const override
+    {
+        const QList<QPushButton*> buttons = getVisibleButtons();
+        if (width >= getRowWidth() || buttons.isEmpty())
+        {
+            return getButtonHeight();
+        }
+
+        int height = 0;
+        for (const QPushButton* button : buttons)
+        {
+            height += (height > 0 ? GAP : 0) + button->sizeHint().height();
+        }
+        return height;
+    }
+
+protected:
+    virtual bool event(QEvent* event) override
+    {
+        const bool result = QWidget::event(event);
+        switch (event->type())
+        {
+            case QEvent::LayoutRequest:
+                // A button has changed its text or its visibility
+                updateGeometry();
+                placeButtons();
+                break;
+
+            case QEvent::Show:
+                // A button tells only a visible parent about its new size (its
+                // text has changed, while the window was hidden)
+                updateGeometry();
+                placeButtons();
+                break;
+
+            case QEvent::Resize:
+            case QEvent::LayoutDirectionChange:
+                placeButtons();
+                break;
+
+            default:
+                break;
+        }
+        return result;
+    }
+
+private:
+    QList<QPushButton*> getVisibleButtons() const
+    {
+        QList<QPushButton*> buttons;
+        for (const QPointer<QPushButton>& button : m_buttons)
+        {
+            if (button && !button->isHidden())
+            {
+                buttons.append(button.data());
+            }
+        }
+        return buttons;
+    }
+
+    int getRowWidth() const
+    {
+        int width = 0;
+        for (const QPushButton* button : getVisibleButtons())
+        {
+            width += (width > 0 ? GAP : 0) + button->sizeHint().width();
+        }
+        return width;
+    }
+
+    int getButtonHeight() const
+    {
+        int height = 0;
+        for (const QPushButton* button : getVisibleButtons())
+        {
+            height = qMax(height, button->sizeHint().height());
+        }
+        return height;
+    }
+
+    void placeButtons()
+    {
+        const QList<QPushButton*> buttons = getVisibleButtons();
+        if (!isColumn())
+        {
+            // The row is centered (the widget can be wider than the row)
+            int x = (width() - getRowWidth()) / 2;
+            for (QPushButton* button : buttons)
+            {
+                const QSize size = button->sizeHint();
+                const QRect buttonRect(x, (height() - size.height()) / 2, size.width(), size.height());
+                button->setGeometry(QStyle::visualRect(layoutDirection(), rect(), buttonRect));
+                x += size.width() + GAP;
+            }
+            return;
+        }
+
+        int y = 0;
+        for (QPushButton* button : buttons)
+        {
+            const QSize size = button->sizeHint();
+            const int buttonWidth = qMin(size.width(), width());
+            button->setGeometry((width() - buttonWidth) / 2, y, buttonWidth, size.height());
+            y += size.height() + GAP;
+        }
+    }
+
+    QList<QPointer<QPushButton>> m_buttons;
 };
 
 /// Helpers of Page Not Found
@@ -337,7 +504,9 @@ PDFPageNotFoundPage::PDFPageNotFoundPage(PDFAppContext* context, QWidget* parent
     m_textLabel = new PDFAppParagraph(PDFThemeFonts::getFont(QFont::Normal, 14), 21, PDFThemeColors::TextTertiary, emptyState);
     m_textLabel->setObjectName(QStringLiteral("notFoundText"));
     m_textLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    m_textLabel->setFixedWidth(MAXIMUM_TEXT_WIDTH);
+    // 460 wide (Figma), narrower in a narrow page (the minimal window): the page
+    // never needs a horizontal scroll bar
+    m_textLabel->setMaximumWidth(MAXIMUM_TEXT_WIDTH);
     stateLayout->addWidget(m_textLabel, 0, Qt::AlignHCenter);
     stateLayout->addSpacing(20);
 
@@ -358,27 +527,28 @@ PDFPageNotFoundPage::PDFPageNotFoundPage(PDFAppContext* context, QWidget* parent
     m_pathLabel = Helper::createLabel(QString(), Helper::getPathFont(), PDFThemeColors::TextMuted, pathBox);
     m_pathLabel->setObjectName(QStringLiteral("requestedRoute"));
     m_pathLabel->setAlignment(Qt::AlignCenter);
+    // Their texts are elided to the page (updateElidedTexts): the minimal width of
+    // the page does not follow them
+    m_descriptionLabel->setMinimumWidth(1);
+    m_pathLabel->setMinimumWidth(1);
     pathLayout->addWidget(m_descriptionLabel, 0, Qt::AlignHCenter);
     pathLayout->addWidget(m_pathLabel, 0, Qt::AlignHCenter);
     stateLayout->addWidget(pathBox, 0, Qt::AlignHCenter);
     stateLayout->addSpacing(28);
 
     // actions: Back, Search for …, Go to Home (Primary), gaps 12
-    QHBoxLayout* actions = new QHBoxLayout();
-    actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(12);
-    m_backButton = Helper::createButton(QString(), QStringLiteral("chevron-left"), emptyState);
+    PDFAppNotFoundActions* actions = new PDFAppNotFoundActions(emptyState);
+    m_backButton = Helper::createButton(QString(), QStringLiteral("chevron-left"), actions);
     m_backButton->setObjectName(QStringLiteral("notFoundBack"));
-    m_searchButton = Helper::createButton(QString(), QStringLiteral("search"), emptyState);
+    m_searchButton = Helper::createButton(QString(), QStringLiteral("search"), actions);
     m_searchButton->setObjectName(QStringLiteral("notFoundSearch"));
-    m_homeButton = Helper::createButton(QString(), QStringLiteral("home"), emptyState);
+    m_homeButton = Helper::createButton(QString(), QStringLiteral("home"), actions);
     m_homeButton->setObjectName(QStringLiteral("notFoundHome"));
     PDFWidgetStyleProperties::set(m_homeButton, PDFWidgetStyleProperties::PRIMARY);
-    actions->addWidget(m_backButton);
-    actions->addWidget(m_searchButton);
-    actions->addWidget(m_homeButton);
-    stateLayout->addLayout(actions);
-    stateLayout->setAlignment(actions, Qt::AlignHCenter);
+    actions->addButton(m_backButton);
+    actions->addButton(m_searchButton);
+    actions->addButton(m_homeButton);
+    stateLayout->addWidget(actions, 0, Qt::AlignHCenter);
     stateLayout->addSpacing(16);
 
     m_hints = new QWidget(emptyState);
@@ -466,18 +636,15 @@ void PDFPageNotFoundPage::updateContent()
         m_requestedLabel->setText(tr("Requested page"));
     }
 
-    const int boxTextWidth = MAXIMUM_TEXT_WIDTH - 2 * 17;
     if (m_descriptionLabel)
     {
         // The description and the path contain the requested text (untrusted input)
         const QString description = Helper::toVisibleText(m_request.description.isEmpty() ? tr("An unknown page") : m_request.description);
-        m_descriptionLabel->setText(Helper::elide(description, m_descriptionLabel->font(), Qt::ElideRight, boxTextWidth));
         m_descriptionLabel->setToolTip(Helper::toToolTip(description.left(PDFAppRoute::MAXIMUM_LENGTH)));
     }
     if (m_pathLabel)
     {
         const QString path = Helper::toVisibleText(m_request.route.isValid() ? m_request.route.getPath() : m_request.route.getRequestedText());
-        m_pathLabel->setText(Helper::elide(path, m_pathLabel->font(), Qt::ElideMiddle, boxTextWidth));
         m_pathLabel->setVisible(!path.isEmpty());
     }
 
@@ -488,7 +655,6 @@ void PDFPageNotFoundPage::updateContent()
     }
     if (m_searchButton)
     {
-        m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(Helper::toVisibleText(m_request.searchText))));
         m_searchButton->setVisible(!m_request.searchText.isEmpty());
     }
     if (m_homeButton)
@@ -514,6 +680,61 @@ void PDFPageNotFoundPage::updateContent()
         addKeyHint(m_hints, m_request.backShortcut, tr("back"), true);
         const bool hasBackHint = !PDFAppKeyCap::getKeyNames(m_request.backShortcut).isEmpty();
         addKeyHint(m_hints, m_request.searchShortcut, tr("search everywhere"), !hasBackHint);
+    }
+
+    updateElidedTexts();
+}
+
+void PDFPageNotFoundPage::updateElidedTexts()
+{
+    using Helper = PDFPageNotFoundPageHelper;
+
+    // A hidden page (not laid out yet) has the texts of the design, the page elides
+    // them again, when it is shown or resized
+    const int pageWidth = isVisible() ? qMax(1, width()) : QWIDGETSIZE_MAX;
+    const int boxTextWidth = qMax(1, qMin(int(MAXIMUM_TEXT_WIDTH), pageWidth) - 2 * 17);
+    if (m_descriptionLabel)
+    {
+        const QString description = Helper::toVisibleText(m_request.description.isEmpty() ? tr("An unknown page") : m_request.description);
+        m_descriptionLabel->setText(Helper::elide(description, m_descriptionLabel->font(), Qt::ElideRight, boxTextWidth));
+    }
+    if (m_pathLabel)
+    {
+        const QString path = Helper::toVisibleText(m_request.route.isValid() ? m_request.route.getPath() : m_request.route.getRequestedText());
+        m_pathLabel->setText(Helper::elide(path, m_pathLabel->font(), Qt::ElideMiddle, boxTextWidth));
+    }
+
+    if (m_searchButton)
+    {
+        // The search text is elided, until the button fits into the page (the size
+        // of the button comes from the style; a few steps cover the rounding)
+        const QString searchText = Helper::toVisibleText(m_request.searchText);
+        QString shownText = searchText;
+        m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(shownText)));
+        const QFontMetricsF metrics(m_searchButton->font());
+        for (int attempt = 0; attempt < 8 && pageWidth < QWIDGETSIZE_MAX && !shownText.isEmpty(); ++attempt)
+        {
+            const int excess = m_searchButton->sizeHint().width() - pageWidth;
+            if (excess <= 0)
+            {
+                break;
+            }
+
+            const qreal textWidth = metrics.horizontalAdvance(shownText);
+            shownText = Helper::elide(searchText, m_searchButton->font(), Qt::ElideRight, qMax(0, qFloor(textWidth) - excess - attempt));
+            if (shownText.isEmpty())
+            {
+                shownText = QString(QChar(0x2026));
+            }
+            m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(shownText)));
+            if (shownText.size() == 1)
+            {
+                break;
+            }
+        }
+
+        // The whole text, when it is elided
+        m_searchButton->setToolTip(shownText != searchText ? Helper::toToolTip(tr("Search for “%1”").arg(searchText)) : QString());
     }
 }
 
@@ -547,6 +768,18 @@ void PDFPageNotFoundPage::changeEvent(QEvent* event)
     {
         updateIcons();
     }
+}
+
+void PDFPageNotFoundPage::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateElidedTexts();
+}
+
+void PDFPageNotFoundPage::showEvent(QShowEvent* event)
+{
+    BaseClass::showEvent(event);
+    updateElidedTexts();
 }
 
 void PDFPageNotFoundPage::updateIcons()

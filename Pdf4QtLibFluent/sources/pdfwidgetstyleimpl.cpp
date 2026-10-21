@@ -206,6 +206,7 @@ PDFWidgetStyleImpl::PDFWidgetStyleImpl(PDFWidgetStyle* style) :
 
     m_clock.start();
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFWidgetStyleImpl::onThemeChanged);
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::followingSystemColorSchemeChanged, this, &PDFWidgetStyleImpl::onFollowingSystemColorSchemeChanged);
 }
 
 PDFWidgetStyleImpl::~PDFWidgetStyleImpl()
@@ -722,9 +723,10 @@ void PDFWidgetStyleImpl::polish(QApplication* application)
     // would inherit it. Their titles are drawn by the font of the design.
 
     applyLeakPalette();
-
-    const PDFThemeColors& theme = PDFThemeManager::getInstance()->getTheme();
-    QGuiApplication::styleHints()->setColorScheme(theme.isDark() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+    if (!applyColorScheme())
+    {
+        return;
+    }
     applyLeakPalette();
 
     // Default delegates of item views (QStyledItemDelegate without a factory of its own)
@@ -1177,11 +1179,10 @@ void PDFWidgetStyleImpl::onThemeChanged()
         return;
     }
 
-    const PDFThemeColors& theme = PDFThemeManager::getInstance()->getTheme();
-
-    m_paletteGuard = true;
-    QGuiApplication::styleHints()->setColorScheme(theme.isDark() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
-    m_paletteGuard = false;
+    if (!applyColorScheme())
+    {
+        return;
+    }
     applyLeakPalette();
 
     // The handlers of the events are code of the application, which can delete
@@ -1214,6 +1215,49 @@ void PDFWidgetStyleImpl::onThemeChanged()
             applyToolBarMargins(toolBar);
         }
     }
+}
+
+void PDFWidgetStyleImpl::onFollowingSystemColorSchemeChanged()
+{
+    if (!m_applicationPolished)
+    {
+        return;
+    }
+
+    if (applyColorScheme())
+    {
+        applyLeakPalette();
+    }
+}
+
+bool PDFWidgetStyleImpl::applyColorScheme()
+{
+    // The request is delivered at once by some platforms (Windows): the change of
+    // the scheme is signaled to the application, which can change the theme from
+    // its slot (this function is entered again), and the palette of the application
+    // is reset. The guard is restored, not cleared - the call can be nested.
+    QPointer<PDFWidgetStyleImpl> self(this);
+    const bool isPaletteGuarded = m_paletteGuard;
+    m_paletteGuard = true;
+
+    const PDFThemeManager* themeManager = PDFThemeManager::getInstance();
+    if (themeManager->isFollowingSystemColorScheme())
+    {
+        // A requested scheme would hide the scheme of the system and its changes
+        QGuiApplication::styleHints()->unsetColorScheme();
+    }
+    else
+    {
+        QGuiApplication::styleHints()->setColorScheme(themeManager->getTheme().isDark() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+    }
+
+    if (!self)
+    {
+        return false;
+    }
+
+    m_paletteGuard = isPaletteGuarded;
+    return true;
 }
 
 void PDFWidgetStyleImpl::applyLeakPalette()

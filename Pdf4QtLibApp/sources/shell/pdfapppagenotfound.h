@@ -120,12 +120,19 @@ public:
 
 protected:
     virtual void changeEvent(QEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
 
 private:
     void onBackClicked();
     void onSearchClicked();
     void onHomeClicked();
     void updateContent();
+
+    /// The requested item, the route and the text of Search for … elided to the
+    /// width of the page (at most MAXIMUM_TEXT_WIDTH for the texts of the box), so
+    /// a long requested text never makes the page wider than the window
+    void updateElidedTexts();
     void updateIcons();
     void addKeyHint(QWidget* parent, const QKeySequence& shortcut, const QString& text, bool isFirst);
 

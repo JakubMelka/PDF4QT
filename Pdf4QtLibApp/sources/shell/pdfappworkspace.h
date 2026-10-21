@@ -33,6 +33,7 @@
 #include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 
+#include <QBoxLayout>
 #include <QFrame>
 #include <QPointer>
 #include <QPushButton>
@@ -109,6 +110,11 @@ public:
 
     /// Sets the content (the previous one is deleted by QScrollArea)
     void setContent(QWidget* content);
+
+private:
+    /// A child focused by the keyboard is scrolled into the view (QScrollArea
+    /// does it only for Tab; the arrows of a group move the focus by setFocus)
+    void onFocusChanged(QWidget* old, QWidget* now);
 };
 
 /// Sidebar of the Home tab (pdf4qt-home 28:4, 210 px): the tile and the name of
@@ -203,7 +209,9 @@ private:
 /// opened (amber, Try Again, Show in Folder), the database of a newer version
 /// (amber, Check for Updates) and the damaged database, which was replaced
 /// (amber, Show in Folder, Dismiss - hides it for the rest of the run). Nothing
-/// is shown, when the database works.
+/// is shown, when the database works. The buttons stand beside the text; when
+/// they would leave the text narrower than MIN_TEXT_WIDTH (a narrow window), they
+/// move below the text, so the text never becomes a column of single words.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppStorageBanner : public QWidget
 {
     Q_OBJECT
@@ -225,8 +233,14 @@ public:
     explicit PDFAppStorageBanner(QWidget* parent = nullptr);
     virtual ~PDFAppStorageBanner() override;
 
+    /// Narrowest text beside the buttons, a narrower banner has them below the text
+    static constexpr int MIN_TEXT_WIDTH = 320;
+
     /// Kind of the banner of the state of the storage
     static Kind getKind(const PDFDatabaseState& state);
+
+    /// The buttons are below the text (the banner is narrow)
+    bool isActionsBelowText() const { return m_isActionsBelowText; }
 
     /// Shows the banner of the state (hidden for Kind::None and a dismissed banner)
     void setState(const PDFDatabaseState& state);
@@ -252,10 +266,12 @@ Q_SIGNALS:
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
 
 private:
     void onDismissClicked();
     void updateContent();
+    void updateActionsPlacement();
     QPushButton* createButton(const QString& text);
 
     PDFDatabaseState m_state;
@@ -267,6 +283,12 @@ private:
     QPointer<QPushButton> m_showInFolderButton;
     QPointer<QPushButton> m_checkForUpdatesButton;
     QPointer<QPushButton> m_dismissButton;
+
+    /// The buttons (beside the text in the main layout, or below it in the text layout)
+    QPointer<QWidget> m_actions;
+    QPointer<QHBoxLayout> m_mainLayout;
+    QPointer<QVBoxLayout> m_textLayout;
+    bool m_isActionsBelowText = false;
 };
 
 /// Footer of the Home tab (app-footer): "Free • Open Source • MIT License •
@@ -329,8 +351,12 @@ protected:
 private:
     void onLicenseClicked();
     void updateTagSpace();
+    void updateTexts();
+    void updateTag();
+    PDFLabel* createSeparator();
     void placeTag();
 
+    QPointer<PDFLabel> m_freeLabel;
     QPointer<PDFTextLink> m_licenseLink;
     QPointer<PDFLabel> m_versionLabel;
     QPointer<PDFTag> m_tag;
@@ -338,6 +364,9 @@ private:
 
     /// Place of the tag in the layout (owned by the layout, checked by indexOf)
     QSpacerItem* m_tagSpacer = nullptr;
+
+    /// Mode of the storage shown by the tag (its text is translated again)
+    PDFDatabaseStorageMode m_storageMode = PDFDatabaseStorageMode::Disk;
 };
 
 }   // namespace pdf

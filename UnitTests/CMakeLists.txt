@@ -495,6 +495,12 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     target_include_directories(UnitTestsWidgetStyle PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery)
     target_link_libraries(UnitTestsWidgetStyle PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    # The platform theme of the test (colorschemetesttheme.h) needs the private headers of QtGui
+    find_package(Qt6 QUIET COMPONENTS GuiPrivate)
+    if(TARGET Qt6::GuiPrivate)
+        target_link_libraries(UnitTestsWidgetStyle PRIVATE Qt6::GuiPrivate)
+        target_compile_definitions(UnitTestsWidgetStyle PRIVATE PDF4QT_TEST_PLATFORM_THEME)
+    endif()
     set_target_properties(UnitTestsWidgetStyle PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -615,6 +621,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appnavigationtest.cpp
     )
     target_link_libraries(UnitTestsAppNavigation PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    find_package(Qt6 QUIET COMPONENTS GuiPrivate)
+    if(TARGET Qt6::GuiPrivate)
+        target_link_libraries(UnitTestsAppNavigation PRIVATE Qt6::GuiPrivate)
+        target_compile_definitions(UnitTestsAppNavigation PRIVATE PDF4QT_TEST_PLATFORM_THEME)
+    endif()
     set_target_properties(UnitTestsAppNavigation PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF

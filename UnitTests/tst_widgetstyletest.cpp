@@ -40,6 +40,10 @@
 
 #include <QtTest>
 
+#ifdef PDF4QT_TEST_PLATFORM_THEME
+#include "colorschemetesttheme.h"
+#endif
+
 #include <QCheckBox>
 #include <QContextMenuEvent>
 #include <QFocusFrame>
@@ -69,6 +73,7 @@
 #include <QRubberBand>
 #include <QSplitter>
 #include <QStyleFactory>
+#include <QStyleHints>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStyleOptionButton>
@@ -113,6 +118,7 @@ private slots:
     void themeTokens();
     void themeTokensChecksum();
     void themeManager();
+    void systemColorScheme();
     void leakPalette();
     void fonts();
     void icons();
@@ -254,6 +260,7 @@ void WidgetStyleTest::cleanup()
 {
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     pdf::PDFThemeManager::getInstance()->setReducedMotion(false);
+    pdf::PDFThemeManager::getInstance()->setFollowingSystemColorScheme(false);
     QApplication::setLayoutDirection(Qt::LeftToRight);
     m_style->setAnimationTime(-1);
 }
@@ -372,6 +379,100 @@ void WidgetStyleTest::themeManager()
 
     manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
     QVERIFY(!manager->getTheme().isDark());
+}
+
+void WidgetStyleTest::systemColorScheme()
+{
+#ifdef PDF4QT_TEST_PLATFORM_THEME
+    // A platform theme, which keeps a requested scheme (as QWindowsTheme); the offscreen
+    // platform ignores the requests, QStyleHints::colorScheme would be always Unknown
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    QVERIFY(!themeManager->isFollowingSystemColorScheme());    // default
+    ColorSchemeTestTheme platformTheme(Qt::ColorScheme::Dark);
+
+    // The style requests the scheme of the theme (native dialogs, title bars)
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Dark);
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Light);
+
+    // A theme following the system leaves the scheme to the system, at once
+    QSignalSpy followingSpy(themeManager, &pdf::PDFThemeManager::followingSystemColorSchemeChanged);
+    QSignalSpy themeSpy(themeManager, &pdf::PDFThemeManager::themeChanged);
+    themeManager->setFollowingSystemColorScheme(true);
+    QVERIFY(themeManager->isFollowingSystemColorScheme());
+    QCOMPARE(followingSpy.count(), 1);
+    QCOMPARE(themeSpy.count(), 0);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Dark);
+    const int requestCount = platformTheme.getRequestCount();
+    themeManager->setFollowingSystemColorScheme(true);
+    QCOMPARE(followingSpy.count(), 1);
+    QCOMPARE(platformTheme.getRequestCount(), requestCount);
+
+    // ... also after a change of the theme, and the changes of the system are seen
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    QSignalSpy schemeSpy(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Light);
+    QCOMPARE(schemeSpy.count(), 1);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Light);
+
+    // Not following again: the scheme of the theme is requested at once
+    themeManager->setFollowingSystemColorScheme(false);
+    QCOMPARE(followingSpy.count(), 2);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Dark);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Dark);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Light);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Dark);
+
+    // The style released by the application removes its request in both modes,
+    // the style preparing the application follows the mode
+    m_style->unpolish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    themeManager->setFollowingSystemColorScheme(true);
+    themeManager->setFollowingSystemColorScheme(false);
+    themeManager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);     // not prepared, no request
+    m_style->polish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+    m_style->unpolish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    themeManager->setFollowingSystemColorScheme(true);
+    m_style->polish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    QCOMPARE(QGuiApplication::styleHints()->colorScheme(), Qt::ColorScheme::Light);
+    m_style->unpolish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    themeManager->setFollowingSystemColorScheme(false);
+    m_style->polish(qApp);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Light);
+
+    // The application changes the theme from the signal of the changed scheme, which
+    // the request delivers at once (nested request): the requests converge, the leak
+    // palette of the style stays
+    themeManager->setFollowingSystemColorScheme(true);
+    platformTheme.setSystemScheme(Qt::ColorScheme::Dark);
+    QObject receiver;
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, &receiver, [themeManager](Qt::ColorScheme scheme)
+    {
+        themeManager->setScheme(scheme == Qt::ColorScheme::Dark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
+    });
+    QCOMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    themeManager->setFollowingSystemColorScheme(false);     // requests Light: the scheme changes
+    themeManager->setFollowingSystemColorScheme(true);      // Dark of the system: the theme follows
+    QCOMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QCOMPARE(platformTheme.getRequestedScheme(), Qt::ColorScheme::Unknown);
+    // The outermost request applies the palettes at once (the nested ones are guarded)
+    QVERIFY(QApplication::palette() == pdf::PDFThemeColors::createLeakPalette());
+    QCOMPARE(QToolTip::palette().color(QPalette::Active, QPalette::ToolTipBase), themeManager->getTheme().getColor(pdf::PDFThemeColors::BgSurface));
+    QCoreApplication::processEvents();
+    QVERIFY(QApplication::palette() == pdf::PDFThemeColors::createLeakPalette());
+#else
+    QSKIP("Needs the private headers of QtGui (Qt6::GuiPrivate)");
+#endif
 }
 
 void WidgetStyleTest::leakPalette()

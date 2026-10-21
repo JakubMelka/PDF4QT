@@ -39,9 +39,11 @@
 #include <QLabel>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
 #include <QProcess>
 #include <QRandomGenerator>
 #include <QSignalSpy>
+#include <QStyleHints>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -81,8 +83,10 @@ public:
         return QStringLiteral("pdf4qt-test-%1-%2-%3").arg(QCoreApplication::applicationPid()).arg(++s_counter).arg(suffix);
     }
 
-    /// Runs the event loop until the thread has finished
-    static bool waitForThread(std::thread& thread, std::atomic<bool>& isFinished, int timeout)
+    /// Runs the event loop until the thread has finished (std::thread or std::jthread;
+    /// a std::jthread is joined also by a failed check, which returns early)
+    template<typename Thread>
+    static bool waitForThread(Thread& thread, std::atomic<bool>& isFinished, int timeout)
     {
         QDeadlineTimer deadline(timeout);
         while (!isFinished && !deadline.hasExpired())
@@ -165,6 +169,11 @@ public:
         const QString serverName = arguments.value(2);
         const int runTime = arguments.value(3).toInt();
 
+        if (mode == QLatin1String("--core-lock"))
+        {
+            return runLocker(serverName);
+        }
+
         pdf::PDFAppInstanceServer server;
         int received = 0;
         QObject::connect(&server, &pdf::PDFAppInstanceServer::openRequested, &application, [&received](const pdf::PDFAppInstanceRequest& request)
@@ -215,6 +224,41 @@ public:
         fflush(stdout);
         return 20;
     }
+
+    /// Another process deciding under the lock of the instances: the commands of the
+    /// standard input "lock" and "unlock" take and release the lock, the end of the
+    /// input quits
+    static int runLocker(const QString& serverName)
+    {
+        QLockFile lockFile(pdf::PDFAppInstanceGuard::getLockFilePath(serverName));
+        lockFile.setStaleLockTime(pdf::PDFAppInstanceGuard::STALE_LOCK_TIME);
+        QFile input;
+        if (!input.open(stdin, QIODevice::ReadOnly))
+        {
+            return 40;
+        }
+
+        while (true)
+        {
+            const QByteArray line = input.readLine();
+            const QByteArray command = line.trimmed();
+            if (command == "lock")
+            {
+                fputs(lockFile.tryLock(10000 * AppCoreTestHelper::getTimeoutFactor()) ? "lock-acquired\n" : "lock-failed\n", stdout);
+            }
+            else if (command == "unlock")
+            {
+                lockFile.unlock();
+                fputs("lock-released\n", stdout);
+            }
+            else if (line.isEmpty())
+            {
+                // The end of the input
+                return 0;
+            }
+            fflush(stdout);
+        }
+    }
 };
 
 class AppCoreTest : public QObject
@@ -245,6 +289,9 @@ private Q_SLOTS:
     void guardWithoutFiles();
     void suspendAndResume();
     void quitRefusesRequests();
+    void suspendResumeDetails();
+    void instanceBusyPipe();
+    void resumeWhileLocked();
     void logs();
     void logRotationAndRetention();
     void logSizeLimit();
@@ -256,6 +303,9 @@ private Q_SLOTS:
 private:
     QProcess* startChild(const QStringList& arguments);
     static QByteArray waitForOutput(QProcess* process, const QByteArray& text, int timeout);
+
+    /// Sends a command to a child process of the mode --core-lock and waits for its answer
+    static bool sendLockerCommand(QProcess* process, const QByteArray& command, const QByteArray& answer, int timeout);
 
     QTemporaryDir m_directory;
     QString m_existingFile;
@@ -283,6 +333,16 @@ QByteArray AppCoreTest::waitForOutput(QProcess* process, const QByteArray& text,
         }
     }
     return output;
+}
+
+bool AppCoreTest::sendLockerCommand(QProcess* process, const QByteArray& command, const QByteArray& answer, int timeout)
+{
+    process->write(command + "\n");
+    if (!process->waitForBytesWritten(timeout))
+    {
+        return false;
+    }
+    return waitForOutput(process, answer, timeout).contains(answer);
 }
 
 void AppCoreTest::initTestCase()
@@ -1300,6 +1360,462 @@ void AppCoreTest::quitRefusesRequests()
     QCOMPARE(busyOpenSpy.count(), 0);
 }
 
+void AppCoreTest::suspendResumeDetails()
+{
+    // Review of the suspend / resume / quit state machine
+    const int factor = AppCoreTestHelper::getTimeoutFactor();
+    const QByteArray message = pdf::PDFAppInstanceProtocol::createFrame(pdf::PDFAppInstanceProtocol::encodeRequest({ { m_existingFile }, 1, QString(), QStringList() }));
+    QString error;
+
+    // A canceled quitting with a connection, whose message has not come yet: resume
+    // does not block (Windows: probing the name of the own open pipe would wait
+    // 5 s in QLocalSocket::connectToServer), the server listens again at once or
+    // when the connection has closed
+    {
+        const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("open"));
+        pdf::PDFAppInstanceServer server;
+        QVERIFY(server.listen(serverName));
+        QLocalSocket silent;
+        silent.connectToServer(serverName);
+        QVERIFY(silent.waitForConnected(5000 * factor));
+        QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 1, 10000 * factor);
+        server.suspend();
+
+        QElapsedTimer timer;
+        timer.start();
+        const bool isListening = server.resume(5000 * factor, &error);
+        QVERIFY2(timer.elapsed() < 2000 * factor, qPrintable(QStringLiteral("resume took %1 ms").arg(timer.elapsed())));
+#if defined(Q_OS_WIN)
+        QVERIFY(!isListening);
+        QVERIFY(server.isSuspended());
+#else
+        QVERIFY(isListening);
+#endif
+        silent.abort();
+        QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+        QVERIFY(!server.isSuspended());
+    }
+
+    // The quitting starts again after a canceled one, which has not listened again
+    // (another server holds the name, a connection is open): the requests are held
+    // again and the server does not listen during the questions
+    {
+        const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("again"));
+        pdf::PDFAppInstanceServer first;
+        QVERIFY(first.listen(serverName));
+        QSignalSpy openSpy(&first, &pdf::PDFAppInstanceServer::openRequested);
+        QLocalSocket pending;
+        pending.connectToServer(serverName);
+        QVERIFY(pending.waitForConnected(5000 * factor));
+        QTRY_COMPARE_WITH_TIMEOUT(first.getConnectionCount(), 1, 10000 * factor);
+        first.suspend();
+
+        pdf::PDFAppInstanceServer other;
+        QVERIFY(other.listen(serverName));
+        QVERIFY(!first.resume(5000 * factor, &error));
+        QVERIFY(first.isSuspended());
+        other.close();
+
+        first.suspend();
+        QVERIFY(first.isSuspended());
+        pending.write(message);
+        pending.flush();
+        QTRY_COMPARE_WITH_TIMEOUT(first.getHeldRequestCount(), 1, 10000 * factor);
+        QTest::qWait(100);
+        QCOMPARE(openSpy.count(), 0);
+        QVERIFY(!first.isListening());
+
+        // Canceled again: the held request is opened, the server listens again
+        first.resume(5000 * factor, &error);
+        QCOMPARE(openSpy.count(), 1);
+        bool ok = false;
+        QVERIFY(AppCoreTestHelper::readReply(pending, 10000 * factor, &ok, &error));
+        QVERIFY(ok);
+        pending.abort();
+        QTRY_VERIFY_WITH_TIMEOUT(first.isListening(), 10000 * factor);
+    }
+
+    // A slot of openRequested starts the quitting again (suspend): the other held
+    // requests stay held and the server does not listen
+    {
+        const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("nested"));
+        pdf::PDFAppInstanceServer server;
+        QVERIFY(server.listen(serverName));
+        QLocalSocket a;
+        QLocalSocket b;
+        a.connectToServer(serverName);
+        b.connectToServer(serverName);
+        QVERIFY(a.waitForConnected(5000 * factor));
+        QVERIFY(b.waitForConnected(5000 * factor));
+        QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 2, 10000 * factor);
+        server.suspend();
+        a.write(message);
+        a.flush();
+        b.write(message);
+        b.flush();
+        QTRY_COMPARE_WITH_TIMEOUT(server.getHeldRequestCount(), 2, 10000 * factor);
+
+        int opened = 0;
+        QMetaObject::Connection connection = connect(&server, &pdf::PDFAppInstanceServer::openRequested, &server, [&server, &opened]()
+        {
+            ++opened;
+            server.suspend();
+        });
+        QVERIFY(!server.resume(5000 * factor, &error));
+        QCOMPARE(opened, 1);
+        QCOMPARE(server.getHeldRequestCount(), 1);
+        QVERIFY(!server.isListening());
+        QVERIFY(server.isSuspended());
+        disconnect(connection);
+
+        server.resume(5000 * factor, &error);
+        QCOMPARE(opened, 1);
+        QCOMPARE(server.getHeldRequestCount(), 0);
+        a.abort();
+        b.abort();
+        QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+    }
+
+    // A held request is refused before its process gives up (the client waits the
+    // read timeout from its connection): an acknowledgment after it would open the
+    // files twice - in this window and in the process, which has started by itself
+    {
+        const int readTimeout = 2000 * factor;
+        const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("margin"));
+        pdf::PDFAppInstanceServer server;
+        server.setReadTimeout(readTimeout);
+        QVERIFY(server.listen(serverName));
+        QLocalSocket client;
+        QElapsedTimer sinceConnection;
+        sinceConnection.start();
+        client.connectToServer(serverName);
+        QVERIFY(client.waitForConnected(5000 * factor));
+        QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 1, 10000 * factor);
+        server.suspend();
+        QTest::qWait(readTimeout / 4);
+        client.write(message);
+        client.flush();
+
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("Request of another instance refused.*busy"));
+        bool ok = true;
+        QVERIFY(AppCoreTestHelper::readReply(client, 10000 * factor, &ok, &error));
+        QVERIFY(!ok);
+        QCOMPARE(error, QStringLiteral("The running instance is busy."));
+        QVERIFY2(sinceConnection.elapsed() < readTimeout, qPrintable(QStringLiteral("refused after %1 ms").arg(sinceConnection.elapsed())));
+    }
+}
+
+void AppCoreTest::instanceBusyPipe()
+{
+    // A suspended server (questions of the quitting) with an open connection: on
+    // Windows the connection holds the name of the pipe, but no instance of it is
+    // free. QLocalSocket::connectToServer would wait there 5 s (WaitNamedPipe) and
+    // ignore the time limit of the client, so a starting process would wait 5 s
+    // before it starts by itself.
+    const int factor = AppCoreTestHelper::getTimeoutFactor();
+    const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("busypipe"));
+    pdf::PDFAppInstanceServer server;
+    QVERIFY(server.listen(serverName));
+    QSignalSpy openSpy(&server, &pdf::PDFAppInstanceServer::openRequested);
+    QLocalSocket open;
+    open.connectToServer(serverName);
+    QVERIFY(open.waitForConnected(5000 * factor));
+    QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 1, 10000 * factor);
+    server.suspend();
+
+    pdf::PDFAppInstanceRequest request;
+    request.files << m_existingFile;
+    const int timeout = 1000;
+    QString error;
+
+    QElapsedTimer timer;
+    timer.start();
+    const pdf::PDFAppInstanceClient::Result result = pdf::PDFAppInstanceClient::send(serverName, request, timeout, &error);
+    qInfo("send to the busy pipe: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 1500 * factor, qPrintable(QStringLiteral("send took %1 ms").arg(timer.elapsed())));
+#if defined(Q_OS_WIN)
+    QCOMPARE(result, pdf::PDFAppInstanceClient::Result::Failed);
+    QVERIFY(!error.isEmpty());
+#else
+    // The suspension has removed the socket file
+    QCOMPARE(result, pdf::PDFAppInstanceClient::Result::NoServer);
+#endif
+
+    // The guard of a starting process with files: the process starts by itself (on
+    // Windows never as a second server of the name)
+    pdf::PDFAppInstanceServer second;
+    timer.restart();
+    const pdf::PDFAppInstanceGuard::Result startResult = pdf::PDFAppInstanceGuard::start(serverName, request, &second, timeout, &error);
+    qInfo("start with files at the busy pipe: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 1500 * factor, qPrintable(QStringLiteral("start took %1 ms").arg(timer.elapsed())));
+#if defined(Q_OS_WIN)
+    QCOMPARE(startResult, pdf::PDFAppInstanceGuard::Result::Standalone);
+    QVERIFY(!second.isListening());
+#else
+    QCOMPARE(startResult, pdf::PDFAppInstanceGuard::Result::Listening);
+    second.close();
+#endif
+
+    // The time limit of the application (main.cpp): a process started during the
+    // questions of the quitting waits for the busy pipe at most PIPE_WAIT_LIMIT, not
+    // the whole time limit of the exchange (it waited 5 s before it started by itself)
+    const int defaultTimeout = pdf::PDFAppInstanceClient::DEFAULT_TIMEOUT;
+    const int waitLimit = pdf::PDFAppInstanceClient::PIPE_WAIT_LIMIT;
+    QVERIFY(waitLimit + 500 < defaultTimeout);
+    timer.restart();
+    const pdf::PDFAppInstanceClient::Result defaultSendResult = pdf::PDFAppInstanceClient::send(serverName, request, defaultTimeout, &error);
+    qInfo("send with the default time limit to the busy pipe: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < (waitLimit + 500) * factor, qPrintable(QStringLiteral("send took %1 ms").arg(timer.elapsed())));
+    timer.restart();
+    const pdf::PDFAppInstanceGuard::Result defaultStartResult = pdf::PDFAppInstanceGuard::start(serverName, request, &second, defaultTimeout, &error);
+    qInfo("start with files and the default time limit at the busy pipe: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < (waitLimit + 500) * factor, qPrintable(QStringLiteral("start took %1 ms").arg(timer.elapsed())));
+#if defined(Q_OS_WIN)
+    QCOMPARE(defaultSendResult, pdf::PDFAppInstanceClient::Result::Failed);
+    QCOMPARE(defaultStartResult, pdf::PDFAppInstanceGuard::Result::Standalone);
+    QVERIFY(!second.isListening());
+#else
+    QCOMPARE(defaultSendResult, pdf::PDFAppInstanceClient::Result::NoServer);
+    QCOMPARE(defaultStartResult, pdf::PDFAppInstanceGuard::Result::Listening);
+    second.close();
+#endif
+
+    // A start without files probes the name only
+    timer.restart();
+    const pdf::PDFAppInstanceGuard::Result probeResult = pdf::PDFAppInstanceGuard::start(serverName, pdf::PDFAppInstanceRequest(), &second, timeout, &error);
+    qInfo("start without files at the busy pipe: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 1500 * factor, qPrintable(QStringLiteral("start took %1 ms").arg(timer.elapsed())));
+#if defined(Q_OS_WIN)
+    QCOMPARE(probeResult, pdf::PDFAppInstanceGuard::Result::Standalone);
+    QVERIFY(!second.isListening());
+#else
+    QCOMPARE(probeResult, pdf::PDFAppInstanceGuard::Result::Listening);
+    second.close();
+#endif
+
+    // The quitting is canceled and the connection closes: the server listens again
+    // and receives the files
+    open.abort();
+    server.resume(5000 * factor, &error);
+    QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+    std::atomic<bool> isFinished = false;
+    pdf::PDFAppInstanceClient::Result delivered = pdf::PDFAppInstanceClient::Result::Failed;
+    std::jthread thread([&]()
+    {
+        delivered = pdf::PDFAppInstanceClient::send(serverName, request, 10000 * factor, nullptr);
+        isFinished = true;
+    });
+    QVERIFY(AppCoreTestHelper::waitForThread(thread, isFinished, 30000 * factor));
+    QCOMPARE(delivered, pdf::PDFAppInstanceClient::Result::Delivered);
+    QCOMPARE(openSpy.count(), 1);
+
+#if defined(Q_OS_WIN)
+    // A live server, whose instances of the pipe are all taken, creates a new one
+    // from its event loop: the client waits for it within its time limit
+    const QString liveName = AppCoreTestHelper::createServerName(QStringLiteral("livebusy"));
+    QLocalServer live;
+    live.setListenBacklogSize(1);
+    QVERIFY(live.listen(liveName));
+    QLocalSocket first;
+    first.connectToServer(liveName);
+    QVERIFY(first.waitForConnected(5000 * factor));
+
+    isFinished = false;
+    pdf::PDFAppInstanceClient::Result waited = pdf::PDFAppInstanceClient::Result::Failed;
+    std::jthread waitingThread([&]()
+    {
+        waited = pdf::PDFAppInstanceClient::send(liveName, request, 20000 * factor, nullptr);
+        isFinished = true;
+    });
+
+    // No event of the server is processed: the only instance stays taken
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    QVERIFY(!isFinished);
+
+    QList<QLocalSocket*> accepted;
+    QHash<QLocalSocket*, QByteArray> buffers;
+    bool isAnswered = false;
+    QDeadlineTimer deadline(30000 * factor);
+    while (!isFinished && !deadline.hasExpired())
+    {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        while (live.hasPendingConnections())
+        {
+            accepted << live.nextPendingConnection();
+        }
+
+        for (QLocalSocket* socket : accepted)
+        {
+            QByteArray& buffer = buffers[socket];
+            buffer += socket->readAll();
+            QByteArray payload;
+            if (!isAnswered && pdf::PDFAppInstanceProtocol::readFrame(buffer, pdf::PDFAppInstanceProtocol::MAXIMUM_MESSAGE_SIZE, &payload) == pdf::PDFAppInstanceProtocol::FrameResult::Complete)
+            {
+                isAnswered = true;
+                socket->write(pdf::PDFAppInstanceProtocol::createFrame(pdf::PDFAppInstanceProtocol::encodeReply(true, QString())));
+                socket->flush();
+            }
+        }
+    }
+    waitingThread.join();
+    QVERIFY(isAnswered);
+    QCOMPARE(waited, pdf::PDFAppInstanceClient::Result::Delivered);
+
+    // A name without a server: the wait ends at once
+    timer.restart();
+    QCOMPARE(pdf::PDFAppInstanceClient::send(AppCoreTestHelper::createServerName(QStringLiteral("nobody")), request, 5000 * factor, &error),
+             pdf::PDFAppInstanceClient::Result::NoServer);
+    QVERIFY(timer.elapsed() < 1000 * factor);
+#endif
+}
+
+void AppCoreTest::resumeWhileLocked()
+{
+    // The user cancels the quitting, while a starting process decides under the lock
+    // of the instances: the window never waits for the lock, the server listens again
+    // from the event loop, when the lock is free
+    const int factor = AppCoreTestHelper::getTimeoutFactor();
+    const QString serverName = AppCoreTestHelper::createServerName(QStringLiteral("locked"));
+    const QByteArray message = pdf::PDFAppInstanceProtocol::createFrame(pdf::PDFAppInstanceProtocol::encodeRequest({ { m_existingFile }, 4, QString(), QStringList() }));
+    const int retryInterval = pdf::PDFAppInstanceServer::RETRY_INTERVAL;
+    const int retryLimit = 5000 * factor;
+    QProcess* locker = startChild({ QStringLiteral("--core-lock"), serverName });
+    QVERIFY(locker->waitForStarted(30000 * factor));
+    QString error;
+
+    pdf::PDFAppInstanceServer server;
+    QVERIFY(server.listen(serverName));
+    QSignalSpy openSpy(&server, &pdf::PDFAppInstanceServer::openRequested);
+
+    // Resume returns at once and the server listens later
+    server.suspend();
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(!server.resume(retryLimit, &error));
+    qInfo("resume with the lock held: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 500 * factor, qPrintable(QStringLiteral("resume took %1 ms").arg(timer.elapsed())));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(server.isSuspended());
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!server.isListening());
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+    QVERIFY(!server.isSuspended());
+
+    // A request held during the questions is opened at once, although the lock is
+    // held; the server listens again, when the lock is free (on Windows also only
+    // after its connection has closed)
+    QLocalSocket pending;
+    pending.connectToServer(serverName);
+    QVERIFY(pending.waitForConnected(5000 * factor));
+    QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 1, 10000 * factor);
+    server.suspend();
+    pending.write(message);
+    pending.flush();
+    QTRY_COMPARE_WITH_TIMEOUT(server.getHeldRequestCount(), 1, 10000 * factor);
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    timer.restart();
+    QVERIFY(!server.resume(retryLimit, &error));
+    qInfo("resume with the lock held and a held request: %lld ms", timer.elapsed());
+    QVERIFY2(timer.elapsed() < 500 * factor, qPrintable(QStringLiteral("resume took %1 ms").arg(timer.elapsed())));
+    QCOMPARE(openSpy.count(), 1);
+    QCOMPARE(openSpy.at(0).at(0).value<pdf::PDFAppInstanceRequest>().page, 4);
+    bool ok = false;
+    QVERIFY(AppCoreTestHelper::readReply(pending, 10000 * factor, &ok, &error));
+    QVERIFY(ok);
+    pending.abort();
+    QTRY_COMPARE_WITH_TIMEOUT(server.getConnectionCount(), 0, 10000 * factor);
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!server.isListening());
+    QVERIFY(server.isSuspended());
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+    QVERIFY(!server.isSuspended());
+
+    // The quitting starts again during the attempts: the server does not listen
+    // during the questions, the next canceling tries again
+    server.suspend();
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QVERIFY(!server.resume(retryLimit, &error));
+    server.suspend();
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!server.isListening());
+    QVERIFY(server.isSuspended());
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QVERIFY(!server.resume(retryLimit, &error));
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTRY_VERIFY_WITH_TIMEOUT(server.isListening(), 10000 * factor);
+
+    // A request of another process reaches the server again
+    std::atomic<bool> isFinished = false;
+    pdf::PDFAppInstanceClient::Result result = pdf::PDFAppInstanceClient::Result::Failed;
+    pdf::PDFAppInstanceRequest request;
+    request.files << m_existingFile;
+    std::jthread thread([&]()
+    {
+        result = pdf::PDFAppInstanceClient::send(serverName, request, 10000 * factor, nullptr);
+        isFinished = true;
+    });
+    QVERIFY(AppCoreTestHelper::waitForThread(thread, isFinished, 30000 * factor));
+    QCOMPARE(result, pdf::PDFAppInstanceClient::Result::Delivered);
+    QCOMPARE(openSpy.count(), 2);
+
+    // The quitting is accepted during the attempts: the server never listens again
+    server.suspend();
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QVERIFY(!server.resume(retryLimit, &error));
+    server.quit();
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!server.isListening());
+    QVERIFY(server.isQuitting());
+
+    // The attempts end after their time limit
+    pdf::PDFAppInstanceServer limited;
+    QVERIFY(limited.listen(serverName));
+    limited.suspend();
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QVERIFY(!limited.resume(2 * retryInterval, &error));
+    QTest::qWait(5 * retryInterval);
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!limited.isListening());
+    QVERIFY(limited.isSuspended());
+    QVERIFY(limited.resume(retryLimit, &error));
+
+    // Another instance takes the name during the attempts: they end, the server
+    // runs without the forwarding
+    limited.suspend();
+    QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+    QVERIFY(!limited.resume(retryLimit, &error));
+    pdf::PDFAppInstanceServer other;
+    QVERIFY(other.listen(serverName));
+    QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+    QTest::qWait(3 * retryInterval);
+    QVERIFY(!limited.isListening());
+    QVERIFY(limited.isSuspended());
+    other.close();
+
+    // The server is deleted during the attempts
+    {
+        pdf::PDFAppInstanceServer* deleted = new pdf::PDFAppInstanceServer();
+        QVERIFY(deleted->listen(serverName));
+        deleted->suspend();
+        QVERIFY(sendLockerCommand(locker, "lock", "lock-acquired", 30000 * factor));
+        QVERIFY(!deleted->resume(retryLimit, &error));
+        delete deleted;
+        QVERIFY(sendLockerCommand(locker, "unlock", "lock-released", 30000 * factor));
+        QTest::qWait(3 * retryInterval);
+    }
+
+    locker->closeWriteChannel();
+    QVERIFY(locker->waitForFinished(30000 * factor));
+    QCOMPARE(locker->exitCode(), 0);
+    delete locker;
+}
+
 void AppCoreTest::logs()
 {
     const QString directory = m_directory.filePath(QStringLiteral("logs"));
@@ -1528,10 +2044,17 @@ void AppCoreTest::contextColorScheme()
 
     // The color scheme of the settings is applied to the theme manager
     pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    // Auto (default) follows the color scheme of the system, Light / Dark do not
+    QVERIFY(themeManager->isFollowingSystemColorScheme());
     QVERIFY(!context.getSettings().setValue(QStringLiteral("appearance.colorScheme"), QStringLiteral("dark")).isError());
     QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Dark);
+    QVERIFY(!themeManager->isFollowingSystemColorScheme());
+    QVERIFY(!context.getSettings().setValue(QStringLiteral("appearance.colorScheme"), QStringLiteral("auto")).isError());
+    QTRY_VERIFY(themeManager->isFollowingSystemColorScheme());
+    QTRY_COMPARE(themeManager->getTheme().getScheme(), QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
     QVERIFY(!context.getSettings().setValue(QStringLiteral("appearance.colorScheme"), QStringLiteral("light")).isError());
     QTRY_COMPARE(themeManager->getTheme().getScheme(), pdf::PDFThemeColors::Scheme::Light);
+    QTRY_VERIFY(!themeManager->isFollowingSystemColorScheme());
 
     // Requests of the server are re-emitted by the context
     QSignalSpy openSpy(&context, &pdf::PDFAppContext::openRequested);

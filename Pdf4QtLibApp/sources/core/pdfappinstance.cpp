@@ -75,9 +75,35 @@ public:
 #if defined(Q_OS_WIN)
     /// Security identifier of the user of the token of the process (empty on an error)
     static QByteArray getProcessUser(HANDLE process);
+
+    /// Result of the opening of the pipe of a server
+    enum class PipeResult
+    {
+        Success,    ///< Opened (connectPipe) or an instance is free (waitForPipe)
+        NotFound,   ///< No server has the name
+        Busy,       ///< The name exists, but no instance was free until the deadline
+        Failed      ///< Another error
+    };
+
+    /// Full name of the pipe, as QLocalSocket and QLocalServer build it (a name with
+    /// the prefix \\.\pipe\ is used as it is)
+    static QString getPipeName(const QString& serverName);
+
+    /// Waits for a free instance of the pipe at most until \p deadline
+    static PipeResult waitForPipe(const QString& pipeName, const QDeadlineTimer& deadline);
+
+    /// Connects \p socket to the pipe of the server. QLocalSocket::connectToServer
+    /// waits a fixed 5 s for a busy pipe (WaitNamedPipe) whatever the time limit of
+    /// the caller is, so the pipe is opened here the same way (CreateFile, then the
+    /// handle is given to the socket) and a busy pipe is waited for only until
+    /// \p deadline. The opening and the wait are repeated, so a client taking the
+    /// free instance first costs no extra time beyond the deadline.
+    static PipeResult connectPipe(QLocalSocket& socket, const QString& serverName, const QDeadlineTimer& deadline, QString* error);
 #endif
 
-    /// Probes the name: true, if a server accepts a connection on it
+    /// Probes the name: true, if a server accepts a connection on it (or the name
+    /// is busy - on Windows a pipe without a free instance), false only, when no
+    /// server has the name. Waits at most \p timeout.
     static bool isNameHeld(const QString& serverName, int timeout);
 };
 
@@ -177,10 +203,144 @@ QByteArray PDFAppInstanceHelper::getProcessUser(HANDLE process)
     CloseHandle(token);
     return result;
 }
+
+QString PDFAppInstanceHelper::getPipeName(const QString& serverName)
+{
+    const QLatin1String prefix("\\\\.\\pipe\\");
+    return serverName.startsWith(prefix) ? serverName : prefix + serverName;
+}
+
+PDFAppInstanceHelper::PipeResult PDFAppInstanceHelper::waitForPipe(const QString& pipeName, const QDeadlineTimer& deadline)
+{
+    const qint64 remainingTime = deadline.remainingTime();
+    if (remainingTime == 0)
+    {
+        return PipeResult::Busy;
+    }
+
+    // 0 would be the default time of the server (NMPWAIT_USE_DEFAULT_WAIT) and
+    // 0xFFFFFFFF forever (NMPWAIT_WAIT_FOREVER)
+    const qint64 maximumWait = 0x7FFFFFFF;
+    const DWORD waitTime = DWORD(remainingTime < 0 ? maximumWait : qBound<qint64>(1, remainingTime, maximumWait));
+    if (WaitNamedPipeW(reinterpret_cast<const wchar_t*>(pipeName.utf16()), waitTime))
+    {
+        return PipeResult::Success;
+    }
+
+    switch (GetLastError())
+    {
+        case ERROR_FILE_NOT_FOUND:
+            return PipeResult::NotFound;
+
+        case ERROR_SEM_TIMEOUT:
+            return PipeResult::Busy;
+
+        default:
+            return PipeResult::Failed;
+    }
+}
+
+PDFAppInstanceHelper::PipeResult PDFAppInstanceHelper::connectPipe(QLocalSocket& socket, const QString& serverName, const QDeadlineTimer& deadline, QString* error)
+{
+    if (serverName.isEmpty())
+    {
+        *error = QStringLiteral("The name of the running instance is empty.");
+        return PipeResult::NotFound;
+    }
+
+    const QString pipeName = getPipeName(serverName);
+    while (true)
+    {
+        // As QLocalSocket::connectToServer; the server may only identify the client,
+        // never act as the user of the client (SECURITY_IDENTIFICATION)
+        HANDLE pipe = CreateFileW(reinterpret_cast<const wchar_t*>(pipeName.utf16()), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                                  FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
+        if (pipe != INVALID_HANDLE_VALUE)
+        {
+            // The socket owns the handle from now on (as after connectToServer: it is
+            // closed by the socket once, at the latest by its destructor)
+            if (!socket.setSocketDescriptor(reinterpret_cast<qintptr>(pipe), QLocalSocket::ConnectedState, QIODevice::ReadWrite))
+            {
+                // A socket, which has taken the handle, closes it itself (never twice)
+                if (socket.socketDescriptor() == reinterpret_cast<qintptr>(pipe))
+                {
+                    socket.abort();
+                }
+                else
+                {
+                    CloseHandle(pipe);
+                }
+                *error = QStringLiteral("The connection to the running instance cannot be opened.");
+                return PipeResult::Failed;
+            }
+            return PipeResult::Success;
+        }
+
+        const DWORD lastError = GetLastError();
+        if (lastError == ERROR_FILE_NOT_FOUND)
+        {
+            *error = QStringLiteral("No running instance listens.");
+            return PipeResult::NotFound;
+        }
+
+        if (lastError != ERROR_PIPE_BUSY)
+        {
+            *error = QStringLiteral("The running instance cannot be connected (error %1).").arg(lastError);
+            return PipeResult::Failed;
+        }
+
+        // Every instance of the pipe is busy: a live server creates a new one from
+        // its event loop, a quitting server has stopped listening and its open
+        // connections hold the name
+        switch (waitForPipe(pipeName, deadline))
+        {
+            case PipeResult::Success:
+                // An instance is free; another client may take it first, then the
+                // opening fails as busy again and the wait goes on until the deadline
+                break;
+
+            case PipeResult::NotFound:
+                *error = QStringLiteral("No running instance listens.");
+                return PipeResult::NotFound;
+
+            case PipeResult::Busy:
+                *error = QStringLiteral("The running instance is busy.");
+                return PipeResult::Busy;
+
+            case PipeResult::Failed:
+                *error = QStringLiteral("The running instance cannot be connected (error %1).").arg(GetLastError());
+                return PipeResult::Failed;
+        }
+    }
+}
 #endif
 
 bool PDFAppInstanceHelper::isNameHeld(const QString& serverName, int timeout)
 {
+#if defined(Q_OS_WIN)
+    // No connection at all: WaitNamedPipe tells, whether a server has the name. A
+    // free instance means a live server, a busy pipe a server, whose instances are
+    // all taken (a quitting server with open connections) - both hold the name, so
+    // a busy pipe is not waited for (QLocalSocket::connectToServer would wait 5 s).
+    // WaitNamedPipe answers at once for a free instance and for no server.
+    if (!serverName.isEmpty())
+    {
+        switch (waitForPipe(getPipeName(serverName), QDeadlineTimer(1)))
+        {
+            case PipeResult::Success:
+            case PipeResult::Busy:
+                return true;
+
+            case PipeResult::NotFound:
+                return false;
+
+            case PipeResult::Failed:
+                // An invalid name and other errors: QLocalSocket reports them below
+                break;
+        }
+    }
+#endif
+
     // Only a connection, no message: the other server closes it silently. Only "no
     // server" frees the name; any other failure (a busy pipe of a live server, a
     // timeout) keeps it held, so a second server never listens under the name.
@@ -452,6 +612,8 @@ PDFAppInstanceServer::PDFAppInstanceServer(QObject* parent) :
     QObject(parent)
 {
     qRegisterMetaType<pdf::PDFAppInstanceRequest>();
+    m_retryTimer.setSingleShot(true);
+    connect(&m_retryTimer, &QTimer::timeout, this, &PDFAppInstanceServer::retryResume);
 }
 
 PDFAppInstanceServer::~PDFAppInstanceServer()
@@ -463,6 +625,7 @@ bool PDFAppInstanceServer::listen(const QString& serverName)
 {
     // Accepted connections of a previous listen are still answered (resume)
     closeServer();
+    m_retryTimer.stop();
     m_serverName = serverName;
     m_isSuspended = false;
     m_isHolding = false;
@@ -503,6 +666,7 @@ bool PDFAppInstanceServer::listenRemovingStale(const QString& serverName)
 void PDFAppInstanceServer::close()
 {
     // No retry of the listening is scheduled by the deleted connections
+    m_retryTimer.stop();
     m_isSuspended = false;
     m_isHolding = false;
     const QList<QObject*> connections = m_connections;
@@ -526,8 +690,20 @@ void PDFAppInstanceServer::closeServer()
 
 void PDFAppInstanceServer::suspend()
 {
+    // Attempts to listen again of a previous canceled quitting end (the next
+    // canceling starts them again)
+    m_retryTimer.stop();
+
     if (!isListening())
     {
+        // A canceled quitting, which has not listened again yet (its connections
+        // were open or another instance held the name): the quitting starts again,
+        // so the requests are held again and the server does not listen during the
+        // questions (retryResume)
+        if (m_isSuspended && !m_isQuitting)
+        {
+            m_isHolding = true;
+        }
         return;
     }
 
@@ -549,7 +725,7 @@ void PDFAppInstanceServer::suspend()
     m_isSuspended = true;
 }
 
-bool PDFAppInstanceServer::resume(int timeout, QString* error)
+bool PDFAppInstanceServer::resume(int retryLimit, QString* error)
 {
     if (isListening())
     {
@@ -568,14 +744,62 @@ bool PDFAppInstanceServer::resume(int timeout, QString* error)
     m_isHolding = false;
     QPointer<PDFAppInstanceServer> guard(this);
     deliverHeldRequests();
-    if (!guard || m_isQuitting)
+    if (!guard || m_isQuitting || m_isHolding)
     {
+        // Deleted, or a slot has started the quitting again
         return false;
     }
 
-    const bool isListening = PDFAppInstanceGuard::resume(this, timeout, error);
-    m_isSuspended = !isListening;
-    return isListening;
+    // The time limit of the attempts, while a starting process holds the lock
+    m_retryLimit = qMax(0, retryLimit);
+    m_retryDeadline.setRemainingTime(m_retryLimit);
+
+#if defined(Q_OS_WIN)
+    // An open instance of the pipe of this server holds the name: the probe would
+    // find it busy and fail. The server listens again, when its last connection
+    // has closed (onConnectionDestroyed).
+    if (hasOpenConnection())
+    {
+        if (error)
+        {
+            *error = QStringLiteral("The server listens again, when its connections have closed.");
+        }
+        return false;
+    }
+#endif
+
+    return listenAgain(error);
+}
+
+bool PDFAppInstanceServer::listenAgain(QString* error)
+{
+    m_retryTimer.stop();
+
+    // Never waits for the lock: this runs in the GUI thread, and a starting process
+    // holds the lock up to its time limit of the forwarding
+    QString errorText;
+    bool isLockBusy = false;
+    if (PDFAppInstanceGuard::resume(this, 0, &errorText, &isLockBusy))
+    {
+        m_isSuspended = false;
+        return true;
+    }
+
+    // A failed listen has reset the state of the suspension
+    m_isSuspended = true;
+    if (isLockBusy && !m_retryDeadline.hasExpired())
+    {
+        // The requests of the connections are delivered meanwhile (the server does
+        // not hold them), new ones cannot come (nothing listens)
+        m_retryTimer.start(RETRY_INTERVAL);
+        errorText += QStringLiteral(" The server tries to listen again later.");
+    }
+
+    if (error)
+    {
+        *error = errorText;
+    }
+    return false;
 }
 
 void PDFAppInstanceServer::retryResume()
@@ -586,11 +810,7 @@ void PDFAppInstanceServer::retryResume()
     }
 
     QString error;
-    if (PDFAppInstanceGuard::resume(this, RETRY_TIMEOUT, &error))
-    {
-        m_isSuspended = false;
-    }
-    else
+    if (!listenAgain(&error) && !m_retryTimer.isActive())
     {
         qCInfo(lcPdf4QtInstance) << "The running instance does not listen again:" << error;
     }
@@ -601,6 +821,7 @@ void PDFAppInstanceServer::quit()
     m_isQuitting = true;
     m_isHolding = false;
     m_isSuspended = false;
+    m_retryTimer.stop();
     closeServer();
 
     // Every connection, which has not been answered, is refused (also the ones,
@@ -618,6 +839,18 @@ void PDFAppInstanceServer::quit()
             connection->refuse(QStringLiteral("The running instance is quitting."));
         }
     }
+}
+
+bool PDFAppInstanceServer::hasOpenConnection() const
+{
+    for (const QPointer<PDFAppInstanceConnection>& connection : getConnections())
+    {
+        if (connection && connection->isOpen())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 int PDFAppInstanceServer::getHeldRequestCount() const
@@ -664,7 +897,9 @@ void PDFAppInstanceServer::deliverHeldRequests()
     QPointer<PDFAppInstanceServer> guard(this);
     for (const QPointer<PDFAppInstanceConnection>& connection : getConnections())
     {
-        if (!guard)
+        // A slot may delete the server, start the quitting again (the remaining
+        // requests stay held) or accept it (quit has refused them)
+        if (!guard || m_isHolding || m_isQuitting)
         {
             return;
         }
@@ -731,9 +966,11 @@ void PDFAppInstanceServer::onConnectionDestroyed(QObject* object)
     // Only the pointer is forgotten (the connection is being destroyed)
     m_connections.removeAll(object);
 
-    // The quitting was canceled, but an open connection held the name
+    // The quitting was canceled, but an open connection held the name; the time
+    // limit of the attempts counts from now
     if (m_connections.isEmpty() && m_isSuspended && !m_isHolding && !m_isQuitting)
     {
+        m_retryDeadline.setRemainingTime(m_retryLimit);
         QMetaObject::invokeMethod(this, &PDFAppInstanceServer::retryResume, Qt::QueuedConnection);
     }
 }
@@ -780,6 +1017,7 @@ PDFAppInstanceConnection::PDFAppInstanceConnection(QLocalSocket* socket, int rea
     connect(socket, &QLocalSocket::readyRead, this, &PDFAppInstanceConnection::onReadyRead);
     connect(socket, &QLocalSocket::disconnected, this, &PDFAppInstanceConnection::onDisconnected);
 
+    m_age.start();
     m_timer.setSingleShot(true);
     connect(&m_timer, &QTimer::timeout, this, &PDFAppInstanceConnection::onTimeout);
     m_timer.start(readTimeout);
@@ -859,12 +1097,21 @@ void PDFAppInstanceConnection::processBuffer()
     }
 
     // The server answers the request (at once, or later while the application is
-    // quitting); a held request waits at most the read timeout
+    // quitting). A held request is refused before its process gives up: the client
+    // waits about the read timeout from its connection (PDFAppInstanceClient::
+    // DEFAULT_TIMEOUT); an acknowledgment after that would open the files twice -
+    // here and in the process, which has started by itself.
     m_request = std::move(request);
     m_isHeld = true;
     m_buffer.clear();
-    m_timer.start(m_readTimeout);
+    const qint64 holdTime = qint64(m_readTimeout) * 3 / 4 - m_age.elapsed();
+    m_timer.start(int(qBound(qint64(1), holdTime, qint64(m_readTimeout))));
     Q_EMIT requestReady();
+}
+
+bool PDFAppInstanceConnection::isOpen() const
+{
+    return m_socket && m_socket->state() != QLocalSocket::UnconnectedState;
 }
 
 void PDFAppInstanceConnection::acknowledge()
@@ -971,6 +1218,32 @@ PDFAppInstanceClient::Result PDFAppInstanceClient::send(const QString& serverNam
     }
 
     QLocalSocket socket;
+#if defined(Q_OS_WIN)
+    // A busy pipe is waited for only PIPE_WAIT_LIMIT within the time limit
+    // (connectToServer would wait 5 s, while the starting process holds the lock of
+    // the instances): a quitting server with an open connection gives no instance
+    const QDeadlineTimer pipeDeadline(qMax<qint64>(1, qMin<qint64>(deadline.remainingTime(), PIPE_WAIT_LIMIT)));
+    switch (PDFAppInstanceHelper::connectPipe(socket, serverName, pipeDeadline, &errorText))
+    {
+        case PDFAppInstanceHelper::PipeResult::Success:
+            break;
+
+        case PDFAppInstanceHelper::PipeResult::NotFound:
+            if (error)
+            {
+                *error = errorText;
+            }
+            return Result::NoServer;
+
+        case PDFAppInstanceHelper::PipeResult::Busy:
+        case PDFAppInstanceHelper::PipeResult::Failed:
+            if (error)
+            {
+                *error = errorText;
+            }
+            return Result::Failed;
+    }
+#else
     socket.connectToServer(serverName);
     if (!socket.waitForConnected(int(qMax<qint64>(1, deadline.remainingTime()))))
     {
@@ -986,6 +1259,7 @@ PDFAppInstanceClient::Result PDFAppInstanceClient::send(const QString& serverNam
         }
         return Result::Failed;
     }
+#endif
 
     qint64 processId = 0;
     if (!PDFAppInstanceHelper::checkServer(socket, &processId, &errorText))
@@ -1225,7 +1499,7 @@ PDFAppInstanceGuard::Result PDFAppInstanceGuard::start(const QString& serverName
 
     // Two processes started at the same time decide one after the other
     QLockFile lockFile(lockFilePath);
-    lockFile.setStaleLockTime(30000);
+    lockFile.setStaleLockTime(STALE_LOCK_TIME);
     if (!lockFile.tryLock(qMax(1, timeout)))
     {
         if (error)
@@ -1285,8 +1559,13 @@ PDFAppInstanceGuard::Result PDFAppInstanceGuard::start(const QString& serverName
     return Result::Standalone;
 }
 
-bool PDFAppInstanceGuard::resume(PDFAppInstanceServer* server, int timeout, QString* error)
+bool PDFAppInstanceGuard::resume(PDFAppInstanceServer* server, int timeout, QString* error, bool* isLockBusy)
 {
+    if (isLockBusy)
+    {
+        *isLockBusy = false;
+    }
+
     if (!server)
     {
         return false;
@@ -1308,10 +1587,15 @@ bool PDFAppInstanceGuard::resume(PDFAppInstanceServer* server, int timeout, QStr
         return false;
     }
 
+    // A timeout of 0 tries the lock once without waiting
     QLockFile lockFile(lockFilePath);
-    lockFile.setStaleLockTime(30000);
-    if (!lockFile.tryLock(qMax(1, timeout)))
+    lockFile.setStaleLockTime(STALE_LOCK_TIME);
+    if (!lockFile.tryLock(qMax(0, timeout)))
     {
+        if (isLockBusy)
+        {
+            *isLockBusy = lockFile.error() == QLockFile::LockFailedError;
+        }
         if (error)
         {
             *error = QStringLiteral("The lock of the instances cannot be acquired.");
@@ -1320,7 +1604,7 @@ bool PDFAppInstanceGuard::resume(PDFAppInstanceServer* server, int timeout, QStr
     }
 
     // A new instance may have taken the name while this one was quitting
-    if (PDFAppInstanceHelper::isNameHeld(serverName, qMax(1, timeout)))
+    if (PDFAppInstanceHelper::isNameHeld(serverName, PROBE_TIMEOUT))
     {
         if (error)
         {
