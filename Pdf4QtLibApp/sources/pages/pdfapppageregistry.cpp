@@ -31,6 +31,8 @@
 #include "pdfapprecentpage.h"
 #include "pdfappsearchpage.h"
 #include "pdfappwhatsnewpage.h"
+#include "pdfappdocumentpage.h"
+#include "pdfappdocumentproperties.h"
 
 namespace pdf
 {
@@ -58,6 +60,11 @@ void PDFAppPageRegistry::registerFactories(PDFAppRouteTable& table)
     table.setFactory(QStringLiteral("/home"), std::make_shared<PDFAppHomePageFactory>());
     table.setFactory(QStringLiteral("/open"), std::make_shared<PDFAppOpenPageFactory>());
     table.setFactory(QStringLiteral("/recent"), std::make_shared<PDFAppRecentPageFactory>());
+
+    // The document tab (step 3): the route adapter of the view and the properties
+    // (package F; Page Not Found until the page exists)
+    table.setFactory(QStringLiteral("/document/{documentId}"), std::make_shared<PDFAppDocumentPageFactory>());
+    table.setFactory(QStringLiteral("/document/{documentId}/properties/{section}"), std::make_shared<PDFAppDocumentPropertiesPageFactory>());
 }
 
 }   // namespace pdf

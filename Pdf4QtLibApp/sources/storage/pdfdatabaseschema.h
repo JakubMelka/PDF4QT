@@ -109,10 +109,15 @@ public:
     /// met by an instance; a request of the full check, when it is not older than the check
     static constexpr const char* INTEGRITY_REQUESTED_KEY = "integrity.requested";
 
+    /// Markers of the thumbnails being rendered (version 4, PDFRecentRepository::beginRendering).
+    /// It has no triggers: a marker is no notification.
+    static constexpr const char* THUMBNAIL_RENDERING_TABLE = "thumbnail_rendering";
+
 private:
     static QByteArray createVersion1();
     static QByteArray createVersion2();
     static QByteArray createVersion3();
+    static QByteArray createVersion4();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

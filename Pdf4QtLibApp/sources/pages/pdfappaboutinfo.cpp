@@ -22,8 +22,9 @@
 
 #include "pdfappaboutinfo.h"
 #include "pdfappcontext.h"
-#include "pdfapppaths.h"
 #include "pdfappworkspace.h"
+#include "pdfupdatechecker.h"
+#include "pdfwhatsnew.h"
 
 #include <QDir>
 #include <QFile>
@@ -112,6 +113,32 @@ public:
 QString PDFAppAboutInfo::getVersion()
 {
     return PDFAppFooter::getDisplayVersion();
+}
+
+QString PDFAppAboutInfo::getReleaseText(const PDFWhatsNewCatalog& catalog, const QVersionNumber& version)
+{
+    const PDFWhatsNewRelease* release = version.isNull() ? nullptr : catalog.findRelease(version);
+    if (!release)
+    {
+        return QString();
+    }
+    if (release->isUnreleased || !release->date.isValid())
+    {
+        return tr("Not released yet");
+    }
+    return tr("Released %1").arg(PDFUpdateStatus::formatDate(release->date));
+}
+
+QString PDFAppAboutInfo::getHeroVersionText(const PDFWhatsNewCatalog& catalog, const QVersionNumber& version)
+{
+    const QString versionText = tr("Version %1").arg(version.isNull() ? getVersion() : PDFWhatsNewRelease::getDisplayVersion(version));
+    const QString releaseText = getReleaseText(catalog, version);
+    return releaseText.isEmpty() ? versionText : tr("%1 · %2").arg(versionText, releaseText);
+}
+
+QString PDFAppAboutInfo::getHeroVersionText()
+{
+    return getHeroVersionText(*PDFWhatsNewCatalog::getBuiltin(), PDFWhatsNewCatalog::getRunningVersion());
 }
 
 QString PDFAppAboutInfo::getBuildType()
@@ -244,13 +271,8 @@ QList<PDFAppBuildInfoRow> PDFAppAboutInfo::getBuildRows(const PDFAppContext* con
     {
         state = context->getStorageState();
         isPortable = context->isPortable();
+        // Only the folder of an installed log (no folder, when no log is written)
         logDirectory = context->getLogDirectory();
-
-        // The folder of the logs of the application, also before the log is installed
-        if (logDirectory.isEmpty() && !isPortable)
-        {
-            logDirectory = PDFAppPaths::getLogDirectory();
-        }
     }
     else
     {

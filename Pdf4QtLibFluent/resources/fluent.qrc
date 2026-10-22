@@ -188,6 +188,8 @@
         <file>icons/mark-accept.svg</file>
         <file>icons/mark-reject.svg</file>
         <file>icons/match-case.svg</file>
+        <file>icons/match-next.svg</file>
+        <file>icons/match-prev.svg</file>
         <file>icons/maximize.svg</file>
         <file>icons/mcp.svg</file>
         <file>icons/measure-h.svg</file>

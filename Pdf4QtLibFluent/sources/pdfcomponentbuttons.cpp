@@ -1567,14 +1567,29 @@ PDFTextLink::PDFTextLink(const QString& text, QWidget* parent) :
     setText(text);
 }
 
+void PDFTextLink::setLinkSize(PDFComponentPainter::TextLinkSize size)
+{
+    if (size != PDFComponentPainter::TextLinkSize::Small)
+    {
+        size = PDFComponentPainter::TextLinkSize::Default;
+    }
+
+    if (m_linkSize != size)
+    {
+        m_linkSize = size;
+        updateGeometry();
+        update();
+    }
+}
+
 void PDFTextLink::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
 {
-    PDFComponentPainter::paintTextLink(painter, QRectF(rect), PDFComponentPainter::TextLink{ text() }, state);
+    PDFComponentPainter::paintTextLink(painter, QRectF(rect), PDFComponentPainter::TextLink{ text(), m_linkSize }, state);
 }
 
 QSize PDFTextLink::getContentSizeHint() const
 {
-    return PDFComponentPainter::getTextLinkSize(PDFComponentPainter::TextLink{ text() });
+    return PDFComponentPainter::getTextLinkSize(PDFComponentPainter::TextLink{ text(), m_linkSize });
 }
 
 PDFStarButton::PDFStarButton(QWidget* parent) :

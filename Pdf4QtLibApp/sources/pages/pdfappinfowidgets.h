@@ -73,6 +73,27 @@ public:
     static QUrl getLicense();
 };
 
+/// Helpers of the pages About, Support and Sponsor, which build their content
+/// again, when the language changes (QEvent::LanguageChange): the widget with the
+/// keyboard focus is found again in the new content by its object name
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppPageRebuild
+{
+public:
+    PDFAppPageRebuild() = delete;
+
+    /// Object name of the descendant of the page, which has the focus (empty =
+    /// none, or the widget has no name)
+    static QString getFocusedName(const QWidget* page);
+
+    /// Gives the focus to the descendant of the page with the object name (the
+    /// widget of the new content); nothing for an empty name or no such widget
+    static void restoreFocus(QWidget* page, const QString& name);
+
+    /// Lays the new content out now (the posted layout requests of the nested
+    /// widgets), so the scroll position of the page can be restored at once
+    static void finishLayout();
+};
+
 }   // namespace pdf
 
 #endif // PDFAPPINFOWIDGETS_H

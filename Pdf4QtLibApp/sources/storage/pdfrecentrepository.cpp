@@ -45,6 +45,10 @@ namespace pdf
 // The lists of the files have "LIMIT 10000" in their SQL
 static_assert(PDFRecentRepository::MAXIMUM_FILE_ROWS == 10000);
 
+// getRenderingMarkers has "LIMIT 1000" in its SQL, readRenderingMarker the instance limit 64
+static_assert(PDFRecentRepository::MAXIMUM_RENDERING_MARKERS == 1000);
+static_assert(PDFRecentRepository::MAXIMUM_INSTANCE_LENGTH == 64);
+
 /// Helpers of the repository of the recent files
 class PDFRecentRepositoryHelper
 {
@@ -824,6 +828,191 @@ PDFDatabaseError PDFRecentRepository::setThumbnail(const QString& path, const QB
     return PDFDatabaseError();
 }
 
+bool PDFRecentRepository::readRenderingMarker(const PDFDatabaseStatement& statement, PDFThumbnailRenderingMarker& marker)
+{
+    marker.path = PDFRepositoryHelper::readText(statement, 0, PDFRepositoryHelper::MAXIMUM_PATH_LENGTH);
+    marker.fileModified = PDFRepositoryHelper::readInteger(statement, 1, -1, 0, std::numeric_limits<qint64>::max());
+    marker.instance = PDFRepositoryHelper::readText(statement, 2, MAXIMUM_INSTANCE_LENGTH);
+    marker.processId = PDFRepositoryHelper::readInteger(statement, 3, 0, 0, std::numeric_limits<qint64>::max());
+    marker.started = PDFRepositoryHelper::readInteger(statement, 4, 0, std::numeric_limits<qint64>::min(), std::numeric_limits<qint64>::max());
+
+    // A row of another version or a damaged one: the path must be usable (the
+    // marker of an invalid path is never a reason to change a file)
+    return PDFRecentRepositoryHelper::isUsablePath(marker.path) && marker.fileModified >= 0;
+}
+
+std::optional<PDFThumbnailRenderingMarker> PDFRecentRepository::getRenderingMarker(const QString& path) const
+{
+    if (!PDFRecentRepositoryHelper::isUsablePath(path))
+    {
+        return std::nullopt;
+    }
+
+    PDFDatabaseStatement statement(getConnection(), "SELECT path, file_mtime, instance, pid, started FROM thumbnail_rendering WHERE path = ?1");
+    statement.bindText(1, path);
+    PDFThumbnailRenderingMarker marker;
+    const bool isFound = statement.next() && readRenderingMarker(statement, marker);
+    statement.reset();
+    if (!isFound)
+    {
+        return std::nullopt;
+    }
+    return marker;
+}
+
+std::vector<PDFThumbnailRenderingMarker> PDFRecentRepository::getRenderingMarkers() const
+{
+    std::vector<PDFThumbnailRenderingMarker> markers;
+    PDFDatabaseStatement statement(getConnection(), "SELECT path, file_mtime, instance, pid, started FROM thumbnail_rendering "
+                                                    "WHERE typeof(path) = 'text' AND length(path) BETWEEN 1 AND 32767 ORDER BY path LIMIT 1000");
+    while (statement.next())
+    {
+        PDFThumbnailRenderingMarker marker;
+        if (readRenderingMarker(statement, marker))
+        {
+            markers.push_back(std::move(marker));
+        }
+    }
+    return markers;
+}
+
+PDFDatabaseError PDFRecentRepository::beginRendering(const PDFThumbnailRenderingMarker& marker, bool* written)
+{
+    if (written)
+    {
+        *written = false;
+    }
+
+    if (!PDFRecentRepositoryHelper::isUsablePath(marker.path))
+    {
+        return PDFRecentRepositoryHelper::invalidPath();
+    }
+    if (marker.instance.isEmpty() || marker.instance.size() > MAXIMUM_INSTANCE_LENGTH || marker.fileModified < 0 || marker.processId <= 0)
+    {
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFRecentRepository", "Invalid rendering marker."));
+    }
+
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    // INSERT OR IGNORE: of two instances starting the same file only one writes its marker
+    PDFDatabaseStatement statement(connection, "INSERT OR IGNORE INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES (?1, ?2, ?3, ?4, ?5)");
+    statement.bindText(1, marker.path);
+    statement.bindInt64(2, marker.fileModified);
+    statement.bindText(3, marker.instance);
+    statement.bindInt64(4, marker.processId);
+    statement.bindInt64(5, marker.started);
+    if (!statement.execute())
+    {
+        return statement.getError();
+    }
+    const bool isWritten = connection->getChanges() > 0;
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+
+    if (written)
+    {
+        *written = isWritten;
+    }
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFRecentRepository::endRendering(const QString& path, const QString& instance)
+{
+    if (!PDFRecentRepositoryHelper::isUsablePath(path))
+    {
+        return PDFRecentRepositoryHelper::invalidPath();
+    }
+
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    PDFDatabaseStatement statement(connection, "DELETE FROM thumbnail_rendering WHERE path = ?1 AND instance IS ?2");
+    statement.bindText(1, path);
+    statement.bindText(2, instance);
+    if (!statement.execute())
+    {
+        return statement.getError();
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFRecentRepository::failRendering(const PDFThumbnailRenderingMarker& marker, bool* failed)
+{
+    if (failed)
+    {
+        *failed = false;
+    }
+
+    if (!PDFRecentRepositoryHelper::isUsablePath(marker.path))
+    {
+        return PDFRecentRepositoryHelper::invalidPath();
+    }
+
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    // Only the same marker (another instance may have replaced it meanwhile)
+    PDFDatabaseStatement remove(connection, "DELETE FROM thumbnail_rendering WHERE path = ?1 AND instance IS ?2 AND pid IS ?3 AND started IS ?4 AND file_mtime IS ?5");
+    remove.bindText(1, marker.path);
+    remove.bindText(2, marker.instance);
+    remove.bindInt64(3, marker.processId);
+    remove.bindInt64(4, marker.started);
+    remove.bindInt64(5, marker.fileModified);
+    if (!remove.execute())
+    {
+        return remove.getError();
+    }
+
+    bool isFailed = false;
+    if (connection->getChanges() > 0)
+    {
+        // A result of the same version of the file stored before the crash is kept
+        PDFDatabaseStatement update(connection,
+            "UPDATE recent_file SET thumbnail = NULL, thumbnail_mtime = ?2, thumbnail_state = ?3 "
+            "WHERE path = ?1 AND NOT (thumbnail_state IS NOT 0 AND thumbnail_mtime IS ?2)");
+        update.bindText(1, marker.path);
+        update.bindInt64(2, marker.fileModified);
+        update.bindInt64(3, int(PDFRecentThumbnailState::Failed));
+        if (!update.execute())
+        {
+            return update.getError();
+        }
+        isFailed = connection->getChanges() > 0;
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+
+    if (failed)
+    {
+        *failed = isFailed;
+    }
+    return PDFDatabaseError();
+}
+
 std::vector<PDFRecentFolder> PDFRecentRepository::getStandardFolders()
 {
     static const std::pair<QStandardPaths::StandardLocation, PDFRecentFolderKind> locations[] =
@@ -1102,6 +1291,20 @@ PDFDatabaseError PDFRecentRepository::renamePinnedLocation(qint64 id, const QStr
     if (!statement.execute())
     {
         return statement.getError();
+    }
+
+    // Nothing changed: the same name (success), or the location has been removed
+    // meanwhile (by another instance) - that is an error, not a success
+    if (connection->getChanges() == 0)
+    {
+        PDFDatabaseStatement exists(connection, "SELECT COUNT(*) FROM pinned_location WHERE id = ?1");
+        exists.bindInt64(1, id);
+        const bool isFound = exists.next() && exists.getInt64(0) > 0;
+        exists.reset();
+        if (!isFound)
+        {
+            return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFRecentRepository", "The pinned location does not exist."));
+        }
     }
 
     if (!transaction.commit())

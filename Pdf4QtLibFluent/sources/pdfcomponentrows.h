@@ -530,6 +530,53 @@ private:
     bool m_isClickable = false;
 };
 
+/// Rendering issue of a document (issue-row of the popover Rendering issues
+/// 198:5950): the icon of the severity, the page and the message, which wraps
+/// (the height of the row follows its width). The row is a link to the page
+/// (signal clicked): hover, press, the focus ring inside, Enter and Space. The
+/// accessible name is the page and the message, the description the severity.
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFRenderingIssueRow : public PDFRowButton
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFRowButton;
+
+public:
+    using Severity = PDFComponentPainter::IssueSeverity;
+
+    explicit PDFRenderingIssueRow(QWidget* parent = nullptr);
+    explicit PDFRenderingIssueRow(const QString& page, const QString& message, Severity severity, QWidget* parent = nullptr);
+
+    /// Page of the issue ("Page 12", the text of the button)
+    QString getPage() const { return text(); }
+    void setPage(const QString& page);
+
+    /// Message of the issue (wraps)
+    const QString& getMessage() const { return m_row.message; }
+    void setMessage(const QString& message);
+
+    /// Severity (the icon); an invalid value is Warning
+    Severity getSeverity() const { return m_row.severity; }
+    void setSeverity(Severity severity);
+
+    PDFComponentPainter::RenderingIssueRow getContent() const;
+
+protected:
+    virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
+    virtual QSize getContentSizeHint() const override;
+    virtual QSize getContentMinimumSizeHint() const override;
+    virtual int computeHeightForWidth(int width) const override;
+    virtual QString getDefaultAccessibleName() const override;
+    virtual QString getDefaultAccessibleDescription() const override;
+    virtual void changeEvent(QEvent* event) override;
+
+private:
+    void updateAccessibility();
+
+    PDFComponentPainter::RenderingIssueRow m_row;
+};
+
 /// Row of the Document properties dialog (component Property row 206:873): the
 /// key, the value and the actions, which are Icon buttons 24. The row itself is
 /// a text (no focus, no activation); the pointer shows the copy button, an

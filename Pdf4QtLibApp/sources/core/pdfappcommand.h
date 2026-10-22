@@ -36,6 +36,17 @@
 namespace pdf
 {
 
+/// Where the shortcut of a command works (step 3 plan, decision D12)
+enum class PDFAppCommandScope
+{
+    Window,     ///< The whole window (an action of the main window, Qt::WindowShortcut)
+    Document,   ///< A command of the current document tab (an action of the main window,
+                ///< Qt::WindowShortcut, dispatched to the current tab, disabled without a document)
+    Canvas      ///< Keys of the page canvas (Ctrl+C, Ctrl+A, arrows, PgUp / PgDn, Home / End):
+                ///< an action of the canvas of the document view, Qt::WidgetWithChildrenShortcut,
+                ///< so the keys keep their meaning in the fields of the window
+};
+
 /// Command of the application: the data, which the global search (step 2), the
 /// Shortcuts section of Settings (step 5) and the shell need. There are no widgets
 /// here - the shell binds each command to a QAction by its id.
@@ -64,6 +75,12 @@ public:
 
     /// Group of the Shortcuts section and of the search (source text, e.g. "Window")
     const char* group = "";
+
+    /// Where the shortcut works
+    PDFAppCommandScope scope = PDFAppCommandScope::Window;
+
+    /// The command is an on / off state (the action is checkable)
+    bool isCheckable = false;
 
     QString getTitle() const;
     QString getGroupTitle() const;
@@ -153,6 +170,77 @@ public:
     static QString search() { return QStringLiteral("navigation.search"); }
     static QString help() { return QStringLiteral("navigation.help"); }
 
+    // Document tab (step 3): file
+    static QString save() { return QStringLiteral("file.save"); }
+    static QString saveAs() { return QStringLiteral("file.saveAs"); }
+    static QString print() { return QStringLiteral("file.print"); }
+    static QString sendMail() { return QStringLiteral("file.sendMail"); }
+    static QString autoRefresh() { return QStringLiteral("file.autoRefresh"); }
+    static QString properties() { return QStringLiteral("file.properties"); }
+    static QString lockDocument() { return QStringLiteral("file.lock"); }
+    static QString editCopy() { return QStringLiteral("file.editCopy"); }
+
+    // Document tab (step 3): edit and selection
+    static QString undo() { return QStringLiteral("edit.undo"); }
+    static QString redo() { return QStringLiteral("edit.redo"); }
+    static QString copy() { return QStringLiteral("edit.copy"); }
+    static QString selectAll() { return QStringLiteral("edit.selectAll"); }
+    static QString deselect() { return QStringLiteral("edit.deselect"); }
+    static QString selectText() { return QStringLiteral("select.text"); }
+    static QString selectTable() { return QStringLiteral("select.table"); }
+    static QString screenshot() { return QStringLiteral("select.screenshot"); }
+    static QString extractImage() { return QStringLiteral("select.extractImage"); }
+
+    // Document tab (step 3): view
+    static QString zoomIn() { return QStringLiteral("view.zoomIn"); }
+    static QString zoomOut() { return QStringLiteral("view.zoomOut"); }
+    static QString actualSize() { return QStringLiteral("view.actualSize"); }
+    static QString fitPage() { return QStringLiteral("view.fitPage"); }
+    static QString fitWidth() { return QStringLiteral("view.fitWidth"); }
+    static QString fitHeight() { return QStringLiteral("view.fitHeight"); }
+    static QString rotateViewLeft() { return QStringLiteral("view.rotateLeft"); }
+    static QString rotateViewRight() { return QStringLiteral("view.rotateRight"); }
+    static QString layoutSinglePage() { return QStringLiteral("view.layoutSinglePage"); }
+    static QString layoutContinuous() { return QStringLiteral("view.layoutContinuous"); }
+    static QString layoutTwoPages() { return QStringLiteral("view.layoutTwoPages"); }
+    static QString layoutTwoColumns() { return QStringLiteral("view.layoutTwoColumns"); }
+    static QString firstPageRight() { return QStringLiteral("view.firstPageRight"); }
+    static QString showAnnotations() { return QStringLiteral("view.showAnnotations"); }
+    static QString colorModeNormal() { return QStringLiteral("view.colorModeNormal"); }
+    static QString colorModeInverted() { return QStringLiteral("view.colorModeInverted"); }
+    static QString colorModeGrayscale() { return QStringLiteral("view.colorModeGrayscale"); }
+    static QString colorModeHighContrast() { return QStringLiteral("view.colorModeHighContrast"); }
+    static QString colorModeBitonal() { return QStringLiteral("view.colorModeBitonal"); }
+    static QString colorModeCustom() { return QStringLiteral("view.colorModeCustom"); }
+    static QString toggleSidebar() { return QStringLiteral("view.sidebar"); }
+    static QString fullScreen() { return QStringLiteral("view.fullScreen"); }
+    static QString magnifier() { return QStringLiteral("view.magnifier"); }
+    static QString renderingIssues() { return QStringLiteral("view.renderingIssues"); }
+
+    // Document tab (step 3): go to
+    static QString firstPage() { return QStringLiteral("goto.firstPage"); }
+    static QString lastPage() { return QStringLiteral("goto.lastPage"); }
+    static QString nextPage() { return QStringLiteral("goto.nextPage"); }
+    static QString previousPage() { return QStringLiteral("goto.previousPage"); }
+    static QString nextLine() { return QStringLiteral("goto.nextLine"); }
+    static QString previousLine() { return QStringLiteral("goto.previousLine"); }
+    static QString goToPage() { return QStringLiteral("goto.page"); }
+
+    // Document tab (step 3): personal bookmarks and pages
+    static QString addBookmark() { return QStringLiteral("bookmarks.add"); }
+    static QString nextBookmark() { return QStringLiteral("bookmarks.next"); }
+    static QString previousBookmark() { return QStringLiteral("bookmarks.previous"); }
+    static QString exportBookmarks() { return QStringLiteral("bookmarks.export"); }
+    static QString importBookmarks() { return QStringLiteral("bookmarks.import"); }
+    static QString rotatePagesLeft() { return QStringLiteral("pages.rotateLeft"); }
+    static QString rotatePagesRight() { return QStringLiteral("pages.rotateRight"); }
+
+    // Document tab (step 3): search and speech
+    static QString find() { return QStringLiteral("search.find"); }
+    static QString findNext() { return QStringLiteral("search.findNext"); }
+    static QString findPrevious() { return QStringLiteral("search.findPrevious"); }
+    static QString readAloud() { return QStringLiteral("speech.readAloud"); }
+
     /// Registers all built-in commands
     static void registerBuiltinCommands(PDFAppCommandRegistry* registry);
 
@@ -160,8 +248,10 @@ private:
     static void registerWindowCommands(PDFAppCommandRegistry* registry);
     static void registerFileCommands(PDFAppCommandRegistry* registry);
     static void registerNavigationCommands(PDFAppCommandRegistry* registry);
+    static void registerDocumentCommands(PDFAppCommandRegistry* registry);
     static void add(PDFAppCommandRegistry* registry, QString id, const char* title, const char* group,
-                    QString iconName, QKeySequence shortcut, QStringList keywords);
+                    QString iconName, QKeySequence shortcut, QStringList keywords,
+                    PDFAppCommandScope scope = PDFAppCommandScope::Window, bool isCheckable = false);
 };
 
 }   // namespace pdf

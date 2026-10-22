@@ -1788,11 +1788,7 @@ PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSe
     while (index != -1)
     {
         PDFFindResult result;
-        result.matched = text;
-        result.textSelectionItems = getTextSelectionItems(index, text.length());
-        result.context = getContext(index, text.length());
-
-        if (!result.textSelectionItems.empty())
+        if (fillFindResult(result, index, text.length()))
         {
             results.emplace_back(qMove(result));
         }
@@ -1813,15 +1809,11 @@ PDFFindResults PDFTextFlow::find(const QRegularExpression& expression) const
         QRegularExpressionMatch match = iterator.next();
 
         Q_ASSERT(match.hasMatch());
-        const int index = match.capturedStart();
-        const int length = match.capturedLength();
 
+        // An empty match (an expression, which matches the empty text) has no
+        // characters, it is skipped
         PDFFindResult result;
-        result.matched = match.captured();
-        result.textSelectionItems = getTextSelectionItems(index, length);
-        result.context = getContext(index, length);
-
-        if (!result.textSelectionItems.empty())
+        if (fillFindResult(result, match.capturedStart(), match.capturedLength()))
         {
             results.emplace_back(qMove(result));
         }
@@ -1980,10 +1972,30 @@ PDFTextSelectionItems PDFTextFlow::getTextSelectionItems(size_t index, size_t le
     return items;
 }
 
-QString PDFTextFlow::getContext(size_t index, size_t length) const
+bool PDFTextFlow::fillFindResult(PDFFindResult& result, qsizetype index, qsizetype length) const
+{
+    if (index < 0 || length <= 0 || index + length > m_text.size() || size_t(index + length) > m_characterPointers.size())
+    {
+        return false;
+    }
+
+    result.matched = m_text.mid(index, length);
+    result.textSelectionItems = getTextSelectionItems(size_t(index), size_t(length));
+    if (result.textSelectionItems.empty())
+    {
+        return false;
+    }
+
+    result.context = getContext(size_t(index), size_t(length), &result.contextMatchStart);
+    result.contextMatchLength = result.contextMatchStart >= 0 ? qMin(length, result.context.size() - result.contextMatchStart) : 0;
+    return true;
+}
+
+QString PDFTextFlow::getContext(size_t index, size_t length, qsizetype* matchStart) const
 {
     Q_ASSERT(length > 0);
 
+    const size_t originalIndex = index;
     const PDFCharacterPointer& frontComparatorItem = m_characterPointers[index];
     while (index > 0 && (m_characterPointers[index - 1].hasSameLine(frontComparatorItem) || !m_characterPointers[index - 1].isValid()))
     {
@@ -2000,7 +2012,21 @@ QString PDFTextFlow::getContext(size_t index, size_t length) const
         ++length;
     }
 
-    return m_text.mid(int(index), int(length)).trimmed();
+    const QString context = m_text.mid(int(index), int(length));
+    QString trimmedContext = context.trimmed();
+    if (matchStart)
+    {
+        // The leading white space removed by trimmed() moves the match
+        qsizetype leadingSpaces = 0;
+        while (leadingSpaces < context.size() && context.at(leadingSpaces).isSpace())
+        {
+            ++leadingSpaces;
+        }
+
+        const qsizetype start = qsizetype(originalIndex - index) - leadingSpaces;
+        *matchStart = (start >= 0 && start < trimmedContext.size()) ? start : -1;
+    }
+    return trimmedContext;
 }
 
 bool PDFCharacterPointer::hasSameBlock(const PDFCharacterPointer& other) const

@@ -34,6 +34,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QApplication>
 #include <QBoxLayout>
 #include <QEvent>
 #include <QPainter>
@@ -55,6 +56,42 @@ public:
 
     static QUrl url(const char* text) { return QUrl(QString::fromLatin1(text), QUrl::StrictMode); }
 };
+
+QString PDFAppPageRebuild::getFocusedName(const QWidget* page)
+{
+    const QWidget* focusWidget = page ? QApplication::focusWidget() : nullptr;
+    if (!focusWidget || focusWidget == page || !page->isAncestorOf(focusWidget))
+    {
+        return QString();
+    }
+    return focusWidget->objectName();
+}
+
+void PDFAppPageRebuild::restoreFocus(QWidget* page, const QString& name)
+{
+    if (!page || name.isEmpty())
+    {
+        return;
+    }
+
+    if (QWidget* widget = page->findChild<QWidget*>(name))
+    {
+        if (widget->isVisibleTo(page) && widget->focusPolicy() != Qt::NoFocus)
+        {
+            widget->setFocus(Qt::OtherFocusReason);
+        }
+    }
+}
+
+void PDFAppPageRebuild::finishLayout()
+{
+    // Each pass lays out one more level of the nested layouts (a child posts the
+    // request of its parent); the depth of the pages is small
+    for (int i = 0; i < 8; ++i)
+    {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+    }
+}
 
 QUrl PDFAppProjectLinks::getWebsite()
 {

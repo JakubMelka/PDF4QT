@@ -103,6 +103,9 @@ public:
     /// Item of the row (nullptr for an invalid row)
     const PDFAppRecentItem* getItem(int row) const;
 
+    /// Row of the item of the type with the path and the id (-1 = none)
+    int findItem(PDFAppRecentItem::Type type, const QString& path, qint64 id) const;
+
     /// Updates the existence / the details of the item of the path
     void setMissing(const QString& path, bool isMissing);
     void setDetails(const QString& path, const QString& details);

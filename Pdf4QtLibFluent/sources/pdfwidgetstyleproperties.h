@@ -169,6 +169,13 @@ public:
     /// no menu (it opens a popup of its own)
     static constexpr const char* MENU_INDICATOR = "menuIndicator";
 
+    /// QAbstractScrollArea: the scroll bars lie over the edge of the viewport,
+    /// the layout reserves no width for them (the viewport takes the whole area;
+    /// PM_ScrollView_ScrollBarOverlap). The bar draws only its groove and its
+    /// slider, its gutters show the content below. The content keeps a padding
+    /// of the scroll bar extent at the edge (the page area of the application).
+    static constexpr const char* OVERLAY_SCROLL_BARS = "overlayScrollBars";
+
     /// Sets the property and applies the look to the widget
     static void set(QWidget* widget, const char* name, const QVariant& value = QVariant(true));
 

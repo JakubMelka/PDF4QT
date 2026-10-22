@@ -109,8 +109,16 @@ public:
 
 protected:
     virtual void showEvent(QShowEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
 
 private:
+    /// Creates the quick actions and the tutorials (all texts in the current language)
+    void buildContent();
+
+    /// The language has changed: the content is created again; the filter, the text
+    /// of the search field, the scroll position and the focused widget are kept
+    void rebuild();
+
     QWidget* createQuickActions(QWidget* parent);
     QWidget* createTutorials(QWidget* parent);
     QPushButton* createChip(const QString& topic, const QString& text, int count, QWidget* parent);
@@ -138,6 +146,7 @@ private:
     QPointer<QPushButton> m_channelButton;
     QPointer<QButtonGroup> m_chipGroup;
     std::map<QString, QPointer<QPushButton>> m_chips;
+    QPointer<QWidget> m_tutorials;
     QPointer<PDFAppGrid> m_videoGrid;
     std::map<QString, QPointer<PDFVideoCard>> m_videoCards;
     QPointer<PDFAppParagraph> m_emptyText;

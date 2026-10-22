@@ -227,6 +227,28 @@ QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& 
     return QFileDialog::getExistingDirectory(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Pin a Location"), folder);
 }
 
+QString PDFAppFileDialogs::getSaveFileName(QWidget* parent, const QString& filePath)
+{
+    if (const SaveFileHandler& handler = getSaveFileHandler())
+    {
+        return handler(parent, filePath);
+    }
+
+    return QFileDialog::getSaveFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Save As"), filePath,
+                                        QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf)"));
+}
+
+void PDFAppFileDialogs::setSaveFileHandler(SaveFileHandler handler)
+{
+    getSaveFileHandler() = std::move(handler);
+}
+
+PDFAppFileDialogs::SaveFileHandler& PDFAppFileDialogs::getSaveFileHandler()
+{
+    static SaveFileHandler handler;
+    return handler;
+}
+
 void PDFAppFileDialogs::setOpenFilesHandler(OpenFilesHandler handler)
 {
     getOpenFilesHandler() = std::move(handler);
@@ -290,6 +312,36 @@ QStringList PDFAppDocumentActions::getPaths(const std::vector<PDFWorkspaceDocume
         }
     }
     return paths;
+}
+
+std::vector<PDFAppOpenRequest> PDFAppDocumentActions::getRequests(const std::vector<PDFWorkspaceDocument>& documents)
+{
+    std::vector<PDFAppOpenRequest> requests;
+    QStringList paths;
+    for (const PDFWorkspaceDocument& document : documents)
+    {
+        if (PDFRepositoryHelper::isValidStoredPath(document.path) && !paths.contains(document.path))
+        {
+            paths << document.path;
+            PDFAppOpenRequest request;
+            request.filePath = document.path;
+            request.page = qMax(0, document.page);
+            requests.push_back(std::move(request));
+        }
+    }
+    return requests;
+}
+
+bool PDFAppDocumentActions::openRequests(QWidget* source, const std::vector<PDFAppOpenRequest>& requests)
+{
+    PDFAppMainWindow* window = source ? qobject_cast<PDFAppMainWindow*>(source->window()) : nullptr;
+    if (!window || requests.empty())
+    {
+        return false;
+    }
+
+    window->openDocuments(requests);
+    return true;
 }
 
 PDFAppDocumentActions::OpenDocumentsProvider& PDFAppDocumentActions::getProvider()

@@ -111,7 +111,8 @@ public:
     PDFDatabaseError saveWorkspace(const QString& name, const std::vector<PDFWorkspaceDocument>& documents, bool replaceExisting,
                                    qint64* id = nullptr, bool* isDuplicate = nullptr);
 
-    /// Renames a saved workspace; a name of another workspace is refused (\p isDuplicate)
+    /// Renames a saved workspace; a name of another workspace is refused (\p isDuplicate),
+    /// a workspace, which does not exist (deleted by another instance), is an error
     PDFDatabaseError renameWorkspace(qint64 id, const QString& name, bool* isDuplicate = nullptr);
 
     /// Deletes a workspace (its documents with it); the files are not touched

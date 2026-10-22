@@ -75,6 +75,7 @@
 #include <QVBoxLayout>
 #include <QStyleHints>
 #include <QtMath>
+#include <QElapsedTimer>
 #include <QtTest>
 
 #ifdef PDF4QT_TEST_PLATFORM_THEME
@@ -426,6 +427,9 @@ private slots:
     void breadcrumbParts();
     void fileDragOver();
     void bannerLayoutOfPage();
+    void overlayPageScrollBar();
+    void headerSearchWidth();
+    void messageScrim();
     void screenshots();
 
 private:
@@ -3202,13 +3206,31 @@ void AppNavigationTest::instanceRequests()
     output.close();
 
     // Files and errors of the own command line are shown, when the window exists
+    // (step 3: the option and the file, which is not a valid PDF, are listed in the
+    // dialog open-failed - the reading of the file ends later, so it may follow in a
+    // second dialog, when the first one is closed)
     NavigationFixture fixture(true, { file, QStringLiteral("--bogus") });
     QTRY_COMPARE(fixture.window->getRequestedFiles(), QStringList({ QDir::cleanPath(file) }));
-    QTRY_COMPARE(fixture.window->findChildren<pdf::PDFMessageBox*>().size(), 2);
-    for (pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>())
+    QString commandLineTexts;
+    QElapsedTimer failedTimer;
+    failedTimer.start();
+    while (failedTimer.elapsed() < 5000 && !(commandLineTexts.contains(QStringLiteral("--bogus")) && commandLineTexts.contains(QStringLiteral("document.pdf"))))
     {
-        box->reject();
+        QTest::qWait(20);
+        for (pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>())
+        {
+            if (box->isVisible())
+            {
+                for (const QLabel* label : box->findChildren<QLabel*>())
+                {
+                    commandLineTexts += label->text() + QLatin1Char(' ');
+                }
+                box->reject();
+            }
+        }
     }
+    QVERIFY(commandLineTexts.contains(QStringLiteral("--bogus")));
+    QVERIFY(commandLineTexts.contains(QStringLiteral("document.pdf")));
     QTRY_VERIFY(fixture.window->findChildren<pdf::PDFMessageBox*>().isEmpty());
 
     // A request of another process: the window is raised, its errors and files are listed
@@ -3228,6 +3250,8 @@ void AppNavigationTest::instanceRequests()
     QCOMPARE(fixture.window->getForwardedErrors(), QStringList({ QStringLiteral("Unknown argument --forwarded.") }));
     QCOMPARE(fixture.window->getRequestedFiles().size(), 2);
 
+    // The error and the missing file are listed in the dialog open-failed (step 3)
+    QTRY_VERIFY(!fixture.window->findChildren<pdf::PDFMessageBox*>().isEmpty());
     QStringList texts;
     for (const pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>())
     {
@@ -3238,7 +3262,6 @@ void AppNavigationTest::instanceRequests()
     }
     QVERIFY(texts.join(QLatin1Char('\n')).contains(QStringLiteral("Unknown argument --forwarded.")));
     QVERIFY(texts.join(QLatin1Char('\n')).contains(QStringLiteral("other.pdf")));
-    QCOMPARE(fixture.window->findChildren<pdf::PDFMessageBox*>().size(), 2);
 
     // The lists are bounded
     pdf::PDFAppInstanceRequest many;
@@ -3484,6 +3507,42 @@ void AppNavigationTest::footerAxis()
     pdf::PDFAppFooter* footer = homeTab->getFooter();
     pdf::PDFSegmentedControl* themeSwitch = homeTab->getSidebar()->getThemeSwitch();
     QVERIFY(footer && themeSwitch);
+
+    // MIT License is Semi Bold 12 as the texts around it (app-footer 28:217), its
+    // box keeps the line of 16 px of the component; its ink is not higher than the
+    // ink of the version (Regular 12)
+    QCOMPARE(footer->getLicenseLink()->getLinkSize(), pdf::PDFComponentPainter::TextLinkSize::Small);
+    QCOMPARE(footer->getLicenseLink()->height(), 16);
+    QCOMPARE(pdf::PDFComponentPainter::getTextLinkFont(footer->getLicenseLink()->getLinkSize(), false).pixelSize(), footer->getVersionLabel()->font().pixelSize());
+    {
+        fixture.window->resize(1440, 977);
+        QCoreApplication::processEvents();
+        const QImage image = renderWindow(window, 1.0);
+        const QColor canvas = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas);
+        auto inkHeight = [&image, &canvas, window](const QWidget* widget)
+        {
+            const QRect rect(widget->mapTo(window, QPoint(0, 0)), widget->size());
+            int first = -1;
+            int last = -1;
+            for (int y = rect.top(); y <= rect.bottom(); ++y)
+            {
+                for (int x = rect.left(); x <= rect.right(); ++x)
+                {
+                    const QColor color = image.pixelColor(x, y);
+                    if (qAbs(color.red() - canvas.red()) + qAbs(color.green() - canvas.green()) + qAbs(color.blue() - canvas.blue()) > 120)
+                    {
+                        first = first < 0 ? y : first;
+                        last = y;
+                        break;
+                    }
+                }
+            }
+            return first < 0 ? -1 : last - first + 1;
+        };
+        const int linkInk = inkHeight(footer->getLicenseLink());
+        const int versionInk = inkHeight(footer->getVersionLabel());
+        QVERIFY2(linkInk > 0 && versionInk > 0 && linkInk <= versionInk + 1, qPrintable(QStringLiteral("link %1, version %2").arg(linkInk).arg(versionInk)));
+    }
     auto geometry = [window](const QWidget* widget) -> QRect
     {
         return QRect(widget->mapTo(window, QPoint(0, 0)), widget->size());
@@ -3764,6 +3823,30 @@ void AppNavigationTest::minimumWindow()
                 continue;
             }
 
+            // The overlay scroll bar of the page (and its container) lies over the
+            // viewport and the content widget of its area, never over a part of the page
+            auto overlayArea = [](const QWidget* widget) -> const pdf::PDFAppScrollArea*
+            {
+                // The scroll bar container (a child of the area) or the scroll bar in it
+                const QWidget* parent = widget->parentWidget();
+                const pdf::PDFAppScrollArea* area = qobject_cast<const pdf::PDFAppScrollArea*>(parent);
+                if (area && area->isOverlayScrollBars() && widget == area->verticalScrollBar()->parentWidget())
+                {
+                    return area;
+                }
+                area = parent ? qobject_cast<const pdf::PDFAppScrollArea*>(parent->parentWidget()) : nullptr;
+                return area && area->isOverlayScrollBars() && widget == area->verticalScrollBar() ? area : nullptr;
+            };
+            auto isOverlayPair = [&overlayArea](const QWidget* bar, const QWidget* other)
+            {
+                const pdf::PDFAppScrollArea* area = overlayArea(bar);
+                return area && (other == area->viewport() || other == area->widget());
+            };
+            if (isOverlayPair(first, second) || isOverlayPair(second, first))
+            {
+                continue;
+            }
+
             if (visibleRect(first).intersects(visibleRect(second)))
             {
                 overlaps << QStringLiteral("%1 %2 - %3 %4").arg(first->metaObject()->className(), first->objectName(), second->metaObject()->className(), second->objectName());
@@ -4013,7 +4096,7 @@ void AppNavigationTest::minimumWindow()
                 }
                 pdf::PDFAppParagraph* notFoundText = window->findChild<pdf::PDFAppParagraph*>(QStringLiteral("notFoundText"));
                 QVERIFY2(notFoundText && notFoundText->height() == notFoundText->heightForWidth(notFoundText->width()), qPrintable(context));
-                QVERIFY2(notFoundText->width() == (isBelow ? pageArea->viewport()->width() : 460), qPrintable(context));
+                QVERIFY2(notFoundText->width() == (isBelow ? pageArea->viewport()->width() - 2 * homeTab->getPageInset() : 460), qPrintable(context));
             }
         }
     }
@@ -4605,8 +4688,320 @@ void AppNavigationTest::fileDragOver()
             {
                 QCOMPARE(event->dropAction(), Qt::CopyAction);
             }
+            if (type == QEvent::DragEnter)
+            {
+                // The drop zones show the drag of files only
+                QCOMPARE(fixture.window->isFileDragActive(), isFile);
+            }
         }
     }
+
+    // The feedback ends by the leave of the drag (also Esc, which the system
+    // reports as the leave) and by the drop
+    QDragEnterEvent enter(position, Qt::CopyAction, &files, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(fixture.window.data(), &enter);
+    QVERIFY(fixture.window->isFileDragActive());
+    QDragLeaveEvent leave;
+    QCoreApplication::sendEvent(fixture.window.data(), &leave);
+    QVERIFY(!fixture.window->isFileDragActive());
+
+    // The drop of a file, which does not exist: the message lists it, the feedback ends
+    QMimeData missing;
+    missing.setUrls({ QUrl::fromLocalFile(directory.filePath(QStringLiteral("missing.pdf"))) });
+    QDragEnterEvent missingEnter(position, Qt::CopyAction, &missing, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(fixture.window.data(), &missingEnter);
+    QVERIFY(fixture.window->isFileDragActive());
+    QDropEvent drop(QPointF(position), Qt::CopyAction, &missing, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(fixture.window.data(), &drop);
+    QVERIFY(!fixture.window->isFileDragActive());
+    if (QWidget* messageBox = fixture.window->findChild<QWidget*>(QStringLiteral("messageBox")))
+    {
+        messageBox->close();
+    }
+}
+
+void AppNavigationTest::overlayPageScrollBar()
+{
+    // The vertical scroll bar of the page lies over the right padding of the
+    // workspace (overlay scroll bar of the style): the page keeps the width of the
+    // frames (1166 at 1440 - the columns end at 1408 as app-footer 28:217), the
+    // header, the page and the footer have the same edges, the bar takes no width
+    NavigationFixture fixture;
+    auto factory = std::make_shared<NavigationTestFactory>(QStringLiteral("Tall page"));
+    factory->onSetRoute = [](NavigationTestPage* page) { page->setMinimumHeight(3000); };
+    QVERIFY(fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/about"), factory));
+    fixture.navigate("/about");
+    QCoreApplication::processEvents();
+
+    QWidget* window = fixture.window.data();
+    pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
+    pdf::PDFAppScrollArea* area = homeTab->getPageScrollArea();
+    QWidget* page = homeTab->getPage();
+    QVERIFY(qobject_cast<NavigationTestPage*>(page));
+    QVERIFY(area->isOverlayScrollBars());
+    QCOMPARE(area->getScrollBarOverlap(), 12);
+    QCOMPARE(homeTab->getPageInset(), 12);
+    QVERIFY(!homeTab->getSidebar()->getNavigationArea()->isOverlayScrollBars());
+    auto geometry = [window](const QWidget* widget) -> QRect
+    {
+        return QRect(widget->mapTo(window, QPoint(0, 0)), widget->size());
+    };
+
+    QScrollBar* bar = area->verticalScrollBar();
+    for (const QSize& size : { QSize(1440, 977), QSize(1100, 701), QSize(720, 480) })
+    {
+        fixture.window->resize(size);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        const QString context = QStringLiteral("%1x%2").arg(size.width()).arg(size.height());
+
+        QVERIFY2(bar->isVisible() && bar->maximum() > 0, qPrintable(context));
+        QVERIFY2(area->viewport()->width() == area->width(), qPrintable(context));
+        QCOMPARE(area->horizontalScrollBar()->maximum(), 0);
+
+        const QRect pageRect = geometry(page);
+        QVERIFY2(pageRect.left() == pdf::PDFAppSidebar::WIDTH + 32, qPrintable(context));
+        QVERIFY2(pageRect.right() + 1 == size.width() - 32, qPrintable(context));
+        for (const QWidget* part : { static_cast<const QWidget*>(homeTab->getHeader()), static_cast<const QWidget*>(homeTab->getFooter()) })
+        {
+            QVERIFY2(geometry(part).left() == pageRect.left() && geometry(part).right() == pageRect.right(), qPrintable(context));
+        }
+
+        // The bar lies in the right padding, beside the page
+        const QRect barRect = geometry(bar);
+        QVERIFY2(barRect.left() == size.width() - 32 && barRect.width() == 12, qPrintable(QStringLiteral("%1: bar %2").arg(context).arg(barRect.left())));
+        QVERIFY(!barRect.intersects(pageRect));
+    }
+
+    fixture.window->resize(1440, 977);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QCOMPARE(page->width(), 1166);
+    QCOMPARE(geometry(page).right() + 1, 1408);
+
+    // Pixels in both themes at 1 / 1.5 / 2: the slider (border/strong) in the padding,
+    // the canvas in the gutters of the bar
+    bar->setValue(0);
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        QCoreApplication::processEvents();
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QImage image = renderWindow(window, scale);
+            const QRect barRect = geometry(bar);
+            auto pixelAt = [&image, scale](int x, int y) { return image.pixelColor(qFloor((x + 0.5) * scale), qFloor((y + 0.5) * scale)); };
+            const QColor slider = pixelAt(barRect.left() + 6, barRect.top() + 6);
+            const QColor gutter = pixelAt(barRect.left() + 1, barRect.top() + 6);
+            const QColor outerGutter = pixelAt(barRect.right() - 1, barRect.top() + 6);
+            QVERIFY2(colorDistance(slider, pdf::PDFStylePainter::color(pdf::PDFThemeColors::BorderStrong)) <= 9, qPrintable(slider.name()));
+            QVERIFY2(colorDistance(gutter, pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas)) <= 6, qPrintable(gutter.name()));
+            QVERIFY2(colorDistance(outerGutter, pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas)) <= 6, qPrintable(outerGutter.name()));
+        }
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // The wheel over the page, the keyboard of the area and the drag of the slider scroll
+    QWheelEvent wheel(QPointF(100, 100), area->viewport()->mapToGlobal(QPointF(100, 100)), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(area->viewport(), &wheel);
+    QVERIFY(bar->value() > 0);
+    bar->setValue(0);
+    QTest::keyClick(area, Qt::Key_PageDown);
+    QVERIFY(bar->value() > 0);
+    bar->setValue(0);
+    QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, QPoint(6, 6));
+    QTest::mouseMove(bar, QPoint(6, 120));
+    QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, QPoint(6, 120));
+    QVERIFY(bar->value() > 0);
+
+    // Without the overlay (another style or the property off) the area keeps the
+    // paddings outside and the bar takes its width inside of the area
+    area->setOverlayScrollBars(false);
+    QCOMPARE(area->getScrollBarOverlap(), 0);
+    QEvent styleChange(QEvent::StyleChange);
+    QCoreApplication::sendEvent(homeTab, &styleChange);
+    QCoreApplication::processEvents();
+    QCOMPARE(homeTab->getPageInset(), 0);
+    QCOMPARE(geometry(area).left(), pdf::PDFAppSidebar::WIDTH + 32);
+    QCOMPARE(area->viewport()->width(), area->width() - 12);
+    area->setOverlayScrollBars(true);
+    QCoreApplication::sendEvent(homeTab, &styleChange);
+    QCoreApplication::processEvents();
+    QCOMPARE(homeTab->getPageInset(), 12);
+    QCOMPARE(page->width(), 1166);
+
+    // The Help tab (pdf4qt-help 955:152873): the page of 1166 px is centered in the
+    // whole window (137 px at both sides of 1440), the header follows it, the bar
+    // lies in the right padding of the window
+    auto help = std::make_shared<NavigationTestFactory>(QStringLiteral("Help topic"));
+    help->onSetRoute = [](NavigationTestPage* helpPage) { helpPage->setMinimumHeight(3000); };
+    QVERIFY(fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), help));
+    fixture.navigate("/help/getting-started");
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    pdf::PDFAppWorkspaceTab* helpTab = qobject_cast<pdf::PDFAppWorkspaceTab*>(fixture.window->findHelpTab());
+    QVERIFY(helpTab);
+    QCOMPARE(fixture.currentTab(), helpTab);
+    for (const int width : { 1440, 1300, 1000, 720 })
+    {
+        fixture.window->resize(width, 977);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        QWidget* helpPage = helpTab->getPage();
+        const QRect pageRect = geometry(helpPage);
+        const int expectedWidth = qMin(1166, width - 64);
+        QVERIFY2(pageRect.width() == expectedWidth, qPrintable(QStringLiteral("%1: %2").arg(width).arg(pageRect.width())));
+        QVERIFY2(qAbs(pageRect.left() - (width - pageRect.width()) / 2) <= 1, qPrintable(QStringLiteral("%1: %2").arg(width).arg(pageRect.left())));
+        pdf::PDFAppWorkspaceHeader* header = helpTab->getHeader();
+        const QMargins margins = header->contentsMargins();
+        QCOMPARE(header->mapTo(window, QPoint(margins.left(), 0)).x(), pageRect.left());
+        QCOMPARE(header->width() - margins.left() - margins.right(), pageRect.width());
+        QCOMPARE(geometry(helpTab->getPageScrollArea()->verticalScrollBar()).left(), width - 32);
+    }
+}
+
+void AppNavigationTest::headerSearchWidth()
+{
+    // The search field of the header (320 px in the frames) gives its width to the
+    // texts in a narrow window, down to 200 px, before the title is elided
+    QCOMPARE(pdf::PDFAppWorkspaceHeader::getSearchWidth(1166, 300), 320);
+    QCOMPARE(pdf::PDFAppWorkspaceHeader::getSearchWidth(500, 200), 276);
+    QCOMPARE(pdf::PDFAppWorkspaceHeader::getSearchWidth(446, 400), 200);
+    QCOMPARE(pdf::PDFAppWorkspaceHeader::getSearchWidth(0, 0), 200);
+    QCOMPARE(pdf::PDFAppWorkspaceHeader::getSearchWidth(100000, -50), 320);
+
+    NavigationFixture fixture;
+    auto factory = std::make_shared<NavigationTestFactory>(QStringLiteral("Welcome to PDF4QT"));
+    QVERIFY(fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/home"), factory));
+    fixture.navigate("/home");
+    QCoreApplication::processEvents();
+    pdf::PDFAppWorkspaceHeader* header = fixture.window->getHomeTab()->getHeader();
+    pdf::PDFAppHeaderText* title = header->getTitleLabel();
+    QCOMPARE(title->text(), QStringLiteral("Welcome to PDF4QT"));
+    const int titleWidth = qCeil(title->getTextWidth());
+
+    for (const int width : { 1440, 1100, 900, 800, 720 })
+    {
+        fixture.window->resize(width, 600);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        const QString context = QString::number(width);
+
+        const int headerWidth = header->width();
+        const int searchWidth = header->getSearchField()->width();
+        QVERIFY2(searchWidth == pdf::PDFAppWorkspaceHeader::getSearchWidth(headerWidth, titleWidth), qPrintable(QStringLiteral("%1: %2").arg(context).arg(searchWidth)));
+        QVERIFY2(searchWidth >= 200 && searchWidth <= 320, qPrintable(context));
+
+        // The field ends at the right edge of the header, the title keeps the rest
+        const QRect fieldRect(header->getSearchField()->mapTo(header, QPoint(0, 0)), header->getSearchField()->size());
+        QCOMPARE(fieldRect.right() + 1, headerWidth);
+        QVERIFY(title->width() >= headerWidth - 24 - searchWidth - 1);
+
+        // The title is whole whenever the field can give it the room
+        if (headerWidth - 24 - 200 >= titleWidth)
+        {
+            QVERIFY2(!title->isElided(), qPrintable(context));
+        }
+    }
+
+    // 1440: the field of the frames; 720 (the header is 446 px): the field is
+    // narrower than 320, so the title is less elided than with the fixed field
+    fixture.window->resize(1440, 600);
+    QCoreApplication::processEvents();
+    QCOMPARE(header->getSearchField()->width(), 320);
+    fixture.window->resize(720, 480);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QVERIFY(header->getSearchField()->width() < 320);
+    QVERIFY(title->width() > header->width() - 24 - 320);
+
+    // A shorter title gives the field its width back
+    factory->onSetRoute = nullptr;
+    auto shortFactory = std::make_shared<NavigationTestFactory>(QStringLiteral("Open"));
+    QVERIFY(fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/open"), shortFactory));
+    fixture.navigate("/open");
+    QCoreApplication::processEvents();
+    QCOMPARE(header->getSearchField()->width(), pdf::PDFAppWorkspaceHeader::getSearchWidth(header->width(), qCeil(title->getTextWidth())));
+    QCOMPARE(header->getSearchField()->width(), 320);
+}
+
+void AppNavigationTest::messageScrim()
+{
+    // The messages of the window cover the body of the window (the content of the
+    // tabs) by their scrim, not the top bar with the tabs and the buttons of the
+    // window (pdf4qt-recent-clear-history 941:135742: the scrim starts at y = 38);
+    // the card is centered over the body
+    NavigationFixture fixture;
+    fixture.navigate("/tools/convert.epub");
+
+    // The window on the screen: the card is not moved by the edges of the screen
+    fixture.window->setGeometry(fixture.window->screen()->availableGeometry());
+    QCoreApplication::processEvents();
+    QWidget* body = fixture.window->getDialogHost();
+    QVERIFY(body);
+    QCOMPARE(body->objectName(), QStringLiteral("tabContent"));
+    QCOMPARE(pdf::PDFAppMainWindow::findDialogHost(fixture.window->getHomeTab()->getHeader()), body);
+    QVERIFY(!pdf::PDFAppMainWindow::findDialogHost(nullptr));
+    QWidget alone;
+    QVERIFY(!pdf::PDFAppMainWindow::findDialogHost(&alone));
+    pdf::PDFAppMainWindow::prepareDialog(nullptr, body);
+    QCOMPARE(body->mapTo(fixture.window.data(), QPoint(0, 0)).y(), fixture.window->getTopBar()->height());
+
+    // A drop of a file, which does not exist, shows the message of the refused items
+    QTemporaryDir directory;
+    QMimeData missing;
+    missing.setUrls({ QUrl::fromLocalFile(directory.filePath(QStringLiteral("missing.pdf"))) });
+    auto dropMissing = [&fixture, &missing]()
+    {
+        QDragEnterEvent enter(QPoint(200, 200), Qt::CopyAction, &missing, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(fixture.window.data(), &enter);
+        QDropEvent drop(QPointF(200, 200), Qt::CopyAction, &missing, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(fixture.window.data(), &drop);
+    };
+    dropMissing();
+    pdf::PDFMessageBox* box = fixture.window->findChild<pdf::PDFMessageBox*>(QStringLiteral("messageBox"));
+    QVERIFY(box);
+    QTRY_VERIFY(box->isVisible());
+    QCOMPARE(box->getScrimTarget(), body);
+    QVERIFY(box->getScrim());
+    QCOMPARE(box->getScrim()->parentWidget(), body);
+    QCOMPARE(box->getScrim()->geometry(), body->rect());
+
+    const QRect cardRect(box->mapToGlobal(QPoint(0, 0)) + QPoint(box->getShadowMargins().left(), box->getShadowMargins().top()), box->rect().marginsRemoved(box->getShadowMargins()).size());
+    const QPoint cardCenter = cardRect.center();
+
+    // Centered over the body, the card stays on the screen (the offscreen screen is
+    // smaller than the window)
+    QRect expectedCard(QPoint(0, 0), cardRect.size());
+    expectedCard.moveCenter(body->mapToGlobal(body->rect().center()));
+    const QRect available = fixture.window.data()->screen()->availableGeometry();
+    expectedCard.moveLeft(qBound(available.left(), expectedCard.left(), qMax(available.left(), available.right() - expectedCard.width() + 1)));
+    expectedCard.moveTop(qBound(available.top(), expectedCard.top(), qMax(available.top(), available.bottom() - expectedCard.height() + 1)));
+    const QPoint bodyCenter = expectedCard.center();
+    QVERIFY2((cardCenter - bodyCenter).manhattanLength() <= 2, qPrintable(QStringLiteral("%1 %2 / %3 %4").arg(cardCenter.x()).arg(cardCenter.y()).arg(bodyCenter.x()).arg(bodyCenter.y())));
+
+    // Pixels: the top bar is not dimmed, the body is
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        QCoreApplication::processEvents();
+        const QImage image = fixture.window->grab().toImage();
+        const QImage topBar = fixture.window->getTopBar()->grab().toImage();
+        const QPoint probe(fixture.window->getTopBar()->width() / 2, 2);
+        QCOMPARE(image.pixelColor(probe), topBar.pixelColor(probe));
+        const QColor canvas = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas);
+        const QColor dimmed = image.pixelColor(body->mapTo(fixture.window.data(), QPoint(body->width() - 4, body->height() / 2)));
+        QVERIFY2(colorDistance(dimmed, canvas) > 8, qPrintable(dimmed.name()));
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // Closed: the scrim is gone; the window deleted while a message is shown
+    box->close();
+    QTRY_VERIFY(body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size() == body->findChildren<pdf::PDFAppTab*>(Qt::FindDirectChildrenOnly).size());
+    dropMissing();
+    QTRY_VERIFY(fixture.window->findChild<pdf::PDFMessageBox*>(QStringLiteral("messageBox")));
+    delete fixture.window.data();
+    QVERIFY(!fixture.window);
 }
 
 void AppNavigationTest::bannerLayoutOfPage()

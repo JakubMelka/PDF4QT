@@ -22,6 +22,7 @@
 
 #include "pdftexteditpseudowidget.h"
 #include "pdfpainterutils.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QStyle>
 #include <QKeyEvent>
@@ -665,7 +666,8 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         parameters.boundingRectangle = parameters.annotation->getRectangle();
     }
 
-    QPalette palette = QApplication::palette();
+    // Selection colors of the application (PDFDrawWidgetProxy::setViewColors) or of its palette
+    const PDFViewColors viewColors = PDFViewColors::getColors(parameters.formManager);
     QPainter* painter = parameters.painter;
 
     if (edit)
@@ -688,8 +690,8 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         painter->setFont(m_textLayout.font());
 
         QColor textColor = parameters.colorConvertor.convert(m_textColor, false, true);
-        QColor highlightTextColor = parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true);
-        QColor highlightColor = parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false);
+        QColor highlightTextColor = parameters.colorConvertor.convert(viewColors.selectionText, false, true);
+        QColor highlightColor = parameters.colorConvertor.convert(viewColors.selection, false, false);
 
         std::vector<int> positions = getCursorPositions();
         for (size_t i = 1; i < positions.size(); ++i)
@@ -757,8 +759,8 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
             QTextLayout::FormatRange selectedFormat = defaultFormat;
             selectedFormat.start = m_selectionStart;
             selectedFormat.length = getSelectionLength();
-            selectedFormat.format.setForeground(QBrush(parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true), Qt::SolidPattern));
-            selectedFormat.format.setBackground(QBrush(parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false), Qt::SolidPattern));
+            selectedFormat.format.setForeground(QBrush(parameters.colorConvertor.convert(viewColors.selectionText, false, true), Qt::SolidPattern));
+            selectedFormat.format.setBackground(QBrush(parameters.colorConvertor.convert(viewColors.selection, false, false), Qt::SolidPattern));
 
             selections = { before, selectedFormat, after};
         }

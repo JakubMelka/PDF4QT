@@ -425,6 +425,8 @@ private slots:
     void popupShowAllPressedOutside();
     void popupKeysWithoutPopup();
     void popupPressOnWindow();
+    void popupEventsOnce();
+    void preparedDocumentFields();
     void pageDeletedByRouteReplaced();
     void controllerEdgeCases();
 
@@ -3462,6 +3464,162 @@ void AppSearchTest::popupKeysWithoutPopup()
         QVERIFY(!controller->isPopupOpen());
         QVERIFY(!controller->isSearchPending());
         QCOMPARE(fixture.field()->text(), QStringLiteral("merge"));
+    }
+}
+
+void AppSearchTest::popupEventsOnce()
+{
+    // While the popup is open, the controller filters the field and its window, and
+    // a filter of the application of its own takes only the presses outside: an
+    // event of the field reaches the controller once (a change of the language
+    // searched twice). The files of Recent are read and normalized once per
+    // opening of the popup, not for each typed text.
+    SearchFixture fixture;
+    const QString document = QDir::temp().filePath(QStringLiteral("pdf4qt-search-test/Quarterly report.pdf"));
+    fixture.addRecent({ document, QDir::temp().filePath(QStringLiteral("pdf4qt-search-test/Other.pdf")) });
+    fixture.type(QStringLiteral("quarterly"));
+    pdf::PDFAppSearchController* controller = fixture.controller();
+    QVERIFY(controller->isPopupOpen());
+    QCOMPARE(controller->getDataLoadCount(), 1);
+    const int searches = controller->getSearchCount();
+    QVERIFY(searches >= 1);
+    QString key;
+    for (const pdf::PDFRecentFile& file : fixture.context->getRecent().getFiles())
+    {
+        key = file.path.contains(QStringLiteral("Quarterly")) ? file.path : key;
+    }
+    QVERIFY(!key.isEmpty());
+    QVERIFY(controller->getPopup()->getResults().findResult(pdf::PDFAppSearchGroup::Documents, key));
+
+    // A change of the language searches once
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(fixture.field(), &languageChange);
+    QCOMPARE(controller->getSearchCount(), searches + 1);
+
+    // A pending search is done once
+    QTest::keyClicks(fixture.field(), QStringLiteral(" rep"));
+    QVERIFY(controller->isSearchPending());
+    QCOMPARE(controller->getSearchCount(), searches + 1);
+    controller->updateSearch();
+    QCOMPARE(controller->getSearchCount(), searches + 2);
+    QCOMPARE(controller->getPopup()->getResults().getCount(pdf::PDFAppSearchGroup::Documents), 1);
+
+    // More typing uses the data read at the opening
+    for (int i = 0; i < 5; ++i)
+    {
+        QTest::keyClick(fixture.field(), Qt::Key_Backspace);
+        controller->updateSearch();
+    }
+    QCOMPARE(controller->getDataLoadCount(), 1);
+    QCOMPARE(controller->getSearchCount(), searches + 7);
+
+    // A key, which the controller does not take (Up in the open popup is taken, Left
+    // is not), goes on to the field once: the cursor moves by one character
+    fixture.field()->end(false);
+    const int cursor = fixture.field()->cursorPosition();
+    QTest::keyClick(fixture.field(), Qt::Key_Left);
+    QCOMPARE(fixture.field()->cursorPosition(), cursor - 1);
+    QVERIFY(controller->isPopupOpen());
+
+    // A resize of the window places the popup once more below the field (the popup
+    // stays below the field), a press outside closes it once
+    fixture.window->resize(1300, 900);
+    SearchFixture::settle();
+    QVERIFY(controller->isPopupOpen());
+    QWidget* popup = controller->getPopup();
+    const QPoint fieldBottom = fixture.field()->mapTo(fixture.window.data(), QPoint(0, fixture.field()->height()));
+    QVERIFY2(qAbs(popup->geometry().top() - fieldBottom.y()) <= 20, qPrintable(QStringLiteral("%1 / %2").arg(popup->geometry().top()).arg(fieldBottom.y())));
+    QWidget* header = fixture.homeTab()->getHeader()->getTitleLabel();
+    QTest::mousePress(header, Qt::LeftButton, Qt::NoModifier, QPoint(2, 2));
+    QTest::mouseRelease(header, Qt::LeftButton, Qt::NoModifier, QPoint(2, 2));
+    QVERIFY(!controller->isPopupOpen());
+
+    // The next opening reads the data again (never stale data)
+    fixture.type(QStringLiteral("other"));
+    QVERIFY(controller->isPopupOpen());
+    QCOMPARE(controller->getDataLoadCount(), 2);
+    controller->closePopup();
+}
+
+void AppSearchTest::preparedDocumentFields()
+{
+    // The fields of a search item are normalized once (PDFSearchField::prepare); a
+    // prepared field matches as an unprepared one, a field of other texts is split
+    pdf::PDFSearchField field({ QStringLiteral("Quarterly Report"), QStringLiteral("Čtvrtletní zpráva") }, 100, 90, 60, true);
+    QVERIFY(!field.isPrepared());
+    field.prepare();
+    QVERIFY(field.isPrepared());
+    QCOMPARE(field.words.size(), size_t(2));
+    QCOMPARE(field.words[0], QStringList({ QStringLiteral("quarterly"), QStringLiteral("report") }));
+    QCOMPARE(field.words[1], pdf::PDFSearchQuery::splitWords(QStringLiteral("Čtvrtletní zpráva")));
+    pdf::PDFSearchField unprepared({ QStringLiteral("Quarterly Report"), QStringLiteral("Čtvrtletní zpráva") }, 100, 90, 60, true);
+    for (const QString& text : { QStringLiteral("quarterly"), QStringLiteral("report quart"), QStringLiteral("ctvrtletni"), QStringLiteral("quartrely"), QStringLiteral("missing"), QStringLiteral("quarterly report") })
+    {
+        const pdf::PDFSearchQuery query(text);
+        const std::optional<pdf::PDFSearchFieldMatch> prepared = query.match({ field });
+        const std::optional<pdf::PDFSearchFieldMatch> plain = query.match({ unprepared });
+        QCOMPARE(prepared.has_value(), plain.has_value());
+        if (prepared)
+        {
+            QCOMPARE(prepared->score, plain->score);
+            QCOMPARE(prepared->weakestField, plain->weakestField);
+            QCOMPARE(prepared->weakestText, plain->weakestText);
+        }
+    }
+
+    // A field changed after its preparation (other count of the texts) is split again
+    field.texts << QStringLiteral("Extra");
+    QVERIFY(!field.isPrepared());
+    QVERIFY(pdf::PDFSearchQuery(QStringLiteral("extra")).match({ field }).has_value());
+
+    // The data of the context prepare the files of Recent; data filled by hand
+    // (not prepared, or prepared for other files) give the same results
+    SearchFixture fixture;
+    QStringList paths;
+    for (int i = 0; i < 40; ++i)
+    {
+        paths << QDir::temp().filePath(QStringLiteral("pdf4qt-search-test/Folder %1/Report %2.pdf").arg(i % 4).arg(i));
+    }
+    fixture.addRecent(paths);
+    const pdf::PDFAppSearchData data = pdf::PDFAppSearchData::load(fixture.context.get());
+    QVERIFY(data.recentFiles.size() >= 10);
+    QCOMPARE(data.documentFields.size(), data.recentFiles.size());
+    for (const std::vector<pdf::PDFSearchField>& fields : data.documentFields)
+    {
+        QCOMPARE(fields.size(), size_t(2));
+        QVERIFY(fields[0].isPrepared() && fields[1].isPrepared());
+        QVERIFY(fields[0].isTitle);
+    }
+
+    pdf::PDFAppSearchData plain;
+    plain.recentFiles = data.recentFiles;
+    pdf::PDFAppSearchData stale;
+    stale.recentFiles = data.recentFiles;
+    stale.prepareDocuments();
+    stale.documentFields.resize(3);
+    pdf::PDFAppSearchData prepared;
+    prepared.recentFiles = data.recentFiles;
+    prepared.prepareDocuments();
+    QCOMPARE(prepared.documentFields.size(), data.recentFiles.size());
+
+    const pdf::PDFAppSearchEngine engine;
+    for (const QString& text : { QStringLiteral("report 3"), QStringLiteral("folder 2"), QStringLiteral("reprot"), QStringLiteral("pdf4qt search"), QStringLiteral("none at all") })
+    {
+        const pdf::PDFAppSearchResults first = engine.search(text, prepared);
+        for (const pdf::PDFAppSearchData* other : { static_cast<const pdf::PDFAppSearchData*>(&plain), static_cast<const pdf::PDFAppSearchData*>(&stale), &data })
+        {
+            const pdf::PDFAppSearchResults second = engine.search(text, *other);
+            QCOMPARE(second.getCount(pdf::PDFAppSearchGroup::Documents), first.getCount(pdf::PDFAppSearchGroup::Documents));
+            const pdf::PDFAppSearchGroupResults* firstGroup = first.getGroup(pdf::PDFAppSearchGroup::Documents);
+            const pdf::PDFAppSearchGroupResults* secondGroup = second.getGroup(pdf::PDFAppSearchGroup::Documents);
+            QVERIFY(firstGroup && secondGroup);
+            QCOMPARE(secondGroup->results.size(), firstGroup->results.size());
+            for (size_t i = 0; i < firstGroup->results.size(); ++i)
+            {
+                QCOMPARE(secondGroup->results[i].key, firstGroup->results[i].key);
+                QCOMPARE(secondGroup->results[i].score, firstGroup->results[i].score);
+            }
+        }
     }
 }
 

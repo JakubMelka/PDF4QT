@@ -72,20 +72,26 @@ public:
     /// Default limit of the entries of one folder, which are enumerated
     static constexpr int DEFAULT_MAXIMUM_ENTRIES = 10000;
 
-    /// Most requests, which are pending at once (further ones are ignored)
+    /// Most requests, which are pending at once (further ones are refused, isFull)
     static constexpr int MAXIMUM_PENDING = 2000;
 
     explicit PDFAppFolderInfoService(QObject* parent = nullptr);
     virtual ~PDFAppFolderInfoService() override;
 
-    /// Requests the information about a folder (existence and the PDF count)
-    void requestFolderInfo(const QString& path);
+    /// Requests the information about a folder (existence and the PDF count).
+    /// \returns true, when the result will be delivered by infoReady (also for a
+    /// request merged with a running one); false for an invalid path or when
+    /// MAXIMUM_PENDING requests are pending (isFull - ask again later)
+    bool requestFolderInfo(const QString& path);
 
-    /// Requests only the existence of a path (a recent file)
-    void requestPathInfo(const QString& path);
+    /// Requests only the existence of a path (a recent file), see requestFolderInfo
+    bool requestPathInfo(const QString& path);
 
     /// Number of the requests, whose result has not been delivered yet
     int getPendingCount() const { return int(m_pending.size()); }
+
+    /// No further request is accepted now (MAXIMUM_PENDING requests are pending)
+    bool isFull() const { return m_pending.size() >= MAXIMUM_PENDING; }
 
     void setMaximumEntries(int maximumEntries);
     int getMaximumEntries() const;
@@ -111,7 +117,7 @@ Q_SIGNALS:
 private:
     friend class PDFAppFolderInfoTask;
 
-    void request(const QString& path, bool countPdfFiles);
+    bool request(const QString& path, bool countPdfFiles);
     void onResult(const pdf::PDFAppFolderInfo& info, bool countPdfFiles);
 
     std::shared_ptr<PDFAppFolderInfoShared> m_shared;

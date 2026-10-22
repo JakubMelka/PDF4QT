@@ -408,6 +408,12 @@ public:
     /// \returns true, if the annotation has been modified
     bool removeAnnotationPoint(PDFObjectReference annotation, size_t pointIndex);
 
+    /// Returns the action of the link under the position of the widget, which a
+    /// click would trigger (nullptr = none). The hover of the links is updated by
+    /// the mouse events of the manager: ask after the manager has processed the
+    /// last mouse move.
+    const PDFAction* getLinkActionAt(QPoint widgetPos) const { return getLinkActionAtPosition(widgetPos); }
+
 signals:
     void actionTriggered(const PDFAction* action);
     void documentModified(PDFModifiedDocument document);

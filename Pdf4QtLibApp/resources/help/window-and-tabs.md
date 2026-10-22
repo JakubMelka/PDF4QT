@@ -17,6 +17,13 @@ The window of PDF4QT has no title bar of the system. Its top bar holds the tabs,
 - **Help** (or **F1**) opens this user manual in a tab of its own. A window has at most one Help tab: the next topic opens in the same tab, and **Back** and **Forward** move between the topics you have read there. Links from the manual to other pages open them in the Home tab.
 - Drag a tab to change the order of the tabs.
 
+## Closing a tab and quitting
+
+- A document with unsaved changes asks **Save the changes to …?** when you close its tab: **Save** saves the file and closes the tab, **Don’t Save** closes it without the changes, **Cancel** keeps it open.
+- A tab, in which a save, printing or another long operation runs, asks whether to stop it: **Stop and Close** stops the operation and closes the tab, **Keep Running** keeps it.
+- When you close the window, the documents with unsaved changes are listed in **Save the changes before quitting?**: **Save All** saves them one by one and quits (a canceled or failed save keeps the window open), **Quit Without Saving** quits at once.
+- The documents open in the window, when it closes, are remembered with their pages: **Restore last session** on the page [Open](/open) opens them again, see [Workspaces and sessions](/help/workspaces).
+
 > [!NOTE] Links from New tab
 > A tab New tab shows only the page Open. Any other link in it (for example *View all*) switches to the Home tab and opens the page there.
 

@@ -30,6 +30,7 @@
 
 #include "pdfappcontext.h"
 #include "pdfappfolderinfo.h"
+#include "pdfappsysteminfo.h"
 #include "pdfappthumbnailer.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
@@ -61,6 +62,7 @@
 
 #include <atomic>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 
@@ -192,6 +194,39 @@ public:
             return false;
         }
         return file.setFileTime(time, QFileDevice::FileModificationTime);
+    }
+
+    /// PNG of a small picture
+    static QByteArray createPng(QSize size = QSize(4, 4))
+    {
+        QImage image(size, QImage::Format_RGB32);
+        image.fill(Qt::red);
+        QByteArray data;
+        QBuffer buffer(&data);
+        buffer.open(QIODevice::WriteOnly);
+        image.save(&buffer, "PNG");
+        return data;
+    }
+
+    /// PDF written by hand: the objects 1, 2, ... (object 1 is the catalog) with a
+    /// correct cross-reference table
+    static QByteArray createRawPdf(const QList<QByteArray>& objects)
+    {
+        QByteArray data = "%PDF-1.7\n";
+        QList<qint64> offsets;
+        for (qsizetype i = 0; i < objects.size(); ++i)
+        {
+            offsets << data.size();
+            data += QByteArray::number(i + 1) + " 0 obj\n" + objects[i] + "\nendobj\n";
+        }
+        const qint64 xref = data.size();
+        data += "xref\n0 " + QByteArray::number(objects.size() + 1) + "\n0000000000 65535 f \n";
+        for (qint64 offset : offsets)
+        {
+            data += QByteArray::number(offset).rightJustified(10, '0') + " 00000 n \n";
+        }
+        data += "trailer\n<< /Size " + QByteArray::number(objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n" + QByteArray::number(xref) + "\n%%EOF\n";
+        return data;
     }
 
     /// Opens a portable memory database
@@ -399,8 +434,25 @@ public:
     AppDataChild() = delete;
 
     /// --appdata-record <database file> <file>: records the file as opened
+    /// --appdata-thumbnail-crash <database file> <path>: the thumbnailer ends the
+    ///     process inside of the rendering (PDFAppThumbnailer::TEST_EXIT_CODE)
+    /// --appdata-sleep: waits (a running process of another instance), killed by the test
+    /// --appdata-exit: ends at once
     static int run(const QStringList& arguments)
     {
+        if (arguments.size() >= 2 && arguments[1] == QLatin1String("--appdata-exit"))
+        {
+            return 0;
+        }
+        if (arguments.size() >= 2 && arguments[1] == QLatin1String("--appdata-sleep"))
+        {
+            QThread::sleep(std::chrono::seconds(120));
+            return 0;
+        }
+        if (arguments.size() >= 4 && arguments[1] == QLatin1String("--appdata-thumbnail-crash"))
+        {
+            return runThumbnailCrash(arguments[2], arguments[3]);
+        }
         if (arguments.size() < 4 || arguments[1] != QLatin1String("--appdata-record"))
         {
             return 2;
@@ -417,6 +469,31 @@ public:
         const pdf::PDFDatabaseError error = repository.recordOpened(arguments[3]);
         database.close();
         return error.isError() ? 4 : 0;
+    }
+
+    static int runThumbnailCrash(const QString& databasePath, const QString& path)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        if (database.getState().mode != pdf::PDFDatabaseStorageMode::Disk)
+        {
+            return 3;
+        }
+
+        pdf::PDFAppThumbnailer thumbnailer(&database);
+        pdf::PDFAppThumbnailerOptions options;
+        options.testExitWhileRendering = true;
+        thumbnailer.setOptions(options);
+        thumbnailer.requestThumbnail(path);
+
+        // The worker ends the process; it must not come back
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < 60000)
+        {
+            QThread::msleep(20);
+        }
+        return 5;
     }
 };
 
@@ -474,6 +551,18 @@ private slots:
     void thumbnailerBusyDatabase();
     void devicePaths();
     void recentRowLimit();
+    void networkPaths_data();
+    void networkPaths();
+    void networkMountTable();
+    void processInfo();
+    void renderingMarkers();
+    void thumbnailerMarkerAlive();
+    void thumbnailerCrashLoop();
+    void thumbnailerLiveMarker();
+    void thumbnailerSweepErrors();
+    void thumbnailerImageLimit();
+    void thumbnailerReading();
+    void renameDeleted();
 };
 
 void AppDataTest::catalogTools()
@@ -2794,9 +2883,11 @@ void AppDataTest::thumbnailerStopCancelsRendering()
     fixture.thumbnailer->setOptions(options);
 
     // The worker has read the stored state (its connection), now it reads and renders
+    // (its rendering marker is written)
     const int connections = fixture.database->getConnectionCount();
     fixture.thumbnailer->requestThumbnail(path);
     QTRY_VERIFY_WITH_TIMEOUT(fixture.database->getConnectionCount() > connections, 10000 * factor);
+    QTRY_VERIFY_WITH_TIMEOUT(fixture.recent().getRenderingMarker(path).has_value(), 10000 * factor);
 
     QElapsedTimer timer;
     timer.start();
@@ -2805,6 +2896,9 @@ void AppDataTest::thumbnailerStopCancelsRendering()
     QVERIFY2(stopTime < readTime + (totalTime - readTime) / 2,
              qPrintable(QStringLiteral("stop %1 ms, reading %2 ms, reading and rendering %3 ms").arg(stopTime).arg(readTime).arg(totalTime)));
     QCOMPARE(fixture.recent().getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Pending);
+
+    // A stopped rendering is no crash: stop() has removed its marker
+    QVERIFY(fixture.recent().getRenderingMarkers().empty());
 }
 
 void AppDataTest::thumbnailerStoreError()
@@ -2937,9 +3031,16 @@ void AppDataTest::folderInfoPendingLimit()
     QSignalSpy spy(&service, &pdf::PDFAppFolderInfoService::infoReady);
     for (int i = 0; i < pdf::PDFAppFolderInfoService::MAXIMUM_PENDING + 10; ++i)
     {
-        service.requestPathInfo(directory.filePath(QStringLiteral("missing%1.pdf").arg(i)));
+        const bool isAccepted = service.requestPathInfo(directory.filePath(QStringLiteral("missing%1.pdf").arg(i)));
+        QCOMPARE(isAccepted, i < pdf::PDFAppFolderInfoService::MAXIMUM_PENDING);
     }
     QCOMPARE(service.getPendingCount(), pdf::PDFAppFolderInfoService::MAXIMUM_PENDING);
+    QVERIFY(service.isFull());
+
+    // A request merged with a pending one is accepted (its result comes), a folder refused
+    QVERIFY(service.requestPathInfo(directory.filePath(QStringLiteral("missing0.pdf"))));
+    QVERIFY(!service.requestFolderInfo(directory.path()));
+    QVERIFY(!service.requestPathInfo(QStringLiteral("relative.pdf")));
 
     QTRY_COMPARE_WITH_TIMEOUT(spy.count(), pdf::PDFAppFolderInfoService::MAXIMUM_PENDING, 30000 * AppDataTestHelper::getTimeoutFactor());
     QCOMPARE(service.getPendingCount(), 0);
@@ -3226,6 +3327,744 @@ void AppDataTest::recentRowLimit()
 
     // The newest ones are read
     QCOMPARE(fixture.recent().getFiles().front().path, QStringLiteral("/folder/file%1.pdf").arg(rowCount - 1));
+}
+
+void AppDataTest::networkPaths_data()
+{
+    QTest::addColumn<QString>("path");
+    QTest::addColumn<bool>("isNetwork");
+
+    // By the name alone (every system)
+    QTest::newRow("unc backslashes") << QStringLiteral("\\\\server\\share\\a.pdf") << true;
+    QTest::newRow("unc slashes") << QStringLiteral("//server/share/a.pdf") << true;
+    QTest::newRow("unc mixed") << QStringLiteral("\\/server/share") << true;
+    QTest::newRow("long unc") << QStringLiteral("\\\\?\\UNC\\server\\share\\a.pdf") << true;
+    QTest::newRow("device") << QStringLiteral("\\\\.\\PhysicalDrive0") << false;
+    QTest::newRow("long local") << QStringLiteral("\\\\?\\C:\\a.pdf") << false;
+    QTest::newRow("smb url") << QStringLiteral("smb://nas/docs/a.pdf") << true;
+    QTest::newRow("nfs url") << QStringLiteral("nfs://nas/export") << true;
+    QTest::newRow("sftp url") << QStringLiteral("sftp://host/home/a.pdf") << true;
+    QTest::newRow("dav+ url") << QStringLiteral("dav+sd://host/a.pdf") << true;
+    QTest::newRow("bad scheme") << QStringLiteral("1x://host/a.pdf") << false;
+    QTest::newRow("short scheme") << QStringLiteral("c://a.pdf") << false;
+    QTest::newRow("scheme with space") << QStringLiteral("a b://host") << false;
+    QTest::newRow("gvfs") << QStringLiteral("/run/user/1000/gvfs/smb-share:server=nas,share=docs/a.pdf") << true;
+    QTest::newRow("gvfs root") << QStringLiteral("/run/user/1000/gvfs") << true;
+    QTest::newRow("run user other") << QStringLiteral("/run/user/1000/doc/a.pdf") << false;
+    QTest::newRow("run user short") << QStringLiteral("/run/user/1000") << false;
+    QTest::newRow("local unix") << QStringLiteral("/home/user/a.pdf") << false;
+    QTest::newRow("local windows") << QStringLiteral("C:/Users/a.pdf") << false;
+    QTest::newRow("local backslashes") << QStringLiteral("C:\\Users\\a.pdf") << false;
+    QTest::newRow("empty") << QString() << false;
+    QTest::newRow("relative") << QStringLiteral("docs/a.pdf") << false;
+    // By the classifier of the test (mounts /mnt/nas, /media/user/My Share; remote drives Z, y)
+    QTest::newRow("mount") << QStringLiteral("/mnt/nas/a.pdf") << true;
+    QTest::newRow("mount itself") << QStringLiteral("/mnt/nas") << true;
+    QTest::newRow("mount prefix") << QStringLiteral("/mnt/nasty/a.pdf") << false;
+    QTest::newRow("mount dots") << QStringLiteral("/mnt/other/../nas/a.pdf") << true;
+    QTest::newRow("mount with space") << QStringLiteral("/media/user/My Share/a.pdf") << true;
+    QTest::newRow("remote drive") << QStringLiteral("Z:/docs/a.pdf") << true;
+    QTest::newRow("remote drive lower") << QStringLiteral("y:\\docs\\a.pdf") << true;
+    QTest::newRow("local drive") << QStringLiteral("D:/docs/a.pdf") << false;
+    QTest::newRow("non ascii drive") << QString(QChar(0x10D)) + QStringLiteral(":/a.pdf") << false;
+}
+
+void AppDataTest::networkPaths()
+{
+    QFETCH(QString, path);
+    QFETCH(bool, isNetwork);
+
+    std::vector<pdf::PDFAppMount> mounts(3);
+    mounts[0].mountPoint = QStringLiteral("/mnt/nas/");
+    mounts[0].fileSystemType = QStringLiteral("nfs4");
+    mounts[1].mountPoint = QStringLiteral("/media/user/My Share");
+    mounts[1].fileSystemType = QStringLiteral("cifs");
+    mounts[2].mountPoint = QString();
+    const pdf::PDFAppNetworkPaths classifier(mounts, QStringLiteral("Zy"));
+    QCOMPARE(int(classifier.getNetworkMounts().size()), 2);
+    QCOMPARE(classifier.getNetworkMounts().front().mountPoint, QStringLiteral("/media/user/My Share"));
+    QCOMPARE(classifier.isNetworkPath(path), isNetwork);
+}
+
+void AppDataTest::networkMountTable()
+{
+    // /proc/self/mountinfo: escapes, optional fields, the separator, malformed lines
+    const QByteArray text =
+        "22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n"
+        "36 22 0:40 / /mnt/nas rw,relatime shared:20 - nfs4 nas:/export rw,vers=4.2\n"
+        "37 22 0:41 / /media/user/My\\040Share rw - cifs //nas/share rw\n"
+        "38 22 0:42 / /home/user/remote rw,nosuid master:3 - fuse.sshfs user@host: rw\n"
+        "39 22 0:43 / /run/user/1000/gvfs rw - fuse.gvfsd-fuse gvfsd-fuse rw\n"
+        "40 22 0:44 / /mnt/c rw - 9p drvfs rw\n"
+        "41 22 0:45 / /mnt/tab\\011name rw - smb3 //x/y rw\n"
+        "42 22 0:46 / /mnt/bad\\9 rw - ceph a rw\n"
+        "43 22 0:47 / relative rw - nfs a rw\n"
+        "malformed line\n"
+        "44 22 0:48 / /mnt/nosep rw nfs a rw\n"
+        "45 22 0:49 / /mnt/end rw -\n"
+        "\n";
+    const std::vector<pdf::PDFAppMount> mounts = pdf::PDFAppNetworkPaths::parseMountInfo(text);
+    QStringList points;
+    for (const pdf::PDFAppMount& mount : mounts)
+    {
+        points << mount.mountPoint + QLatin1Char('|') + mount.fileSystemType;
+    }
+    QCOMPARE(points, QStringList({ QStringLiteral("/mnt/nas|nfs4"), QStringLiteral("/media/user/My Share|cifs"), QStringLiteral("/home/user/remote|fuse.sshfs"),
+                                   QStringLiteral("/run/user/1000/gvfs|fuse.gvfsd-fuse"), QStringLiteral("/mnt/tab\tname|smb3"), QDir::cleanPath(QStringLiteral("/mnt/bad\\9")) + QStringLiteral("|ceph") }));
+
+    QVERIFY(pdf::PDFAppNetworkPaths::isNetworkFileSystem(QStringLiteral("NFS")));
+    QVERIFY(pdf::PDFAppNetworkPaths::isNetworkFileSystem(QStringLiteral("fuse.rclone")));
+    QVERIFY(!pdf::PDFAppNetworkPaths::isNetworkFileSystem(QStringLiteral("9p")));
+    QVERIFY(!pdf::PDFAppNetworkPaths::isNetworkFileSystem(QStringLiteral("ext4")));
+    QVERIFY(!pdf::PDFAppNetworkPaths::isNetworkFileSystem(QString()));
+
+    // A network root: everything below "/" is on the network
+    std::vector<pdf::PDFAppMount> root(1);
+    root[0].mountPoint = QStringLiteral("/");
+    root[0].fileSystemType = QStringLiteral("nfs");
+    QVERIFY(pdf::PDFAppNetworkPaths(root, QString()).isNetworkPath(QStringLiteral("/home/a.pdf")));
+
+    // A huge table is read up to the limit of the lines
+    QByteArray huge;
+    for (int i = 0; i < pdf::PDFAppNetworkPaths::MAXIMUM_MOUNTS + 10; ++i)
+    {
+        huge += "1 1 0:1 / /mnt/n" + QByteArray::number(i) + " rw - nfs a rw\n";
+    }
+    QCOMPARE(int(pdf::PDFAppNetworkPaths::parseMountInfo(huge).size()), pdf::PDFAppNetworkPaths::MAXIMUM_MOUNTS);
+
+    // The classifier of the system: the temporary folder of the test is local
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const pdf::PDFAppNetworkPaths system;
+    QVERIFY(!system.isNetworkPath(QDir::fromNativeSeparators(directory.path())));
+    QVERIFY(!system.isNetworkPath(QString()));
+    QVERIFY(system.isNetworkPath(QStringLiteral("//server/share")));
+#if defined(Q_OS_WIN)
+    // A drive, which does not exist, is no network drive (twice: the cached answer)
+    for (int i = 0; i < 2; ++i)
+    {
+        bool isAnyRemote = false;
+        for (char letter = 'A'; letter <= 'Z'; ++letter)
+        {
+            isAnyRemote = system.isNetworkPath(QString(QLatin1Char(letter)) + QStringLiteral(":/a.pdf")) || isAnyRemote;
+        }
+        Q_UNUSED(isAnyRemote);
+    }
+    QVERIFY(!system.isNetworkPath(QDir::fromNativeSeparators(QDir::tempPath())));
+#endif
+}
+
+void AppDataTest::processInfo()
+{
+    QVERIFY(pdf::PDFAppProcessInfo::isProcessRunning(QCoreApplication::applicationPid()));
+    QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(0));
+    QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(-5));
+    QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(std::numeric_limits<qint64>::max()));
+
+    // A child, which has ended
+    QProcess process;
+    process.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-exit") });
+    QVERIFY(process.waitForStarted(30000));
+    const qint64 processId = process.processId();
+    QVERIFY(process.waitForFinished(30000));
+    QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(processId));
+}
+
+void AppDataTest::renderingMarkers()
+{
+    DataFixture fixture;
+    const QString path = fixture.createFile(QStringLiteral("a.pdf"));
+    QVERIFY(!fixture.recent().recordOpened(path).isError());
+
+    // The table exists (version 4), it has no triggers: a marker is no notification
+    QVERIFY(pdf::PDFDatabaseSchema::getCurrentVersion() >= 4);
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'thumbnail_rendering'"), qint64(0));
+    const qint64 logBefore = AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM change_log");
+
+    pdf::PDFThumbnailRenderingMarker marker;
+    marker.path = path;
+    marker.fileModified = 10;
+    marker.instance = QStringLiteral("first");
+    marker.processId = 1234;
+    marker.started = 99;
+
+    bool written = false;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(written);
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM change_log"), logBefore);
+
+    // A second marker of the file is not written (another instance renders it)
+    pdf::PDFThumbnailRenderingMarker second = marker;
+    second.instance = QStringLiteral("second");
+    QVERIFY(!fixture.recent().beginRendering(second, &written).isError());
+    QVERIFY(!written);
+    QVERIFY(!fixture.recent().beginRendering(second, nullptr).isError());
+
+    std::optional<pdf::PDFThumbnailRenderingMarker> stored = fixture.recent().getRenderingMarker(path);
+    QVERIFY(stored);
+    QCOMPARE(stored->instance, QStringLiteral("first"));
+    QCOMPARE(stored->fileModified, qint64(10));
+    QCOMPARE(stored->processId, qint64(1234));
+    QCOMPARE(stored->started, qint64(99));
+    QCOMPARE(int(fixture.recent().getRenderingMarkers().size()), 1);
+    QVERIFY(!fixture.recent().getRenderingMarker(QStringLiteral("relative.pdf")));
+    QVERIFY(!fixture.recent().getRenderingMarker(fixture.directory.filePath(QStringLiteral("other.pdf"))));
+
+    // Invalid markers are refused
+    for (int i = 0; i < 5; ++i)
+    {
+        pdf::PDFThumbnailRenderingMarker invalid = marker;
+        switch (i)
+        {
+            case 0: invalid.path = QStringLiteral("relative.pdf"); break;
+            case 1: invalid.instance.clear(); break;
+            case 2: invalid.instance = QString(pdf::PDFRecentRepository::MAXIMUM_INSTANCE_LENGTH + 1, QLatin1Char('i')); break;
+            case 3: invalid.fileModified = -1; break;
+            default: invalid.processId = 0; break;
+        }
+        QVERIFY(fixture.recent().beginRendering(invalid, &written).isError());
+        QVERIFY(!written);
+    }
+    QVERIFY(fixture.recent().endRendering(QStringLiteral("relative.pdf"), QStringLiteral("first")).isError());
+    QVERIFY(fixture.recent().failRendering(pdf::PDFThumbnailRenderingMarker()).isError());
+
+    // The end of another instance does not remove it, the own end does
+    QVERIFY(!fixture.recent().endRendering(path, QStringLiteral("second")).isError());
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    QVERIFY(!fixture.recent().endRendering(path, QStringLiteral("first")).isError());
+    QVERIFY(!fixture.recent().getRenderingMarker(path));
+
+    // A crashed rendering: Failed with the time of its file, the marker is removed
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    bool failed = false;
+    pdf::PDFThumbnailRenderingMarker replaced = marker;
+    replaced.started = 100;
+    QVERIFY(!fixture.recent().failRendering(replaced, &failed).isError());
+    QVERIFY(!failed);
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    QVERIFY(!fixture.recent().failRendering(marker, &failed).isError());
+    QVERIFY(failed);
+    QVERIFY(!fixture.recent().getRenderingMarker(path));
+    QCOMPARE(fixture.recent().getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Failed);
+    QCOMPARE(fixture.recent().getFile(path)->thumbnailModified, qint64(10));
+    QVERIFY(!fixture.recent().getFile(path)->hasThumbnail);
+
+    // A result of the same version stored before the crash is kept
+    QVERIFY(!fixture.recent().setThumbnail(path, AppDataTestHelper::createPng(), 20, pdf::PDFRecentThumbnailState::Ready, 3).isError());
+    marker.fileModified = 20;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(!fixture.recent().failRendering(marker, &failed).isError());
+    QVERIFY(!failed);
+    QCOMPARE(fixture.recent().getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Ready);
+    QVERIFY(!fixture.recent().getRenderingMarker(path));
+
+    // A marker of a file removed from the list: removed, nothing is written
+    const QString removed = fixture.createFile(QStringLiteral("removed.pdf"));
+    QVERIFY(!fixture.recent().recordOpened(removed).isError());
+    pdf::PDFThumbnailRenderingMarker orphan = marker;
+    orphan.path = removed;
+    QVERIFY(!fixture.recent().beginRendering(orphan, &written).isError());
+    QVERIFY(!fixture.recent().removeFile(removed).isError());
+    QVERIFY(!fixture.recent().failRendering(orphan, &failed).isError());
+    QVERIFY(!failed);
+    QVERIFY(fixture.recent().getRenderingMarkers().empty());
+
+    // Hostile rows: wrong types, invalid paths, an oversized instance are skipped
+    // or bounded; nothing crashes
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES ('relative.pdf', 1, 'x', 1, 1);"
+        "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES ('/hostile/a.pdf', 'x', 'x', 1, 1);"
+        "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES ('/hostile/b.pdf', 5, zeroblob(10), 'pid', 'started');"
+        "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES (x'00', 5, 'x', 1, 1);"));
+    const std::vector<pdf::PDFThumbnailRenderingMarker> hostile = fixture.recent().getRenderingMarkers();
+    QCOMPARE(int(hostile.size()), 1);
+    QCOMPARE(hostile.front().path, QStringLiteral("/hostile/b.pdf"));
+    QCOMPARE(hostile.front().processId, qint64(0));
+    QVERIFY(hostile.front().instance.isEmpty());
+
+    // Errors of the database are returned
+    QVERIFY(AppDataFault::abortWrites(fixture.database.get(), QStringLiteral("INSERT"), QStringLiteral("thumbnail_rendering")));
+    QVERIFY(fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "DROP TRIGGER temp.fault_abort"));
+    QVERIFY(AppDataFault::abortWrites(fixture.database.get(), QStringLiteral("DELETE"), QStringLiteral("thumbnail_rendering")));
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(fixture.recent().endRendering(path, marker.instance).isError());
+    QVERIFY(fixture.recent().failRendering(marker).isError());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "DROP TRIGGER temp.fault_abort"));
+
+    // A marker of another version of the file (the file row is changed by failRendering)
+    QVERIFY(!fixture.recent().endRendering(path, marker.instance).isError());
+    marker.fileModified = 30;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(written);
+    QVERIFY(AppDataFault::abortWrites(fixture.database.get(), QStringLiteral("UPDATE"), QStringLiteral("recent_file")));
+    QVERIFY(fixture.recent().failRendering(marker).isError());
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    QVERIFY(AppDataFault::clear(fixture.database.get()));
+    QVERIFY(AppDataFault::failCommit(fixture.database.get(), QStringLiteral("recent_file")));
+    QVERIFY(fixture.recent().failRendering(marker).isError());
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    QVERIFY(AppDataFault::clear(fixture.database.get()));
+    QVERIFY(AppDataFault::failReads(fixture.database.get(), QStringLiteral("thumbnail_rendering")));
+    QVERIFY(!fixture.recent().getRenderingMarker(path));
+    QVERIFY(fixture.recent().getRenderingMarkers().empty());
+    QVERIFY(fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(fixture.recent().endRendering(path, marker.instance).isError());
+    QVERIFY(fixture.recent().failRendering(marker).isError());
+}
+
+void AppDataTest::thumbnailerMarkerAlive()
+{
+    const qint64 now = 1000000;
+    pdf::PDFThumbnailRenderingMarker marker;
+    marker.processId = QCoreApplication::applicationPid();
+    marker.started = now - 10;
+    QVERIFY(pdf::PDFAppThumbnailer::isMarkerAlive(marker, now, 1000));
+    marker.started = now - 1000;
+    QVERIFY(!pdf::PDFAppThumbnailer::isMarkerAlive(marker, now, 1000));
+    marker.started = now + 999;
+    QVERIFY(pdf::PDFAppThumbnailer::isMarkerAlive(marker, now, 1000));
+    marker.started = now + 1000;
+    QVERIFY(!pdf::PDFAppThumbnailer::isMarkerAlive(marker, now, 1000));
+    marker.started = now;
+    marker.processId = 0;
+    QVERIFY(!pdf::PDFAppThumbnailer::isMarkerAlive(marker, now, 1000));
+
+    pdf::PDFAppThumbnailer first(nullptr);
+    pdf::PDFAppThumbnailer second(nullptr);
+    QVERIFY(!first.getInstanceId().isEmpty());
+    QVERIFY(first.getInstanceId().size() <= pdf::PDFRecentRepository::MAXIMUM_INSTANCE_LENGTH);
+    QVERIFY(first.getInstanceId() != second.getInstanceId());
+
+    pdf::PDFAppThumbnailerOptions options;
+    options.maximumImagePixels = -5;
+    options.markerLifetime = -5;
+    first.setOptions(options);
+    QCOMPARE(first.getOptions().maximumImagePixels, qint64(1));
+    QCOMPARE(first.getOptions().markerLifetime, qint64(0));
+}
+
+void AppDataTest::thumbnailerCrashLoop()
+{
+    // A document, whose rendering ends the process (the child process ends inside of
+    // the rendering), is not rendered again: Failed until the file changes
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const int timeout = 60000 * AppDataTestHelper::getTimeoutFactor();
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    const QString filePath = directory.filePath(QStringLiteral("crash.pdf"));
+    QVERIFY(AppDataTestHelper::createPdf(filePath, 2));
+    const QString otherPath = directory.filePath(QStringLiteral("other.pdf"));
+    QVERIFY(AppDataTestHelper::createPdf(otherPath, 1));
+
+    pdf::PDFDatabase database;
+    database.open(AppDataTestHelper::createFileOptions(databasePath));
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    pdf::PDFRecentRepository recent(&database, nullptr);
+    QString path;
+    QString other;
+    QVERIFY(!recent.recordOpened(filePath, &path).isError());
+    QVERIFY(!recent.recordOpened(otherPath, &other).isError());
+
+    for (int run = 0; run < 2; ++run)
+    {
+        QProcess process;
+        process.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-thumbnail-crash"), databasePath, path });
+        QVERIFY(process.waitForFinished(timeout));
+        QCOMPARE(process.exitCode(), pdf::PDFAppThumbnailer::TEST_EXIT_CODE);
+
+        // The marker of the dead process is left, nothing else is written
+        std::optional<pdf::PDFThumbnailRenderingMarker> marker = recent.getRenderingMarker(path);
+        QVERIFY(marker);
+        QCOMPARE(marker->fileModified, QFileInfo(path).lastModified(QTimeZone::UTC).toMSecsSinceEpoch());
+        QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(marker->processId));
+        QCOMPARE(recent.getFile(path)->thumbnailState, run == 0 ? pdf::PDFRecentThumbnailState::Pending : pdf::PDFRecentThumbnailState::Ready);
+
+        pdf::PDFAppThumbnailer thumbnailer(&database);
+        QSignalSpy finished(&thumbnailer, &pdf::PDFAppThumbnailer::thumbnailFinished);
+        if (run == 0)
+        {
+            // The next start requests the file: Failed without a rendering (the worker
+            // has resolved the marker at its start, the request finds it up to date)
+            thumbnailer.requestThumbnail(path);
+            QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, timeout);
+            QCOMPARE(finished.first().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Failed);
+        }
+        else
+        {
+            // The worker resolves the markers at its start (a request of another file)
+            thumbnailer.requestThumbnail(other);
+            QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, timeout);
+            QCOMPARE(finished.first().at(0).toString(), other);
+        }
+        QVERIFY(!recent.getRenderingMarker(path));
+        QCOMPARE(recent.getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Failed);
+        QCOMPARE(recent.getFile(path)->thumbnailModified, marker->fileModified);
+        QCOMPARE(recent.getFile(path)->pageCount, run == 0 ? -1 : 2);
+        QVERIFY(!recent.getFile(path)->hasThumbnail);
+
+        // No retry loop: the next request finds it up to date
+        thumbnailer.requestThumbnail(path);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, timeout);
+        QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Failed);
+        QVERIFY(!finished.last().at(2).toBool());
+
+        // The file changes: it is rendered again
+        QVERIFY(AppDataTestHelper::setModified(path, QDateTime::currentDateTimeUtc().addSecs(60 * (run + 1))));
+        if (run == 0)
+        {
+            thumbnailer.requestThumbnail(path);
+            QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 3, timeout);
+            QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Ready);
+            QCOMPARE(recent.getFile(path)->pageCount, 2);
+            QVERIFY(recent.getRenderingMarkers().empty());
+            QVERIFY(AppDataTestHelper::setModified(path, QDateTime::currentDateTimeUtc().addSecs(30)));
+        }
+    }
+
+    // A crash of an older version of the file, met by a request (after the start of
+    // the worker): the marker is removed, the current version is rendered
+    {
+        pdf::PDFAppThumbnailer thumbnailer(&database);
+        QSignalSpy finished(&thumbnailer, &pdf::PDFAppThumbnailer::thumbnailFinished);
+        thumbnailer.requestThumbnail(other);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, timeout);
+
+        pdf::PDFThumbnailRenderingMarker old;
+        old.path = path;
+        old.fileModified = 5;
+        old.instance = QStringLiteral("crashed");
+        old.processId = std::numeric_limits<qint32>::max() - 7;
+        old.started = QDateTime::currentMSecsSinceEpoch();
+        bool written = false;
+        QVERIFY(!recent.beginRendering(old, &written).isError());
+        QVERIFY(written);
+
+        thumbnailer.requestThumbnail(path);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, timeout);
+        QVERIFY(recent.getRenderingMarkers().empty());
+        QCOMPARE(recent.getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Ready);
+    }
+    database.close();
+}
+
+void AppDataTest::thumbnailerLiveMarker()
+{
+    // A marker of another running instance is no crash: the file is skipped (that
+    // instance stores the result); an old one or one of an ended process is a crash
+    ThumbnailFixture fixture;
+    const int timeout = 30000 * AppDataTestHelper::getTimeoutFactor();
+    const QString path = fixture.createRecordedPdf(QStringLiteral("shared.pdf"), 1);
+    QVERIFY(!path.isEmpty());
+    const qint64 fileModified = QFileInfo(path).lastModified(QTimeZone::UTC).toMSecsSinceEpoch();
+
+    QProcess sleeper;
+    sleeper.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-sleep") });
+    QVERIFY(sleeper.waitForStarted(30000));
+
+    pdf::PDFThumbnailRenderingMarker marker;
+    marker.path = path;
+    marker.fileModified = fileModified;
+    marker.instance = QStringLiteral("other-instance");
+    marker.processId = sleeper.processId();
+    marker.started = QDateTime::currentMSecsSinceEpoch();
+    bool written = false;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(written);
+
+    QSignalSpy finished(fixture.thumbnailer.get(), &pdf::PDFAppThumbnailer::thumbnailFinished);
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, timeout);
+    QCOMPARE(finished.first().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Pending);
+    QVERIFY(!finished.first().at(2).toBool());
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    QCOMPARE(fixture.recent().getFile(path)->thumbnailState, pdf::PDFRecentThumbnailState::Pending);
+
+    // The same marker older than the lifetime: the rendering hangs or has crashed
+    pdf::PDFAppThumbnailerOptions options;
+    options.markerLifetime = 60000;
+    fixture.thumbnailer->setOptions(options);
+    QVERIFY(!fixture.recent().endRendering(path, marker.instance).isError());
+    marker.started = QDateTime::currentMSecsSinceEpoch() - 120000;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 2, timeout);
+    QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Failed);
+    QVERIFY(finished.last().at(2).toBool());
+    QVERIFY(!fixture.recent().getRenderingMarker(path));
+
+    // A fresh marker of a process, which has ended (the sleeper is killed)
+    QVERIFY(AppDataTestHelper::setModified(path, QDateTime::currentDateTimeUtc().addSecs(60)));
+    const qint64 changedModified = QFileInfo(path).lastModified(QTimeZone::UTC).toMSecsSinceEpoch();
+    sleeper.kill();
+    QVERIFY(sleeper.waitForFinished(30000));
+    marker.fileModified = changedModified;
+    marker.started = QDateTime::currentMSecsSinceEpoch();
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 3, timeout);
+    QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Failed);
+    QCOMPARE(fixture.recent().getFile(path)->thumbnailModified, changedModified);
+
+    // The own marker, which was left (a busy database at the end): the file is rendered
+    QVERIFY(AppDataTestHelper::setModified(path, QDateTime::currentDateTimeUtc().addSecs(120)));
+    marker.instance = fixture.thumbnailer->getInstanceId();
+    marker.fileModified = QFileInfo(path).lastModified(QTimeZone::UTC).toMSecsSinceEpoch();
+    marker.processId = QCoreApplication::applicationPid();
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 4, timeout);
+    QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Ready);
+    QVERIFY(fixture.recent().getRenderingMarkers().empty());
+
+    // The database refuses the marker: the file is not rendered (never without a marker)
+    QVERIFY(AppDataTestHelper::setModified(path, QDateTime::currentDateTimeUtc().addSecs(180)));
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "CREATE TRIGGER fault_marker BEFORE INSERT ON thumbnail_rendering "
+                                                               "BEGIN SELECT RAISE(ABORT, 'injected fault'); END"));
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 5, timeout);
+    QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Pending);
+    QVERIFY(!finished.last().at(2).toBool());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "DROP TRIGGER fault_marker"));
+
+    // The marker cannot be removed after the rendering: a warning, the result is stored
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "CREATE TRIGGER fault_marker BEFORE DELETE ON thumbnail_rendering "
+                                                               "BEGIN SELECT RAISE(ABORT, 'injected fault'); END"));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The rendering marker of .*shared\\.pdf cannot be removed: .*injected fault")));
+    fixture.thumbnailer->requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 6, timeout);
+    QCOMPARE(finished.last().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Ready);
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+
+    // stop() tries to remove it too (its warning), the marker of a crashed process stays
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The rendering marker of .*shared\\.pdf cannot be removed: .*injected fault")));
+    fixture.thumbnailer->stop();
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "DROP TRIGGER fault_marker"));
+}
+
+void AppDataTest::thumbnailerSweepErrors()
+{
+    // A marker, which cannot be resolved at the start (the database refuses it): a warning
+    DataFixture fixture;
+    const QString path = fixture.createFile(QStringLiteral("a.pdf"));
+    QVERIFY(!fixture.recent().recordOpened(path).isError());
+    pdf::PDFThumbnailRenderingMarker marker;
+    marker.path = path;
+    marker.fileModified = 1;
+    marker.instance = QStringLiteral("dead");
+    marker.processId = std::numeric_limits<qint32>::max() - 3;
+    marker.started = 0;
+    bool written = false;
+    QVERIFY(!fixture.recent().beginRendering(marker, &written).isError());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "CREATE TRIGGER fault_sweep BEFORE DELETE ON thumbnail_rendering "
+                                                               "BEGIN SELECT RAISE(ABORT, 'injected fault'); END"));
+
+    pdf::PDFAppThumbnailer thumbnailer(fixture.database.get());
+    QSignalSpy finished(&thumbnailer, &pdf::PDFAppThumbnailer::thumbnailFinished);
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The rendering marker of .*a\\.pdf cannot be resolved: .*injected fault")));
+    thumbnailer.requestThumbnail(path);
+    QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 30000 * AppDataTestHelper::getTimeoutFactor());
+
+    // The request itself meets the same marker: the file is skipped, nothing is rendered
+    QCOMPARE(finished.first().at(1).value<pdf::PDFRecentThumbnailState>(), pdf::PDFRecentThumbnailState::Pending);
+    QVERIFY(fixture.recent().getRenderingMarker(path));
+    thumbnailer.stop();
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "DROP TRIGGER fault_sweep"));
+}
+
+void AppDataTest::thumbnailerImageLimit()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+
+    // A page with a form (its image with a soft mask, the form referring to itself)
+    // and a tiling pattern with an image; the content draws none of them
+    const QString filePath = directory.filePath(QStringLiteral("images.pdf"));
+    const auto write = [&](qint64 formImage, qint64 softMask, qint64 patternImage, const QByteArray& extraImage)
+    {
+        const QByteArray image = "<< /Type /XObject /Subtype /Image /Width %1 /Height 1000 /ColorSpace /DeviceGray /BitsPerComponent 8 %2/Length 1 >>\nstream\nX\nendstream";
+        QList<QByteArray> objects = {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R "
+            "/Resources << /XObject << /Fm1 5 0 R /Im0 7 0 R /Fm2 5 0 R /Bad 11 0 R /Num 3 >> /Pattern << /P1 8 0 R >> >> >>",
+            "<< /Length 3 >>\nstream\nq Q\nendstream",
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << /XObject << /Im1 6 0 R /Self 5 0 R >> >> /Length 0 >>\nstream\n\nendstream",
+            QByteArray(image).replace("%1", QByteArray::number(formImage)).replace("%2", "/SMask 9 0 R "),
+            extraImage,
+            "<< /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 1 1] /XStep 1 /YStep 1 /Resources << /XObject << /Im2 10 0 R >> >> /Length 0 >>\nstream\n\nendstream",
+            QByteArray(image).replace("%1", QByteArray::number(softMask)).replace("%2", ""),
+            QByteArray(image).replace("%1", QByteArray::number(patternImage)).replace("%2", ""),
+            "<< /Subtype /Image /Width 5 >>",
+        };
+        return AppDataTestHelper::writeFile(filePath, AppDataTestHelper::createRawPdf(objects));
+    };
+
+    struct Case
+    {
+        qint64 formImage;
+        qint64 softMask;
+        qint64 patternImage;
+        QByteArray extraImage;
+        qint64 expected;
+    };
+    const QByteArray invalidImage = "<< /Type /XObject /Subtype /Image /Width 2.5 /Height -7 /Length 1 >>\nstream\nX\nendstream";
+    const QByteArray hugeImage = "<< /Type /XObject /Subtype /Image /Width 3000000000 /Height 3000000000 /Length 1 >>\nstream\nX\nendstream";
+    const Case cases[] = {
+        { 3, 2, 1, invalidImage, 3000 },
+        { 3, 9, 1, invalidImage, 9000 },
+        { 3, 2, 50, invalidImage, 50000 },
+        { 3, 2, 1, hugeImage, qint64(std::numeric_limits<int>::max()) * std::numeric_limits<int>::max() },
+    };
+    for (const Case& imageCase : cases)
+    {
+        QVERIFY(write(imageCase.formImage, imageCase.softMask, imageCase.patternImage, imageCase.extraImage));
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+        const pdf::PDFDocument document = reader.readFromFile(filePath);
+        QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+        QCOMPARE(pdf::PDFAppThumbnailer::getLargestImagePixels(&document), imageCase.expected);
+    }
+    QCOMPARE(pdf::PDFAppThumbnailer::getLargestImagePixels(nullptr), qint64(0));
+
+    // Over the limit: Failed (the page count is known), under it: rendered
+    QVERIFY(write(3, 2, 1, invalidImage));
+    pdf::PDFAppThumbnailerOptions options;
+    options.timeBudget = 0;
+    options.maximumImagePixels = 2999;
+    pdf::PDFAppThumbnailResult result = pdf::PDFAppThumbnailer::createThumbnail(filePath, options, nullptr);
+    QCOMPARE(result.outcome, pdf::PDFAppThumbnailResult::Outcome::Done);
+    QCOMPARE(result.state, pdf::PDFRecentThumbnailState::Failed);
+    QCOMPARE(result.pageCount, 1);
+    QVERIFY(result.png.isEmpty());
+    options.maximumImagePixels = 3000;
+    result = pdf::PDFAppThumbnailer::createThumbnail(filePath, options, nullptr);
+    QCOMPARE(result.state, pdf::PDFRecentThumbnailState::Ready);
+    QVERIFY(!result.png.isEmpty());
+
+    // Deep nesting of forms is bounded: forms nested 100 levels, the image at the end is not reached
+    QList<QByteArray> nested = { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                                 "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /XObject << /F 4 0 R >> >> >>" };
+    for (int i = 0; i < 100; ++i)
+    {
+        nested << QByteArray("<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /F %1 0 R >> >> /Length 0 >>\nstream\n\nendstream")
+                      .replace("%1", QByteArray::number(nested.size() + 2));
+    }
+    nested << "<< /Type /XObject /Subtype /Image /Width 1000 /Height 1000 /Length 1 >>\nstream\nX\nendstream";
+    QVERIFY(AppDataTestHelper::writeFile(filePath, AppDataTestHelper::createRawPdf(nested)));
+    {
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+        const pdf::PDFDocument document = reader.readFromFile(filePath);
+        QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+        QCOMPARE(pdf::PDFAppThumbnailer::getLargestImagePixels(&document), qint64(0));
+    }
+
+    // Too many XObjects: the search stops at its limit
+    QByteArray many = "<< ";
+    for (int i = 0; i < 10010; ++i)
+    {
+        many += "/X" + QByteArray::number(i) + " 4 0 R ";
+    }
+    many += "/ZZLast 5 0 R >>";
+    const QList<QByteArray> manyObjects = { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                                            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /XObject " + many + " >> >>",
+                                            "<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /Length 1 >>\nstream\nX\nendstream",
+                                            "<< /Type /XObject /Subtype /Image /Width 2000 /Height 2000 /Length 1 >>\nstream\nX\nendstream" };
+    QVERIFY(AppDataTestHelper::writeFile(filePath, AppDataTestHelper::createRawPdf(manyObjects)));
+    {
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+        const pdf::PDFDocument document = reader.readFromFile(filePath);
+        QCOMPARE(pdf::PDFAppThumbnailer::getLargestImagePixels(&document), qint64(4));
+    }
+}
+
+void AppDataTest::thumbnailerReading()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("big.pdf"));
+
+    // An unused stream of 3 MB: a file of several parts of the reading
+    const QList<QByteArray> objects = { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                                        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 300] >>",
+                                        "<< /Length 3145728 >>\nstream\n" + QByteArray(3 * 1024 * 1024, 'x') + "\nendstream" };
+    QVERIFY(AppDataTestHelper::writeFile(filePath, AppDataTestHelper::createRawPdf(objects)));
+    const int parts = int((QFileInfo(filePath).size() + 1024 * 1024 - 1) / (1024 * 1024));
+    QCOMPARE(parts, 4);
+
+    pdf::PDFAppThumbnailerOptions options;
+    options.timeBudget = 0;
+
+    // Canceled before the reading (the first question), between the parts of the
+    // reading (one question before each part and one at the end of the file)
+    for (int cancelAt = 1; cancelAt <= parts + 2; ++cancelAt)
+    {
+        AppDataCountingControl control(cancelAt);
+        QCOMPARE(pdf::PDFAppThumbnailer::createThumbnail(filePath, options, &control).outcome, pdf::PDFAppThumbnailResult::Outcome::Canceled);
+    }
+
+    // Canceled after the parsing (a stop), never: rendered
+    AppDataCountingControl afterParsing(parts + 3);
+    QCOMPARE(pdf::PDFAppThumbnailer::createThumbnail(filePath, options, &afterParsing).outcome, pdf::PDFAppThumbnailResult::Outcome::Canceled);
+    QCOMPARE(pdf::PDFAppThumbnailer::createThumbnail(filePath, options, nullptr).state, pdf::PDFRecentThumbnailState::Ready);
+
+    // Larger than the limit (also a file, which grows - the size is checked again)
+    options.maximumFileSize = 1024;
+    pdf::PDFAppThumbnailResult result = pdf::PDFAppThumbnailer::createThumbnail(filePath, options, nullptr);
+    QCOMPARE(result.state, pdf::PDFRecentThumbnailState::Failed);
+    QCOMPARE(result.pageCount, -1);
+
+    // A file, which cannot be opened for the reading (a folder named like a PDF)
+    const QString folderPath = directory.filePath(QStringLiteral("folder.pdf"));
+    QVERIFY(QDir().mkpath(folderPath));
+    options.maximumFileSize = qint64(256) * 1024 * 1024;
+    QCOMPARE(pdf::PDFAppThumbnailer::createThumbnail(folderPath, options, nullptr).outcome, pdf::PDFAppThumbnailResult::Outcome::Missing);
+}
+
+void AppDataTest::renameDeleted()
+{
+    // A workspace / a location deleted by another instance: the rename is an error
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    pdf::PDFDatabase first;
+    first.open(AppDataTestHelper::createFileOptions(databasePath));
+    pdf::PDFDatabase second;
+    second.open(AppDataTestHelper::createFileOptions(databasePath));
+    QCOMPARE(second.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+
+    pdf::PDFWorkspaceRepository firstWorkspaces(&first);
+    pdf::PDFWorkspaceRepository secondWorkspaces(&second);
+    qint64 id = 0;
+    QVERIFY(!firstWorkspaces.saveWorkspace(QStringLiteral("Thesis"), { { QStringLiteral("/a/b.pdf"), 1 } }, false, &id).isError());
+
+    // The same name: no change, a success
+    QVERIFY(!firstWorkspaces.renameWorkspace(id, QStringLiteral("Thesis")).isError());
+    QVERIFY(!secondWorkspaces.deleteWorkspace(id).isError());
+    const pdf::PDFDatabaseError workspaceError = firstWorkspaces.renameWorkspace(id, QStringLiteral("Renamed"));
+    QVERIFY(workspaceError.isError());
+    QCOMPARE(workspaceError.getMessage(), QStringLiteral("The workspace does not exist."));
+    QVERIFY(firstWorkspaces.renameWorkspace(id, QStringLiteral("Thesis")).isError());
+
+    // The last session is not renamed (no change, as before), a deleted one is an error
+    QVERIFY(!firstWorkspaces.saveLastSession({ { QStringLiteral("/a/b.pdf"), 1 } }).isError());
+    const qint64 sessionId = firstWorkspaces.getLastSession()->id;
+    QVERIFY(!firstWorkspaces.renameWorkspace(sessionId, QStringLiteral("Session")).isError());
+    QCOMPARE(firstWorkspaces.getLastSession()->name, secondWorkspaces.getLastSession()->name);
+    QVERIFY(!secondWorkspaces.deleteLastSession().isError());
+    QVERIFY(firstWorkspaces.renameWorkspace(sessionId, QStringLiteral("Session")).isError());
+
+    pdf::PDFRecentRepository firstRecent(&first, nullptr);
+    pdf::PDFRecentRepository secondRecent(&second, nullptr);
+    qint64 locationId = 0;
+    QVERIFY(!firstRecent.addPinnedLocation(QDir::fromNativeSeparators(directory.path()), QStringLiteral("Folder"), &locationId).isError());
+    QVERIFY(!firstRecent.renamePinnedLocation(locationId, QStringLiteral("Folder")).isError());
+    QVERIFY(!secondRecent.removePinnedLocation(locationId).isError());
+    const pdf::PDFDatabaseError locationError = firstRecent.renamePinnedLocation(locationId, QStringLiteral("Renamed"));
+    QVERIFY(locationError.isError());
+    QCOMPARE(locationError.getMessage(), QStringLiteral("The pinned location does not exist."));
+
+    first.close();
+    second.close();
 }
 
 int main(int argc, char* argv[])

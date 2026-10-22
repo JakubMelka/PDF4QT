@@ -155,31 +155,38 @@ PDFAppFolderInfoService::~PDFAppFolderInfoService()
     m_pool = nullptr;
 }
 
-void PDFAppFolderInfoService::requestFolderInfo(const QString& path)
+bool PDFAppFolderInfoService::requestFolderInfo(const QString& path)
 {
-    request(path, true);
+    return request(path, true);
 }
 
-void PDFAppFolderInfoService::requestPathInfo(const QString& path)
+bool PDFAppFolderInfoService::requestPathInfo(const QString& path)
 {
-    request(path, false);
+    return request(path, false);
 }
 
-void PDFAppFolderInfoService::request(const QString& path, bool countPdfFiles)
+bool PDFAppFolderInfoService::request(const QString& path, bool countPdfFiles)
 {
-    if (!PDFRepositoryHelper::isValidStoredPath(QDir::fromNativeSeparators(path)) || m_pending.size() >= MAXIMUM_PENDING)
+    if (!PDFRepositoryHelper::isValidStoredPath(QDir::fromNativeSeparators(path)))
     {
-        return;
+        return false;
     }
 
+    // A request of a running path is merged with it (its result is delivered)
     const QString key = PDFAppFolderInfoHelper::getKey(path, countPdfFiles);
     if (m_pending.contains(key))
     {
-        return;
+        return true;
+    }
+
+    if (isFull())
+    {
+        return false;
     }
 
     m_pending.insert(key);
     m_pool->start(new PDFAppFolderInfoTask(m_shared, path, countPdfFiles));
+    return true;
 }
 
 void PDFAppFolderInfoService::setMaximumEntries(int maximumEntries)

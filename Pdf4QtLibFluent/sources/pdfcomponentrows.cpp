@@ -992,6 +992,126 @@ QSize PDFVersionRow::getContentMinimumSizeHint() const
     return PDFComponentPainter::getVersionRowMinimumSize(getContent());
 }
 
+PDFRenderingIssueRow::PDFRenderingIssueRow(QWidget* parent) :
+    BaseClass(parent)
+{
+    // A link to the page of the issue, the height follows the width
+    QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    setSizePolicy(policy);
+    setFocusPolicy(Qt::StrongFocus);
+    setAttribute(Qt::WA_Hover, true);
+    setCursor(Qt::PointingHandCursor);
+    updateAccessibility();
+}
+
+PDFRenderingIssueRow::PDFRenderingIssueRow(const QString& page, const QString& message, Severity severity, QWidget* parent) :
+    PDFRenderingIssueRow(parent)
+{
+    setPage(page);
+    setMessage(message);
+    setSeverity(severity);
+}
+
+void PDFRenderingIssueRow::setPage(const QString& page)
+{
+    setText(page);
+    updateAccessibility();
+}
+
+void PDFRenderingIssueRow::setMessage(const QString& message)
+{
+    if (m_row.message != message)
+    {
+        m_row.message = message;
+        updateAccessibility();
+        invalidateHeight();
+    }
+}
+
+void PDFRenderingIssueRow::setSeverity(Severity severity)
+{
+    const Severity validSeverity = PDFComponentPainter::normalized(severity);
+    if (m_row.severity != validSeverity)
+    {
+        m_row.severity = validSeverity;
+        updateAccessibility();
+        update();
+    }
+}
+
+PDFComponentPainter::RenderingIssueRow PDFRenderingIssueRow::getContent() const
+{
+    PDFComponentPainter::RenderingIssueRow row = m_row;
+    row.page = text();
+    return row;
+}
+
+void PDFRenderingIssueRow::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::paintRenderingIssueRow(painter, QRectF(rect), getContent(), state);
+}
+
+QSize PDFRenderingIssueRow::getContentSizeHint() const
+{
+    return PDFComponentPainter::getRenderingIssueRowSize(getContent());
+}
+
+QSize PDFRenderingIssueRow::getContentMinimumSizeHint() const
+{
+    return PDFComponentPainter::getRenderingIssueRowMinimumSize(getContent());
+}
+
+int PDFRenderingIssueRow::computeHeightForWidth(int width) const
+{
+    // Cached by PDFComponentButton (the message invalidates it, the page is the text)
+    return PDFComponentPainter::getRenderingIssueRowHeight(getContent(), width);
+}
+
+QString PDFRenderingIssueRow::getDefaultAccessibleName() const
+{
+    // "Page 12: Font ArialMT is not embedded."
+    return joinTexts({ text(), m_row.message }, tr("%1: %2"));
+}
+
+QString PDFRenderingIssueRow::getDefaultAccessibleDescription() const
+{
+    switch (m_row.severity)
+    {
+        case Severity::Information:
+            return tr("Information");
+        case Severity::Warning:
+            break;
+        case Severity::Error:
+            return tr("Error");
+    }
+
+    return tr("Warning");
+}
+
+void PDFRenderingIssueRow::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+
+    if (event->type() == QEvent::LanguageChange)
+    {
+        updateAccessibility();
+    }
+}
+
+void PDFRenderingIssueRow::updateAccessibility()
+{
+    // The name and the description are computed from the content, the row tells
+    // assistive technologies, that they have changed
+    if (QAccessible::isActive())
+    {
+        QAccessibleEvent nameEvent(this, QAccessible::NameChanged);
+        QAccessible::updateAccessibility(&nameEvent);
+        QAccessibleEvent descriptionEvent(this, QAccessible::DescriptionChanged);
+        QAccessible::updateAccessibility(&descriptionEvent);
+    }
+}
+
 /// Action button of a property row, which draws itself by the state of the row
 /// through PDFComponentPainter::paintPropertyRowAction (the place, where the
 /// look of the actions is defined): the copy button is drawn only under the

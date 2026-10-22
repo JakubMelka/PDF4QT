@@ -533,14 +533,19 @@ void PDFComponentPainter::paintTag(QPainter* painter, const QRectF& rect, const 
 
 QFont PDFComponentPainter::getTextLinkFont(bool isUnderlined)
 {
-    QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::BodySemiBold);
+    return getTextLinkFont(TextLinkSize::Default, isUnderlined);
+}
+
+QFont PDFComponentPainter::getTextLinkFont(TextLinkSize size, bool isUnderlined)
+{
+    QFont font = PDFThemeFonts::getFont(size == TextLinkSize::Small ? PDFThemeFonts::Role::SmallSemiBold : PDFThemeFonts::Role::BodySemiBold);
     font.setUnderline(isUnderlined);
     return font;
 }
 
 QSize PDFComponentPainter::getTextLinkSize(const TextLink& link)
 {
-    const int textWidth = qCeil(PDFStylePainter::textWidth(link.text, getTextLinkFont()));
+    const int textWidth = qCeil(PDFStylePainter::textWidth(link.text, getTextLinkFont(link.size, false)));
     return QSize(textWidth + 2 * PDFComponentPainterHelper::LINK_SIDE, PDFComponentPainterHelper::LINK_HEIGHT);
 }
 
@@ -571,7 +576,7 @@ void PDFComponentPainter::paintTextLink(QPainter* painter, const QRectF& rect, c
     const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const QFont font = getTextLinkFont();
+    const QFont font = getTextLinkFont(link.size, false);
     const qreal side = PDFComponentPainterHelper::LINK_SIDE;
     const QRectF textRect = rect.adjusted(side, 0.0, -side, 0.0);
     const QString shownText = elidedText(link.text, font, textRect.width());
@@ -2023,6 +2028,178 @@ void PDFComponentPainter::paintVersionRow(QPainter* painter, const QRectF& rect,
         painter->setRenderHint(QPainter::TextAntialiasing, true);
         painter->setPen(PDFStylePainter::color(Helper::text(state, Color::TextTertiary)));
         layout.draw(painter, summaryRect.topLeft());
+    }
+}
+
+/// Geometry of the rendering issue row (issue-row of 198:5950)
+class PDFComponentIssueRowPainterHelper
+{
+public:
+    PDFComponentIssueRowPainterHelper() = delete;
+
+    static constexpr int WIDTH = 406;
+    static constexpr int SIDE = 10;
+    static constexpr int TOP = 8;
+    static constexpr int BOTTOM = 8;
+    static constexpr int ICON = 16;
+    static constexpr int GAP = 10;
+    static constexpr int PAGE_LINE = 13;
+    static constexpr int TEXT_GAP = 2;
+    static constexpr int MESSAGE_LINE = 15;
+    static constexpr int MIN_TEXT = 40;
+
+    static QFont pageFont() { return PDFThemeFonts::getFont(QFont::Medium, 11); }
+    static QFont messageFont() { return PDFThemeFonts::getFont(QFont::Normal, 12); }
+
+    /// Width of the text column of the row of the width
+    static qreal textWidth(qreal width) { return width - 2 * SIDE - ICON - GAP; }
+
+    /// Lays out the message (data, its own direction) into lines of 15 px aligned
+    /// to the leading edge of the row. \returns the number of the lines.
+    static int layoutMessage(QTextLayout& layout, const QString& text, qreal width, Qt::LayoutDirection rowDirection)
+    {
+        if (text.isEmpty() || width <= 0.0)
+        {
+            return 0;
+        }
+
+        QTextOption option;
+        option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+        option.setTextDirection(PDFComponentPainter::getDataTextDirection(text));
+        option.setAlignment((rowDirection == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute);
+
+        layout.setText(text);
+        layout.setFont(messageFont());
+        layout.setTextOption(option);
+        layout.beginLayout();
+
+        int count = 0;
+        for (QTextLine textLine = layout.createLine(); textLine.isValid(); textLine = layout.createLine())
+        {
+            textLine.setLineWidth(width);
+            textLine.setPosition(QPointF(0.0, count * MESSAGE_LINE + (MESSAGE_LINE - textLine.height()) / 2.0));
+            ++count;
+        }
+
+        layout.endLayout();
+        return count;
+    }
+};
+
+PDFComponentPainter::IssueSeverity PDFComponentPainter::normalized(IssueSeverity severity)
+{
+    switch (severity)
+    {
+        case IssueSeverity::Information:
+        case IssueSeverity::Warning:
+        case IssueSeverity::Error:
+            return severity;
+    }
+
+    return IssueSeverity::Warning;
+}
+
+QString PDFComponentPainter::getIssueSeverityIconName(IssueSeverity severity)
+{
+    switch (normalized(severity))
+    {
+        case IssueSeverity::Information:
+            return QStringLiteral("info");
+        case IssueSeverity::Warning:
+            break;
+        case IssueSeverity::Error:
+            return QStringLiteral("x-circle");
+    }
+
+    return QStringLiteral("alert-triangle");
+}
+
+PDFThemeColors::Color PDFComponentPainter::getIssueSeverityIconColor(IssueSeverity severity)
+{
+    switch (normalized(severity))
+    {
+        case IssueSeverity::Information:
+            return PDFThemeColors::AccentBlueIcon;
+        case IssueSeverity::Warning:
+            break;
+        case IssueSeverity::Error:
+            return PDFThemeColors::AccentRedIcon;
+    }
+
+    return PDFThemeColors::AccentAmberIcon;
+}
+
+QSize PDFComponentPainter::getRenderingIssueRowSize(const RenderingIssueRow& row)
+{
+    const int width = PDFComponentIssueRowPainterHelper::WIDTH;
+    return QSize(width, getRenderingIssueRowHeight(row, width));
+}
+
+int PDFComponentPainter::getRenderingIssueRowHeight(const RenderingIssueRow& row, int width)
+{
+    using Helper = PDFComponentIssueRowPainterHelper;
+
+    QTextLayout layout;
+    const int lines = Helper::layoutMessage(layout, row.message, Helper::textWidth(width), Qt::LeftToRight);
+    const int messageHeight = qMax(lines, 1) * Helper::MESSAGE_LINE;
+    return Helper::TOP + Helper::PAGE_LINE + Helper::TEXT_GAP + messageHeight + Helper::BOTTOM;
+}
+
+QSize PDFComponentPainter::getRenderingIssueRowMinimumSize(const RenderingIssueRow& row)
+{
+    Q_UNUSED(row);
+
+    using Helper = PDFComponentIssueRowPainterHelper;
+    return QSize(2 * Helper::SIDE + Helper::ICON + Helper::GAP + Helper::MIN_TEXT,
+                 Helper::TOP + Helper::PAGE_LINE + Helper::TEXT_GAP + Helper::MESSAGE_LINE + Helper::BOTTOM);
+}
+
+void PDFComponentPainter::paintRenderingIssueRow(QPainter* painter, const QRectF& rect, const RenderingIssueRow& row, const State& state)
+{
+    if (!painter || rect.isEmpty() || !qIsFinite(rect.width()) || !qIsFinite(rect.height()))
+    {
+        return;
+    }
+
+    const DirectionGuard directionGuard(painter, state);
+
+    using RowHelper = PDFComponentRowPainterHelper;
+    using Helper = PDFComponentIssueRowPainterHelper;
+    using Color = PDFThemeColors::Color;
+
+    const PDFStylePainterGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setClipRect(rect, Qt::IntersectClip);
+
+    const PDFStylePainter::Radii radii(RowHelper::ROW_RADIUS);
+    RowHelper::fillPointer(painter, rect, radii, state);
+    if (state.hasFocusRing())
+    {
+        paintFocusRingInside(painter, rect, radii);
+    }
+
+    // The icon of the severity at the top, aligned with the line of the page
+    const QRectF iconRect(rect.left() + Helper::SIDE, rect.top() + Helper::TOP, Helper::ICON, Helper::ICON);
+    RowHelper::drawIcon(painter, state, rect, iconRect, getIssueSeverityIconName(row.severity), RowHelper::icon(state, getIssueSeverityIconColor(row.severity)));
+
+    const qreal textLeft = iconRect.right() + Helper::GAP;
+    const qreal textWidth = rect.right() - Helper::SIDE - textLeft;
+    if (textWidth <= 0.0)
+    {
+        return;
+    }
+
+    RowHelper::drawDataText(painter, state, rect, QRectF(textLeft, rect.top() + Helper::TOP, textWidth, Helper::PAGE_LINE), row.page,
+                            Helper::pageFont(), RowHelper::text(state, Color::TextMuted));
+
+    QTextLayout layout;
+    if (Helper::layoutMessage(layout, row.message, textWidth, state.direction) > 0)
+    {
+        const qreal messageTop = rect.top() + Helper::TOP + Helper::PAGE_LINE + Helper::TEXT_GAP;
+        const QRectF messageRect = state.visualRect(rect, QRectF(textLeft, messageTop, textWidth, 1.0));
+        painter->setRenderHint(QPainter::TextAntialiasing, true);
+        painter->setPen(PDFStylePainter::color(RowHelper::text(state, Color::TextSecondary)));
+        layout.draw(painter, messageRect.topLeft());
     }
 }
 

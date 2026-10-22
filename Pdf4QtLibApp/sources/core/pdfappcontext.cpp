@@ -39,6 +39,8 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
     QObject(parent),
     m_commandLine(commandLine)
 {
+    m_documentRegistry = new PDFAppDocumentRegistry(this);
+
     PDFSettingDefinitions::registerBuiltinDefinitions(&m_settingRegistry);
     PDFAppCommands::registerBuiltinCommands(&m_commandRegistry);
 

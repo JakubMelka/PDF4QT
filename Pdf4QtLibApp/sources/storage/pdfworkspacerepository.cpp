@@ -396,6 +396,21 @@ PDFDatabaseError PDFWorkspaceRepository::renameWorkspace(qint64 id, const QStrin
         return statement.getError();
     }
 
+    // Nothing changed: the same name or the last session (it is never renamed, a
+    // success as before), or the workspace has been deleted meanwhile (by another
+    // instance) - that is an error, not a success
+    if (connection->getChanges() == 0)
+    {
+        PDFDatabaseStatement exists(connection, "SELECT COUNT(*) FROM workspace WHERE id = ?1");
+        exists.bindInt64(1, id);
+        const bool isFound = exists.next() && exists.getInt64(0) > 0;
+        exists.reset();
+        if (!isFound)
+        {
+            return PDFWorkspaceRepositoryHelper::notFound();
+        }
+    }
+
     if (!transaction.commit())
     {
         return transaction.getError();

@@ -71,7 +71,17 @@ public:
     QWidget* getPromise() const { return m_promise; }
     PDFAppColumns* getColumns() const { return m_columns; }
 
+protected:
+    virtual void changeEvent(QEvent* event) override;
+
 private:
+    /// Creates the hero and the columns (all texts in the current language)
+    void buildContent();
+
+    /// The language has changed: the content is created again; the scroll
+    /// position and the focused widget are kept
+    void rebuild();
+
     QWidget* createHero(QWidget* parent);
     QWidget* createPossibilities(QWidget* parent);
     QWidget* createWaysToHelp(QWidget* parent);

@@ -31,6 +31,7 @@
 #include "pdfsettingdefinition.h"
 
 #include "pdfaccenthue.h"
+#include "pdfdocumenttoolsearch.h"
 
 #include <QDateTime>
 #include <QString>
@@ -190,7 +191,19 @@ public:
     /// Current time for "Opened yesterday" (invalid = the clock of the system)
     QDateTime now;
 
-    /// Data of the context (a null context gives the static catalogs only)
+    /// Fields of the files of Recent (one item per file of \p recentFiles, their
+    /// names and folders normalized once by \p prepareDocuments; the search of
+    /// each typed text uses them). Fields of another count are not used.
+    std::vector<std::vector<PDFSearchField>> documentFields;
+
+    /// Prepares the fields of the files of Recent (call it after a change of recentFiles)
+    void prepareDocuments();
+
+    /// Fields of a file of Recent (its name and its folder), prepared
+    static std::vector<PDFSearchField> createDocumentFields(const PDFRecentFile& file);
+
+    /// Data of the context (a null context gives the static catalogs only); the
+    /// files of Recent are prepared
     static PDFAppSearchData load(const PDFAppContext* context);
 
     /// The user manual of the resources, loaded once (the resources do not change)

@@ -481,7 +481,7 @@ void PDFAppOpenPage::refreshWorkspaces()
         }
     }
 
-    // STEP 3 HOOK: the documents open in the window (no document tabs in step 2)
+    // The documents open in the window (its document tabs)
     const bool hasOpenDocuments = !PDFAppDocumentActions::getOpenDocuments(this).empty();
     if (m_saveWorkspaceButton)
     {

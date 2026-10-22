@@ -52,6 +52,11 @@ std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
     version3.sql = createVersion3();
     migrations.push_back(std::move(version3));
 
+    PDFDatabaseMigration version4;
+    version4.version = 4;
+    version4.sql = createVersion4();
+    migrations.push_back(std::move(version4));
+
     return migrations;
 }
 
@@ -330,6 +335,23 @@ QByteArray PDFDatabaseSchema::createVersion3()
     // of recent_file is not limited to columns, so the new column is notified too.
     return R"SQL(
 ALTER TABLE recent_file ADD COLUMN thumbnail_state INTEGER NOT NULL DEFAULT 0;
+)SQL";
+}
+
+QByteArray PDFDatabaseSchema::createVersion4()
+{
+    // Crash-loop guard of the thumbnailer (PDFAppThumbnailer): a marker is written
+    // before a document is read and rendered and removed after it. A marker left by
+    // a process, which has ended (a document crashing the renderer), makes the file
+    // Failed until it changes - it is not rendered again at every start. The table
+    // has no triggers: a marker is no change of the data shown by the pages.
+    return R"SQL(
+CREATE TABLE thumbnail_rendering(
+    path TEXT PRIMARY KEY NOT NULL,
+    file_mtime INTEGER NOT NULL,
+    instance TEXT NOT NULL,
+    pid INTEGER NOT NULL,
+    started INTEGER NOT NULL) WITHOUT ROWID;
 )SQL";
 }
 

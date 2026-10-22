@@ -111,6 +111,7 @@ public:
 
     using OpenFilesHandler = std::function<QStringList(QWidget*, const QString&)>;
     using FolderHandler = std::function<QString(QWidget*, const QString&)>;
+    using SaveFileHandler = std::function<QString(QWidget*, const QString&)>;
 
     /// Browse files…: PDF files of the folder (multi-select); an empty list = canceled
     static QStringList getOpenFileNames(QWidget* parent, const QString& folder);
@@ -118,13 +119,19 @@ public:
     /// Add… of Pinned Locations: a folder; an empty text = canceled
     static QString getExistingDirectory(QWidget* parent, const QString& folder);
 
+    /// Save as… of a document (step 3): a PDF file, \p filePath is the proposed
+    /// file (folder and name); an empty text = canceled
+    static QString getSaveFileName(QWidget* parent, const QString& filePath);
+
     /// Handlers replacing the dialogs (tests); an empty handler restores the dialog
     static void setOpenFilesHandler(OpenFilesHandler handler);
     static void setFolderHandler(FolderHandler handler);
+    static void setSaveFileHandler(SaveFileHandler handler);
 
 private:
     static OpenFilesHandler& getOpenFilesHandler();
     static FolderHandler& getFolderHandler();
+    static SaveFileHandler& getSaveFileHandler();
 };
 
 /// Document open in a window, which a workspace can save (Save as workspace
@@ -137,6 +144,16 @@ public:
     int page = 0;           ///< Current page (from 1, 0 = unknown)
     int pageCount = 0;      ///< Page count (0 = unknown)
     bool isModified = false;///< Unsaved changes (the saved file is used)
+};
+
+/// Request to open a document (PDFAppMainWindow::openDocuments): the command line,
+/// another process, the pages Home / Open / Recent, a drop, a workspace (a page per
+/// file)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppOpenRequest
+{
+public:
+    QString filePath;       ///< Absolute path of the file
+    int page = 0;           ///< Physical page from 1 (0 = the last page of Recent)
 };
 
 /// Opening of documents from the pages Home, Open and Recent: the files go to
@@ -164,6 +181,14 @@ public:
 
     /// Documents of a workspace as paths (the documents of an invalid path are skipped)
     static QStringList getPaths(const std::vector<PDFWorkspaceDocument>& documents);
+
+    /// Documents of a workspace as requests with their pages (the documents of an
+    /// invalid path and the second document of a path are skipped)
+    static std::vector<PDFAppOpenRequest> getRequests(const std::vector<PDFWorkspaceDocument>& documents);
+
+    /// Opens the requests (a page per file - workspaces, Restore last session) in
+    /// the window of the widget. \returns false, if the widget is not in a main window.
+    static bool openRequests(QWidget* source, const std::vector<PDFAppOpenRequest>& requests);
 
 private:
     static OpenDocumentsProvider& getProvider();

@@ -428,6 +428,11 @@ public:
     /// The search is waiting for its delay
     bool isSearchPending() const;
 
+    /// Number of the searches done by the controller (tests: an event of the field
+    /// is handled once, the data of Recent are read once per opening of the popup)
+    int getSearchCount() const { return m_searchCount; }
+    int getDataLoadCount() const { return m_dataLoadCount; }
+
 Q_SIGNALS:
     /// A result or Show all asks for a route (connected to the tab of the field)
     void navigationRequested(const pdf::PDFAppRoute& route, pdf::PDFAppNavigationMode mode);
@@ -440,6 +445,13 @@ protected:
     virtual void timerEvent(QTimerEvent* event) override;
 
 private:
+    /// Filter of the application installed while the popup is open: it reacts
+    /// only to the presses outside of the popup and of the field (the controller
+    /// itself filters the field and its window, so their events are handled once)
+    class PressFilter;
+    friend class PressFilter;
+
+    void onApplicationPress(QObject* watched);
     void onTextEdited(const QString& text);
     void onReturnPressed();
     void onResultActivated(const pdf::PDFAppSearchResult& result);
@@ -466,7 +478,10 @@ private:
     std::unique_ptr<PDFAppSearchData> m_data;
     QDateTime m_now;
     int m_timerId = 0;
+    int m_searchCount = 0;
+    int m_dataLoadCount = 0;
     bool m_isApplicationFiltered = false;
+    QPointer<QObject> m_pressFilter;
 };
 
 /// Activation of the results of the search, which is not a navigation

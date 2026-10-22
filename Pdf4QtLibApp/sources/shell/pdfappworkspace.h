@@ -96,7 +96,9 @@ private:
 /// sidebar): no frame, the scroll bars of the style, the viewport and the content
 /// are transparent (they never fill the palette), the content follows the size of
 /// the viewport and scrolls, when it needs more space (the window has its minimal
-/// size 720 x 480, newapplication.md 3)
+/// size 720 x 480, newapplication.md 3). With overlay scroll bars the bars lie over
+/// the edge of the viewport and the layout reserves no width for them (the page
+/// area of the workspace: the bar lies over the padding of the workspace).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppScrollArea : public QScrollArea
 {
     Q_OBJECT
@@ -111,6 +113,15 @@ public:
 
     /// Sets the content (the previous one is deleted by QScrollArea)
     void setContent(QWidget* content);
+
+    /// The scroll bars lie over the edge of the viewport (the property
+    /// overlayScrollBars of PDFWidgetStyle), the content keeps the whole width
+    bool isOverlayScrollBars() const;
+    void setOverlayScrollBars(bool isOverlay);
+
+    /// Width of the vertical scroll bar, which lies over the viewport (0, when the
+    /// bars are not overlay or the style does not lay them over the viewport)
+    int getScrollBarOverlap() const;
 
 private:
     /// A child focused by the keyboard is scrolled into the view (QScrollArea
@@ -277,7 +288,9 @@ private:
 
 /// Header of the workspace (workspace-header): the breadcrumbs (optional), a title Bold 28 and a subtitle
 /// Regular 14 (both optional) and the global search field 320 px "Search tools,
-/// documents, or help..." (Ctrl+K). Enter asks for the search of the text.
+/// documents, or help..." (Ctrl+K). Enter asks for the search of the text. In a
+/// narrow window the field gives its width to the texts first: it shrinks down to
+/// MINIMUM_SEARCH_WIDTH, before the title is elided.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppWorkspaceHeader : public QWidget
 {
     Q_OBJECT
@@ -286,8 +299,19 @@ private:
     using BaseClass = QWidget;
 
 public:
+    /// Width of the search field of the frames and its narrowest width
+    static constexpr int SEARCH_WIDTH = 320;
+    static constexpr int MINIMUM_SEARCH_WIDTH = 200;
+
+    /// Gap between the texts and the search field
+    static constexpr int SPACING = 24;
+
     explicit PDFAppWorkspaceHeader(QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceHeader() override;
+
+    /// Width of the search field for the width of the header: the texts keep their
+    /// width, the field takes the rest between MINIMUM_SEARCH_WIDTH and SEARCH_WIDTH
+    static int getSearchWidth(int headerWidth, int textWidth);
 
     /// Texts of the page (empty = the line is hidden); \p subtitleAccent is the
     /// stressed part of the subtitle (PDFAppPage::getHeaderSubtitleAccent)
@@ -308,9 +332,16 @@ Q_SIGNALS:
     /// A link of the breadcrumbs has been clicked
     void breadcrumbActivated(const pdf::PDFAppRoute& route);
 
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
+
 private:
     void onReturnPressed();
     void onBreadcrumbActivated(const QString& route);
+
+    /// The search field takes the width, which the texts do not need
+    void updateSearchWidth();
 
     QPointer<PDFAppBreadcrumb> m_breadcrumb;
     QPointer<PDFAppHeaderText> m_title;
@@ -430,7 +461,7 @@ public:
     /// bottom padding of the workspace)
     static constexpr int PADDING = 16;
 
-    /// The MIT License link (Text link, 16 px) is 1 px higher than the texts (15 px,
+    /// The MIT License link (Text link Semi Bold 12, its line box 16 px) is 1 px higher than the texts (15 px,
     /// one text of 15 px in app-footer 28:217): it reaches 1 px into the padding
     /// above the texts, so the footer is 16 + 15 + 16 = 47 px as the frames
     static constexpr int LINK_OVERHANG = 1;

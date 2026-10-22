@@ -1835,6 +1835,22 @@ public:
                 {
                     point.setX(rect.right() - qMin(40, rect.width() / 2));
                 }
+                else if (step == Step::Click)
+                {
+                    // The lock of a locked document tab (PDFDocumentTabBar::lockClicked)
+                    if (const pdf::PDFDocumentTabBar* tabBar = qobject_cast<const pdf::PDFDocumentTabBar*>(target))
+                    {
+                        for (int i = 0; i < tabBar->count(); ++i)
+                        {
+                            const QRect lockRect = tabBar->getTabLockRect(i);
+                            if (!lockRect.isEmpty())
+                            {
+                                point = lockRect.center();
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 // The policy of the caller (Close by default, Keep in the states of
                 // the item views), Accept for the step, which accepts the popup

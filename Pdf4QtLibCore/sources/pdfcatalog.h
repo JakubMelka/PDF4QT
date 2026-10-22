@@ -30,6 +30,7 @@
 #include "pdfaction.h"
 
 #include <array>
+#include <optional>
 #include <vector>
 #include <utility>
 
@@ -615,6 +616,27 @@ public:
 
     /// Returns page index. If page is not found, then INVALID_PAGE_INDEX is returned.
     size_t getPageIndexFromPageReference(PDFObjectReference reference) const;
+
+    /// Maximal length of the prefix of a page label returned by getPageLabel (a
+    /// longer prefix of a document is cut)
+    static constexpr int MAXIMUM_PAGE_LABEL_PREFIX_LENGTH = 256;
+
+    /// Returns the page labels of the document (/PageLabels), sorted by the index
+    /// of the first page of each range
+    const std::vector<PDFPageLabel>& getPageLabels() const { return m_pageLabels; }
+
+    /// Returns the label of the page (for example "xii" or "A-3"), or an empty
+    /// string, if the document defines no label for the page or the page index is
+    /// not valid. Values of the document are untrusted: the prefix is cut to
+    /// MAXIMUM_PAGE_LABEL_PREFIX_LENGTH characters, a number, which would give a
+    /// huge roman numeral or letter sequence, is written as a decimal number.
+    /// \param pageIndex Page index (from 0)
+    QString getPageLabel(PDFInteger pageIndex) const;
+
+    /// Returns the index of the first page, whose label equals \p label (case
+    /// sensitive, the label is compared as it is), or nothing, if there is no
+    /// such page or the document has no page labels.
+    std::optional<PDFInteger> findPageIndexByLabel(const QString& label) const;
 
     /// Returns optional content properties
     const PDFOptionalContentProperties* getOptionalContentProperties() const { return &m_optionalContentProperties; }

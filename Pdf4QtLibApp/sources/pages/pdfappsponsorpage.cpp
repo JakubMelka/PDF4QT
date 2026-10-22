@@ -30,6 +30,7 @@
 #include "pdfcomponentrows.h"
 #include "pdfthemefonts.h"
 
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
@@ -77,12 +78,24 @@ PDFAppSponsorPage::PDFAppSponsorPage(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("sponsorPage"));
 
     QVBoxLayout* layout = PDFAppSponsorPageHelper::createColumn(this, 24);
-    layout->addWidget(createHero(this));
+    layout->addStretch(1);
+    buildContent();
+}
+
+PDFAppSponsorPage::~PDFAppSponsorPage() = default;
+
+void PDFAppSponsorPage::buildContent()
+{
+    QBoxLayout* layout = qobject_cast<QBoxLayout*>(this->layout());
+    if (!layout)
+    {
+        return;
+    }
+    layout->insertWidget(0, createHero(this));
 
     // sponsor-grid 122:2693: the main column and the side column 340
     m_columns = PDFAppColumns::createMainAndSide(this);
-    layout->addWidget(m_columns);
-    layout->addStretch(1);
+    layout->insertWidget(1, m_columns);
 
     QBoxLayout* mainLayout = m_columns->getMainLayout();
     QBoxLayout* sideLayout = m_columns->getSideLayout();
@@ -95,7 +108,44 @@ PDFAppSponsorPage::PDFAppSponsorPage(PDFAppContext* context, QWidget* parent) :
     sideLayout->addStretch(1);
 }
 
-PDFAppSponsorPage::~PDFAppSponsorPage() = default;
+void PDFAppSponsorPage::rebuild()
+{
+    const int scrollPosition = isVisible() ? getScrollPosition() : -1;
+    const QString focusName = PDFAppPageRebuild::getFocusedName(this);
+
+    m_highlightCards.clear();
+    m_linkRows.clear();
+    m_priorityRows.clear();
+    delete m_hero.data();
+    delete m_columns.data();
+    buildContent();
+    if (m_hero)
+    {
+        m_hero->show();
+    }
+    if (m_columns)
+    {
+        m_columns->show();
+    }
+
+    if (scrollPosition >= 0)
+    {
+        // The content keeps its height: the position is kept now and after the layout
+        PDFAppPageRebuild::finishLayout();
+        setScrollPosition(scrollPosition);
+        requestDeferredScroll(scrollPosition, QString());
+    }
+    PDFAppPageRebuild::restoreFocus(this, focusName);
+}
+
+void PDFAppSponsorPage::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_columns)
+    {
+        rebuild();
+    }
+}
 
 bool PDFAppSponsorPage::setRoute(const PDFAppRoute& route)
 {

@@ -330,6 +330,12 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFFindResult
     /// Context (text before and after match)
     QString context;
 
+    /// Position of the matched text in the context (-1, if it is not known)
+    qsizetype contextMatchStart = -1;
+
+    /// Length of the matched text in the context
+    qsizetype contextMatchLength = 0;
+
     /// Matched selection (can be multiple items, if selection
     /// is spanned between multiple blocks)
     PDFTextSelectionItems textSelectionItems;
@@ -397,7 +403,13 @@ private:
     /// Returns context for text selection (or empty string, if text selection is empty)
     /// \param index Index of text selection subrange
     /// \param length Length of text selection
-    QString getContext(size_t index, size_t length) const;
+    /// \param[out] matchStart Position of the text selection in the context (optional)
+    QString getContext(size_t index, size_t length, qsizetype* matchStart = nullptr) const;
+
+    /// Fills the result of a match of the text at \p index of \p length characters.
+    /// \returns false, if the match is empty or out of the text, or it has no
+    /// counterpart in the real text (then the result must not be used)
+    bool fillFindResult(PDFFindResult& result, qsizetype index, qsizetype length) const;
 
     QString m_text;
     QRectF m_boundingBox;

@@ -23,6 +23,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
+#include "pdfappdocumentcommands.h"
 #include "pdfappinstance.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
@@ -507,7 +508,8 @@ void AppCoreTest::commandRegistry()
 
     const QStringList ids = { "window.newTab", "window.closeTab", "window.nextTab", "window.previousTab", "window.quit", "file.open",
                               "navigation.back", "navigation.forward", "navigation.search", "navigation.help" };
-    QCOMPARE(registry.getCommands().size(), size_t(ids.size()));
+    // Step 3 adds the commands of the document tab (scope Document and Canvas)
+    QCOMPARE(registry.getCommands().size(), size_t(ids.size() + pdf::PDFAppDocumentCommandTable::getAllCommands().size()));
     for (const QString& id : ids)
     {
         const pdf::PDFAppCommand* command = registry.findCommand(id);
@@ -1908,7 +1910,18 @@ void AppCoreTest::logs()
 
     pdf::PDFAppLog::uninstall();
     QVERIFY(!pdf::PDFAppLog::isInstalled());
+
+    // A removed log has no folder and no file (About shows no folder of it)
+    QVERIFY(pdf::PDFAppLog::getLogDirectory().isEmpty());
+    QVERIFY(pdf::PDFAppLog::getCurrentLogFile().isEmpty());
     pdf::PDFAppLog::uninstall();
+    QVERIFY(pdf::PDFAppLog::getLogDirectory().isEmpty());
+
+    // Installed again: the folder of the new installation
+    QVERIFY(pdf::PDFAppLog::install(options));
+    QCOMPARE(pdf::PDFAppLog::getLogDirectory(), directory);
+    pdf::PDFAppLog::uninstall();
+    QVERIFY(pdf::PDFAppLog::getLogDirectory().isEmpty());
     pdf::PDFAppLog::setCurrentDateTimeForTesting(QDateTime());
 
     QCOMPARE(pdf::PDFAppLog::getFileDate(QStringLiteral("pdf4qt-2026-01-02.log")), QDate(2026, 1, 2));
@@ -2078,12 +2091,19 @@ void AppCoreTest::contextColorScheme()
     QCOMPARE(openSpy.count(), 1);
     QCOMPARE(window->getRequestedFiles(), QStringList({ m_existingFile }));
     QCOMPARE(window->getForwardedErrors(), QStringList({ QStringLiteral("Unknown argument --forwarded.") }));
-    bool isErrorShown = false;
-    for (const QLabel* label : window->findChildren<QLabel*>())
+    // The dialog open-failed lists the errors of a request (step 3: shown from the event loop)
+    const auto isErrorShown = [&window]()
     {
-        isErrorShown = isErrorShown || label->text().contains(QStringLiteral("Unknown argument --forwarded."));
-    }
-    QVERIFY(isErrorShown);
+        for (const QLabel* label : window->findChildren<QLabel*>())
+        {
+            if (label->text().contains(QStringLiteral("Unknown argument --forwarded.")))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    QTRY_VERIFY(isErrorShown());
     window.reset();
     context.setInstanceServer(nullptr);
 

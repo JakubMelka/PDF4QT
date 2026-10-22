@@ -426,15 +426,26 @@ public:
 
     // --------------------------------------------------------------- Text link
 
-    /// Content of a link (component Text link 49:152): Semi Bold 13 in
+    /// Size of the text of a link: Default - Semi Bold 13 (component Text link
+    /// 49:152), Small - Semi Bold 12, a link inside of a text of 12 px (MIT License
+    /// of app-footer 28:217). Both have the line box of 16 px.
+    enum class TextLinkSize
+    {
+        Default,
+        Small
+    };
+
+    /// Content of a link (component Text link 49:152): Semi Bold 13 (or 12) in
     /// text/accent, underlined under the pointer, focus ring outside (radius 4).
     struct TextLink
     {
         QString text;
+        TextLinkSize size = TextLinkSize::Default;
     };
 
-    /// Returns the font of a link
+    /// Returns the font of a link (an unknown size is the default size)
     static QFont getTextLinkFont(bool isUnderlined = false);
+    static QFont getTextLinkFont(TextLinkSize size, bool isUnderlined);
 
     /// Returns the size of the link
     static QSize getTextLinkSize(const TextLink& link);
@@ -842,6 +853,48 @@ public:
 
     /// Draws the row into the rectangle
     static void paintVersionRow(QPainter* painter, const QRectF& rect, const VersionRow& row, const State& state);
+
+    // ---------------------------------------------------- Rendering issue row
+
+    /// Severity of a rendering issue (the icon of the row)
+    enum class IssueSeverity
+    {
+        Information,    ///< icon info, accent/blue/icon
+        Warning,        ///< icon alert-triangle, accent/amber/icon
+        Error           ///< icon x-circle, accent/red/icon
+    };
+
+    /// Content of a rendering issue of a document (issue-row of the popover
+    /// Rendering issues 198:5950): the icon 16 of the severity, the page (Medium
+    /// 11 text/muted, line 13) and the message below it (Regular 12
+    /// text/secondary, line 15), which wraps; paddings 10 / 8, gap 10, radius 8.
+    /// The row is a link to the page: hover bg/hover, pressed bg/pressed, the focus
+    /// ring 2 px inside. The page and the message are data (their own direction).
+    struct RenderingIssueRow
+    {
+        QString page;
+        QString message;
+        IssueSeverity severity = IssueSeverity::Warning;
+    };
+
+    /// Returns the valid severity (an invalid value is Warning)
+    static IssueSeverity normalized(IssueSeverity severity);
+
+    /// Returns the icon name and the color of the icon of the severity
+    static QString getIssueSeverityIconName(IssueSeverity severity);
+    static PDFThemeColors::Color getIssueSeverityIconColor(IssueSeverity severity);
+
+    /// Returns the size of the row of the default width (406 x 46 for a message of one line)
+    static QSize getRenderingIssueRowSize(const RenderingIssueRow& row);
+
+    /// Returns the height of the row of the given width (the message wraps)
+    static int getRenderingIssueRowHeight(const RenderingIssueRow& row, int width);
+
+    /// Returns the minimal size of the row
+    static QSize getRenderingIssueRowMinimumSize(const RenderingIssueRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintRenderingIssueRow(QPainter* painter, const QRectF& rect, const RenderingIssueRow& row, const State& state);
 
     // ------------------------------------------------------------ Property row
 

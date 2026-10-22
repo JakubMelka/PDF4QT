@@ -159,6 +159,10 @@ class PDFDocumentTabCloseButton;
 /// 38 px high: each tab has the 6 px above its shape in its rectangle, so a tab
 /// of a maximized window is hit at the edge of the screen. The free part of
 /// the bar (\p tabAt returns -1) belongs to the window (dragging, double click).
+///
+/// A click on the lock of a tab (press and release on it) emits \p lockClicked
+/// (the application shows the popover of the locked document, 266:12010); the
+/// press selects the tab as any press on it.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFDocumentTabBar : public QTabBar
 {
     Q_OBJECT
@@ -191,6 +195,17 @@ public:
     bool isTabPasswordProtected(int index) const;
     void setTabPasswordProtected(int index, bool passwordProtected);
 
+    /// Returns the rectangle of the lock of the tab in the coordinates of the tab
+    /// bar (empty for a tab, which is not locked, or an invalid index)
+    QRect getTabLockRect(int index) const;
+
+    /// Returns the index of the tab, whose lock is at the position, -1 if none
+    int getLockAt(const QPoint& position) const;
+
+Q_SIGNALS:
+    /// The lock of the tab \p index has been clicked
+    void lockClicked(int index);
+
 protected:
     virtual void initStyleOption(QStyleOptionTab* option, int tabIndex) const override;
     virtual QSize tabSizeHint(int index) const override;
@@ -200,6 +215,8 @@ protected:
     virtual void tabRemoved(int index) override;
     virtual void tabLayoutChange() override;
     virtual void changeEvent(QEvent* event) override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
     struct TabState
@@ -213,6 +230,10 @@ private:
     const TabState* getTabState(int index) const;
     TabState* getTabState(int index);
     int getExtraWidth(int index) const;
+
+    /// Rectangles of the lock and of the dot of the tab (empty for a part, which
+    /// the tab does not show), the shape of the tab and its selection
+    void getTabItemRects(int index, QRectF* lockRect, QRectF* dotRect, QRect* shape, bool* isSelected) const;
     void updateAccessibleName(int index);
 
     /// Updates the names of the tabs with a state (lock, unsaved changes, password)
@@ -236,6 +257,9 @@ private:
     /// The close buttons created by the tab bar, which are alive (each one takes
     /// itself out from its destructor, the destructor of the tab bar detaches them)
     QList<PDFDocumentTabCloseButton*> m_closeButtons;
+
+    /// Tab, whose lock has been pressed (-1 = none)
+    int m_pressedLock = -1;
 };
 
 

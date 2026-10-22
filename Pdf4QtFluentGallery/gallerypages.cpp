@@ -2364,7 +2364,8 @@ GalleryPages::Page GalleryPages::createDialogsPage(QWidget* parent)
         { "Question", pdf::PDFThemeIcons::Badge::Question },
         { "Warning", pdf::PDFThemeIcons::Badge::Warning },
         { "Critical", pdf::PDFThemeIcons::Badge::Critical },
-        { "Success", pdf::PDFThemeIcons::Badge::Success }
+        { "Success", pdf::PDFThemeIcons::Badge::Success },
+        { "Neutral", pdf::PDFThemeIcons::Badge::Neutral }
     };
     for (const BadgeSample& sample : badges)
     {

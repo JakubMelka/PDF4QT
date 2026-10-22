@@ -122,6 +122,10 @@ public:
     /// A check reserved by another instance is shown as Checking for this time
     static constexpr qint64 PENDING_LIMIT = 2 * 60 * 1000;
 
+    /// Interval of the attempts to store a result, which the database has refused
+    /// (at most for PENDING_LIMIT after the check)
+    static constexpr int RETRY_INTERVAL = 1000;
+
     /// Largest reply, which is read
     static constexpr qint64 MAXIMUM_REPLY_SIZE = 1024 * 1024;
 
@@ -180,6 +184,10 @@ public:
     /// Number of the requests sent by this checker
     int getRequestCount() const { return m_requestCount; }
 
+    /// The result of the last check of this instance could not be stored (the
+    /// database refused it); getStatus shows it from the memory of this instance
+    bool hasUnstoredResult() const { return m_hasUnstoredResult; }
+
     /// Version of the latest release of a reply of GitHub ({"tag_name": "v1.6.0.0"}).
     /// A null version and the reason for a reply, which is not valid.
     static QVersionNumber parseReply(const QByteArray& data, QString* error);
@@ -190,6 +198,9 @@ Q_SIGNALS:
 
 private:
     bool reserve(bool isForced);
+    bool releaseReservation(const QString& error);
+    bool storeResult();
+    void onRetryTimer();
     void startRequest();
     void finish(const QVersionNumber& version, const QString& error);
     void onReplyFinished();
@@ -204,11 +215,21 @@ private:
     QTimer m_timer;
     QTimer m_startTimer;
     QTimer m_deadlineTimer;     ///< Whole time of the request (the transfer timeout restarts at each received byte)
+    QTimer m_retryTimer;        ///< Store of a result, which the database has refused (another instance held the lock)
     QUrl m_url;
     std::function<qint64()> m_clock;
     int m_timeout = DEFAULT_TIMEOUT;
     QVersionNumber m_runningVersion;
     int m_requestCount = 0;
+
+    // The reservation of the running check (update.lastCheck written by reserve and
+    // its previous value) and the result, which the database refused (finish)
+    qint64 m_reservedTime = 0;
+    qint64 m_previousLastCheck = 0;
+    bool m_hasUnstoredResult = false;
+    qint64 m_unstoredTime = 0;
+    QString m_unstoredVersion;
+    QString m_unstoredError;
     bool m_isRedirectRefused = false;
     bool m_isTooLarge = false;
 };

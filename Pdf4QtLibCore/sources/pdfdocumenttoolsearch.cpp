@@ -117,6 +117,16 @@ PDFSearchField::PDFSearchField(QStringList texts, int exactScore, int prefixScor
 
 }
 
+void PDFSearchField::prepare()
+{
+    words.clear();
+    words.reserve(size_t(texts.size()));
+    for (const QString& text : texts)
+    {
+        words.push_back(PDFSearchQuery::splitWords(text));
+    }
+}
+
 PDFSearchQuery::PDFSearchQuery(const QString& text) :
     m_text(sanitize(text))
 {
@@ -369,15 +379,24 @@ std::optional<PDFSearchFieldMatch> PDFSearchQuery::match(const std::vector<PDFSe
         return std::nullopt;
     }
 
-    // Words of every text of every field
-    std::vector<std::vector<QStringList>> fieldWords(fields.size());
+    // Words of every text of every field (a prepared field has them already)
+    std::vector<std::vector<QStringList>> splitTexts(fields.size());
+    std::vector<const std::vector<QStringList>*> fieldWords(fields.size(), nullptr);
     for (size_t fieldIndex = 0; fieldIndex < fields.size(); ++fieldIndex)
     {
-        fieldWords[fieldIndex].reserve(size_t(fields[fieldIndex].texts.size()));
-        for (const QString& text : fields[fieldIndex].texts)
+        const PDFSearchField& field = fields[fieldIndex];
+        if (field.isPrepared())
         {
-            fieldWords[fieldIndex].push_back(splitWords(text));
+            fieldWords[fieldIndex] = &field.words;
+            continue;
         }
+
+        splitTexts[fieldIndex].reserve(size_t(field.texts.size()));
+        for (const QString& text : field.texts)
+        {
+            splitTexts[fieldIndex].push_back(splitWords(text));
+        }
+        fieldWords[fieldIndex] = &splitTexts[fieldIndex];
     }
 
     PDFSearchFieldMatch result;
@@ -389,7 +408,7 @@ std::optional<PDFSearchFieldMatch> PDFSearchQuery::match(const std::vector<PDFSe
         for (size_t fieldIndex = 0; fieldIndex < fields.size(); ++fieldIndex)
         {
             const PDFSearchField& field = fields[fieldIndex];
-            const std::vector<QStringList>& texts = fieldWords[fieldIndex];
+            const std::vector<QStringList>& texts = *fieldWords[fieldIndex];
             for (size_t textIndex = 0; textIndex < texts.size(); ++textIndex)
             {
                 for (const QString& word : texts[textIndex])
@@ -429,7 +448,7 @@ std::optional<PDFSearchFieldMatch> PDFSearchQuery::match(const std::vector<PDFSe
             continue;
         }
 
-        for (const QStringList& words : fieldWords[fieldIndex])
+        for (const QStringList& words : *fieldWords[fieldIndex])
         {
             const QString title = words.join(QLatin1Char(' '));
             if (title == m_normalizedText)

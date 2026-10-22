@@ -130,6 +130,8 @@ PDFUpdateChecker::PDFUpdateChecker(PDFAppContext* context, QObject* parent) :
     connect(&m_startTimer, &QTimer::timeout, this, &PDFUpdateChecker::onTimer);
     m_deadlineTimer.setSingleShot(true);
     connect(&m_deadlineTimer, &QTimer::timeout, this, &PDFUpdateChecker::onDeadline);
+    m_retryTimer.setSingleShot(true);
+    connect(&m_retryTimer, &QTimer::timeout, this, &PDFUpdateChecker::onRetryTimer);
 }
 
 PDFUpdateChecker::~PDFUpdateChecker()
@@ -137,6 +139,7 @@ PDFUpdateChecker::~PDFUpdateChecker()
     m_timer.stop();
     m_startTimer.stop();
     m_deadlineTimer.stop();
+    m_retryTimer.stop();
 
     // The reply must not call the checker, which is being destroyed
     if (QNetworkReply* reply = m_reply)
@@ -197,9 +200,25 @@ PDFUpdateStatus PDFUpdateChecker::getStatus() const
     }
 
     const PDFSettingsRepository settings = m_context->getSettings();
-    return PDFUpdateStatus::create(settings.getBool(PDFSettingKeys::updateAutoCheck()), isChecking(),
-                                   settings.getInteger(PDFSettingKeys::updateLastCheck()), settings.getInteger(PDFSettingKeys::updateLastSuccess()),
-                                   settings.getString(PDFSettingKeys::updateLatestVersion()), settings.getString(PDFSettingKeys::updateLastError()),
+    qint64 lastCheck = settings.getInteger(PDFSettingKeys::updateLastCheck());
+    qint64 lastSuccess = settings.getInteger(PDFSettingKeys::updateLastSuccess());
+    QString latestVersion = settings.getString(PDFSettingKeys::updateLatestVersion());
+    QString lastError = settings.getString(PDFSettingKeys::updateLastError());
+
+    // The result, which the database refused, is the status of this instance, until
+    // a newer check (of any instance) is stored - never a check pending for minutes
+    if (m_hasUnstoredResult && lastCheck <= m_unstoredTime && lastSuccess < m_unstoredTime)
+    {
+        lastCheck = m_reservedTime;
+        lastError = m_unstoredError;
+        if (m_unstoredError.isEmpty())
+        {
+            lastSuccess = m_unstoredTime;
+            latestVersion = m_unstoredVersion;
+        }
+    }
+
+    return PDFUpdateStatus::create(settings.getBool(PDFSettingKeys::updateAutoCheck()), isChecking(), lastCheck, lastSuccess, latestVersion, lastError,
                                    m_runningVersion, now);
 }
 
@@ -238,7 +257,9 @@ bool PDFUpdateChecker::reserve(bool isForced)
         }
     }
 
-    PDFDatabaseError error = settings.setValue(PDFSettingKeys::updateLastCheck(), qMax<qint64>(now, 1));
+    const qint64 previousLastCheck = settings.getInteger(PDFSettingKeys::updateLastCheck());
+    const qint64 reservedTime = qMax<qint64>(now, 1);
+    PDFDatabaseError error = settings.setValue(PDFSettingKeys::updateLastCheck(), reservedTime);
     if (!error.isError())
     {
         error = settings.resetValue(PDFSettingKeys::updateLastError());
@@ -250,6 +271,47 @@ bool PDFUpdateChecker::reserve(bool isForced)
         return false;
     }
 
+    m_reservedTime = reservedTime;
+    m_previousLastCheck = previousLastCheck;
+    return true;
+}
+
+bool PDFUpdateChecker::releaseReservation(const QString& error)
+{
+    // The result of the check could not be stored: the reservation must not look
+    // like a check running in this instance (the other instances would show Checking
+    // for PENDING_LIMIT). The last check gets its previous value (when no other
+    // instance has reserved a check meanwhile) and the error is stored, if possible.
+    PDFDatabase* database = m_context ? m_context->getDatabase() : nullptr;
+    PDFDatabaseConnection* connection = database ? database->getConnection() : nullptr;
+    if (!connection)
+    {
+        return false;
+    }
+
+    PDFDatabaseTransaction transaction(connection, PDFDatabaseTransaction::Mode::Write);
+    if (!transaction.isActive())
+    {
+        qWarning("The reservation of the check for updates cannot be released: %s", qPrintable(transaction.getError().toString()));
+        return false;
+    }
+
+    PDFSettingsRepository settings = m_context->getSettings();
+    PDFDatabaseError restoreError;
+    if (settings.getInteger(PDFSettingKeys::updateLastCheck()) == m_reservedTime)
+    {
+        restoreError = m_previousLastCheck > 0 ? settings.setValue(PDFSettingKeys::updateLastCheck(), m_previousLastCheck)
+                                               : settings.resetValue(PDFSettingKeys::updateLastCheck());
+    }
+
+    // The error alone may be refused (the statement is rolled back, the transaction stays)
+    const PDFDatabaseError errorError = settings.setValue(PDFSettingKeys::updateLastError(), error.left(1024));
+    if ((restoreError.isError() && errorError.isError()) || !transaction.commit())
+    {
+        qWarning("The reservation of the check for updates cannot be released: %s",
+                 qPrintable(restoreError.isError() ? restoreError.toString() : transaction.getError().toString()));
+        return false;
+    }
     return true;
 }
 
@@ -397,43 +459,13 @@ void PDFUpdateChecker::onReplyFinished()
 void PDFUpdateChecker::finish(const QVersionNumber& version, const QString& error)
 {
     QPointer<PDFUpdateChecker> guard(this);
-    PDFDatabase* database = m_context ? m_context->getDatabase() : nullptr;
-    PDFDatabaseConnection* connection = database ? database->getConnection() : nullptr;
-    if (connection)
-    {
-        PDFSettingsRepository settings = m_context->getSettings();
-        PDFDatabaseTransaction transaction(connection, PDFDatabaseTransaction::Mode::Write);
-        PDFDatabaseError databaseError = transaction.getError();
-        if (transaction.isActive())
-        {
-            if (!error.isEmpty())
-            {
-                databaseError = settings.setValue(PDFSettingKeys::updateLastError(), error.left(1024));
-            }
-            else
-            {
-                databaseError = settings.setValue(PDFSettingKeys::updateLatestVersion(), version.toString());
-                if (!databaseError.isError())
-                {
-                    databaseError = settings.resetValue(PDFSettingKeys::updateLastError());
-                }
-                if (!databaseError.isError())
-                {
-                    databaseError = settings.setValue(PDFSettingKeys::updateLastSuccess(), qMax<qint64>(getCurrentTime(), 1));
-                }
-            }
 
-            if (!databaseError.isError() && !transaction.commit())
-            {
-                databaseError = transaction.getError();
-            }
-        }
-
-        if (databaseError.isError())
-        {
-            qWarning("The result of the check for updates cannot be stored: %s", qPrintable(databaseError.toString()));
-        }
-    }
+    // The result is kept by this instance, until it is stored
+    m_hasUnstoredResult = true;
+    m_unstoredTime = qMax(qMax<qint64>(getCurrentTime(), 1), m_reservedTime);
+    m_unstoredVersion = error.isEmpty() ? version.toString() : QString();
+    m_unstoredError = error;
+    storeResult();
 
     if (!error.isEmpty())
     {
@@ -441,6 +473,90 @@ void PDFUpdateChecker::finish(const QVersionNumber& version, const QString& erro
     }
 
     if (guard)
+    {
+        Q_EMIT statusChanged();
+    }
+}
+
+bool PDFUpdateChecker::storeResult()
+{
+    m_retryTimer.stop();
+    PDFDatabase* database = m_context ? m_context->getDatabase() : nullptr;
+    PDFDatabaseConnection* connection = database ? database->getConnection() : nullptr;
+    if (!m_hasUnstoredResult || !connection)
+    {
+        return false;
+    }
+
+    PDFSettingsRepository settings = m_context->getSettings();
+    PDFDatabaseTransaction transaction(connection, PDFDatabaseTransaction::Mode::Write);
+    PDFDatabaseError databaseError = transaction.getError();
+    if (transaction.isActive())
+    {
+        // A newer check of another instance is stored meanwhile: the result is old
+        const qint64 lastCheck = settings.getInteger(PDFSettingKeys::updateLastCheck());
+        const qint64 lastSuccess = settings.getInteger(PDFSettingKeys::updateLastSuccess());
+        if (lastCheck > m_unstoredTime || lastSuccess >= m_unstoredTime)
+        {
+            m_hasUnstoredResult = false;
+            return true;
+        }
+
+        if (!m_unstoredError.isEmpty())
+        {
+            databaseError = settings.setValue(PDFSettingKeys::updateLastError(), m_unstoredError.left(1024));
+        }
+        else
+        {
+            databaseError = settings.setValue(PDFSettingKeys::updateLatestVersion(), m_unstoredVersion);
+            if (!databaseError.isError())
+            {
+                databaseError = settings.resetValue(PDFSettingKeys::updateLastError());
+            }
+            if (!databaseError.isError())
+            {
+                databaseError = settings.setValue(PDFSettingKeys::updateLastSuccess(), m_unstoredTime);
+            }
+        }
+
+        if (!databaseError.isError() && !transaction.commit())
+        {
+            databaseError = transaction.getError();
+        }
+    }
+
+    if (!databaseError.isError())
+    {
+        m_hasUnstoredResult = false;
+        return true;
+    }
+
+    qWarning("The result of the check for updates cannot be stored: %s", qPrintable(databaseError.toString()));
+    if (transaction.isActive())
+    {
+        transaction.rollback();
+    }
+
+    // This instance shows the result from its memory; the other instances must not
+    // show a pending check: the reservation is released. When even that is refused
+    // (another instance holds the lock), the store is tried again for a while.
+    const bool isReleased = releaseReservation(m_unstoredError.isEmpty() ? tr("The result of the check could not be saved.") : m_unstoredError);
+    if (!isReleased && getCurrentTime() - m_unstoredTime < PENDING_LIMIT)
+    {
+        m_retryTimer.start(RETRY_INTERVAL);
+    }
+    return false;
+}
+
+void PDFUpdateChecker::onRetryTimer()
+{
+    if (isChecking() || !m_hasUnstoredResult)
+    {
+        return;
+    }
+
+    QPointer<PDFUpdateChecker> guard(this);
+    if (storeResult() && guard)
     {
         Q_EMIT statusChanged();
     }

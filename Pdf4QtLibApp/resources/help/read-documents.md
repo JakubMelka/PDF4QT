@@ -3,7 +3,7 @@ title: Read a document
 category: open-and-view
 order: 40
 summary: The document tab, its toolbar, the sidebar, the status bar and the properties.
-keywords: document, read, view, zoom, page, sidebar, thumbnails, outline, bookmarks, status bar, full screen, properties, lock, save, print
+keywords: document, read, view, zoom, page, page label, go to page, sidebar, thumbnails, outline, bookmarks, status bar, full screen, magnifier, layout, two pages, color mode, inverted, select text, screenshot, properties, lock, save, print
 related: /help/annotations, /help/keyboard-shortcuts
 ---
 A document opens in its own tab with a toolbar at the top, a sidebar at the left, the pages in the middle and a status bar at the bottom.
@@ -16,11 +16,27 @@ A document opens in its own tab with a toolbar at the top, a sidebar at the left
 | View, Go to | Panels with the display of the pages and with the navigation in the document |
 | Annotate, Insert | Annotations, notes, shapes, stamps, links and outline items, see [Annotate a document](/help/annotations) |
 | Tools | The tools you use with the document |
-| Page | The number of the current page and the arrows to the previous and the next page |
-| Zoom | The zoom of the pages with the buttons **−** and **+** |
+| Page | The current page and the arrows to the previous and the next page. Type a page number or a page label (for example *iii*) and press Enter |
+| Zoom | The zoom of the pages with the buttons **−** and **+**; type a zoom in percent and press Enter |
+| Select | The tool of the pages: **Select text**, **Select table**, **Screenshot** or **Extract image** |
 | Search in document… | Searching the text of the document; whole words, match case and regular expressions are options |
 
-**Undo** and **Redo** at the left of the toolbar undo and redo the changes of the document.
+**Undo** and **Redo** at the left of the toolbar undo and redo the changes of the document. In a narrow window the menu buttons show only their icons and the zoom is in the **View** panel.
+
+## The View panel
+
+**View** sets how the pages are shown:
+
+- **Page layout** – one page, a continuous column, two pages or two columns. **First page on the right side** shows a book with its cover alone.
+- **Page colors** – normal, inverted, grayscale, high contrast, black and white or your own colors (Settings › Color modes). The colors apply to every document.
+- **Zoom and rotation** – fit the page, its width or its height, and rotate the view (the document is not changed).
+- **Magnifier** – a magnifying glass under the pointer; its size and zoom are in Settings › Viewing.
+- **Full screen** (F11) – the document covers the screen without the toolbar and the sidebar. Press Esc or F11 to leave it.
+- **Show annotations** – shows or hides the comments, highlights and form fields.
+
+## Go to
+
+**Go to** (Ctrl+G) moves to the first, previous, next or last page, by one line, to a typed page, and to your bookmarks. The keys of the pages work when the pages have the focus: Page Up, Page Down, Home, End and the arrows.
 
 ## The sidebar
 
@@ -28,7 +44,7 @@ The icons at the top of the sidebar switch its panels, for example the thumbnail
 
 ## The status bar
 
-The status bar shows the state of the document. When the document has signatures or when some content could not be rendered, the status bar says so and a click shows the details.
+The status bar shows the state of the document. When the document has signatures or when some content could not be rendered, the status bar says so and a click shows the details. A document with page labels shows the page number and its label, for example *Page 3 (iii) of 10*; a click on it opens **Go to**.
 
 ## Locked documents
 
@@ -39,4 +55,4 @@ A document you only read can be locked: the tab has a lock and nothing in it can
 PDF4QT remembers the last page of every document and the view of the document. The next time you open the document, it continues on that page.
 
 > [!TIP] Full screen
-> Show the document in full screen to read without the toolbar and the sidebar.
+> Press F11 to read without the toolbar and the sidebar, Esc to return. F4 shows or hides the sidebar.

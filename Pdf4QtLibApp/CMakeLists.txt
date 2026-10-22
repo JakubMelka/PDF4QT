@@ -67,6 +67,8 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfapplog.h
     sources/core/pdfapppaths.cpp
     sources/core/pdfapppaths.h
+    sources/core/pdfappsysteminfo.cpp
+    sources/core/pdfappsysteminfo.h
     sources/core/pdfappthumbnailer.cpp
     sources/core/pdfappthumbnailer.h
     sources/core/pdfappwindowfactory.cpp
@@ -97,12 +99,17 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/sources/shell/shell.cmake)
 # PDF4QT_LIBAPP_PAGES_SOURCES in this file
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources/pages/pages.cmake)
 
+# The document tab (step 3): the model, the view, the panels, the search, the file
+# operations and the properties add their files to PDF4QT_LIBAPP_DOCUMENT_SOURCES
+include(${CMAKE_CURRENT_SOURCE_DIR}/sources/document/document.cmake)
+
 add_library(Pdf4QtLibApp SHARED
     sources/pdfappglobal.h
     ${PDF4QT_LIBAPP_STORAGE_SOURCES}
     ${PDF4QT_LIBAPP_CORE_SOURCES}
     ${PDF4QT_LIBAPP_SHELL_SOURCES}
     ${PDF4QT_LIBAPP_PAGES_SOURCES}
+    ${PDF4QT_LIBAPP_DOCUMENT_SOURCES}
 )
 
 include(GenerateExportHeader)
@@ -114,12 +121,27 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibApp
 
 target_link_libraries(Pdf4QtLibApp PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibFluent)
 target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Svg)
+
+# The document tab (step 3): printing, speech and the workers of the search,
+# thumbnails and fonts
+target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::PrintSupport Qt6::TextToSpeech Qt6::Concurrent)
 target_link_libraries(Pdf4QtLibApp PRIVATE unofficial::sqlite3::sqlite3)
 
 if(WIN32)
     # GetUserNameW, tokens of the processes (owner of the endpoint of the running
     # instance), AllowSetForegroundWindow, auto-hide taskbar of the maximized window
     target_link_libraries(Pdf4QtLibApp PRIVATE advapi32 user32 shell32)
+
+    # Printer properties… of the print dialog (package E of step 3): the settings
+    # of the driver (DocumentPropertiesW of winspool) applied to the DEVMODE of the
+    # QPrinter through its print engine (a private header of QtPrintSupport, as
+    # QPrintDialog of Qt does); without the private headers the button is hidden
+    target_link_libraries(Pdf4QtLibApp PRIVATE winspool)
+    find_package(Qt6 QUIET COMPONENTS PrintSupportPrivate)
+    if(TARGET Qt6::PrintSupportPrivate)
+        target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::PrintSupportPrivate)
+        target_compile_definitions(Pdf4QtLibApp PRIVATE PDF4QT_APP_PRINTER_PROPERTIES)
+    endif()
 endif()
 
 if(LINUX_GCC)
@@ -131,7 +153,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/core
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/shell
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages)
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/document)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 set_target_properties(Pdf4QtLibApp PROPERTIES

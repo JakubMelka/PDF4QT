@@ -94,7 +94,6 @@ bool PDFWidgetStyleMetrics::pixelMetric(const PDFWidgetStyleImpl* impl, QStyle::
         case QStyle::PM_TabBarTabOverlap:
         case QStyle::PM_TabBarTabVSpace:
         case QStyle::PM_ScrollView_ScrollBarSpacing:
-        case QStyle::PM_ScrollView_ScrollBarOverlap:
         case QStyle::PM_DockWidgetHandleExtent:
         case QStyle::PM_MdiSubWindowFrameWidth:
         case QStyle::PM_MdiSubWindowMinimizedWidth:
@@ -114,6 +113,14 @@ bool PDFWidgetStyleMetrics::pixelMetric(const PDFWidgetStyleImpl* impl, QStyle::
 
         case QStyle::PM_MenuButtonIndicator:
             value = 14;
+            return true;
+
+        case QStyle::PM_ScrollView_ScrollBarOverlap:
+            // The scroll bars of an area with the property overlayScrollBars lie over
+            // the edge of its viewport (QAbstractScrollArea does not make the viewport
+            // smaller by an overlapping scroll bar); a scroll bar draws only its groove
+            // and its slider, so the content below its gutters stays visible
+            value = PDFWidgetStyleImpl::isOverlayScrollBar(widget) ? SCROLL_BAR_EXTENT : 0;
             return true;
 
         case QStyle::PM_TreeViewIndentation:
@@ -269,6 +276,9 @@ bool PDFWidgetStyleMetrics::pixelMetric(const PDFWidgetStyleImpl* impl, QStyle::
         }
 
         case QStyle::PM_ScrollBarExtent:
+            value = SCROLL_BAR_EXTENT;
+            return true;
+
         case QStyle::PM_DockWidgetTitleMargin:
         case QStyle::PM_HeaderMarkSize:
             value = 12;

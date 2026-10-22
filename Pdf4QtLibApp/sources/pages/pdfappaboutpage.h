@@ -151,7 +151,17 @@ public:
     /// Rows shown in the build information
     const QList<PDFAppBuildInfoRow>& getBuildRows() const { return m_buildRows; }
 
+protected:
+    virtual void changeEvent(QEvent* event) override;
+
 private:
+    /// Creates the columns of the page (all its texts in the current language)
+    void buildContent();
+
+    /// The language has changed: the content is created again, the scroll
+    /// position, the anchor of the route and the focused widget are kept
+    void rebuild();
+
     QWidget* createAppCard(QWidget* parent);
     QWidget* createAuthorSection(QWidget* parent);
     QWidget* createLibrariesSection(QWidget* parent);

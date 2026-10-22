@@ -93,7 +93,7 @@ public:
 
     /// Replaces the catalog (tests); the route is shown again
     void setCatalog(const PDFAppHelpCatalog& catalog);
-    const PDFAppHelpCatalog& getCatalog() const { return m_catalog; }
+    const PDFAppHelpCatalog& getCatalog() const { return *m_catalog; }
 
     virtual bool setRoute(const PDFAppRoute& route) override;
     virtual QString getTitle() const override;
@@ -122,7 +122,7 @@ private:
     void onContentsActivated(const QModelIndex& index);
     void onRelatedClicked();
 
-    PDFAppHelpCatalog m_catalog;
+    std::shared_ptr<const PDFAppHelpCatalog> m_catalog; ///< Shared, immutable (PDFAppHelpCatalog::getBuiltin)
     PDFAppHelpTopic m_topic;
     bool m_isNavigating = false;
     QPointer<QWidget> m_content;

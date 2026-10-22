@@ -89,6 +89,18 @@ public:
     /// the user was the keyboard. The widget is repainted, when it changes.
     static bool isFocusRingVisible(const QWidget* widget);
 
+    /// Returns the margins of the shadow of a popover window (a window of the type
+    /// Qt::Popup with the property popover): the panel of the popover lies inside of
+    /// the window by these margins. They are empty without this style and for an
+    /// opaque window (no translucency of the platform). An application popover, which
+    /// places its panel by itself (property popupPlaced), sizes its window by them.
+    static QMargins getPopoverMargins(const QWidget* window);
+
+    /// Draws the panel of a popover window into the whole rectangle of the window:
+    /// the shadow 0 / 8 / 24 in the margins, the fill bg/surface and the border
+    /// border/default with the radius (an opaque window gets a square panel)
+    static void drawPopoverPanel(QPainter* painter, const QWidget* window, qreal radius);
+
     /// Sets the time of the animations of the style (busy progress bars). It is
     /// used by the tests, a negative time returns the real clock.
     void setAnimationTime(qint64 milliseconds);

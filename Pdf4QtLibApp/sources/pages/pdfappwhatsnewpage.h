@@ -181,7 +181,7 @@ public:
 
     /// Replaces the catalog of the releases (tests); the route is shown again
     void setCatalog(const PDFWhatsNewCatalog& catalog);
-    const PDFWhatsNewCatalog& getCatalog() const { return m_catalog; }
+    const PDFWhatsNewCatalog& getCatalog() const { return *m_catalog; }
 
     virtual bool setRoute(const PDFAppRoute& route) override;
     virtual QString getTitle() const override;
@@ -254,7 +254,7 @@ private:
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
 
-    PDFWhatsNewCatalog m_catalog;
+    std::shared_ptr<const PDFWhatsNewCatalog> m_catalog; ///< Shared, immutable (PDFWhatsNewCatalog::getBuiltin)
     PDFWhatsNewRelease m_release;
     QVersionNumber m_runningVersion;
     bool m_isRunningRelease = false;
@@ -316,7 +316,7 @@ private:
     void onVersionActivated(const QVersionNumber& version);
     void onLinkClicked();
 
-    PDFWhatsNewCatalog m_catalog;
+    std::shared_ptr<const PDFWhatsNewCatalog> m_catalog; ///< Shared, immutable (PDFWhatsNewCatalog::getBuiltin)
     PDFWhatsNewRelease m_release;
     QVersionNumber m_runningVersion;
     QPointer<QWidget> m_content;

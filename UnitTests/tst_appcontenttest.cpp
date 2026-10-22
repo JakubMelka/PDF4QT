@@ -36,6 +36,7 @@
 #include "pdfapppagenotfound.h"
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
+#include "pdfappsearchengine.h"
 #include "pdfapptab.h"
 #include "pdfappwhatsnewpage.h"
 #include "pdfappworkspace.h"
@@ -294,6 +295,7 @@ private slots:
     void markdownView();
     void markdownGeometry();
     void markdownViewKeyboard();
+    void markdownLinkSpans();
     void markdownReviewFixes();
     void markdownViewDeletedBySlot();
     void markdownViewNoLeak_data();
@@ -326,6 +328,8 @@ private slots:
     void updateReplyErrors();
     void updateCheckerWithoutDatabase();
     void updateDatabaseLocked();
+    void updateResultNotStored();
+    void builtinCatalogsShared();
 
     // Pages
     void whatsNewPage();
@@ -1097,6 +1101,81 @@ void AppContentTest::markdownViewKeyboard()
     QVERIFY(before->hasFocus());
 }
 
+void AppContentTest::markdownLinkSpans()
+{
+    // A link made of spans with different formats (bold, code, italic) is one link
+    // with one rectangle per line: one focus ring (two adjacent rings were drawn) and
+    // one underline; a wrapped link has one rectangle on each of its lines
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    QPushButton* before = new QPushButton(QStringLiteral("Before"), &window);
+    pdf::PDFAppMarkdownView* view = new pdf::PDFAppMarkdownView(&window);
+    layout->addWidget(before);
+    layout->addWidget(view);
+    view->setMarkdown(QStringLiteral("Open [the **PDF** files, `code` and *more*](/open) now, [plain](/home)."));
+    window.resize(700, 200);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.activateWindow();
+    (void)QTest::qWaitForWindowActive(&window);
+
+    QCOMPARE(view->getLinkCount(), 2);
+    const QList<QRect> rects = view->getLinkRects(0);
+    QCOMPARE(rects.size(), 1);
+    QCOMPARE(view->getLinkRects(1).size(), 1);
+    QVERIFY(rects.front().width() > view->getLinkRects(1).front().width());
+
+    // The focus ring of the keyboard (the difference of the focused and of the
+    // unfocused view - the text of the link has the color of the ring): its vertical
+    // edges only at the ends of the link, none inside of it (between the spans)
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        before->setFocus(Qt::TabFocusReason);
+        QCoreApplication::processEvents();
+        QVERIFY(!view->hasFocus());
+        const QImage unfocused = view->grab().toImage();
+        QTest::keyClick(before, Qt::Key_Tab);
+        QVERIFY(view->hasFocus());
+        QCOMPARE(view->getFocusedLink(), 0);
+        QCoreApplication::processEvents();
+        const QImage focused = view->grab().toImage();
+        QCOMPARE(focused.size(), unfocused.size());
+
+        const QRect rect = rects.front();
+        int ringColumns = 0;
+        int innerRingColumns = 0;
+        for (int x = qMax(0, rect.left() - 4); x <= rect.right() + 4 && x < focused.width(); ++x)
+        {
+            bool isDifferent = false;
+            for (int y = rect.top() + 2; y <= rect.bottom() - 2; ++y)
+            {
+                isDifferent = isDifferent || focused.pixel(x, y) != unfocused.pixel(x, y);
+            }
+            ringColumns += isDifferent ? 1 : 0;
+            innerRingColumns += isDifferent && x > rect.left() + 2 && x < rect.right() - 2 ? 1 : 0;
+        }
+        QVERIFY2(ringColumns >= 2, qPrintable(QString::number(ringColumns)));
+        QCOMPARE(innerRingColumns, 0);
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // A narrow view wraps the link: one rectangle per line, never two on one line
+    window.resize(220, 300);
+    QCoreApplication::processEvents();
+    const QList<QRect> wrapped = view->getLinkRects(0);
+    QVERIFY(wrapped.size() >= 2);
+    for (qsizetype i = 1; i < wrapped.size(); ++i)
+    {
+        QVERIFY(wrapped[i].top() > wrapped[i - 1].top());
+    }
+
+    // The spans of one link joined, the next link of another target is its own link
+    view->setMarkdown(QStringLiteral("[**a**b](/open)[c](/home)"));
+    QCOMPARE(view->getLinkCount(), 2);
+    QCOMPARE(view->getLinkRects(0).size(), 1);
+}
+
 void AppContentTest::markdownReviewFixes()
 {
     // A code block longer than one chunk of the layout (4096 characters) is as high
@@ -1380,8 +1459,8 @@ void AppContentTest::markdownViewStates()
     QCOMPARE(view.getLinkTarget(-1), QString());
     QCOMPARE(int(view.getLinkKind(-1)), int(pdf::PDFAppMarkdownLinkKind::None));
     QCOMPARE(int(view.getLinkKind(3)), int(pdf::PDFAppMarkdownLinkKind::None));
-    // One link of two spans (two formats): one link with an area for each span
-    QCOMPARE(view.getLinkRects(2).size(), 2);
+    // One link of two spans (two formats): one link with one area (one focus ring)
+    QCOMPARE(view.getLinkRects(2).size(), 1);
     view.resize(600, view.heightForWidth(600));
     view.show();
     QVERIFY(QTest::qWaitForWindowExposed(&view));
@@ -2499,18 +2578,189 @@ void AppContentTest::updateDatabaseLocked()
     QTRY_COMPARE(server.requests.size(), 1);
 
     // The lock is taken while the reply runs: the result cannot be stored, the status
-    // is told anyway
+    // is told anyway (from the memory of this instance, not as a pending check)
     {
         pdf::PDFDatabaseTransaction lock(holder.context->getDatabase()->getConnection(), pdf::PDFDatabaseTransaction::Mode::Write);
         QVERIFY(lock.isActive());
         QSignalSpy spy(checker, &pdf::PDFUpdateChecker::statusChanged);
         QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The result of the check for updates cannot be stored")));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The reservation of the check for updates cannot be released")));
         QTRY_VERIFY_WITH_TIMEOUT(!checker->isChecking(), 10000);
         QCOMPARE(spy.size(), 1);
+        QVERIFY(checker->hasUnstoredResult());
+        QCOMPARE(int(checker->getStatus().state), int(pdf::PDFUpdateStatus::State::UpdateAvailable));
+        QCOMPARE(checker->getStatus().latestVersion, QVersionNumber({ 1, 7, 0, 0 }));
         lock.rollback();
     }
-    QVERIFY(checker->getStatus().latestVersion.isNull());
+
+    // The lock is released: the result is stored by a retry, the other instance has it too
+    QSignalSpy stored(checker, &pdf::PDFUpdateChecker::statusChanged);
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->hasUnstoredResult(), 10000);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(checker->getStatus().latestVersion, QVersionNumber({ 1, 7, 0, 0 }));
+    QCOMPARE(holder.context->getSettings().getString(pdf::PDFSettingKeys::updateLatestVersion()), QStringLiteral("1.7.0.0"));
+    QVERIFY(holder.checker()->getStatus().state != pdf::PDFUpdateStatus::State::Checking);
     QCOMPARE(checker->getRequestCount(), 1);
+}
+
+void AppContentTest::updateResultNotStored()
+{
+    // The database refuses the result of a check after reserve() has written the
+    // last check: no instance shows "Checking for updates…" for minutes
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databaseFile = QDir(directory.path()).filePath(QStringLiteral("pdf4qt.db"));
+
+    TestReleaseServer server;
+    QVERIFY(server.start());
+    server.reply.body = TestReleaseServer::createRelease(QStringLiteral("v1.7.0.0"));
+
+    ContentFixture other(false, databaseFile);
+    ContentFixture fixture(false, databaseFile);
+    QVERIFY(other.context->getDatabase() && fixture.context->getDatabase());
+    pdf::PDFUpdateChecker* checker = fixture.checker();
+    checker->setUrl(server.getUrl());
+    checker->setRunningVersion(QVersionNumber({ 1, 6, 0, 0 }));
+    other.checker()->setRunningVersion(QVersionNumber({ 1, 6, 0, 0 }));
+    qint64 now = QDateTime(QDate(2026, 10, 1), QTime(12, 0)).toMSecsSinceEpoch();
+    checker->setClock([&now]() { return now; });
+    other.checker()->setClock([&now]() { return now; });
+
+    // Faults of the connection of the checker (TEMP triggers - the other instance writes)
+    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
+    auto injectFaults = [connection](const QStringList& keys)
+    {
+        QStringList quoted;
+        for (const QString& key : keys)
+        {
+            quoted << QStringLiteral("'%1'").arg(key);
+        }
+        const QString list = quoted.join(QLatin1Char(','));
+        bool ok = true;
+        for (const char* kind : { "INSERT", "UPDATE", "DELETE" })
+        {
+            const QString row = QLatin1String(kind) == QLatin1String("DELETE") ? QStringLiteral("OLD") : QStringLiteral("NEW");
+            const QString sql = QStringLiteral("CREATE TEMP TRIGGER fault_%1 BEFORE %1 ON main.setting WHEN %2.key IN (%3) BEGIN SELECT RAISE(ABORT, 'injected fault'); END")
+                                    .arg(QLatin1String(kind), row, list);
+            ok = ok && !connection->execute(sql.toUtf8().constData()).isError();
+        }
+        return ok;
+    };
+    auto clearFaults = [connection]()
+    {
+        bool ok = true;
+        for (const char* kind : { "INSERT", "UPDATE", "DELETE" })
+        {
+            ok = ok && !connection->execute(QStringLiteral("DROP TRIGGER IF EXISTS temp.fault_%1").arg(QLatin1String(kind)).toUtf8().constData()).isError();
+        }
+        return ok;
+    };
+    const QString lastCheck = pdf::PDFSettingKeys::updateLastCheck();
+    const QString lastError = pdf::PDFSettingKeys::updateLastError();
+    const QString lastSuccess = pdf::PDFSettingKeys::updateLastSuccess();
+    const QString latestVersion = pdf::PDFSettingKeys::updateLatestVersion();
+
+    // 1. The result is refused, the reservation is released: this instance shows the
+    //    result from its memory, the other one the error (no pending check), no retry
+    QVERIFY(injectFaults({ latestVersion, lastSuccess }));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The result of the check for updates cannot be stored")));
+    QVERIFY(checker->checkNow());
+    QCOMPARE(int(other.checker()->getStatus().state), int(pdf::PDFUpdateStatus::State::Checking));
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->isChecking(), 10000);
+    QVERIFY(checker->hasUnstoredResult());
+    QCOMPARE(int(checker->getStatus().state), int(pdf::PDFUpdateStatus::State::UpdateAvailable));
+    QCOMPARE(checker->getStatus().latestVersion, QVersionNumber({ 1, 7, 0, 0 }));
+    QCOMPARE(int(other.checker()->getStatus().state), int(pdf::PDFUpdateStatus::State::Failed));
+    QCOMPARE(other.checker()->getStatus().error, QStringLiteral("The result of the check could not be saved."));
+    QCOMPARE(other.context->getSettings().getInteger(lastCheck), qint64(0));
+    QTest::qWait(1500);
+    QVERIFY(checker->hasUnstoredResult());
+    QVERIFY(clearFaults());
+
+    // 2. Everything is refused (the reservation stays): the store is tried again,
+    //    until a newer check of the other instance is stored - the old result is dropped
+    now += 60 * 1000;
+    QVERIFY(checker->checkNow());
+    QVERIFY(injectFaults({ lastCheck, lastError, latestVersion, lastSuccess }));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The result of the check for updates cannot be stored")));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The reservation of the check for updates cannot be released")));
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->isChecking(), 10000);
+    QVERIFY(checker->hasUnstoredResult());
+    QCOMPARE(int(checker->getStatus().state), int(pdf::PDFUpdateStatus::State::UpdateAvailable));
+    QCOMPARE(int(other.checker()->getStatus().state), int(pdf::PDFUpdateStatus::State::Checking));
+    pdf::PDFSettingsRepository otherSettings = other.context->getSettings();
+    QVERIFY(!otherSettings.setValue(lastCheck, now + 1000).isError());
+    QVERIFY(!otherSettings.setValue(lastSuccess, now + 1000).isError());
+    QVERIFY(!otherSettings.setValue(latestVersion, QStringLiteral("1.8.0.0")).isError());
+    QVERIFY(clearFaults());
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->hasUnstoredResult(), 10000);
+    QCOMPARE(other.context->getSettings().getString(latestVersion), QStringLiteral("1.8.0.0"));
+    QCOMPARE(checker->getStatus().latestVersion, QVersionNumber({ 1, 8, 0, 0 }));
+
+    // 3. A failed check, whose error is refused: the error from the memory; the
+    //    retries stop after PENDING_LIMIT, the reservation then expires by itself
+    now += 2 * 60 * 1000;
+    server.reply.status = 500;
+    QVERIFY(checker->checkNow());
+    QVERIFY(injectFaults({ lastCheck, lastError, latestVersion, lastSuccess }));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The result of the check for updates cannot be stored")));
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^The reservation of the check for updates cannot be released")));
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->isChecking(), 10000);
+    QVERIFY(checker->hasUnstoredResult());
+    QCOMPARE(int(checker->getStatus().state), int(pdf::PDFUpdateStatus::State::Failed));
+    QCOMPARE(checker->getStatus().error, QStringLiteral("GitHub answered with the error 500."));
+    now += pdf::PDFUpdateChecker::PENDING_LIMIT + 1000;
+    QTest::qWait(1500);
+    QVERIFY(clearFaults());
+    QTest::qWait(1500);
+    QVERIFY(checker->hasUnstoredResult());
+    QVERIFY(other.checker()->getStatus().state != pdf::PDFUpdateStatus::State::Checking);
+
+    // 4. Check for updates stores it then
+    server.reply.status = 200;
+    QVERIFY(checker->checkNow());
+    QTRY_VERIFY_WITH_TIMEOUT(!checker->isChecking(), 10000);
+    QVERIFY(!checker->hasUnstoredResult());
+    QCOMPARE(other.context->getSettings().getString(latestVersion), QStringLiteral("1.7.0.0"));
+    QCOMPARE(server.requests.size(), 4);
+}
+
+void AppContentTest::builtinCatalogsShared()
+{
+    // The resources are parsed once per process: every page shares one immutable catalog
+    const std::shared_ptr<const pdf::PDFWhatsNewCatalog> whatsNew = pdf::PDFWhatsNewCatalog::getBuiltin();
+    QVERIFY(whatsNew);
+    QCOMPARE(pdf::PDFWhatsNewCatalog::getBuiltin().get(), whatsNew.get());
+    QVERIFY(!whatsNew->getReleases().empty());
+
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> help = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(help);
+    QCOMPARE(pdf::PDFAppHelpCatalog::getBuiltin().get(), help.get());
+    QCOMPARE(pdf::PDFAppSearchData::getDefaultHelpCatalog().get(), help.get());
+    QVERIFY(!help->getTopics().empty());
+
+    pdf::PDFAppWhatsNewPage first(nullptr);
+    pdf::PDFAppWhatsNewPage second(nullptr);
+    QCOMPARE(&first.getCatalog(), whatsNew.get());
+    QCOMPARE(&second.getCatalog(), whatsNew.get());
+    pdf::PDFAppHelpPage firstHelp(nullptr);
+    pdf::PDFAppHelpPage secondHelp(nullptr);
+    QCOMPARE(&firstHelp.getCatalog(), help.get());
+    QCOMPARE(&secondHelp.getCatalog(), help.get());
+
+    // A catalog of a test replaces the shared one of a page only
+    pdf::PDFWhatsNewCatalog empty;
+    first.setCatalog(empty);
+    QVERIFY(&first.getCatalog() != whatsNew.get());
+    QVERIFY(first.getCatalog().getReleases().empty());
+    QCOMPARE(&second.getCatalog(), whatsNew.get());
+    QVERIFY(!whatsNew->getReleases().empty());
+
+    pdf::PDFAppHelpCatalog emptyHelp;
+    firstHelp.setCatalog(emptyHelp);
+    QVERIFY(&firstHelp.getCatalog() != help.get());
+    QCOMPARE(&secondHelp.getCatalog(), help.get());
+    QVERIFY(!help->getTopics().empty());
 }
 
 // --------------------------------------------------------------------- Pages

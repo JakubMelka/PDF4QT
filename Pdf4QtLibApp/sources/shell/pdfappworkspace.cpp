@@ -49,7 +49,9 @@
 #include <QPushButton>
 #include <QMouseEvent>
 #include <QResizeEvent>
+#include <QScrollBar>
 #include <QStyle>
+#include <QStyleOptionSlider>
 #include <QtMath>
 #include <QVBoxLayout>
 #include <QVersionNumber>
@@ -293,6 +295,34 @@ void PDFAppScrollArea::onFocusChanged(QWidget* old, QWidget* now)
         return;
     }
     ensureWidgetVisible(now, 0, 0);
+}
+
+bool PDFAppScrollArea::isOverlayScrollBars() const
+{
+    return PDFWidgetStyleProperties::isSet(this, PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS);
+}
+
+void PDFAppScrollArea::setOverlayScrollBars(bool isOverlay)
+{
+    if (isOverlay != isOverlayScrollBars())
+    {
+        // The style change lays the scroll bars and the viewport out again
+        PDFWidgetStyleProperties::set(this, PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS, isOverlay);
+    }
+}
+
+int PDFAppScrollArea::getScrollBarOverlap() const
+{
+    QScrollBar* scrollBar = verticalScrollBar();
+    if (!isOverlayScrollBars() || !scrollBar)
+    {
+        return 0;
+    }
+
+    QStyleOptionSlider option;
+    option.initFrom(scrollBar);
+    option.orientation = Qt::Vertical;
+    return qMax(0, scrollBar->style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, &option, scrollBar));
 }
 
 void PDFAppScrollArea::setContent(QWidget* content)
@@ -816,7 +846,7 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
 
     QHBoxLayout* layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(24);
+    layout->setSpacing(SPACING);
 
     // welcome-message-group: title Bold 28 (the design has Extra Bold, which is
     // not bundled - review I-35) in a box of 34 px, the subtitle Regular 14
@@ -845,7 +875,7 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     m_searchField->setClearButtonEnabled(true);
     m_searchField->setPlaceholderText(tr("Search tools, documents, or help..."));
     m_searchField->setAccessibleName(tr("Search tools, documents, or help"));
-    m_searchField->setFixedWidth(320);
+    m_searchField->setFixedWidth(SEARCH_WIDTH);
     m_searchField->setMaxLength(256);
     layout->addWidget(m_searchField, 0, Qt::AlignVCenter);
 
@@ -869,6 +899,57 @@ void PDFAppWorkspaceHeader::setTexts(const QString& title, const QString& subtit
     {
         m_subtitle->setHeaderText(subtitle, subtitleAccent);
         m_subtitle->setVisible(!subtitle.isEmpty());
+    }
+    updateSearchWidth();
+}
+
+int PDFAppWorkspaceHeader::getSearchWidth(int headerWidth, int textWidth)
+{
+    return qBound(int(MINIMUM_SEARCH_WIDTH), headerWidth - SPACING - qMax(0, textWidth), int(SEARCH_WIDTH));
+}
+
+void PDFAppWorkspaceHeader::updateSearchWidth()
+{
+    if (!m_searchField)
+    {
+        return;
+    }
+
+    // The widest of the shown texts (the title, the subtitle, the breadcrumbs)
+    int textWidth = 0;
+    for (const PDFAppHeaderText* text : { m_title.data(), m_subtitle.data() })
+    {
+        if (text && !text->isHidden())
+        {
+            textWidth = qMax(textWidth, qCeil(text->getTextWidth()));
+        }
+    }
+    if (m_breadcrumb && !m_breadcrumb->isHidden())
+    {
+        textWidth = qMax(textWidth, m_breadcrumb->sizeHint().width());
+    }
+
+    const int width = getSearchWidth(contentsRect().width(), textWidth);
+    if (m_searchField->width() != width || m_searchField->minimumWidth() != width)
+    {
+        m_searchField->setFixedWidth(width);
+    }
+}
+
+void PDFAppWorkspaceHeader::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateSearchWidth();
+}
+
+void PDFAppWorkspaceHeader::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+
+    // The texts have other widths (the contents margins of the Help tab, fonts)
+    if (event->type() == QEvent::ContentsRectChange || event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)
+    {
+        updateSearchWidth();
     }
 }
 
@@ -1017,6 +1098,7 @@ void PDFAppWorkspaceHeader::setBreadcrumbs(const QList<PDFAppBreadcrumbItem>& it
         m_breadcrumb->setItems(items);
         m_breadcrumb->setVisible(!items.isEmpty());
     }
+    updateSearchWidth();
 }
 
 void PDFAppWorkspaceHeader::onBreadcrumbActivated(const QString& route)
@@ -1377,8 +1459,10 @@ PDFAppFooter::PDFAppFooter(QWidget* parent) :
     m_freeLabel->setObjectName(QStringLiteral("freeLabel"));
     layout->addWidget(m_freeLabel, 0, Qt::AlignBottom);
     layout->addWidget(createSeparator(), 0, Qt::AlignBottom);
+    // MIT License is Semi Bold 12 as the texts around it (app-footer 28:217)
     m_licenseLink = new PDFTextLink(QString(), this);
     m_licenseLink->setObjectName(QStringLiteral("licenseLink"));
+    m_licenseLink->setLinkSize(PDFComponentPainter::TextLinkSize::Small);
     m_licenseLink->setToolTip(getLicenseUrl().toString());
     layout->addWidget(m_licenseLink, 0, Qt::AlignVCenter);
     layout->addWidget(createSeparator(), 0, Qt::AlignBottom);

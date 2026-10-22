@@ -225,9 +225,10 @@ QWidget* PDFAppHomePage::createRecentFiles(QWidget* parent)
     m_recentFilesCard->setObjectName(QStringLiteral("recentFilesList"));
     m_recentFilesLayout = qobject_cast<QVBoxLayout*>(m_recentFilesCard->layout());
 
-    m_recentFilesEmpty = new PDFLabel(tr("Documents you open appear here."), PDFThemeFonts::Role::Small, PDFThemeColors::TextMuted, m_recentFilesCard);
+    // The small empty state (the scale of the Recent empty state 955:142865)
+    m_recentFilesEmpty = new PDFAppEmptyState(PDFAppEmptyState::Size::Small, QStringLiteral("clock"), m_recentFilesCard);
     m_recentFilesEmpty->setObjectName(QStringLiteral("recentFilesEmpty"));
-    m_recentFilesEmpty->setContentsMargins(12, 10, 12, 10);
+    m_recentFilesEmpty->setTexts(tr("No recent documents"), tr("Documents you open appear here."));
     m_recentFilesLayout->addWidget(m_recentFilesEmpty);
 
     m_dropZone = new PDFAppDropZone(PDFAppDropZone::Variant::Compact, m_recentFilesCard);
@@ -341,9 +342,9 @@ QWidget* PDFAppHomePage::createRecentTools(QWidget* parent)
     m_recentToolsCard = PDFAppPageWidgets::createCard(8, 2, section);
     m_recentToolsCard->setObjectName(QStringLiteral("recentToolsList"));
     m_recentToolsLayout = qobject_cast<QVBoxLayout*>(m_recentToolsCard->layout());
-    m_recentToolsEmpty = new PDFLabel(tr("Tools you use appear here."), PDFThemeFonts::Role::Small, PDFThemeColors::TextMuted, m_recentToolsCard);
+    m_recentToolsEmpty = new PDFAppEmptyState(PDFAppEmptyState::Size::Small, QStringLiteral("tools"), m_recentToolsCard);
     m_recentToolsEmpty->setObjectName(QStringLiteral("recentToolsEmpty"));
-    m_recentToolsEmpty->setContentsMargins(12, 10, 12, 10);
+    m_recentToolsEmpty->setTexts(tr("No recent tools"), tr("Tools you use appear here."));
     m_recentToolsLayout->addWidget(m_recentToolsEmpty);
     m_recentToolsLayout->addStretch(1);
     layout->addWidget(m_recentToolsCard, 1);

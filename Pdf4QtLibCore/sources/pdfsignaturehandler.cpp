@@ -1882,7 +1882,9 @@ void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store
     }
 #endif
 
-    if (m_parameters.useSystemCertificateStore)
+    const bool useAATLCertificates = (m_parameters.aatlCertificates == PDFSignatureHandler::AATLCertificates::Always) ||
+                                     (m_parameters.aatlCertificates == PDFSignatureHandler::AATLCertificates::WithSystemStore && m_parameters.useSystemCertificateStore);
+    if (useAATLCertificates)
     {
         PDFCertificateEntries aatlCertificates = PDFCertificateStore::getAATLCertificates();
         for (const PDFCertificateEntry& entry : aatlCertificates)

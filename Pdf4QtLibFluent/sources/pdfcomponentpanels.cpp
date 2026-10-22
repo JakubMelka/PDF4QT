@@ -41,6 +41,7 @@
 #include <QLocale>
 #include <QMouseEvent>
 #include <QScreen>
+#include <QPointer>
 #include <QSignalBlocker>
 #include <QEvent>
 #include <QGuiApplication>
@@ -900,6 +901,100 @@ void PDFDocumentTabBar::updateAccessibleName(int index)
 #endif
 }
 
+void PDFDocumentTabBar::getTabItemRects(int index, QRectF* lockRect, QRectF* dotRect, QRect* shape, bool* isSelected) const
+{
+    *lockRect = QRectF();
+    *dotRect = QRectF();
+    *shape = QRect();
+    *isSelected = false;
+
+    const TabState* state = getTabState(index);
+    if (!state || index >= count())
+    {
+        return;
+    }
+
+    QStyleOptionTab option;
+    initStyleOption(&option, index);
+    *isSelected = option.state.testFlag(QStyle::State_Selected);
+
+    // Shape of the tab without the gap to the next tab
+    const QRect tab = tabRect(index);
+    const QRect logicalShape(tab.left(), tab.bottom() + 1 - PDFComponentPanelsHelper::TAB_HEIGHT, qMax(0, tab.width() - PDFComponentPanelsHelper::TAB_GAP), PDFComponentPanelsHelper::TAB_HEIGHT);
+    *shape = QStyle::visualRect(layoutDirection(), tab, logicalShape);
+
+    // The lock and the dot follow the label
+    const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
+    const QRect textRect = style()->subElementRect(QStyle::SE_TabBarTabText, &option, this);
+    QString label = tabText(index);
+    label.remove(QLatin1Char('&'));
+    const QFont font = PDFThemeFonts::getFont(*isSelected ? PDFThemeFonts::Role::BodySemiBold : PDFThemeFonts::Role::BodyMedium);
+    qreal position = PDFStylePainter::textWidth(label, font) + PDFComponentPanelsHelper::TAB_ITEM_GAP;
+
+    if (state->locked)
+    {
+        *lockRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_LOCK, *shape, textRect, isRightToLeft, position);
+    }
+    if (state->unsaved)
+    {
+        *dotRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_DOT, *shape, textRect, isRightToLeft, position);
+    }
+}
+
+QRect PDFDocumentTabBar::getTabLockRect(int index) const
+{
+    if (index < 0 || index >= count() || !isTabVisible(index))
+    {
+        return QRect();
+    }
+
+    QRectF lockRect;
+    QRectF dotRect;
+    QRect shape;
+    bool isSelected = false;
+    getTabItemRects(index, &lockRect, &dotRect, &shape, &isSelected);
+    return lockRect.isEmpty() ? QRect() : QRect(lockRect.topLeft().toPoint(), lockRect.size().toSize());
+}
+
+int PDFDocumentTabBar::getLockAt(const QPoint& position) const
+{
+    // The target of the pointer is the lock with a margin of 4 px (the icon has 12 px)
+    for (int i = 0; i < count(); ++i)
+    {
+        const QRect lockRect = getTabLockRect(i);
+        if (!lockRect.isEmpty() && lockRect.adjusted(-4, -4, 4, 4).contains(position))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void PDFDocumentTabBar::mousePressEvent(QMouseEvent* event)
+{
+    m_pressedLock = event->button() == Qt::LeftButton ? getLockAt(event->position().toPoint()) : -1;
+    BaseClass::mousePressEvent(event);
+}
+
+void PDFDocumentTabBar::mouseReleaseEvent(QMouseEvent* event)
+{
+    const int pressedLock = m_pressedLock;
+    m_pressedLock = -1;
+
+    // QTabBar may emit its signals (a moved tab) - the tab bar may be deleted by them
+    QPointer<PDFDocumentTabBar> guard(this);
+    const QPoint position = event->position().toPoint();
+    const bool isLeftButton = event->button() == Qt::LeftButton;
+    BaseClass::mouseReleaseEvent(event);
+
+    // The release on the lock of the pressed tab (the lock is looked up again at
+    // the position of the release, the tab may have moved)
+    if (guard && pressedLock >= 0 && isLeftButton && getLockAt(position) == pressedLock)
+    {
+        Q_EMIT lockClicked(pressedLock);
+    }
+}
+
 void PDFDocumentTabBar::paintEvent(QPaintEvent* event)
 {
     BaseClass::paintEvent(event);
@@ -919,25 +1014,15 @@ void PDFDocumentTabBar::paintEvent(QPaintEvent* event)
             continue;
         }
 
-        QStyleOptionTab option;
-        initStyleOption(&option, i);
-        const bool isSelected = option.state.testFlag(QStyle::State_Selected);
-
-        // Shape of the tab without the gap to the next tab
-        const QRect logicalShape(tab.left(), tab.bottom() + 1 - PDFComponentPanelsHelper::TAB_HEIGHT, qMax(0, tab.width() - PDFComponentPanelsHelper::TAB_GAP), PDFComponentPanelsHelper::TAB_HEIGHT);
-        const QRect shape = QStyle::visualRect(layoutDirection(), tab, logicalShape);
-
-        // The lock and the dot follow the label
-        const QRect textRect = style()->subElementRect(QStyle::SE_TabBarTabText, &option, this);
-        QString label = tabText(i);
-        label.remove(QLatin1Char('&'));
-        const QFont font = PDFThemeFonts::getFont(isSelected ? PDFThemeFonts::Role::BodySemiBold : PDFThemeFonts::Role::BodyMedium);
-        qreal position = PDFStylePainter::textWidth(label, font) + PDFComponentPanelsHelper::TAB_ITEM_GAP;
+        QRectF lockRect;
+        QRectF dotRect;
+        QRect shape;
+        bool isSelected = false;
+        getTabItemRects(i, &lockRect, &dotRect, &shape, &isSelected);
 
         if (state->locked)
         {
             // Amber lock in every state of the tab
-            const QRectF lockRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_LOCK, shape, textRect, isRightToLeft, position);
             PDFThemeIcons::paintFilled(&painter, lockRect, QStringLiteral("lock"),
                                        PDFStylePainter::color(PDFThemeColors::IconDefault), PDFStylePainter::color(PDFThemeColors::AccentAmberIcon));
         }
@@ -945,7 +1030,6 @@ void PDFDocumentTabBar::paintEvent(QPaintEvent* event)
         if (state->unsaved)
         {
             // The dot has the color of the label
-            const QRectF dotRect = PDFComponentPanelsHelper::placeTabItem(PDFComponentPanelsHelper::TAB_DOT, shape, textRect, isRightToLeft, position);
             PDFStylePainter::fillEllipse(&painter, dotRect, PDFStylePainter::color(isSelected ? PDFThemeColors::TextPrimary : PDFThemeColors::TextTertiary));
         }
 

@@ -526,6 +526,7 @@ private slots:
     void apiDetails();
     void navItem();
     void linkUnderline();
+    void linkSmall();
     void swatchGeometry();
     void thumbnailShadow();
     void galleryPages();
@@ -644,6 +645,7 @@ private slots:
     void windowDefensive();
     void windowControlsApplication();
     void documentTabPassword();
+    void documentTabLockClicked();
 
     // Integration of step 2: elements of the pages, the states of the recent items, a dialog of the design
     void pageElementPixels_data();
@@ -651,6 +653,12 @@ private slots:
     void pageElementWidgets();
     void recentStates();
     void messageBoxCustomContent();
+
+    // Step 3: the rendering issue row (198:5950) and the icon of the badge of a message box (1028:22475)
+    void renderingIssueRowPixels_data();
+    void renderingIssueRowPixels();
+    void renderingIssueRowWidget();
+    void messageBoxBadgeIcon();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -2568,6 +2576,102 @@ void FluentComponentsTest::linkUnderline()
     widget.setAttribute(Qt::WA_UnderMouse, true);
     const QImage image = renderWidget(&widget, 1.0);
     QVERIFY(countPixels(image, QRect(2, 15, textWidth, 1), accent, 3) >= textWidth - 1);
+}
+
+void FluentComponentsTest::linkSmall()
+{
+    // The small link (MIT License of app-footer 28:217): Semi Bold 12 as the texts
+    // around it, the line box of 16 px of the component (the same height, the same
+    // focus ring and the underline at the bottom row)
+    const Painter::TextLink small{ QStringLiteral("MIT License"), Painter::TextLinkSize::Small };
+    const Painter::TextLink normal{ QStringLiteral("MIT License") };
+    const QFont smallFont = Painter::getTextLinkFont(Painter::TextLinkSize::Small, false);
+    QCOMPARE(smallFont.pixelSize(), 12);
+    QCOMPARE(smallFont.weight(), QFont::DemiBold);
+    QVERIFY(!smallFont.underline());
+    QVERIFY(Painter::getTextLinkFont(Painter::TextLinkSize::Small, true).underline());
+    QCOMPARE(Painter::getTextLinkFont(Painter::TextLinkSize::Default, false), Painter::getTextLinkFont());
+    QCOMPARE(Painter::getTextLinkFont().pixelSize(), 13);
+    QCOMPARE(Painter::getTextLinkFont(static_cast<Painter::TextLinkSize>(42), false).pixelSize(), 13);
+
+    const QSize smallSize = Painter::getTextLinkSize(small);
+    QCOMPARE(smallSize, QSize(qCeil(pdf::PDFStylePainter::textWidth(small.text, smallFont)) + 4, 16));
+    QVERIFY(smallSize.width() < Painter::getTextLinkSize(normal).width());
+    QCOMPARE(Painter::getTextLinkSize(Painter::TextLink{ QString(), Painter::TextLinkSize::Small }), QSize(4, 16));
+
+    // Pixels in both themes at 1 / 1.5 / 2: the ink of the small link is lower and
+    // narrower than the ink of the default one, both in text/accent, centered in
+    // the box; the underline under the pointer is the bottom row of the box
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QColor accent = token(Color::TextAccent);
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            auto inkRows = [&](const Painter::TextLink& link, QStyle::State flags, int* first, int* last, int* right)
+            {
+                const QSize size = Painter::getTextLinkSize(link);
+                const QImage image = render([&](QPainter& painter) { Painter::paintTextLink(&painter, QRectF(QPointF(0, 0), size), link, state(flags)); }, size, scale);
+                *first = -1;
+                *last = -1;
+                *right = -1;
+                for (int y = 0; y < image.height(); ++y)
+                {
+                    for (int x = 0; x < image.width(); ++x)
+                    {
+                        if (colorDistance(image.pixelColor(x, y), token(Color::BgSurface)) > 120)
+                        {
+                            *first = *first < 0 ? y : *first;
+                            *last = y;
+                            *right = qMax(*right, x);
+                        }
+                    }
+                }
+                return image;
+            };
+
+            int smallFirst = 0;
+            int smallLast = 0;
+            int smallRight = 0;
+            int normalFirst = 0;
+            int normalLast = 0;
+            int normalRight = 0;
+            const QImage smallImage = inkRows(small, QStyle::State_None, &smallFirst, &smallLast, &smallRight);
+            inkRows(normal, QStyle::State_None, &normalFirst, &normalLast, &normalRight);
+            QVERIFY(smallFirst >= 0 && normalFirst >= 0);
+            QCOMPARE(countLeakPixels(smallImage), 0);
+            QVERIFY2(smallLast - smallFirst < normalLast - normalFirst, qPrintable(QStringLiteral("%1-%2 / %3-%4").arg(smallFirst).arg(smallLast).arg(normalFirst).arg(normalLast)));
+            QVERIFY(smallRight < normalRight);
+            QVERIFY2(qAbs((smallFirst + smallLast + 1) - 16 * scale) <= 3 * scale, qPrintable(QStringLiteral("%1-%2 at %3").arg(smallFirst).arg(smallLast).arg(scale)));
+            QVERIFY(isNear(strongestInk(smallImage, QRect(0, 0, smallSize.width(), 16), token(Color::BgSurface)), accent, 40));
+
+            // The underline of the pointer: the last row of the box
+            const QImage hovered = render([&](QPainter& painter) { Painter::paintTextLink(&painter, QRectF(QPointF(0, 0), smallSize), small, state(QStyle::State_MouseOver)); }, smallSize, scale);
+            const int textWidth = qFloor(pdf::PDFStylePainter::textWidth(small.text, smallFont));
+            QVERIFY(countPixels(hovered, QRect(2, 15, textWidth, 1), accent, 3) >= textWidth - 1);
+        }
+    }
+
+    // The widget: the size follows the size of the text, an unknown size is the
+    // default size, the widget draws as the painter
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    pdf::PDFTextLink link(small.text);
+    QCOMPARE(link.getLinkSize(), Painter::TextLinkSize::Default);
+    QCOMPARE(link.sizeHint(), Painter::getTextLinkSize(normal));
+    link.setLinkSize(Painter::TextLinkSize::Small);
+    QCOMPARE(link.getLinkSize(), Painter::TextLinkSize::Small);
+    QCOMPARE(link.sizeHint(), smallSize);
+    link.resize(link.sizeHint());
+    for (const qreal scale : { 1.0, 2.0 })
+    {
+        const QImage widgetImage = renderWidget(&link, scale);
+        const QImage painterImage = renderInWidget([&](QPainter& painter) { Painter::paintTextLink(&painter, QRectF(QPointF(0, 0), smallSize), small, state(QStyle::State_None)); }, smallSize, scale);
+        const QString difference = describeDifference(widgetImage, painterImage, 2);
+        QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    }
+    link.setLinkSize(static_cast<Painter::TextLinkSize>(42));
+    QCOMPARE(link.getLinkSize(), Painter::TextLinkSize::Default);
+    QCOMPARE(link.sizeHint(), Painter::getTextLinkSize(normal));
 }
 
 void FluentComponentsTest::swatchGeometry()
@@ -13306,6 +13410,70 @@ void FluentComponentsTest::windowControlsApplication()
     QCOMPARE(controls->getButtonAt(QPoint(270, 5)), std::optional<Kind>(Kind::Minimize));
 }
 
+void FluentComponentsTest::documentTabLockClicked()
+{
+    // A click on the lock of a tab (press and release on it) emits lockClicked;
+    // the rectangle of the lock follows the label, also right-to-left
+    pdf::PDFDocumentTabBar tabBar;
+    const int home = tabBar.addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("home")), QStringLiteral("Home"));
+    const int report = tabBar.addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("file")), QStringLiteral("Report.pdf"));
+    tabBar.setTabClosable(report, true);
+    tabBar.resize(600, 38);
+    tabBar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&tabBar));
+
+    QVERIFY(tabBar.getTabLockRect(report).isEmpty());
+    QVERIFY(tabBar.getTabLockRect(-1).isEmpty());
+    QVERIFY(tabBar.getTabLockRect(42).isEmpty());
+    QCOMPARE(tabBar.getLockAt(tabBar.tabRect(report).center()), -1);
+
+    tabBar.setTabLocked(report, true);
+    const QRect lock = tabBar.getTabLockRect(report);
+    QCOMPARE(lock.size(), QSize(12, 12));
+    QVERIFY(tabBar.tabRect(report).contains(lock));
+    QCOMPARE(tabBar.getLockAt(lock.center()), report);
+    QCOMPARE(tabBar.getLockAt(lock.topLeft() - QPoint(3, 3)), report);
+    QCOMPARE(tabBar.getLockAt(lock.topLeft() - QPoint(6, 6)), -1);
+
+    // The lock is drawn in the rectangle (amber)
+    const QImage image = renderWidget(&tabBar, 1.0);
+    QVERIFY(countPixels(image, lock, token(Color::AccentAmberIcon), 60) > 0);
+
+    QSignalSpy spy(&tabBar, &pdf::PDFDocumentTabBar::lockClicked);
+    QTest::mouseClick(&tabBar, Qt::LeftButton, Qt::NoModifier, lock.center());
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.front().front().toInt(), report);
+    QCOMPARE(tabBar.currentIndex(), report);
+
+    // A release outside of the lock, the right button, a click on the label: nothing
+    QTest::mousePress(&tabBar, Qt::LeftButton, Qt::NoModifier, lock.center());
+    QTest::mouseRelease(&tabBar, Qt::LeftButton, Qt::NoModifier, tabBar.tabRect(home).center());
+    QTest::mouseClick(&tabBar, Qt::RightButton, Qt::NoModifier, lock.center());
+    QTest::mouseClick(&tabBar, Qt::LeftButton, Qt::NoModifier, tabBar.tabRect(report).topLeft() + QPoint(12, 18));
+    QCOMPARE(spy.count(), 1);
+
+    // An unsaved tab: the dot follows the lock; right-to-left mirrors them
+    tabBar.setTabUnsaved(report, true);
+    QCOMPARE(tabBar.getTabLockRect(report).size(), QSize(12, 12));
+    tabBar.setLayoutDirection(Qt::RightToLeft);
+    QCoreApplication::processEvents();
+    const QRect mirrored = tabBar.getTabLockRect(report);
+    QVERIFY(tabBar.tabRect(report).contains(mirrored));
+    QTest::mouseClick(&tabBar, Qt::LeftButton, Qt::NoModifier, mirrored.center());
+    QCOMPARE(spy.count(), 2);
+
+    // The tab bar deleted from the slot of the signal
+    QPointer<pdf::PDFDocumentTabBar> deleted = new pdf::PDFDocumentTabBar();
+    deleted->addTab(QStringLiteral("Locked.pdf"));
+    deleted->setTabLocked(0, true);
+    deleted->resize(300, 38);
+    deleted->show();
+    QVERIFY(QTest::qWaitForWindowExposed(deleted.data()));
+    QObject::connect(deleted.data(), &pdf::PDFDocumentTabBar::lockClicked, deleted.data(), [deleted]() { delete deleted.data(); });
+    QTest::mouseClick(deleted.data(), Qt::LeftButton, Qt::NoModifier, deleted->getTabLockRect(0).center());
+    QVERIFY(!deleted);
+}
+
 void FluentComponentsTest::documentTabPassword()
 {
     // The tab bar with its protected functions
@@ -14079,6 +14247,186 @@ void FluentComponentsTest::messageBoxCustomContent()
     box->addContent(new QWidget(box.data()));
     box->setCardWidth(300);
     QCOMPARE(box->sizeHint().width(), 300 + box->getShadowMargins().left() + box->getShadowMargins().right());
+    delete box.data();
+}
+
+void FluentComponentsTest::renderingIssueRowPixels_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::renderingIssueRowPixels()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    Painter::RenderingIssueRow row;
+    row.page = QStringLiteral("Page 12");
+    row.message = QStringLiteral("Font ArialMT is not embedded. A substitute font is used.");
+    row.severity = Painter::IssueSeverity::Warning;
+
+    // Size of the design: 406 x 46 for a message of one line, a longer message wraps
+    QCOMPARE(Painter::getRenderingIssueRowSize(row), QSize(406, 46));
+    QCOMPARE(Painter::getRenderingIssueRowHeight(row, 406), 46);
+    QVERIFY(Painter::getRenderingIssueRowHeight(row, 200) > 46);
+    QCOMPARE((Painter::getRenderingIssueRowHeight(row, 200) - 46) % 15, 0);
+    QCOMPARE(Painter::getRenderingIssueRowMinimumSize(row).height(), 46);
+    const Painter::RenderingIssueRow empty;
+    QCOMPARE(Painter::getRenderingIssueRowHeight(empty, 406), 46);
+
+    // Severities: icons and colors, an invalid value is a warning
+    QCOMPARE(Painter::getIssueSeverityIconName(Painter::IssueSeverity::Error), QStringLiteral("x-circle"));
+    QCOMPARE(Painter::getIssueSeverityIconName(Painter::IssueSeverity::Warning), QStringLiteral("alert-triangle"));
+    QCOMPARE(Painter::getIssueSeverityIconName(Painter::IssueSeverity::Information), QStringLiteral("info"));
+    QCOMPARE(Painter::getIssueSeverityIconColor(Painter::IssueSeverity(77)), Color::AccentAmberIcon);
+    QCOMPARE(Painter::normalized(Painter::IssueSeverity(-3)), Painter::IssueSeverity::Warning);
+
+    const QRect iconArea(10, 8, 16, 16);
+    const QRect pageArea(36, 8, 50, 13);
+    const QRect messageArea(36, 23, 300, 15);
+
+    // Nearer to the first token than to the second one
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other)
+    {
+        return colorDistance(color, expected) < colorDistance(color, other);
+    };
+
+    // At rest: no fill, the icon accent/amber/icon, the page text/muted, the message text/secondary
+    QImage image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, state(QStyle::State_None)); }, QSize(406, 46), scale);
+    QVERIFY(isNear(pixel(image, 3, 3), surface));
+    QVERIFY(isNear(pixel(image, 400, 40), surface));
+    QVERIFY(isCloser(strongestInk(image, iconArea, surface), token(Color::AccentAmberIcon), token(Color::AccentRedIcon)));
+    QVERIFY(isCloser(strongestInk(image, pageArea, surface), token(Color::TextMuted), surface));
+    QVERIFY(isCloser(strongestInk(image, messageArea, surface), token(Color::TextSecondary), surface));
+    QCOMPARE(countLeakPixels(image), 0);
+
+    // Hover bg/hover, pressed bg/pressed (radius 8: the corner stays the surface)
+    image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, state(QStyle::State_MouseOver)); }, QSize(406, 46), scale);
+    QVERIFY(isNear(pixel(image, 400, 40), blend(token(Color::BgHover), surface)));
+    QVERIFY(isNear(pixel(image, 0, 0), surface, 12));
+    image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, state(QStyle::State_MouseOver | QStyle::State_Sunken)); }, QSize(406, 46), scale);
+    QVERIFY(isNear(pixel(image, 400, 40), blend(token(Color::BgPressed), surface)));
+
+    // Error: accent/red/icon; disabled: icon/disabled and text/disabled
+    row.severity = Painter::IssueSeverity::Error;
+    image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, state(QStyle::State_None)); }, QSize(406, 46), scale);
+    QVERIFY(isCloser(strongestInk(image, iconArea, surface), token(Color::AccentRedIcon), token(Color::AccentAmberIcon)));
+    image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, Painter::State(QStyle::State_None)); }, QSize(406, 46), scale);
+    QVERIFY(isCloser(strongestInk(image, iconArea, surface), token(Color::IconDisabled), token(Color::AccentRedIcon)));
+    QVERIFY(isCloser(strongestInk(image, messageArea, surface), token(Color::TextDisabled), token(Color::TextSecondary)));
+
+    // Right-to-left: the icon at the right edge, nothing at the left edge
+    image = render([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 406, 46), row, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(406, 46), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(406 - 26, 8, 16, 16), surface), token(Color::AccentRedIcon), surface));
+    QVERIFY(isNear(strongestInk(image, iconArea, surface), surface, 8));
+
+    // Defensive: a null painter, empty, NaN and narrow rectangles
+    Painter::paintRenderingIssueRow(nullptr, QRectF(0, 0, 406, 46), row, state(QStyle::State_None));
+    image = render([&](QPainter& painter)
+    {
+        Painter::paintRenderingIssueRow(&painter, QRectF(), row, state(QStyle::State_None));
+        Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, qQNaN(), 46), row, state(QStyle::State_None));
+        Painter::paintRenderingIssueRow(&painter, QRectF(0, 0, 20, 46), row, state(QStyle::State_None));
+    }, QSize(406, 46), scale);
+    QVERIFY(isNear(pixel(image, 200, 30), surface));
+}
+
+void FluentComponentsTest::renderingIssueRowWidget()
+{
+    QWidget window;
+    window.resize(500, 300);
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    QPointer<pdf::PDFRenderingIssueRow> row = new pdf::PDFRenderingIssueRow(QStringLiteral("Page 308"), QStringLiteral("Invalid arguments of the operator Tj. The operator was skipped."),
+                                                                           pdf::PDFRenderingIssueRow::Severity::Error, &window);
+    pdf::PDFRenderingIssueRow* second = new pdf::PDFRenderingIssueRow(QStringLiteral("Page 12"), QStringLiteral("Second"), pdf::PDFRenderingIssueRow::Severity::Warning, &window);
+    layout->addWidget(row);
+    layout->addWidget(second);
+    layout->addStretch(1);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    QCOMPARE(row->getPage(), QStringLiteral("Page 308"));
+    QCOMPARE(row->getSeverity(), pdf::PDFRenderingIssueRow::Severity::Error);
+    QCOMPARE(row->getContent().page, QStringLiteral("Page 308"));
+    row->setSeverity(pdf::PDFRenderingIssueRow::Severity(42));
+    QCOMPARE(row->getSeverity(), pdf::PDFRenderingIssueRow::Severity::Warning);
+    row->setSeverity(pdf::PDFRenderingIssueRow::Severity::Error);
+    row->setPage(QStringLiteral("Page 308"));
+
+    // The height follows the width
+    QVERIFY(row->hasHeightForWidth());
+    QCOMPARE(row->heightForWidth(406), Painter::getRenderingIssueRowHeight(row->getContent(), 406));
+    QVERIFY(row->heightForWidth(150) > row->heightForWidth(406));
+    const int oldHeight = row->heightForWidth(406);
+    row->setMessage(row->getMessage() + QStringLiteral(" And a much longer message, which takes the second and the third line of the row of the popover."));
+    QVERIFY(row->heightForWidth(406) > oldHeight);
+
+    // The widget draws the painter
+    row->setFixedWidth(406);
+    row->setFixedHeight(row->heightForWidth(406));
+    QApplication::processEvents();
+    const QImage widgetImage = renderWidget(row, 1.0);
+    const QImage painterImage = renderInWidget([&](QPainter& painter) { Painter::paintRenderingIssueRow(&painter, QRectF(QPoint(), row->size()), row->getContent(), state(QStyle::State_None)); }, row->size());
+    QCOMPARE(describeDifference(widgetImage, painterImage, 2), QString());
+
+    // Accessibility: the page and the message, the severity as the description
+    QCOMPARE(row->getAccessibleText(), QStringLiteral("Page 308: %1").arg(row->getMessage()));
+    QCOMPARE(row->getAccessibleDescriptionText(), QStringLiteral("Error"));
+    QCOMPARE(second->getAccessibleDescriptionText(), QStringLiteral("Warning"));
+    second->setSeverity(pdf::PDFRenderingIssueRow::Severity::Information);
+    QCOMPARE(second->getAccessibleDescriptionText(), QStringLiteral("Information"));
+
+    // Click, Enter and Space activate it
+    QSignalSpy clicked(row.data(), &QAbstractButton::clicked);
+    QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(20, 10));
+    QCOMPARE(clicked.count(), 1);
+    row->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(row->hasFocus());
+    QTest::keyClick(row, Qt::Key_Space);
+    QCOMPARE(clicked.count(), 2);
+    QTest::keyClick(row, Qt::Key_Return);
+    QCOMPARE(clicked.count(), 3);
+
+    // Deleted from its own signal (later, as the rule of the library says)
+    connect(row.data(), &QAbstractButton::clicked, row.data(), [&row]() { row->deleteLater(); });
+    QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(20, 10));
+    QTRY_VERIFY(!row);
+}
+
+void FluentComponentsTest::messageBoxBadgeIcon()
+{
+    QWidget host;
+    host.resize(800, 600);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Open the web link?"), QStringLiteral("Text"), QDialogButtonBox::Cancel, &host);
+    QCOMPARE(box->getBadgeIconName(), QString());
+    box->setBadgeIconName(QStringLiteral("external-link"));
+    QCOMPARE(box->getBadgeIconName(), QStringLiteral("external-link"));
+
+    // The badge in the colors of the kind with another icon: the circle is the same, the icon differs
+    auto paintBadge = [](const QString& iconName)
+    {
+        return render([&](QPainter& painter) { pdf::PDFThemeIcons::paintBadge(&painter, QRectF(0, 0, 36, 36), pdf::PDFThemeIcons::Badge::Information, iconName); }, QSize(36, 36), 2.0);
+    };
+    const QImage defaultBadge = paintBadge(QString());
+    const QImage linkBadge = paintBadge(QStringLiteral("external-link"));
+    const QImage unknownBadge = paintBadge(QStringLiteral("no-such-icon"));
+    QCOMPARE(describeDifference(defaultBadge, unknownBadge, 0), QString());
+    QVERIFY(!describeDifference(defaultBadge, linkBadge, 8).isEmpty());
+    QVERIFY(isNear(pixel(linkBadge, 3, 18), blend(token(Color::AccentBlueBg), token(Color::BgSurface)), 12));
+
+    const QImage oldOverload = render([&](QPainter& painter) { pdf::PDFThemeIcons::paintBadge(&painter, QRectF(0, 0, 36, 36), pdf::PDFThemeIcons::Badge::Information); }, QSize(36, 36), 2.0);
+    QCOMPARE(describeDifference(defaultBadge, oldOverload, 0), QString());
+
+    // A shown message box draws the icon of the badge
+    box->show();
+    QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+    box->setBadgeIconName(QString());
+    QCOMPARE(box->getBadgeIconName(), QString());
     delete box.data();
 }
 

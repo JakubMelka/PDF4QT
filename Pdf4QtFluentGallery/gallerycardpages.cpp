@@ -673,6 +673,10 @@ QWidget* GalleryPages::createHomeSample(QWidget* parent)
     tabs->setTabClosable(1, true);
     tabs->setTabClosable(2, true);
     tabs->setCurrentIndex(0);
+
+    // Invoice.pdf is locked (the amber lock of a document tab, View Document 266:12010):
+    // the generic input of the lifetime test clicks the lock (lockClicked)
+    tabs->setTabLocked(2, true);
     topBarLayout->addWidget(tabs, 0, Qt::AlignBottom);
     QToolButton* newTab = new QToolButton(topBar);
     newTab->setProperty(Properties::NEW_TAB, true);

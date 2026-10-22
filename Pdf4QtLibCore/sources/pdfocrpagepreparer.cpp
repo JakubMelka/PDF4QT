@@ -663,39 +663,13 @@ bool PDFOCRPagePreparer::hasConformanceDeclaration(const PDFDocument* document, 
 
 QString PDFOCRPagePreparer::getPageLabel(const PDFDocument* document, PDFInteger pageIndex)
 {
-    const PDFDictionary* trailer = document->getTrailerDictionary();
-    if (!trailer)
+    // The catalog holds the parsed labels and bounds the hostile values
+    if (!document || !document->getCatalog())
     {
         return QString();
     }
 
-    const PDFDictionary* catalogDictionary = document->getDictionaryFromObject(trailer->get("Root"));
-    if (!catalogDictionary || !catalogDictionary->hasKey("PageLabels"))
-    {
-        return QString();
-    }
-
-    const std::vector<PDFPageLabel> labels = PDFNumberTreeLoader<PDFPageLabel>::parse(&document->getStorage(), catalogDictionary->get("PageLabels"));
-    const PDFPageLabel* label = nullptr;
-    for (const PDFPageLabel& item : labels)
-    {
-        if (item.getPageIndex() <= pageIndex)
-        {
-            label = &item;
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    if (!label)
-    {
-        return QString();
-    }
-
-    const PDFInteger number = label->getPageStartNumber() + (pageIndex - label->getPageIndex());
-    return label->getPrefix() + PDFPageLabel::formatPageNumber(label->getNumberingStyle(), number);
+    return document->getCatalog()->getPageLabel(pageIndex);
 }
 
 static const QByteArray EMPTY_DICTIONARY_DIGEST = QByteArrayLiteral("EMPTY-DICTIONARY");

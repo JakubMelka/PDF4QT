@@ -31,6 +31,7 @@
 #include <QList>
 #include <QString>
 #include <QUrl>
+#include <QVersionNumber>
 
 #include <vector>
 
@@ -38,6 +39,7 @@ namespace pdf
 {
 
 class PDFAppContext;
+class PDFWhatsNewCatalog;
 
 /// Third-party library, which the application PDF4QT links (or bundles, as the
 /// font Inter), as the table Third-party libraries of About (110:2158) shows it
@@ -93,6 +95,18 @@ public:
 
     /// Value of the row Version ("1.6.0 (Release)")
     static QString getVersionText();
+
+    /// Release of the version in the What's New catalog for the hero line of About
+    /// (110:2163): "Released Mar 14, 2026" (the date as What's New shows it), "Not
+    /// released yet" for a release with "date: unreleased", empty for a version,
+    /// which has no release in the catalog (nothing is invented)
+    static QString getReleaseText(const PDFWhatsNewCatalog& catalog, const QVersionNumber& version);
+
+    /// Hero line of About: "Version 1.6.0 · Released Mar 14, 2026" (the release of
+    /// the running version in the catalog of the application); the build date is a
+    /// row of the build information
+    static QString getHeroVersionText(const PDFWhatsNewCatalog& catalog, const QVersionNumber& version);
+    static QString getHeroVersionText();
 
     /// Build date and commit of the build (empty, when the build does not define them)
     static QString getBuildDate();

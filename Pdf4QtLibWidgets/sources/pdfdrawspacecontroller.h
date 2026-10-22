@@ -37,6 +37,9 @@
 #include <QRectF>
 #include <QObject>
 #include <QMarginsF>
+#include <QColor>
+
+#include <optional>
 
 class QPainter;
 class QScreen;
@@ -50,6 +53,7 @@ class PDFWidget;
 class PDFCMSManager;
 class PDFTextLayoutGetter;
 class PDFWidgetAnnotationManager;
+class PDFFormManager;
 class PDFAsynchronousPageCompiler;
 class PDFAsynchronousTextLayoutCompiler;
 
@@ -189,6 +193,34 @@ private:
     PDFICCProfileCache m_iccProfileCache;
 };
 
+/// Colors of the view of a document, which are not colors of the document: the
+/// canvas around the pages and the selection inside of the form fields. An
+/// application sets them by PDFDrawWidgetProxy::setViewColors (the new application
+/// takes them from its theme). Without them the view keeps the colors of the old
+/// applications: the canvas gray of PDFWidgetUtils::isDarkTheme and the selection
+/// colors of the palette of the application.
+struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
+{
+    /// Background around the pages
+    QColor canvas;
+
+    /// Background of the selected text of a form field
+    QColor selection;
+
+    /// Selected text of a form field
+    QColor selectionText;
+
+    bool operator==(const PDFViewColors&) const = default;
+
+    /// Colors of the old applications (canvas gray of the dark / light theme,
+    /// highlight colors of the palette of the application)
+    static PDFViewColors getDefaultColors();
+
+    /// Colors for drawing of a form field: the colors of the proxy of the form
+    /// manager of the parameters (PDFWidgetFormManager), or the default colors
+    static PDFViewColors getColors(const PDFFormManager* formManager);
+};
+
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFDrawWidgetProxy : public QObject
@@ -281,6 +313,10 @@ public:
     /// or fill horizontal).
     /// \param hint Zoom hint type
     PDFReal getZoomHint(ZoomHint hint) const;
+
+    /// Returns the fit, which the zoom follows (the zoom is computed again, when
+    /// the widget or the layout changes), std::nullopt for a custom zoom
+    std::optional<ZoomHint> getZoomFitHint() const;
 
     /// Calculates zoom using given hint for a specific page.
     /// If page is invalid, the current page (or a suitable fallback) is used.
@@ -375,6 +411,15 @@ public:
 
     /// Returns current paper color
     QColor getPaperColor();
+
+    /// Sets the colors of the view (canvas, selection of form fields); repaints
+    void setViewColors(const PDFViewColors& colors);
+
+    /// Removes the colors set by setViewColors (the default colors are used)
+    void resetViewColors();
+
+    /// Colors of the view: the colors of setViewColors, or the default colors
+    PDFViewColors getViewColors() const;
 
     /// Transforms pixels to device space
     /// \param pixel Value in pixels
@@ -625,6 +670,9 @@ private:
 
     /// Signature verification results
     std::vector<PDFSignatureVerificationResult> m_signatureVerificationResult;
+
+    /// Colors of the view set by the application (none = the default colors)
+    std::optional<PDFViewColors> m_viewColors;
 };
 
 }   // namespace pdf

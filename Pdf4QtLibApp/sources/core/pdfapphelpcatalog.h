@@ -29,6 +29,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <memory>
 #include <vector>
 
 namespace pdf
@@ -128,6 +129,11 @@ public:
 
     /// Loads the English topics of the folder (damaged files are logged and skipped)
     static PDFAppHelpCatalog load(const QString& directory = getResourceDirectory());
+
+    /// Catalog of the resources of the application, parsed once per process (the
+    /// first call, in the thread of the user interface); the resources never change,
+    /// so the help pages and the global search share this immutable object
+    static std::shared_ptr<const PDFAppHelpCatalog> getBuiltin();
 
     /// Parses a topic file. \returns false and the errors ("line: message"), if it is not valid.
     static bool parseTopic(const QString& id, const QString& text, PDFAppHelpTopic* topic, QStringList* errors);

@@ -46,6 +46,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScreen>
+#include <QScrollBar>
 #include <QStyleHints>
 #include <QTimer>
 #include <QTimerEvent>
@@ -354,6 +355,22 @@ bool PDFWidgetStyleImpl::hasProperty(const QWidget* widget, const char* name)
 bool PDFWidgetStyleImpl::inherits(const QWidget* widget, const char* className)
 {
     return widget && widget->inherits(className);
+}
+
+bool PDFWidgetStyleImpl::isOverlayScrollBar(const QWidget* widget)
+{
+    // QAbstractScrollArea keeps its scroll bars in containers, which are its
+    // children (QAbstractScrollAreaScrollBarContainer); a scroll bar of the
+    // application placed elsewhere has no such grandparent
+    if (!qobject_cast<const QScrollBar*>(widget))
+    {
+        return false;
+    }
+
+    const QWidget* container = widget->parentWidget();
+    const QAbstractScrollArea* area = qobject_cast<const QAbstractScrollArea*>(container ? container->parentWidget() : nullptr);
+    return area && (area->verticalScrollBar() == widget || area->horizontalScrollBar() == widget) &&
+           PDFWidgetStyleProperties::isSet(area, PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS);
 }
 
 QFont PDFWidgetStyleImpl::getFont(const QWidget* widget, Font role)

@@ -90,8 +90,8 @@ public:
     QWidget* getRecentToolsCard() const { return m_recentToolsCard; }
     QWidget* getSupportCard() const { return m_supportCard; }
     QWidget* getTilesGrid() const { return m_tiles; }
-    PDFLabel* getRecentToolsEmptyLabel() const { return m_recentToolsEmpty; }
-    PDFLabel* getRecentFilesEmptyLabel() const { return m_recentFilesEmpty; }
+    PDFAppEmptyState* getRecentToolsEmptyState() const { return m_recentToolsEmpty; }
+    PDFAppEmptyState* getRecentFilesEmptyState() const { return m_recentFilesEmpty; }
 
 protected:
     virtual void refresh() override;
@@ -117,7 +117,7 @@ private:
     QPointer<QWidget> m_recentFilesCard;
     QPointer<QVBoxLayout> m_recentFilesLayout;
     QList<QPointer<PDFRecentFileRow>> m_recentFileRows;
-    QPointer<PDFLabel> m_recentFilesEmpty;
+    QPointer<PDFAppEmptyState> m_recentFilesEmpty;
     QPointer<PDFAppDropZone> m_dropZone;
     QList<QPointer<PDFResourceCard>> m_resourceCards;
     QPointer<QWidget> m_supportCard;
@@ -125,7 +125,7 @@ private:
     QPointer<QWidget> m_recentToolsCard;
     QPointer<QVBoxLayout> m_recentToolsLayout;
     QList<QPointer<PDFRecentToolRow>> m_recentToolRows;
-    QPointer<PDFLabel> m_recentToolsEmpty;
+    QPointer<PDFAppEmptyState> m_recentToolsEmpty;
     QString m_recentFilesSignature;
     QString m_recentToolsSignature;
 };

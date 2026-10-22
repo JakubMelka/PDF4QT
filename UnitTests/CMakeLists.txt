@@ -724,3 +724,50 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsAppHome "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppHome")
     set_tests_properties(UnitTestsAppHome PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
+
+# The document tab (step 3 of the new application): one executable per package,
+# all of them use the shared fixture appdocumentfixture (context with a memory
+# database, the real window, the sample PDFs made by PDFDocumentBuilder)
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    foreach(PDF4QT_DOCUMENT_TEST
+            AppDocument
+            AppDocumentView
+            AppDocumentPanels
+            AppDocumentSearch
+            AppDocumentFile
+            AppDocumentProperties)
+        string(TOLOWER "${PDF4QT_DOCUMENT_TEST}" PDF4QT_DOCUMENT_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_DOCUMENT_TEST}
+            tst_${PDF4QT_DOCUMENT_TEST_FILE}test.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+        )
+        target_link_libraries(UnitTests${PDF4QT_DOCUMENT_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        set_target_properties(UnitTests${PDF4QT_DOCUMENT_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_DOCUMENT_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_DOCUMENT_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_DOCUMENT_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
+    # Package E prints by QPrinter (printers of the test write PDF files)
+    target_link_libraries(UnitTestsAppDocumentFile PRIVATE Qt6::PrintSupport)
+endif()
+
+# Text index of a whole document and the search in it, page labels (Pdf4QtLibCore, step 3)
+add_executable(UnitTestsDocumentTextIndex
+    tst_documenttextindextest.cpp
+)
+target_link_libraries(UnitTestsDocumentTextIndex PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+target_compile_definitions(UnitTestsDocumentTextIndex PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
+set_target_properties(UnitTestsDocumentTextIndex PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentTextIndex "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentTextIndex")
+set_tests_properties(UnitTestsDocumentTextIndex PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

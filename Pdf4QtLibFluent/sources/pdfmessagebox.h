@@ -48,6 +48,10 @@ class PDFPlainTextEdit;
 /// QMessageBox, whose texts take their colors from a palette. The message box
 /// is a frameless card (radius 16, shadow 0 / 8 / 24) without the title bar of
 /// the system, centered over its parent widget, which is covered by a scrim.
+/// An application with a top bar of its own (the tabs and the buttons of the
+/// window) covers only its body: \p setScrimTarget chooses the covered widget,
+/// over which the card is centered. The title, the text and the details are
+/// plain texts (a name of a file is never interpreted as a rich text).
 ///
 /// A dialog of the design (a form, a list, facts) is the message box with its
 /// own parts: \p setBadgeVisible hides the badge (a form has none), \p addContent
@@ -107,6 +111,12 @@ public:
     bool isBadgeVisible() const;
     void setBadgeVisible(bool isVisible);
 
+    /// Icon of the design drawn in the badge instead of the icon of its kind, in
+    /// the colors of the kind (the external link of the question, whether a web
+    /// link is opened); empty = the icon of the kind
+    QString getBadgeIconName() const;
+    void setBadgeIconName(const QString& iconName);
+
     /// Adds a part of the content below the head and the details, above the
     /// buttons; the widget becomes a child of the message box. Null is ignored.
     void addContent(QWidget* widget);
@@ -131,6 +141,16 @@ public:
     /// Returns the width of the content of a card of a fixed width (the card
     /// without its paddings), 0 for a card, which follows its content
     int getContentWidth() const;
+
+    /// Widget covered by the scrim, over which the card is centered (the body of
+    /// the window of an application with its own top bar). Null, or a deleted
+    /// target: the parent widget. A change while the message box is shown moves
+    /// the scrim and the card.
+    QWidget* getScrimTarget() const;
+    void setScrimTarget(QWidget* target);
+
+    /// Scrim shown by the message box (nullptr, if none is shown)
+    QWidget* getScrim() const { return m_scrim.data(); }
 
     virtual QSize sizeHint() const override;
 
@@ -209,6 +229,7 @@ private:
     QPointer<QAbstractButton> m_clickedButton;
     QDialogButtonBox::StandardButton m_clickedStandardButton = QDialogButtonBox::NoButton;
     QPointer<QWidget> m_scrim;
+    QPointer<QWidget> m_scrimTarget;
 };
 
 }   // namespace pdf

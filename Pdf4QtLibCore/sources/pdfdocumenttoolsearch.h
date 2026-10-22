@@ -67,6 +67,18 @@ public:
     /// starting by it, gets a bonus (exact title > title prefix > a word)
     bool isTitle = false;
 
+    /// Normalized words of each text (PDFSearchQuery::splitWords), filled by
+    /// \p prepare: a field searched by many queries (the files of Recent, while
+    /// the user types) is normalized once. An unprepared field is split by each
+    /// match; prepare the field again after a change of its texts.
+    std::vector<QStringList> words;
+
+    /// Splits the texts into their normalized words
+    void prepare();
+
+    /// The words of the texts are prepared
+    bool isPrepared() const { return words.size() == size_t(texts.size()); }
+
     /// Score of the quality
     int getScore(PDFSearchMatchQuality quality) const;
 };

@@ -606,6 +606,15 @@ void PDFAppDropZone::updateHint()
     m_hint->setText(m_shortcutText.isEmpty() ? filter : tr("%1  ·  %2").arg(m_shortcutText, filter));
 }
 
+void PDFAppDropZone::setDropActive(bool isActive)
+{
+    if (m_isDropActive != isActive)
+    {
+        m_isDropActive = isActive;
+        update();
+    }
+}
+
 void PDFAppDropZone::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
@@ -615,9 +624,18 @@ void PDFAppDropZone::paintEvent(QPaintEvent* event)
     painter.setRenderHint(QPainter::Antialiasing);
     const bool isLarge = m_variant == Variant::Large;
     const qreal radius = isLarge ? 12.0 : 8.0;
-    PDFStylePainter::fill(&painter, QRectF(rect()), PDFStylePainter::Radii(radius), PDFThemeColors::BgSubtle);
-    PDFAppHomeWidgetsHelper::paintDashedBorder(&painter, QRectF(rect()), radius, isLarge ? PDFThemeColors::BorderStrong : PDFThemeColors::BorderDefault,
-                                               isLarge ? 6.0 : 4.0, isLarge ? 4.0 : 3.0);
+
+    // Files dragged over the window: the accent of a selection (bg/accent-subtle)
+    // and the border in the accent color, the dashes of the zone are kept
+    PDFThemeColors::Color background = PDFThemeColors::BgSubtle;
+    PDFThemeColors::Color border = isLarge ? PDFThemeColors::BorderStrong : PDFThemeColors::BorderDefault;
+    if (m_isDropActive)
+    {
+        background = PDFThemeColors::BgAccentSubtle;
+        border = PDFThemeColors::BgAccent;
+    }
+    PDFStylePainter::fill(&painter, QRectF(rect()), PDFStylePainter::Radii(radius), background);
+    PDFAppHomeWidgetsHelper::paintDashedBorder(&painter, QRectF(rect()), radius, border, isLarge ? 6.0 : 4.0, isLarge ? 4.0 : 3.0);
 }
 
 PDFAppSessionRow::PDFAppSessionRow(bool isAccent, QWidget* parent) :
@@ -830,16 +848,49 @@ void PDFAppContinueCard::paintEvent(QPaintEvent* event)
 }
 
 PDFAppEmptyState::PDFAppEmptyState(QWidget* parent) :
-    BaseClass(parent)
+    PDFAppEmptyState(Size::Large, QStringLiteral("clock"), parent)
+{
+
+}
+
+PDFAppEmptyState::PDFAppEmptyState(Size size, const QString& iconName, QWidget* parent) :
+    BaseClass(parent),
+    m_size(size)
 {
     setObjectName(QStringLiteral("emptyState"));
+
+    if (size == Size::Small)
+    {
+        // The small variant of a list card: circle 40, gaps 12 / 4, padding 20, centered
+        QVBoxLayout* layout = PDFAppHomeWidgetsHelper::createColumn(this, QMargins(12, 20, 12, 20), 0);
+        PDFIconBadge* icon = new PDFIconBadge(iconName, SMALL_CIRCLE, SMALL_ICON, this);
+        icon->setHue(PDFAccentHue::Neutral);
+        icon->setObjectName(QStringLiteral("emptyIcon"));
+        m_icon = icon;
+        layout->addWidget(icon, 0, Qt::AlignHCenter);
+        layout->addSpacing(12);
+
+        m_title = PDFAppHomeWidgetsHelper::createLabel(QString(), PDFThemeFonts::getFont(QFont::DemiBold, 14), PDFThemeColors::TextPrimary, this);
+        m_title->setObjectName(QStringLiteral("emptyTitle"));
+        m_title->setAlignment(Qt::AlignHCenter);
+        layout->addWidget(m_title);
+        layout->addSpacing(4);
+
+        m_text = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(QFont::Normal, 12), 17, PDFThemeColors::TextTertiary, this);
+        m_text->setObjectName(QStringLiteral("emptyText"));
+        m_text->setAlignment(Qt::AlignHCenter);
+        m_text->setMaximumWidth(280);
+        layout->addWidget(m_text, 0, Qt::AlignHCenter);
+        return;
+    }
 
     // empty-state: the circle 72, gaps 20 / 8 / 20, at most 460 wide, centered
     QVBoxLayout* layout = PDFAppHomeWidgetsHelper::createColumn(this, QMargins(16, 0, 16, 40), 0);
     layout->addStretch(1);
-    PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("clock"), 72, 32, this);
+    PDFIconBadge* icon = new PDFIconBadge(iconName, 72, 32, this);
     icon->setHue(PDFAccentHue::Neutral);
     icon->setObjectName(QStringLiteral("emptyIcon"));
+    m_icon = icon;
     layout->addWidget(icon, 0, Qt::AlignHCenter);
     layout->addSpacing(20);
 

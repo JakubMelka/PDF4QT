@@ -54,7 +54,8 @@ public:
         Question,
         Warning,
         Critical,
-        Success
+        Success,
+        Neutral     ///< Neutral badge of a dialog of an action (accent/neutral; the printer of the print dialog by setBadgeIconName)
     };
 
     /// Returns the icon of the design with the given name ("check", "chevron-down", ...).
@@ -67,6 +68,11 @@ public:
 
     /// Draws the badge into the rectangle (in logical pixels)
     static void paintBadge(QPainter* painter, const QRectF& rect, Badge badge);
+
+    /// Draws the badge with another icon of the design in the colors of the badge
+    /// (the external link of a confirmation of a web link); an empty or an unknown
+    /// name draws the icon of the badge
+    static void paintBadge(QPainter* painter, const QRectF& rect, Badge badge, const QString& iconName);
 
     /// Returns the names of all icons
     static QStringList getIconNames();

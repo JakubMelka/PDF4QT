@@ -58,7 +58,6 @@ public:
     static PDFLinkRow* addLinkRow(QVBoxLayout* layout, const QString& title, const QString& subtitle, const QString& iconName, const QString& link, QWidget* parent);
     static QString getLinkTarget(const QObject* row) { return row ? row->property("pdf4qtLink").toString() : QString(); }
     static QWidget* createColumn(QWidget* parent);
-    static PDFWhatsNewCatalog loadCatalog();
     static QString getOldestVersion(const PDFWhatsNewCatalog& catalog);
 };
 
@@ -144,11 +143,6 @@ QWidget* PDFAppWhatsNewHelper::createColumn(QWidget* parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(24);
     return column;
-}
-
-PDFWhatsNewCatalog PDFAppWhatsNewHelper::loadCatalog()
-{
-    return PDFWhatsNewCatalog::load();
 }
 
 QString PDFAppWhatsNewHelper::getOldestVersion(const PDFWhatsNewCatalog& catalog)
@@ -489,7 +483,7 @@ void PDFAppVersionHistory::changeEvent(QEvent* event)
 
 PDFAppWhatsNewPage::PDFAppWhatsNewPage(PDFAppContext* context, QWidget* parent) :
     BaseClass(context, parent),
-    m_catalog(PDFAppWhatsNewHelper::loadCatalog()),
+    m_catalog(PDFWhatsNewCatalog::getBuiltin()),
     m_runningVersion(PDFWhatsNewCatalog::getRunningVersion())
 {
     setObjectName(QStringLiteral("whatsNewPage"));
@@ -549,7 +543,7 @@ QUrl PDFAppWhatsNewPage::getChangelogUrl()
 
 void PDFAppWhatsNewPage::setCatalog(const PDFWhatsNewCatalog& catalog)
 {
-    m_catalog = catalog;
+    m_catalog = std::make_shared<const PDFWhatsNewCatalog>(catalog);
     if (getRoute().isValid())
     {
         setRoute(getRoute());
@@ -562,11 +556,11 @@ bool PDFAppWhatsNewPage::setRoute(const PDFAppRoute& route)
     const PDFWhatsNewRelease* release = nullptr;
     if (route.getSegments().size() >= 2)
     {
-        release = m_catalog.findRelease(PDFWhatsNewParser::parseVersion(route.getSegment(1)));
+        release = m_catalog->findRelease(PDFWhatsNewParser::parseVersion(route.getSegment(1)));
     }
     else
     {
-        release = findRunningRelease(m_catalog, m_runningVersion);
+        release = findRunningRelease(*m_catalog, m_runningVersion);
     }
 
     if (!release)
@@ -657,7 +651,7 @@ void PDFAppWhatsNewPage::build()
     sideLayout->addWidget(createLinks(sideColumn));
 
     m_versionHistory = new PDFAppVersionHistory(sideColumn);
-    m_versionHistory->setReleases(m_catalog.getReleases(), m_release.version, m_runningVersion);
+    m_versionHistory->setReleases(m_catalog->getReleases(), m_release.version, m_runningVersion);
     m_versionHistory->setAllShown(isAllVersionsShown);
     connect(m_versionHistory, &PDFAppVersionHistory::versionActivated, this, &PDFAppWhatsNewPage::onVersionActivated);
     sideLayout->addWidget(m_versionHistory);
@@ -828,7 +822,7 @@ QWidget* PDFAppWhatsNewPage::createLinks(QWidget* parent)
 {
     // links-list (104:2164): Link rows (50, gaps 2) with the padding 8
     PDFAppCard* card = new PDFAppCard(QMargins(9, 9, 9, 9), 2, parent);
-    const QString oldest = PDFAppWhatsNewHelper::getOldestVersion(m_catalog);
+    const QString oldest = PDFAppWhatsNewHelper::getOldestVersion(*m_catalog);
     QList<PDFLinkRow*> rows;
     rows << PDFAppWhatsNewHelper::addLinkRow(card->getLayout(), tr("Full changelog"), oldest.isEmpty() ? tr("All changes of PDF4QT") : tr("All changes since %1").arg(oldest),
                                              QStringLiteral("file-text"), getChangelogUrl().toString(), card);
@@ -1106,7 +1100,7 @@ void PDFAppWhatsNewPage::onEverythingChanged()
 
 PDFAppReleaseNotesPage::PDFAppReleaseNotesPage(PDFAppContext* context, QWidget* parent) :
     BaseClass(context, parent),
-    m_catalog(PDFAppWhatsNewHelper::loadCatalog()),
+    m_catalog(PDFWhatsNewCatalog::getBuiltin()),
     m_runningVersion(PDFWhatsNewCatalog::getRunningVersion())
 {
     setObjectName(QStringLiteral("releaseNotesPage"));
@@ -1125,7 +1119,7 @@ PDFAppReleaseNotesPage::~PDFAppReleaseNotesPage() = default;
 
 void PDFAppReleaseNotesPage::setCatalog(const PDFWhatsNewCatalog& catalog)
 {
-    m_catalog = catalog;
+    m_catalog = std::make_shared<const PDFWhatsNewCatalog>(catalog);
     if (getRoute().isValid())
     {
         setRoute(getRoute());
@@ -1134,7 +1128,7 @@ void PDFAppReleaseNotesPage::setCatalog(const PDFWhatsNewCatalog& catalog)
 
 bool PDFAppReleaseNotesPage::setRoute(const PDFAppRoute& route)
 {
-    const PDFWhatsNewRelease* release = m_catalog.findRelease(PDFWhatsNewParser::parseVersion(route.getSegment(1)));
+    const PDFWhatsNewRelease* release = m_catalog->findRelease(PDFWhatsNewParser::parseVersion(route.getSegment(1)));
     if (!release)
     {
         return false;
@@ -1222,14 +1216,14 @@ void PDFAppReleaseNotesPage::build()
     QVBoxLayout* sideLayout = static_cast<QVBoxLayout*>(sideColumn->layout());
 
     m_versionHistory = new PDFAppVersionHistory(sideColumn);
-    m_versionHistory->setReleases(m_catalog.getReleases(), m_release.version, m_runningVersion);
+    m_versionHistory->setReleases(m_catalog->getReleases(), m_release.version, m_runningVersion);
     m_versionHistory->setAllShown(isAllShown);
     connect(m_versionHistory, &PDFAppVersionHistory::versionActivated, this, &PDFAppReleaseNotesPage::onVersionActivated);
     sideLayout->addWidget(m_versionHistory);
 
     PDFAppCard* card = new PDFAppCard(QMargins(9, 9, 9, 9), 2, sideColumn);
     const QString version = m_release.getDisplayVersion();
-    const QString oldest = PDFAppWhatsNewHelper::getOldestVersion(m_catalog);
+    const QString oldest = PDFAppWhatsNewHelper::getOldestVersion(*m_catalog);
     QList<PDFLinkRow*> rows;
     rows << PDFAppWhatsNewHelper::addLinkRow(card->getLayout(), tr("Release on GitHub"), tr("Downloads and assets of %1").arg(version), QStringLiteral("github"),
                                              PDFUpdateChecker::getReleaseUrl(m_release.version).toString(), card);

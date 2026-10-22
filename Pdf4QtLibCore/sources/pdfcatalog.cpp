@@ -28,6 +28,9 @@
 #include "pdfencoding.h"
 #include "pdfdbgheap.h"
 
+#include <algorithm>
+#include <limits>
+
 namespace pdf
 {
 
@@ -63,6 +66,84 @@ static constexpr const char* PDF_VIEWER_PREFERENCES_DUPLEX = "Duplex";
 static constexpr const char* PDF_VIEWER_PREFERENCES_PICK_TRAY_BY_PDF_SIZE = "PickTrayByPDFSize";
 static constexpr const char* PDF_VIEWER_PREFERENCES_NUMBER_OF_COPIES = "NumCopies";
 static constexpr const char* PDF_VIEWER_PREFERENCES_PRINT_PAGE_RANGE = "PrintPageRange";
+
+QString PDFCatalog::getPageLabel(PDFInteger pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= PDFInteger(m_pages.size()) || m_pageLabels.empty())
+    {
+        return QString();
+    }
+
+    // The last range, which starts at or before the page
+    const PDFPageLabel probe(PDFPageLabel::NumberingStyle::None, QString(), pageIndex, 0);
+    auto it = std::upper_bound(m_pageLabels.cbegin(), m_pageLabels.cend(), probe);
+    if (it == m_pageLabels.cbegin())
+    {
+        return QString();
+    }
+    --it;
+
+    const PDFPageLabel& label = *it;
+    const PDFInteger offset = pageIndex - label.getPageIndex();
+    const PDFInteger start = label.getPageStartNumber();
+
+    // Saturated addition (the start number is a value of the document)
+    PDFInteger number = start;
+    if (offset > 0 && start > std::numeric_limits<PDFInteger>::max() - offset)
+    {
+        number = std::numeric_limits<PDFInteger>::max();
+    }
+    else
+    {
+        number = start + offset;
+    }
+
+    PDFPageLabel::NumberingStyle style = label.getNumberingStyle();
+    switch (style)
+    {
+        case PDFPageLabel::NumberingStyle::UppercaseRoman:
+        case PDFPageLabel::NumberingStyle::LowercaseRoman:
+            // Roman numerals are written up to 3999 (a larger number would be a long run of M)
+            if (number < 1 || number > 3999)
+            {
+                style = PDFPageLabel::NumberingStyle::DecimalArabic;
+            }
+            break;
+
+        case PDFPageLabel::NumberingStyle::UppercaseLetters:
+        case PDFPageLabel::NumberingStyle::LowercaseLetters:
+            // Letters repeat the letter for each 26 pages (AA, BBB, ...): at most 26 * 100
+            if (number < 1 || number > 26 * 100)
+            {
+                style = PDFPageLabel::NumberingStyle::DecimalArabic;
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    return label.getPrefix().left(MAXIMUM_PAGE_LABEL_PREFIX_LENGTH) + PDFPageLabel::formatPageNumber(style, number);
+}
+
+std::optional<PDFInteger> PDFCatalog::findPageIndexByLabel(const QString& label) const
+{
+    if (label.isEmpty() || m_pageLabels.empty())
+    {
+        return std::nullopt;
+    }
+
+    const PDFInteger pageCount = PDFInteger(m_pages.size());
+    for (PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+    {
+        if (getPageLabel(pageIndex) == label)
+        {
+            return pageIndex;
+        }
+    }
+
+    return std::nullopt;
+}
 
 size_t PDFCatalog::getPageIndexFromPageReference(PDFObjectReference reference) const
 {
@@ -188,6 +269,10 @@ PDFCatalog PDFCatalog::parse(const PDFObject& catalog, const PDFDocument* docume
     catalogObject.m_viewerPreferences = PDFViewerPreferences::parse(catalog, document);
     catalogObject.m_pages = PDFPage::parse(&document->getStorage(), catalogDictionary->get("Pages"));
     catalogObject.m_pageLabels = PDFNumberTreeLoader<PDFPageLabel>::parse(&document->getStorage(), catalogDictionary->get("PageLabels"));
+
+    // A number tree of a damaged document may be out of order: the labels are
+    // searched by the page index (getPageLabel)
+    std::stable_sort(catalogObject.m_pageLabels.begin(), catalogObject.m_pageLabels.end());
 
     if (catalogDictionary->hasKey("OCProperties"))
     {
@@ -464,7 +549,7 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 //
                 // But what should we do, if we get 0? Pages in the PDF file are numbered from 1.
                 // So if this situation occur, we also ignore the entry.
-                const PDFArray* array = duplex.getArray();
+                const PDFArray* array = printPageRange.getArray();
 
                 const size_t count = array->getCount();
                 if (count % 2 == 0 && count > 0)

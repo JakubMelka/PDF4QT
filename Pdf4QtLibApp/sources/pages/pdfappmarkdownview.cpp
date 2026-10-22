@@ -307,8 +307,18 @@ qreal PDFAppMarkdownLayoutBuilder::addTextChunk(const PDFAppMarkdownSpans& spans
         PDFThemeColors::Color color = span.bold && style.color == PDFThemeColors::TextSecondary ? PDFThemeColors::TextPrimary : style.color;
         if (span.isLink())
         {
+            // Spans of one link with different formats ("[**PDF** files](...)") are
+            // one range: one rectangle per line, one focus ring and one underline
             color = PDFThemeColors::TextAccent;
-            linkRanges.push_back({ range.start, range.length, getLinkIndex(span.link, span.linkKind, layout) });
+            const int link = getLinkIndex(span.link, span.linkKind, layout);
+            if (!linkRanges.empty() && linkRanges.back().link == link && linkRanges.back().start + linkRanges.back().length == range.start)
+            {
+                linkRanges.back().length += range.length;
+            }
+            else
+            {
+                linkRanges.push_back({ range.start, range.length, link });
+            }
         }
         else
         {

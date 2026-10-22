@@ -467,11 +467,16 @@ void PDFFindTextTool::setActiveImpl(bool active)
         m_previousButton->setDefault(false);
         m_nextButton->setDefault(true);
 
-        m_previousButton->setShortcut(m_prevAction->shortcut());
-        m_nextButton->setShortcut(m_nextAction->shortcut());
-
-        connect(m_previousButton, &QPushButton::clicked, m_prevAction, &QAction::trigger);
-        connect(m_nextButton, &QPushButton::clicked, m_nextAction, &QAction::trigger);
+        if (m_prevAction)
+        {
+            m_previousButton->setShortcut(m_prevAction->shortcut());
+            connect(m_previousButton, &QPushButton::clicked, m_prevAction, &QAction::trigger);
+        }
+        if (m_nextAction)
+        {
+            m_nextButton->setShortcut(m_nextAction->shortcut());
+            connect(m_nextButton, &QPushButton::clicked, m_nextAction, &QAction::trigger);
+        }
         connect(m_findTextEdit, &QLineEdit::editingFinished, this, &PDFFindTextTool::onSearchText);
         connect(m_caseSensitiveCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
         connect(m_wholeWordsCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
@@ -675,8 +680,14 @@ void PDFFindTextTool::updateActions()
     const bool enablePrevious = isActive && hasResults;
     const bool enableNext = isActive && hasResults;
 
-    m_prevAction->setEnabled(enablePrevious);
-    m_nextAction->setEnabled(enableNext);
+    if (m_prevAction)
+    {
+        m_prevAction->setEnabled(enablePrevious);
+    }
+    if (m_nextAction)
+    {
+        m_nextAction->setEnabled(enableNext);
+    }
 }
 
 void PDFFindTextTool::updateResultsUI()
@@ -748,9 +759,19 @@ PDFSelectTextTool::PDFSelectTextTool(PDFDrawWidgetProxy* proxy, QAction* action,
     m_deselectAction(deselectAction),
     m_isCursorOverText(false)
 {
-    connect(copyTextAction, &QAction::triggered, this, &PDFSelectTextTool::onActionCopyText);
-    connect(selectAllAction, &QAction::triggered, this, &PDFSelectTextTool::onActionSelectAll);
-    connect(deselectAction, &QAction::triggered, this, &PDFSelectTextTool::onActionDeselect);
+    // The tool manager of the new application has no actions
+    if (copyTextAction)
+    {
+        connect(copyTextAction, &QAction::triggered, this, &PDFSelectTextTool::onActionCopyText);
+    }
+    if (selectAllAction)
+    {
+        connect(selectAllAction, &QAction::triggered, this, &PDFSelectTextTool::onActionSelectAll);
+    }
+    if (deselectAction)
+    {
+        connect(deselectAction, &QAction::triggered, this, &PDFSelectTextTool::onActionDeselect);
+    }
 
     updateActions();
 }
@@ -880,9 +901,18 @@ void PDFSelectTextTool::updateActions()
 
     const bool isActive = this->isActive();
     const bool hasSelection = !m_textSelection.isEmpty();
-    m_selectAllAction->setEnabled(isActive);
-    m_deselectAction->setEnabled(isActive && hasSelection);
-    m_copyTextAction->setEnabled(isActive && hasSelection);
+    if (m_selectAllAction)
+    {
+        m_selectAllAction->setEnabled(isActive);
+    }
+    if (m_deselectAction)
+    {
+        m_deselectAction->setEnabled(isActive && hasSelection);
+    }
+    if (m_copyTextAction)
+    {
+        m_copyTextAction->setEnabled(isActive && hasSelection);
+    }
 }
 
 void PDFSelectTextTool::updateCursor()
@@ -937,6 +967,21 @@ QString PDFSelectTextTool::getSelectedText(const std::vector<PDFInteger>& pageIn
     return result.join("\n\n");
 }
 
+void PDFSelectTextTool::copyText()
+{
+    onActionCopyText();
+}
+
+void PDFSelectTextTool::selectAll()
+{
+    onActionSelectAll();
+}
+
+void PDFSelectTextTool::deselect()
+{
+    onActionDeselect();
+}
+
 void PDFSelectTextTool::onActionCopyText()
 {
     if (isActive())
@@ -972,6 +1017,7 @@ void PDFSelectTextTool::setSelection(PDFTextSelection&& textSelection)
         m_textSelection = qMove(textSelection);
         getProxy()->repaintNeeded();
         updateActions();
+        Q_EMIT selectionChanged();
     }
 }
 
@@ -979,11 +1025,23 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     BaseClass(parent),
     m_predefinedTools()
 {
+    createPredefinedTools(proxy, actions, parentDialog, true);
+}
+
+PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
+    BaseClass(parent),
+    m_predefinedTools()
+{
+    createPredefinedTools(proxy, Actions(), nullptr, false);
+}
+
+void PDFToolManager::createPredefinedTools(PDFDrawWidgetProxy* proxy, const Actions& actions, QWidget* parentDialog, bool createFindTool)
+{
     auto pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     auto pickPageTool = new PDFPickTool(proxy, PDFPickTool::Mode::Pages, this);
     m_predefinedTools[PickRectangleTool] = pickTool;
     m_predefinedTools[PickPageTool] = pickPageTool;
-    m_predefinedTools[FindTextTool] = new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog);
+    m_predefinedTools[FindTextTool] = createFindTool ? new PDFFindTextTool(proxy, actions.findPrevAction, actions.findNextAction, this, parentDialog) : nullptr;
     m_predefinedTools[SelectTextTool] = new PDFSelectTextTool(proxy, actions.selectTextToolAction, actions.copyTextAction, actions.selectAllAction, actions.deselectAction, this);
     m_predefinedTools[SelectTableTool] = new PDFSelectTableTool(proxy, actions.selectTableToolAction, this);
     m_predefinedTools[MagnifierTool] = new PDFMagnifierTool(proxy, actions.magnifierAction, this);
@@ -992,7 +1050,10 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
 
     for (PDFWidgetTool* tool : m_predefinedTools)
     {
-        addTool(tool);
+        if (tool)
+        {
+            addTool(tool);
+        }
     }
 
     connect(pickTool, &PDFPickTool::rectanglePicked, this, &PDFToolManager::onRectanglePicked);
@@ -1049,6 +1110,20 @@ void PDFToolManager::setActiveTool(PDFWidgetTool* tool)
     {
         tool->setActive(true);
     }
+}
+
+void PDFToolManager::setActiveTool(PredefinedTools tool)
+{
+    setActiveTool(getPredefinedTool(tool));
+}
+
+PDFWidgetTool* PDFToolManager::getPredefinedTool(PredefinedTools tool) const
+{
+    if (tool < 0 || tool >= ToolEnd)
+    {
+        return nullptr;
+    }
+    return m_predefinedTools[tool];
 }
 
 PDFWidgetTool* PDFToolManager::getActiveTool() const
@@ -1206,6 +1281,9 @@ void PDFToolManager::onToolActivityChanged(bool active)
             m_pickPageCallback = nullptr;
         }
     }
+
+    // Nothing of the manager is used after the emission (a slot may delete it)
+    Q_EMIT activeToolChanged(getActiveTool());
 }
 
 void PDFToolManager::onToolActionTriggered(bool checked)

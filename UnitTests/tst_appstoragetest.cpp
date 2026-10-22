@@ -577,8 +577,10 @@ void AppStorageTest::freshDatabase()
         statement.reset();
     }
 
-    // The internal table of the storage has no triggers (its writes are no notifications)
+    // The internal tables of the storage and of the thumbnailer have no triggers
+    // (their writes are no notifications)
     QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'storage_maintenance'"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'thumbnail_rendering'"), qint64(0));
     QVERIFY(qAbs(AppStorageTestHelper::getMaintenanceValue(&database, pdf::PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY) - QDateTime::currentMSecsSinceEpoch()) < 60000);
 
 #if defined(Q_OS_UNIX)
@@ -659,7 +661,7 @@ void AppStorageTest::triggersOfAllTables()
         testedTables << QString::fromLatin1(tableCase.table);
     }
     QStringList schemaTables;
-    pdf::PDFDatabaseStatement tables(connection, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('change_log', 'storage_maintenance') ORDER BY name");
+    pdf::PDFDatabaseStatement tables(connection, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('change_log', 'storage_maintenance', 'thumbnail_rendering') ORDER BY name");
     while (tables.next())
     {
         schemaTables << tables.getText(0);
@@ -942,7 +944,8 @@ void AppStorageTest::settingDefinitions()
     QCOMPARE(registry.findDefinition("update.autoCheck")->getDefaultValue(), QVariant(true));
     QCOMPARE(registry.findDefinition("recent.maxFiles")->getDefaultValue(), QVariant(qint64(10)));
     QCOMPARE(registry.findDefinition("appearance.colorScheme")->getDefaultValue(), QVariant(QStringLiteral("auto")));
-    QCOMPARE(registry.getSections(), QStringList({ "general" }));
+    // Step 3 has registered the settings, which the document tab reads, in their sections
+    QCOMPARE(registry.getSections(), QStringList({ "general", "viewing", "color-modes", "editing", "security", "speech", "color-management", "advanced" }));
     QVERIFY(registry.getSectionDefinitions(QString()).empty());
     QVERIFY(!registry.findDefinition(QStringLiteral("unknown.key")));
 
@@ -953,8 +956,8 @@ void AppStorageTest::settingDefinitions()
     QVERIFY(!registry.registerDefinition(pdf::PDFSettingDefinition::createBool(QStringLiteral("Upper.case"), true)));
     QVERIFY(!registry.registerDefinition(pdf::PDFSettingDefinition::createInteger(QStringLiteral("test.range"), 50, 0, 10)));
     QVERIFY(!registry.registerDefinition(pdf::PDFSettingDefinition::createOption(QStringLiteral("test.option"), QStringLiteral("x"), std::vector<pdf::PDFSettingOption>())));
-    QVERIFY(registry.registerDefinition(pdf::PDFSettingDefinition::createReal(QStringLiteral("test.real"), 1.0, 0.5, 2.0).setSection(QStringLiteral("advanced"))));
-    QCOMPARE(registry.getSections(), QStringList({ "general", "advanced" }));
+    QVERIFY(registry.registerDefinition(pdf::PDFSettingDefinition::createReal(QStringLiteral("test.real"), 1.0, 0.5, 2.0).setSection(QStringLiteral("test"))));
+    QCOMPARE(registry.getSections().last(), QStringLiteral("test"));
 
     // Validation: another type or a value out of the range = default
     const pdf::PDFSettingDefinition boolean = pdf::PDFSettingDefinition::createBool(QStringLiteral("test.bool"), true);

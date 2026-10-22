@@ -37,6 +37,7 @@
 #include "pdftoolrepository.h"
 #include "pdfappthumbnailer.h"
 #include "pdfappfolderinfo.h"
+#include "pdfappdocumentregistry.h"
 
 #include <QObject>
 #include <QPointer>
@@ -92,6 +93,10 @@ public:
     /// Existence of paths and PDF counts of folders (worker threads, signal infoReady)
     PDFAppFolderInfoService* getFolderInfo() const { return m_folderInfo; }
 
+    /// Open documents of the process (step 3): the document tabs register their
+    /// documents, Recent and MCP list them. It lives as long as the context.
+    PDFAppDocumentRegistry* getDocumentRegistry() const { return m_documentRegistry; }
+
     /// State of the storage for the banners of the Home tab
     PDFDatabaseState getStorageState() const;
 
@@ -138,6 +143,7 @@ private:
     QPointer<PDFAppInstanceServer> m_instanceServer;
     QPointer<PDFAppThumbnailer> m_thumbnailer;
     QPointer<PDFAppFolderInfoService> m_folderInfo;
+    QPointer<PDFAppDocumentRegistry> m_documentRegistry;
     bool m_isPagesEnabled = true;
 };
 

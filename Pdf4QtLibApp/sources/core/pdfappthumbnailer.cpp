@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappthumbnailer.h"
+#include "pdfappsysteminfo.h"
 #include "pdfdatabase.h"
 #include "pdfrepositoryhelper.h"
 
@@ -40,17 +41,22 @@
 #include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QImageWriter>
 #include <QMutex>
 #include <QPainter>
+#include <QRandomGenerator>
 #include <QSet>
 #include <QTimeZone>
 #include <QWaitCondition>
 
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <deque>
+#include <limits>
+#include <set>
 #include <vector>
 
 namespace pdf
@@ -75,6 +81,13 @@ public:
     /// Protects the database pointer and its use by the worker
     QMutex databaseMutex;
     PDFDatabase* database = nullptr;    ///< nullptr after stop() (databaseMutex)
+
+    /// Path, whose rendering marker the worker has written and not removed yet
+    /// (databaseMutex); stop() removes it - a stopped rendering is no crash
+    QString renderingPath;
+
+    /// Id of the thumbnailer in its rendering markers (constant)
+    QString instance;
 
     PDFAppThumbnailerOptions options;
     std::deque<QString> queue;
@@ -160,6 +173,84 @@ public:
 
     /// PDFAppThumbnailer::createThumbnail without the handling of the exceptions
     static PDFAppThumbnailResult createThumbnail(const QString& path, const PDFAppThumbnailerOptions& options, const PDFOperationControl* control);
+
+    /// The control is stopped (not over its time budget only)
+    static bool isStopped(const PDFOperationControl* control)
+    {
+        const PDFAppThumbnailerControl* thumbnailControl = dynamic_cast<const PDFAppThumbnailerControl*>(control);
+        return thumbnailControl ? thumbnailControl->isStopped() : PDFOperationControl::isOperationCancelled(control);
+    }
+
+    /// Size of the parts, in which a file is read (the cancellation is checked between them)
+    static constexpr qint64 READ_CHUNK_SIZE = 1024 * 1024;
+
+    enum class ReadResult
+    {
+        Done,
+        Failed,     ///< Cannot be read, larger than the limit
+        Canceled    ///< Stopped or over the time budget
+    };
+
+    /// Reads the file in parts of READ_CHUNK_SIZE; a slow disk or a network share
+    /// does not block the stop and the time budget for the whole file
+    static ReadResult readFile(const QString& path, qint64 maximumSize, const PDFOperationControl* control, QByteArray* data)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            return ReadResult::Failed;
+        }
+
+        const qint64 size = file.size();
+        if (size <= 0 || size > maximumSize)
+        {
+            return ReadResult::Failed;
+        }
+
+        data->clear();
+        data->reserve(qsizetype(size));
+        while (true)
+        {
+            if (PDFOperationControl::isOperationCancelled(control))
+            {
+                data->clear();
+                return ReadResult::Canceled;
+            }
+
+            const QByteArray chunk = file.read(READ_CHUNK_SIZE);
+            if (chunk.isEmpty())
+            {
+                break;
+            }
+
+            // The file may grow while it is read
+            if (data->size() + chunk.size() > maximumSize)
+            {
+                data->clear();
+                return ReadResult::Failed;
+            }
+            data->append(chunk);
+        }
+
+        if (file.error() != QFileDevice::NoError || data->isEmpty())
+        {
+            data->clear();
+            return ReadResult::Failed;
+        }
+        return ReadResult::Done;
+    }
+
+    /// Most nested forms and patterns, which are searched for images
+    static constexpr int MAXIMUM_RESOURCE_DEPTH = 16;
+
+    /// Most XObjects and patterns, which are visited
+    static constexpr int MAXIMUM_RESOURCE_OBJECTS = 10000;
+
+    /// Largest image of the resources (recursively), see PDFAppThumbnailer::getLargestImagePixels
+    static qint64 getLargestImagePixels(const PDFDocument* document, const PDFObject& resources, int depth, std::set<PDFObjectReference>* visited, int* objectCount);
+
+    /// Pixels of an image stream (width x height; 0 for invalid values) and of its soft mask
+    static qint64 getImagePixels(const PDFDocument* document, const PDFStream* stream, int depth);
 };
 
 PDFAppThumbnailerThread::PDFAppThumbnailerThread(std::shared_ptr<PDFAppThumbnailerState> state) :
@@ -176,6 +267,15 @@ PDFAppThumbnailerThread::~PDFAppThumbnailerThread()
 
 void PDFAppThumbnailerThread::run()
 {
+    PDFAppThumbnailerOptions options;
+    {
+        QMutexLocker locker(&m_state->mutex);
+        options = m_state->options;
+    }
+
+    // Renderings, which have crashed a previous run, before anything else
+    sweepMarkers(options);
+
     while (true)
     {
         QString path;
@@ -234,6 +334,7 @@ void PDFAppThumbnailerThread::process(const QString& path)
 
     PDFAppThumbnailResult result;
     bool isGenerated = false;
+    bool written = false;
     if (isRecorded)
     {
         if (options.testDelay > 0)
@@ -259,28 +360,64 @@ void PDFAppThumbnailerThread::process(const QString& path)
         }
         else
         {
-            PDFAppThumbnailerControl control(&m_state->isCanceled, options.timeBudget);
-            result = PDFAppThumbnailer::createThumbnail(path, options, &control);
-            isGenerated = true;
+            switch (claimRendering(path, fileModified, options, &result, &written))
+            {
+                case Claim::Render:
+                {
+                    if (options.testExitWhileRendering)
+                    {
+                        // Tests: the process dies inside of the rendering (a crash of the renderer)
+                        std::_Exit(PDFAppThumbnailer::TEST_EXIT_CODE);
+                    }
+
+                    PDFAppThumbnailerControl control(&m_state->isCanceled, options.timeBudget);
+                    result = PDFAppThumbnailer::createThumbnail(path, options, &control);
+                    isGenerated = true;
+                    break;
+                }
+
+                case Claim::Resolved:
+                    break;
+
+                case Claim::Busy:
+                    result.outcome = PDFAppThumbnailResult::Outcome::Canceled;
+                    break;
+            }
         }
     }
 
-    // 3. The result (under the lock of the database: nothing is written after stop();
-    //    the write may wait for another instance, the requests of the GUI thread do not)
-    bool written = false;
+    // 3. The result and the removal of the marker (under the lock of the database:
+    //    nothing is written after stop(), which removes the marker itself; the write
+    //    may wait for another instance, the requests of the GUI thread do not)
     bool isDatabaseClosed = false;
     {
         QMutexLocker locker(&m_state->databaseMutex);
         isDatabaseClosed = !m_state->database;
-        if (!isDatabaseClosed && isGenerated && result.outcome == PDFAppThumbnailResult::Outcome::Done)
+        if (!isDatabaseClosed && isGenerated)
         {
             PDFRecentRepository repository(m_state->database, nullptr);
-            const PDFDatabaseError error = repository.setThumbnail(path, result.png, result.fileModified, result.state, result.pageCount);
+            if (result.outcome == PDFAppThumbnailResult::Outcome::Done)
+            {
+                const PDFDatabaseError error = repository.setThumbnail(path, result.png, result.fileModified, result.state, result.pageCount);
+                if (error.isError())
+                {
+                    qWarning("Thumbnail of %s cannot be stored: %s", qPrintable(QDir::toNativeSeparators(path)), qPrintable(error.toString()));
+                }
+                written = !error.isError();
+            }
+
+            // The rendering has ended (also a canceled one): its marker is no crash. A
+            // marker, which cannot be removed now (busy), is removed by the next request
+            // of the file (it is the own one) or it ends as Failed after the process ends.
+            const PDFDatabaseError error = repository.endRendering(path, m_state->instance);
             if (error.isError())
             {
-                qWarning("Thumbnail of %s cannot be stored: %s", qPrintable(QDir::toNativeSeparators(path)), qPrintable(error.toString()));
+                qWarning("The rendering marker of %s cannot be removed: %s", qPrintable(QDir::toNativeSeparators(path)), qPrintable(error.toString()));
             }
-            written = !error.isError();
+            else
+            {
+                m_state->renderingPath.clear();
+            }
         }
     }
 
@@ -296,6 +433,97 @@ void PDFAppThumbnailerThread::process(const QString& path)
     Q_EMIT itemFinished(path, int(result.outcome == PDFAppThumbnailResult::Outcome::Done ? result.state : PDFRecentThumbnailState::Pending), written);
 }
 
+PDFAppThumbnailerThread::Claim PDFAppThumbnailerThread::claimRendering(const QString& path, qint64 fileModified, const PDFAppThumbnailerOptions& options,
+                                                                       PDFAppThumbnailResult* result, bool* written)
+{
+    QMutexLocker locker(&m_state->databaseMutex);
+    if (!m_state->database)
+    {
+        return Claim::Busy;
+    }
+
+    PDFRecentRepository repository(m_state->database, nullptr);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (const std::optional<PDFThumbnailRenderingMarker> marker = repository.getRenderingMarker(path))
+    {
+        const bool isOwn = marker->instance == m_state->instance;
+        if (!isOwn && PDFAppThumbnailer::isMarkerAlive(*marker, now, options.markerLifetime))
+        {
+            // Another instance renders the file now; it stores the result
+            return Claim::Busy;
+        }
+
+        if (!isOwn && marker->fileModified == fileModified)
+        {
+            // The rendering of this version of the file has crashed: no retry until it changes
+            bool isFailed = false;
+            if (repository.failRendering(*marker, &isFailed).isError())
+            {
+                return Claim::Busy;
+            }
+
+            const std::optional<PDFRecentFile> file = repository.getFile(path);
+            result->outcome = PDFAppThumbnailResult::Outcome::Done;
+            result->state = file ? file->thumbnailState : PDFRecentThumbnailState::Failed;
+            result->fileModified = fileModified;
+            *written = isFailed;
+            return Claim::Resolved;
+        }
+
+        // The own marker, which could not be removed before, or a crash of an older
+        // version of the file (it has changed since): the file is rendered again
+        if (repository.endRendering(path, marker->instance).isError())
+        {
+            return Claim::Busy;
+        }
+    }
+
+    PDFThumbnailRenderingMarker marker;
+    marker.path = path;
+    marker.fileModified = fileModified;
+    marker.instance = m_state->instance;
+    marker.processId = QCoreApplication::applicationPid();
+    marker.started = now;
+
+    // A file is never rendered without its marker (a database refusing the write
+    // would otherwise let a crashing document crash every start)
+    bool isWritten = false;
+    if (repository.beginRendering(marker, &isWritten).isError() || !isWritten)
+    {
+        return Claim::Busy;
+    }
+
+    m_state->renderingPath = path;
+    return Claim::Render;
+}
+
+void PDFAppThumbnailerThread::sweepMarkers(const PDFAppThumbnailerOptions& options)
+{
+    QMutexLocker locker(&m_state->databaseMutex);
+    if (!m_state->database)
+    {
+        return;
+    }
+
+    // The markers of the renderings of ended processes (or too old ones): their
+    // files become Failed (the notification of recent_file updates the pages)
+    PDFRecentRepository repository(m_state->database, nullptr);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (const PDFThumbnailRenderingMarker& marker : repository.getRenderingMarkers())
+    {
+        if (marker.instance == m_state->instance || PDFAppThumbnailer::isMarkerAlive(marker, now, options.markerLifetime))
+        {
+            continue;
+        }
+
+        const PDFDatabaseError error = repository.failRendering(marker);
+        if (error.isError())
+        {
+            qWarning("The rendering marker of %s cannot be resolved: %s", qPrintable(QDir::toNativeSeparators(marker.path)), qPrintable(error.toString()));
+        }
+    }
+}
+
 PDFAppThumbnailer::PDFAppThumbnailer(PDFDatabase* database, QObject* parent) :
     QObject(parent),
     m_state(std::make_shared<PDFAppThumbnailerState>())
@@ -303,6 +531,7 @@ PDFAppThumbnailer::PDFAppThumbnailer(PDFDatabase* database, QObject* parent) :
     qRegisterMetaType<pdf::PDFRecentThumbnailState>();
     m_state->database = database;
     m_state->hasDatabase = database != nullptr;
+    m_state->instance = QString::number(QRandomGenerator::global()->generate64(), 16);
 }
 
 PDFAppThumbnailer::~PDFAppThumbnailer()
@@ -316,6 +545,8 @@ void PDFAppThumbnailer::setOptions(const PDFAppThumbnailerOptions& options)
     m_state->options = options;
     m_state->options.maximumDimension = qBound(1, options.maximumDimension, PDFRecentRepository::MAXIMUM_THUMBNAIL_DIMENSION);
     m_state->options.stopWaitTime = qMax(MINIMUM_STOP_WAIT_TIME, options.stopWaitTime);
+    m_state->options.maximumImagePixels = qMax(qint64(1), options.maximumImagePixels);
+    m_state->options.markerLifetime = qMax(qint64(0), options.markerLifetime);
 }
 
 PDFAppThumbnailerOptions PDFAppThumbnailer::getOptions() const
@@ -383,8 +614,20 @@ void PDFAppThumbnailer::stop()
 
     {
         // Waits for a running use of the database by the worker (at most its busy
-        // timeout); after that the worker never touches the database again
+        // timeout); after that the worker never touches the database again. The
+        // marker of a running rendering is removed here: a stopped rendering (also
+        // an abandoned one, which hangs) is no crash of the document.
         QMutexLocker locker(&m_state->databaseMutex);
+        if (m_state->database && !m_state->renderingPath.isEmpty())
+        {
+            PDFRecentRepository repository(m_state->database, nullptr);
+            const PDFDatabaseError error = repository.endRendering(m_state->renderingPath, m_state->instance);
+            if (error.isError())
+            {
+                qWarning("The rendering marker of %s cannot be removed: %s", qPrintable(QDir::toNativeSeparators(m_state->renderingPath)), qPrintable(error.toString()));
+            }
+        }
+        m_state->renderingPath.clear();
         m_state->database = nullptr;
     }
 
@@ -421,6 +664,25 @@ int PDFAppThumbnailer::getPendingCount() const
 {
     QMutexLocker locker(&m_state->mutex);
     return int(m_state->pending.size());
+}
+
+QString PDFAppThumbnailer::getInstanceId() const
+{
+    return m_state->instance;
+}
+
+bool PDFAppThumbnailer::isMarkerAlive(const PDFThumbnailRenderingMarker& marker, qint64 now, qint64 lifetime)
+{
+    // A process, which has ended, has crashed inside of the rendering (a normal end
+    // removes the marker - stop() included). A running process may be another
+    // instance rendering the file, or a reused process id: the time limit decides.
+    if (marker.processId <= 0 || !PDFAppProcessInfo::isProcessRunning(marker.processId))
+    {
+        return false;
+    }
+
+    const qint64 age = now - marker.started;
+    return age < lifetime && age > -lifetime;
 }
 
 void PDFAppThumbnailer::onItemFinished(const QString& path, int state, bool written)
@@ -476,17 +738,29 @@ PDFAppThumbnailResult PDFAppThumbnailerHelper::createThumbnail(const QString& pa
         return PDFAppThumbnailerHelper::canceled();
     }
 
-    PDFDocumentReader reader(nullptr, &PDFAppThumbnailerHelper::refusePassword, true, false);
-    const PDFDocument document = reader.readFromFile(path);
-
-    if (PDFOperationControl::isOperationCancelled(control))
+    // The file is read in parts (canceled between them), then parsed from the memory
+    QByteArray data;
+    switch (readFile(path, options.maximumFileSize, control, &data))
     {
-        // The time budget of a slow reading is a failure, a stop is not
-        const PDFAppThumbnailerControl* thumbnailControl = dynamic_cast<const PDFAppThumbnailerControl*>(control);
-        if (!thumbnailControl || thumbnailControl->isStopped())
-        {
-            return PDFAppThumbnailerHelper::canceled();
-        }
+        case ReadResult::Done:
+            break;
+
+        case ReadResult::Failed:
+            return PDFAppThumbnailerHelper::failed(fileModified);
+
+        case ReadResult::Canceled:
+            // The time budget of a slow reading is a failure, a stop is not
+            return isStopped(control) ? PDFAppThumbnailerHelper::canceled() : PDFAppThumbnailerHelper::failed(fileModified);
+    }
+
+    // The parsing cannot be canceled (the core has no cancellation of PDFDocumentReader)
+    PDFDocumentReader reader(nullptr, &PDFAppThumbnailerHelper::refusePassword, true, false);
+    const PDFDocument document = reader.readFromBuffer(data);
+    data = QByteArray();
+
+    if (isStopped(control))
+    {
+        return PDFAppThumbnailerHelper::canceled();
     }
 
     switch (reader.getReadingResult())
@@ -515,15 +789,23 @@ PDFAppThumbnailResult PDFAppThumbnailerHelper::createThumbnail(const QString& pa
         return PDFAppThumbnailerHelper::failed(fileModified, 0);
     }
 
+    // The time budget covers the parsing too: a document, which needs it whole for
+    // the parsing, is not rendered
+    if (PDFOperationControl::isOperationCancelled(control))
+    {
+        return PDFAppThumbnailerHelper::failed(fileModified, storedPageCount);
+    }
+
+    // A huge image is not decoded (the decoders of the core have no size limit)
+    if (PDFAppThumbnailer::getLargestImagePixels(&document) > options.maximumImagePixels)
+    {
+        return PDFAppThumbnailerHelper::failed(fileModified, storedPageCount);
+    }
+
     const QImage image = PDFAppThumbnailer::renderFirstPage(&document, qBound(1, options.maximumDimension, PDFRecentRepository::MAXIMUM_THUMBNAIL_DIMENSION), control);
     if (image.isNull())
     {
-        const PDFAppThumbnailerControl* thumbnailControl = dynamic_cast<const PDFAppThumbnailerControl*>(control);
-        if (thumbnailControl && thumbnailControl->isStopped())
-        {
-            return PDFAppThumbnailerHelper::canceled();
-        }
-        if (!thumbnailControl && PDFOperationControl::isOperationCancelled(control))
+        if (isStopped(control))
         {
             return PDFAppThumbnailerHelper::canceled();
         }
@@ -619,6 +901,104 @@ QImage PDFAppThumbnailer::renderFirstPage(const PDFDocument* document, int maxim
         return QImage();
     }
     return image;
+}
+
+qint64 PDFAppThumbnailer::getLargestImagePixels(const PDFDocument* document)
+{
+    const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && catalog->getPageCount() > 0 ? catalog->getPage(0) : nullptr;
+    if (!page)
+    {
+        return 0;
+    }
+
+    std::set<PDFObjectReference> visited;
+    int objectCount = 0;
+    return PDFAppThumbnailerHelper::getLargestImagePixels(document, page->getResources(), 0, &visited, &objectCount);
+}
+
+qint64 PDFAppThumbnailerHelper::getImagePixels(const PDFDocument* document, const PDFStream* stream, int depth)
+{
+    const PDFDictionary* dictionary = stream ? stream->getDictionary() : nullptr;
+    if (!dictionary || depth > MAXIMUM_RESOURCE_DEPTH)
+    {
+        return 0;
+    }
+
+    // Values of a hostile document: negative or huge sizes are clamped (the product
+    // of two 2^31 values fits into qint64)
+    const PDFObject& widthObject = document->getObject(dictionary->get("Width"));
+    const PDFObject& heightObject = document->getObject(dictionary->get("Height"));
+    const qint64 width = widthObject.isInt() ? qBound(qint64(0), qint64(widthObject.getInteger()), qint64(std::numeric_limits<int>::max())) : 0;
+    const qint64 height = heightObject.isInt() ? qBound(qint64(0), qint64(heightObject.getInteger()), qint64(std::numeric_limits<int>::max())) : 0;
+    qint64 pixels = width * height;
+
+    // The soft mask is decoded too
+    const PDFObject& softMask = document->getObject(dictionary->get("SMask"));
+    if (softMask.isStream())
+    {
+        pixels = qMax(pixels, getImagePixels(document, softMask.getStream(), depth + 1));
+    }
+    return pixels;
+}
+
+qint64 PDFAppThumbnailerHelper::getLargestImagePixels(const PDFDocument* document, const PDFObject& resourcesObject, int depth, std::set<PDFObjectReference>* visited, int* objectCount)
+{
+    const PDFObject& resources = document->getObject(resourcesObject);
+    if (!resources.isDictionary() || depth > MAXIMUM_RESOURCE_DEPTH)
+    {
+        return 0;
+    }
+
+    qint64 largest = 0;
+    for (const char* category : { "XObject", "Pattern" })
+    {
+        const PDFObject& objects = document->getObject(resources.getDictionary()->get(category));
+        if (!objects.isDictionary())
+        {
+            continue;
+        }
+
+        const PDFDictionary* dictionary = objects.getDictionary();
+        for (size_t i = 0; i < dictionary->getCount(); ++i)
+        {
+            if (++(*objectCount) > MAXIMUM_RESOURCE_OBJECTS)
+            {
+                return largest;
+            }
+
+            // A shared form or a cycle of forms is visited once
+            const PDFObject& value = dictionary->getValue(i);
+            if (value.isReference())
+            {
+                if (visited->count(value.getReference()) > 0)
+                {
+                    continue;
+                }
+                visited->insert(value.getReference());
+            }
+
+            const PDFObject& object = document->getObject(value);
+            if (!object.isStream())
+            {
+                continue;
+            }
+
+            const PDFStream* stream = object.getStream();
+            const PDFDictionary* streamDictionary = stream->getDictionary();
+            const PDFObject& subtype = document->getObject(streamDictionary->get("Subtype"));
+            if (subtype.isName() && subtype.getString() == "Image")
+            {
+                largest = qMax(largest, getImagePixels(document, stream, depth));
+            }
+            else
+            {
+                // A form XObject or a tiling pattern: its own resources
+                largest = qMax(largest, getLargestImagePixels(document, streamDictionary->get("Resources"), depth + 1, visited, objectCount));
+            }
+        }
+    }
+    return largest;
 }
 
 }   // namespace pdf

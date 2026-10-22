@@ -33,6 +33,7 @@
 #include "pdfthemefonts.h"
 
 #include <QClipboard>
+#include <QEvent>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -246,9 +247,24 @@ PDFAppAboutPage::PDFAppAboutPage(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("aboutPage"));
 
     QVBoxLayout* layout = PDFAppAboutPageHelper::createColumn(this, 0);
-    m_columns = PDFAppColumns::createMainAndSide(this);
-    layout->addWidget(m_columns);
     layout->addStretch(1);
+    buildContent();
+
+    if (context)
+    {
+        connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppAboutPage::onStorageStateChanged);
+    }
+}
+
+PDFAppAboutPage::~PDFAppAboutPage() = default;
+
+void PDFAppAboutPage::buildContent()
+{
+    m_columns = PDFAppColumns::createMainAndSide(this);
+    if (QBoxLayout* layout = qobject_cast<QBoxLayout*>(this->layout()))
+    {
+        layout->insertWidget(0, m_columns);
+    }
 
     QBoxLayout* mainLayout = m_columns->getMainLayout();
     QBoxLayout* sideLayout = m_columns->getSideLayout();
@@ -266,13 +282,41 @@ PDFAppAboutPage::PDFAppAboutPage(PDFAppContext* context, QWidget* parent) :
     sideLayout->addStretch(1);
 
     updateBuildInfo();
-    if (context)
-    {
-        connect(context, &PDFAppContext::storageStateChanged, this, &PDFAppAboutPage::onStorageStateChanged);
-    }
 }
 
-PDFAppAboutPage::~PDFAppAboutPage() = default;
+void PDFAppAboutPage::rebuild()
+{
+    const int scrollPosition = isVisible() ? getScrollPosition() : -1;
+    const QString focusName = PDFAppPageRebuild::getFocusedName(this);
+
+    m_linkRows.clear();
+    delete m_columns.data();
+    buildContent();
+    m_columns->show();
+
+    if (scrollPosition >= 0)
+    {
+        // The content keeps its height: the position is kept now and after the layout
+        PDFAppPageRebuild::finishLayout();
+        setScrollPosition(scrollPosition);
+        requestDeferredScroll(scrollPosition, QString());
+    }
+    else if (getRoute().getFragment() == QLatin1String(THIRD_PARTY_ANCHOR))
+    {
+        // The anchor of the route is still to be scrolled to, when the page is shown
+        setAnchorWidget(m_librariesSection);
+    }
+    PDFAppPageRebuild::restoreFocus(this, focusName);
+}
+
+void PDFAppAboutPage::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_columns)
+    {
+        rebuild();
+    }
+}
 
 bool PDFAppAboutPage::setRoute(const PDFAppRoute& route)
 {
@@ -349,11 +393,8 @@ QWidget* PDFAppAboutPage::createAppCard(QWidget* parent)
     titleLayout->setSpacing(10);
     PDFAppParagraph* title = PDFAppPageWidgets::createText(QStringLiteral("PDF4QT"), PDFThemeFonts::getFont(QFont::Bold, 22), 27, PDFThemeColors::TextPrimary, titleRow);
     title->setObjectName(QStringLiteral("appTitle"));
-    QString versionText = tr("Version %1").arg(PDFAppAboutInfo::getVersion());
-    if (!PDFAppAboutInfo::getBuildDate().isEmpty())
-    {
-        versionText = tr("%1 · Built %2").arg(versionText, PDFAppAboutInfo::getBuildDate());
-    }
+    // The release of the running version (What's New); the build date is a row of the build information
+    const QString versionText = PDFAppAboutInfo::getHeroVersionText();
     PDFAppParagraph* version = PDFAppPageWidgets::createText(versionText, PDFThemeFonts::getFont(QFont::Normal, 13), 16, PDFThemeColors::TextTertiary, titleRow);
     version->setObjectName(QStringLiteral("appVersion"));
 

@@ -51,6 +51,7 @@
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfsupportvideocatalog.h"
 #include "pdftoolrepository.h"
+#include "pdfwhatsnew.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
@@ -81,6 +82,7 @@
 #include <QSignalSpy>
 #include <QStandardItemModel>
 #include <QTemporaryDir>
+#include <QTranslator>
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -228,6 +230,25 @@ public:
     static QRect rectIn(const QWidget* widget, const QWidget* ancestor)
     {
         return QRect(widget->mapTo(ancestor, QPoint(0, 0)), widget->size());
+    }
+
+    /// Texts of the labels, buttons, fact pills and fields of the widget and its descendants
+    static QStringList texts(const QWidget* widget)
+    {
+        QStringList result;
+        for (const QLabel* label : widget->findChildren<QLabel*>())
+        {
+            result << label->text();
+        }
+        for (const QAbstractButton* button : widget->findChildren<QAbstractButton*>())
+        {
+            result << button->text();
+        }
+        for (const pdf::PDFFactPill* pill : widget->findChildren<pdf::PDFFactPill*>())
+        {
+            result << pill->getText();
+        }
+        return result;
     }
 
     static QString accessibleName(QWidget* widget)
@@ -424,6 +445,23 @@ protected:
     }
 };
 
+/// Translator of the test: the texts of its table in another language
+class InfoTestTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        return entries.value(qMakePair(QByteArray(context ? context : ""), QByteArray(sourceText ? sourceText : "")));
+    }
+
+    virtual bool isEmpty() const override { return false; }
+
+    /// Translations (context, source text)
+    QHash<QPair<QByteArray, QByteArray>, QString> entries;
+};
+
 class AppInfoPagesTest : public QObject
 {
     Q_OBJECT
@@ -452,6 +490,8 @@ private slots:
     void fontVersionRecords();
     void thirdPartyAnchor();
     void aboutLinks();
+    void aboutReleaseText();
+    void languageChange();
 
     void videoCatalog();
     void videoCatalogSearch_data();
@@ -741,9 +781,10 @@ void AppInfoPagesTest::buildInfoDiskDatabase()
 
         const QList<pdf::PDFAppBuildInfoRow>& rows = page->getBuildRows();
         QCOMPARE(rows[rows.size() - 2].value, QDir::toNativeSeparators(file));
-        const QString logDirectory = fixture.context->getLogDirectory().isEmpty() ? pdf::PDFAppPaths::getLogDirectory() : fixture.context->getLogDirectory();
-        QCOMPARE(rows.back().value, QDir::toNativeSeparators(logDirectory));
-        QVERIFY(rows.back().value.startsWith(QDir::toNativeSeparators(directory.path())));
+        // No log is installed by the test: no folder is shown (no log files are written)
+        QVERIFY(!pdf::PDFAppLog::isInstalled());
+        QVERIFY(fixture.context->getLogDirectory().isEmpty());
+        QCOMPARE(rows.back().value, QStringLiteral("None"));
     }
     qunsetenv("PDF4QT_APP_DATA_DIRECTORY");
 }
@@ -763,14 +804,12 @@ void AppInfoPagesTest::buildInfoLogFolder()
     QCOMPARE(context.getLogDirectory(), logDirectory);
     const QList<pdf::PDFAppBuildInfoRow> rows = pdf::PDFAppAboutInfo::getBuildRows(&context);
 
-    // The log of the test is closed, the log folder of the next tests is empty again
-    // (uninstall keeps the options of the last installation)
-    pdf::PDFAppLog::uninstall();
-    pdf::PDFAppLogOptions portable;
-    portable.portable = true;
-    pdf::PDFAppLog::install(portable);
+    // The log of the test is removed: About shows no folder of the removed log
     pdf::PDFAppLog::uninstall();
     QVERIFY(pdf::PDFAppLog::getLogDirectory().isEmpty());
+    QVERIFY(context.getLogDirectory().isEmpty());
+    const QList<pdf::PDFAppBuildInfoRow> rowsAfterUninstall = pdf::PDFAppAboutInfo::getBuildRows(&context);
+    QCOMPARE(rowsAfterUninstall.back().value, QStringLiteral("None"));
 
     QCOMPARE(rows.back().key, QStringLiteral("Log folder"));
     QCOMPARE(rows.back().value, QDir::toNativeSeparators(logDirectory));
@@ -786,7 +825,7 @@ void AppInfoPagesTest::buildInfoWithoutStorage()
         QVERIFY(!context.getDatabase());
         QVERIFY(!context.getNotifier());
         const QList<pdf::PDFAppBuildInfoRow> rows = pdf::PDFAppAboutInfo::getBuildRows(&context);
-        QCOMPARE(rows.back().value, QDir::toNativeSeparators(pdf::PDFAppPaths::getLogDirectory()));
+        QCOMPARE(rows.back().value, QStringLiteral("None"));
 
         // Support reads no used tools and keeps For you empty
         pdf::PDFAppSupportPage support(&context);
@@ -1121,6 +1160,208 @@ void AppInfoPagesTest::fontVersionRecords()
         const QString truncated = pdf::PDFAppAboutInfo::getFontVersion(font.left(length));
         QVERIFY2(truncated.isEmpty() || truncated == version, qPrintable(QString::number(length)));
     }
+}
+
+void AppInfoPagesTest::aboutReleaseText()
+{
+    // The hero of About shows the release of the running version (What's New), not
+    // the build date (110:2163); the build date stays a row of the build information
+    using Info = pdf::PDFAppAboutInfo;
+    const std::shared_ptr<const pdf::PDFWhatsNewCatalog> catalog = pdf::PDFWhatsNewCatalog::getBuiltin();
+    QVERIFY(catalog && !catalog->getReleases().empty());
+
+    bool hasReleased = false;
+    bool hasUnreleased = false;
+    for (const pdf::PDFWhatsNewRelease& release : catalog->getReleases())
+    {
+        const QString text = Info::getReleaseText(*catalog, release.version);
+        if (release.isUnreleased || !release.date.isValid())
+        {
+            hasUnreleased = true;
+            QCOMPARE(text, QStringLiteral("Not released yet"));
+        }
+        else
+        {
+            hasReleased = true;
+            QCOMPARE(text, QStringLiteral("Released %1").arg(QLocale(QLocale::English, QLocale::UnitedStates).toString(release.date, QStringLiteral("MMM d, yyyy"))));
+        }
+        QCOMPARE(Info::getHeroVersionText(*catalog, release.version),
+                 QStringLiteral("Version %1 · %2").arg(pdf::PDFWhatsNewRelease::getDisplayVersion(release.version), text));
+    }
+    QVERIFY(hasReleased);
+    QVERIFY(hasUnreleased);
+    QCOMPARE(Info::getReleaseText(*catalog, QVersionNumber({ 1, 0, 0 })), QStringLiteral("Released Sep 19, 2021"));
+
+    // A version without a release in the catalog: no date is invented
+    QVERIFY(Info::getReleaseText(*catalog, QVersionNumber({ 0, 0, 1 })).isEmpty());
+    QVERIFY(Info::getReleaseText(*catalog, QVersionNumber()).isEmpty());
+    QCOMPARE(Info::getHeroVersionText(*catalog, QVersionNumber({ 0, 0, 1 })), QStringLiteral("Version 0.0.1"));
+    QCOMPARE(Info::getHeroVersionText(pdf::PDFWhatsNewCatalog(), QVersionNumber({ 1, 0, 0 })), QStringLiteral("Version 1.0.0"));
+    QCOMPARE(Info::getHeroVersionText(pdf::PDFWhatsNewCatalog(), QVersionNumber()), QStringLiteral("Version %1").arg(Info::getVersion()));
+
+    // The page shows the line of the running version, never "Built"
+    InfoFixture fixture;
+    fixture.navigate(QStringLiteral("/about"));
+    pdf::PDFAppAboutPage* page = fixture.page<pdf::PDFAppAboutPage>();
+    QVERIFY(page);
+    QLabel* versionLabel = page->findChild<QLabel*>(QStringLiteral("appVersion"));
+    QVERIFY(versionLabel);
+    QCOMPARE(versionLabel->text(), Info::getHeroVersionText());
+    QCOMPARE(Info::getHeroVersionText(), Info::getHeroVersionText(*catalog, pdf::PDFWhatsNewCatalog::getRunningVersion()));
+    QVERIFY(!versionLabel->text().contains(QStringLiteral("Built")));
+}
+
+void AppInfoPagesTest::languageChange()
+{
+    // About, Support and Sponsor show every text in the new language; the state of
+    // the page (filter, search text, scroll, focus, build information) is kept
+    InfoFixture fixture;
+    fixture.window->resize(1200, 700);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+
+    InfoTestTranslator translator;
+    translator.entries.insert({ "pdf::PDFAppAboutPage", "About the author" }, QStringLiteral("Über den Autor"));
+    translator.entries.insert({ "pdf::PDFAppAboutPage", "View on GitHub" }, QStringLiteral("Auf GitHub ansehen"));
+    translator.entries.insert({ "pdf::PDFAppAboutInfo", "Version %1" }, QStringLiteral("Fassung %1"));
+    translator.entries.insert({ "pdf::PDFAppAboutInfo", "Log folder" }, QStringLiteral("Protokollordner"));
+    translator.entries.insert({ "pdf::PDFAppSupportPage", "All" }, QStringLiteral("Alle"));
+    translator.entries.insert({ "pdf::PDFAppSupportPage", "Video tutorials" }, QStringLiteral("Videoanleitungen"));
+    translator.entries.insert({ "pdf::PDFAppSupportPage", "Search tutorials…" }, QStringLiteral("Anleitungen suchen…"));
+    translator.entries.insert({ "pdf::PDFAppSponsorPage", "Free since 2018" }, QStringLiteral("Kostenlos seit 2018"));
+    translator.entries.insert({ "pdf::PDFAppSponsorPage", "If PDF4QT saves you time, consider giving some back." }, QStringLiteral("Wenn PDF4QT Ihnen Zeit spart, geben Sie etwas zurück."));
+
+    // About: scrolled to the libraries, the focus on a button
+    fixture.navigate(QStringLiteral("/about#third-party"));
+    pdf::PDFAppAboutPage* about = fixture.page<pdf::PDFAppAboutPage>();
+    QVERIFY(about);
+    QTRY_VERIFY(about->getScrollPosition() > 0);
+    const int buildRows = about->getBuildInfo()->getRowCount();
+    about->getGitHubButton()->setFocus(Qt::TabFocusReason);
+    QCOMPARE(QApplication::focusWidget(), about->getGitHubButton());
+    InfoFixture::settle();
+    const int aboutScroll = about->getScrollPosition();
+    QVERIFY(aboutScroll > 0);
+    QPointer<pdf::PDFAppColumns> oldColumns = about->getColumns();
+    QPointer<QPushButton> oldButton = about->getGitHubButton();
+
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    InfoFixture::settle();
+    QVERIFY(oldColumns.isNull());
+    QVERIFY(oldButton.isNull());
+    QVERIFY(InfoTestHelper::texts(about).contains(QStringLiteral("Über den Autor")));
+    QCOMPARE(about->getGitHubButton()->text(), QStringLiteral("Auf GitHub ansehen"));
+    QVERIFY(about->findChild<QLabel*>(QStringLiteral("appVersion"))->text().startsWith(QStringLiteral("Fassung ")));
+    QCOMPARE(about->getBuildInfo()->getRowCount(), buildRows);
+    QCOMPARE(about->getBuildInfo()->getKey(buildRows - 1), QStringLiteral("Protokollordner"));
+    QCOMPARE(about->getBuildRows().back().key, QStringLiteral("Protokollordner"));
+    QTRY_COMPARE(about->getScrollPosition(), aboutScroll);
+    QCOMPARE(QApplication::focusWidget(), about->getGitHubButton());
+    QVERIFY(about->getColumns()->isVisible());
+
+    QCoreApplication::removeTranslator(&translator);
+    InfoFixture::settle();
+    QVERIFY(InfoTestHelper::texts(about).contains(QStringLiteral("About the author")));
+    QCOMPARE(about->getBuildInfo()->getKey(buildRows - 1), QStringLiteral("Log folder"));
+
+    // Support: the filter, the text of the search field and the focus in it
+    const QString topic = pdf::PDFSupportVideoCatalog::getTopicId(pdf::PDFSupportVideoCatalog::getTopics().front());
+    fixture.navigate(QStringLiteral("/support?topic=%1&q=pdf").arg(topic));
+    pdf::PDFAppSupportPage* support = fixture.page<pdf::PDFAppSupportPage>();
+    QVERIFY(support);
+    QStringList visibleIds;
+    for (pdf::PDFVideoCard* card : support->getVisibleVideoCards())
+    {
+        visibleIds << card->objectName();
+    }
+    support->getSearchField()->setFocus(Qt::TabFocusReason);
+    support->getSearchField()->setCursorPosition(1);
+    QPointer<pdf::PDFLineEdit> oldField = support->getSearchField();
+    const int quickActionCount = support->getQuickActions().size();
+    const int chipCount = support->getChips().size();
+
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    InfoFixture::settle();
+    QVERIFY(oldField.isNull());
+    QCOMPARE(support->getTopic(), topic);
+    QCOMPARE(support->getSearchText(), QStringLiteral("pdf"));
+    QCOMPARE(support->getSearchField()->text(), QStringLiteral("pdf"));
+    QCOMPARE(support->getSearchField()->cursorPosition(), 1);
+    QCOMPARE(support->getSearchField()->placeholderText(), QStringLiteral("Anleitungen suchen…"));
+    QCOMPARE(QApplication::focusWidget(), support->getSearchField());
+    QCOMPARE(support->getChip(QString())->text(), QStringLiteral("Alle"));
+    QVERIFY(support->getChip(topic)->isChecked());
+    QVERIFY(InfoTestHelper::texts(support).contains(QStringLiteral("Videoanleitungen")));
+    QCOMPARE(support->getQuickActions().size(), quickActionCount);
+    QCOMPARE(support->getChips().size(), chipCount);
+    QStringList visibleAfter;
+    for (pdf::PDFVideoCard* card : support->getVisibleVideoCards())
+    {
+        visibleAfter << card->objectName();
+    }
+    QCOMPARE(visibleAfter, visibleIds);
+    QCOMPARE(support->getRoute().getQueryValue(QStringLiteral("topic")), topic);
+
+    // The filter works on the new widgets
+    support->setFilter(QString(), QString());
+    QCOMPARE(support->getVisibleVideoCards().size(), int(pdf::PDFSupportVideoCatalog::getVideos().size()));
+    QVERIFY(support->getChip(QString())->isChecked());
+    QCoreApplication::removeTranslator(&translator);
+    InfoFixture::settle();
+    QCOMPARE(support->getChip(QString())->text(), QStringLiteral("All"));
+
+    // Sponsor: the hero and the columns again, the focus on the same button
+    fixture.navigate(QStringLiteral("/sponsor"));
+    pdf::PDFAppSponsorPage* sponsor = fixture.page<pdf::PDFAppSponsorPage>();
+    QVERIFY(sponsor);
+    sponsor->getStarButton()->setFocus(Qt::TabFocusReason);
+    const int highlightCount = sponsor->getHighlightCards().size();
+    const int linkRowCount = sponsor->getLinkRows().size();
+    const int priorityCount = sponsor->getPriorityRows().size();
+    QPointer<QWidget> oldHero = sponsor->getHero();
+
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    InfoFixture::settle();
+    QVERIFY(oldHero.isNull());
+    QVERIFY(sponsor->getHero()->isVisible());
+    QVERIFY(InfoTestHelper::texts(sponsor).contains(QStringLiteral("Kostenlos seit 2018")));
+    QVERIFY(InfoTestHelper::texts(sponsor).contains(QStringLiteral("Wenn PDF4QT Ihnen Zeit spart, geben Sie etwas zurück.")));
+    QCOMPARE(QApplication::focusWidget(), sponsor->getStarButton());
+    QCOMPARE(sponsor->getHighlightCards().size(), highlightCount);
+    QCOMPARE(sponsor->getLinkRows().size(), linkRowCount);
+    QCOMPARE(sponsor->getPriorityRows().size(), priorityCount);
+    QCoreApplication::removeTranslator(&translator);
+    InfoFixture::settle();
+    QVERIFY(InfoTestHelper::texts(sponsor).contains(QStringLiteral("Free since 2018")));
+
+    // Pages outside of a window (not shown, no context): no scroll, the anchor of the
+    // route is kept for the showing of the page
+    {
+        pdf::PDFAppAboutPage hiddenAbout(nullptr);
+        QVERIFY(hiddenAbout.setRoute(pdf::PDFAppRoute::parse(QStringLiteral("/about#third-party"))));
+        pdf::PDFAppSupportPage hiddenSupport(nullptr);
+        pdf::PDFAppSponsorPage hiddenSponsor(nullptr);
+        QVERIFY(QCoreApplication::installTranslator(&translator));
+        InfoFixture::settle();
+        QVERIFY(InfoTestHelper::texts(&hiddenAbout).contains(QStringLiteral("Über den Autor")));
+        QCOMPARE(hiddenSupport.getChip(QString())->text(), QStringLiteral("Alle"));
+        QVERIFY(InfoTestHelper::texts(&hiddenSponsor).contains(QStringLiteral("Kostenlos seit 2018")));
+        QCOMPARE(hiddenAbout.getRoute().getFragment(), QStringLiteral("third-party"));
+        QCoreApplication::removeTranslator(&translator);
+        InfoFixture::settle();
+    }
+
+    // The helpers of the rebuild with missing or hostile input
+    QVERIFY(pdf::PDFAppPageRebuild::getFocusedName(nullptr).isEmpty());
+    pdf::PDFAppPageRebuild::restoreFocus(nullptr, QStringLiteral("starButton"));
+    pdf::PDFAppPageRebuild::restoreFocus(sponsor, QString());
+    pdf::PDFAppPageRebuild::restoreFocus(sponsor, QStringLiteral("noSuchWidget"));
+    QCOMPARE(QApplication::focusWidget(), sponsor->getStarButton());
+    QCOMPARE(pdf::PDFAppPageRebuild::getFocusedName(sponsor), QStringLiteral("starButton"));
+    sponsor->setFocus(Qt::OtherFocusReason);
+    QVERIFY(pdf::PDFAppPageRebuild::getFocusedName(sponsor).isEmpty());
+    pdf::PDFAppPageRebuild::restoreFocus(sponsor, QStringLiteral("hero"));
+    QVERIFY(QApplication::focusWidget() != sponsor->getHero());
 }
 
 void AppInfoPagesTest::thirdPartyAnchor()

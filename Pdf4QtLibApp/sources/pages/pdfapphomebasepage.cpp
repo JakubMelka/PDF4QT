@@ -21,11 +21,13 @@
 // SOFTWARE.
 
 #include "pdfapphomebasepage.h"
+#include "pdfappdocumentregistry.h"
 #include "pdfappcommand.h"
 #include "pdfappfiledrop.h"
 #include "pdfapphomedialogs.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappmainwindow.h"
+#include "pdfappsysteminfo.h"
 #include "pdfappthumbnailer.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfrepositoryhelper.h"
@@ -38,7 +40,9 @@
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QAbstractButton>
 #include <QAction>
+#include <QApplication>
 #include <QClipboard>
 #include <QDir>
 #include <QGuiApplication>
@@ -58,9 +62,6 @@ public:
 
     /// Most paths, whose information is kept for one showing of the page
     static constexpr int MAXIMUM_PATH_INFOS = 4096;
-
-    /// Most decoded thumbnails kept by a page
-    static constexpr int MAXIMUM_THUMBNAILS = 512;
 
     static QVariant toData(const PDFAppHomeItem& item, PDFAppHomeAction action)
     {
@@ -94,6 +95,12 @@ public:
         return true;
     }
 
+    /// The widget was hidden by the code (not only a new widget, which its layout shows later)
+    static bool isHiddenExplicitly(const QWidget* widget)
+    {
+        return widget->isHidden() && widget->testAttribute(Qt::WA_WState_ExplicitShowHide);
+    }
+
     static bool isSeparatedAction(PDFAppHomeAction action)
     {
         return action == PDFAppHomeAction::RemoveFromList || action == PDFAppHomeAction::Delete || action == PDFAppHomeAction::RemoveLocation;
@@ -109,6 +116,12 @@ PDFAppHomeBasePage::PDFAppHomeBasePage(PDFAppContext* context, QWidget* parent) 
     m_refreshTimer->setInterval(0);
     connect(m_refreshTimer, &QTimer::timeout, this, &PDFAppHomeBasePage::onRefreshTimer);
 
+    // Requests refused by the busy folder information service are asked again
+    m_retryTimer = new QTimer(this);
+    m_retryTimer->setSingleShot(true);
+    m_retryTimer->setInterval(RETRY_INTERVAL);
+    connect(m_retryTimer, &QTimer::timeout, this, &PDFAppHomeBasePage::onRetryTimer);
+
     if (context)
     {
         if (PDFDatabaseNotifier* notifier = context->getNotifier())
@@ -119,6 +132,13 @@ PDFAppHomeBasePage::PDFAppHomeBasePage(PDFAppContext* context, QWidget* parent) 
         if (PDFAppFolderInfoService* folderInfo = context->getFolderInfo())
         {
             connect(folderInfo, &PDFAppFolderInfoService::infoReady, this, &PDFAppHomeBasePage::onInfoReady);
+        }
+
+        // The open documents (Save open documents as workspace) follow the document tabs
+        if (PDFAppDocumentRegistry* registry = context->getDocumentRegistry())
+        {
+            connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFAppHomeBasePage::scheduleRefresh);
+            connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFAppHomeBasePage::scheduleRefresh);
         }
     }
 }
@@ -397,11 +417,11 @@ void PDFAppHomeBasePage::openWorkspace(qint64 id)
         return;
     }
 
-    // STEP 3 HOOK: the documents open in their own tabs at their pages
-    const QStringList paths = PDFAppDocumentActions::getPaths(workspace->documents);
-    if (!paths.isEmpty())
+    // The documents open in their own tabs at their pages
+    const std::vector<PDFAppOpenRequest> requests = PDFAppDocumentActions::getRequests(workspace->documents);
+    if (!requests.empty())
     {
-        PDFAppDocumentActions::openFiles(this, paths);
+        PDFAppDocumentActions::openRequests(this, requests);
     }
 }
 
@@ -420,13 +440,14 @@ void PDFAppHomeBasePage::restoreLastSession()
         return;
     }
 
-    // The session is restored once (PDFWorkspaceRepository::deleteLastSession)
-    const QStringList paths = PDFAppDocumentActions::getPaths(session->documents);
+    // The session is restored once (PDFWorkspaceRepository::deleteLastSession), the
+    // documents at their pages
+    const std::vector<PDFAppOpenRequest> requests = PDFAppDocumentActions::getRequests(session->documents);
     QPointer<PDFAppHomeBasePage> guard(this);
     showDatabaseError(context->getWorkspaces().deleteLastSession());
-    if (guard && !paths.isEmpty())
+    if (guard && !requests.empty())
     {
-        PDFAppDocumentActions::openFiles(this, paths);
+        PDFAppDocumentActions::openRequests(this, requests);
     }
 }
 
@@ -504,6 +525,7 @@ void PDFAppHomeBasePage::addPinnedLocation()
                                                tr("“%1” is already one of the pinned locations.").arg(PDFAppHomeFormat::toDisplayPath(folder)), QDialogButtonBox::Ok, window());
         box->setObjectName(QStringLiteral("duplicateLocationBox"));
         box->setAttribute(Qt::WA_DeleteOnClose);
+        PDFAppMainWindow::prepareDialog(box, this);
         m_errorBox = box;
         box->open();
         return;
@@ -623,6 +645,7 @@ void PDFAppHomeBasePage::showDatabaseError(const PDFDatabaseError& error)
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("The change was not saved"), text, QDialogButtonBox::Ok, window());
     box->setObjectName(QStringLiteral("databaseErrorBox"));
     box->setAttribute(Qt::WA_DeleteOnClose);
+    PDFAppMainWindow::prepareDialog(box, this);
     m_errorBox = box;
     box->open();
 }
@@ -634,7 +657,121 @@ void PDFAppHomeBasePage::refreshNow()
         m_refreshTimer->stop();
     }
     ++m_refreshCount;
+
+    // The mounts may change between two refreshes (a share mounted meanwhile)
+    m_networkPaths = std::make_unique<PDFAppNetworkPaths>();
+
+    // A refresh may rebuild the rows: the focused item gets the focus back
+    const FocusState focus = captureFocus();
     refresh();
+    restoreFocus(focus);
+}
+
+bool PDFAppHomeBasePage::isNetworkPath(const QString& path) const
+{
+    if (!m_networkPaths)
+    {
+        return PDFAppNetworkPaths::isNetworkPathByName(path);
+    }
+    return m_networkPaths->isNetworkPath(path);
+}
+
+PDFAppHomeBasePage::FocusState PDFAppHomeBasePage::captureFocus() const
+{
+    FocusState state;
+    QWidget* focused = QApplication::focusWidget();
+    if (!focused || !isAncestorOf(focused))
+    {
+        return state;
+    }
+
+    // The item is the nearest ancestor with the path or the id (a row, a card)
+    for (QWidget* widget = focused; widget && widget != this; widget = widget->parentWidget())
+    {
+        for (const char* property : { PATH_PROPERTY, ID_PROPERTY })
+        {
+            const QVariant value = widget->property(property);
+            if (value.isValid() && !value.toString().isEmpty())
+            {
+                state.item = widget;
+                state.container = widget->parentWidget();
+                state.focused = focused;
+                state.property = property;
+                state.value = value;
+                state.itemName = widget->objectName();
+                if (focused != widget)
+                {
+                    state.focusedName = focused->objectName();
+                    state.focusedClass = focused->metaObject()->className();
+                }
+                return state;
+            }
+        }
+    }
+    return state;
+}
+
+void PDFAppHomeBasePage::restoreFocus(const FocusState& state)
+{
+    // Nothing was focused, or the focused item was kept by the refresh
+    if (!state.property || (state.item && state.focused && state.item->isVisibleTo(this) && state.focused->isVisibleTo(this)))
+    {
+        return;
+    }
+
+    // The new widget of the same item: in the same container first (a pinned file
+    // is also in the list of the recent files), then anywhere on the page. A new
+    // row is not shown yet (its layout shows it from the event loop), it must not
+    // be hidden explicitly (the old rows are) and its container must be visible.
+    QWidget* target = nullptr;
+    const QList<QWidget*> widgets = findChildren<QWidget*>();
+    for (int pass = 0; pass < 2 && !target; ++pass)
+    {
+        for (QWidget* widget : widgets)
+        {
+            if (widget == state.item || widget->objectName() != state.itemName || widget->property(state.property) != state.value ||
+                PDFAppHomeBasePageHelper::isHiddenExplicitly(widget) || !widget->parentWidget() || !widget->parentWidget()->isVisibleTo(this))
+            {
+                continue;
+            }
+            if (pass == 0 && widget->parentWidget() != state.container.data())
+            {
+                continue;
+            }
+            target = widget;
+            break;
+        }
+    }
+
+    if (!target)
+    {
+        return;
+    }
+
+    // The new row is shown now (its layout would show it later), so it takes the focus
+    if (target->isHidden())
+    {
+        target->show();
+    }
+
+    // The nested widget (the star of a row) of the same name and class
+    if (!state.focusedClass.isEmpty())
+    {
+        for (QWidget* child : target->findChildren<QWidget*>())
+        {
+            if (child->objectName() == state.focusedName && child->metaObject()->className() == state.focusedClass &&
+                child->isVisibleTo(this) && child->focusPolicy() != Qt::NoFocus)
+            {
+                target = child;
+                break;
+            }
+        }
+    }
+
+    if (target->focusPolicy() != Qt::NoFocus && target->isEnabled())
+    {
+        target->setFocus(state.reason);
+    }
 }
 
 bool PDFAppHomeBasePage::isRefreshPending() const
@@ -693,35 +830,55 @@ std::optional<PDFAppFolderInfo> PDFAppHomeBasePage::getPathInfo(const QString& p
 
 void PDFAppHomeBasePage::requestPathInfo(const QString& path)
 {
-    PDFAppFolderInfoService* service = getContext() ? getContext()->getFolderInfo() : nullptr;
-    if (!service || path.isEmpty() || m_pathInfos.contains(path) || m_pathInfos.size() >= PDFAppHomeBasePageHelper::MAXIMUM_PATH_INFOS)
-    {
-        return;
-    }
-
-    // An empty record marks the request (the answer replaces it)
-    PDFAppFolderInfo pending;
-    pending.path = path;
-    pending.exists = true;
-    pending.pdfCount = -2;
-    m_pathInfos.insert(path, pending);
-    service->requestPathInfo(path);
+    requestInfo(path, false);
 }
 
 void PDFAppHomeBasePage::requestFolderInfo(const QString& path)
 {
+    requestInfo(path, true);
+}
+
+void PDFAppHomeBasePage::requestInfo(const QString& path, bool countPdfFiles)
+{
+    // A network path is never contacted by the page (an explicit opening checks it)
     PDFAppFolderInfoService* service = getContext() ? getContext()->getFolderInfo() : nullptr;
-    if (!service || path.isEmpty() || m_pathInfos.contains(path) || m_pathInfos.size() >= PDFAppHomeBasePageHelper::MAXIMUM_PATH_INFOS)
+    if (!service || path.isEmpty() || m_pathInfos.contains(path) || m_pathInfos.size() >= PDFAppHomeBasePageHelper::MAXIMUM_PATH_INFOS || isNetworkPath(path))
     {
         return;
     }
 
+    const bool isAccepted = countPdfFiles ? service->requestFolderInfo(path) : service->requestPathInfo(path);
+    if (!isAccepted)
+    {
+        // The service is busy: the path is asked again later (it stays unknown
+        // meanwhile, not pending forever); an invalid path is never known
+        if (service->isFull() && m_refusedRequests.size() < PDFAppHomeBasePageHelper::MAXIMUM_PATH_INFOS)
+        {
+            m_refusedRequests.insert(path, countPdfFiles);
+            if (m_retryTimer && !m_retryTimer->isActive())
+            {
+                m_retryTimer->start();
+            }
+        }
+        return;
+    }
+
+    // An empty record marks the request (the answer replaces it)
+    m_refusedRequests.remove(path);
     PDFAppFolderInfo pending;
     pending.path = path;
     pending.exists = true;
     pending.pdfCount = -2;
     m_pathInfos.insert(path, pending);
-    service->requestFolderInfo(path);
+}
+
+void PDFAppHomeBasePage::onRetryTimer()
+{
+    const QHash<QString, bool> refused = std::exchange(m_refusedRequests, QHash<QString, bool>());
+    for (auto it = refused.cbegin(); it != refused.cend(); ++it)
+    {
+        requestInfo(it.key(), it.value());
+    }
 }
 
 void PDFAppHomeBasePage::onInfoReady(const PDFAppFolderInfo& info)
@@ -739,8 +896,9 @@ void PDFAppHomeBasePage::onInfoReady(const PDFAppFolderInfo& info)
 
 void PDFAppHomeBasePage::requestThumbnail(const PDFRecentFile& file)
 {
+    // A network file gets its thumbnail, when it is opened (PDFAppMainWindow::openDocuments)
     PDFAppThumbnailer* thumbnailer = getContext() ? getContext()->getThumbnailer() : nullptr;
-    if (thumbnailer && !file.path.isEmpty())
+    if (thumbnailer && !file.path.isEmpty() && !isNetworkPath(file.path))
     {
         thumbnailer->requestThumbnail(file.path);
     }
@@ -752,28 +910,39 @@ QPixmap PDFAppHomeBasePage::getThumbnail(const PDFRecentFile& file)
     if (!file.hasThumbnail || file.thumbnailState != PDFRecentThumbnailState::Ready || !context || !context->getDatabase())
     {
         m_thumbnails.remove(file.path);
-        m_thumbnailVersions.remove(file.path);
         return QPixmap();
     }
 
     // The picture is decoded once per version of the thumbnail (thumbnail_mtime)
-    auto version = m_thumbnailVersions.constFind(file.path);
-    if (version != m_thumbnailVersions.cend() && *version == file.thumbnailModified)
+    auto it = m_thumbnails.find(file.path);
+    if (it != m_thumbnails.end() && it->version == file.thumbnailModified)
     {
-        return m_thumbnails.value(file.path);
+        it->lastUse = ++m_thumbnailUse;
+        return it->pixmap;
     }
 
-    if (m_thumbnails.size() >= PDFAppHomeBasePageHelper::MAXIMUM_THUMBNAILS)
+    // The least recently used picture goes, when the limit is reached (the shown
+    // rows keep theirs - a refresh uses all of them)
+    if (it == m_thumbnails.end() && m_thumbnails.size() >= MAXIMUM_THUMBNAILS)
     {
-        m_thumbnails.clear();
-        m_thumbnailVersions.clear();
+        auto oldest = m_thumbnails.begin();
+        for (auto candidate = m_thumbnails.begin(); candidate != m_thumbnails.end(); ++candidate)
+        {
+            if (candidate->lastUse < oldest->lastUse)
+            {
+                oldest = candidate;
+            }
+        }
+        m_thumbnails.erase(oldest);
     }
 
     const QImage image = context->getRecent().getThumbnail(file.path).toImage();
-    const QPixmap pixmap = image.isNull() ? QPixmap() : QPixmap::fromImage(image);
-    m_thumbnails.insert(file.path, pixmap);
-    m_thumbnailVersions.insert(file.path, file.thumbnailModified);
-    return pixmap;
+    ThumbnailEntry entry;
+    entry.pixmap = image.isNull() ? QPixmap() : QPixmap::fromImage(image);
+    entry.version = file.thumbnailModified;
+    entry.lastUse = ++m_thumbnailUse;
+    m_thumbnails.insert(file.path, entry);
+    return entry.pixmap;
 }
 
 qint64 PDFAppHomeBasePage::getNow() const
@@ -796,6 +965,7 @@ void PDFAppHomeBasePage::showEvent(QShowEvent* event)
     if (!event->spontaneous())
     {
         m_pathInfos.clear();
+        m_refusedRequests.clear();
         refreshNow();
     }
 }

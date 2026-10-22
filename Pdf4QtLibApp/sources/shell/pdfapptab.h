@@ -84,6 +84,21 @@ public:
 
     PDFAppContext* getContext() const { return m_context; }
 
+    /// Asked before the tab is closed by the window (closeTab): false = the tab
+    /// stays open (unsaved changes, a running operation - the document tab of
+    /// step 3). The tab may show a dialog and it may be deleted meanwhile (the
+    /// caller guards it). Default: true.
+    virtual bool confirmClose();
+
+    /// Runs a command of the registry with the scope Document or Canvas, which the
+    /// window dispatches to its current tab. \returns false, if the tab does not
+    /// handle the command or it is disabled. The command may delete the tab.
+    virtual bool executeCommand(const QString& commandId);
+
+    /// State of a command of the tab for the actions of the window (default: false)
+    virtual bool isCommandEnabled(const QString& commandId) const;
+    virtual bool isCommandChecked(const QString& commandId) const;
+
 Q_SIGNALS:
     /// A part of the tab, which is not a page (sidebar, search, banner, footer), asks for a route
     void navigationRequested(const pdf::PDFAppRoute& route, pdf::PDFAppNavigationMode mode);
@@ -93,6 +108,10 @@ Q_SIGNALS:
 
     /// The title of the page has changed
     void pageTitleChanged();
+
+    /// The enabled / checked state of the commands of the tab may have changed
+    /// (the window updates its actions)
+    void commandStatesChanged();
 
 protected:
     /// Widget, which holds the page, and its layout
@@ -129,6 +148,10 @@ public:
     /// Widest header and page of the Help tab (centered in a wider window)
     static constexpr int HELP_CONTENT_WIDTH = 1166;
 
+    /// Padding of the workspace (workspace-pane: 32 at every side, 16 at the
+    /// bottom of the Home tab, owner decision O11)
+    static constexpr int PADDING = 32;
+
     /// \p kind is Home, NewTab or Help (anything else is NewTab)
     explicit PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* context, QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceTab() override;
@@ -147,14 +170,24 @@ public:
     PDFAppFooter* getFooter() const { return m_footer; }
     PDFAppScrollArea* getPageScrollArea() const { return m_pageScrollArea; }
 
+    /// Part of the horizontal paddings of the workspace, which lies inside of the
+    /// page scroll area: the width of the overlay scroll bar (it lies over the
+    /// right padding, the page keeps the width of the frames), 0 without it
+    int getPageInset() const { return m_pageInset; }
+
 protected:
     virtual QWidget* getPageArea() const override;
     virtual QVBoxLayout* getPageLayout() const override;
     virtual void onPageChanged() override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
 
 private:
     void updateHelpMargins();
+
+    /// The paddings of the workspace around and inside of the page scroll area
+    /// (the overlay scroll bar of the style lies in the right padding)
+    void updatePageInsets();
 
     /// The storage banner at the top of the layout of the page (PDFAppPage::getBannerLayout)
     /// or above the page; its own visibility is kept
@@ -179,7 +212,9 @@ private:
     QPointer<QWidget> m_pageArea;
     QPointer<QVBoxLayout> m_pageLayout;
     QPointer<PDFAppScrollArea> m_pageScrollArea;
+    QPointer<QBoxLayout> m_pageScrollRow;
     QPointer<PDFAppPage> m_scrolledPage;
+    int m_pageInset = -1;
 };
 
 }   // namespace pdf

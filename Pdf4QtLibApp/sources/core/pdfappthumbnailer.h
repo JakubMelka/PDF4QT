@@ -66,6 +66,23 @@ public:
     /// Delay of the worker before each document in milliseconds (tests: a long
     /// running request, which is stopped)
     int testDelay = 0;
+
+    /// Images of page 1 with more pixels (width x height of an image XObject, also
+    /// of a soft mask and inside of forms and tiling patterns) are not decoded: the
+    /// document gets the state Failed. The decoders of the core have no size limit,
+    /// a huge scan would allocate gigabytes in the worker. Inline images are not
+    /// checked (their data are a part of the content stream).
+    qint64 maximumImagePixels = qint64(64) * 1024 * 1024;
+
+    /// Crash-loop guard: a rendering marker (PDFThumbnailRenderingMarker) of another
+    /// thumbnailer, whose process runs, is taken as a running rendering for this time
+    /// in milliseconds; an older one, or one of an ended process, as a crash - the file
+    /// gets the state Failed until it changes
+    qint64 markerLifetime = qint64(5) * 60 * 1000;
+
+    /// Tests: the process ends (std::_Exit with PDFAppThumbnailer::TEST_EXIT_CODE) right
+    /// after the rendering marker is written - a document, which crashes the renderer
+    bool testExitWhileRendering = false;
 };
 
 /// Result of PDFAppThumbnailer::createThumbnail
@@ -76,7 +93,7 @@ public:
     {
         Done,       ///< state, png and pageCount are valid and are stored
         Missing,    ///< The file does not exist (nothing is stored; Recent shows "No longer exists")
-        Canceled    ///< Stopped (nothing is stored, the file is tried again next time)
+        Canceled    ///< Stopped, or rendered by another instance now (nothing is stored, the file is tried again next time)
     };
 
     Outcome outcome = Outcome::Missing;
@@ -104,7 +121,21 @@ protected:
     virtual void run() override;
 
 private:
+    /// What the worker does with a file, which needs a thumbnail
+    enum class Claim
+    {
+        Render,     ///< The marker of this thumbnailer is written, the file is rendered
+        Resolved,   ///< A crashed rendering left its marker: the file is Failed (result filled)
+        Busy        ///< Another instance renders it now (or the database refused the marker)
+    };
+
     void process(const QString& path);
+
+    /// Crash-loop guard before a rendering (under the lock of the database)
+    Claim claimRendering(const QString& path, qint64 fileModified, const PDFAppThumbnailerOptions& options, PDFAppThumbnailResult* result, bool* written);
+
+    /// Markers of crashed renderings found at the start of the worker: their files become Failed
+    void sweepMarkers(const PDFAppThumbnailerOptions& options);
 
     std::shared_ptr<PDFAppThumbnailerState> m_state;
 };
@@ -139,6 +170,9 @@ public:
     /// Shortest wait of stop() for the worker (an idle worker needs a moment to wake up)
     static constexpr int MINIMUM_STOP_WAIT_TIME = 100;
 
+    /// Exit code of a process ended by PDFAppThumbnailerOptions::testExitWhileRendering
+    static constexpr int TEST_EXIT_CODE = 86;
+
     explicit PDFAppThumbnailer(PDFDatabase* database, QObject* parent = nullptr);
     virtual ~PDFAppThumbnailer() override;
 
@@ -164,13 +198,29 @@ public:
     /// Number of the pending and running requests
     int getPendingCount() const;
 
-    /// Makes the thumbnail of a file (any thread, no database): reads the document,
-    /// renders page 1 into a PNG of at most options.maximumDimension pixels.
+    /// Id of this thumbnailer in its rendering markers (random)
+    QString getInstanceId() const;
+
+    /// The marker of another thumbnailer belongs to a running rendering: its process
+    /// runs and it is younger than \p lifetime (also not more than \p lifetime in the
+    /// future - a clock set back). Otherwise its rendering has crashed (or hangs).
+    static bool isMarkerAlive(const PDFThumbnailRenderingMarker& marker, qint64 now, qint64 lifetime);
+
+    /// Makes the thumbnail of a file (any thread, no database): reads the file (in
+    /// parts, canceled between them), parses the document, renders page 1 into a PNG
+    /// of at most options.maximumDimension pixels. The time budget of \p control
+    /// covers the whole work: the reading and the rendering are canceled, the parsing
+    /// of the core cannot be (PDFDocumentReader has no cancellation) - a document
+    /// over the budget after the parsing is Failed without being rendered.
     /// \param control Cancellation (stop, time budget), may be nullptr
     static PDFAppThumbnailResult createThumbnail(const QString& path, const PDFAppThumbnailerOptions& options, const PDFOperationControl* control);
 
     /// Renders page 1 of a document (any thread), null image on an error or a cancellation
     static QImage renderFirstPage(const PDFDocument* document, int maximumDimension, const PDFOperationControl* control);
+
+    /// Largest image of page 1 in pixels (image XObjects of the resources, their soft
+    /// masks, forms and tiling patterns, recursively; 0 = none)
+    static qint64 getLargestImagePixels(const PDFDocument* document);
 
 Q_SIGNALS:
     /// A request was processed (GUI thread, queued). \p written = the database was

@@ -1963,7 +1963,8 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
         parameters.boundingRectangle = parameters.annotation->getRectangle();
     }
 
-    QPalette palette = QApplication::palette();
+    // Selection colors of the application (PDFDrawWidgetProxy::setViewColors) or of its palette
+    const PDFViewColors viewColors = PDFViewColors::getColors(parameters.formManager);
     QTransform matrix = createListBoxTransformMatrix();
     QPainter* painter = parameters.painter;
 
@@ -1981,8 +1982,8 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
     painter->setFont(m_font);
 
     QColor textColor = parameters.colorConvertor.convert(m_textColor, false, true);
-    QColor highlightTextColor = parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true);
-    QColor highlightColor = parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false);
+    QColor highlightTextColor = parameters.colorConvertor.convert(viewColors.selectionText, false, true);
+    QColor highlightColor = parameters.colorConvertor.convert(viewColors.selection, false, false);
 
     QRectF rect(0, 0, m_widgetRect.width(), m_lineSpacing);
     for (int i = m_topIndex; i < int(m_options.size()); ++i)

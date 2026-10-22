@@ -194,6 +194,10 @@ public:
     /// Returns true, if the widget (or its parent of that class) inherits the class
     static bool inherits(const QWidget* widget, const char* className);
 
+    /// Returns true, if the widget is a scroll bar of a QAbstractScrollArea with the
+    /// property overlayScrollBars (the bar lies over the edge of the viewport)
+    static bool isOverlayScrollBar(const QWidget* widget);
+
     /// Returns the font of the control: the font of the design, or the font
     /// set explicitly to the widget by the application.
     static QFont getFont(const QWidget* widget, Font role);
@@ -401,6 +405,9 @@ class PDFWidgetStyleMetrics
 {
 public:
     PDFWidgetStyleMetrics() = delete;
+
+    /// Thickness of a scroll bar (the bar of 6 px is centered in it)
+    static constexpr int SCROLL_BAR_EXTENT = 12;
 
     /// Returns false, if the metric is not defined by the design
     static bool pixelMetric(const PDFWidgetStyleImpl* impl, QStyle::PixelMetric metric, const QStyleOption* option, const QWidget* widget, int& value);

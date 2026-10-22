@@ -33,6 +33,7 @@
 #include <QVersionNumber>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -201,6 +202,11 @@ public:
     /// Loads the English files of the folder (errors are logged and kept)
     static PDFWhatsNewCatalog load(const QString& directory = getResourceDirectory());
     static PDFWhatsNewCatalog load(const QString& directory, const PDFWhatsNewParser::Options& options);
+
+    /// Catalog of the resources of the application, parsed once per process (the
+    /// first call, in the thread of the user interface); the resources never change,
+    /// so every page shares this immutable object
+    static std::shared_ptr<const PDFWhatsNewCatalog> getBuiltin();
 
     /// Releases sorted by the version, the newest first
     const std::vector<PDFWhatsNewRelease>& getReleases() const { return m_releases; }

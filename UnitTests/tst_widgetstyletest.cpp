@@ -149,6 +149,8 @@ private slots:
     void treeView();
     void titleFonts();
     void messageBoxButtons();
+    void messageBoxScrimTarget();
+    void overlayScrollBars();
     void toolTipOfQt();
     void plainTextLines();
     void dial();
@@ -2025,6 +2027,225 @@ void WidgetStyleTest::messageBoxButtons()
     QVERIFY(embeddedBox.getShadowMargins().isNull());
     QCOMPARE(embeddedBox.layout()->contentsMargins(), QMargins(22, 20, 22, 20));
     QCOMPARE(countLeakPixels(embeddedBox.grab().toImage()), 0);
+}
+
+/// Widget filled by a token (the content below an overlay scroll bar, the parts of a window)
+class WidgetStyleTestFill : public QWidget
+{
+public:
+    explicit WidgetStyleTestFill(pdf::PDFThemeColors::Color color, QWidget* parent = nullptr) :
+        QWidget(parent),
+        m_color(color)
+    {
+
+    }
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.fillRect(rect(), pdf::PDFStylePainter::color(m_color));
+    }
+
+private:
+    pdf::PDFThemeColors::Color m_color;
+};
+
+void WidgetStyleTest::messageBoxScrimTarget()
+{
+    // An application with a top bar of its own covers only its body (the scrim of
+    // pdf4qt-recent-clear-history 941:135742 starts below app-top-bar): the scrim
+    // covers the target, the card is centered over the target, the top bar stays
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+
+        QWidget window;
+        window.resize(800, 600);
+        WidgetStyleTestFill* topBar = new WidgetStyleTestFill(Color::BgTitlebar, &window);
+        topBar->setGeometry(0, 0, 800, 38);
+        WidgetStyleTestFill* body = new WidgetStyleTestFill(Color::BgCanvas, &window);
+        body->setGeometry(0, 38, 800, 562);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        pdf::PDFMessageBox box(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Clear history?"), QStringLiteral("The list of recent files is emptied."), QDialogButtonBox::Ok, &window);
+        QCOMPARE(box.getScrimTarget(), &window);
+        box.setScrimTarget(body);
+        QCOMPARE(box.getScrimTarget(), body);
+        QVERIFY(!box.getScrim());
+
+        box.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&box));
+        QVERIFY(box.getScrim());
+        QCOMPARE(box.getScrim()->parentWidget(), body);
+        QCOMPARE(box.getScrim()->geometry(), body->rect());
+
+        const QPoint cardCenter = box.mapToGlobal(box.rect().marginsRemoved(box.getShadowMargins()).center());
+        const QPoint bodyCenter = body->mapToGlobal(body->rect().center());
+        QVERIFY2((cardCenter - bodyCenter).manhattanLength() <= 2, qPrintable(QStringLiteral("%1 %2 / %3 %4").arg(cardCenter.x()).arg(cardCenter.y()).arg(bodyCenter.x()).arg(bodyCenter.y())));
+
+        // Pixels: the top bar keeps its color, the body is below the scrim
+        const QImage image = window.grab().toImage();
+        QVERIFY2(isNear(pixel(image, 400, 19), token(Color::BgTitlebar)), qPrintable(pixel(image, 400, 19).name()));
+        const QColor scrimmed = blend(token(Color::BgScrim), token(Color::BgCanvas));
+        QVERIFY2(isNear(pixel(image, 20, 300), scrimmed, 3), qPrintable(pixel(image, 20, 300).name() + QStringLiteral(" / ") + scrimmed.name()));
+        QCOMPARE(countLeakPixels(image), 0);
+
+        // A change while the box is shown moves the scrim and the card (null = the parent)
+        box.setScrimTarget(nullptr);
+        QCOMPARE(box.getScrimTarget(), &window);
+        QVERIFY(box.getScrim());
+        QCOMPARE(box.getScrim()->parentWidget(), &window);
+        QCOMPARE(box.getScrim()->geometry(), window.rect());
+        QCOMPARE(body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 0);
+        const QPoint movedCenter = box.mapToGlobal(box.rect().marginsRemoved(box.getShadowMargins()).center());
+        QVERIFY((movedCenter - window.mapToGlobal(window.rect().center())).manhattanLength() <= 2);
+
+        // The target deleted while the box is shown: its scrim goes with it, the
+        // parent is the target again; hiding and showing again do not crash
+        box.setScrimTarget(body);
+        QCOMPARE(box.getScrim()->parentWidget(), body);
+        delete body;
+        QVERIFY(!box.getScrim());
+        QCOMPARE(box.getScrimTarget(), &window);
+        box.hide();
+        box.show();
+        QVERIFY(box.getScrim());
+        QCOMPARE(box.getScrim()->parentWidget(), &window);
+        box.hide();
+        QVERIFY(!box.getScrim());
+
+        // The box deleted while it is shown removes the scrim of its target
+        WidgetStyleTestFill* secondBody = new WidgetStyleTestFill(Color::BgCanvas, &window);
+        secondBody->setGeometry(0, 38, 800, 562);
+        secondBody->show();
+        pdf::PDFMessageBox* deletedBox = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, &window);
+        deletedBox->setScrimTarget(secondBody);
+        deletedBox->show();
+        QCOMPARE(secondBody->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 1);
+        delete deletedBox;
+        QCOMPARE(secondBody->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 0);
+
+        // A target deleted before the box is shown: the parent
+        QWidget* lostTarget = new QWidget(&window);
+        pdf::PDFMessageBox lateBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, &window);
+        lateBox.setScrimTarget(lostTarget);
+        delete lostTarget;
+        lateBox.show();
+        QVERIFY(lateBox.getScrim());
+        QCOMPARE(lateBox.getScrim()->parentWidget(), &window);
+        lateBox.hide();
+    }
+
+    // The title and the text are plain texts (a name of a folder with tags given by
+    // an application is never interpreted as a rich text)
+    const QString title = QStringLiteral("<b>Reports</b>");
+    const QString text = QStringLiteral("The folder <i>2026</i> & <a href=\"https://example.com\">link</a><br>is pinned.");
+    pdf::PDFMessageBox plainBox(pdf::PDFThemeIcons::Badge::Information, title, text, QDialogButtonBox::Ok);
+    plainBox.setDetailedText(QStringLiteral("<table><tr><td>cell</td></tr></table>"));
+    int labelCount = 0;
+    for (QLabel* label : plainBox.findChildren<QLabel*>())
+    {
+        QCOMPARE(label->textFormat(), Qt::PlainText);
+        ++labelCount;
+    }
+    QVERIFY(labelCount >= 3);
+    QLabel* titleLabel = nullptr;
+    for (QLabel* label : plainBox.findChildren<QLabel*>())
+    {
+        titleLabel = label->text() == title ? label : titleLabel;
+    }
+    QVERIFY(titleLabel);
+
+    // The tags are drawn as characters: the label needs the width of the whole text
+    QVERIFY2(titleLabel->sizeHint().width() >= QFontMetrics(titleLabel->font()).horizontalAdvance(title) - 1,
+             qPrintable(QString::number(titleLabel->sizeHint().width())));
+}
+
+void WidgetStyleTest::overlayScrollBars()
+{
+    // QAbstractScrollArea with the property overlayScrollBars: the viewport takes the
+    // whole area, the scroll bars lie over its edge (PM_ScrollView_ScrollBarOverlap)
+    // and draw only the groove and the slider, the content is seen in their gutters.
+    // Without the property the bars take their extent of 12 px.
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+
+        for (const bool isOverlay : { false, true })
+        {
+            QScrollArea area;
+            area.setFrameShape(QFrame::NoFrame);
+            area.setWidgetResizable(true);
+            WidgetStyleTestFill* content = new WidgetStyleTestFill(Color::BgSubtle);
+            content->setMinimumSize(500, 900);
+            area.setWidget(content);
+            area.resize(300, 200);
+            if (isOverlay)
+            {
+                pdf::PDFWidgetStyleProperties::set(&area, pdf::PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS);
+            }
+            area.show();
+            QVERIFY(QTest::qWaitForWindowExposed(&area));
+
+            QScrollBar* bar = area.verticalScrollBar();
+            QVERIFY(bar->isVisible());
+            QVERIFY(area.horizontalScrollBar()->isVisible());
+            QStyleOptionSlider option;
+            option.initFrom(bar);
+            QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, &option, bar), isOverlay ? 12 : 0);
+            QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, &option, area.horizontalScrollBar()), isOverlay ? 12 : 0);
+            QCOMPARE(area.viewport()->size(), isOverlay ? QSize(300, 200) : QSize(288, 188));
+
+            // The bar lies at the edge of the area in both cases
+            const QRect barRect(bar->mapTo(&area, QPoint(0, 0)), bar->size());
+            QCOMPARE(barRect.left(), 288);
+            QCOMPARE(barRect.width(), 12);
+
+            if (isOverlay)
+            {
+                // The gutter of the bar shows the content, the slider (6 px, centered) is drawn over it
+                const QImage image = area.grab().toImage();
+                QVERIFY2(isNear(pixel(image, 289, 4), token(Color::BgSubtle)), qPrintable(pixel(image, 289, 4).name()));
+                QVERIFY2(isNear(pixel(image, 298, 4), token(Color::BgSubtle)), qPrintable(pixel(image, 298, 4).name()));
+                QVERIFY2(isNear(pixel(image, 294, 6), token(Color::BorderStrong), 3), qPrintable(pixel(image, 294, 6).name()));
+                QCOMPARE(countLeakPixels(image), 0);
+            }
+
+            // The wheel, the keyboard and the drag of the slider scroll the content
+            QWheelEvent wheel(QPointF(100, 100), area.viewport()->mapToGlobal(QPointF(100, 100)), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(area.viewport(), &wheel);
+            QVERIFY(bar->value() > 0);
+            bar->setValue(0);
+            QTest::keyClick(&area, Qt::Key_PageDown);
+            QVERIFY(bar->value() > 0);
+            bar->setValue(0);
+            QTest::mousePress(bar, Qt::LeftButton, Qt::NoModifier, QPoint(6, 6));
+            QTest::mouseMove(bar, QPoint(6, 60));
+            QTest::mouseRelease(bar, Qt::LeftButton, Qt::NoModifier, QPoint(6, 60));
+            QVERIFY(bar->value() > 0);
+
+            // The property can be changed later: the area lays its viewport out again
+            pdf::PDFWidgetStyleProperties::set(&area, pdf::PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS, !isOverlay);
+            QCOMPARE(area.viewport()->size(), !isOverlay ? QSize(300, 200) : QSize(288, 188));
+        }
+    }
+
+    // A scroll bar of the application, which is not a bar of such area, never overlaps
+    QScrollArea area;
+    pdf::PDFWidgetStyleProperties::set(&area, pdf::PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS);
+    QWidget* content = new QWidget();
+    area.setWidget(content);
+    QScrollBar foreign(Qt::Vertical, content);
+    QScrollBar alone(Qt::Vertical);
+    pdf::PDFWidgetStyleProperties::set(&alone, pdf::PDFWidgetStyleProperties::OVERLAY_SCROLL_BARS);
+    QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, &foreign), 0);
+    QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, &alone), 0);
+    QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, &area), 0);
+    QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, nullptr), 0);
+    QCOMPARE(m_style->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, area.verticalScrollBar()), 12);
 }
 
 void WidgetStyleTest::toolTipOfQt()

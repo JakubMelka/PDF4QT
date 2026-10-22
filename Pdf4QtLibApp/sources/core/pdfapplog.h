@@ -72,7 +72,8 @@ public:
     /// The handler is installed
     static bool isInstalled();
 
-    /// Folder of the log files (About shows it), empty in the portable mode
+    /// Folder of the log files (About shows it), empty in the portable mode and
+    /// when no log is installed (also after uninstall)
     static QString getLogDirectory();
 
     /// The file, into which the messages are written now (empty = none)

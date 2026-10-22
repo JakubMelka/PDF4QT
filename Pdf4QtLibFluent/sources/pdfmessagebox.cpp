@@ -55,17 +55,29 @@ public:
         setFixedSize(36, 36);
     }
 
+    const QString& getIconName() const { return m_iconName; }
+
+    void setIconName(const QString& iconName)
+    {
+        if (m_iconName != iconName)
+        {
+            m_iconName = iconName;
+            update();
+        }
+    }
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override
     {
         Q_UNUSED(event);
 
         QPainter painter(this);
-        PDFThemeIcons::paintBadge(&painter, QRectF(rect()), m_badge);
+        PDFThemeIcons::paintBadge(&painter, QRectF(rect()), m_badge, m_iconName);
     }
 
 private:
     PDFThemeIcons::Badge m_badge;
+    QString m_iconName;
 };
 
 /// Scrim (bg/scrim) covering the parent widget of a message box, while the
@@ -153,6 +165,10 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     QVBoxLayout* textLayout = new QVBoxLayout();
     textLayout->setContentsMargins(0, 0, 0, 0);
     textLayout->setSpacing(2);
+    // The title and the text are plain texts as the details: a name of a file or of
+    // a folder ("<b>Reports</b>") given by an application is never a rich text
+    m_titleLabel->setTextFormat(Qt::PlainText);
+    m_textLabel->setTextFormat(Qt::PlainText);
     m_textLabel->setWordWrap(true);
     m_textLabel->setMinimumWidth(336);
     m_textLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -306,6 +322,20 @@ void PDFMessageBox::setBadgeVisible(bool isVisible)
     }
 }
 
+QString PDFMessageBox::getBadgeIconName() const
+{
+    const PDFMessageBoxBadge* badge = dynamic_cast<const PDFMessageBoxBadge*>(m_badgeWidget.data());
+    return badge ? badge->getIconName() : QString();
+}
+
+void PDFMessageBox::setBadgeIconName(const QString& iconName)
+{
+    if (PDFMessageBoxBadge* badge = dynamic_cast<PDFMessageBoxBadge*>(m_badgeWidget.data()))
+    {
+        badge->setIconName(iconName);
+    }
+}
+
 void PDFMessageBox::addContent(QWidget* widget)
 {
     if (!widget || !m_mainLayout)
@@ -404,15 +434,37 @@ void PDFMessageBox::setVisible(bool visible)
     }
 }
 
+QWidget* PDFMessageBox::getScrimTarget() const
+{
+    return m_scrimTarget ? m_scrimTarget.data() : parentWidget();
+}
+
+void PDFMessageBox::setScrimTarget(QWidget* target)
+{
+    if (m_scrimTarget.data() == target)
+    {
+        return;
+    }
+
+    m_scrimTarget = target;
+    if (isWindow() && isVisible())
+    {
+        // The scrim moves to the new target, the card follows it
+        hideScrim();
+        moveOverParent();
+        showScrim();
+    }
+}
+
 void PDFMessageBox::moveOverParent()
 {
-    QWidget* host = parentWidget();
+    QWidget* host = getScrimTarget();
     if (!host)
     {
         return;
     }
 
-    // The card (not the window with the shadow) is centered over the parent
+    // The card (not the window with the shadow) is centered over the target
     const QRect hostRect(host->mapToGlobal(QPoint(0, 0)), host->size());
     const QRect card = rect().marginsRemoved(getShadowMargins());
     QRect cardRect(QPoint(0, 0), card.size());
@@ -431,7 +483,7 @@ void PDFMessageBox::moveOverParent()
 
 void PDFMessageBox::showScrim()
 {
-    QWidget* host = parentWidget();
+    QWidget* host = getScrimTarget();
     if (!host || m_scrim || !host->isVisible())
     {
         return;
@@ -736,6 +788,8 @@ QString PDFMessageBox::getBadgeName(PDFThemeIcons::Badge badge)
             return tr("Error");
         case PDFThemeIcons::Badge::Success:
             return tr("Success");
+        case PDFThemeIcons::Badge::Neutral:
+            return tr("Information");
     }
 
     return QString();

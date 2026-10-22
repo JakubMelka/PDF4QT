@@ -37,13 +37,21 @@
 #include <QStringList>
 #include <QAction>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QWidget>
 #include <QWindow>
 
 #include <map>
+#include <vector>
 
 namespace pdf
 {
+
+class PDFMessageBox;
+class PDFAppDocument;
+class PDFAppDocumentTab;
+class PDFAppOpenFailedDialog;
+class PDFAppOpenFailure;
 
 /// Main window of the application (newapplication.md 3, decisions 9 and 12): one
 /// window per process without the frame of the system, the top bar with the tabs
@@ -68,6 +76,9 @@ public:
     /// Maximal number of tabs (the window refuses more New tabs)
     static constexpr int MAXIMUM_TABS = 200;
 
+    /// Delay, which joins the failures of the files read in the workers into one dialog
+    static constexpr int OPEN_FAILURE_DELAY = 100;
+
     explicit PDFAppMainWindow(PDFAppContext* context, QWidget* parent = nullptr);
     virtual ~PDFAppMainWindow() override;
 
@@ -79,6 +90,24 @@ public:
 
     /// The Home tab (it is created again, if the application has deleted it)
     PDFAppWorkspaceTab* getHomeTab();
+
+    /// Body of the window below the top bar (the content of the tabs): the dialogs
+    /// of the window cover it by their scrim and center their card over it, the top
+    /// bar with the tabs and the buttons of the window stays uncovered (Figma
+    /// app-body of pdf4qt-recent-clear-history 941:135742)
+    QWidget* getDialogHost() const;
+
+    /// Body of the main window of the widget (nullptr outside of a main window)
+    static QWidget* findDialogHost(const QWidget* widget);
+
+    /// Prepares a dialog of the window of the widget: the scrim covers the body
+    /// of the window (nothing happens outside of a main window or for a null box)
+    static void prepareDialog(PDFMessageBox* messageBox, const QWidget* widget);
+
+    /// Local files are dragged over the window (the drop zones are highlighted;
+    /// it ends by the leave of the drag, by the drop and by Esc, which the system
+    /// reports as the leave)
+    bool isFileDragActive() const { return m_isFileDragActive; }
 
     /// Current tab
     PDFAppTab* getCurrentTab() const;
@@ -106,9 +135,16 @@ public:
     /// Closes the tab (not the Home tab). \returns false, if it is not closed.
     bool closeTab(PDFAppTab* tab);
 
-    /// Tab of the document id or of the instance of a tool (step 3, phase 2:
-    /// there are no such tabs yet - nullptr)
+    /// Tab of the document id (step 3) or of the instance of a tool (phase 2: there
+    /// are no such tabs yet); nullptr if there is none
     PDFAppTab* findDocumentTab(const QString& id) const;
+
+    /// Document tabs of the window in the order of the tab bar
+    QList<PDFAppDocumentTab*> getDocumentTabs() const;
+
+    /// Updates the enabled / checked state of the actions of the commands of the
+    /// documents from the current tab (Document and Canvas scope)
+    void updateCommandStates();
 
     /// Updates the title and the icon of the tab in the tab bar and the window title
     void updateTab(PDFAppTab* tab);
@@ -122,6 +158,12 @@ public:
     /// Maximizes or restores the window
     void toggleMaximized();
 
+    /// Full screen of a document (F11, step 3): the top bar is hidden and the window
+    /// covers the screen; false shows the top bar and restores the previous state
+    /// of the window (normal or maximized)
+    void setFullScreenMode(bool isFullScreen);
+    bool isFullScreenMode() const { return m_isFullScreenMode; }
+
     /// Files of the command line and of other processes waiting for the opening
     /// of documents (step 3) and the errors of the command lines of other processes
     const QStringList& getRequestedFiles() const { return m_requestedFiles; }
@@ -134,9 +176,39 @@ public:
     /// Recent): the command line, other processes, the pages Home / Open / Recent
     /// and the files dropped onto the window. Each existing file is recorded in
     /// Recent (PDFRecentRepository::recordOpened) and its thumbnail is requested.
-    /// STEP 3 HOOK: opening of documents is the step 3 of phase 1 (document tab).
-    /// Until then the files are kept in getRequestedFiles and listed in a message box.
+    /// The files are kept in getRequestedFiles (bounded) for the tests.
     void openDocuments(const QStringList& files, int page);
+
+    /// Opens the documents of the requests (a page per file - workspaces): a file,
+    /// which is open in the window already, activates its tab (and goes to the
+    /// page, if the request has one), any other file gets a new document tab after
+    /// the current tab (an empty tab New tab is replaced by it), which reads the
+    /// file in a worker thread. The page: the page of the request (--page, a
+    /// workspace), else the last page of the file in Recent; a page out of range is
+    /// ignored. The files, which cannot be opened (missing, not a PDF, damaged),
+    /// are listed in the dialog open-failed (1028:24297). While a modal dialog is
+    /// open, the requests wait and are opened, when it closes.
+    void openDocuments(const std::vector<PDFAppOpenRequest>& requests);
+
+    /// Requests waiting for the closing of a modal dialog
+    size_t getPendingRequestCount() const { return m_pendingRequests.size(); }
+
+    /// Lists the failures in the dialog open-failed (the failures of the files read
+    /// in the workers are joined into one dialog; a dialog, which is open, is
+    /// followed by the next one, when it closes)
+    void reportOpenFailures(const std::vector<PDFAppOpenFailure>& failures);
+
+    /// The dialog open-failed, which is shown (nullptr if none)
+    PDFAppOpenFailedDialog* getOpenFailedDialog() const;
+
+    /// Edit a Copy: a new document tab after the tab of the document with a copy
+    /// of its current version (no file, modified). \returns the tab, nullptr if
+    /// the document is not shown or there are too many tabs.
+    PDFAppDocumentTab* openDocumentCopy(const PDFAppDocument* source);
+
+    /// Stores the documents of the window as the last session (Restore last
+    /// session of Home / Open): the files with their current pages
+    void saveLastSession();
 
     /// Command Open… (Ctrl+O): the native dialog of the system for PDF files in the
     /// folder (empty = the default folder of the system); the chosen files are
@@ -148,7 +220,7 @@ public:
     bool isBrowsingDocuments() const { return m_isBrowsingDocuments; }
 
     /// Documents open in the window, in the order of their tabs (Save as workspace
-    /// 941:136915). STEP 3 HOOK: there are no document tabs in step 2, the list is empty.
+    /// 941:136915)
     std::vector<PDFAppOpenDocument> getOpenDocuments() const;
 
 Q_SIGNALS:
@@ -167,11 +239,14 @@ protected:
     /// only, a PDF by its extension or content, folders and other files refused
     virtual void dragEnterEvent(QDragEnterEvent* event) override;
     virtual void dragMoveEvent(QDragMoveEvent* event) override;
+    virtual void dragLeaveEvent(QDragLeaveEvent* event) override;
     virtual void dropEvent(QDropEvent* event) override;
 
     /// Asked, when the window is being closed: false = the user has canceled the
-    /// quitting (step 3: unsaved documents, pdf4qt-quit-unsaved). Until then
-    /// nothing cancels it.
+    /// quitting. Documents with unsaved changes are listed in pdf4qt-quit-unsaved
+    /// 955:145378: Quit Without Saving quits, Save All saves the documents one by
+    /// one by package E and quits, when all of them are saved (a failed or
+    /// canceled save keeps the window open), Cancel keeps the window.
     virtual bool confirmClose();
 
 private:
@@ -189,14 +264,42 @@ private:
     void updateWindowState();
     void updateWindowTitle();
 
-    /// Errors of a command line in a message box (note 958:28033)
-    void showCommandLineErrors(const QStringList& errors);
 
     /// Message box of the window, which does not block the caller
     void showMessage(int badge, const QString& title, const QString& text, const QString& details);
 
+    /// The drop zones of the pages show, that files are dragged over the window
+    void setFileDragActive(bool isActive);
+
     /// Files and errors of the own command line (after the window is shown)
     void processCommandLine();
+
+    /// Opens one document of openDocuments (an error is appended to \p failures);
+    /// \p replacedTab is an empty New tab, which the first new document replaces
+    void openDocument(const PDFAppOpenRequest& request, std::vector<PDFAppOpenFailure>* failures, QPointer<PDFAppTab>* replacedTab);
+
+    /// The requests waiting for a modal dialog are opened (or wait for the next one)
+    void processPendingRequests();
+    void watchModalWidget(QWidget* widget);
+
+    /// The modal dialog, for which the opening waits (a message box, which only
+    /// informs, is not one), nullptr if none
+    QWidget* getBlockingModalWidget() const;
+
+    /// Dynamic property of a message box of the window, which only informs
+    static constexpr const char* NON_BLOCKING_PROPERTY = "pdf4qtNonBlocking";
+    void onWatchedModalDestroyed();
+
+    void showOpenFailures();
+    void onOpenFailedDialogFinished();
+    void onDocumentLoadFailed(const QString& filePath, const QString& errorMessage);
+    void onEditCopyRequested();
+    void onLockClicked(int index);
+    void connectDocumentTab(PDFAppDocumentTab* tab);
+
+    /// Save All of quit-unsaved: the next document is saved, the window closes after the last one
+    void saveNextForQuit();
+    void onQuitSaveFinished(bool isSaved);
 
     void onCurrentTabChanged(int index);
     void onTabCloseRequested(int index);
@@ -212,10 +315,12 @@ private:
     void onEverythingChanged();
     void onOpenRequested(const pdf::PDFAppInstanceRequest& request);
     void onPageTitleChanged();
+    void onTabCommandStatesChanged();
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFAppTopBar> m_topBar;
     QPointer<QStackedWidget> m_stack;
+    bool m_isFileDragActive = false;
     QPointer<PDFAppNavigator> m_navigator;
     QPointer<PDFAppWindowFrame> m_frame;
     QPointer<QWindow> m_filteredWindow;
@@ -227,6 +332,17 @@ private:
     QStringList m_forwardedErrors;
     bool m_isClosing = false;
     bool m_isBrowsingDocuments = false;
+    std::vector<PDFAppOpenRequest> m_pendingRequests;
+    QPointer<QWidget> m_watchedModal;
+    std::vector<PDFAppOpenFailure> m_pendingFailures;
+    QPointer<QTimer> m_failureTimer;
+    QPointer<PDFAppOpenFailedDialog> m_openFailedDialog;
+    QString m_lastOpenedTitle;
+    bool m_isQuitConfirmed = false;
+    std::vector<QPointer<PDFAppDocumentTab>> m_quitSaveQueue;
+    QPointer<PDFAppDocumentTab> m_quitSavingTab;
+    bool m_isFullScreenMode = false;
+    Qt::WindowStates m_windowStateBeforeFullScreen = Qt::WindowNoState;
 };
 
 }   // namespace pdf

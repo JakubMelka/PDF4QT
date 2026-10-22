@@ -23,6 +23,7 @@
 #include "pdfapphomedialogs.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappinfowidgets.h"
+#include "pdfappmainwindow.h"
 #include "pdfappworkspace.h"
 #include "pdfrecentrepository.h"
 #include "pdfrepositoryhelper.h"
@@ -108,9 +109,11 @@ PDFAppCardDialog::PDFAppCardDialog(PDFThemeIcons::Badge badge, bool hasBadge, co
     BaseClass(badge, title, text, QDialogButtonBox::NoButton, parent)
 {
     // The message box of the library: the badge of the design or none (a form),
-    // the width of the frame (the texts wrap, the height follows the content)
+    // the width of the frame (the texts wrap, the height follows the content);
+    // the scrim covers the body of the window, not its top bar
     setBadgeVisible(hasBadge);
     setCardWidth(qMax(240, width));
+    PDFAppMainWindow::prepareDialog(this, parent);
 }
 
 PDFAppCardDialog::~PDFAppCardDialog() = default;
@@ -235,7 +238,9 @@ bool PDFAppRenameWorkspaceDialog::submitName(const QString& name, QString* error
     }
     if (result.isError())
     {
-        *error = result.getMessage();
+        // Deleted meanwhile (another PDF4QT window): said, not a silent success
+        const bool isDeleted = !result.isBusy() && !m_context->getWorkspaces().getWorkspace(m_workspaceId);
+        *error = isDeleted ? tr("The workspace no longer exists. It may have been deleted in another PDF4QT window.") : result.getMessage();
         return false;
     }
     return true;
@@ -262,7 +267,13 @@ bool PDFAppRenameLocationDialog::submitName(const QString& name, QString* error)
     const PDFDatabaseError result = m_context->getRecent().renamePinnedLocation(m_locationId, name);
     if (result.isError())
     {
-        *error = result.getMessage();
+        // Removed meanwhile (another PDF4QT window): said, not a silent success
+        bool isRemoved = !result.isBusy();
+        for (const PDFPinnedLocation& location : m_context->getRecent().getPinnedLocations())
+        {
+            isRemoved = isRemoved && location.id != m_locationId;
+        }
+        *error = isRemoved ? tr("The pinned location no longer exists. It may have been removed in another PDF4QT window.") : result.getMessage();
         return false;
     }
     return true;

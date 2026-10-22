@@ -25,11 +25,13 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
+#include "pdfcomponentpanels.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
 #include "pdfcomponentwindow.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
+#include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
 #include <QAbstractButton>
@@ -37,6 +39,7 @@
 #include <QButtonGroup>
 #include <QHBoxLayout>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPainter>
 #include <QPixmap>
 #include <QVBoxLayout>
@@ -483,6 +486,16 @@ GalleryPages::Page GalleryPages::createShellHomePage(QWidget* parent)
     builder.row();
     builder.live(QStringLiteral("Live"), new pdf::PDFTextLink(QStringLiteral("View all"), builder.page()));
     builder.live(QStringLiteral("Live, other text"), new pdf::PDFTextLink(QStringLiteral("MIT License"), builder.page()));
+
+    // The small size: the link inside of a text of 12 px (MIT License of app-footer 28:217)
+    const Painter::TextLink smallLink{ QStringLiteral("MIT License"), Painter::TextLinkSize::Small };
+    builder.specimen(QStringLiteral("Small (Semi Bold 12)"), Painter::getTextLinkSize(smallLink), [smallLink](QPainter& painter, const QRect& rect)
+    {
+        Painter::paintTextLink(&painter, QRectF(rect), smallLink, Helper::state(0));
+    }, QStringLiteral("28:218"));
+    pdf::PDFTextLink* smallLiveLink = new pdf::PDFTextLink(QStringLiteral("MIT License"), builder.page());
+    smallLiveLink->setLinkSize(Painter::TextLinkSize::Small);
+    builder.live(QStringLiteral("Live, small"), smallLiveLink);
     for (const int flags : { int(GalleryPages::Hover), int(GalleryPages::Pressed | GalleryPages::Hover), int(GalleryPages::Disabled) })
     {
         pdf::PDFTextLink* liveLink = new pdf::PDFTextLink(QStringLiteral("View all"), builder.page());
@@ -903,6 +916,47 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
         return row;
     });
 
+    // Rendering issue row (issue-row of the popover Rendering issues, View Document 198:5950)
+    builder.block(QStringLiteral("Rendering issue row (PDFRenderingIssueRow)"), QStringLiteral("198:5960"));
+    static constexpr const char* renderingIssueNodes[] = { "198:5960", "198:5972", nullptr, nullptr, nullptr };
+    Painter::RenderingIssueRow renderingIssue;
+    renderingIssue.page = QStringLiteral("Page 12");
+    renderingIssue.message = QStringLiteral("Font “ArialMT” is not embedded. A substitute font is used.");
+    renderingIssue.severity = Painter::IssueSeverity::Warning;
+    Helper::stateSpecimens(builder, QString(), Painter::getRenderingIssueRowSize(renderingIssue), renderingIssueNodes, [renderingIssue](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintRenderingIssueRow(&painter, rect, renderingIssue, state);
+    });
+    struct RenderingIssueVariant
+    {
+        const char* name;
+        Painter::IssueSeverity severity;
+        const char* message;
+    };
+    static constexpr RenderingIssueVariant renderingIssueVariants[] =
+    {
+        { "Error, two lines", Painter::IssueSeverity::Error, "Invalid arguments of the operator “Tj”. The operator was skipped and the rest of the content stream is drawn." },
+        { "Information", Painter::IssueSeverity::Information, "Shading of type 7 is drawn with a lower quality." }
+    };
+    for (const RenderingIssueVariant& variant : renderingIssueVariants)
+    {
+        Painter::RenderingIssueRow content = renderingIssue;
+        content.severity = variant.severity;
+        content.message = QString::fromUtf8(variant.message);
+        Helper::rowSpecimen(builder, QString::fromLatin1(variant.name), Painter::getRenderingIssueRowSize(content), [content](QPainter& painter, const QRectF& rect)
+        {
+            Painter::paintRenderingIssueRow(&painter, rect, content, Helper::state(GalleryPages::Default));
+        });
+    }
+    builder.row();
+    Helper::liveStates(builder, [page]()
+    {
+        pdf::PDFRenderingIssueRow* row = new pdf::PDFRenderingIssueRow(QStringLiteral("Page 308"), QStringLiteral("Invalid arguments of the operator “Tj”. The operator was skipped."),
+                                                                       pdf::PDFRenderingIssueRow::Severity::Error, page);
+        row->setFixedWidth(406);
+        return row;
+    });
+
     // Tool category header, Tool choice, Resource card, Highlight card, Video card, Logo
     addCatalogCards(builder);
 
@@ -1111,6 +1165,46 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     GalleryLifetimeHints::set(rightToLeftProperty, propertyHints);
     Helper::liveOnCard(builder, QStringLiteral("Live right-to-left"), rightToLeftProperty);
     rightToLeftProperty->setAttribute(Qt::WA_UnderMouse, true);
+
+    // Lock of a document tab: a click on the lock opens the popover of the locked
+    // document (View Document 266:12010), as the application does (each instance
+    // of the page has the connection, so the lifetime test deletes the tab bar and
+    // the page also with the popover open)
+    builder.block(QStringLiteral("Lock of a document tab (PDFDocumentTabBar::lockClicked) - the popover of the locked document"), QStringLiteral("266:12010"));
+    QWidget* lockBar = new QWidget(builder.page());
+    lockBar->setProperty(pdf::PDFWidgetStyleProperties::DOCUMENT_TABS, true);
+    QHBoxLayout* lockBarLayout = new QHBoxLayout(lockBar);
+    lockBarLayout->setContentsMargins(8, 0, 8, 0);
+    pdf::PDFDocumentTabBar* lockTabs = new pdf::PDFDocumentTabBar(lockBar);
+    lockTabs->setAccessibleName(QStringLiteral("Documents"));
+    const int lockHomeTab = lockTabs->addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("home")), QStringLiteral("Home"));
+    const int lockedTab = lockTabs->addTab(pdf::PDFThemeIcons::getIcon(QStringLiteral("file-text")), QStringLiteral("Project_Report.pdf"));
+    lockTabs->setTabClosable(lockHomeTab, false);
+    lockTabs->setTabClosable(lockedTab, true);
+    lockTabs->setTabLocked(lockedTab, true);
+    lockTabs->setCurrentIndex(lockedTab);
+    lockBarLayout->addWidget(lockTabs);
+    lockBarLayout->addStretch(1);
+    lockBar->setFixedSize(520, 38);
+    const auto connectLock = [](QWidget* sample)
+    {
+        for (pdf::PDFDocumentTabBar* tabBar : sample->findChildren<pdf::PDFDocumentTabBar*>())
+        {
+            QObject::connect(tabBar, &pdf::PDFDocumentTabBar::lockClicked, tabBar, [tabBar](int index)
+            {
+                // The popover menu of the style below the lock (the application has its own content)
+                QMenu* popover = new QMenu(tabBar);
+                pdf::PDFWidgetStyleProperties::set(popover, pdf::PDFWidgetStyleProperties::POPOVER);
+                popover->setAttribute(Qt::WA_DeleteOnClose);
+                popover->addAction(QStringLiteral("Unlock"));
+                popover->addAction(QStringLiteral("Edit a Copy"));
+                const QRect lock = tabBar->getTabLockRect(index);
+                popover->popup(tabBar->mapToGlobal(QPoint(lock.center().x() - 24, tabBar->tabRect(index).bottom() + 7)));
+            });
+        }
+    };
+    connectLock(lockBar);
+    builder.live(QStringLiteral("Live locked tab (click the lock)"), lockBar, QStringLiteral("266:12435"));
 
     // Reading theme card, Color mode card, the previews and Locked document
     addPanelsCards(builder);

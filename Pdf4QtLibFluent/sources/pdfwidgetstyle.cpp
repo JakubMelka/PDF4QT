@@ -387,6 +387,28 @@ bool PDFWidgetStyle::isFocusRingVisible(const QWidget* widget)
     return PDFWidgetStyleImpl::isApplicationFocusVisible(&option, widget);
 }
 
+QMargins PDFWidgetStyle::getPopoverMargins(const QWidget* window)
+{
+    if (!window || !window->isWindow() || !isActive())
+    {
+        return QMargins();
+    }
+
+    return PDFWidgetStyleImpl::getPopupMargins(window);
+}
+
+void PDFWidgetStyle::drawPopoverPanel(QPainter* painter, const QWidget* window, qreal radius)
+{
+    if (!painter || !window)
+    {
+        return;
+    }
+
+    // Outside of a window of the style the panel fills the rectangle (no margins)
+    const QWidget* popup = isActive() && window->isWindow() ? window : nullptr;
+    PDFWidgetStyleImpl::drawPopupPanel(painter, window->rect(), popup, PDFWidgetStyleImpl::PopupKind::Popover, radius, PDFThemeColors::BorderDefault);
+}
+
 void PDFWidgetStyle::setAnimationTime(qint64 milliseconds)
 {
     m_impl->setAnimationTime(milliseconds);

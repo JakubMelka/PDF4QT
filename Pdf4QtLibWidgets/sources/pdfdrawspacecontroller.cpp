@@ -31,12 +31,14 @@
 #include "pdfwidgetannotation.h"
 #include "pdfpainterutils.h"
 #include "pdfwidgetutils.h"
+#include "pdfwidgetformmanager.h"
 
 #include <QTimer>
 #include <QPainter>
 #include <QFontMetrics>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QPalette>
 
 #include <array>
 
@@ -818,10 +820,54 @@ QColor PDFDrawWidgetProxy::getPaperColor()
     return paperColor;
 }
 
+PDFViewColors PDFViewColors::getDefaultColors()
+{
+    PDFViewColors colors;
+    colors.canvas = PDFWidgetUtils::isDarkTheme() ? QColor(34, 34, 34) : QColor(Qt::lightGray);
+
+    const QPalette palette = QGuiApplication::palette();
+    colors.selection = palette.color(QPalette::Highlight);
+    colors.selectionText = palette.color(QPalette::HighlightedText);
+    return colors;
+}
+
+PDFViewColors PDFViewColors::getColors(const PDFFormManager* formManager)
+{
+    const PDFWidgetFormManager* widgetFormManager = dynamic_cast<const PDFWidgetFormManager*>(formManager);
+    if (widgetFormManager && widgetFormManager->getProxy())
+    {
+        return widgetFormManager->getProxy()->getViewColors();
+    }
+    return getDefaultColors();
+}
+
+void PDFDrawWidgetProxy::setViewColors(const PDFViewColors& colors)
+{
+    if (m_viewColors != colors)
+    {
+        m_viewColors = colors;
+        Q_EMIT repaintNeeded();
+    }
+}
+
+void PDFDrawWidgetProxy::resetViewColors()
+{
+    if (m_viewColors.has_value())
+    {
+        m_viewColors.reset();
+        Q_EMIT repaintNeeded();
+    }
+}
+
+PDFViewColors PDFDrawWidgetProxy::getViewColors() const
+{
+    return m_viewColors.has_value() ? *m_viewColors : PDFViewColors::getDefaultColors();
+}
+
 void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features)
 {
-    const bool darkScheme = PDFWidgetUtils::isDarkTheme();
-    QColor backgroundColor = darkScheme ? QColor(34, 34, 34) : QColor(Qt::lightGray);
+    // The canvas of the application (setViewColors), or the gray of the old applications
+    QColor backgroundColor = m_viewColors.has_value() ? m_viewColors->canvas : PDFViewColors::getDefaultColors().canvas;
 
     painter->fillRect(rect, backgroundColor);
     QTransform baseMatrix = painter->worldTransform();
@@ -1325,6 +1371,26 @@ void PDFDrawWidgetProxy::zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPos
             setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
         }
     }
+}
+
+std::optional<PDFDrawWidgetProxy::ZoomHint> PDFDrawWidgetProxy::getZoomFitHint() const
+{
+    switch (m_zoomMode)
+    {
+        case ZoomMode::Fit:
+            return ZoomHint::Fit;
+
+        case ZoomMode::FitWidth:
+            return ZoomHint::FitWidth;
+
+        case ZoomMode::FitHeight:
+            return ZoomHint::FitHeight;
+
+        case ZoomMode::Custom:
+            break;
+    }
+
+    return std::nullopt;
 }
 
 PDFReal PDFDrawWidgetProxy::getZoomHint(ZoomHint hint) const

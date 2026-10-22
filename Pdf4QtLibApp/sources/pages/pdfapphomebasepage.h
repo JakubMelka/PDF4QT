@@ -33,6 +33,7 @@
 #include <QPixmap>
 #include <QPointer>
 
+#include <memory>
 #include <optional>
 
 class QAction;
@@ -42,6 +43,7 @@ class QTimer;
 namespace pdf
 {
 
+class PDFAppNetworkPaths;
 class PDFTextLink;
 
 /// Kind of an item of Home, Open and Recent, which has a menu (941:137569)
@@ -92,6 +94,16 @@ public:
 /// and of the history, the opening of files (PDFAppMainWindow::openDocuments) and
 /// the native file and folder dialogs. Ctrl+O browses files on these pages.
 ///
+/// Network paths (PDFAppNetworkPaths: UNC, URLs, GVFS, mapped network drives,
+/// network mounts) are never contacted by the page itself: no existence check, no
+/// PDF count, no thumbnail request - their rows show the stored data without the
+/// state "No longer exists" (the stored thumbnail of the last opening, if any). The
+/// check and the thumbnail come with the opening of the item (an explicit action).
+///
+/// A request refused by the busy folder information service is asked again later
+/// (it never stays pending). After a refresh, which has rebuilt the rows, the
+/// keyboard focus returns to the same item (a row, a card or its nested button).
+///
 /// Lifetime: a menu, a dialog or a native dialog may outlive a navigation, which
 /// deletes the page; every continuation is guarded (QPointer), an open dialog is
 /// closed with the page, a pending notification or result of a worker reaches
@@ -104,6 +116,19 @@ private:
     using BaseClass = PDFAppContentPage;
 
 public:
+    /// Most decoded thumbnails kept by a page (the least recently used one goes first)
+    static constexpr int MAXIMUM_THUMBNAILS = 512;
+
+    /// Delay of a new request of the paths refused by the busy folder information service (ms)
+    static constexpr int RETRY_INTERVAL = 250;
+
+    /// Name of the dynamic property of a row or a card, which holds the path of its
+    /// item (the focus returns to the item of the same path after a refresh)
+    static constexpr const char* PATH_PROPERTY = "pdf4qtPath";
+
+    /// Name of the dynamic property of a row or a card, which holds the id of its item
+    static constexpr const char* ID_PROPERTY = "pdf4qtId";
+
     explicit PDFAppHomeBasePage(PDFAppContext* context, QWidget* parent = nullptr);
     virtual ~PDFAppHomeBasePage() override;
 
@@ -169,6 +194,20 @@ public:
     /// Text of the effective shortcut of the command Open… of the window ("Ctrl+O")
     QString getBrowseShortcutText() const;
 
+    /// The path lies on a network file system (classified at the last refresh
+    /// without touching it): the page does not check it, count it or render it
+    bool isNetworkPath(const QString& path) const;
+
+    /// Number of the decoded thumbnails kept by the page (tests)
+    int getThumbnailCacheSize() const { return int(m_thumbnails.size()); }
+
+    /// The decoded thumbnail of the path is kept (tests)
+    bool hasCachedThumbnail(const QString& path) const { return m_thumbnails.contains(path); }
+
+    /// Number of the paths refused by the folder information service, which are
+    /// asked again (tests)
+    int getRefusedRequestCount() const { return int(m_refusedRequests.size()); }
+
 protected:
     /// Reads the database and shows it (called by refreshNow)
     virtual void refresh() = 0;
@@ -212,19 +251,51 @@ protected:
     virtual void showEvent(QShowEvent* event) override;
 
 private:
+    /// Decoded thumbnail of a file
+    struct ThumbnailEntry
+    {
+        QPixmap pixmap;
+        qint64 version = 0;     ///< thumbnail_mtime of the decoded picture
+        quint64 lastUse = 0;    ///< Order of the use (least recently used goes first)
+    };
+
+    /// Item, which had the keyboard focus before a refresh
+    struct FocusState
+    {
+        QPointer<QWidget> item;         ///< Row or card of the item
+        QPointer<QWidget> container;    ///< Parent of the row or card
+        QPointer<QWidget> focused;      ///< Focused widget (the item or its nested widget)
+        const char* property = nullptr; ///< PATH_PROPERTY or ID_PROPERTY
+        QVariant value;                 ///< Path or id of the item
+        QString itemName;               ///< Object name of the row or card
+        QString focusedName;            ///< Object name of the focused nested widget
+        QByteArray focusedClass;        ///< Class of the focused nested widget
+        Qt::FocusReason reason = Qt::OtherFocusReason;
+    };
+
     void onMenuActionTriggered();
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
     void onInfoReady(const pdf::PDFAppFolderInfo& info);
     void onRefreshTimer();
+    void onRetryTimer();
     void onDialogFinished(int result);
 
+    /// Asks the service for the information (marks the request, remembers a refusal)
+    void requestInfo(const QString& path, bool countPdfFiles);
+
+    FocusState captureFocus() const;
+    void restoreFocus(const FocusState& state);
+
     QPointer<QTimer> m_refreshTimer;
+    QPointer<QTimer> m_retryTimer;
     QPointer<QDialog> m_dialog;
     QPointer<QDialog> m_errorBox;
     QHash<QString, PDFAppFolderInfo> m_pathInfos;
-    QHash<QString, QPixmap> m_thumbnails;
-    QHash<QString, qint64> m_thumbnailVersions;
+    QHash<QString, bool> m_refusedRequests;     ///< Path -> count the PDF files
+    QHash<QString, ThumbnailEntry> m_thumbnails;
+    std::unique_ptr<PDFAppNetworkPaths> m_networkPaths;
+    quint64 m_thumbnailUse = 0;
     int m_refreshCount = 0;
     bool m_isBrowsing = false;
 };

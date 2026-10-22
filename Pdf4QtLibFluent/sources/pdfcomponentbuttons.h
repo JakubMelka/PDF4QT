@@ -513,7 +513,8 @@ private:
 };
 
 /// Inline link (component Text link): a button, which looks as a link ("View all",
-/// "MIT License"). Semi Bold 13 text/accent, underlined under the pointer,
+/// "MIT License"). Semi Bold 13 text/accent (Semi Bold 12 of the small size, a
+/// link inside of a text of 12 px), underlined under the pointer,
 /// text/accent-pressed when pressed, the focus ring outside (radius 4). The link
 /// takes the focus by the keyboard only (as the icon buttons), a click leaves the
 /// focus, where it was.
@@ -528,9 +529,16 @@ public:
     explicit PDFTextLink(QWidget* parent = nullptr);
     explicit PDFTextLink(const QString& text, QWidget* parent = nullptr);
 
+    /// Size of the text of the link (an unknown value is the default size)
+    PDFComponentPainter::TextLinkSize getLinkSize() const { return m_linkSize; }
+    void setLinkSize(PDFComponentPainter::TextLinkSize size);
+
 protected:
     virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
     virtual QSize getContentSizeHint() const override;
+
+private:
+    PDFComponentPainter::TextLinkSize m_linkSize = PDFComponentPainter::TextLinkSize::Default;
 };
 
 /// Toggle, which pins (stars) a file or a tool (component Star button). The

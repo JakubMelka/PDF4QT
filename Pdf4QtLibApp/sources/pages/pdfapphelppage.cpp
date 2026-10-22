@@ -146,7 +146,7 @@ void PDFAppHelpContentsView::onExpandedChanged()
 
 PDFAppHelpPage::PDFAppHelpPage(PDFAppContext* context, QWidget* parent) :
     BaseClass(context, parent),
-    m_catalog(PDFAppHelpCatalog::load())
+    m_catalog(PDFAppHelpCatalog::getBuiltin())
 {
     setObjectName(QStringLiteral("helpPage"));
 
@@ -159,7 +159,7 @@ PDFAppHelpPage::~PDFAppHelpPage() = default;
 
 void PDFAppHelpPage::setCatalog(const PDFAppHelpCatalog& catalog)
 {
-    m_catalog = catalog;
+    m_catalog = std::make_shared<const PDFAppHelpCatalog>(catalog);
     if (getRoute().isValid())
     {
         setRoute(getRoute());
@@ -169,7 +169,7 @@ void PDFAppHelpPage::setCatalog(const PDFAppHelpCatalog& catalog)
 bool PDFAppHelpPage::setRoute(const PDFAppRoute& route)
 {
     const QString topicId = route.getSegment(1);
-    if (!m_catalog.findTopic(topicId))
+    if (!m_catalog->findTopic(topicId))
     {
         return false;
     }
@@ -177,7 +177,7 @@ bool PDFAppHelpPage::setRoute(const PDFAppRoute& route)
     BaseClass::setRoute(route);
 
     // The language of the user interface comes with Settings (step 5): English until then
-    m_topic = m_catalog.getLocalizedTopic(topicId, QString());
+    m_topic = m_catalog->getLocalizedTopic(topicId, QString());
     build();
 
     QPointer<PDFAppHelpPage> guard(this);
@@ -203,7 +203,7 @@ QList<PDFAppBreadcrumbItem> PDFAppHelpPage::getHeaderBreadcrumbs() const
 {
     // Help › Category › Topic (Help = the first topic, the category = its first topic)
     QList<PDFAppBreadcrumbItem> items;
-    const std::vector<PDFAppHelpTopic>& topics = m_catalog.getTopics();
+    const std::vector<PDFAppHelpTopic>& topics = m_catalog->getTopics();
     if (topics.empty() || m_topic.id.isEmpty())
     {
         return items;
@@ -211,7 +211,7 @@ QList<PDFAppBreadcrumbItem> PDFAppHelpPage::getHeaderBreadcrumbs() const
 
     items.append({ tr("Help"), PDFAppRoutes::help(topics.front().id) });
     const PDFAppHelpCategory* category = PDFAppHelpCatalog::findCategory(m_topic.categoryId);
-    const std::vector<const PDFAppHelpTopic*> categoryTopics = m_catalog.getCategoryTopics(m_topic.categoryId);
+    const std::vector<const PDFAppHelpTopic*> categoryTopics = m_catalog->getCategoryTopics(m_topic.categoryId);
     if (category && !categoryTopics.empty())
     {
         items.append({ category->getTitle(), PDFAppRoutes::help(categoryTopics.front()->id) });
@@ -280,7 +280,7 @@ QWidget* PDFAppHelpPage::createContents(QWidget* parent)
     QModelIndex currentCategory;
     for (const PDFAppHelpCategory& category : PDFAppHelpCatalog::getCategories())
     {
-        const std::vector<const PDFAppHelpTopic*> topics = m_catalog.getCategoryTopics(category.id);
+        const std::vector<const PDFAppHelpTopic*> topics = m_catalog->getCategoryTopics(category.id);
         if (topics.empty())
         {
             continue;
@@ -351,14 +351,14 @@ QWidget* PDFAppHelpPage::createRelated(QWidget* parent)
     PDFAppCard* card = new PDFAppCard(QMargins(8, 8, 8, 8), 2, parent);
 
     QStringList targets = m_topic.related;
-    if (const PDFAppHelpTopic* next = m_catalog.getNextTopic(m_topic.id))
+    if (const PDFAppHelpTopic* next = m_catalog->getNextTopic(m_topic.id))
     {
         const QString route = PDFAppHelpCatalog::getRoute(next->id);
         targets.removeAll(route);
         targets.append(route);
     }
 
-    const PDFAppHelpTopic* next = m_catalog.getNextTopic(m_topic.id);
+    const PDFAppHelpTopic* next = m_catalog->getNextTopic(m_topic.id);
     const PDFAppHelpCategory* category = PDFAppHelpCatalog::findCategory(m_topic.categoryId);
     for (const QString& target : targets)
     {
@@ -372,7 +372,7 @@ QWidget* PDFAppHelpPage::createRelated(QWidget* parent)
         QString subtitle;
         if (route.getSegment(0) == QStringLiteral("help") && route.getSegments().size() == 2)
         {
-            const PDFAppHelpTopic* topic = m_catalog.findTopic(route.getSegment(1));
+            const PDFAppHelpTopic* topic = m_catalog->findTopic(route.getSegment(1));
             if (!topic)
             {
                 continue;

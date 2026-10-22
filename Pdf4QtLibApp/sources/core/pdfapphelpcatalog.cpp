@@ -287,6 +287,12 @@ bool PDFAppHelpCatalog::parseTopic(const QString& id, const QString& text, PDFAp
     return foundErrors.isEmpty();
 }
 
+std::shared_ptr<const PDFAppHelpCatalog> PDFAppHelpCatalog::getBuiltin()
+{
+    static const std::shared_ptr<const PDFAppHelpCatalog> catalog = std::make_shared<const PDFAppHelpCatalog>(load());
+    return catalog;
+}
+
 PDFAppHelpCatalog PDFAppHelpCatalog::load(const QString& directory)
 {
     PDFAppHelpCatalog catalog;

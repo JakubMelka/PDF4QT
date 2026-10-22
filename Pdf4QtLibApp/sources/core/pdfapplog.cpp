@@ -414,6 +414,7 @@ void PDFAppLog::uninstall()
 
         previousHandler = state.previousHandler.load();
         state.isInstalled = false;
+        state.options = PDFAppLogOptions();     // No folder of a removed log (About)
         state.file.close();
         state.file.setFileName(QString());
         state.filePath.clear();
@@ -437,7 +438,7 @@ QString PDFAppLog::getLogDirectory()
 {
     PDFAppLogState& state = PDFAppLogHelper::getState();
     QMutexLocker locker(&state.mutex);
-    return state.options.portable ? QString() : state.options.directory;
+    return state.isInstalled && !state.options.portable ? state.options.directory : QString();
 }
 
 QString PDFAppLog::getCurrentLogFile()

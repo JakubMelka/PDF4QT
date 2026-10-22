@@ -1,0 +1,143 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include "pdfappdocumentcommands.h"
+#include "pdfappcommand.h"
+#include "pdfappdocument.h"
+#include "pdfappdocumenttab.h"
+
+namespace pdf
+{
+
+QStringList PDFAppDocumentCommandTable::getCommands(PDFAppDocumentPackage package)
+{
+    using C = PDFAppCommands;
+
+    switch (package)
+    {
+        case PDFAppDocumentPackage::Model:
+            return { C::undo(), C::redo(), C::lockDocument(), C::editCopy() };
+
+        case PDFAppDocumentPackage::View:
+            return { C::copy(), C::selectAll(), C::deselect(), C::selectText(), C::selectTable(), C::screenshot(), C::extractImage(),
+                     C::zoomIn(), C::zoomOut(), C::actualSize(), C::fitPage(), C::fitWidth(), C::fitHeight(),
+                     C::rotateViewLeft(), C::rotateViewRight(),
+                     C::layoutSinglePage(), C::layoutContinuous(), C::layoutTwoPages(), C::layoutTwoColumns(), C::firstPageRight(),
+                     C::showAnnotations(),
+                     C::colorModeNormal(), C::colorModeInverted(), C::colorModeGrayscale(), C::colorModeHighContrast(), C::colorModeBitonal(), C::colorModeCustom(),
+                     C::toggleSidebar(), C::fullScreen(), C::magnifier(),
+                     C::firstPage(), C::lastPage(), C::nextPage(), C::previousPage(), C::nextLine(), C::previousLine(), C::goToPage() };
+
+        case PDFAppDocumentPackage::Panels:
+            return { C::addBookmark(), C::nextBookmark(), C::previousBookmark(), C::exportBookmarks(), C::importBookmarks(),
+                     C::rotatePagesLeft(), C::rotatePagesRight() };
+
+        case PDFAppDocumentPackage::Search:
+            return { C::find(), C::findNext(), C::findPrevious(), C::readAloud() };
+
+        case PDFAppDocumentPackage::File:
+            return { C::save(), C::saveAs(), C::print(), C::sendMail(), C::autoRefresh() };
+
+        case PDFAppDocumentPackage::Properties:
+            return { C::properties(), C::renderingIssues() };
+    }
+
+    return QStringList();
+}
+
+QStringList PDFAppDocumentCommandTable::getAllCommands()
+{
+    QStringList commands;
+    for (PDFAppDocumentPackage package : { PDFAppDocumentPackage::Model, PDFAppDocumentPackage::View, PDFAppDocumentPackage::Panels,
+                                           PDFAppDocumentPackage::Search, PDFAppDocumentPackage::File, PDFAppDocumentPackage::Properties })
+    {
+        commands << getCommands(package);
+    }
+    return commands;
+}
+
+bool PDFAppDocumentCommandTable::findPackage(const QString& commandId, PDFAppDocumentPackage* package)
+{
+    for (PDFAppDocumentPackage item : { PDFAppDocumentPackage::Model, PDFAppDocumentPackage::View, PDFAppDocumentPackage::Panels,
+                                        PDFAppDocumentPackage::Search, PDFAppDocumentPackage::File, PDFAppDocumentPackage::Properties })
+    {
+        if (getCommands(item).contains(commandId))
+        {
+            if (package)
+            {
+                *package = item;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+PDFAppDocumentCommandHandler::PDFAppDocumentCommandHandler(PDFAppDocumentPackage package, PDFAppDocumentTab* tab) :
+    BaseClass(tab),
+    m_package(package),
+    m_tab(tab)
+{
+
+}
+
+PDFAppDocumentCommandHandler::~PDFAppDocumentCommandHandler() = default;
+
+PDFAppDocumentTab* PDFAppDocumentCommandHandler::getTab() const
+{
+    return m_tab.data();
+}
+
+PDFAppDocument* PDFAppDocumentCommandHandler::getDocument() const
+{
+    return m_tab ? m_tab->getDocument() : nullptr;
+}
+
+PDFAppDocumentView* PDFAppDocumentCommandHandler::getView() const
+{
+    return m_tab ? m_tab->getView() : nullptr;
+}
+
+QStringList PDFAppDocumentCommandHandler::getCommands() const
+{
+    return PDFAppDocumentCommandTable::getCommands(m_package);
+}
+
+bool PDFAppDocumentCommandHandler::handles(const QString& commandId) const
+{
+    return getCommands().contains(commandId);
+}
+
+bool PDFAppDocumentCommandHandler::isEnabled(const QString& commandId) const
+{
+    Q_UNUSED(commandId);
+    const PDFAppDocument* document = getDocument();
+    return document && document->isReady();
+}
+
+bool PDFAppDocumentCommandHandler::isChecked(const QString& commandId) const
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+}   // namespace pdf

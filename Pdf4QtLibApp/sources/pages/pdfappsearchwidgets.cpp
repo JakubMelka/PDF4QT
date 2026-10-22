@@ -1061,6 +1061,30 @@ void PDFAppSearchPopup::changeEvent(QEvent* event)
     }
 }
 
+class PDFAppSearchController::PressFilter : public QObject
+{
+public:
+    explicit PressFilter(PDFAppSearchController* controller) :
+        QObject(controller),
+        m_controller(controller)
+    {
+
+    }
+
+    virtual bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        // The press goes on to its widget
+        if (m_controller && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick))
+        {
+            m_controller->onApplicationPress(watched);
+        }
+        return false;
+    }
+
+private:
+    QPointer<PDFAppSearchController> m_controller;
+};
+
 PDFAppSearchController::PDFAppSearchController(PDFLineEdit* field) :
     BaseClass(field),
     m_field(field)
@@ -1209,12 +1233,16 @@ void PDFAppSearchController::updateSearch()
         return;
     }
 
-    // The data are read, when the popup opens (and after a change notification)
+    // The data are read, when the popup opens (and after a change notification);
+    // the names and the folders of the files of Recent are normalized then, not
+    // for each typed text
     if (!m_data)
     {
         m_data = std::make_unique<PDFAppSearchData>(PDFAppSearchData::load(findContext()));
+        ++m_dataLoadCount;
     }
     m_data->now = m_now;
+    ++m_searchCount;
     openPopup(m_engine.search(m_field->text(), *m_data));
 }
 
@@ -1303,18 +1331,36 @@ void PDFAppSearchController::watch(bool isOpen)
         }
     }
 
-    // A press outside of the popup and of the field closes the popup
-    if (isOpen != m_isApplicationFiltered && QCoreApplication::instance())
+    // A press outside of the popup and of the field closes the popup: a filter of
+    // its own, the filters of the field and of the window get the other events
+    // (an application filter of the controller would get them twice)
+    QCoreApplication* application = QCoreApplication::instance();
+    if (isOpen != m_isApplicationFiltered && application)
     {
+        if (!m_pressFilter)
+        {
+            m_pressFilter = new PressFilter(this);
+        }
+
+        // The filter is kept (a press may close the popup inside of the filter)
         if (isOpen)
         {
-            QCoreApplication::instance()->installEventFilter(this);
+            application->installEventFilter(m_pressFilter);
         }
         else
         {
-            QCoreApplication::instance()->removeEventFilter(this);
+            application->removeEventFilter(m_pressFilter);
         }
         m_isApplicationFiltered = isOpen;
+    }
+}
+
+void PDFAppSearchController::onApplicationPress(QObject* watched)
+{
+    QWidget* widget = qobject_cast<QWidget*>(watched);
+    if (widget && widget != m_field && !(m_popup && (widget == m_popup || m_popup->isAncestorOf(widget))))
+    {
+        closePopup();
     }
 }
 
@@ -1564,17 +1610,6 @@ bool PDFAppSearchController::eventFilter(QObject* watched, QEvent* event)
                 break;
         }
         return BaseClass::eventFilter(watched, event);
-    }
-
-    // A press outside of the popup and of the field closes the popup (the press
-    // goes on to its widget)
-    if (m_isApplicationFiltered && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick))
-    {
-        QWidget* widget = qobject_cast<QWidget*>(watched);
-        if (widget && widget != m_field && !(m_popup && (widget == m_popup || m_popup->isAncestorOf(widget))))
-        {
-            closePopup();
-        }
     }
 
     return BaseClass::eventFilter(watched, event);

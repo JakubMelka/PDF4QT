@@ -293,15 +293,38 @@ PDFAppSearchData PDFAppSearchData::load(const PDFAppContext* context)
             qWarning("The global search cannot read the shortcuts: %s", qPrintable(error.toString()));
         }
         data.recentFiles = context->getRecent().getFiles();
+        data.prepareDocuments();
     }
     return data;
 }
 
+void PDFAppSearchData::prepareDocuments()
+{
+    documentFields.clear();
+    documentFields.reserve(recentFiles.size());
+    for (const PDFRecentFile& file : recentFiles)
+    {
+        documentFields.push_back(createDocumentFields(file));
+    }
+}
+
+std::vector<PDFSearchField> PDFAppSearchData::createDocumentFields(const PDFRecentFile& file)
+{
+    // The name of the file is the title, the folder the keywords of the item
+    const QString name = file.name.isEmpty() ? QFileInfo(file.path).fileName() : file.name;
+    std::vector<PDFSearchField> fields = { PDFAppSearchEngineHelper::title({ name }),
+                                           PDFSearchField({ PDFAppSearchEngineHelper::getFolderText(file) }, PDFAppSearchEngineHelper::DESCRIPTION_EXACT, PDFAppSearchEngineHelper::DESCRIPTION_PREFIX, 0) };
+    for (PDFSearchField& field : fields)
+    {
+        field.prepare();
+    }
+    return fields;
+}
+
 std::shared_ptr<const PDFAppHelpCatalog> PDFAppSearchData::getDefaultHelpCatalog()
 {
-    // Loaded in the thread of the user interface, the first time it is needed
-    static const std::shared_ptr<const PDFAppHelpCatalog> catalog = std::make_shared<const PDFAppHelpCatalog>(PDFAppHelpCatalog::load());
-    return catalog;
+    // Parsed once per process, shared with the help pages
+    return PDFAppHelpCatalog::getBuiltin();
 }
 
 PDFAppSearchProvider::~PDFAppSearchProvider() = default;
@@ -458,7 +481,10 @@ void PDFAppDocumentSearchProvider::search(const PDFSearchQuery& query, const PDF
 
 int PDFAppDocumentSearchProvider::searchBest(const PDFSearchQuery& query, const PDFAppSearchData& data, int maximumResults, std::vector<PDFAppSearchResult>& results) const
 {
-    // The matches first (score, index), the results of the best ones only
+    // The matches first (score, index), the results of the best ones only; the
+    // prepared fields of the data (normalized once per loading of the data) are
+    // used, data filled by hand are prepared here
+    const bool isPrepared = data.documentFields.size() == data.recentFiles.size();
     std::vector<std::pair<int, size_t>> matches;
     for (size_t i = 0; i < data.recentFiles.size(); ++i)
     {
@@ -468,10 +494,8 @@ int PDFAppDocumentSearchProvider::searchBest(const PDFSearchQuery& query, const 
             continue;
         }
 
-        // The name of the file is the title, the folder the keywords of the item
-        const QString name = file.name.isEmpty() ? QFileInfo(file.path).fileName() : file.name;
-        const std::vector<PDFSearchField> fields = { PDFAppSearchEngineHelper::title({ name }),
-                                                     PDFSearchField({ PDFAppSearchEngineHelper::getFolderText(file) }, PDFAppSearchEngineHelper::DESCRIPTION_EXACT, PDFAppSearchEngineHelper::DESCRIPTION_PREFIX, 0) };
+        const std::vector<PDFSearchField> createdFields = isPrepared ? std::vector<PDFSearchField>() : PDFAppSearchData::createDocumentFields(file);
+        const std::vector<PDFSearchField>& fields = isPrepared ? data.documentFields[i] : createdFields;
         if (const std::optional<PDFSearchFieldMatch> match = query.match(fields))
         {
             matches.emplace_back(match->score, i);

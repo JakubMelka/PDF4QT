@@ -106,6 +106,29 @@ PDFLineEdit* PDFAppTab::getSearchField() const
     return nullptr;
 }
 
+bool PDFAppTab::confirmClose()
+{
+    return true;
+}
+
+bool PDFAppTab::executeCommand(const QString& commandId)
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+bool PDFAppTab::isCommandEnabled(const QString& commandId) const
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
+bool PDFAppTab::isCommandChecked(const QString& commandId) const
+{
+    Q_UNUSED(commandId);
+    return false;
+}
+
 void PDFAppTab::onPageChanged()
 {
 
@@ -140,17 +163,22 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
 
     // workspace-pane: bg/canvas, padding 32, gaps 24 (header, banner and page, footer);
     // the bottom padding of the Home tab is 16 (owner decision O11) and it is a part
-    // of the footer, which centers its row on the axis of the switch of the sidebar
+    // of the footer, which centers its row on the axis of the switch of the sidebar.
+    // The horizontal paddings belong to the rows: the page scroll area reaches into
+    // them by the width of its overlay scroll bar (updatePageInsets)
     QWidget* workspace = new QWidget(this);
     workspace->setObjectName(QStringLiteral("workspace"));
     PDFWidgetStyleProperties::set(workspace, PDFWidgetStyleProperties::CANVAS);
     QVBoxLayout* workspaceLayout = new QVBoxLayout(workspace);
-    workspaceLayout->setContentsMargins(32, 32, 32, isHome ? 0 : 32);
+    workspaceLayout->setContentsMargins(0, PADDING, 0, isHome ? 0 : PADDING);
     workspaceLayout->setSpacing(24);
     layout->addWidget(workspace, 1);
 
     m_header = new PDFAppWorkspaceHeader(workspace);
-    workspaceLayout->addWidget(m_header);
+    QHBoxLayout* headerRow = new QHBoxLayout();
+    headerRow->setContentsMargins(PADDING, 0, PADDING, 0);
+    headerRow->addWidget(m_header);
+    workspaceLayout->addLayout(headerRow);
     connect(m_header, &PDFAppWorkspaceHeader::searchRequested, this, &PDFAppWorkspaceTab::onSearchRequested);
     connect(m_header, &PDFAppWorkspaceHeader::breadcrumbActivated, this, &PDFAppWorkspaceTab::onBreadcrumbActivated);
 
@@ -174,24 +202,32 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
         connect(m_banner, &PDFAppStorageBanner::checkForUpdatesRequested, this, &PDFAppWorkspaceTab::onCheckForUpdatesRequested);
     }
 
+    // The vertical scroll bar lies over the right padding of the workspace, it takes
+    // no width of the page (the columns end where the frames end)
     m_pageScrollArea = new PDFAppScrollArea(m_pageArea, workspace);
     m_pageScrollArea->setObjectName(QStringLiteral("pageScrollArea"));
-    workspaceLayout->addWidget(m_pageScrollArea, 1);
+    m_pageScrollArea->setOverlayScrollBars(true);
+    m_pageScrollRow = new QHBoxLayout();
+    m_pageScrollRow->addWidget(m_pageScrollArea);
+    workspaceLayout->addLayout(m_pageScrollRow, 1);
 
     if (getKind() == PDFAppTabKind::Help)
     {
         // pdf4qt-help 955:152873 (owner decision O13): the page of the Help tab is at
         // most 1166 px wide, centered in the view (the scroll bar stays at the edge);
         // the header follows the page (updateHelpMargins)
-        m_pageArea->setMaximumWidth(HELP_CONTENT_WIDTH);
         m_pageScrollArea->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
         m_pageScrollArea->viewport()->installEventFilter(this);
     }
+    updatePageInsets();
 
     if (isHome)
     {
         m_footer = new PDFAppFooter(workspace);
-        workspaceLayout->addWidget(m_footer);
+        QHBoxLayout* footerRow = new QHBoxLayout();
+        footerRow->setContentsMargins(PADDING, 0, PADDING, 0);
+        footerRow->addWidget(m_footer);
+        workspaceLayout->addLayout(footerRow);
         connect(m_footer, &PDFAppFooter::externalUrlRequested, this, &PDFAppTab::externalUrlRequested);
 
         if (context)
@@ -373,6 +409,43 @@ bool PDFAppWorkspaceTab::eventFilter(QObject* watched, QEvent* event)
     return BaseClass::eventFilter(watched, event);
 }
 
+void PDFAppWorkspaceTab::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+
+    // Another style has another scroll bar (or none over the content)
+    if (event->type() == QEvent::StyleChange)
+    {
+        updatePageInsets();
+    }
+}
+
+void PDFAppWorkspaceTab::updatePageInsets()
+{
+    if (!m_pageScrollArea || !m_pageScrollRow || !m_pageLayout)
+    {
+        return;
+    }
+
+    // The area reaches into the paddings of the workspace by the width of the
+    // overlay scroll bar at both sides (the page of the Help tab stays centered in
+    // the window), the page keeps the paddings inside of the area
+    const int inset = qBound(0, m_pageScrollArea->getScrollBarOverlap(), int(PADDING));
+    if (inset == m_pageInset)
+    {
+        return;
+    }
+
+    m_pageInset = inset;
+    m_pageScrollRow->setContentsMargins(PADDING - inset, 0, PADDING - inset, 0);
+    m_pageLayout->setContentsMargins(inset, 0, inset, 0);
+    if (getKind() == PDFAppTabKind::Help && m_pageArea)
+    {
+        m_pageArea->setMaximumWidth(HELP_CONTENT_WIDTH + 2 * inset);
+    }
+    updateHelpMargins();
+}
+
 void PDFAppWorkspaceTab::updateHelpMargins()
 {
     if (getKind() != PDFAppTabKind::Help || !m_pageScrollArea || !m_header)
@@ -380,11 +453,14 @@ void PDFAppWorkspaceTab::updateHelpMargins()
         return;
     }
 
-    // The header has the horizontal position and the width of the centered page
+    // The header has the horizontal position and the width of the centered page (the
+    // header is narrower than the area by the insets of the page at both sides)
+    const int inset = qMax(0, m_pageInset);
     const int viewportWidth = m_pageScrollArea->viewport()->width();
-    const int contentWidth = qMin(HELP_CONTENT_WIDTH, viewportWidth);
-    const int left = qMax(0, (viewportWidth - contentWidth) / 2);
-    const int right = qMax(0, m_pageScrollArea->width() - left - contentWidth);
+    const int pageWidth = qMin(HELP_CONTENT_WIDTH + 2 * inset, viewportWidth);
+    const int left = qMax(0, (viewportWidth - pageWidth) / 2);
+    const int contentWidth = qMax(0, pageWidth - 2 * inset);
+    const int right = qMax(0, m_pageScrollArea->width() - 2 * inset - left - contentWidth);
     if (m_header->contentsMargins() != QMargins(left, 0, right, 0))
     {
         m_header->setContentsMargins(left, 0, right, 0);

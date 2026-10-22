@@ -136,6 +136,21 @@ public:
     QImage toImage() const;
 };
 
+/// Marker of a thumbnail being rendered (table thumbnail_rendering, schema version
+/// 4, no triggers): PDFAppThumbnailer writes it before it reads and renders a
+/// document and removes it afterwards. A marker, whose process has ended, was left
+/// by a crash of the rendering - the file gets the state Failed until it changes,
+/// so a document killing the process is not rendered again at every start.
+class PDF4QTLIBAPPSHARED_EXPORT PDFThumbnailRenderingMarker
+{
+public:
+    QString path;           ///< Path of the recent file (as stored)
+    qint64 fileModified = 0;///< Time of the modification of the file, which is rendered
+    QString instance;       ///< Id of the thumbnailer (random, one per thumbnailer object)
+    qint64 processId = 0;   ///< Process of the thumbnailer
+    qint64 started = 0;     ///< Start of the rendering (ms since the epoch, UTC)
+};
+
 /// Recent folder (table recent_folder, or a standard folder of the system)
 class PDF4QTLIBAPPSHARED_EXPORT PDFRecentFolder
 {
@@ -297,6 +312,34 @@ public:
     /// when the row does not exist or the stored values are the same.
     PDFDatabaseError setThumbnail(const QString& path, const QByteArray& png, qint64 fileModified, PDFRecentThumbnailState state, int pageCount);
 
+    /// Longest instance id of a rendering marker
+    static constexpr int MAXIMUM_INSTANCE_LENGTH = 64;
+
+    /// Most rendering markers, which getRenderingMarkers reads
+    static constexpr int MAXIMUM_RENDERING_MARKERS = 1000;
+
+    /// Marker of the rendering of the file (std::nullopt = none or an invalid row)
+    std::optional<PDFThumbnailRenderingMarker> getRenderingMarker(const QString& path) const;
+
+    /// Markers of all renderings (invalid rows skipped), at most MAXIMUM_RENDERING_MARKERS
+    std::vector<PDFThumbnailRenderingMarker> getRenderingMarkers() const;
+
+    /// Writes the marker of a rendering, unless the file has one (another instance
+    /// renders it, or a crashed rendering left it). \p written = the marker was
+    /// written by this call (one statement, so of two instances only one wins).
+    PDFDatabaseError beginRendering(const PDFThumbnailRenderingMarker& marker, bool* written);
+
+    /// Removes the marker of the file written by the instance (nothing for another instance)
+    PDFDatabaseError endRendering(const QString& path, const QString& instance);
+
+    /// The rendering of the marker ended its process (a crash): the file gets the
+    /// state Failed with thumbnail_mtime = the time of the file of the marker (no
+    /// retry until the file changes), unless a result of the same version of the
+    /// file is stored already; the marker is removed. One transaction; nothing is
+    /// changed, when the marker has been replaced meanwhile. \p failed = the state
+    /// of the file was changed to Failed.
+    PDFDatabaseError failRendering(const PDFThumbnailRenderingMarker& marker, bool* failed = nullptr);
+
     // ----------------------------------------------------------------- folders
 
     /// Folders of Open: the standard folders of the system first (Documents,
@@ -327,7 +370,8 @@ public:
     /// the same path is refused (\p isDuplicate set to true).
     PDFDatabaseError addPinnedLocation(const QString& folderPath, const QString& name, qint64* id = nullptr, bool* isDuplicate = nullptr);
 
-    /// Renames a location (the name is normalized, an empty name is refused)
+    /// Renames a location (the name is normalized, an empty name is refused; a
+    /// location, which does not exist - removed by another instance - is an error)
     PDFDatabaseError renamePinnedLocation(qint64 id, const QString& name);
 
     /// Removes a location
@@ -371,6 +415,7 @@ private:
     int getMaximumFiles() const;
     PDFDatabaseConnection* getConnection() const;
     static bool readFile(const PDFDatabaseStatement& statement, PDFRecentFile& file);
+    static bool readRenderingMarker(const PDFDatabaseStatement& statement, PDFThumbnailRenderingMarker& marker);
     std::vector<PDFRecentFile> readFiles(const char* sql) const;
     PDFDatabaseError pruneFiles(PDFDatabaseConnection* connection) const;
     PDFDatabaseError pruneFolders(PDFDatabaseConnection* connection) const;

@@ -32,6 +32,7 @@
 #include "pdfthemefonts.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QPixmap>
 #include <QShowEvent>
@@ -80,9 +81,8 @@ PDFAppSupportPage::PDFAppSupportPage(PDFAppContext* context, QWidget* parent) :
 
     // support-grid 116:2460: quick actions and the tutorials, gap 24
     QVBoxLayout* layout = PDFAppSupportPageHelper::createColumn(this, 24);
-    layout->addWidget(createQuickActions(this));
-    layout->addWidget(createTutorials(this));
     layout->addStretch(1);
+    buildContent();
 
     if (context && context->getNotifier())
     {
@@ -95,6 +95,59 @@ PDFAppSupportPage::PDFAppSupportPage(PDFAppContext* context, QWidget* parent) :
 }
 
 PDFAppSupportPage::~PDFAppSupportPage() = default;
+
+void PDFAppSupportPage::buildContent()
+{
+    if (QBoxLayout* layout = qobject_cast<QBoxLayout*>(this->layout()))
+    {
+        layout->insertWidget(0, createQuickActions(this));
+        layout->insertWidget(1, createTutorials(this));
+    }
+}
+
+void PDFAppSupportPage::rebuild()
+{
+    const int scrollPosition = isVisible() ? getScrollPosition() : -1;
+    const QString focusName = PDFAppPageRebuild::getFocusedName(this);
+    const QString searchFieldText = m_searchField ? m_searchField->text() : m_searchText;
+    const int cursorPosition = m_searchField ? m_searchField->cursorPosition() : int(searchFieldText.size());
+
+    m_quickActions.clear();
+    m_chips.clear();
+    m_videoCards.clear();
+    delete m_quickActionGrid.data();
+    delete m_tutorials.data();
+    delete m_chipGroup.data();
+    buildContent();
+    m_quickActionGrid->show();
+    m_tutorials->show();
+
+    if (m_searchField)
+    {
+        m_searchField->setText(searchFieldText);
+        m_searchField->setCursorPosition(cursorPosition);
+    }
+    updateChips();
+    applyFilter();
+
+    if (scrollPosition >= 0)
+    {
+        // The content keeps its height: the position is kept now and after the layout
+        PDFAppPageRebuild::finishLayout();
+        setScrollPosition(scrollPosition);
+        requestDeferredScroll(scrollPosition, QString());
+    }
+    PDFAppPageRebuild::restoreFocus(this, focusName);
+}
+
+void PDFAppSupportPage::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && m_tutorials)
+    {
+        rebuild();
+    }
+}
 
 bool PDFAppSupportPage::setRoute(const PDFAppRoute& route)
 {
@@ -342,6 +395,7 @@ QWidget* PDFAppSupportPage::createTutorials(QWidget* parent)
     // tutorials 117:2495: card, padding 16, gap 14
     QWidget* card = PDFAppPageWidgets::createCard(16, 14, parent);
     card->setObjectName(QStringLiteral("tutorials"));
+    m_tutorials = card;
     QBoxLayout* cardLayout = qobject_cast<QBoxLayout*>(card->layout());
 
     // header: the texts (Bold 15, Regular 12 text/tertiary, gap 3) and the

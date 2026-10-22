@@ -37,6 +37,8 @@
 
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
+#include "pdfappdocumenttab.h"
+#include "pdfappdocumentdialogs.h"
 #include "pdfappfiledrop.h"
 #include "pdfappfolderinfo.h"
 #include "pdfapphomebasepage.h"
@@ -230,7 +232,11 @@ public:
         }
     }
 
-    /// Closes the message boxes of the window (Documents cannot be opened yet)
+    /// Closes the message boxes of the window (files, which could not be opened)
+    /// and the document tabs, which the opening of files has added (step 3: an
+    /// opened file is shown in its own tab, the tests of the pages go on with the
+    /// page of the tab, from which the file was opened). \returns the number of the
+    /// closed message boxes.
     int closeMessageBoxes()
     {
         int count = 0;
@@ -245,6 +251,45 @@ public:
                 box->close();
                 ++count;
             }
+        }
+        settle();
+        closeDocumentTabs();
+        return count;
+    }
+
+    /// Closes the document tabs of the window. \returns their number.
+    int closeDocumentTabs()
+    {
+        int count = 0;
+        if (!window)
+        {
+            return 0;
+        }
+
+        // The tab, from which the files were opened: the nearest tab, which is not a
+        // document, left of the current document tab (a new document is inserted
+        // after the current tab)
+        QPointer<pdf::PDFAppTab> sourceTab;
+        const QList<pdf::PDFAppTab*> tabs = window->getTabs();
+        for (qsizetype i = tabs.indexOf(window->getCurrentTab()); i >= 0 && qobject_cast<pdf::PDFAppDocumentTab*>(window->getCurrentTab()); --i)
+        {
+            if (!qobject_cast<pdf::PDFAppDocumentTab*>(tabs[i]))
+            {
+                sourceTab = tabs[i];
+                break;
+            }
+        }
+
+        for (pdf::PDFAppDocumentTab* tab : window->getDocumentTabs())
+        {
+            if (window->closeTab(tab))
+            {
+                ++count;
+            }
+        }
+        if (sourceTab)
+        {
+            window->activateTab(sourceTab);
         }
         settle();
         return count;
@@ -562,6 +607,8 @@ private slots:
     void browseFiles();
     void dropFiles();
     void dropFilesRefused();
+    void dropZoneFeedback();
+    void dialogScrim();
     void messageDetailsPlainText();
     void openDocumentsRecords();
     void notificationsFromOtherConnection();
@@ -598,6 +645,11 @@ private slots:
     void dialogEdgeCases();
     void databaseFaults();
     void manyThumbnails();
+    void networkRows();
+    void refusedPathRequests();
+    void thumbnailCacheLru();
+    void focusAfterPin();
+    void homeEmptyStates();
     void screenshots();
     void screenshotsStates();
 };
@@ -984,7 +1036,7 @@ void AppHomeTest::homeContent()
         QVERIFY(rows[i]->getMenu());
         QVERIFY(!rows[i]->getPath().contains(QLatin1Char(QDir::separator() == QLatin1Char('/') ? '\\' : '/')));
     }
-    QVERIFY(page->getRecentFilesEmptyLabel()->isHidden());
+    QVERIFY(page->getRecentFilesEmptyState()->isHidden());
     QVERIFY(page->getDropZone()->isVisible());
     QCOMPARE(page->getDropZone()->getVariant(), pdf::PDFAppDropZone::Variant::Compact);
     QVERIFY(!page->getDropZone()->getBrowseButton());
@@ -1017,7 +1069,7 @@ void AppHomeTest::homeContent()
     QCOMPARE(toolRows[2]->getLastUsed(), QStringLiteral("Yesterday 16:15"));
     QCOMPARE(toolRows[4]->getName(), pdf::PDFDocumentToolCatalog::findTool(u"convert.pdf-to-images")->getTitle());
     QCOMPARE(toolRows[4]->getLastUsed(), QStringLiteral("Sep 15, 2026"));
-    QVERIFY(page->getRecentToolsEmptyLabel()->isHidden());
+    QVERIFY(page->getRecentToolsEmptyState()->isHidden());
 
     // An empty database: the hints of the empty lists
     HomeFixture empty;
@@ -1025,8 +1077,8 @@ void AppHomeTest::homeContent()
     QVERIFY(emptyPage);
     QVERIFY(emptyPage->getRecentFileRows().isEmpty());
     QVERIFY(emptyPage->getRecentToolRows().isEmpty());
-    QVERIFY(!emptyPage->getRecentFilesEmptyLabel()->isHidden());
-    QVERIFY(!emptyPage->getRecentToolsEmptyLabel()->isHidden());
+    QVERIFY(!emptyPage->getRecentFilesEmptyState()->isHidden());
+    QVERIFY(!emptyPage->getRecentToolsEmptyState()->isHidden());
 }
 
 void AppHomeTest::homeLinks()
@@ -1084,12 +1136,17 @@ void AppHomeTest::homeLinks()
     QCOMPARE(externalSpy[0][0].toUrl(), pdf::PDFAppProjectLinks::getNewIssue());
     QCOMPARE(externalSpy[1][0].toUrl(), pdf::PDFAppProjectLinks::getDiscussions());
 
-    // A recent file opens (step 2: the window records it and says it cannot open it yet)
+    // A recent file opens in its own document tab (step 3), which becomes current
     pdf::PDFAppHomePage* page = fixture.page<pdf::PDFAppHomePage>();
     page->getRecentFileRows()[1]->click();
     HomeFixture::settle();
     QVERIFY(fixture.window->getRequestedFiles().contains(sample.invoice));
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+    QCOMPARE(fixture.window->getOpenDocuments().size(), size_t(1));
+    QCOMPARE(fixture.window->getOpenDocuments().front().path, QFileInfo(sample.invoice).canonicalFilePath());
+    QCOMPARE(fixture.closeDocumentTabs(), 1);
+    QCOMPARE(fixture.currentTab(), fixture.homeTab());
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
 }
 
 void AppHomeTest::homeMissingFile()
@@ -2412,11 +2469,16 @@ void AppHomeTest::renameWorkspaceDialog()
     dialog->getActionButton()->click();
     HomeFixture::settle();
 
-    // The rename of a workspace, which no longer exists, changes nothing: the
-    // dialog closes and the list follows the deletion (no workspace "Gone" appears)
-    QVERIFY(!dialog);
+    // The rename of a workspace, which no longer exists, changes nothing and says
+    // it (the dialog stays with the error); the list follows the deletion
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(dialog->getErrorText(), QStringLiteral("The workspace no longer exists. It may have been deleted in another PDF4QT window."));
     QVERIFY(!fixture.workspaces().findWorkspace(QStringLiteral("Gone")));
     QVERIFY(!fixture.workspaces().getWorkspace(sample.thesisId));
+    dialog->getCancelButton()->click();
+    HomeFixture::settle();
+    QVERIFY(!dialog);
     fixture.waitIdle();
     QCOMPARE(fixture.page<pdf::PDFAppOpenPage>()->getWorkspaceRows().size(), 2);
 
@@ -2494,6 +2556,22 @@ void AppHomeTest::renameLocationDialog()
     QCOMPARE(fixture.recent().getPinnedLocations().front().name, QStringLiteral("Projects at work"));
     fixture.waitIdle();
     QCOMPARE(fixture.page<pdf::PDFAppOpenPage>()->getLocationCards()[0]->getName(), QStringLiteral("Projects at work"));
+
+    // The location is removed by another instance while the dialog is open: the
+    // dialog says it (no silent success)
+    page = fixture.page<pdf::PDFAppOpenPage>();
+    page->showRenameLocationDialog(sample.locationId);
+    dialog = qobject_cast<pdf::PDFAppRenameLocationDialog*>(page->getDialog());
+    QVERIFY(dialog);
+    QVERIFY(!fixture.recent().removePinnedLocation(sample.locationId).isError());
+    dialog->getNameField()->setText(QStringLiteral("Gone"));
+    dialog->getActionButton()->click();
+    HomeFixture::settle();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getErrorText(), QStringLiteral("The pinned location no longer exists. It may have been removed in another PDF4QT window."));
+    dialog->reject();
+    HomeFixture::settle();
+    QVERIFY(!dialog);
 }
 
 void AppHomeTest::clearHistoryDialog_data()
@@ -2620,7 +2698,9 @@ void AppHomeTest::restoreAndOpenWorkspace()
     recent = fixture.page<pdf::PDFAppRecentPage>();
     recent->getWorkspaceRows()[0]->click();
     HomeFixture::settle();
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+    QVERIFY(fixture.closeDocumentTabs() >= 1);
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
 }
 
 void AppHomeTest::addPinnedLocation()
@@ -2697,7 +2777,10 @@ void AppHomeTest::browseFiles()
         }
         QCOMPARE(calls, 1);
         QVERIFY(fixture.window->getRequestedFiles().contains(sample.invoice));
-        QCOMPARE(fixture.closeMessageBoxes(), 1);
+        QCOMPARE(fixture.window->getDocumentTabs().size(), 2);
+        QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+        QCOMPARE(fixture.closeDocumentTabs(), 2);
+        QCOMPARE(fixture.closeMessageBoxes(), 0);
     }
 
     // The shortcut of the user: the action of the window and the hint of the drop
@@ -2736,7 +2819,9 @@ void AppHomeTest::browseFiles()
     QPointer<pdf::PDFAppOpenPage> openPage = fixture.page<pdf::PDFAppOpenPage>();
     openPage->browseFiles();
     QTRY_VERIFY(openPage.isNull());
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+    QCOMPARE(fixture.closeDocumentTabs(), 1);
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
 
 
     // openFile of an invalid path does nothing
@@ -2782,7 +2867,9 @@ void AppHomeTest::dropFiles()
     delete data;
     HomeFixture::settle();
     QCOMPARE(fixture.window->getRequestedFiles(), QStringList({ first, second }));
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+    QCOMPARE(fixture.window->getDocumentTabs().size(), 2);
+    QCOMPARE(fixture.closeDocumentTabs(), 2);
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
     fixture.waitIdle();
     QCOMPARE(fixture.recent().getFileCount(), 2);
 
@@ -2799,7 +2886,8 @@ void AppHomeTest::dropFiles()
     QApplication::sendEvent(fixture.window, &drop);
     delete data;
     HomeFixture::settle();
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+    QCOMPARE(fixture.closeDocumentTabs(), 1);
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
 
     // A file of the Recent list appears after the drop (notification)
     fixture.waitIdle();
@@ -2823,6 +2911,170 @@ void AppHomeTest::dropFiles()
     QCOMPARE(result.refused.size(), size_t(5));
     QCOMPARE(result.refused.front().refusal, pdf::PDFAppFileDrop::Refusal::TooMany);
     delete data;
+}
+
+void AppHomeTest::dropZoneFeedback()
+{
+    // While local files are dragged over the window, the drop zones (Open: large,
+    // Home: compact) are highlighted - bg/accent-subtle with the dashed border in
+    // the accent color; nothing is read from the disk during the drag (the file of
+    // the drag does not exist); the feedback ends by the leave (also Esc), the drop
+    HomeFixture fixture;
+    fixture.hideBanner();
+    const QString missing = QDir(fixture.directory.path()).filePath(QStringLiteral("Never/created.pdf"));
+    QMimeData* files = HomeTestHelper::createMimeData({ QUrl::fromLocalFile(missing) });
+    QMimeData text;
+    text.setText(QStringLiteral("/not/a/file.pdf"));
+
+    // The colors of a drop zone: the fill at the left middle, the accent ink of its border
+    auto check = [](pdf::PDFAppDropZone* zone, bool isActive, qreal scale) -> QString
+    {
+        const QImage image = HomeTestHelper::render(zone, scale);
+        const QColor fill = HomeTestHelper::pixel(image, QPoint(6, zone->height() / 2));
+        // bg/accent-subtle is translucent: over the canvas of the rendering
+        QColor expectedFill = HomeTestHelper::token(pdf::PDFThemeColors::BgSubtle);
+        if (isActive)
+        {
+            const QColor over = HomeTestHelper::token(pdf::PDFThemeColors::BgAccentSubtle);
+            const QColor under = HomeTestHelper::token(pdf::PDFThemeColors::BgCanvas);
+            const qreal alpha = over.alphaF();
+            expectedFill = QColor::fromRgbF(float(over.redF() * alpha + under.redF() * (1.0 - alpha)), float(over.greenF() * alpha + under.greenF() * (1.0 - alpha)),
+                                            float(over.blueF() * alpha + under.blueF() * (1.0 - alpha)));
+        }
+        if (!HomeTestHelper::isClose(fill, expectedFill, 3))
+        {
+            return QStringLiteral("fill %1, expected %2").arg(fill.name(), expectedFill.name());
+        }
+
+        int accentPixels = 0;
+        const QColor accent = HomeTestHelper::token(pdf::PDFThemeColors::BgAccent);
+        for (int y = 0; y < image.height(); ++y)
+        {
+            accentPixels += HomeTestHelper::isClose(image.pixelColor(0, y), accent, 60) ? 1 : 0;
+        }
+        if (isActive != (accentPixels > image.height() / 4))
+        {
+            return QStringLiteral("accent pixels of the border %1 of %2").arg(accentPixels).arg(image.height());
+        }
+        return QString();
+    };
+
+    for (const QString& route : { QStringLiteral("/open"), QStringLiteral("/home") })
+    {
+        fixture.navigate(route);
+        pdf::PDFAppDropZone* zone = nullptr;
+        if (pdf::PDFAppOpenPage* openPage = fixture.page<pdf::PDFAppOpenPage>())
+        {
+            zone = openPage->getDropZone();
+            QCOMPARE(zone->getVariant(), pdf::PDFAppDropZone::Variant::Large);
+        }
+        else if (pdf::PDFAppHomePage* homePage = fixture.page<pdf::PDFAppHomePage>())
+        {
+            zone = homePage->getDropZone();
+            QCOMPARE(zone->getVariant(), pdf::PDFAppDropZone::Variant::Compact);
+        }
+        QVERIFY2(zone && zone->isVisible(), qPrintable(route));
+        QVERIFY(!zone->isDropActive());
+
+        // A drag of a text is no drag of files
+        const QPoint position = zone->mapTo(fixture.window, zone->rect().center());
+        QDragEnterEvent textEnter(position, Qt::CopyAction, &text, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(fixture.window, &textEnter);
+        QVERIFY(!textEnter.isAccepted());
+        QVERIFY(!zone->isDropActive());
+
+        QDragEnterEvent enter(position, Qt::CopyAction, files, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(fixture.window, &enter);
+        QVERIFY(enter.isAccepted());
+        QVERIFY(zone->isDropActive());
+        QVERIFY(!QFileInfo::exists(missing));
+
+        for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            HomeFixture::settle(1);
+            for (const qreal scale : { 1.0, 1.5, 2.0 })
+            {
+                const QString result = check(zone, true, scale);
+                QVERIFY2(result.isEmpty(), qPrintable(QStringLiteral("%1 scale %2: %3").arg(route).arg(scale).arg(result)));
+            }
+        }
+        pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+        // The move keeps it, the leave (the pointer left the window, Esc) ends it
+        QDragMoveEvent move(position + QPoint(5, 5), Qt::CopyAction, files, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(fixture.window, &move);
+        QVERIFY(zone->isDropActive());
+        QDragLeaveEvent leave;
+        QApplication::sendEvent(fixture.window, &leave);
+        QVERIFY(!zone->isDropActive());
+        QVERIFY2(check(zone, false, 1.0).isEmpty(), qPrintable(check(zone, false, 1.0)));
+
+        // The drop ends it (the missing file is refused by a message)
+        QDragEnterEvent again(position, Qt::CopyAction, files, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(fixture.window, &again);
+        QVERIFY(zone->isDropActive());
+        QDropEvent drop(QPointF(position), Qt::CopyAction, files, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(fixture.window, &drop);
+        QVERIFY(!zone->isDropActive());
+        HomeFixture::settle();
+        QCOMPARE(fixture.closeMessageBoxes(), 1);
+    }
+
+    // The page deleted during the drag: the leave and the next drag do not touch it
+    QDragEnterEvent enter(QPoint(400, 400), Qt::CopyAction, files, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(fixture.window, &enter);
+    QPointer<pdf::PDFAppDropZone> homeZone = fixture.page<pdf::PDFAppHomePage>()->getDropZone();
+    QVERIFY(homeZone && homeZone->isDropActive());
+    fixture.navigate(QStringLiteral("/about"));
+    QVERIFY(!homeZone);
+    QDragLeaveEvent leave;
+    QApplication::sendEvent(fixture.window, &leave);
+    QVERIFY(!fixture.window->isFileDragActive());
+
+    delete files;
+}
+
+void AppHomeTest::dialogScrim()
+{
+    // The dialogs of the pages cover the body of the window, not the top bar with
+    // the tabs and the buttons of the window (941:135742: the scrim starts at y 38),
+    // the card is centered over the body
+    HomeFixture fixture;
+    HomeTestHelper::fill(fixture);
+    fixture.window->setGeometry(fixture.window->screen()->availableGeometry());
+    fixture.navigate(QStringLiteral("/recent"));
+    pdf::PDFAppRecentPage* page = fixture.page<pdf::PDFAppRecentPage>();
+    page->getClearHistoryButton()->click();
+    HomeFixture::settle();
+    QPointer<pdf::PDFMessageBox> dialog = qobject_cast<pdf::PDFMessageBox*>(page->getDialog());
+    QVERIFY(dialog);
+    QWidget* body = fixture.window->getDialogHost();
+    QCOMPARE(dialog->getScrimTarget(), body);
+    QVERIFY(dialog->getScrim());
+    QCOMPARE(dialog->getScrim()->parentWidget(), body);
+    QCOMPARE(body->mapTo(fixture.window, QPoint(0, 0)).y(), fixture.window->getTopBar()->height());
+    const QRect cardRect(dialog->mapToGlobal(QPoint(0, 0)) + QPoint(dialog->getShadowMargins().left(), dialog->getShadowMargins().top()), dialog->rect().marginsRemoved(dialog->getShadowMargins()).size());
+    const QPoint cardCenter = cardRect.center();
+
+    // Centered over the body, the card stays on the screen (the offscreen screen is
+    // smaller than the window)
+    QRect expectedCard(QPoint(0, 0), cardRect.size());
+    expectedCard.moveCenter(body->mapToGlobal(body->rect().center()));
+    const QRect available = fixture.window->screen()->availableGeometry();
+    expectedCard.moveLeft(qBound(available.left(), expectedCard.left(), qMax(available.left(), available.right() - expectedCard.width() + 1)));
+    expectedCard.moveTop(qBound(available.top(), expectedCard.top(), qMax(available.top(), available.bottom() - expectedCard.height() + 1)));
+    const QPoint bodyCenter = expectedCard.center();
+    QVERIFY2((cardCenter - bodyCenter).manhattanLength() <= 2, qPrintable(QStringLiteral("%1 %2 / %3 %4").arg(cardCenter.x()).arg(cardCenter.y()).arg(bodyCenter.x()).arg(bodyCenter.y())));
+
+    // The page deleted with the dialog open: the scrim goes with the dialog
+    fixture.navigate(QStringLiteral("/home"));
+    HomeFixture::settle();
+    QTRY_VERIFY(!dialog);
+    for (QWidget* child : body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+    {
+        QVERIFY2(qobject_cast<pdf::PDFAppTab*>(child), child->metaObject()->className());
+    }
 }
 
 void AppHomeTest::dropFilesRefused()
@@ -2883,7 +3135,8 @@ void AppHomeTest::dropFilesRefused()
         hasRefusal = hasRefusal || (box->isVisible() && box->accessibleName() == QLatin1String("Some items were not opened"));
     }
     QVERIFY(hasRefusal);
-    QCOMPARE(fixture.closeMessageBoxes(), 2);
+    QVERIFY(!fixture.window->getDocumentTabs().isEmpty());
+    QCOMPARE(fixture.closeMessageBoxes(), 1);
 
     // Only refused items: the message, nothing opened
     QMimeData* refusedOnly = HomeTestHelper::createMimeData({ QUrl::fromLocalFile(folder) });
@@ -2976,7 +3229,11 @@ void AppHomeTest::openDocumentsRecords()
     fixture.window->openDocuments({ existing, missing, folder }, 2);
     HomeFixture::settle();
     QCOMPARE(fixture.window->getRequestedFiles().size(), 3);
-    QCOMPARE(fixture.closeMessageBoxes(), 1);
+
+    // The dialog open-failed of step 3 (a card dialog) is shown from the event loop
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    fixture.window->getOpenFailedDialog()->reject();
+    HomeFixture::settle();
     QCOMPARE(fixture.recent().getFileCount(), 1);
     QVERIFY(fixture.recent().getFile(existing));
 
@@ -4010,6 +4267,8 @@ void AppHomeTest::deleteWithNativeDialog()
     });
     fixture.page<pdf::PDFAppOpenPage>()->getDropZone()->getBrowseButton()->click();
     HomeFixture::settle();
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+    QCOMPARE(fixture.closeDocumentTabs(), 1);
     QVERIFY(fixture.page<pdf::PDFAppRecentPage>());
 
     // The window opens the chosen files, although the page has gone
@@ -4210,21 +4469,35 @@ void AppHomeTest::smallParts()
     QCOMPARE(open->getPinnedFileRows().size(), pdf::PDFAppOpenPage::MAXIMUM_PINNED_FILES);
     QCOMPARE(open->getPinnedViewAllLink()->text(), QStringLiteral("View all (5)"));
 
-    // Recent: a pinned card opens the file, the menu of the list replaces its previous menu
+    // Recent: the menu of the list replaces its previous menu
     fixture.navigate(QStringLiteral("/recent"));
     fixture.waitIdle();
     pdf::PDFAppRecentPage* recent = fixture.page<pdf::PDFAppRecentPage>();
-    recent->getPinnedCards()[0]->click();
-    HomeFixture::settle();
-    QCOMPARE(fixture.window->getRequestedFiles().size(), 1);
-    fixture.closeMessageBoxes();
-    recent = fixture.page<pdf::PDFAppRecentPage>();
     recent->showListMenu(1);
     QPointer<QMenu> firstMenu = recent->getListMenu();
     recent->showListMenu(2);
+    QVERIFY(recent->getListMenu() && recent->getListMenu() != firstMenu.data());
     HomeFixture::settle();
     QVERIFY(!firstMenu || !firstMenu->isVisible());
-    recent->getListMenu()->close();
+
+    // The offscreen platform may close the second popup itself (the focus window
+    // goes with the first popup and the application is inactive for a moment)
+    if (QMenu* menu = recent->getListMenu())
+    {
+        menu->close();
+    }
+    HomeFixture::settle();
+
+    // A pinned card opens the file in its own document tab (step 3)
+    recent->getPinnedCards()[0]->click();
+    HomeFixture::settle();
+    QCOMPARE(fixture.window->getRequestedFiles().size(), 1);
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
+    QCOMPARE(fixture.closeDocumentTabs(), 1);
+    fixture.closeMessageBoxes();
+    fixture.waitIdle();
+    recent = fixture.page<pdf::PDFAppRecentPage>();
+    QVERIFY(recent);
 
     // The model: tooltips of the items, no flags of an invalid index, no data of another model
     const pdf::PDFAppRecentModel* model = recent->getModel();
@@ -4292,6 +4565,420 @@ void AppHomeTest::smallParts()
     QVERIFY(!columns.getColumn(5));
     QVERIFY(!columns.getColumnLayout(-1));
     QCOMPARE(columns.getColumnCount(), 2);
+}
+
+void AppHomeTest::networkRows()
+{
+    HomeFixture fixture;
+    HomeSample sample = HomeTestHelper::fill(fixture);
+
+    // Rows of network paths (also copied from the database of another computer): a
+    // UNC file in progress, a pinned one, a network folder; they are inserted by SQL,
+    // the test never touches them (the server name does not exist)
+    const QString server = QStringLiteral("//pdf4qt-test-server.invalid/share");
+    const QString progressFile = server + QStringLiteral("/Network_Report.pdf");
+    const QString pinnedFile = server + QStringLiteral("/Network_Pinned.pdf");
+    const QString gvfsFile = QStringLiteral("/run/user/1000/gvfs/smb-share:server=nas,share=docs/Gvfs.pdf");
+    pdf::PDFDatabase* database = fixture.context->getDatabase();
+    const qint64 time = HomeFixture::at(0, 11, 0);
+    const QStringList statements = {
+        QStringLiteral("INSERT INTO recent_file(path, name, folder, last_opened, last_page, page_count, thumbnail, thumbnail_mtime, thumbnail_state) "
+                       "VALUES ('%1', 'Network_Report.pdf', '%2', %3, 5, 40, NULL, 0, 0)").arg(progressFile, server).arg(time),
+        QStringLiteral("INSERT INTO recent_file(path, name, folder, last_opened, pinned, pin_order) VALUES ('%1', 'Network_Pinned.pdf', '%2', %3, 1, 0)").arg(pinnedFile, server).arg(time - 1000),
+        QStringLiteral("INSERT INTO recent_file(path, name, folder, last_opened) VALUES ('%1', 'Gvfs.pdf', '/run/user/1000/gvfs', %2)").arg(gvfsFile).arg(time - 2000),
+        QStringLiteral("INSERT INTO recent_folder(path, last_used, kind) VALUES ('%1', %2, 0)").arg(server).arg(time),
+    };
+    for (const QString& sql : statements)
+    {
+        const QByteArray utf8 = sql.toUtf8();
+        pdf::PDFDatabaseStatement statement(database->getConnection(), utf8.constData());
+        QVERIFY2(statement.execute(), qPrintable(sql));
+    }
+
+    // The stored thumbnail of the last opening is shown (the database, not the network)
+    QVERIFY(!fixture.recent().setThumbnail(pinnedFile, HomeTestHelper::createPng(Qt::green), 77, pdf::PDFRecentThumbnailState::Ready, 2).isError());
+    QVERIFY(QFile::remove(sample.invoice));
+
+    pdf::PDFAppFolderInfoService* service = fixture.context->getFolderInfo();
+    pdf::PDFAppThumbnailer* thumbnailer = fixture.context->getThumbnailer();
+    QSignalSpy infoSpy(service, &pdf::PDFAppFolderInfoService::infoReady);
+    QSignalSpy thumbnailSpy(thumbnailer, &pdf::PDFAppThumbnailer::thumbnailFinished);
+
+    for (const QString& route : { QStringLiteral("/home"), QStringLiteral("/open"), QStringLiteral("/recent"), QStringLiteral("/recent?filter=folders") })
+    {
+        fixture.navigate(route);
+        fixture.waitIdle();
+        pdf::PDFAppHomeBasePage* page = qobject_cast<pdf::PDFAppHomeBasePage*>(fixture.currentPage());
+        QVERIFY(page);
+        QVERIFY(page->isNetworkPath(progressFile));
+        QVERIFY(page->isNetworkPath(gvfsFile));
+        QVERIFY(!page->isNetworkPath(sample.invoice));
+    }
+
+    // Nothing of the network was asked for: no existence, no PDF count, no thumbnail
+    for (const QList<QVariant>& arguments : infoSpy)
+    {
+        const QString path = arguments.at(0).value<pdf::PDFAppFolderInfo>().path;
+        QVERIFY2(!path.startsWith(server) && path != gvfsFile, qPrintable(path));
+    }
+    for (const QList<QVariant>& arguments : thumbnailSpy)
+    {
+        const QString path = arguments.at(0).toString();
+        QVERIFY2(!path.startsWith(server) && path != gvfsFile, qPrintable(path));
+    }
+    QVERIFY(!infoSpy.isEmpty());
+
+    // Home and Open: the network rows are neutral (Available), the missing local file is Missing
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.waitIdle();
+    pdf::PDFAppHomePage* home = fixture.page<pdf::PDFAppHomePage>();
+    bool isNetworkRowFound = false;
+    for (pdf::PDFRecentFileRow* row : home->getRecentFileRows())
+    {
+        if (row->getFileName() == QLatin1String("Network_Report.pdf"))
+        {
+            isNetworkRowFound = true;
+            QCOMPARE(row->getStatus(), pdf::PDFRecentFileRow::Status::Available);
+        }
+        if (row->getFileName() == QLatin1String("Invoice_2026.pdf"))
+        {
+            QCOMPARE(row->getStatus(), pdf::PDFRecentFileRow::Status::Missing);
+        }
+    }
+    QVERIFY(isNetworkRowFound);
+
+    fixture.navigate(QStringLiteral("/open"));
+    fixture.waitIdle();
+    for (pdf::PDFRecentFileRow* row : fixture.page<pdf::PDFAppOpenPage>()->getPinnedFileRows() + fixture.page<pdf::PDFAppOpenPage>()->getRecentFileRows())
+    {
+        if (row->getFileName().startsWith(QLatin1String("Network")) || row->getFileName() == QLatin1String("Gvfs.pdf"))
+        {
+            QCOMPARE(row->getStatus(), pdf::PDFRecentFileRow::Status::Available);
+        }
+    }
+
+    // Recent: no "No longer exists", the stored thumbnail of the pinned card, the
+    // network file in progress is Continue where you left off (not checked)
+    fixture.navigate(QStringLiteral("/recent"));
+    fixture.waitIdle();
+    pdf::PDFAppRecentPage* recent = fixture.page<pdf::PDFAppRecentPage>();
+    for (int row = 0; row < recent->getModel()->rowCount(); ++row)
+    {
+        const QModelIndex index = recent->getModel()->index(row, 0);
+        const QString name = index.data(Qt::DisplayRole).toString();
+        if (name.startsWith(QLatin1String("Network")) || name == QLatin1String("Gvfs.pdf") || name == QLatin1String("share"))
+        {
+            QVERIFY2(!index.data(pdf::PDFComponentRoles::MissingRole).toBool(), qPrintable(name));
+        }
+    }
+    QVERIFY(recent->getContinueSection()->isVisible());
+    QCOMPARE(recent->getContinueCard()->getName(), QStringLiteral("Network_Report.pdf"));
+    bool isPinnedCardFound = false;
+    for (pdf::PDFPinnedCard* card : recent->getPinnedCards())
+    {
+        if (card->getName() == QLatin1String("Network_Pinned.pdf"))
+        {
+            isPinnedCardFound = true;
+            QCOMPARE(card->getStatus(), pdf::PDFPinnedCard::Status::Available);
+            QVERIFY(!card->getPixmap().isNull());
+        }
+    }
+    QVERIFY(isPinnedCardFound);
+
+    // The folder row has no PDF count (it would enumerate the share)
+    recent->setFilter(pdf::PDFAppRecentPage::Filter::Folders, pdf::PDFRecentSort::LastOpened, QString());
+    fixture.waitIdle();
+    for (int row = 0; row < recent->getModel()->rowCount(); ++row)
+    {
+        const QModelIndex index = recent->getModel()->index(row, 0);
+        if (index.data(Qt::DisplayRole).toString() == QLatin1String("share"))
+        {
+            QVERIFY(!index.data(pdf::PDFComponentRoles::SubtitleRole).toString().contains(QLatin1String("PDF")));
+        }
+    }
+}
+
+void AppHomeTest::refusedPathRequests()
+{
+    HomeFixture fixture;
+    HomeSample sample = HomeTestHelper::fill(fixture);
+    QVERIFY(QFile::remove(sample.buildingPlan));
+    fixture.navigate(QStringLiteral("/open"));
+    fixture.waitIdle();
+
+    // The service is full: its results are not delivered, until the event loop runs
+    pdf::PDFAppFolderInfoService* service = fixture.context->getFolderInfo();
+    const QString base = fixture.directory.filePath(QStringLiteral("filler"));
+    for (int i = 0; i < pdf::PDFAppFolderInfoService::MAXIMUM_PENDING; ++i)
+    {
+        QVERIFY(service->requestPathInfo(QStringLiteral("%1/%2.pdf").arg(base).arg(i)));
+    }
+    QVERIFY(service->isFull());
+    QVERIFY(!service->requestPathInfo(base + QStringLiteral("/refused.pdf")));
+    QVERIFY(service->requestPathInfo(base + QStringLiteral("/0.pdf")));
+    QVERIFY(!service->requestPathInfo(QStringLiteral("relative.pdf")));
+
+    // The page asks while the service is full: the requests are refused and asked again
+    pdf::PDFAppHomePage* home = nullptr;
+    fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/home")), pdf::PDFAppNavigationMode::Push);
+    home = fixture.page<pdf::PDFAppHomePage>();
+    QVERIFY(home);
+    QVERIFY(home->getRefusedRequestCount() > 0);
+
+    // The service drains, the refused requests are asked again and answered
+    fixture.waitIdle();
+    QTRY_COMPARE_WITH_TIMEOUT(home->getRefusedRequestCount(), 0, 10000);
+    fixture.waitIdle();
+    bool isMissingShown = false;
+    for (pdf::PDFRecentFileRow* row : home->getRecentFileRows())
+    {
+        isMissingShown = isMissingShown || (row->getFileName() == QLatin1String("Building_Plan.pdf") && row->getStatus() == pdf::PDFRecentFileRow::Status::Missing);
+    }
+    QVERIFY(isMissingShown);
+
+    // A page deleted with refused requests: its retry timer goes with it
+    for (int i = 0; i < pdf::PDFAppFolderInfoService::MAXIMUM_PENDING; ++i)
+    {
+        service->requestPathInfo(QStringLiteral("%1/again-%2.pdf").arg(base).arg(i));
+    }
+    fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/open")), pdf::PDFAppNavigationMode::Push);
+    QVERIFY(fixture.page<pdf::PDFAppOpenPage>()->getRefusedRequestCount() > 0);
+    fixture.navigate(QStringLiteral("/about"));
+    fixture.waitIdle();
+    QCOMPARE(service->getPendingCount(), 0);
+}
+
+/// Page of the test: the thumbnails of the base without a refresh
+class ThumbnailTestPage : public pdf::PDFAppHomeBasePage
+{
+public:
+    using pdf::PDFAppHomeBasePage::PDFAppHomeBasePage;
+    using pdf::PDFAppHomeBasePage::getThumbnail;
+
+    virtual QString getTitle() const override { return QStringLiteral("Thumbnails"); }
+
+protected:
+    virtual void refresh() override { }
+};
+
+void AppHomeTest::thumbnailCacheLru()
+{
+    HomeFixture fixture;
+    pdf::PDFDatabase* database = fixture.context->getDatabase();
+    const QByteArray png = HomeTestHelper::createPng(Qt::blue, QSize(4, 4));
+    constexpr int count = pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS + 20;
+    {
+        pdf::PDFDatabaseStatement statement(database->getConnection(),
+            "INSERT INTO recent_file(path, name, folder, last_opened, thumbnail, thumbnail_mtime, thumbnail_state) VALUES (?1, 'f.pdf', '/lru', ?2, ?3, 5, 1)");
+        for (int i = 0; i < count; ++i)
+        {
+            statement.bindText(1, QStringLiteral("/lru/%1.pdf").arg(i));
+            statement.bindInt64(2, i + 1);
+            statement.bindBlob(3, png);
+            QVERIFY(statement.execute());
+            statement.reset();
+        }
+    }
+
+    ThumbnailTestPage page(fixture.context.get());
+    auto file = [&](int i) { return *fixture.recent().getFile(QStringLiteral("/lru/%1.pdf").arg(i)); };
+    const pdf::PDFRecentFile first = file(0);
+    const QPixmap firstPixmap = page.getThumbnail(first);
+    QVERIFY(!firstPixmap.isNull());
+    for (int i = 1; i < pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS; ++i)
+    {
+        QVERIFY(!page.getThumbnail(file(i)).isNull());
+    }
+    QCOMPARE(page.getThumbnailCacheSize(), pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS);
+
+    // The first one is used again (a shown row), then new pictures come: the least
+    // recently used ones go one by one, nothing is cleared at once
+    QCOMPARE(page.getThumbnail(first).cacheKey(), firstPixmap.cacheKey());
+    for (int i = pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS; i < count; ++i)
+    {
+        QVERIFY(!page.getThumbnail(file(i)).isNull());
+        QCOMPARE(page.getThumbnailCacheSize(), pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS);
+    }
+    QVERIFY(page.hasCachedThumbnail(first.path));
+    QCOMPARE(page.getThumbnail(first).cacheKey(), firstPixmap.cacheKey());
+    QVERIFY(!page.hasCachedThumbnail(QStringLiteral("/lru/1.pdf")));
+    QVERIFY(!page.hasCachedThumbnail(QStringLiteral("/lru/20.pdf")));
+    QVERIFY(page.hasCachedThumbnail(QStringLiteral("/lru/21.pdf")));
+    QVERIFY(page.hasCachedThumbnail(QStringLiteral("/lru/%1.pdf").arg(count - 1)));
+
+    // A new version of a thumbnail is decoded again in its place; a file without
+    // a thumbnail forgets its picture
+    pdf::PDFRecentFile changed = first;
+    changed.thumbnailModified = 6;
+    QVERIFY(page.getThumbnail(changed).cacheKey() != firstPixmap.cacheKey());
+    QCOMPARE(page.getThumbnailCacheSize(), pdf::PDFAppHomeBasePage::MAXIMUM_THUMBNAILS);
+    changed.hasThumbnail = false;
+    QVERIFY(page.getThumbnail(changed).isNull());
+    QVERIFY(!page.hasCachedThumbnail(first.path));
+}
+
+void AppHomeTest::focusAfterPin()
+{
+    HomeFixture fixture;
+    HomeTestHelper::fill(fixture);
+    fixture.navigate(QStringLiteral("/open"));
+    fixture.waitIdle();
+    pdf::PDFAppOpenPage* page = fixture.page<pdf::PDFAppOpenPage>();
+
+    // Space on the star of a recent row pins it: the rows are rebuilt, the focus
+    // returns to the star of the row of the same file in the same list
+    pdf::PDFRecentFileRow* row = nullptr;
+    for (pdf::PDFRecentFileRow* candidate : page->getRecentFileRows())
+    {
+        row = (!row && !candidate->isPinned()) ? candidate : row;
+    }
+    QVERIFY(row);
+    const QString path = row->property("pdf4qtPath").toString();
+    QWidget* container = row->parentWidget();
+    QPointer<pdf::PDFRecentFileRow> oldRow = row;
+    row->getStarButton()->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(row->getStarButton(), Qt::Key_Space);
+    fixture.waitIdle();
+    QVERIFY(fixture.recent().getFile(path)->pinned);
+    QVERIFY(!oldRow || !oldRow->isVisible());
+
+    QWidget* focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QVERIFY(qobject_cast<pdf::PDFStarButton*>(focus));
+    QWidget* focusedRow = focus->parentWidget();
+    QVERIFY(focusedRow);
+    QCOMPARE(focusedRow->property("pdf4qtPath").toString(), path);
+    QCOMPARE(focusedRow->parentWidget(), container);
+    QVERIFY(focusedRow->isVisible());
+
+    // Space again unpins it, the focus stays on the same item
+    QTest::keyClick(focus, Qt::Key_Space);
+    fixture.waitIdle();
+    QVERIFY(!fixture.recent().getFile(path)->pinned);
+    focus = QApplication::focusWidget();
+    QVERIFY(qobject_cast<pdf::PDFStarButton*>(focus));
+    QCOMPARE(focus->parentWidget()->property("pdf4qtPath").toString(), path);
+
+    // A row focused itself (not its star) keeps the focus on the row
+    row = page->getRecentFileRows()[0];
+    const QString rowPath = row->property("pdf4qtPath").toString();
+    row->setFocus(Qt::TabFocusReason);
+    QVERIFY(!fixture.recent().setPinned(rowPath, !fixture.recent().getFile(rowPath)->pinned).isError());
+    fixture.waitIdle();
+    focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QCOMPARE(focus->property("pdf4qtPath").toString(), rowPath);
+
+    // An item, which is gone (removed by another connection), leaves the focus alone
+    QVERIFY(!fixture.recent().removeFile(rowPath).isError());
+    fixture.waitIdle();
+    focus = QApplication::focusWidget();
+    QVERIFY(!focus || focus->property("pdf4qtPath").toString() != rowPath);
+
+    // Recent: the current item of the list survives the reset of the model by a pin
+    fixture.navigate(QStringLiteral("/recent?filter=files"));
+    fixture.waitIdle();
+    pdf::PDFAppRecentPage* recent = fixture.page<pdf::PDFAppRecentPage>();
+    pdf::PDFAppRecentModel* model = recent->getModel();
+    int fileRow = -1;
+    for (int i = 0; i < model->rowCount() && fileRow < 0; ++i)
+    {
+        const pdf::PDFAppRecentItem* item = model->getItem(i);
+        fileRow = (item->type == pdf::PDFAppRecentItem::Type::File && !item->isPinned) ? i : -1;
+    }
+    QVERIFY(fileRow >= 0);
+    const QString filePath = model->getItem(fileRow)->item.path;
+    QAbstractItemView* view = recent->findChild<QAbstractItemView*>(QStringLiteral("historyList"));
+    QVERIFY(view);
+    view->setFocus(Qt::TabFocusReason);
+    view->setCurrentIndex(model->index(fileRow, 0));
+    // The model asks the page (it changes after the notification, setData says false)
+    QVERIFY(!model->setData(model->index(fileRow, 0), true, pdf::PDFComponentRoles::PinnedRole));
+    fixture.waitIdle();
+    QVERIFY(fixture.recent().getFile(filePath)->pinned);
+    QVERIFY(view->currentIndex().isValid());
+    QCOMPARE(model->getItem(view->currentIndex().row())->item.path, filePath);
+    QCOMPARE(model->findItem(pdf::PDFAppRecentItem::Type::File, filePath, 0), view->currentIndex().row());
+    QCOMPARE(model->findItem(pdf::PDFAppRecentItem::Type::Folder, filePath, 0), -1);
+}
+
+void AppHomeTest::homeEmptyStates()
+{
+    HomeFixture fixture;
+    fixture.hideBanner();
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.waitIdle();
+    pdf::PDFAppHomePage* page = fixture.page<pdf::PDFAppHomePage>();
+    QVERIFY(page);
+
+    // The small empty states of the list cards (scale of 955:142865)
+    struct Case
+    {
+        pdf::PDFAppEmptyState* state;
+        const char* title;
+        const char* text;
+    };
+    const Case cases[] = {
+        { page->getRecentFilesEmptyState(), "No recent documents", "Documents you open appear here." },
+        { page->getRecentToolsEmptyState(), "No recent tools", "Tools you use appear here." },
+    };
+    for (const Case& emptyCase : cases)
+    {
+        pdf::PDFAppEmptyState* state = emptyCase.state;
+        QVERIFY(state);
+        QVERIFY(state->isVisible());
+        QCOMPARE(state->getSize(), pdf::PDFAppEmptyState::Size::Small);
+        QCOMPARE(state->getTitle(), QString::fromLatin1(emptyCase.title));
+        QCOMPARE(state->getText(), QString::fromLatin1(emptyCase.text));
+        QCOMPARE(state->accessibleName(), QString::fromLatin1(emptyCase.title));
+        QVERIFY(!state->getBrowseButton());
+
+        // Geometry: the circle 40 centered 20 below the top, the title 12 below it
+        QWidget* icon = state->getIcon();
+        QCOMPARE(icon->size(), QSize(pdf::PDFAppEmptyState::SMALL_CIRCLE, pdf::PDFAppEmptyState::SMALL_CIRCLE));
+        QCOMPARE(icon->y(), 20);
+        QVERIFY(qAbs(icon->geometry().center().x() - state->rect().center().x()) <= 1);
+        QWidget* title = state->findChild<QWidget*>(QStringLiteral("emptyTitle"));
+        QWidget* text = state->findChild<QWidget*>(QStringLiteral("emptyText"));
+        QVERIFY(title && text);
+        QCOMPARE(title->y(), icon->geometry().bottom() + 1 + 12);
+        QCOMPARE(text->y(), title->geometry().bottom() + 1 + 4);
+        QVERIFY(text->width() <= 280);
+        QVERIFY(state->height() >= text->geometry().bottom() + 1 + 20 - 1);
+    }
+
+    // Pixels in both themes: the circle of the neutral hue, no leak color
+    for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        HomeFixture::settle();
+        for (const Case& emptyCase : cases)
+        {
+            for (qreal ratio : { 1.0, 2.0 })
+            {
+                const QImage image = HomeTestHelper::render(emptyCase.state, ratio);
+                const QWidget* icon = emptyCase.state->getIcon();
+                const QColor fill = HomeTestHelper::pixel(image, icon->mapTo(emptyCase.state, QPoint(8, icon->height() / 2)));
+                const QColor expected = HomeTestHelper::token(pdf::PDFThemeColors::AccentNeutralBg);
+                QVERIFY2(HomeTestHelper::isClose(fill, expected, 6), qPrintable(fill.name() + QLatin1Char(' ') + expected.name()));
+                QCOMPARE(HomeTestHelper::countLeakPixels(image), 0);
+            }
+        }
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // Data: the empty states go, the rows come
+    HomeTestHelper::fill(fixture);
+    fixture.waitIdle();
+    page = fixture.page<pdf::PDFAppHomePage>();
+    QVERIFY(page->getRecentFilesEmptyState()->isHidden());
+    QVERIFY(page->getRecentToolsEmptyState()->isHidden());
+
+    // The large variant keeps its layout (Recent)
+    pdf::PDFAppEmptyState large;
+    QCOMPARE(large.getSize(), pdf::PDFAppEmptyState::Size::Large);
+    QVERIFY(large.getBrowseButton());
+    QCOMPARE(large.getIcon()->sizeHint(), QSize(72, 72));
 }
 
 void AppHomeTest::recentModel_data()

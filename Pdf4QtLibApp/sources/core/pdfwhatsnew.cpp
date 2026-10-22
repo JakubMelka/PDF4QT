@@ -711,6 +711,12 @@ QVersionNumber PDFWhatsNewCatalog::parseFileName(const QString& fileName, QStrin
     return translatedVersion;
 }
 
+std::shared_ptr<const PDFWhatsNewCatalog> PDFWhatsNewCatalog::getBuiltin()
+{
+    static const std::shared_ptr<const PDFWhatsNewCatalog> catalog = std::make_shared<const PDFWhatsNewCatalog>(load());
+    return catalog;
+}
+
 PDFWhatsNewCatalog PDFWhatsNewCatalog::load(const QString& directory)
 {
     return load(directory, createDefaultOptions());

@@ -231,6 +231,19 @@ const PDFAppRecentItem* PDFAppRecentModel::getItem(int row) const
     return row >= 0 && row < int(m_items.size()) ? &m_items[size_t(row)] : nullptr;
 }
 
+int PDFAppRecentModel::findItem(PDFAppRecentItem::Type type, const QString& path, qint64 id) const
+{
+    for (size_t i = 0; i < m_items.size(); ++i)
+    {
+        const PDFAppRecentItem& item = m_items[i];
+        if (item.type == type && item.type != PDFAppRecentItem::Type::Header && item.item.path == path && item.item.id == id)
+        {
+            return int(i);
+        }
+    }
+    return -1;
+}
+
 void PDFAppRecentModel::setMissing(const QString& path, bool isMissing)
 {
     for (size_t i = 0; i < m_items.size(); ++i)
@@ -959,9 +972,23 @@ void PDFAppRecentPage::refreshList()
         std::stable_sort(items.begin(), items.end(), PDFAppRecentPageHelper::Comparator(&collator, m_sort == PDFRecentSort::Folder));
     }
 
+    // The current item of the list (the keyboard) survives a reset of the model - a
+    // pin by the keyboard changes the item and the model is reset
+    const PDFAppRecentItem* current = m_model && m_listView ? m_model->getItem(m_listView->currentIndex().row()) : nullptr;
+    const std::optional<PDFAppRecentItem> currentItem = current ? std::optional<PDFAppRecentItem>(*current) : std::nullopt;
+
     if (m_model)
     {
         m_model->setItems(std::move(items));
+    }
+
+    if (currentItem && m_model && m_listView && !m_listView->currentIndex().isValid())
+    {
+        const int row = m_model->findItem(currentItem->type, currentItem->item.path, currentItem->item.id);
+        if (row >= 0)
+        {
+            m_listView->setCurrentIndex(m_model->index(row, 0));
+        }
     }
 
     // The pinned cards are shown in All without a search (Pinned shows them as the list)
@@ -1123,10 +1150,17 @@ void PDFAppRecentPage::refreshContinue()
     }
 
     // The first file in progress, which exists (asked by the folder information
-    // service); unknown files before it are waited for
+    // service); unknown files before it are waited for. A file on the network is
+    // not checked by the page: it is shown (opening it checks it)
     const PDFRecentFile* shown = nullptr;
     for (const PDFRecentFile& file : m_continueCandidates)
     {
+        if (isNetworkPath(file.path))
+        {
+            shown = &file;
+            break;
+        }
+
         requestPathInfo(file.path);
         const std::optional<PDFAppFolderInfo> info = getPathInfo(file.path);
         if (!info || info->pdfCount == -2)

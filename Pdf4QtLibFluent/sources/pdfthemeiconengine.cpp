@@ -303,6 +303,11 @@ QIcon PDFThemeIcons::getBadgeIcon(Badge badge)
 
 void PDFThemeIcons::paintBadge(QPainter* painter, const QRectF& rect, Badge badge)
 {
+    paintBadge(painter, rect, badge, QString());
+}
+
+void PDFThemeIcons::paintBadge(QPainter* painter, const QRectF& rect, Badge badge, const QString& iconName)
+{
     if (!painter || rect.isEmpty())
     {
         return;
@@ -338,6 +343,11 @@ void PDFThemeIcons::paintBadge(QPainter* painter, const QRectF& rect, Badge badg
             foreground = PDFThemeColors::AccentGreenIcon;
             name = QStringLiteral("check");
             break;
+
+        case Badge::Neutral:
+            background = PDFThemeColors::AccentNeutralBg;
+            foreground = PDFThemeColors::AccentNeutralIcon;
+            break;
     }
 
     const PDFThemeColors& theme = PDFThemeManager::getInstance()->getTheme();
@@ -354,6 +364,12 @@ void PDFThemeIcons::paintBadge(QPainter* painter, const QRectF& rect, Badge badg
         painter->setPen(Qt::NoPen);
         painter->setBrush(theme.getColor(background));
         painter->drawEllipse(circle);
+    }
+
+    // Another icon of the design in the colors of the badge (an unknown name keeps the icon of the badge)
+    if (hasIcon(iconName))
+    {
+        name = iconName;
     }
 
     paint(painter, iconRect, name, theme.getColor(foreground));

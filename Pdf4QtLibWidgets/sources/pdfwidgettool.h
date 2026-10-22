@@ -296,6 +296,23 @@ public:
     ///        is returned.
     QString getSelectedText(const std::vector<PDFInteger>& pageIndices = std::vector<PDFInteger>()) const;
 
+    /// Copies the selected text to the clipboard (nothing, if the tool is not
+    /// active, nothing is selected or the document does not allow copying)
+    void copyText();
+
+    /// Selects the whole text of the document (only an active tool)
+    void selectAll();
+
+    /// Clears the selection (only an active tool)
+    void deselect();
+
+    /// Some text is selected
+    bool hasSelection() const { return !m_textSelection.isEmpty(); }
+
+signals:
+    /// The selection has changed (hasSelection, getSelectedText)
+    void selectionChanged();
+
 protected:
     virtual void setActiveImpl(bool active) override;
     virtual void updateActions() override;
@@ -604,6 +621,14 @@ public:
     /// \param parentDialog Paret dialog for tool dialog
     explicit PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObject* parent, QWidget* parentDialog);
 
+    /// Constructs the tool manager without actions and without the find dialog
+    /// (the new application: the commands of the application drive the tools by
+    /// setActiveTool and by the functions of the tools; getFindTextTool returns
+    /// nullptr). The tools never touch an action, when they have none.
+    /// \param proxy Draw widget proxy
+    /// \param parent Parent object
+    explicit PDFToolManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+
     /// Sets document
     /// \param document Document
     void setDocument(const PDFModifiedDocument& document);
@@ -623,6 +648,13 @@ public:
 
     /// Sets active tool
     void setActiveTool(PDFWidgetTool* tool);
+
+    /// Sets the predefined tool active (ToolEnd = no tool is active)
+    void setActiveTool(PredefinedTools tool);
+
+    /// Returns the predefined tool (nullptr for ToolEnd and for the find tool of
+    /// the manager without actions)
+    PDFWidgetTool* getPredefinedTool(PredefinedTools tool) const;
 
     /// Adds a new tool to tool manager
     void addTool(PDFWidgetTool* tool);
@@ -707,7 +739,11 @@ signals:
     /// \param documet Modified document
     void documentModified(pdf::PDFModifiedDocument document);
 
+    /// The active tool has changed (nullptr = no tool is active)
+    void activeToolChanged(pdf::PDFWidgetTool* tool);
+
 private:
+    void createPredefinedTools(PDFDrawWidgetProxy* proxy, const Actions& actions, QWidget* parentDialog, bool createFindTool);
     void onToolActivityChanged(bool active);
     void onToolActionTriggered(bool checked);
     void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);

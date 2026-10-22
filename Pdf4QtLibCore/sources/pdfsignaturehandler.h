@@ -326,6 +326,15 @@ public:
 
     virtual PDFSignatureVerificationResult verify() const = 0;
 
+    /// When the bundled AATL certificates (PDFCertificateStore::getAATLCertificates)
+    /// are trusted
+    enum class AATLCertificates
+    {
+        WithSystemStore,    ///< Only together with the system store (useSystemCertificateStore) - the old applications
+        Always,             ///< Always, also without the system store (the new application, O15)
+        Never               ///< Never
+    };
+
     struct Parameters
     {
         const PDFCertificateStore* store = nullptr;
@@ -333,6 +342,7 @@ public:
         bool enableVerification = true;
         bool ignoreExpirationDate = false;
         bool useSystemCertificateStore = true;
+        AATLCertificates aatlCertificates = AATLCertificates::WithSystemStore;
     };
 
     /// Tries to verify all signatures in the form. If form is invalid, then

@@ -176,7 +176,9 @@ private:
 /// large variant has the icon, the title, the text, Browse Files… and the hint,
 /// the compact one (below the recent files of Home) the icon and a line. The
 /// files are dropped onto the window (PDFAppMainWindow takes the drop), the
-/// area only shows where.
+/// area only shows where. While local files are dragged over the window, the
+/// window makes its areas active: bg/accent-subtle with the dashed border in the
+/// accent color (bg/accent), the drop target is seen at once.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDropZone : public QWidget
 {
     Q_OBJECT
@@ -202,6 +204,10 @@ public:
     /// Text of the shortcut of the hint ("Ctrl+O"), empty = the hint shows the filter only
     void setShortcutText(const QString& text);
 
+    /// Files are dragged over the window (the area is highlighted)
+    bool isDropActive() const { return m_isDropActive; }
+    void setDropActive(bool isActive);
+
 Q_SIGNALS:
     void browseRequested();
 
@@ -212,6 +218,7 @@ private:
     void updateHint();
 
     Variant m_variant;
+    bool m_isDropActive = false;
     QString m_shortcutText;
     QPointer<QPushButton> m_browseButton;
     QPointer<PDFLabel> m_hint;
@@ -305,6 +312,13 @@ private:
 
 /// Empty state of the Recent list (pdf4qt-recent-empty 955:142865; a frame, not
 /// a component): the icon clock in a circle, the title, the text and Browse Files…
+///
+/// The small variant is the empty state of a list card of Home (Recent Files,
+/// Recent Tools; no frame in Figma, derived from 955:142865 by the scale of the
+/// card): the icon circle 40 (bg/subtle, icon 20 icon/muted - PDFIconBadge
+/// Neutral), gap 12, the title Semi Bold 14 text/primary, gap 4, the hint
+/// Regular 12 (line 17) text/tertiary at most 280 wide, centered, the padding 20
+/// above and below, no button.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppEmptyState : public QWidget
 {
     Q_OBJECT
@@ -313,8 +327,22 @@ private:
     using BaseClass = QWidget;
 
 public:
+    enum class Size
+    {
+        Large,  ///< Recent (955:142865): circle 72, title Bold 22, text 14, Browse Files…
+        Small   ///< List card of Home: circle 40, title Semi Bold 14, hint 12, no button
+    };
+
+    /// Extent of the icon circle and of its icon of the small variant
+    static constexpr int SMALL_CIRCLE = 40;
+    static constexpr int SMALL_ICON = 20;
+
     explicit PDFAppEmptyState(QWidget* parent = nullptr);
+    PDFAppEmptyState(Size size, const QString& iconName, QWidget* parent = nullptr);
     virtual ~PDFAppEmptyState() override;
+
+    Size getSize() const { return m_size; }
+    QWidget* getIcon() const { return m_icon; }
 
     void setTexts(const QString& title, const QString& text);
     QString getTitle() const;
@@ -326,6 +354,8 @@ Q_SIGNALS:
     void browseRequested();
 
 private:
+    Size m_size = Size::Large;
+    QPointer<QWidget> m_icon;
     QPointer<PDFLabel> m_title;
     QPointer<PDFAppParagraph> m_text;
     QPointer<QPushButton> m_browseButton;
