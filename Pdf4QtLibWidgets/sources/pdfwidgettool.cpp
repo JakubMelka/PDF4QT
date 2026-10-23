@@ -797,6 +797,18 @@ void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 
     if (event->button() == Qt::LeftButton)
     {
+        // A link is followed by the annotation manager, which gets the press after
+        // the tools (the press is not accepted, the selection stays)
+        if (m_isLinksClickable && event->modifiers() == Qt::NoModifier)
+        {
+            const PDFWidgetAnnotationManager* annotationManager = getProxy()->getAnnotationManager();
+            if (annotationManager && annotationManager->getLinkActionAt(event->pos()))
+            {
+                m_selectionInfo = SelectionInfo();
+                return;
+            }
+        }
+
         QPointF pagePoint;
         const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
         if (pageIndex != -1)
@@ -1098,17 +1110,39 @@ void PDFToolManager::setDocument(const PDFModifiedDocument& document)
 
 void PDFToolManager::setActiveTool(PDFWidgetTool* tool)
 {
+    // The switch is one change of the activity (no transient "no tool")
+    ++m_activityChangeNesting;
+
     PDFWidgetTool* activeTool = getActiveTool();
     if (activeTool && activeTool != tool)
     {
         activeTool->setActive(false);
     }
 
-    Q_ASSERT(!getActiveTool());
+    Q_ASSERT(!getActiveTool() || getActiveTool() == tool);
 
     if (tool)
     {
         tool->setActive(true);
+    }
+
+    --m_activityChangeNesting;
+    notifyActiveTool();
+}
+
+void PDFToolManager::notifyActiveTool()
+{
+    if (m_activityChangeNesting > 0)
+    {
+        return;
+    }
+
+    // Nothing of the manager is used after the emission (a slot may delete it)
+    PDFWidgetTool* activeTool = getActiveTool();
+    if (activeTool != m_notifiedActiveTool)
+    {
+        m_notifiedActiveTool = activeTool;
+        Q_EMIT activeToolChanged(activeTool);
     }
 }
 
@@ -1258,6 +1292,9 @@ void PDFToolManager::onToolActivityChanged(bool active)
 {
     PDFWidgetTool* tool = qobject_cast<PDFWidgetTool*>(sender());
 
+    // The deactivation of the other tools below is a part of this change
+    ++m_activityChangeNesting;
+
     if (active)
     {
         // When tool is activated outside, we must deactivate old active tool
@@ -1282,8 +1319,8 @@ void PDFToolManager::onToolActivityChanged(bool active)
         }
     }
 
-    // Nothing of the manager is used after the emission (a slot may delete it)
-    Q_EMIT activeToolChanged(getActiveTool());
+    --m_activityChangeNesting;
+    notifyActiveTool();
 }
 
 void PDFToolManager::onToolActionTriggered(bool checked)

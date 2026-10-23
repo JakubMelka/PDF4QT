@@ -2380,11 +2380,16 @@ void AppSearchTest::popupDocumentAndVideo()
     QTest::keyClick(fixture.field(), Qt::Key_Return);
     SearchFixture::settle();
     QCOMPARE(fixture.window->getRequestedFiles().size(), 1);
-    for (QDialog* dialog : fixture.window->findChildren<QDialog*>())
+
+    // The file does not exist: the dialog open-failed comes after the reading of the
+    // document tab (a worker thread), it would take the keys of the field below
+    QTRY_VERIFY(QApplication::activeModalWidget());
+    for (int i = 0; i < 10 && qobject_cast<QDialog*>(QApplication::activeModalWidget()); ++i)
     {
-        dialog->reject();
+        qobject_cast<QDialog*>(QApplication::activeModalWidget())->reject();
+        SearchFixture::settle();
     }
-    SearchFixture::settle();
+    QVERIFY(!QApplication::activeModalWidget());
 
     // A video is an external address of the navigator
     QSignalSpy external(fixture.navigator(), &pdf::PDFAppNavigator::externalUrlOpened);
@@ -2795,8 +2800,24 @@ void AppSearchTest::emptyStateFillsColumn()
     QVERIFY(page);
     QVERIFY(!page->getEmptyState());
     QVERIFY(!page->getRows().isEmpty());
-    const QWidget* lastRow = page->getRows().back();
-    QVERIFY(page->getResultsCard()->height() - lastRow->mapTo(page->getResultsCard(), QPoint(0, lastRow->height())).y() <= 12);
+    // The last part of the card is the last row or the Show all (n) of the last group
+    // (which of them depends on the bundled catalogs, so both are taken)
+    QList<const QWidget*> parts;
+    for (const QWidget* row : page->getRows())
+    {
+        parts.append(row);
+    }
+    for (const QWidget* showAll : page->getShowAllButtons())
+    {
+        parts.append(showAll);
+    }
+    int contentBottom = 0;
+    for (const QWidget* part : parts)
+    {
+        contentBottom = qMax(contentBottom, part->mapTo(page->getResultsCard(), QPoint(0, part->height())).y());
+    }
+    const int cardHeight = page->getResultsCard()->height();
+    QVERIFY2(cardHeight - contentBottom >= 0 && cardHeight - contentBottom <= 12, qPrintable(QStringLiteral("%1 %2").arg(cardHeight).arg(contentBottom)));
 }
 
 void AppSearchTest::headerClearButton()

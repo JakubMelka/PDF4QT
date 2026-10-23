@@ -62,7 +62,6 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     m_pageItem->hide();
     connect(m_pageItem.data(), &QToolButton::clicked, this, &PDFAppDocumentStatusBar::pageItemClicked);
     m_layout->addWidget(m_pageItem);
-    ++m_leadingCount;
     m_layout->addStretch(1);
 
     m_messageTimer = new QTimer(this);
@@ -84,9 +83,18 @@ void PDFAppDocumentStatusBar::addItem(QWidget* item, Area area)
     item->setParent(this);
     if (area == Area::Leading)
     {
-        // After the message and the previous leading items, before the stretch
-        m_layout->insertWidget(1 + m_leadingCount, item);
-        ++m_leadingCount;
+        // After the message and the previous leading items, before the stretch (the
+        // items may have been deleted by their packages, so the stretch is searched)
+        int stretchIndex = m_layout->count();
+        for (int i = 0; i < m_layout->count(); ++i)
+        {
+            if (m_layout->itemAt(i) && m_layout->itemAt(i)->spacerItem())
+            {
+                stretchIndex = i;
+                break;
+            }
+        }
+        m_layout->insertWidget(stretchIndex, item);
     }
     else
     {

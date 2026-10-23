@@ -309,6 +309,14 @@ public:
     /// Some text is selected
     bool hasSelection() const { return !m_textSelection.isEmpty(); }
 
+    /// Links stay clickable while the tool is active: a press of the left button
+    /// without modifiers on a link (PDFWidgetAnnotationManager::getLinkActionAt) is
+    /// not taken by the tool, the annotation manager gets it and follows the link
+    /// at the release; a selection starts elsewhere. Off by default (the tools take
+    /// every press before the annotations, as the old applications expect).
+    bool isLinksClickable() const { return m_isLinksClickable; }
+    void setLinksClickable(bool linksClickable) { m_isLinksClickable = linksClickable; }
+
 signals:
     /// The selection has changed (hasSelection, getSelectedText)
     void selectionChanged();
@@ -336,6 +344,7 @@ private:
     pdf::PDFTextSelection m_textSelection;
     SelectionInfo m_selectionInfo;
     bool m_isCursorOverText;
+    bool m_isLinksClickable = false;
 };
 
 /// Tool to magnify specific area in the drawing widget
@@ -739,11 +748,15 @@ signals:
     /// \param documet Modified document
     void documentModified(pdf::PDFModifiedDocument document);
 
-    /// The active tool has changed (nullptr = no tool is active)
+    /// The active tool has changed (nullptr = no tool is active). It is emitted
+    /// once, after the manager has finished the change (a switch from one tool
+    /// to another one is one signal with the new tool), and only when the active
+    /// tool differs from the last emitted one.
     void activeToolChanged(pdf::PDFWidgetTool* tool);
 
 private:
     void createPredefinedTools(PDFDrawWidgetProxy* proxy, const Actions& actions, QWidget* parentDialog, bool createFindTool);
+    void notifyActiveTool();
     void onToolActivityChanged(bool active);
     void onToolActionTriggered(bool checked);
     void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
@@ -754,6 +767,11 @@ private:
     std::map<QAction*, PDFWidgetTool*> m_actionsToTools;
     std::function<void(PDFInteger, QRectF)> m_pickRectangleCallback;
     std::function<void(PDFInteger)> m_pickPageCallback;
+
+    /// Depth of the changes of the activity in progress (activeToolChanged is
+    /// emitted by the outermost one) and the tool of the last emission
+    int m_activityChangeNesting = 0;
+    PDFWidgetTool* m_notifiedActiveTool = nullptr;
 };
 
 }   // namespace pdf

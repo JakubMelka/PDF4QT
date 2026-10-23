@@ -61,9 +61,11 @@ bool PDFTrustedCertificateRepository::isValidCertificate(const QByteArray& data)
 
 std::vector<PDFTrustedCertificate> PDFTrustedCertificateRepository::getCertificates() const
 {
+    // Rows, which cannot be a certificate (another type, an empty or a huge value),
+    // do not take a place of the limit; addCertificate keeps the rows below it
     std::vector<PDFTrustedCertificate> certificates;
-    PDFDatabaseStatement statement(getConnection(), "SELECT id, CASE WHEN typeof(data) = 'blob' AND length(data) <= 65536 THEN data END, added FROM trusted_certificate "
-                                                    "ORDER BY id LIMIT 1000");
+    PDFDatabaseStatement statement(getConnection(), "SELECT id, data, added FROM trusted_certificate "
+                                                    "WHERE typeof(data) = 'blob' AND length(data) BETWEEN 1 AND 65536 ORDER BY id LIMIT 1000");
     while (statement.next())
     {
         PDFTrustedCertificate certificate;
@@ -86,14 +88,22 @@ std::vector<PDFTrustedCertificate> PDFTrustedCertificateRepository::getCertifica
 
 bool PDFTrustedCertificateRepository::contains(const QByteArray& data) const
 {
-    for (const PDFTrustedCertificate& certificate : getCertificates())
+    // A row of the table, also one behind the limit of getCertificates (no
+    // duplicate rows are added)
+    if (!isValidCertificate(data))
     {
-        if (certificate.data == data)
-        {
-            return true;
-        }
+        return false;
     }
-    return false;
+
+    PDFDatabaseStatement statement(getConnection(), "SELECT 1 FROM trusted_certificate WHERE typeof(data) = 'blob' AND data = ?1 LIMIT 1");
+    statement.bindBlob(1, data);
+    return statement.next();
+}
+
+int PDFTrustedCertificateRepository::getCertificateRowCount() const
+{
+    PDFDatabaseStatement statement(getConnection(), "SELECT count(*) FROM trusted_certificate WHERE typeof(data) = 'blob' AND length(data) BETWEEN 1 AND 65536");
+    return statement.next() ? int(PDFRepositoryHelper::readInteger(statement, 0, 0, 0, std::numeric_limits<int>::max())) : 0;
 }
 
 PDFDatabaseError PDFTrustedCertificateRepository::addCertificate(const QByteArray& data)
@@ -113,6 +123,12 @@ PDFDatabaseError PDFTrustedCertificateRepository::addCertificate(const QByteArra
     if (contains(data))
     {
         return PDFDatabaseError();
+    }
+
+    // A certificate behind the limit would never be read by the verification
+    if (getCertificateRowCount() >= MAXIMUM_CERTIFICATE_COUNT)
+    {
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFTrustedCertificateRepository", "Too many certificates are trusted already (at most %1).").arg(MAXIMUM_CERTIFICATE_COUNT));
     }
 
     PDFDatabaseStatement statement(connection, "INSERT INTO trusted_certificate(data, added) VALUES (?1, ?2)");

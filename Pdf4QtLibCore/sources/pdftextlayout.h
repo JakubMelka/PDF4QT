@@ -360,14 +360,33 @@ public:
     };
     Q_DECLARE_FLAGS(FlowFlags, FlowFlag)
 
+    /// Maximal number of the characters of the line taken into the context of an
+    /// occurrence before it and after it (a hostile page may have a single line of
+    /// millions of characters: the contexts of its occurrences would take the whole
+    /// line each, in memory and in time)
+    static constexpr size_t MAXIMUM_CONTEXT_LENGTH = 256;
+
     /// Finds simple text in current text flow. All text occurences are returned.
     /// \param text Text to be found
     /// \param caseSensitivity Case sensitivity
     PDFFindResults find(const QString& text, Qt::CaseSensitivity caseSensitivity) const;
 
+    /// Finds simple text in current text flow, at most \p maximumResults occurrences
+    /// (the first ones) are returned.
+    /// \param text Text to be found
+    /// \param caseSensitivity Case sensitivity
+    /// \param maximumResults Maximal number of the occurrences
+    PDFFindResults find(const QString& text, Qt::CaseSensitivity caseSensitivity, size_t maximumResults) const;
+
     /// Finds regular expression matches in current text flow. All text occurences are returned.
     /// \param expression Regular expression to be matched
     PDFFindResults find(const QRegularExpression& expression) const;
+
+    /// Finds regular expression matches in current text flow, at most \p maximumResults
+    /// occurrences (the first ones) are returned.
+    /// \param expression Regular expression to be matched
+    /// \param maximumResults Maximal number of the occurrences
+    PDFFindResults find(const QRegularExpression& expression, size_t maximumResults) const;
 
     /// Returns whole text for this text flow
     QString getText() const { return m_text; }
@@ -400,7 +419,9 @@ private:
     /// \param length Length of text selection
     PDFTextSelectionItems getTextSelectionItems(size_t index, size_t length) const;
 
-    /// Returns context for text selection (or empty string, if text selection is empty)
+    /// Returns context for text selection (or empty string, if text selection is empty):
+    /// the line of the selection, at most MAXIMUM_CONTEXT_LENGTH characters before
+    /// it and after it
     /// \param index Index of text selection subrange
     /// \param length Length of text selection
     /// \param[out] matchStart Position of the text selection in the context (optional)

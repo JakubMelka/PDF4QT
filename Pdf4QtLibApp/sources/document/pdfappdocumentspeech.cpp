@@ -61,8 +61,62 @@ class PDFAppDocumentSpeechHelper
 public:
     PDFAppDocumentSpeechHelper() = delete;
 
-    /// Maximal length of one said block (a block of a damaged page may be huge)
+    /// Maximal length of one said part of a block (a block of a damaged page may be
+    /// huge, a longer block is said in more parts)
     static constexpr qsizetype MAXIMUM_BLOCK_LENGTH = 4000;
+
+    /// Splits the simplified text of a block into parts of at most \p maximumLength
+    /// characters: after the end of a sentence, otherwise at a space, otherwise
+    /// (one long word) at the limit; nothing of the text is left out
+    static QStringList splitText(const QString& text, qsizetype maximumLength)
+    {
+        QStringList parts;
+        qsizetype start = 0;
+        while (start < text.size())
+        {
+            qsizetype end = text.size();
+            if (end - start > maximumLength)
+            {
+                end = start + maximumLength;
+                qsizetype sentenceEnd = -1;
+                qsizetype space = -1;
+                for (qsizetype i = end; i > start; --i)
+                {
+                    if (text.at(i) == QLatin1Char(' '))
+                    {
+                        if (space < 0)
+                        {
+                            space = i;
+                        }
+                        const QChar previous = text.at(i - 1);
+                        if (previous == QLatin1Char('.') || previous == QLatin1Char('!') || previous == QLatin1Char('?'))
+                        {
+                            sentenceEnd = i;
+                            break;
+                        }
+                    }
+                }
+
+                // A sentence end in the second half of the part, otherwise a space
+                if (sentenceEnd > start + maximumLength / 2)
+                {
+                    end = sentenceEnd;
+                }
+                else if (space > start)
+                {
+                    end = space;
+                }
+            }
+
+            const QString part = text.mid(start, end - start).trimmed();
+            if (!part.isEmpty())
+            {
+                parts << part;
+            }
+            start = end;
+        }
+        return parts;
+    }
 
     /// Steps of the sliders (Rate and Pitch -1 to 1, Volume 0 to 1)
     static constexpr int SLIDER_STEPS = 100;
@@ -547,15 +601,28 @@ void PDFAppDocumentSpeechController::play()
         return;
     }
 
+    // The engine and the indexer announce their states at once (engine
+    // stateChanged, indexer buildingChanged): a slot may delete the tab
+    QPointer<PDFAppDocumentSpeechController> guard(this);
     switch (m_state)
     {
         case State::Paused:
             m_engine->resume();
-            setState(State::Reading);
+            if (guard)
+            {
+                setState(State::Reading);
+            }
             break;
 
         case State::Stopped:
-            if (m_indexer && m_indexer->requestIndex())
+        {
+            const bool isIndexReady = m_indexer && m_indexer->requestIndex();
+            if (!guard)
+            {
+                return;
+            }
+
+            if (isIndexReady)
             {
                 startReading();
             }
@@ -564,6 +631,7 @@ void PDFAppDocumentSpeechController::play()
                 setState(State::Preparing);
             }
             break;
+        }
 
         default:
             break;
@@ -574,24 +642,32 @@ void PDFAppDocumentSpeechController::pause()
 {
     if (m_state == State::Reading && m_engine)
     {
+        QPointer<PDFAppDocumentSpeechController> guard(this);
         m_engine->pause();
-        setState(State::Paused);
+        if (guard)
+        {
+            setState(State::Paused);
+        }
     }
 }
 
 void PDFAppDocumentSpeechController::stop()
 {
     m_isSpeakingBlock = false;
+    QPointer<PDFAppDocumentSpeechController> guard(this);
     if (m_engine)
     {
         m_engine->stop();
+        if (!guard)
+        {
+            return;
+        }
     }
     m_blocks.clear();
     m_blockIndex = -1;
     m_currentText.clear();
     m_spokenLength = 0;
 
-    QPointer<PDFAppDocumentSpeechController> guard(this);
     setState(State::Stopped);
     if (guard)
     {
@@ -605,8 +681,10 @@ void PDFAppDocumentSpeechController::startReading()
     m_blocks.clear();
     m_blockIndex = -1;
     m_currentPage = startPage - 1;
+
+    QPointer<PDFAppDocumentSpeechController> guard(this);
     setState(State::Reading);
-    if (m_state == State::Reading)
+    if (guard && m_state == State::Reading)
     {
         speakNext();
     }
@@ -629,15 +707,8 @@ bool PDFAppDocumentSpeechController::loadPage(PDFInteger pageIndex)
                                                             pageIndex);
     for (const PDFTextFlow& flow : flows)
     {
-        QString text = flow.getText().simplified();
-        if (text.size() > PDFAppDocumentSpeechHelper::MAXIMUM_BLOCK_LENGTH)
-        {
-            text.truncate(PDFAppDocumentSpeechHelper::MAXIMUM_BLOCK_LENGTH);
-        }
-        if (!text.isEmpty())
-        {
-            m_blocks << text;
-        }
+        // A long block is said in parts (none of its text is left out)
+        m_blocks << PDFAppDocumentSpeechHelper::splitText(flow.getText().simplified(), PDFAppDocumentSpeechHelper::MAXIMUM_BLOCK_LENGTH);
     }
     return true;
 }
@@ -673,8 +744,14 @@ void PDFAppDocumentSpeechController::speakNext()
     m_currentText = m_blocks[m_blockIndex];
     m_spokenLength = 0;
     m_isSpeakingBlock = true;
+
+    // The engine may announce its state at once (a slot may delete the tab)
+    QPointer<PDFAppDocumentSpeechController> guard(this);
     m_engine->say(m_currentText);
-    Q_EMIT textChanged();
+    if (guard)
+    {
+        Q_EMIT textChanged();
+    }
 }
 
 void PDFAppDocumentSpeechController::onEngineStateChanged()
@@ -885,7 +962,8 @@ PDFAppDocumentSpeechPanel::PDFAppDocumentSpeechPanel(QWidget* parent) :
     PDFWidgetStyleProperties::set(m_playButton, PDFWidgetStyleProperties::PRIMARY);
     m_pauseButton = Helper::createToolButton(QStringLiteral("speechPause"), QStringLiteral("pause"), this);
     m_stopButton = Helper::createToolButton(QStringLiteral("speechStop"), QStringLiteral("stop"), this);
-    m_followButton = Helper::createToolButton(QStringLiteral("speechFollow"), QStringLiteral("sync-view"), this);
+    // speech-sync of 195:2499: icon/locate, as thumbnail-sync of the thumbnails
+    m_followButton = Helper::createToolButton(QStringLiteral("speechFollow"), QStringLiteral("locate"), this);
     m_followButton->setCheckable(true);
     transport->addWidget(m_playButton);
     transport->addWidget(m_pauseButton);
@@ -1127,13 +1205,13 @@ void PDFAppDocumentSpeechPanel::updateText()
     m_nowReadingLabel->setText(tr("Now reading · page %1").arg(m_controller->getCurrentPage() + 1));
 
     // The spoken part text/primary, the rest text/muted (the text is data of the
-    // document: escaped)
+    // document: escaped); the lines are 18 px apart (now-reading text of 195:2499)
     const QString& text = m_controller->getCurrentText();
     const qsizetype spoken = qBound(qsizetype(0), m_controller->getSpokenLength(), text.size());
     const PDFThemeManager* manager = PDFThemeManager::getInstance();
     const QString primary = manager->getColor(PDFThemeColors::TextPrimary).name();
     const QString muted = manager->getColor(PDFThemeColors::TextMuted).name();
-    const QString html = QStringLiteral("<span style=\"color:%1\">%2</span><span style=\"color:%3\">%4</span>")
+    const QString html = QStringLiteral("<p style=\"margin:0; line-height:18px\"><span style=\"color:%1\">%2</span><span style=\"color:%3\">%4</span></p>")
                              .arg(primary, text.left(spoken).toHtmlEscaped(), muted, text.mid(spoken).toHtmlEscaped());
     m_textLabel->setText(html);
     m_textLabel->setAccessibleName(text);

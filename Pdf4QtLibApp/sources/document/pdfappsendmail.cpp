@@ -42,6 +42,7 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include <objbase.h>
 #include <MAPI.h>
 #endif
 
@@ -80,6 +81,34 @@ public:
 
     /// Width of the message boxes (958:28033)
     static constexpr int MESSAGE_BOX_WIDTH = 440;
+
+#if defined(Q_OS_WIN)
+    /// Single-threaded apartment of COM of the current thread for its lifetime
+    /// (a thread of another apartment keeps it - it is not released then)
+    class ComApartment
+    {
+    public:
+        ComApartment() :
+            m_isInitialized(SUCCEEDED(::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)))
+        {
+
+        }
+
+        ~ComApartment()
+        {
+            if (m_isInitialized)
+            {
+                ::CoUninitialize();
+            }
+        }
+
+        ComApartment(const ComApartment&) = delete;
+        ComApartment& operator=(const ComApartment&) = delete;
+
+    private:
+        bool m_isInitialized;
+    };
+#endif
 };
 
 PDFAppSendMail::PDFAppSendMail(PDFAppDocumentTab* tab, PDFAppDocumentSaver* saver, QObject* parent) :
@@ -121,10 +150,26 @@ void PDFAppSendMail::setLauncher(Launcher launcher)
     getLauncher() = std::move(launcher);
 }
 
+std::optional<bool>& PDFAppSendMail::getAvailableOverride()
+{
+    static std::optional<bool> isAvailable;
+    return isAvailable;
+}
+
+void PDFAppSendMail::setAvailableOverride(std::optional<bool> isAvailable)
+{
+    QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
+    getAvailableOverride() = isAvailable;
+}
+
 bool PDFAppSendMail::isAvailable()
 {
     {
         QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
+        if (getAvailableOverride().has_value())
+        {
+            return *getAvailableOverride();
+        }
         if (getLauncher())
         {
             return true;
@@ -141,8 +186,27 @@ bool PDFAppSendMail::isAvailable()
 QStringList PDFAppSendMail::getXdgEmailArguments(const QString& filePath, const QString& subject)
 {
     // Each value is one argument (no shell); "--" is not used, xdg-email takes the
-    // options first and the recipients last - there is no recipient
-    return { QStringLiteral("--subject"), subject, QStringLiteral("--attach"), QFileInfo(filePath).absoluteFilePath() };
+    // options first and the recipients last - there is no recipient.
+    //
+    // xdg-email passes the subject to Thunderbird inside of single quotes of its
+    // -compose text (to='',subject='…',attachment='…'): an apostrophe of the name of
+    // the file would end the value and add another field (",attachment='…'" would
+    // attach a file of the user). The apostrophe becomes U+2019, control and format
+    // characters a space.
+    QString safeSubject = subject.left(MAXIMUM_SUBJECT_LENGTH);
+    for (QChar& character : safeSubject)
+    {
+        const QChar::Category category = character.category();
+        if (character == QLatin1Char('\''))
+        {
+            character = QChar(0x2019);
+        }
+        else if (category == QChar::Other_Control || category == QChar::Other_Format || category == QChar::Separator_Line || category == QChar::Separator_Paragraph)
+        {
+            character = QLatin1Char(' ');
+        }
+    }
+    return { QStringLiteral("--subject"), safeSubject, QStringLiteral("--attach"), QFileInfo(filePath).absoluteFilePath() };
 }
 
 bool PDFAppSendMail::canSend() const
@@ -209,6 +273,11 @@ PDFAppMailResult PDFAppSendMail::launchPlatform(const QString& filePath, const Q
     {
         return PDFAppMailResult::NoMailProgram;
     }
+
+    // The e-mail program shows its message window from this thread of the pool:
+    // a single-threaded apartment of COM, as the Send To of the shell has (Outlook
+    // needs it for its window), released at the end of the handover
+    const PDFAppSendMailHelper::ComApartment apartment;
 
     const std::wstring libraryPath = std::wstring(systemDirectory.data(), length) + L"\\MAPI32.dll";
     HMODULE library = ::LoadLibraryExW(libraryPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);

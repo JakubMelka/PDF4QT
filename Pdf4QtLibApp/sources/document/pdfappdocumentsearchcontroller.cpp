@@ -29,6 +29,7 @@
 #include "pdfcatalog.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
+#include "pdfexception.h"
 #include "pdfpainterutils.h"
 
 #include "pdfcomponentdelegates.h"
@@ -41,6 +42,7 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <new>
 
 namespace pdf
 {
@@ -372,6 +374,18 @@ void PDFAppDocumentSearchController::search(const QString& query)
         return;
     }
 
+    // The results of another text are not shown (nor walked by F3 / Enter) while
+    // the new text is searched
+    QPointer<PDFAppDocumentSearchController> guard(this);
+    if (query != m_query)
+    {
+        dropResults();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     m_query = query;
     searchAgain();
 }
@@ -388,25 +402,57 @@ void PDFAppDocumentSearchController::searchAgain()
         return;
     }
 
+    // The listeners learn the new query also when the state stays (a new text
+    // while another one is searched or indexed)
+    const State oldState = m_state;
+    QPointer<PDFAppDocumentSearchController> guard(this);
     if (!m_document || !m_document->isReady() || !m_indexer)
     {
         // The search starts, when the document is shown (onDocumentStateChanged)
         setState(State::Indexing);
-        return;
-    }
-
-    if (m_indexer->requestIndex())
-    {
-        startSearch();
-    }
-    else if (m_indexer->isBuilding())
-    {
-        setState(State::Indexing);
     }
     else
     {
-        setState(State::Idle);
+        // The indexer announces a started build (buildingChanged): a slot may
+        // delete the tab and this controller with it
+        const bool isIndexReady = m_indexer->requestIndex();
+        if (!guard)
+        {
+            return;
+        }
+
+        if (isIndexReady)
+        {
+            startSearch();
+        }
+        else if (m_indexer && m_indexer->isBuilding())
+        {
+            setState(State::Indexing);
+        }
+        else
+        {
+            setState(State::Idle);
+        }
     }
+
+    if (guard && m_state == oldState)
+    {
+        Q_EMIT stateChanged();
+    }
+}
+
+void PDFAppDocumentSearchController::dropResults()
+{
+    if (!m_results && m_currentIndex < 0)
+    {
+        return;
+    }
+
+    m_results.reset();
+    m_currentIndex = -1;
+    m_model->setResults(nullptr);
+    updateHighlights();
+    Q_EMIT currentIndexChanged(-1);
 }
 
 void PDFAppDocumentSearchController::clear()
@@ -445,7 +491,13 @@ void PDFAppDocumentSearchController::setOptions(const PDFDocumentTextSearchOptio
     m_options = options;
     if (!m_query.isEmpty())
     {
-        searchAgain();
+        // The results of the old options are not shown during the new search
+        QPointer<PDFAppDocumentSearchController> guard(this);
+        dropResults();
+        if (guard)
+        {
+            searchAgain();
+        }
     }
     else
     {
@@ -523,7 +575,22 @@ PDFAppDocumentSearchResultsPointer PDFAppDocumentSearchController::runSearch(std
     results->options = options;
     if (index)
     {
-        results->result = PDFDocumentTextSearch::find(*index, query, options, MAXIMUM_RESULTS, cancelFlag.get());
+        // An exception must not leave the worker: the watcher would throw it again
+        // from the slot of the GUI thread
+        try
+        {
+            results->result = PDFDocumentTextSearch::find(*index, query, options, MAXIMUM_RESULTS, cancelFlag.get());
+        }
+        catch (const PDFException& exception)
+        {
+            results->result = PDFDocumentTextSearchResult();
+            results->result.error = exception.getMessage();
+        }
+        catch (const std::bad_alloc&)
+        {
+            results->result = PDFDocumentTextSearchResult();
+            results->result.error = tr("There is not enough memory to search the document.");
+        }
     }
     return results;
 }

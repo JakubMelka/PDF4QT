@@ -148,29 +148,43 @@ PDFIconButton* PDFAppRenderingIssuesPanel::getCloseButton() const
 
 void PDFAppRenderingIssuesPanel::setIssues(const std::vector<PDFAppRenderingIssue>& issues)
 {
-    // The rows are replaced (the old ones are deleted later: a row may be the sender of a signal)
-    for (const QPointer<QWidget>& row : m_rows)
-    {
-        if (row)
-        {
-            row->hide();
-            row->deleteLater();
-        }
-    }
-    m_rows.clear();
+    // The existing rows show the new issues (an open popover is updated with every
+    // compiled page: the focused row, the scroll position and the measured heights
+    // stay); the rows, which are left over, are deleted later (a row may be the
+    // sender of a signal)
+    m_rows.erase(std::remove(m_rows.begin(), m_rows.end(), QPointer<QWidget>()), m_rows.end());
 
     const QLocale locale;
     const int count = int(qMin<size_t>(issues.size(), size_t(MAXIMUM_ROWS)));
+    while (int(m_rows.size()) > count)
+    {
+        QWidget* row = m_rows.back().data();
+        m_rows.pop_back();
+        row->hide();
+        row->deleteLater();
+    }
+
     for (int i = 0; i < count; ++i)
     {
         const PDFAppRenderingIssue& issue = issues[i];
-        PDFRenderingIssueRow* row = new PDFRenderingIssueRow(tr("Page %1").arg(locale.toString(issue.pageIndex + 1)), issue.message, issue.severity, m_list);
-        row->setObjectName(QStringLiteral("issueRow"));
+        const QString page = tr("Page %1").arg(locale.toString(issue.pageIndex + 1));
+        PDFRenderingIssueRow* row = i < int(m_rows.size()) ? qobject_cast<PDFRenderingIssueRow*>(m_rows[i].data()) : nullptr;
+        if (row)
+        {
+            row->setPage(page);
+            row->setMessage(issue.message);
+            row->setSeverity(issue.severity);
+        }
+        else
+        {
+            row = new PDFRenderingIssueRow(page, issue.message, issue.severity, m_list);
+            row->setObjectName(QStringLiteral("issueRow"));
+            row->installEventFilter(this);
+            connect(row, &QAbstractButton::clicked, this, &PDFAppRenderingIssuesPanel::onRowClicked);
+            m_listLayout->insertWidget(i, row);
+            m_rows.emplace_back(row);
+        }
         row->setProperty(PDFAppRenderingIssuesHelper::PAGE_PROPERTY, QVariant::fromValue<qlonglong>(issue.pageIndex));
-        row->installEventFilter(this);
-        connect(row, &QAbstractButton::clicked, this, &PDFAppRenderingIssuesPanel::onRowClicked);
-        m_listLayout->insertWidget(i, row);
-        m_rows.emplace_back(row);
     }
 
     if (m_count)
@@ -425,6 +439,10 @@ bool PDFAppRenderingIssues::showPopover()
     popover->setProperty(PDFWidgetStyleProperties::POPOVER, true);
     popover->setAccessibleName(tr("Rendering issues"));
 
+    // A press on the status item closes the popover and is not replayed to the
+    // item (its click would open the popover again: the item toggles it)
+    popover->setNoReplayFor(m_statusItem);
+
     PDFAppRenderingIssuesPanel* panel = new PDFAppRenderingIssuesPanel(popover);
     QStyle* style = popover->style();
     const int frame = style->pixelMetric(QStyle::PM_MenuPanelWidth, nullptr, popover);
@@ -508,7 +526,13 @@ void PDFAppRenderingIssues::onDocumentChanged()
 
 void PDFAppRenderingIssues::onUpdateTimeout()
 {
+    // issuesChanged of updateItems may delete the tab (and this object)
+    QPointer<PDFAppRenderingIssues> guard(this);
     updateItems();
+    if (!guard)
+    {
+        return;
+    }
 
     // An open popover shows the new issues (it closes, when there are none)
     if (m_panel && isPopoverVisible())

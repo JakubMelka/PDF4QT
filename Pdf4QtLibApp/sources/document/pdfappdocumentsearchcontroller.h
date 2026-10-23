@@ -228,6 +228,9 @@ private:
     void setState(State state);
     void startSearch();
     void stopSearch();
+
+    /// Removes the results and the highlights of the previous query or options
+    void dropResults();
     void onSearchFinished();
     void onIndexReady();
     void onIndexBuildingChanged();

@@ -62,9 +62,12 @@
 
 #include <QCheckBox>
 #include <QDir>
+#include <QLabel>
 #include <QMutex>
+#include <QPrinter>
 #include <QPushButton>
 #include <QSaveFile>
+#include <QSemaphore>
 #include <QSignalSpy>
 #include <QtTest>
 
@@ -257,6 +260,8 @@ private slots:
     void autoRefreshSettingOff();
     void autoRefreshHostileFiles();
     void autoRefreshReaderUnit();
+    void autoRefreshQueuedChecks();
+    void autoRefreshFileRecreated();
 
     // Print
     void printDialogDefaults();
@@ -270,7 +275,9 @@ private slots:
     void printPrinterProperties();
     void printPermission();
     void printGeometry();
+    void printUnitCases();
     void printNarrowWindow();
+    void printDialogDesignWidths();
     void printThemesAndDirection();
     void neutralBadge();
 
@@ -279,6 +286,7 @@ private slots:
     void mailSaveFirst();
     void mailError();
     void mailArguments();
+    void mailReviewCases();
 
     // Lifetime
     void deleteTabDuringSave();
@@ -288,6 +296,11 @@ private slots:
     void deleteWindowWithPrintDialog();
     void deleteTabFromOwnSignals_data();
     void deleteTabFromOwnSignals();
+
+    // Review RC-DE
+    void reviewSaveAsErrorNamesFile();
+    void reviewAutoRefreshStaleCheck();
+    void reviewPrintableArea();
 
     // Pictures for the comparison with Figma
     void screenshots();
@@ -1004,6 +1017,90 @@ void AppDocumentFileTest::autoRefreshReaderUnit()
     QVERIFY(ownerResult.isPasswordProtected);
 }
 
+void AppDocumentFileTest::autoRefreshQueuedChecks()
+{
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Queued.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    pdf::PDFAppAutoRefresh* refresh = handler->getAutoRefresh();
+    QSignalSpy checkedSpy(refresh, &pdf::PDFAppAutoRefresh::checked);
+
+    // A check requested while another one reads the file is done after it: the
+    // newest file is shown
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::large(fixture.folder(), 400))));
+    refresh->checkNow();
+    QVERIFY(refresh->isChecking());
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Third.pdf"), 3))));
+    refresh->checkNow();
+    QTRY_VERIFY_WITH_TIMEOUT(document->getPageCount() == 3 && !refresh->isChecking(), 60000);
+    QVERIFY(checkedSpy.count() >= 2);
+
+    // A check during an own save waits for the save (the written file is not a
+    // change of another program)
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Saving")));
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(handler->save());
+    const int checks = checkedSpy.count();
+    refresh->checkNow();
+    QVERIFY(!refresh->isChecking());
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 30000);
+    QTRY_VERIFY_WITH_TIMEOUT(checkedSpy.count() > checks, 30000);
+    QVERIFY(!refresh->getDialog());
+    QVERIFY(!document->isModified());
+
+    // More unsaved changes are counted in the question
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("One")));
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Two")));
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Fourth.pdf"), 4))));
+    refresh->checkNow();
+    QTRY_VERIFY_WITH_TIMEOUT(refresh->getDialog(), 30000);
+    bool hasCount = false;
+    for (const QLabel* label : refresh->getDialog()->findChildren<QLabel*>())
+    {
+        hasCount = hasCount || label->text().contains(QStringLiteral("2 changes"));
+    }
+    QVERIFY(hasCount);
+    FileTestHelper::click(refresh->getDialog(), QStringLiteral("keepButton"));
+    QTRY_VERIFY(!refresh->getDialog());
+    QCOMPARE(document->getPageCount(), pdf::PDFInteger(3));
+
+    // The file replaced by an encrypted one (no unsaved changes): the tab asks for
+    // its password
+    document->setSaved();
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::userPassword(fixture.folder()))));
+    refresh->checkNow();
+    QTRY_VERIFY_WITH_TIMEOUT(document && document->getState() == pdf::PDFAppDocumentState::PasswordRequired, 30000);
+    QCOMPARE(refresh->getReloadCount() > 0, true);
+}
+
+void AppDocumentFileTest::autoRefreshFileRecreated()
+{
+    // The file is deleted and written again later (a program writes a new file in
+    // place of the old one): the path is watched again and the new file is shown
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Recreated.pdf"), 2);
+    const QByteArray other = FileTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 5));
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAutoRefresh* refresh = FileTestHelper::handler(tab)->getAutoRefresh();
+    QCOMPARE(refresh->getWatchedPath(), QFileInfo(file).canonicalFilePath());
+
+    // A reader of the file (the thumbnail of Recent) blocks the deletion on Windows for a moment
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::remove(file) || !QFile::exists(file), 10000);
+    QTest::qWait(pdf::PDFAppAutoRefresh::REWATCH_INTERVAL + pdf::PDFAppAutoRefresh::CHECK_DELAY);
+    QCOMPARE(document->getPageCount(), pdf::PDFInteger(2));
+
+    QFile written(file);
+    QVERIFY(written.open(QIODevice::WriteOnly));
+    QCOMPARE(written.write(other), other.size());
+    written.close();
+    QTRY_COMPARE_WITH_TIMEOUT(document->getPageCount(), pdf::PDFInteger(5), 30000);
+}
+
 void AppDocumentFileTest::printDialogDefaults()
 {
     pdftest::AppDocumentFixture fixture;
@@ -1443,6 +1540,96 @@ void AppDocumentFileTest::printPermission()
     dialog->reject();
 }
 
+void AppDocumentFileTest::printUnitCases()
+{
+    pdftest::AppDocumentFixture fixture;
+
+    // A job without a document or a printer, a job without pages
+    pdf::PDFAppPrintJob::Result result = pdf::PDFAppPrintJob::run(pdf::PDFAppPrintJob::Data());
+    QVERIFY(!result.isCompleted);
+    QVERIFY(!result.errorMessage.isEmpty());
+
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Unit.pdf"), 2);
+    pdf::PDFDocumentReader reader(nullptr, nullptr, false, false);
+    pdf::PDFDocument read = reader.readFromFile(file);
+    QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+    const pdf::PDFDocumentPointer document(new pdf::PDFDocument(std::move(read)));
+
+    auto createData = [&document](const QString& outputFile)
+    {
+        pdf::PDFAppPrintJob::Data data;
+        data.document = document;
+        data.printer = std::make_shared<QPrinter>(QPrinter::ScreenResolution);
+        data.printer->setOutputFormat(QPrinter::PdfFormat);
+        data.printer->setOutputFileName(outputFile);
+        data.state = std::make_shared<pdf::PDFAppPrintJobState>();
+        return data;
+    };
+
+    result = pdf::PDFAppPrintJob::run(createData(fixture.path(QStringLiteral("empty.pdf"))));
+    QVERIFY(result.isCompleted);
+    QCOMPARE(result.printedCount, 0);
+
+    // Stopped before the first page: nothing is printed
+    pdf::PDFAppPrintJob::Data canceled = createData(fixture.path(QStringLiteral("canceled.pdf")));
+    canceled.settings.pages = { 0, 1 };
+    canceled.state->isCancelRequested.store(true);
+    result = pdf::PDFAppPrintJob::run(canceled);
+    QVERIFY(result.isCanceled);
+    QCOMPARE(result.printedCount, 0);
+
+    // The printer cannot be started (a folder, which does not exist)
+    pdf::PDFAppPrintJob::Data failed = createData(fixture.path(QStringLiteral("no/such/folder/x.pdf")));
+    failed.settings.pages = { 0 };
+    result = pdf::PDFAppPrintJob::run(failed);
+    QVERIFY(!result.isCompleted);
+    QVERIFY(!result.errorMessage.isEmpty());
+    QCOMPARE(result.remainingItems.size(), size_t(1));
+
+    // The preview of invalid requests is empty, a grayscale preview is gray
+    pdf::PDFAppPrintSettings settings;
+    settings.pages = { 0 };
+    const QRectF paper(0, 0, 300, 400);
+    QVERIFY(pdf::PDFAppPrintRenderer::renderPreview(pdf::PDFDocumentPointer(), pdf::PDFCMSSettings(), 0, settings, paper, QRectF(), QSize(30, 40), false).isNull());
+    QVERIFY(pdf::PDFAppPrintRenderer::renderPreview(document, pdf::PDFCMSSettings(), 5, settings, paper, QRectF(), QSize(30, 40), false).isNull());
+    QVERIFY(pdf::PDFAppPrintRenderer::renderPreview(document, pdf::PDFCMSSettings(), 0, settings, QRectF(), QRectF(), QSize(30, 40), false).isNull());
+    QVERIFY(pdf::PDFAppPrintRenderer::renderPreview(document, pdf::PDFCMSSettings(), 0, settings, paper, QRectF(), QSize(), false).isNull());
+    settings.isGrayscale = true;
+    const QImage gray = pdf::PDFAppPrintRenderer::renderPreview(document, pdf::PDFCMSSettings(), 0, settings, paper, QRectF(), QSize(30, 40), true);
+    QVERIFY(!gray.isNull());
+    QCOMPARE(gray.format(), QImage::Format_Grayscale8);
+
+    // Geometry without a page and without a printable area (the whole paper)
+    QVERIFY(!pdf::PDFAppPrintRenderer::getPageSize(nullptr).isValid());
+    const QRectF target = pdf::PDFAppPrintRenderer::getTargetRect(QSizeF(100, 200), QRectF(0, 0, 300, 300), QRectF(), 1.0, pdf::PDFAppPrintScaling::FitToPage, 100);
+    QCOMPARE(target.size(), QSizeF(150, 300));
+    QCOMPARE(target.center(), QPointF(150, 150));
+
+    // The paper of the locale
+    const QLocale previous;
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), QPageSize::Letter);
+    QLocale::setDefault(QLocale(QLocale::Czech, QLocale::Czechia));
+    QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), QPageSize::A4);
+    QLocale::setDefault(previous);
+
+    // The printers of the system (no test provider): named, the default one first;
+    // a printer of the system is created without printing anything
+    pdf::PDFAppPrinters::setProvider(pdf::PDFAppPrinters::Provider());
+    const std::vector<pdf::PDFAppPrinterInfo> printers = pdf::PDFAppPrinters::getPrinters();
+    for (size_t i = 0; i < printers.size(); ++i)
+    {
+        QVERIFY(!printers[i].name.isEmpty());
+        QVERIFY(i == 0 || !printers[i].isDefault);
+    }
+    if (!printers.empty())
+    {
+        std::unique_ptr<QPrinter> printer = pdf::PDFAppPrinters::createPrinter(printers.front(), QPrinter::ScreenResolution);
+        QVERIFY(printer);
+        QCOMPARE(printer->printerName(), printers.front().name);
+    }
+}
+
 void AppDocumentFileTest::printGeometry()
 {
     using Renderer = pdf::PDFAppPrintRenderer;
@@ -1498,10 +1685,37 @@ void AppDocumentFileTest::printNarrowWindow()
     QVERIFY2(dialog->height() - shadow.top() - shadow.bottom() <= 480, qPrintable(QString::number(dialog->height())));
     QVERIFY(dialog->getPrintButton()->isVisible());
 
+    // The scrolled body takes the whole height of the body of the window: the card
+    // (without the shadow margins of its window) is 16 px from the edges
+    QWidget* host = fixture.window->getDialogHost();
+    QVERIFY(host);
+    const int cardHeight = dialog->height() - shadow.top() - shadow.bottom();
+    QVERIFY2(cardHeight >= host->height() - 2 * 16 - 1, qPrintable(QStringLiteral("card %1, host %2").arg(cardHeight).arg(host->height())));
+    QVERIFY2(cardHeight <= host->height() - 2 * 16, qPrintable(QStringLiteral("card %1, host %2").arg(cardHeight).arg(host->height())));
+
     // A larger window shows the preview again
     fixture.window->resize(1440, 960);
     fixture.settle();
     QTRY_VERIFY(dialog->getPreview()->isVisibleTo(dialog));
+    dialog->reject();
+}
+
+void AppDocumentFileTest::printDialogDesignWidths()
+{
+    // 1029:24633: the segments of Orientation are 112 px wide, the segments of
+    // Scaling and Color 104 px (not as wide as their longest text)
+    pdftest::AppDocumentFixture fixture;
+    FileTestHelper::setTestPrinters(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Widths.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    QTRY_VERIFY(dialog->isVisible());
+    fixture.settle();
+
+    QCOMPARE(dialog->getOrientationControl()->width(), 3 * 112);
+    QCOMPARE(dialog->getScalingControl()->width(), 3 * 104);
+    QCOMPARE(dialog->getColorControl()->width(), 2 * 104);
     dialog->reject();
 }
 
@@ -1641,6 +1855,50 @@ void AppDocumentFileTest::mailError()
     QVERIFY(mail->getDialog());
 }
 
+void AppDocumentFileTest::mailReviewCases()
+{
+    pdftest::AppDocumentFixture fixture;
+    QSemaphore release;
+    std::atomic<int> calls = 0;
+    pdf::PDFAppSendMail::setLauncher([&calls, &release](const QString&, const QString&)
+    {
+        ++calls;
+        release.tryAcquire(1, 30000);
+        return pdf::PDFAppMailResult::Created;
+    });
+
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Twice.pdf"), 1);
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppSendMail* mail = FileTestHelper::handler(tab)->getSendMail();
+    QSignalSpy finishedSpy(mail, &pdf::PDFAppSendMail::finished);
+
+    // A second request while the e-mail is being created is ignored
+    mail->send();
+    QVERIFY(mail->isSending());
+    QVERIFY(!mail->canSend());
+    mail->send();
+    release.release();
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 30000);
+    QCOMPARE(calls.load(), 1);
+    QVERIFY(mail->canSend());
+
+    // Save and Send of a file, which cannot be written: the save fails, nothing is
+    // sent and the command can be used again
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Read-only")));
+    QVERIFY(QFile::setPermissions(file, QFile::ReadOwner | QFile::ReadUser));
+    mail->send();
+    QVERIFY(mail->getDialog());
+    FileTestHelper::click(mail->getDialog(), QStringLiteral("saveButton"));
+    QTRY_VERIFY_WITH_TIMEOUT(mail->canSend() || fixture.closeMessageBoxes() > 0, 30000);
+    fixture.closeMessageBoxes();
+    QTRY_VERIFY_WITH_TIMEOUT(mail->canSend(), 30000);
+    QTest::qWait(50);
+    QCOMPARE(calls.load(), 1);
+    QVERIFY(tab->getDocument()->isModified());
+    QFile::setPermissions(file, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+}
+
 void AppDocumentFileTest::mailArguments()
 {
     // xdg-email: one argument per value, no shell; hostile names stay one argument
@@ -1651,6 +1909,16 @@ void AppDocumentFileTest::mailArguments()
     QCOMPARE(arguments.at(1), hostile);
     QCOMPARE(arguments.at(2), QStringLiteral("--attach"));
     QVERIFY(arguments.at(3).endsWith(hostile));
+
+    // xdg-email gives the subject to Thunderbird in single quotes of -compose: an
+    // apostrophe of the name would add a field attaching a file of the user
+    const QString injected = QStringLiteral("x',attachment='.bash_history',y='.pdf");
+    const QStringList safe = pdf::PDFAppSendMail::getXdgEmailArguments(QStringLiteral("/tmp/a.pdf"), injected);
+    QCOMPARE(safe.size(), 4);
+    QVERIFY(!safe.at(1).contains(QLatin1Char('\'')));
+    QCOMPARE(safe.at(1), QString(injected).replace(QLatin1Char('\''), QChar(0x2019)));
+    QCOMPARE(pdf::PDFAppSendMail::getXdgEmailArguments(QStringLiteral("/tmp/a.pdf"), QStringLiteral("a") + QChar(0x202E) + QStringLiteral("\nb")).at(1), QStringLiteral("a  b"));
+    QCOMPARE(pdf::PDFAppSendMail::getXdgEmailArguments(QStringLiteral("/tmp/a.pdf"), QString(10000, QLatin1Char('a'))).at(1).size(), qsizetype(pdf::PDFAppSendMail::MAXIMUM_SUBJECT_LENGTH));
 }
 
 void AppDocumentFileTest::deleteTabDuringSave()
@@ -1692,7 +1960,7 @@ void AppDocumentFileTest::deleteTabWithDialogs_data()
 {
     QTest::addColumn<QString>("dialog");
     QTest::addColumn<bool>("deleteWindow");
-    for (const char* name : { "saveSigned", "saveError", "refreshUnsaved", "print", "printPreviewRunning", "saveFirst", "mailRunning" })
+    for (const char* name : { "saveSigned", "saveError", "refreshUnsaved", "print", "printPreviewRunning", "saveFirst", "mailRunning", "refreshReading" })
     {
         QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
         QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
@@ -1765,7 +2033,16 @@ void AppDocumentFileTest::deleteTabWithDialogs()
         QVERIFY(handler->getSendMail()->isSending());
     }
 
-    if (dialog != QStringLiteral("mailRunning"))
+    else if (dialog == QStringLiteral("refreshReading"))
+    {
+        // The file is replaced by a large one: the reader of the automatic refresh
+        // reads it in a worker thread
+        QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::large(fixture.folder(), 600))));
+        handler->getAutoRefresh()->checkNow();
+        QVERIFY(handler->getAutoRefresh()->isChecking());
+    }
+
+    if (dialog != QStringLiteral("mailRunning") && !dialog.endsWith(QStringLiteral("Reading")))
     {
         QVERIFY(shown);
         QVERIFY(shown->isVisible());
@@ -1819,7 +2096,8 @@ void AppDocumentFileTest::deleteWindowWithPrintDialog()
 void AppDocumentFileTest::deleteTabFromOwnSignals_data()
 {
     QTest::addColumn<QString>("signal");
-    for (const char* name : { "saveFinished", "saveStateChanged", "fileWritten", "reloaded", "checked", "printFinished", "printStateChanged", "mailFinished" })
+    for (const char* name : { "saveFinished", "saveStateChanged", "fileWritten", "reloaded", "checked", "printFinished", "printStateChanged", "mailFinished",
+                              "saveOperationStarted", "saveOperationFinished", "printOperationStarted", "printOperationProgress", "printOperationFinished" })
     {
         QTest::newRow(name) << QString::fromLatin1(name);
     }
@@ -1842,7 +2120,41 @@ void AppDocumentFileTest::deleteTabFromOwnSignals()
         delete tab.data();
     };
 
-    if (signal == QStringLiteral("saveFinished") || signal == QStringLiteral("saveStateChanged") || signal == QStringLiteral("fileWritten"))
+    if (signal.contains(QStringLiteral("Operation")))
+    {
+        // The operation of the save / print job (the progress of the tab) begins,
+        // changes its progress and ends: the document announces it
+        pdf::PDFAppDocument* document = tab->getDocument();
+        const bool isFinished = signal.endsWith(QStringLiteral("Finished"));
+        const bool isProgress = signal.endsWith(QStringLiteral("Progress"));
+        if (isProgress)
+        {
+            connect(document, &pdf::PDFAppDocument::operationProgressChanged, fixture.window.data(), deleteTab);
+        }
+        else
+        {
+            connect(document, &pdf::PDFAppDocument::operationsChanged, fixture.window.data(), [document, isFinished, deleteTab]()
+            {
+                const std::vector<pdf::PDFAppDocumentOperation*> operations = document->getOperations();
+                if (isFinished ? operations.empty() : !operations.empty())
+                {
+                    deleteTab();
+                }
+            });
+        }
+        if (signal.startsWith(QStringLiteral("save")))
+        {
+            QVERIFY(FileTestHelper::modify(document, QStringLiteral("x")));
+            QVERIFY(handler->save());
+        }
+        else
+        {
+            pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+            QVERIFY(dialog);
+            dialog->getPrintButton()->click();
+        }
+    }
+    else if (signal == QStringLiteral("saveFinished") || signal == QStringLiteral("saveStateChanged") || signal == QStringLiteral("fileWritten"))
     {
         QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("x")));
         if (signal == QStringLiteral("saveFinished"))
@@ -1897,6 +2209,124 @@ void AppDocumentFileTest::deleteTabFromOwnSignals()
     QTRY_VERIFY_WITH_TIMEOUT(!tab, 30000);
     QThreadPool::globalInstance()->waitForDone(30000);
     fixture.settle();
+}
+
+void AppDocumentFileTest::reviewSaveAsErrorNamesFile()
+{
+    // Save As to a file, which the worker cannot write (the folder exists, the
+    // name is too long for the file system): the error names the file of Save As,
+    // not the file of the document
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Original.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Changed")));
+
+    const QString name = QString(300, QLatin1Char('n')) + QStringLiteral(".pdf");
+    const QString target = fixture.path(name);
+    QVERIFY(pdf::PDFAppDocumentFileWriter::isWritable(target));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(handler->saveAs());
+
+    QTRY_VERIFY_WITH_TIMEOUT(FileTestHelper::findDialog(fixture, QStringLiteral("saveErrorDialog")), 20000);
+    pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveErrorDialog"));
+    QVERIFY(dialog);
+    QString texts;
+    for (const QLabel* label : dialog->findChildren<QLabel*>())
+    {
+        texts += label->text() + QLatin1Char('\n');
+    }
+    QVERIFY2(texts.contains(name.left(64)), qPrintable(texts.left(400)));
+    QVERIFY2(!texts.contains(QStringLiteral("Original.pdf")), qPrintable(texts.left(400)));
+
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    QTRY_COMPARE(finishedSpy.count(), 1);
+    QVERIFY(tab->getDocument()->isModified());
+}
+
+void AppDocumentFileTest::reviewAutoRefreshStaleCheck()
+{
+    // A check of the file, which started before an own save and ends after it,
+    // compares the file with the old bytes of the document: the file written by
+    // the save must not be taken for a change of another program (a reload would
+    // clear the undo of the document)
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Race.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAutoRefresh* refresh = FileTestHelper::handler(tab)->getAutoRefresh();
+    QVERIFY(refresh->isEnabled());
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Mine")));
+    const quint64 version = document->getVersion();
+
+    // The reader of the check waits in the pool, while the save writes the file
+    QThreadPool* pool = QThreadPool::globalInstance();
+    QVERIFY(pool->waitForDone(30000));
+    const int maximumThreadCount = pool->maxThreadCount();
+    pool->setMaxThreadCount(1);
+    QSemaphore started;
+    QSemaphore release;
+    pool->start([&started, &release]() { started.release(); release.acquire(); });
+    started.acquire();
+
+    QSignalSpy checkedSpy(refresh, &pdf::PDFAppAutoRefresh::checked);
+    QSignalSpy reloadedSpy(refresh, &pdf::PDFAppAutoRefresh::reloaded);
+    refresh->checkNow();
+
+    pdf::PDFAppDocumentFileWriter::Request request;
+    request.document = document->getDocument();
+    request.filePath = file;
+    request.version = version;
+    const pdf::PDFAppDocumentFileWriter::Result result = pdf::PDFAppDocumentFileWriter::write(request);
+    QVERIFY(result.isSaved);
+    document->setSavedAs(result.version, result.filePath, result.data);
+    QVERIFY(!document->isModified());
+
+    release.release();
+    QTRY_VERIFY_WITH_TIMEOUT(checkedSpy.count() >= 2, 20000);
+    pool->setMaxThreadCount(maximumThreadCount);
+    QCOMPARE(checkedSpy.last().at(0).value<pdf::PDFAppAutoRefreshReader::Outcome>(), pdf::PDFAppAutoRefreshReader::Outcome::Unchanged);
+    QTest::qWait(pdf::PDFAppAutoRefresh::CHECK_DELAY + 300);
+    QCOMPARE(reloadedSpy.count(), 0);
+    QVERIFY(!refresh->getDialog());
+    QCOMPARE(document->getVersion(), version);
+    QVERIFY(!document->isModified());
+}
+
+void AppDocumentFileTest::reviewPrintableArea()
+{
+    // The printer prints a full page: the paint rectangle of its layout is the
+    // whole paper, so Fit to page must take the printable area from the minimal
+    // margins of the printer (the content would be cut by the hardware margins)
+    QPageLayout layout(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF(20, 20, 20, 20), QPageLayout::Point, QMarginsF(15, 10, 12, 8));
+    layout.setMode(QPageLayout::FullPageMode);
+    QCOMPARE(layout.paintRect(QPageLayout::Point), layout.fullRect(QPageLayout::Point));
+
+    const QRectF paper = layout.fullRect(QPageLayout::Point);
+    const QRectF printable = pdf::PDFAppPrinters::getPrintableLayout(layout).paintRect(QPageLayout::Point);
+    QCOMPARE(printable, QRectF(15, 10, paper.width() - 27, paper.height() - 18));
+    const QRectF target = pdf::PDFAppPrintRenderer::getTargetRect(paper.size(), paper, printable, 1.0, pdf::PDFAppPrintScaling::FitToPage, 100);
+    QVERIFY(printable.adjusted(-0.01, -0.01, 0.01, 0.01).contains(target));
+    QVERIFY(target.width() < paper.width());
+
+    // Landscape and pixels of a resolution; a printer without margins prints the
+    // whole paper
+    layout.setOrientation(QPageLayout::Landscape);
+    const QRect pixels = pdf::PDFAppPrinters::getPrintableLayout(layout).paintRectPixels(600);
+    QVERIFY(pixels.left() > 0 && pixels.top() > 0);
+    QVERIFY(pixels.width() < layout.fullRectPixels(600).width());
+    const QPageLayout noMargins(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF());
+    QCOMPARE(pdf::PDFAppPrinters::getPrintableLayout(noMargins).paintRect(QPageLayout::Point), noMargins.fullRect(QPageLayout::Point));
+
+    // A printer of a PDF file has no margins: the preview geometry is unchanged
+    pdf::PDFAppPrinterInfo info;
+    info.name = QStringLiteral("PDF");
+    info.outputFile = QDir::temp().absoluteFilePath(QStringLiteral("rcde-printable.pdf"));
+    std::unique_ptr<QPrinter> printer = pdf::PDFAppPrinters::createPrinter(info, QPrinter::HighResolution);
+    QVERIFY(printer);
+    QCOMPARE(pdf::PDFAppPrinters::getPrintableLayout(printer->pageLayout()).paintRect(QPageLayout::Point), printer->pageLayout().fullRect(QPageLayout::Point));
 }
 
 void AppDocumentFileTest::screenshots()

@@ -44,6 +44,7 @@
 
 #include "pdfcertificatestore.h"
 #include "pdfcolorconvertor.h"
+#include "pdfdrawspacecontroller.h"
 #include "pdfdocumenttextindex.h"
 
 #include "pdfcomponentdelegates.h"
@@ -51,8 +52,12 @@
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
+#include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
+
+#include "pdfdocumentbuilder.h"
+#include "pdfdocumentwriter.h"
 
 #include <QElapsedTimer>
 #include <QImage>
@@ -195,6 +200,8 @@ private slots:
     void closeTabDuringIndexing();
     void closeTabDuringSearch();
     void deleteWindowDuringSearch();
+    void deleteFromOwnSignals_data();
+    void deleteFromOwnSignals();
     void closeSearch();
     void themesAndDirection();
 
@@ -214,6 +221,11 @@ private slots:
     void speechError();
     void speechLifetime();
     void qtSpeechEngine();
+
+    void reviewNewQueryDropsResults();
+    void reviewSignatureCardsKeepExpansion();
+    void reviewTrustedRepositoryLimit();
+    void reviewSpeechLongBlock();
 
     void screenshots();
 
@@ -350,6 +362,23 @@ void AppDocumentSearchTest::search()
     QVERIFY(qobject_cast<pdf::PDFSearchResultDelegate*>(panel->getListView()->itemDelegate()));
     QVERIFY(panel->getNextButton()->isEnabled());
     QVERIFY(panel->getNoteLabel()->isHidden());
+
+    // Geometry of 198:4520: the chips at x 12, the result rows 275 wide at x 12 of the
+    // sidebar, the first row 10 px below the chips (8 + the gap 2), 2 px between rows
+    {
+        fixture.settle();
+        QWidget* sidebar = tab->getView()->getSidebar();
+        QListView* list = panel->getListView();
+        const QRect first = list->visualRect(list->model()->index(0, 0));
+        const QRect second = list->visualRect(list->model()->index(1, 0));
+        QPushButton* chip = panel->getOptionButton(2);
+        QVERIFY(chip);
+        QCOMPARE(chip->mapTo(sidebar, QPoint(0, 0)).x(), 12);
+        QCOMPARE(list->viewport()->mapTo(sidebar, first.topLeft()).x(), 12);
+        QCOMPARE(first.width(), sidebar->width() - 1 - 24);
+        QCOMPARE(list->viewport()->mapTo(sidebar, first.topLeft()).y() - chip->mapTo(sidebar, QPoint(0, chip->height())).y(), 10);
+        QCOMPARE(second.top() - first.bottom() - 1, 2);
+    }
 
     // A click on a row makes it current
     panel->getListView()->setCurrentIndex(panel->getListView()->model()->index(2, 0));
@@ -949,6 +978,212 @@ void AppDocumentSearchTest::deleteWindowDuringSearch()
     QVERIFY(!fixture.window);
 }
 
+void AppDocumentSearchTest::deleteFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::addColumn<bool>("deleteWindow");
+    for (const char* name : { "indexBuilding", "indexReady", "indexOperationStarted", "indexOperationFinished", "indexCanceledByChange", "searchStarted", "searchFinished", "searchText", "currentIndex", "verificationStarted",
+                              "verificationFinished", "speechStarted", "speechStopped", "speechPaused", "speechResumed" })
+    {
+        QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
+        QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
+    }
+}
+
+void AppDocumentSearchTest::deleteFromOwnSignals()
+{
+    // The application deletes the tab (or the window) synchronously from a signal
+    // of the indexer, of the search, of the signature verification or of the
+    // speech, also while the command dispatch is on the stack: the code of package
+    // D must not use anything of the tab after the signal (valgrind finds the reads)
+    QFETCH(QString, signal);
+    QFETCH(bool, deleteWindow);
+
+    pdftest::AppDocumentFixture fixture;
+    const bool isSigned = signal.startsWith(QStringLiteral("verification"));
+    const QString file = isSigned ? pdftest::AppDocumentSamples::signedDocument(fixture.folder())
+                                  : pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Own signals.pdf"), 4);
+    QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+    QPointer<pdf::PDFAppDocumentTab> tab = openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSearchCommandHandler* searchHandler = handler(tab);
+    QVERIFY(searchHandler);
+    pdf::PDFAppDocumentSearchController* controller = searchHandler->getSearchController();
+    pdf::PDFAppDocumentTextIndexer* indexer = searchHandler->getIndexer();
+    pdf::PDFAppDocumentSignatureVerifier* verifier = searchHandler->getSignatureVerifier();
+
+    QObject receiver;
+    bool isDeleted = false;
+    auto deleteNow = [&isDeleted, &tab, &window, deleteWindow]()
+    {
+        if (isDeleted)
+        {
+            return;
+        }
+        isDeleted = true;
+        if (deleteWindow)
+        {
+            delete window.data();
+        }
+        else
+        {
+            delete tab.data();
+        }
+    };
+    auto trigger = [&window](const QString& commandId)
+    {
+        QAction* action = window ? window->getCommandAction(commandId) : nullptr;
+        if (!action || !action->isEnabled())
+        {
+            return false;
+        }
+        action->trigger();
+        return true;
+    };
+
+    if (signal == QStringLiteral("indexBuilding"))
+    {
+        connect(indexer, &pdf::PDFAppDocumentTextIndexer::buildingChanged, &receiver, deleteNow);
+        searchHandler->startSearch(QStringLiteral("alpha"));
+    }
+    else if (signal == QStringLiteral("indexReady"))
+    {
+        connect(indexer, &pdf::PDFAppDocumentTextIndexer::indexReady, &receiver, deleteNow);
+        searchHandler->startSearch(QStringLiteral("alpha"));
+    }
+    else if (signal == QStringLiteral("indexOperationStarted") || signal == QStringLiteral("indexOperationFinished"))
+    {
+        // The operation of the build (the progress of the tab) begins and ends
+        pdf::PDFAppDocument* document = tab->getDocument();
+        const bool isStarted = signal == QStringLiteral("indexOperationStarted");
+        connect(document, &pdf::PDFAppDocument::operationsChanged, &receiver, [document, isStarted, deleteNow]()
+        {
+            if (isStarted || document->getOperations().empty())
+            {
+                deleteNow();
+            }
+        });
+        searchHandler->startSearch(QStringLiteral("alpha"));
+    }
+    else if (signal == QStringLiteral("indexCanceledByChange"))
+    {
+        // A change of the page contents stops the running build and starts a new one
+        // (a large document, so the build still runs at the change)
+        tab->getDocument()->disconnect(&receiver);
+        QPointer<pdf::PDFAppDocumentTab> large = openReady(fixture, pdftest::AppDocumentSamples::large(fixture.folder(), 2000));
+        QVERIFY(large);
+        tab = large;
+        searchHandler = handler(tab);
+        indexer = searchHandler->getIndexer();
+        searchHandler->startSearch(QStringLiteral("alpha"));
+        QVERIFY(indexer->isBuilding());
+        connect(indexer, &pdf::PDFAppDocumentTextIndexer::buildingChanged, &receiver, deleteNow);
+        connect(tab->getDocument(), &pdf::PDFAppDocument::operationsChanged, &receiver, deleteNow);
+        QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+    }
+    else if (signal == QStringLiteral("searchStarted"))
+    {
+        // From the command of the window (Find with a text in the field)
+        connect(controller, &pdf::PDFAppDocumentSearchController::stateChanged, &receiver, deleteNow);
+        searchHandler->getSearchField()->setText(QStringLiteral("alpha"));
+        QVERIFY(QMetaObject::invokeMethod(searchHandler->getSearchField(), "returnPressed"));
+    }
+    else if (signal == QStringLiteral("searchFinished"))
+    {
+        connect(controller, &pdf::PDFAppDocumentSearchController::stateChanged, &receiver, [controller, deleteNow]()
+        {
+            if (controller->getState() == pdf::PDFAppDocumentSearchController::State::Finished)
+            {
+                deleteNow();
+            }
+        });
+        searchHandler->startSearch(QStringLiteral("alpha"));
+    }
+    else if (signal == QStringLiteral("searchText"))
+    {
+        connect(searchHandler, &pdf::PDFAppDocumentSearchCommandHandler::searchTextChanged, &receiver, deleteNow);
+        searchHandler->startSearch(QStringLiteral("alpha"));
+    }
+    else if (signal == QStringLiteral("currentIndex"))
+    {
+        searchHandler->startSearch(QStringLiteral("alpha"));
+        QVERIFY(waitForSearch(controller));
+        QVERIFY(controller->getResultCount() > 1);
+        connect(controller, &pdf::PDFAppDocumentSearchController::currentIndexChanged, &receiver, deleteNow);
+        QVERIFY(trigger(pdf::PDFAppCommands::findNext()));
+    }
+    else if (isSigned)
+    {
+        QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), isValgrind() ? 600000 : 30000);
+        connect(verifier, &pdf::PDFAppDocumentSignatureVerifier::verificationChanged, &receiver, [verifier, signal, deleteNow]()
+        {
+            if (signal == QStringLiteral("verificationStarted") || !verifier->isVerifying())
+            {
+                deleteNow();
+            }
+        });
+        verifier->verify();
+    }
+    else if (signal == QStringLiteral("speechPaused") || signal == QStringLiteral("speechResumed"))
+    {
+        QVERIFY(trigger(pdf::PDFAppCommands::readAloud()));
+        pdf::PDFAppDocumentSpeechController* speech = searchHandler->getSpeechController(false);
+        QVERIFY(speech);
+        QTRY_VERIFY_WITH_TIMEOUT(FakeSpeechEngine::s_last && !FakeSpeechEngine::s_last->said.isEmpty(), isValgrind() ? 600000 : 30000);
+        if (signal == QStringLiteral("speechResumed"))
+        {
+            speech->pause();
+            QCOMPARE(speech->getState(), pdf::PDFAppDocumentSpeechController::State::Paused);
+        }
+        connect(speech, &pdf::PDFAppDocumentSpeechController::stateChanged, &receiver, deleteNow);
+        if (signal == QStringLiteral("speechResumed"))
+        {
+            speech->play();
+        }
+        else
+        {
+            speech->pause();
+        }
+    }
+    else if (signal == QStringLiteral("speechStarted") || signal == QStringLiteral("speechStopped"))
+    {
+        if (signal == QStringLiteral("speechStopped"))
+        {
+            QVERIFY(trigger(pdf::PDFAppCommands::readAloud()));
+            pdf::PDFAppDocumentSpeechController* speech = searchHandler->getSpeechController(false);
+            QVERIFY(speech);
+            QTRY_VERIFY_WITH_TIMEOUT(FakeSpeechEngine::s_last && !FakeSpeechEngine::s_last->said.isEmpty(), isValgrind() ? 600000 : 30000);
+            connect(speech, &pdf::PDFAppDocumentSpeechController::stateChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::readAloud()));
+        }
+        else
+        {
+            pdf::PDFAppDocumentSpeechController* speech = searchHandler->getSpeechController(true);
+            QVERIFY(speech);
+            connect(speech, &pdf::PDFAppDocumentSpeechController::stateChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::readAloud()));
+        }
+    }
+    else
+    {
+        QFAIL(qPrintable(signal));
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(isDeleted, isValgrind() ? 600000 : 30000);
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(isValgrind() ? 600000 : 30000);
+    QTest::qWait(50);
+    fixture.settle();
+    QVERIFY(deleteWindow ? !window : !tab);
+
+    // The window, which has lost the tab, stays usable
+    if (!deleteWindow)
+    {
+        QVERIFY(window);
+        QVERIFY(openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
+    }
+}
+
 void AppDocumentSearchTest::closeSearch()
 {
     pdftest::AppDocumentFixture fixture;
@@ -1027,6 +1262,13 @@ void AppDocumentSearchTest::signatures()
     QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(result, false), pdf::PDFComponentPainter::SignatureStatus::Warning);
     QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(result, true), pdf::PDFComponentPainter::SignatureStatus::Invalid);
 
+    // The canvas got the results when they arrived (the signature fields of the
+    // form manager read them from the proxy), not only at the next version
+    QVERIFY(tab->getView()->getProxy());
+    QCOMPARE(tab->getView()->getProxy()->getDocument(), tab->getDocument()->getDocument().data());
+    QCOMPARE(tab->getView()->getProxy()->getSignatureVerificationResult().size(), size_t(1));
+    QCOMPARE(tab->getView()->getProxy()->getSignatureVerificationResult().front().getSignatureFieldQualifiedName(), result.getSignatureFieldQualifiedName());
+
     // The status item
     pdf::PDFAppSignatureStatusItem* item = tab->getView()->findChild<pdf::PDFAppSignatureStatusItem*>();
     QVERIFY(item);
@@ -1075,6 +1317,8 @@ void AppDocumentSearchTest::signatures()
     fixture.settle();
     QVERIFY(!verifier->isVerifying());
     QCOMPARE(tab->getDocument()->getSignatureResults().size(), size_t(1));
+    QCOMPARE(tab->getView()->getProxy()->getDocument(), tab->getDocument()->getDocument().data());
+    QCOMPARE(tab->getView()->getProxy()->getSignatureVerificationResult().size(), size_t(1));
 }
 
 void AppDocumentSearchTest::signaturesTrust()
@@ -1476,6 +1720,10 @@ void AppDocumentSearchTest::speechPanel()
     QVERIFY(panel->getFollowButton()->isChecked());
     QCOMPARE(panel->getPlayButton()->text(), QStringLiteral("Play"));
 
+    // speech-sync of 195:2499 has icon/locate (as thumbnail-sync)
+    const QSize iconSize = panel->getFollowButton()->iconSize();
+    QCOMPARE(panel->getFollowButton()->icon().pixmap(iconSize).toImage(), pdf::PDFThemeIcons::getIcon(QStringLiteral("locate")).pixmap(iconSize).toImage());
+
     // The values of the sliders are the settings (default rate 0, volume 1)
     QCOMPARE(panel->getRateSlider()->value(), 0);
     QCOMPARE(panel->getVolumeSlider()->value(), 100);
@@ -1503,6 +1751,14 @@ void AppDocumentSearchTest::speechReading()
     QVERIFY(!panel->getNowReadingLabel()->isHidden());
     QCOMPARE(panel->getNowReadingLabel()->text(), QStringLiteral("Now reading · page 1"));
     QVERIFY(tab->isCommandChecked(pdf::PDFAppCommands::readAloud()));
+
+    // now-reading text of 195:2499: Regular 12 with the lines 18 px apart
+    {
+        pdf::PDFLabel* textLabel = panel->getTextLabel();
+        QVERIFY(textLabel && !textLabel->text().isEmpty());
+        const int height = textLabel->heightForWidth(qMax(textLabel->width(), 100));
+        QVERIFY2(height >= 18 && height % 18 == 0, qPrintable(QString::number(height)));
+    }
 
     // A spoken word moves the border of the spoken part
     Q_EMIT engine->wordStarted(0, 4);
@@ -1744,6 +2000,224 @@ void AppDocumentSearchTest::qtSpeechEngine()
     engine->resume();
     engine->stop();
     pdf::PDFAppSpeechEngine::setFactory(&FakeSpeechEngine::create);
+}
+
+void AppDocumentSearchTest::reviewNewQueryDropsResults()
+{
+    // A new text while another one is searched or shown: the old results are not
+    // shown, walked by F3 / Enter nor kept in the route until the new search ends
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("New query.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSearchCommandHandler* searchHandler = handler(tab);
+    pdf::PDFAppDocumentSearchController* controller = searchHandler->getSearchController();
+
+    searchHandler->startSearch(QStringLiteral("alpha"));
+    QVERIFY(waitForSearch(controller));
+    QCOMPARE(controller->getResultCount(), 3);
+    QCOMPARE(searchHandler->getSearchText(), QStringLiteral("alpha"));
+
+    // The new text: the old results are gone at once, the handler knows the text
+    QSignalSpy stateSpy(controller, &pdf::PDFAppDocumentSearchController::stateChanged);
+    searchHandler->startSearch(QStringLiteral("quick"));
+    QCOMPARE(controller->getQuery(), QStringLiteral("quick"));
+    QCOMPARE(controller->getResultCount(), 0);
+    QCOMPARE(controller->getCurrentIndex(), -1);
+    QCOMPARE(controller->getModel()->rowCount(QModelIndex()), 0);
+    QCOMPARE(searchHandler->getSearchText(), QStringLiteral("quick"));
+    QVERIFY(stateSpy.count() >= 1);
+
+    // A third text while the second one is searched (the state stays Searching)
+    const pdf::PDFAppDocumentSearchController::State state = controller->getState();
+    stateSpy.clear();
+    searchHandler->startSearch(QStringLiteral("gamma"));
+    QCOMPARE(controller->getState(), state);
+    QVERIFY(stateSpy.count() >= 1);
+    QCOMPARE(searchHandler->getSearchText(), QStringLiteral("gamma"));
+    QCOMPARE(pdf::PDFAppDocumentSearchCommandHandler::getRouteQuery(tab), QStringLiteral("gamma"));
+
+    // Enter with the text being searched does not start it again
+    QLineEdit* field = searchHandler->getSearchField();
+    if (field && (controller->getState() == pdf::PDFAppDocumentSearchController::State::Searching || controller->getState() == pdf::PDFAppDocumentSearchController::State::Indexing))
+    {
+        QCOMPARE(field->text(), QStringLiteral("gamma"));
+        QVERIFY(QMetaObject::invokeMethod(field, "returnPressed"));
+        QCOMPARE(controller->getResultCount(), 0);
+    }
+
+    QVERIFY(waitForSearch(controller));
+    QCOMPARE(controller->getResultCount(), 3);
+    for (const pdf::PDFDocumentTextSearchMatch& match : controller->getResults()->result.results)
+    {
+        QCOMPARE(match.matched, QStringLiteral("gamma"));
+    }
+
+    // Other options: the results of the old options are gone during the search
+    pdf::PDFDocumentTextSearchOptions options = controller->getOptions();
+    options.caseSensitive = !options.caseSensitive;
+    controller->setOptions(options);
+    QCOMPARE(controller->getResultCount(), 0);
+    QVERIFY(waitForSearch(controller));
+    QCOMPARE(controller->getResultCount(), 3);
+}
+
+void AppDocumentSearchTest::reviewSignatureCardsKeepExpansion()
+{
+    // A verification started again (a setting, a trusted certificate) shows no
+    // cards meanwhile; the cards keep their expansion after it
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSignatureVerifier* verifier = handler(tab)->getSignatureVerifier();
+    QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), isValgrind() ? 600000 : 30000);
+
+    QVERIFY(tab->getView()->showPanel(pdf::PDFAppDocumentPanelIds::signatures()));
+    pdf::PDFAppDocumentSignaturesPanel* panel = qobject_cast<pdf::PDFAppDocumentSignaturesPanel*>(tab->getView()->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::signatures()));
+    QVERIFY(panel);
+    QTRY_VERIFY(!panel->getCards().empty());
+
+    // The card needing attention is expanded by default; the user collapses it
+    QVERIFY(panel->getCards().front()->isExpanded());
+    panel->getCards().front()->setExpanded(false);
+
+    verifier->verify();
+    QVERIFY(verifier->isVerifying());
+    QVERIFY(panel->getCards().empty());
+    QTRY_VERIFY_WITH_TIMEOUT(!verifier->isVerifying() && !panel->getCards().empty(), isValgrind() ? 600000 : 30000);
+    QVERIFY(!panel->getCards().front()->isExpanded());
+
+    // ... and expands it again
+    panel->getCards().front()->setExpanded(true);
+    verifier->verify();
+    QTRY_VERIFY_WITH_TIMEOUT(!verifier->isVerifying() && !panel->getCards().empty(), isValgrind() ? 600000 : 30000);
+    QVERIFY(panel->getCards().front()->isExpanded());
+}
+
+void AppDocumentSearchTest::reviewTrustedRepositoryLimit()
+{
+    // Hostile rows of another version must not hide a certificate the user trusts
+    // (the limit of the rows read used to be applied before the rows were checked)
+    // and a trusted certificate is never added twice
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+    QVERIFY(tab);
+    QTRY_VERIFY_WITH_TIMEOUT(!tab->getDocument()->getSignatureResults().empty(), isValgrind() ? 600000 : 30000);
+    const QByteArray data = tab->getDocument()->getSignatureResults().front().getCertificateInfos().front().getCertificateData();
+    QVERIFY(pdf::PDFTrustedCertificateRepository::isValidCertificate(data));
+
+    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
+    auto insertRows = [connection](int count, const char* sql)
+    {
+        pdf::PDFDatabaseTransaction transaction(connection);
+        for (int i = 0; i < count; ++i)
+        {
+            pdf::PDFDatabaseStatement statement(connection, sql);
+            if (!statement.execute())
+            {
+                return false;
+            }
+        }
+        return transaction.commit();
+    };
+    auto countRows = [connection](const QByteArray& value)
+    {
+        pdf::PDFDatabaseStatement statement(connection, "SELECT count(*) FROM trusted_certificate WHERE data = ?1");
+        statement.bindBlob(1, value);
+        return statement.next() ? statement.getInt64(0) : -1;
+    };
+
+    // Rows of other types and empty values first, then garbage blobs below the limit
+    QVERIFY(insertRows(1500, "INSERT INTO trusted_certificate(data, added) VALUES ('text', 0)"));
+    QVERIFY(insertRows(20, "INSERT INTO trusted_certificate(data, added) VALUES (x'', 0)"));
+    QVERIFY(insertRows(pdf::PDFTrustedCertificateRepository::MAXIMUM_CERTIFICATE_COUNT - 1, "INSERT INTO trusted_certificate(data, added) VALUES (x'0102', 0)"));
+
+    pdf::PDFTrustedCertificateRepository repository(fixture.context->getDatabase());
+    QVERIFY(!repository.contains(data));
+    QVERIFY(!repository.addCertificate(data).isError());
+    QVERIFY(repository.contains(data));
+    QVERIFY(!repository.addCertificate(data).isError());
+    QCOMPARE(countRows(data), qint64(1));
+
+    // The verification reads it
+    const std::vector<pdf::PDFTrustedCertificate> certificates = repository.getCertificates();
+    QCOMPARE(certificates.size(), size_t(1));
+    QCOMPARE(certificates.front().data, data);
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::readSettings(fixture.context.get()).trustedCertificates.size(), size_t(1));
+
+    // Over the limit: refused with an error instead of a row, which nobody reads
+    QVERIFY(!repository.removeCertificate(certificates.front().id).isError());
+    QVERIFY(insertRows(5, "INSERT INTO trusted_certificate(data, added) VALUES (x'0102', 0)"));
+    const pdf::PDFDatabaseError error = repository.addCertificate(data);
+    QVERIFY(error.isError());
+    QVERIFY(!error.getMessage().isEmpty());
+    QVERIFY(!repository.contains(data));
+    QCOMPARE(countRows(data), qint64(0));
+}
+
+void AppDocumentSearchTest::reviewSpeechLongBlock()
+{
+    // A block longer than the limit of one said text is said in parts: nothing of
+    // it is left out (it used to be cut after 4000 characters)
+    pdftest::AppDocumentFixture fixture;
+    QStringList words;
+    for (int i = 0; i < 1500; ++i)
+    {
+        words << QStringLiteral("w%1").arg(i);
+    }
+    const QString text = words.join(QLatin1Char(' '));
+    QVERIFY(text.size() > 6000);
+
+    const QString file = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("Long block.pdf"));
+    {
+        pdf::PDFDocumentBuilder builder;
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 14000, 100));
+        pdf::PDFPageContentStreamBuilder content(&builder);
+        QPainter* painter = content.begin(page);
+        QVERIFY(painter);
+        QFont font = painter->font();
+        font.setPixelSize(2);
+        painter->setFont(font);
+        painter->drawText(QPointF(10, 50), text);
+        content.end(painter);
+        pdf::PDFDocument document = builder.build();
+        QVERIFY(bool(pdf::PDFDocumentWriter(nullptr).write(file, &document, false)));
+    }
+
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSpeechController* speech = handler(tab)->getSpeechController(true);
+    QVERIFY(speech);
+    FakeSpeechEngine* engine = FakeSpeechEngine::s_last;
+    QVERIFY(engine);
+
+    speech->play();
+    QTRY_VERIFY_WITH_TIMEOUT(!engine->said.isEmpty(), isValgrind() ? 600000 : 30000);
+    int guard = 0;
+    while (speech->isReading() && guard++ < 50)
+    {
+        engine->finish();
+    }
+    QVERIFY(!speech->isReading());
+
+    // The page is one block of one line (longer than one said text)
+    std::shared_ptr<const pdf::PDFDocumentTextIndex> index = handler(tab)->getIndexer()->getIndex();
+    QVERIFY(index);
+    const QString pageText = index->getPageText(0).trimmed();
+    QVERIFY(pageText.size() > 6000);
+    QVERIFY(!pageText.contains(QChar(0x000A)));
+
+    QVERIFY(engine->said.size() >= 2);
+    QString spoken;
+    for (const QString& part : engine->said)
+    {
+        QVERIFY(part.size() <= 4000);
+        QVERIFY(!part.startsWith(QLatin1Char(' ')) && !part.endsWith(QLatin1Char(' ')));
+        spoken += (spoken.isEmpty() ? QString() : QStringLiteral(" ")) + part;
+    }
+
+    // The words of the page in their order (the text layout may join or split
+    // the white space differently)
+    QCOMPARE(spoken.split(QLatin1Char(' '), Qt::SkipEmptyParts), words);
 }
 
 void AppDocumentSearchTest::screenshots()

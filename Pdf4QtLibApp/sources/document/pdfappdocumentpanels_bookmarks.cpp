@@ -822,7 +822,9 @@ QMenu* PDFAppBookmarksPanel::createContextMenu(int row)
         return nullptr;
     }
 
-    m_menuRow = row;
+    // The menu does not block: the rows may be reloaded before an action runs (a
+    // change of another instance), so the action finds its bookmark again
+    m_menuItem = *item;
     QMenu* menu = new QMenu(this);
     menu->setObjectName(QStringLiteral("bookmarkContextMenu"));
     menu->setAttribute(Qt::WA_DeleteOnClose);
@@ -968,29 +970,51 @@ void PDFAppBookmarksPanel::onGenerateToggled(bool checked)
     }
 }
 
+int PDFAppBookmarksPanel::findMenuRow() const
+{
+    // A personal bookmark by its id, a generated one by its page; a bookmark,
+    // which is gone, has no row (the action does nothing)
+    if (!m_menuItem || !m_model)
+    {
+        return -1;
+    }
+
+    const std::vector<PDFAppBookmarkItem>& items = m_model->getItems();
+    for (size_t row = 0; row < items.size(); ++row)
+    {
+        const PDFAppBookmarkItem& item = items[row];
+        const bool isSame = m_menuItem->isAuto ? (item.isAuto && item.page == m_menuItem->page) : (!item.isAuto && item.id == m_menuItem->id);
+        if (isSame)
+        {
+            return int(row);
+        }
+    }
+    return -1;
+}
+
 void PDFAppBookmarksPanel::onMenuGoTo()
 {
-    goToBookmark(m_menuRow);
+    goToBookmark(findMenuRow());
 }
 
 void PDFAppBookmarksPanel::onMenuRename()
 {
-    renameBookmark(m_menuRow);
+    renameBookmark(findMenuRow());
 }
 
 void PDFAppBookmarksPanel::onMenuMoveUp()
 {
-    moveBookmark(m_menuRow, -1);
+    moveBookmark(findMenuRow(), -1);
 }
 
 void PDFAppBookmarksPanel::onMenuMoveDown()
 {
-    moveBookmark(m_menuRow, 1);
+    moveBookmark(findMenuRow(), 1);
 }
 
 void PDFAppBookmarksPanel::onMenuRemove()
 {
-    removeBookmark(m_menuRow);
+    removeBookmark(findMenuRow());
 }
 
 bool PDFAppBookmarksPanel::eventFilter(QObject* watched, QEvent* event)

@@ -122,8 +122,10 @@ void PDFAppPanelWidgets::prepareList(PDFAppPanelListView* view)
     prepareView(view);
     if (view)
     {
-        view->setSpacing(LIST_SPACING);
-        view->setContentPaddings(QMargins(CONTENT_PADDING_SIDE - LIST_SPACING, CONTENT_PADDING_TOP - LIST_SPACING, CONTENT_PADDING_SIDE - LIST_SPACING, CONTENT_PADDING_BOTTOM - LIST_SPACING));
+        // The spacing of QListView is on every side of a row: half of the gap
+        constexpr int spacing = LIST_SPACING / 2;
+        view->setSpacing(spacing);
+        view->setContentPaddings(QMargins(CONTENT_PADDING_SIDE - spacing, CONTENT_PADDING_TOP - spacing, CONTENT_PADDING_SIDE - spacing, CONTENT_PADDING_BOTTOM - spacing));
     }
 }
 

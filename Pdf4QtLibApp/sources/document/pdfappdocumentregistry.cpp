@@ -22,6 +22,7 @@
 
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocument.h"
+#include "pdfrepositoryhelper.h"
 
 namespace pdf
 {
@@ -62,7 +63,8 @@ void PDFAppDocumentRegistry::addDocument(PDFAppDocument* document)
     connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
     connect(document, &PDFAppDocument::fileChanged, this, &PDFAppDocumentRegistry::onDocumentChanged);
 
-    Q_EMIT documentAdded(document);
+    // Not emitted here: the tab, which is being constructed, calls this function
+    queueSignal(entry.id, document);
 }
 
 void PDFAppDocumentRegistry::removeDocument(PDFAppDocument* document)
@@ -77,7 +79,7 @@ void PDFAppDocumentRegistry::removeDocument(PDFAppDocument* document)
                 it->document->disconnect(this);
             }
             m_entries.erase(it);
-            Q_EMIT documentRemoved(id);
+            queueSignal(id, nullptr);
             return;
         }
     }
@@ -107,16 +109,11 @@ PDFAppDocument* PDFAppDocumentRegistry::findByCanonicalPath(const QString& canon
         return nullptr;
     }
 
-#ifdef Q_OS_WIN
-    const Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive;
-#else
-    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
-#endif
-
+    // The comparison of the paths of Recent (separators, case on Windows and macOS)
     for (const Entry& entry : m_entries)
     {
         if (entry.document && !entry.document->getFilePath().isEmpty() &&
-            entry.document->getFilePath().compare(canonicalPath, sensitivity) == 0)
+            PDFRepositoryHelper::isSamePath(entry.document->getFilePath(), canonicalPath))
         {
             return entry.document;
         }
@@ -144,9 +141,67 @@ void PDFAppDocumentRegistry::onDocumentDestroyed(QObject* object)
     {
         if (it->object == object)
         {
+            // Not emitted here: the tab of the document is being destroyed
             const QString id = it->id;
             m_entries.erase(it);
-            Q_EMIT documentRemoved(id);
+            queueSignal(id, nullptr);
+            return;
+        }
+    }
+}
+
+void PDFAppDocumentRegistry::queueSignal(const QString& id, PDFAppDocument* document)
+{
+    // A document removed before its documentAdded is not announced at all
+    if (!document)
+    {
+        for (auto it = m_queuedSignals.begin(); it != m_queuedSignals.end(); ++it)
+        {
+            if (it->isAdded && it->id == id)
+            {
+                m_queuedSignals.erase(it);
+                return;
+            }
+        }
+    }
+
+    const bool isScheduled = !m_queuedSignals.empty();
+    QueuedSignal queuedSignal;
+    queuedSignal.id = id;
+    queuedSignal.document = document;
+    queuedSignal.isAdded = document != nullptr;
+    m_queuedSignals.push_back(std::move(queuedSignal));
+
+    if (!isScheduled)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppDocumentRegistry::emitQueuedSignals, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentRegistry::emitQueuedSignals()
+{
+    std::vector<QueuedSignal> queuedSignals;
+    queuedSignals.swap(m_queuedSignals);
+
+    QPointer<PDFAppDocumentRegistry> guard(this);
+    for (const QueuedSignal& queuedSignal : queuedSignals)
+    {
+        if (queuedSignal.isAdded)
+        {
+            // Only a document, which is still registered (a slot may remove it)
+            PDFAppDocument* document = queuedSignal.document.data();
+            if (document && findDocument(queuedSignal.id) == document)
+            {
+                Q_EMIT documentAdded(document);
+            }
+        }
+        else
+        {
+            Q_EMIT documentRemoved(queuedSignal.id);
+        }
+
+        if (!guard)
+        {
             return;
         }
     }

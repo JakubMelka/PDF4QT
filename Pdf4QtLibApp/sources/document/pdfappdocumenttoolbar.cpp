@@ -27,6 +27,8 @@
 #include "pdfappdocumentmenus.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
+#include "pdfdatabasenotifier.h"
+#include "pdfshortcutrepository.h"
 
 #include "pdfwidgettool.h"
 
@@ -35,6 +37,7 @@
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 
+#include <QFocusEvent>
 #include <QHBoxLayout>
 #include <QLocale>
 #include <QPainter>
@@ -212,6 +215,7 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     m_pageField->setMaxLength(256);
     connect(m_pageField.data(), &QLineEdit::returnPressed, this, &PDFAppDocumentToolbar::onPageFieldEdited);
     connect(m_pageField.data(), &QLineEdit::editingFinished, this, &PDFAppDocumentToolbar::updatePageField);
+    m_pageField->installEventFilter(this);
     pageLayout->addWidget(m_pageField);
     pageLayout->addWidget(createCommandButton(C::nextPage(), QStringLiteral("chevron-right")));
     centerLayout->addWidget(m_pageGroup);
@@ -226,6 +230,7 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     m_zoomField->setMaxLength(16);
     connect(m_zoomField.data(), &QLineEdit::returnPressed, this, &PDFAppDocumentToolbar::onZoomFieldEdited);
     connect(m_zoomField.data(), &QLineEdit::editingFinished, this, &PDFAppDocumentToolbar::updateZoomField);
+    m_zoomField->installEventFilter(this);
     zoomLayout->addWidget(m_zoomField);
     zoomLayout->addWidget(createCommandButton(C::zoomIn(), QStringLiteral("plus")));
     centerLayout->addWidget(m_zoomGroup);
@@ -257,6 +262,14 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
         connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentToolbar::updateState);
         connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentToolbar::onViewChanged);
         connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
+
+        // The tooltips show the shortcuts of the user
+        PDFAppContext* context = view->getContext();
+        if (context && context->getNotifier())
+        {
+            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentToolbar::onDatabaseChanged);
+            connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentToolbar::updateCommandToolTips);
+        }
     }
 
     retranslate();
@@ -335,23 +348,7 @@ void PDFAppDocumentToolbar::retranslate()
         m_insertButton->setToolTip(tr("Inserting is available in a later version"));
     }
 
-    // Icon buttons: the title of the command and its shortcut
-    const PDFAppContext* context = m_view ? m_view->getContext() : nullptr;
-    const PDFAppCommandRegistry* registry = context ? context->getCommandRegistry() : nullptr;
-    for (const auto& item : m_commandButtons)
-    {
-        QToolButton* button = item.second.data();
-        const PDFAppCommand* command = registry ? registry->findCommand(item.first) : nullptr;
-        if (!button || !command)
-        {
-            continue;
-        }
-
-        const QString title = command->getTitle();
-        const QKeySequence shortcut = command->defaultShortcut;
-        button->setAccessibleName(title);
-        button->setToolTip(shortcut.isEmpty() ? title : tr("%1 (%2)").arg(title, shortcut.toString(QKeySequence::NativeText)));
-    }
+    updateCommandToolTips();
 
     if (m_selectButton)
     {
@@ -374,6 +371,50 @@ void PDFAppDocumentToolbar::retranslate()
 
     updatePageField();
     updateZoomField();
+}
+
+void PDFAppDocumentToolbar::updateCommandToolTips()
+{
+    // Icon buttons: the title of the command and the shortcut of the user (an
+    // unreadable database leaves the defaults)
+    PDFAppContext* context = m_view ? m_view->getContext() : nullptr;
+    const PDFAppCommandRegistry* registry = context ? context->getCommandRegistry() : nullptr;
+    PDFAppCommandRegistry::UserShortcuts userShortcuts;
+    if (context && context->getDatabase())
+    {
+        PDFDatabaseError error;
+        userShortcuts = context->getShortcuts().getShortcuts(&error);
+        if (error.isError())
+        {
+            userShortcuts.clear();
+        }
+    }
+
+    for (const auto& item : m_commandButtons)
+    {
+        QToolButton* button = item.second.data();
+        const PDFAppCommand* command = registry ? registry->findCommand(item.first) : nullptr;
+        if (!button || !command)
+        {
+            continue;
+        }
+
+        const QString title = command->getTitle();
+        const QKeySequence shortcut = registry->getShortcut(item.first, userShortcuts);
+        button->setAccessibleName(title);
+        button->setToolTip(shortcut.isEmpty() ? title : tr("%1 (%2)").arg(title, shortcut.toString(QKeySequence::NativeText)));
+    }
+}
+
+void PDFAppDocumentToolbar::onDatabaseChanged(const QString& topic, const QString& key)
+{
+    Q_UNUSED(key);
+
+    // The shortcuts of the user changed (also by another instance)
+    if (topic.isEmpty() || topic == PDFShortcutRepository::getTopic())
+    {
+        updateCommandToolTips();
+    }
 }
 
 PDFAppDocumentView* PDFAppDocumentToolbar::getView() const
@@ -630,6 +671,9 @@ void PDFAppDocumentToolbar::updatePageField()
         return;
     }
 
+    // The text of the user is replaced: its error goes with it
+    m_pageField->setInvalid(false);
+
     const PDFAppDocumentView* view = m_view.data();
     const PDFInteger pageCount = view ? view->getPageCount() : 0;
     const PDFInteger pageIndex = view ? view->getCurrentPageIndex() : -1;
@@ -660,6 +704,9 @@ void PDFAppDocumentToolbar::updateZoomField()
     {
         return;
     }
+
+    // The text of the user is replaced: its error goes with it
+    m_zoomField->setInvalid(false);
 
     const PDFAppDocumentView* view = m_view.data();
     if (!view || view->getPageCount() <= 0)
@@ -762,6 +809,25 @@ void PDFAppDocumentToolbar::changeEvent(QEvent* event)
         default:
             break;
     }
+}
+
+bool PDFAppDocumentToolbar::eventFilter(QObject* watched, QEvent* event)
+{
+    // A field left with a refused text (Enter has already finished the editing, so
+    // QLineEdit does not report the focus out) shows the current value again
+    if (event->type() == QEvent::FocusOut && static_cast<const QFocusEvent*>(event)->reason() != Qt::PopupFocusReason)
+    {
+        if (watched == m_pageField)
+        {
+            QMetaObject::invokeMethod(this, &PDFAppDocumentToolbar::updatePageField, Qt::QueuedConnection);
+        }
+        else if (watched == m_zoomField)
+        {
+            QMetaObject::invokeMethod(this, &PDFAppDocumentToolbar::updateZoomField, Qt::QueuedConnection);
+        }
+    }
+
+    return BaseClass::eventFilter(watched, event);
 }
 
 QSize PDFAppDocumentToolbar::minimumSizeHint() const

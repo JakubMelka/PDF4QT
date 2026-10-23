@@ -307,6 +307,14 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     const bool wasModified = isModified();
     const bool isReset = flags.testFlag(PDFModifiedDocument::Reset);
 
+    // The old document and its optional content activity stay alive, until the
+    // listeners of documentChanged have the new ones: the compilers of the view
+    // read them in their worker threads by raw pointers (a reload and a cleared or
+    // trimmed undo stack hold no other reference to the old document)
+    const PDFDocumentPointer oldDocument = m_document;
+    Q_UNUSED(oldDocument);
+    QPointer<PDFOptionalContentActivity> oldActivity;
+
     m_document = std::move(document);
     ++m_version;
     if (isSaved)
@@ -324,12 +332,19 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     // document); otherwise the activity is kept and points to the new document
     if (isReset || !m_optionalContentActivity)
     {
-        delete m_optionalContentActivity.data();
+        oldActivity = m_optionalContentActivity;
         m_optionalContentActivity = new PDFOptionalContentActivity(m_document.data(), OCUsage::View, this);
     }
     else
     {
         m_optionalContentActivity->setDocument(m_document.data());
+    }
+
+    // The old activity is deleted from the event loop, after the signals (a child of
+    // the document: it goes with the document, if a slot deletes the document)
+    if (oldActivity)
+    {
+        oldActivity->deleteLater();
     }
 
     // The signatures belong to one version
@@ -367,7 +382,7 @@ PDFAppDocumentOperation* PDFAppDocument::beginOperation(PDFAppDocumentOperationK
     PDFAppDocumentOperation* operation = new PDFAppDocumentOperation(kind, text, blocksChanges, this);
     m_operations.emplace_back(operation);
     connect(operation, &PDFAppDocumentOperation::finished, this, &PDFAppDocument::onOperationFinished);
-    connect(operation, &PDFAppDocumentOperation::progressChanged, this, &PDFAppDocument::operationsChanged);
+    connect(operation, &PDFAppDocumentOperation::progressChanged, this, &PDFAppDocument::operationProgressChanged);
     Q_EMIT operationsChanged();
     return operation;
 }

@@ -396,10 +396,20 @@ void PDFAppDocumentSearchCommandHandler::onFieldReturnPressed()
     {
         return;
     }
-    if (!text.isEmpty() && text == m_searchController->getQuery() && m_searchController->getResultCount() > 0)
+    if (!text.isEmpty() && text == m_searchController->getQuery())
     {
-        m_searchController->goToNext();
-        return;
+        if (m_searchController->getResultCount() > 0)
+        {
+            m_searchController->goToNext();
+            return;
+        }
+
+        // The text is being searched: Enter does not start it again
+        const PDFAppDocumentSearchController::State state = m_searchController->getState();
+        if (state == PDFAppDocumentSearchController::State::Indexing || state == PDFAppDocumentSearchController::State::Searching)
+        {
+            return;
+        }
     }
     startSearch(text);
 }

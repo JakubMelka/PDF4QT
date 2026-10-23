@@ -113,6 +113,11 @@ public:
     /// Default paper size of the locale (Letter in the United States and Canada, A4 elsewhere)
     static QPageSize getLocaleDefaultPageSize();
 
+    /// Layout of the printable area of the paper of \p layout: the paper without
+    /// the minimal margins of the printer. The printer prints a full page (its
+    /// paint rectangle is the whole paper), Fit to page fills this area.
+    static QPageLayout getPrintableLayout(const QPageLayout& layout);
+
 private:
     static Provider& getProvider();
     static PropertiesHandler& getPropertiesHandler();

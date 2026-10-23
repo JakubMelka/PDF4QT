@@ -24,9 +24,12 @@
 #include "pdfappdocument.h"
 
 #include "pdfdocumenttextindex.h"
+#include "pdfexception.h"
 
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
+
+#include <new>
 
 namespace pdf
 {
@@ -85,15 +88,21 @@ bool PDFAppDocumentTextIndexer::requestIndex()
     m_watcher->setFuture(QtConcurrent::run(&PDFAppDocumentTextIndexer::buildIndex, snapshot.document, m_job));
 
     // The progress of the tab; the operation does not block changes (a change of
-    // the page contents only cancels the build)
-    m_operation = m_document->beginOperation(PDFAppDocumentOperationKind::Index, tr("Indexing the text of the document"), false);
+    // the page contents only cancels the build). The document announces the new
+    // operation (operationsChanged): a slot may delete the tab and this indexer.
+    QPointer<PDFAppDocumentTextIndexer> guard(this);
+    PDFAppDocumentOperation* operation = m_document->beginOperation(PDFAppDocumentOperationKind::Index, tr("Indexing the text of the document"), false);
+    if (!guard)
+    {
+        return false;
+    }
+    m_operation = operation;
     if (m_operation)
     {
         connect(m_operation, &PDFAppDocumentOperation::cancelRequested, this, &PDFAppDocumentTextIndexer::onOperationCancelRequested);
     }
     m_progressTimer->start();
 
-    QPointer<PDFAppDocumentTextIndexer> guard(this);
     Q_EMIT buildingChanged();
     if (guard)
     {
@@ -120,8 +129,13 @@ void PDFAppDocumentTextIndexer::cancel()
         return;
     }
 
+    // The finished operation is announced by the document (a slot may delete the tab)
+    QPointer<PDFAppDocumentTextIndexer> guard(this);
     stopJob();
-    Q_EMIT buildingChanged();
+    if (guard)
+    {
+        Q_EMIT buildingChanged();
+    }
 }
 
 void PDFAppDocumentTextIndexer::stopJob()
@@ -163,8 +177,21 @@ std::shared_ptr<const PDFDocumentTextIndex> PDFAppDocumentTextIndexer::buildInde
     }
 
     // The default optional content of the view: the activity of the document is a
-    // QObject of the GUI thread, which the user may change during the build
-    return PDFDocumentTextIndex::build(document.data(), nullptr, &job->cancelFlag, nullptr, &job->processedPageCount);
+    // QObject of the GUI thread, which the user may change during the build. An
+    // exception must not leave the worker (the watcher would throw it again from
+    // the slot of the GUI thread): there is no index, the next request tries again.
+    try
+    {
+        return PDFDocumentTextIndex::build(document.data(), nullptr, &job->cancelFlag, nullptr, &job->processedPageCount);
+    }
+    catch (const PDFException&)
+    {
+        return nullptr;
+    }
+    catch (const std::bad_alloc&)
+    {
+        return nullptr;
+    }
 }
 
 void PDFAppDocumentTextIndexer::onBuildFinished()
@@ -176,7 +203,14 @@ void PDFAppDocumentTextIndexer::onBuildFinished()
     }
     const quint64 version = m_job ? m_job->version : 0;
     const bool isFinished = m_job != nullptr;
+
+    // The finished operation is announced by the document (a slot may delete the tab)
+    QPointer<PDFAppDocumentTextIndexer> guard(this);
     stopJob();
+    if (!guard)
+    {
+        return;
+    }
 
     // The document refuses an index of a version older than its page contents
     if (index && isFinished && m_document)
@@ -184,7 +218,6 @@ void PDFAppDocumentTextIndexer::onBuildFinished()
         m_document->setTextIndex(index, version);
     }
 
-    QPointer<PDFAppDocumentTextIndexer> guard(this);
     Q_EMIT buildingChanged();
     if (!guard)
     {
@@ -209,8 +242,17 @@ void PDFAppDocumentTextIndexer::onDocumentChanged(const PDFModifiedDocument& mod
     // still waits, so the new version is indexed instead
     if (m_job && (modified.hasReset() || modified.hasPageContentsChanged()))
     {
+        // The operations of the document and the build are announced (a slot may
+        // delete the tab)
+        QPointer<PDFAppDocumentTextIndexer> guard(this);
         stopJob();
-        if (!requestIndex() && !m_job)
+        if (!guard)
+        {
+            return;
+        }
+
+        const bool isIndexReady = requestIndex();
+        if (guard && !isIndexReady && !m_job)
         {
             // The document cannot be indexed now (it is not ready)
             Q_EMIT buildingChanged();
@@ -227,11 +269,17 @@ void PDFAppDocumentTextIndexer::onProgressTimer()
     }
 
     m_lastProgress = progress;
+
+    // The progress of the operation is announced by the document (a slot may delete the tab)
+    QPointer<PDFAppDocumentTextIndexer> guard(this);
     if (m_operation)
     {
         m_operation->setProgress(progress);
     }
-    Q_EMIT progressChanged(progress);
+    if (guard)
+    {
+        Q_EMIT progressChanged(progress);
+    }
 }
 
 void PDFAppDocumentTextIndexer::onOperationCancelRequested()

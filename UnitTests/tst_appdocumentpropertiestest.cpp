@@ -27,6 +27,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentactions.h"
 #include "pdfappdocumentcommands.h"
+#include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentproperties.h"
 #include "pdfappdocumentpropertiesdata.h"
 #include "pdfappdocumentpropertiespage.h"
@@ -65,9 +66,12 @@
 #include "pdfwidgettool.h"
 
 #include <QClipboard>
+#include <QElapsedTimer>
 #include <QListView>
+#include <QUrlQuery>
 #include <QMenu>
 #include <QToolButton>
+#include <QWindow>
 #include <QtTest>
 
 #include <functional>
@@ -320,6 +324,8 @@ private slots:
     void dataInfoChanges();
     void dataMetadata();
     void dataFonts();
+    void dataFontsDeduplicated();
+    void dataInfoLossy();
     void dataHostile();
 
     // Page
@@ -332,6 +338,8 @@ private slots:
     void sectionFonts();
     void sectionDisplay();
     void sectionXmp();
+    void xmpPendingChange();
+    void sectionKeptOnStateChange();
     void copyAll();
     void pageDeletion();
     void minimalWindowAndDirection();
@@ -346,10 +354,17 @@ private slots:
     void linkHover();
     void linkClick();
     void actionLifetime();
+    void linkClickDeferred();
+    void toolManagerNotification();
+    void securityRules();
+    void networkTargets();
 
     // Rendering issues, developer view
     void renderingIssues();
     void renderingIssuesLifetime();
+    void deleteFromOwnSignals_data();
+    void deleteFromOwnSignals();
+    void renderingIssuesPointer();
     void developerOverlay();
     void settings();
 
@@ -515,6 +530,21 @@ void AppDocumentPropertiesTest::dataDisplay()
     QVERIFY(duplexTexts.contains(QStringLiteral("Duplex (flip long edge)")));
     QVERIFY(duplexTexts.contains(QStringLiteral("Duplex (flip short edge)")));
     QVERIFY(duplexTexts.contains(QStringLiteral("Simplex")));
+
+    // A print page range with an item, which is not a page number, is ignored (its
+    // pairs would be shifted: 1, 3-5 of [1 (x) 3 5] would be wrong)
+    pdf::PDFDocumentBuilder hostileBuilder;
+    hostileBuilder.createDocument();
+    hostileBuilder.appendPage(QRectF(0, 0, 595, 842));
+    pdf::PDFArrayBuilder hostileRanges;
+    hostileRanges.appendItem(pdf::PDFObject::createInteger(1));
+    hostileRanges.appendItem(pdf::PDFObject::createString(QByteArray("x")));
+    hostileRanges.appendItem(pdf::PDFObject::createInteger(3));
+    hostileRanges.appendItem(pdf::PDFObject::createInteger(5));
+    hostileBuilder.mergeTo(hostileBuilder.getCatalogReference(), PropertiesTestHelper::dictionary({ { "ViewerPreferences",
+                                                                  PropertiesTestHelper::dictionary({ { "PrintPageRange", pdf::PDFObject::createArray(hostileRanges) } }) } }));
+    const pdf::PDFDocument hostileDocument = hostileBuilder.build();
+    QVERIFY(hostileDocument.getCatalog()->getViewerPreferences()->getPrintPageRanges().empty());
 }
 
 void AppDocumentPropertiesTest::dataInfoChanges()
@@ -648,6 +678,100 @@ void AppDocumentPropertiesTest::dataFonts()
     QCOMPARE(info.getStatusText(), QStringLiteral("Not embedded"));
     QCOMPARE(pdf::PDFAppDocumentPropertiesData::getFontTypeText(int(pdf::FontType::TrueType)), QStringLiteral("TrueType"));
     QCOMPARE(pdf::PDFAppDocumentPropertiesData::getFontTypeText(999), QStringLiteral("Unknown"));
+}
+
+void AppDocumentPropertiesTest::dataFontsDeduplicated()
+{
+    // Direct font dictionaries: Helvetica with the family Sans, the standard
+    // Helvetica without a descriptor and Helvetica with Sans again - the same
+    // fonts were not neighbors after a sort by the name and the type only
+    QByteArray pdf("%PDF-1.7\n");
+    std::vector<qint64> offsets;
+    const QByteArray sans("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FontDescriptor << /Type /FontDescriptor /FontName /Helvetica /FontFamily (Sans) /Flags 32 >> >>");
+    const QByteArray plain("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    const QByteArray objects[] =
+    {
+        QByteArray("<< /Type /Catalog /Pages 2 0 R >>"),
+        QByteArray("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 ") + sans + " /F2 " + plain + " /F3 " + sans + " >> >> >>"
+    };
+    for (int i = 0; i < 3; ++i)
+    {
+        offsets.push_back(pdf.size());
+        pdf += QByteArray::number(i + 1) + " 0 obj\n" + objects[i] + "\nendobj\n";
+    }
+    const qint64 xref = pdf.size();
+    pdf += "xref\n0 4\n0000000000 65535 f \n";
+    for (qint64 offset : offsets)
+    {
+        pdf += QByteArray::number(offset).rightJustified(10, '0') + " 00000 n \n";
+    }
+    pdf += "trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n" + QByteArray::number(xref) + "\n%%EOF\n";
+
+    pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+    const pdf::PDFDocument document = reader.readFromBuffer(pdf);
+    QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+
+    const std::vector<pdf::PDFAppFontInfo> fonts = pdf::PDFAppDocumentFontScanTask::scan(&document, nullptr);
+    QVERIFY(!fonts.empty());
+    QVERIFY(fonts.size() < 3);
+    for (size_t i = 0; i < fonts.size(); ++i)
+    {
+        for (size_t j = i + 1; j < fonts.size(); ++j)
+        {
+            const bool isSame = fonts[i].name == fonts[j].name && fonts[i].family == fonts[j].family && fonts[i].type == fonts[j].type &&
+                                fonts[i].isEmbedded == fonts[j].isEmbedded && fonts[i].isSubset == fonts[j].isSubset;
+            QVERIFY2(!isSame, qPrintable(fonts[i].name));
+        }
+    }
+}
+
+void AppDocumentPropertiesTest::dataInfoLossy()
+{
+    // Values, which a row of one line cannot show as they are, are read only: an
+    // edit would write the shown text (line breaks replaced, cut) back
+    QTemporaryDir directory;
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    builder.appendPage(QRectF(0, 0, 595, 842));
+    pdf::PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Title");
+    factory << pdf::PDFObjectFactory::createTextString(QStringLiteral("Line 1\nLine 2"));
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Subject");
+    factory << pdf::PDFObjectFactory::createTextString(QString(pdf::PDFAppDocumentPropertiesData::MAXIMUM_VALUE_LENGTH + 10, QLatin1Char('s')));
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Author");
+    factory << pdf::PDFObjectFactory::createTextString(QStringLiteral("Jane Novak"));
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Note");
+    factory << pdf::PDFObjectFactory::createTextString(QStringLiteral("First\r\nSecond"));
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Department");
+    factory << pdf::PDFObjectFactory::createTextString(QStringLiteral("Finance"));
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder.updateDocumentInfo(factory.takeObject());
+    const QString path = QDir(directory.path()).absoluteFilePath(QStringLiteral("Lossy.pdf"));
+    pdf::PDFDocument built = builder.build();
+    QVERIFY(pdftest::AppDocumentSamples::write(built, path));
+
+    pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+    const pdf::PDFDocument document = reader.readFromFile(path);
+    QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+    const std::vector<pdf::PDFAppPropertyGroup> groups = pdf::PDFAppDocumentPropertiesData::createGeneralGroups(&document, path, QStringLiteral("Lossy.pdf"), 0);
+    QCOMPARE(groups[0].items[0].value, QStringLiteral("Line 1 Line 2"));
+    QVERIFY(groups[0].items[0].infoKey.isEmpty());
+    QVERIFY(groups[0].items[1].value.endsWith(QStringLiteral("…")));
+    QVERIFY(groups[0].items[1].infoKey.isEmpty());
+    QCOMPARE(groups[0].items[2].infoKey, QByteArray("Author"));
+    const pdf::PDFAppPropertyGroup& custom = groups.back();
+    QCOMPARE(custom.id, QStringLiteral("custom"));
+    for (const pdf::PDFAppPropertyItem& item : custom.items)
+    {
+        QCOMPARE(item.infoKey.isEmpty(), item.key == QStringLiteral("Note"));
+    }
 }
 
 void AppDocumentPropertiesTest::dataHostile()
@@ -929,6 +1053,15 @@ void AppDocumentPropertiesTest::sectionFonts()
     QListView* list = page->findChild<QListView*>(QStringLiteral("fontList"));
     QVERIFY(list);
     QCOMPARE(list->model()->rowCount(), int(page->getFonts().size()));
+
+    // card 236:9344: the rows of 48 px start 5 px inside of the card (border 1 +
+    // padding 4), the card is as high as its rows + 10
+    QWidget* card = list->parentWidget();
+    QVERIFY(card);
+    fixture.settle();
+    QCOMPARE(list->viewport()->mapTo(card, QPoint(0, 0)), QPoint(5, 5));
+    QCOMPARE(list->visualRect(list->model()->index(0, 0)).height(), 48);
+    QCOMPARE(card->height(), list->model()->rowCount() * 48 + 10);
     QVERIFY(page->findChild<pdf::PDFLabel*>(QStringLiteral("sectionSubtitle"))->text().contains(QString::number(page->getFonts().size())));
 
     // A new version of the document: a new scan
@@ -975,6 +1108,22 @@ void AppDocumentPropertiesTest::sectionXmp()
     pdf::PDFAppDocumentPropertiesPage* page = PropertiesTestHelper::showProperties(fixture, tab, QStringLiteral("xmp"));
     QVERIFY(page);
     QVERIFY(page->getMetadataEditor()->toPlainText().isEmpty());
+
+    // code 236:9660: the editor lies in a box of bg/subtle with the 1 px border/default
+    QWidget* codeBox = page->findChild<QWidget*>(QStringLiteral("metadataCodeBox"));
+    QVERIFY(codeBox);
+    QCOMPARE(page->getMetadataEditor()->parentWidget(), codeBox);
+    QCOMPARE(page->getMetadataEditor()->geometry(), codeBox->rect().adjusted(1, 1, -1, -1));
+    {
+        const QImage image = PropertiesTestHelper::render(codeBox).convertToFormat(QImage::Format_RGB32);
+        const QRgb border = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BorderDefault).rgb() & 0xFFFFFF;
+        const QRgb fill = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgSubtle).rgb() & 0xFFFFFF;
+        const int y = image.height() / 2;
+        QCOMPARE(image.pixel(0, y) & 0xFFFFFF, border);
+        QCOMPARE(image.pixel(image.width() - 1, y) & 0xFFFFFF, border);
+        QCOMPARE(image.pixel(image.width() / 2, 0) & 0xFFFFFF, border);
+        QCOMPARE(image.pixel(2, y) & 0xFFFFFF, fill);
+    }
 
     // Create default metadata: one undo step, the packet is shown
     QPushButton* create = page->findChild<QPushButton*>(QStringLiteral("createMetadataButton"));
@@ -1023,6 +1172,67 @@ void AppDocumentPropertiesTest::sectionXmp()
     QVERIFY(page->getMetadataEditor()->toPlainText().isEmpty());
     QVERIFY(page->findChild<QPushButton*>(QStringLiteral("createMetadataButton"))->isEnabled());
     QCOMPARE(PropertiesTestHelper::countLeakPixels(PropertiesTestHelper::render(fixture.window)), 0);
+}
+
+void AppDocumentPropertiesTest::xmpPendingChange()
+{
+    // The packet changes in the document, while the user edits it: the change is
+    // shown, when the text is edited back to the packet (no Apply / Discard)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PropertiesTestHelper::infoDocument(fixture.folder(), QStringLiteral("XmpPending.pdf"), true));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentPropertiesPage* page = PropertiesTestHelper::showProperties(fixture, tab, QStringLiteral("xmp"));
+    QVERIFY(page);
+    const QString original = page->getMetadataEditor()->toPlainText();
+    QVERIFY(!original.isEmpty());
+
+    page->getMetadataEditor()->setPlainText(original + QStringLiteral(" "));
+    const QString changed = QStringLiteral("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"/>");
+    const pdf::PDFDocumentPointer modified = pdf::PDFAppDocumentPropertiesData::setMetadata(document->getDocument().data(), changed.toUtf8());
+    QVERIFY(modified);
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(modified, document->getOptionalContentActivity()), QStringLiteral("x"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    fixture.settle();
+    QCOMPARE(page->getMetadataEditor()->toPlainText(), original + QStringLiteral(" "));
+
+    page->getMetadataEditor()->setPlainText(original);
+    fixture.settle();
+    QTRY_COMPARE(page->getMetadataEditor()->toPlainText(), changed);
+}
+
+void AppDocumentPropertiesTest::sectionKeptOnStateChange()
+{
+    // The progress of an operation does not build the section again (the focus
+    // and the cursor stay); a change of the editability does
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PropertiesTestHelper::infoDocument(fixture.folder(), QStringLiteral("State.pdf"), false));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentPropertiesPage* page = PropertiesTestHelper::showProperties(fixture, tab, QStringLiteral("general"));
+    QVERIFY(page);
+    QPointer<QWidget> section = page->findChild<QWidget*>(QStringLiteral("section-general"));
+    QVERIFY(section);
+    QVERIFY(page->findChild<pdf::PDFPropertyRow*>(QStringLiteral("property-title"))->isEditable());
+
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Print, QStringLiteral("Printing"), false);
+    for (int progress = 0; progress <= 100; progress += 25)
+    {
+        operation->setProgress(progress);
+        fixture.settle();
+    }
+    operation->finish();
+    fixture.settle();
+    QVERIFY(section);
+    QCOMPARE(page->findChild<QWidget*>(QStringLiteral("section-general")), section.data());
+
+    // The lock: the rows are read only
+    document->setLocked(true);
+    fixture.settle();
+    QTRY_VERIFY(!section);
+    QVERIFY(!page->findChild<pdf::PDFPropertyRow*>(QStringLiteral("property-title"))->isEditable());
+    document->setLocked(false);
+    fixture.settle();
+    QTRY_VERIFY(page->findChild<pdf::PDFPropertyRow*>(QStringLiteral("property-title"))->isEditable());
 }
 
 void AppDocumentPropertiesTest::copyAll()
@@ -1527,6 +1737,171 @@ void AppDocumentPropertiesTest::linkClick()
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
 }
 
+void AppDocumentPropertiesTest::securityRules()
+{
+    using Handler = pdf::PDFAppDocumentActionHandler;
+
+    // An e-mail link keeps only to / cc / bcc / subject / body: "attach" made e-mail
+    // programs attach a local file (CVE-2020-11880, CVE-2020-27748)
+    const QUrl mail = Handler::resolveUri(QByteArray(), QByteArray("mailto:jane@example.com?subject=Hi&attach=/home/u/.ssh/id_rsa&Attachment=C:/x.txt&body=Text&cc=a@b.c"));
+    QVERIFY(Handler::isAllowedUrl(mail));
+    const QUrlQuery mailQuery(mail);
+    QCOMPARE(mailQuery.queryItemValue(QStringLiteral("subject")), QStringLiteral("Hi"));
+    QCOMPARE(mailQuery.queryItemValue(QStringLiteral("body")), QStringLiteral("Text"));
+    QCOMPARE(mailQuery.queryItemValue(QStringLiteral("cc")), QStringLiteral("a@b.c"));
+    QVERIFY(!mail.toString().contains(QStringLiteral("attach"), Qt::CaseInsensitive));
+    QVERIFY(!mail.toString().contains(QStringLiteral("id_rsa")));
+    QCOMPARE(Handler::resolveUri(QByteArray(), QByteArray("mailto:jane@example.com?attach=%2Fetc%2Fpasswd")), QUrl(QStringLiteral("mailto:jane@example.com")));
+    QVERIFY(!Handler::resolveUri(QByteArray(), QByteArray("mailto:jane@example.com?%61ttach=/etc/passwd")).toString().contains(QStringLiteral("passwd")));
+    QVERIFY(!Handler::resolveUri(QByteArray("mailto:x@example.com?attach=/etc/passwd"), QByteArray("?attach=/etc/passwd")).toString().contains(QStringLiteral("passwd")));
+    QCOMPARE(Handler::resolveUri(QByteArray(), QByteArray("https://example.com/?attach=1")), QUrl(QStringLiteral("https://example.com/?attach=1")));
+
+    // The operation of the shell of Windows: only "open" and "print" ("runas" elevates)
+    QCOMPARE(Handler::getShellOperation(QByteArrayLiteral("open")), QStringLiteral("open"));
+    QCOMPARE(Handler::getShellOperation(QByteArrayLiteral(" Print ")), QStringLiteral("print"));
+    QCOMPARE(Handler::getShellOperation(QByteArrayLiteral("runas")), QString());
+    QCOMPARE(Handler::getShellOperation(QByteArrayLiteral("edit")), QString());
+    QCOMPARE(Handler::getShellOperation(QByteArray()), QString());
+
+    // Paths of other computers and device paths
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("\\\\Attacker.example\\share\\a.pdf")), QStringLiteral("attacker.example"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("//server/share/a.pdf")), QStringLiteral("server"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("\\\\?\\UNC\\server\\share\\a.pdf")), QStringLiteral("server"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("\\\\.\\unc\\Server\\share\\a.pdf")), QStringLiteral("server"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("\\\\host@SSL@443\\DavWWWRoot\\a.pdf")), QStringLiteral("host@ssl@443"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("//")), QStringLiteral("/"));
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("C:/docs/a.pdf")), QString());
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("/home/u/a.pdf")), QString());
+    QCOMPARE(Handler::getNetworkServer(QStringLiteral("\\\\.\\pipe\\a.pdf")), QString());
+    QCOMPARE(Handler::getNetworkServer(QString()), QString());
+    QVERIFY(Handler::isDevicePath(QStringLiteral("\\\\.\\pipe\\a.pdf")));
+    QVERIFY(Handler::isDevicePath(QStringLiteral("//?/C:/docs/a.pdf")));
+    QVERIFY(Handler::isDevicePath(QStringLiteral("\\\\.\\COM1")));
+    QVERIFY(!Handler::isDevicePath(QStringLiteral("\\\\?\\UNC\\server\\share\\a.pdf")));
+    QVERIFY(!Handler::isDevicePath(QStringLiteral("C:/docs/a.pdf")));
+    QVERIFY(!Handler::isDevicePath(QStringLiteral("//server/share/a.pdf")));
+
+    // One list of programs with the attachments: files, which the shell starts or
+    // which connect to a server (rdp, theme packs, search connectors)
+    for (const char* name : { "a.rdp", "a.themepack", "a.search-ms", "a.dll", "a.msp", "a.appref-ms", "a.WSB", "a.settingcontent-ms", "a.lnk", "a.exe", "a.webloc" })
+    {
+        QVERIFY2(Handler::isExecutable(QStringLiteral("C:/x/") + QString::fromLatin1(name)), name);
+        QVERIFY2(pdf::PDFAppAttachments::isExecutable(QString::fromLatin1(name)), name);
+    }
+    QVERIFY(!pdf::PDFAppAttachments::isExecutable(QStringLiteral("a.pdf")));
+    QVERIFY(!pdf::PDFAppAttachments::isExecutable(QStringLiteral("a.docx")));
+
+    // Reserved names of devices: also COM0 / LPT0 and the superscript digits
+    QCOMPARE(pdf::PDFAppAttachments::sanitizeFileName(QStringLiteral("COM") + QChar(0x00B9) + QStringLiteral(".txt")), QStringLiteral("_COM") + QChar(0x00B9) + QStringLiteral(".txt"));
+    QCOMPARE(pdf::PDFAppAttachments::sanitizeFileName(QStringLiteral("lpt0")), QStringLiteral("_lpt0"));
+
+    // A bidirectional override of a name of the document is not shown by the
+    // confirmations ("invoice" + U+202E + "fdp.exe" reads "invoiceexe.pdf")
+    QWidget host;
+    const QChar override(0x202E);
+    const QString spoofed = QStringLiteral("C:/Users/Jane/invoice") + override + QStringLiteral("fdp.exe");
+    pdf::PDFMessageBox* program = pdf::PDFAppDocumentActionDialogs::createProgramDialog(&host, QStringLiteral("Report.pdf"), spoofed,
+                                                                                       QStringLiteral("/c ") + QChar(0x2066) + QStringLiteral("x") + QChar(0x2069), QStringLiteral("C:/Users"));
+    pdf::PDFKeyValueList* facts = program->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"));
+    QVERIFY(facts);
+    for (int i = 0; i < facts->getRowCount(); ++i)
+    {
+        for (const QChar character : facts->getValue(i))
+        {
+            QVERIFY(character.category() != QChar::Other_Format);
+        }
+    }
+    QVERIFY(facts->getValue(0).endsWith(QStringLiteral("fdp.exe")));
+    delete program;
+
+    pdf::PDFMessageBox* file = pdf::PDFAppDocumentActionDialogs::createFileDialog(&host, QStringLiteral("Report.pdf"), QStringLiteral("C:/Data/budget") + override + QStringLiteral("xslx.cmd"));
+    QVERIFY(!file->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"))->getValue(0).contains(override));
+    delete file;
+
+    pdf::PDFMessageBox* link = pdf::PDFAppDocumentActionDialogs::createLinkDialog(&host, QStringLiteral("Report.pdf"), QUrl(QStringLiteral("mailto:jane") + override + QStringLiteral("@example.com")));
+    QVERIFY(!link->findChild<QLabel*>(QStringLiteral("addressText"))->text().contains(override));
+    QVERIFY(!link->findChild<QLabel*>(QStringLiteral("addressTitle"))->text().contains(override));
+    delete link;
+}
+
+void AppDocumentPropertiesTest::networkTargets()
+{
+#if !defined(Q_OS_WIN)
+    QSKIP("Paths of other computers (UNC) and device paths are paths of Windows");
+#else
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = PropertiesTestHelper::openReady(fixture, pdftest::AppDocumentSamples::links(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentActionHandler* handler = PropertiesTestHelper::handler(tab)->getActionHandler();
+    const pdf::PDFDocument* document = tab->getDocument()->getDocument().data();
+    QList<pdf::PDFAppExternalLaunch> launched;
+    pdf::PDFAppDocumentActionHandler::setLaunchHandler([&launched](const pdf::PDFAppExternalLaunch& request) { launched << request; return true; });
+    const qsizetype tabCount = fixture.window->getTabs().size();
+
+    // GoToR to another computer: nothing is touched (no existence check, which
+    // would connect and send the sign-in of the user), the info bar has Open Anyway
+    const QByteArray remotePath = QByteArrayLiteral("\\\\pdf4qt-test.invalid\\share\\other.pdf");
+    const pdf::PDFActionPtr remote = PropertiesTestHelper::parseAction(document, PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("GoToR") },
+                                                                                                                   { "F", pdf::PDFObject::createString(remotePath) },
+                                                                                                                   { "D", pdf::PDFObject::createArray([]() { pdf::PDFArrayBuilder b; b.appendItem(pdf::PDFObject::createInteger(1)); b.appendItem(PropertiesTestHelper::name("Fit")); return b; }()) } }));
+    QVERIFY(remote);
+    QElapsedTimer timer;
+    timer.start();
+    handler->performAction(remote.data());
+    QVERIFY(timer.elapsed() < 2000);
+    const pdf::PDFAppInfoBarRequest* bar = view->findInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
+    QVERIFY(bar);
+    QVERIFY(!view->findInfoBar(pdf::PDFAppDocumentActionHandler::getLinkFailedBarId()));
+    QCOMPARE(bar->actions.size(), size_t(1));
+    QCOMPARE(bar->actions[0].id, pdf::PDFAppDocumentActionHandler::getOpenAnywayActionId());
+    QVERIFY(bar->text.contains(QStringLiteral("pdf4qt-test.invalid")));
+    QCOMPARE(fixture.window->getTabs().size(), tabCount);
+
+    // Close of the bar forgets the document; another bar id does nothing
+    Q_EMIT view->infoBarActionTriggered(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId(), QString());
+    Q_EMIT view->infoBarActionTriggered(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId(), pdf::PDFAppDocumentActionHandler::getOpenAnywayActionId());
+    fixture.settle();
+    QCOMPARE(fixture.window->getTabs().size(), tabCount);
+
+    // Launch of a PDF document on another computer: the same (also with Launch off)
+    const pdf::PDFActionPtr pdfLaunch = PropertiesTestHelper::parseAction(document, PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("Launch") },
+                                                                                                                      { "F", pdf::PDFObject::createString(QByteArrayLiteral("//pdf4qt-test.invalid/share/a.pdf")) } }));
+    QVERIFY(pdfLaunch);
+    view->hideInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
+    handler->performAction(pdfLaunch.data());
+    QVERIFY(view->findInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId()));
+    QCOMPARE(fixture.window->getTabs().size(), tabCount);
+
+    // A program on another computer with Launch on: no confirmation, no Open Anyway
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::securityLaunchFiles(), true).isError());
+    const pdf::PDFActionPtr programLaunch = PropertiesTestHelper::parseAction(document, PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("Launch") },
+                                                                                                                          { "F", pdf::PDFObject::createString(QByteArrayLiteral("\\\\pdf4qt-test.invalid\\share\\tool.exe")) } }));
+    QVERIFY(programLaunch);
+    view->hideInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
+    QStringList texts;
+    QTimer* dialogTimer = PropertiesTestHelper::clickWhenShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("startProgramButton"), &texts);
+    timer.restart();
+    handler->performAction(programLaunch.data());
+    QVERIFY(timer.elapsed() < 2000);
+    delete dialogTimer;
+    bar = view->findInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
+    QVERIFY(bar);
+    QVERIFY(bar->actions.empty());
+    QVERIFY(texts.isEmpty());
+    QVERIFY(launched.isEmpty());
+
+    // A device path is never opened (status message)
+    const pdf::PDFActionPtr device = PropertiesTestHelper::parseAction(document, PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("GoToR") },
+                                                                                                                   { "F", pdf::PDFObject::createString(QByteArrayLiteral("\\\\.\\pipe\\x.pdf")) } }));
+    QVERIFY(device);
+    handler->performAction(device.data());
+    QVERIFY(view->getStatusBar()->getMessage().contains(QStringLiteral("does not name a document")));
+    QCOMPARE(fixture.window->getTabs().size(), tabCount);
+    QVERIFY(launched.isEmpty());
+#endif
+}
+
 void AppDocumentPropertiesTest::actionLifetime()
 {
     // The tab closed while the confirmation of a link is shown
@@ -1580,6 +1955,174 @@ void AppDocumentPropertiesTest::actionLifetime()
     fixture.settle();
     QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
     Q_UNUSED(actions2);
+}
+
+void AppDocumentPropertiesTest::linkClickDeferred()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = PropertiesTestHelper::openReady(fixture, pdftest::AppDocumentSamples::links(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFAppDocumentActionHandler> handler = PropertiesTestHelper::handler(tab)->getActionHandler();
+    QWidget* drawWidget = view->getPdfWidget()->getDrawWidget()->getWidget();
+    view->getProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
+    fixture.settle();
+    int launched = 0;
+    pdf::PDFAppDocumentActionHandler::setLaunchHandler([&launched](const pdf::PDFAppExternalLaunch&) { ++launched; return true; });
+
+    // The text selection is the tool of the canvas
+    pdf::PDFToolManager* toolManager = view->getToolManager();
+    toolManager->setActiveTool(pdf::PDFToolManager::SelectTextTool);
+    pdf::PDFSelectTextTool* selectTextTool = toolManager->getSelectTextTool();
+    QVERIFY(selectTextTool->isActive());
+    QVERIFY(selectTextTool->isLinksClickable());
+
+    const QPoint goTo = PropertiesTestHelper::pagePoint(view, QPointF(100, 108));
+    const QPoint webLink = PropertiesTestHelper::pagePoint(view, QPointF(100, 148));
+
+    // The tool of the old applications takes the press on a link: no action, a selection
+    selectTextTool->setLinksClickable(false);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, goTo, Qt::NoButton, Qt::NoButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonPress, goTo, Qt::LeftButton, Qt::LeftButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonRelease, goTo, Qt::LeftButton, Qt::NoButton);
+    QVERIFY(!handler->hasPendingAction());
+    fixture.settle();
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
+
+    // The tool lets the click on a link through: the annotation manager follows it
+    // (from the event loop) and no selection starts
+    selectTextTool->setLinksClickable(true);
+    selectTextTool->deselect();
+    QVERIFY(!selectTextTool->hasSelection());
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonPress, goTo, Qt::LeftButton, Qt::LeftButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonRelease, goTo, Qt::LeftButton, Qt::NoButton);
+    QVERIFY(handler->hasPendingAction());
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+    QVERIFY(!selectTextTool->hasSelection());
+    QVERIFY(selectTextTool->isActive());
+
+    // A web link: its confirmation is shown after the mouse event has been delivered;
+    // the tab deleted from the dialog leaves no mouse handler of the canvas with
+    // destroyed objects
+    view->goToPage(0);
+    fixture.settle();
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
+    const QPoint webLinkNow = PropertiesTestHelper::pagePoint(view, QPointF(100, 148));
+    Q_UNUSED(webLink);
+    bool isDelivered = false;
+    bool isShown = false;
+    bool isShownInsideEvent = false;
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    QTimer poll;
+    poll.setInterval(5);
+    QObject::connect(&poll, &QTimer::timeout, &poll, [&]()
+    {
+        for (pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>())
+        {
+            if (box->isVisible() && box->objectName() == QStringLiteral("linkConfirmDialog"))
+            {
+                isShown = true;
+                isShownInsideEvent = !isDelivered;
+                poll.stop();
+                delete tabGuard.data();
+                return;
+            }
+        }
+    });
+    poll.start();
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, webLinkNow, Qt::NoButton, Qt::NoButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonPress, webLinkNow, Qt::LeftButton, Qt::LeftButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonRelease, webLinkNow, Qt::LeftButton, Qt::NoButton);
+    isDelivered = true;
+    QTRY_VERIFY(isShown);
+    QVERIFY(!isShownInsideEvent);
+    QTRY_VERIFY(!tabGuard);
+    fixture.settle();
+    QVERIFY(!handler);
+    QCOMPARE(launched, 0);
+}
+
+void AppDocumentPropertiesTest::toolManagerNotification()
+{
+    // The switch of the tools is one notification with the new tool (no transient
+    // "no tool"), a repeated activation none
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Tools.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFToolManager* toolManager = tab->getView()->getToolManager();
+    toolManager->setActiveTool(pdf::PDFToolManager::SelectTextTool);
+    fixture.settle();
+    pdf::PDFWidgetTool* selectText = toolManager->getPredefinedTool(pdf::PDFToolManager::SelectTextTool);
+    pdf::PDFWidgetTool* selectTable = toolManager->getPredefinedTool(pdf::PDFToolManager::SelectTableTool);
+    QVERIFY(selectText->isActive());
+
+    QSignalSpy spy(toolManager, &pdf::PDFToolManager::activeToolChanged);
+    toolManager->setActiveTool(pdf::PDFToolManager::SelectTableTool);
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).value<pdf::PDFWidgetTool*>(), selectTable);
+    toolManager->setActiveTool(pdf::PDFToolManager::SelectTableTool);
+    QCOMPARE(spy.count(), 1);
+
+    // A tool activated from outside of the manager deactivates the other one: one notification
+    selectText->setActive(true);
+    QCOMPARE(spy.count(), 2);
+    QCOMPARE(spy.at(1).at(0).value<pdf::PDFWidgetTool*>(), selectText);
+    QVERIFY(!selectTable->isActive());
+
+    // No tool
+    toolManager->setActiveTool(pdf::PDFToolManager::ToolEnd);
+    QCOMPARE(spy.count(), 3);
+    QVERIFY(!spy.at(2).at(0).value<pdf::PDFWidgetTool*>());
+    toolManager->setActiveTool(pdf::PDFToolManager::SelectTextTool);
+    QCOMPARE(spy.count(), 4);
+}
+
+void AppDocumentPropertiesTest::renderingIssuesPointer()
+{
+    // The click of the pointer on the status item toggles the popover (the press,
+    // which closes the popover, is not replayed to the item); new issues keep the
+    // rows of an open popover
+    pdftest::AppDocumentFixture fixture(QSize(720, 560));
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("IssuesPointer.pdf"), 5));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppRenderingIssues* issues = PropertiesTestHelper::handler(tab)->getRenderingIssues();
+    QToolButton* item = issues->getStatusItem();
+    Q_EMIT view->getProxy()->renderingError(1, { pdf::PDFRenderError(pdf::RenderErrorType::Warning, QStringLiteral("First")),
+                                                 pdf::PDFRenderError(pdf::RenderErrorType::Error, QStringLiteral("Second")) });
+    QTRY_VERIFY(!item->isHidden());
+    fixture.settle();
+
+    QWindow* window = item->window()->windowHandle();
+    QVERIFY(window);
+    // (Qt replays the press, which closes a popup, only with an active window and a mouse grab of
+    // the platform - a desktop session; offscreen checks the toggle and the rows)
+    const QPoint itemCenter = item->mapTo(item->window(), item->rect().center());
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, itemCenter);
+    fixture.settle();
+    QTRY_VERIFY(issues->isPopoverVisible());
+
+    // New issues: the rows are updated in place, the focused row stays
+    pdf::PDFAppRenderingIssuesPanel* panel = issues->getPanel();
+    QCOMPARE(panel->getRows().size(), size_t(2));
+    QPointer<QWidget> secondRow = panel->getRows()[1];
+    secondRow->setFocus();
+    const bool isFocused = secondRow->hasFocus();
+    Q_EMIT view->getProxy()->renderingError(3, { pdf::PDFRenderError(pdf::RenderErrorType::Information, QStringLiteral("Third")) });
+    QTRY_COMPARE(panel->getRows().size(), size_t(3));
+    fixture.settle();
+    QVERIFY(secondRow);
+    QCOMPARE(panel->getRows()[1], secondRow.data());
+    QCOMPARE(secondRow->hasFocus(), isFocused);
+    QCOMPARE(static_cast<pdf::PDFRenderingIssueRow*>(panel->getRows()[2])->getMessage(), QStringLiteral("Third"));
+    QCOMPARE(static_cast<pdf::PDFRenderingIssueRow*>(panel->getRows()[2])->getPage(), QStringLiteral("Page 4"));
+
+    // The second click closes it
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, itemCenter);
+    fixture.settle();
+    QTest::qWait(50);
+    QVERIFY(!issues->isPopoverVisible());
 }
 
 void AppDocumentPropertiesTest::renderingIssues()
@@ -1734,6 +2277,123 @@ void AppDocumentPropertiesTest::renderingIssuesLifetime()
         {
             break;
         }
+    }
+}
+
+void AppDocumentPropertiesTest::deleteFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::addColumn<bool>("deleteWindow");
+    for (const char* name : { "fontsScanned", "fontScanRunning", "issuesChanged", "statusItemClicked", "issueActivated", "popoverCloseRequested" })
+    {
+        QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
+        QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
+    }
+}
+
+void AppDocumentPropertiesTest::deleteFromOwnSignals()
+{
+    // The application deletes the tab (or the window) synchronously from a signal
+    // of the page Document properties (the font scan of the worker) or of the
+    // rendering issues (the popover, its rows, the status item); fontScanRunning
+    // deletes it while the worker scans the fonts (valgrind finds the reads)
+    QFETCH(QString, signal);
+    QFETCH(bool, deleteWindow);
+
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(PropertiesTestHelper::infoDocument(fixture.folder(), QStringLiteral("Own signals.pdf"), false));
+    QVERIFY(tab);
+    QObject receiver;
+    bool isDeleted = false;
+    auto deleteNow = [&isDeleted, &tab, &window, deleteWindow]()
+    {
+        if (isDeleted)
+        {
+            return;
+        }
+        isDeleted = true;
+        if (deleteWindow)
+        {
+            delete window.data();
+        }
+        else
+        {
+            delete tab.data();
+        }
+    };
+
+    if (signal == QStringLiteral("fontsScanned") || signal == QStringLiteral("fontScanRunning"))
+    {
+        pdf::PDFAppDocumentPropertiesPage* page = PropertiesTestHelper::showProperties(fixture, tab, QStringLiteral("general"));
+        QVERIFY(page);
+        pdf::PDFNavList* navigation = page->findChild<pdf::PDFNavList*>(QStringLiteral("propertiesNavigationList"));
+        QVERIFY(navigation);
+        if (signal == QStringLiteral("fontsScanned"))
+        {
+            connect(page, &pdf::PDFAppDocumentPropertiesPage::fontsScanned, &receiver, deleteNow);
+            navigation->getItem(2)->click();
+        }
+        else
+        {
+            navigation->getItem(2)->click();
+            page->rebuildNow();
+            deleteNow();
+        }
+    }
+    else
+    {
+        pdf::PDFAppRenderingIssues* issues = PropertiesTestHelper::handler(tab)->getRenderingIssues();
+        QVERIFY(issues);
+        if (signal == QStringLiteral("issuesChanged"))
+        {
+            connect(issues, &pdf::PDFAppRenderingIssues::issuesChanged, &receiver, deleteNow);
+        }
+        // Three issues (the page may have had its own issue: the count changes)
+        Q_EMIT tab->getView()->getProxy()->renderingError(0, { pdf::PDFRenderError(pdf::RenderErrorType::Error, QStringLiteral("x")),
+                                                               pdf::PDFRenderError(pdf::RenderErrorType::Warning, QStringLiteral("y")),
+                                                               pdf::PDFRenderError(pdf::RenderErrorType::Information, QStringLiteral("z")) });
+        QTRY_VERIFY(isDeleted || !issues->getStatusItem()->isHidden());
+
+        if (signal == QStringLiteral("statusItemClicked"))
+        {
+            // The item of the status bar of the page Document properties
+            QToolButton* item = issues->createStatusItem(tab);
+            QVERIFY(item);
+            connect(issues, &pdf::PDFAppRenderingIssues::statusItemClicked, &receiver, deleteNow);
+            item->click();
+        }
+        else if (signal == QStringLiteral("issueActivated") || signal == QStringLiteral("popoverCloseRequested"))
+        {
+            QVERIFY(issues->showPopover());
+            pdf::PDFAppRenderingIssuesPanel* panel = issues->getPanel();
+            QVERIFY(panel);
+            if (signal == QStringLiteral("issueActivated"))
+            {
+                connect(panel, &pdf::PDFAppRenderingIssuesPanel::issueActivated, &receiver, deleteNow);
+                QVERIFY(!panel->getRows().empty());
+                QAbstractButton* row = qobject_cast<QAbstractButton*>(panel->getRows().front());
+                QVERIFY(row);
+                row->click();
+            }
+            else
+            {
+                connect(panel, &pdf::PDFAppRenderingIssuesPanel::closeRequested, &receiver, deleteNow);
+                panel->getCloseButton()->click();
+            }
+        }
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 30000);
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    QTest::qWait(50);
+    fixture.settle();
+    QVERIFY(deleteWindow ? !window : !tab);
+    if (!deleteWindow)
+    {
+        QVERIFY(window);
+        QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
     }
 }
 

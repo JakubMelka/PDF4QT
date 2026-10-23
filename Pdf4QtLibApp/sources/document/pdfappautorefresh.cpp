@@ -82,6 +82,7 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
 {
     Result result;
     result.filePath = filePath;
+    result.knownData = knownData;
 
     const QFileInfo fileInfo(filePath);
     if (!fileInfo.exists())
@@ -406,6 +407,18 @@ void PDFAppAutoRefresh::applyResult(const PDFAppAutoRefreshReader::Result& resul
         case PDFAppAutoRefreshReader::Outcome::Changed:
         case PDFAppAutoRefreshReader::Outcome::PasswordRequired:
             break;
+    }
+
+    // The document has other bytes than at the start of the check (an own save or
+    // a reload finished meanwhile): the result compares the file with old bytes - a
+    // file written by the own save would be taken for a change of another program,
+    // an older file of another program would replace the saved version. The file
+    // is checked again against the new bytes.
+    const QByteArray& originalData = document->getOriginalData();
+    if (!result.knownData.isSharedWith(originalData) && result.knownData != originalData)
+    {
+        m_isCheckPending = true;
+        return;
     }
 
     if (!m_keptData.isEmpty() && result.data == m_keptData)

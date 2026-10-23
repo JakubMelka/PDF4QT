@@ -51,6 +51,7 @@
 #include <QAction>
 #include <QHideEvent>
 #include <QLocale>
+#include <QPainter>
 #include <QSplitter>
 #include <QVBoxLayout>
 
@@ -203,6 +204,62 @@ public:
     }
 };
 
+PDFAppDocumentSplitterHandle::PDFAppDocumentSplitterHandle(Qt::Orientation orientation, QSplitter* parent) :
+    BaseClass(orientation, parent)
+{
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentSplitterHandle::update));
+}
+
+PDFAppDocumentSplitterHandle::~PDFAppDocumentSplitterHandle() = default;
+
+std::vector<QRect> PDFAppDocumentSplitterHandle::getGripDots() const
+{
+    // grip 266:7855: three dots in the middle of the handle, along the handle
+    std::vector<QRect> dots;
+    const int length = 3 * GRIP_DOT + 2 * GRIP_GAP;
+    const bool isVerticalHandle = orientation() == Qt::Horizontal;
+    const int across = ((isVerticalHandle ? width() : height()) - GRIP_DOT) / 2;
+    const int along = ((isVerticalHandle ? height() : width()) - length) / 2;
+    for (int i = 0; i < 3; ++i)
+    {
+        const int position = along + i * (GRIP_DOT + GRIP_GAP);
+        dots.push_back(isVerticalHandle ? QRect(across, position, GRIP_DOT, GRIP_DOT) : QRect(position, across, GRIP_DOT, GRIP_DOT));
+    }
+    return dots;
+}
+
+void PDFAppDocumentSplitterHandle::paintEvent(QPaintEvent* event)
+{
+    {
+        const PDFThemeManager* manager = PDFThemeManager::getInstance();
+        QPainter painter(this);
+        painter.fillRect(rect(), manager->getColor(PDFThemeColors::BgSidebar));
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(manager->getColor(PDFThemeColors::IconMuted));
+        for (const QRect& dot : getGripDots())
+        {
+            painter.drawEllipse(QRectF(dot));
+        }
+    }
+
+    // The line of the style, when the pointer rests over the handle or it is dragged
+    BaseClass::paintEvent(event);
+}
+
+PDFAppDocumentSplitter::PDFAppDocumentSplitter(Qt::Orientation orientation, QWidget* parent) :
+    BaseClass(orientation, parent)
+{
+
+}
+
+PDFAppDocumentSplitter::~PDFAppDocumentSplitter() = default;
+
+QSplitterHandle* PDFAppDocumentSplitter::createHandle()
+{
+    return new PDFAppDocumentSplitterHandle(orientation(), this);
+}
+
 PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) :
     BaseClass(parent),
     m_context(context)
@@ -216,8 +273,9 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     m_toolbar = new PDFAppDocumentToolbar(this, this);
     layout->addWidget(m_toolbar);
 
-    // document-body 193:882: the sidebar, the splitter (6 px, 266:7854) and the canvas
-    m_splitter = new QSplitter(Qt::Horizontal, this);
+    // document-body 193:882: the sidebar, the splitter (6 px, 266:7854 - bg/sidebar
+    // with the grip, PDFAppDocumentSplitterHandle) and the canvas
+    m_splitter = new PDFAppDocumentSplitter(Qt::Horizontal, this);
     m_splitter->setObjectName(QStringLiteral("documentSplitter"));
     m_splitter->setChildrenCollapsible(false);
     m_splitter->setHandleWidth(6);
@@ -423,6 +481,7 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
     {
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentView::onDocumentChanged);
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentView::onDocumentStateChanged);
+        connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentView::onSignatureResultsChanged);
         connect(document, &QObject::destroyed, this, &PDFAppDocumentView::onDocumentDestroyed);
     }
 
@@ -493,6 +552,27 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
     updateStatusMessage();
     Q_EMIT viewChanged();
     Q_EMIT commandStatesChanged();
+}
+
+void PDFAppDocumentView::onSignatureResultsChanged()
+{
+    // Package D verifies the signatures in a worker after the document is shown:
+    // the canvas (signature fields of the form manager) gets the results when they
+    // arrive. Only the results of the shown version are passed - the results of a
+    // version not shown yet come with its documentChanged (onDocumentChanged).
+    PDFDrawWidgetProxy* proxy = getProxy();
+    if (!m_pdfWidget || !proxy || !m_document || !m_document->getDocument() || proxy->getDocument() != m_document->getDocument().data())
+    {
+        return;
+    }
+
+    // The same document: the proxy keeps its compiled pages (and the widget its
+    // rendering errors, PDFWidget::setDocument would clear them) and takes the results
+    proxy->setDocument(PDFModifiedDocument(m_document->getDocument(), m_document->getOptionalContentActivity()), m_document->getSignatureResults());
+    if (QWidget* drawWidget = m_pdfWidget->getDrawWidget() ? m_pdfWidget->getDrawWidget()->getWidget() : nullptr)
+    {
+        drawWidget->update();
+    }
 }
 
 void PDFAppDocumentView::onDocumentDestroyed()
@@ -595,8 +675,10 @@ QString PDFAppDocumentView::getPageLabel(PDFInteger pageIndex) const
         return QString();
     }
 
+    // The number without separators of the locale: the label is typed back into
+    // the page fields ("1,500" would not be found by findPageIndex)
     const QString label = document->getCatalog()->getPageLabel(pageIndex);
-    return label.isEmpty() ? QLocale().toString(pageIndex + 1) : label;
+    return label.isEmpty() ? QString::number(pageIndex + 1) : label;
 }
 
 bool PDFAppDocumentView::hasPageLabels() const
@@ -863,11 +945,12 @@ void PDFAppDocumentView::updateViewColors()
     }
 
     // Colors of the theme, never of a palette (the palette of the application is
-    // the violet leak color): the canvas bg/canvas (document-canvas 193:1256), the
-    // selection of a text of a form bg/accent-subtle with text/accent
+    // the violet leak color): the canvas bg/track (document-canvas 193:1256 and
+    // 198:6240 - the white pages are seen on it), the selection of a text of a form
+    // bg/accent-subtle with text/accent
     const PDFThemeManager* manager = PDFThemeManager::getInstance();
     PDFViewColors colors;
-    colors.canvas = manager->getColor(PDFThemeColors::BgCanvas);
+    colors.canvas = manager->getColor(PDFThemeColors::BgTrack);
     colors.selection = manager->getColor(PDFThemeColors::BgAccentSubtle);
     colors.selectionText = manager->getColor(PDFThemeColors::TextAccent);
     proxy->setViewColors(colors);

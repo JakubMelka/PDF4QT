@@ -101,14 +101,6 @@ public:
         return geometry;
     }
 
-    /// Commands bound to the actions of the window (step 1)
-    static QStringList getWindowCommands()
-    {
-        return { PDFAppCommands::newTab(), PDFAppCommands::closeTab(), PDFAppCommands::nextTab(), PDFAppCommands::previousTab(),
-                 PDFAppCommands::quit(), PDFAppCommands::open(), PDFAppCommands::back(), PDFAppCommands::forward(), PDFAppCommands::search(),
-                 PDFAppCommands::help() };
-    }
-
     /// Text of a list of files or errors for a message box (bounded)
     static QString createList(const QStringList& items, int maximumItems)
     {
@@ -901,7 +893,9 @@ void PDFAppMainWindow::onOpenRequested(const PDFAppInstanceRequest& request)
 void PDFAppMainWindow::handleOpenRequest(const PDFAppInstanceRequest& request)
 {
     // Errors of the command line of the other process are shown by this window
-    // (newapplication.md 3); the lists are bounded
+    // (newapplication.md 3); the lists are bounded. A document opened before is
+    // not named by the dialog of this request.
+    m_lastOpenedTitle.clear();
     std::vector<PDFAppOpenFailure> failures;
     for (const QString& error : request.errors)
     {
@@ -1035,6 +1029,10 @@ void PDFAppMainWindow::openDocuments(const std::vector<PDFAppOpenRequest>& reque
     std::vector<PDFAppOpenFailure> failures;
     QPointer<PDFAppMainWindow> guard(this);
 
+    // The dialog open-failed names a document of this request only (a document
+    // opened by an earlier request is not "open" by this one)
+    m_lastOpenedTitle.clear();
+
     // An empty tab New tab, from which the documents are opened, is replaced by the first one
     QPointer<PDFAppTab> replacedTab;
     if (PDFAppTab* currentTab = getCurrentTab(); currentTab && currentTab->getKind() == PDFAppTabKind::NewTab)
@@ -1110,6 +1108,7 @@ void PDFAppMainWindow::openDocument(const PDFAppOpenRequest& request, std::vecto
     {
         if (PDFAppTab* tab = findDocumentTab(document->getId()))
         {
+            m_lastOpenedTitle = tab->getTabTitle();
             activateTab(tab);
             if (m_navigator && request.page > 0)
             {
@@ -1575,10 +1574,17 @@ void PDFAppMainWindow::onQuitSaveFinished(bool isSaved)
     m_quitSavingTab = nullptr;
 
     // A canceled or failed save keeps the window open (its error has been shown)
-    if (!isSaved || (tab->getDocument() && tab->getDocument()->isModified()))
+    if (!isSaved)
     {
         m_quitSaveQueue.clear();
         return;
+    }
+
+    // A save, which was running before Save All, has written an older version: the
+    // document is saved again (the next one in the queue is itself)
+    if (tab->getDocument() && tab->getDocument()->isModified())
+    {
+        m_quitSaveQueue.insert(m_quitSaveQueue.begin(), QPointer<PDFAppDocumentTab>(tab));
     }
 
     // The next document from the event loop (the saver of the tab finishes its signal first)

@@ -62,14 +62,19 @@ public:
     /// Document of the id, nullptr if there is none
     PDFAppDocument* findDocument(const QString& id) const;
 
-    /// First document of the canonical path (QFileInfo::canonicalFilePath; the
-    /// comparison is case insensitive on Windows), nullptr if there is none
+    /// First document of the canonical path (QFileInfo::canonicalFilePath; compared
+    /// by PDFRepositoryHelper::isSamePath - separators, case insensitive on Windows
+    /// and macOS), nullptr if there is none
     PDFAppDocument* findByCanonicalPath(const QString& canonicalPath) const;
 
     /// All documents in the order of their registration
     std::vector<PDFAppDocument*> getDocuments() const;
 
 Q_SIGNALS:
+    /// documentAdded and documentRemoved come from the event loop (a document is
+    /// added inside of the constructor of its tab and removed in its destructor,
+    /// where a slot must not delete the tab or the window): findDocument knows the
+    /// change at once. A document removed before its documentAdded is not announced.
     void documentAdded(pdf::PDFAppDocument* document);
     void documentRemoved(const QString& id);
 
@@ -80,6 +85,10 @@ private:
     void onDocumentDestroyed(QObject* object);
     void onDocumentChanged();
 
+    /// Queues documentAdded (\p document) or documentRemoved (nullptr) of the id
+    void queueSignal(const QString& id, PDFAppDocument* document);
+    void emitQueuedSignals();
+
     struct Entry
     {
         QString id;
@@ -87,7 +96,15 @@ private:
         QObject* object = nullptr;
     };
 
+    struct QueuedSignal
+    {
+        QString id;
+        QPointer<PDFAppDocument> document;
+        bool isAdded = false;
+    };
+
     std::vector<Entry> m_entries;
+    std::vector<QueuedSignal> m_queuedSignals;
 };
 
 }   // namespace pdf

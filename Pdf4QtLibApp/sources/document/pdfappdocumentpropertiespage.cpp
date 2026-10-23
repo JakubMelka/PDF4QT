@@ -142,6 +142,34 @@ protected:
     }
 };
 
+/// Code box of the XMP packet (236:9660): bg/subtle with a border/default line
+/// of radius 12 around the editor (the editor itself is a note without a border)
+class PDFAppXmlCodeBox : public QWidget
+{
+public:
+    explicit PDFAppXmlCodeBox(qreal radius, QWidget* parent) :
+        QWidget(parent),
+        m_radius(radius)
+    {
+        setObjectName(QStringLiteral("metadataCodeBox"));
+        connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&QWidget::update));
+    }
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        QPainter painter(this);
+        const QRectF box(rect());
+        PDFStylePainter::fill(&painter, box, PDFStylePainter::Radii(m_radius), PDFThemeColors::BgSubtle);
+        PDFStylePainter::strokeInside(&painter, box, PDFStylePainter::Radii(m_radius), PDFThemeColors::BorderDefault, 1.0);
+    }
+
+private:
+    qreal m_radius;
+};
+
 /// Helpers of the page (file-local)
 class PDFAppDocumentPropertiesPageHelper
 {
@@ -155,6 +183,8 @@ public:
     static constexpr int NAVIGATION_WIDTH = 300;
     static constexpr int COLUMN_MINIMUM_WIDTH = 300;
     static constexpr int GROUP_GAP = 18;
+    static constexpr int FONT_LIST_PADDING = 4;     ///< rows of the card 236:9344 inside of its border
+    static constexpr qreal CODE_RADIUS = 12.0;      ///< code box 236:9660 (bg/subtle, border/default)
 
     static QString getSectionTitle(PDFAppDocumentPropertiesPage::Section section)
     {
@@ -667,8 +697,11 @@ void PDFAppDocumentPropertiesPage::rebuildSection()
             }
         }
 
-        if (m_section == Section::Xmp && m_isMetadataModified && m_metadataEditor && m_metadataEditor->parent() == m_sectionWidget)
+        if (m_section == Section::Xmp && m_isMetadataModified && m_metadataEditor && m_sectionWidget->isAncestorOf(m_metadataEditor))
         {
+            // The change of the document is shown, when the editing ends (Apply,
+            // Discard, or the text edited back to the packet)
+            m_isRebuildPending = true;
             updateMetadataState();
             return;
         }
@@ -716,6 +749,7 @@ void PDFAppDocumentPropertiesPage::rebuildSection()
     }
 
     m_sectionWidget = section;
+    m_isSectionEditable = isEditable();
     if (section)
     {
         section->setObjectName(QStringLiteral("section-%1").arg(getSectionId()));
@@ -959,10 +993,12 @@ QWidget* PDFAppDocumentPropertiesPage::buildFonts(QWidget* parent)
     const bool isCurrent = m_hasFonts && m_document && m_fontsVersion == m_document->getVersion();
     if (isCurrent && !m_fonts.empty())
     {
-        // card 236:9344 with the rows of PDFFontDelegate (48 px, no gap)
-        PDFAppCard* card = PDFAppPageWidgets::createCard(0, 0, section);
+        // card 236:9344 with the rows of PDFFontDelegate (48 px, no gap): the rows
+        // 4 px inside of the border of the card (PDFListView has the margins 6 of
+        // a framed view, the card is the frame here)
+        PDFAppCard* card = PDFAppPageWidgets::createCard(Helper::FONT_LIST_PADDING, 0, section);
         card->setObjectName(QStringLiteral("card"));
-        PDFListView* list = new PDFListView(card);
+        QListView* list = new QListView(card);
         list->setObjectName(QStringLiteral("fontList"));
         list->setFrameShape(QFrame::NoFrame);
         list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -985,7 +1021,7 @@ QWidget* PDFAppDocumentPropertiesPage::buildFonts(QWidget* parent)
         list->setItemDelegate(new PDFFontDelegate(list));
 
         // The list is as high as its rows (the page scrolls)
-        int height = 12;
+        int height = 0;
         for (int i = 0; i < model->rowCount(); ++i)
         {
             height += list->sizeHintForRow(i);
@@ -1045,8 +1081,12 @@ QWidget* PDFAppDocumentPropertiesPage::buildXmp(QWidget* parent)
     m_metadataText = PDFAppDocumentPropertiesData::getMetadata(m_document ? m_document->getDocument().data() : nullptr, &m_hasMetadata, &errorMessage);
     m_isMetadataModified = false;
 
-    // code 236:9660: the packet in a monospace font (editable, when the document can change)
-    m_metadataEditor = new PDFPlainTextEdit(section);
+    // code 236:9660: the packet in a monospace font (editable, when the document can
+    // change) in the box with the border of the design
+    PDFAppXmlCodeBox* codeBox = new PDFAppXmlCodeBox(Helper::CODE_RADIUS, section);
+    QVBoxLayout* codeLayout = new QVBoxLayout(codeBox);
+    codeLayout->setContentsMargins(PDFAppPageWidgets::BORDER_WIDTH, PDFAppPageWidgets::BORDER_WIDTH, PDFAppPageWidgets::BORDER_WIDTH, PDFAppPageWidgets::BORDER_WIDTH);
+    m_metadataEditor = new PDFPlainTextEdit(codeBox);
     m_metadataEditor->setObjectName(QStringLiteral("metadataEditor"));
     PDFWidgetStyleProperties::set(m_metadataEditor, PDFWidgetStyleProperties::NOTE);
     m_metadataEditor->setFont(Helper::monospaceFont());
@@ -1062,7 +1102,8 @@ QWidget* PDFAppDocumentPropertiesPage::buildXmp(QWidget* parent)
     m_metadataEditor->setReadOnly(!isEditable() || !errorMessage.isEmpty());
     new PDFAppXmlHighlighter(m_metadataEditor->document());
     connect(m_metadataEditor.data(), &QPlainTextEdit::textChanged, this, &PDFAppDocumentPropertiesPage::onMetadataTextChanged);
-    layout->addWidget(m_metadataEditor, 1);
+    codeLayout->addWidget(m_metadataEditor);
+    layout->addWidget(codeBox, 1);
 
     m_metadataError = PDFAppPageWidgets::createLabel(QString(), PDFThemeFonts::Role::Small, PDFThemeColors::TextDanger, section);
     m_metadataError->setObjectName(QStringLiteral("metadataError"));
@@ -1282,8 +1323,24 @@ void PDFAppDocumentPropertiesPage::onDocumentChanged()
 
 void PDFAppDocumentPropertiesPage::onDocumentStateChanged()
 {
+    // The rows are built again only, when the document can be changed now and
+    // could not before (or vice versa): an operation reports its progress by this
+    // signal too, a rebuild would take the focus and the cursor of the user
+    QPointer<PDFAppDocumentPropertiesPage> guard(this);
     Q_EMIT titleChanged();
-    scheduleRebuild();
+    if (!guard)
+    {
+        return;
+    }
+
+    if (isEditable() != m_isSectionEditable)
+    {
+        scheduleRebuild();
+    }
+    else
+    {
+        updateMetadataState();
+    }
 }
 
 void PDFAppDocumentPropertiesPage::onThemeChanged()

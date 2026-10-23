@@ -25,6 +25,8 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 
+#include <array>
+
 namespace pdf
 {
 
@@ -92,6 +94,23 @@ bool PDFAppDocumentCommandTable::findPackage(const QString& commandId, PDFAppDoc
     return false;
 }
 
+bool PDFAppDocumentCommandTable::isCommandOf(PDFAppDocumentPackage package, const QString& commandId)
+{
+    // One set per package, built at the first call (the table is constant)
+    static const std::array<QSet<QString>, PACKAGE_COUNT> sets = { createSet(PDFAppDocumentPackage::Model), createSet(PDFAppDocumentPackage::View),
+                                                                   createSet(PDFAppDocumentPackage::Panels), createSet(PDFAppDocumentPackage::Search),
+                                                                   createSet(PDFAppDocumentPackage::File), createSet(PDFAppDocumentPackage::Properties) };
+
+    const size_t index = size_t(package);
+    return index < sets.size() && sets[index].contains(commandId);
+}
+
+QSet<QString> PDFAppDocumentCommandTable::createSet(PDFAppDocumentPackage package)
+{
+    const QStringList commands = getCommands(package);
+    return QSet<QString>(commands.cbegin(), commands.cend());
+}
+
 PDFAppDocumentCommandHandler::PDFAppDocumentCommandHandler(PDFAppDocumentPackage package, PDFAppDocumentTab* tab) :
     BaseClass(tab),
     m_package(package),
@@ -124,7 +143,7 @@ QStringList PDFAppDocumentCommandHandler::getCommands() const
 
 bool PDFAppDocumentCommandHandler::handles(const QString& commandId) const
 {
-    return getCommands().contains(commandId);
+    return PDFAppDocumentCommandTable::isCommandOf(m_package, commandId);
 }
 
 bool PDFAppDocumentCommandHandler::isEnabled(const QString& commandId) const

@@ -137,8 +137,12 @@ public:
     /// Returns current cursor
     virtual const std::optional<QCursor>& getCursor() const = 0;
 
-    /// Returns input priority (interfaces with higher priority
-    /// will get input events before interfaces with lower priority)
+    /// Returns input priority. PDFWidget sorts its input interfaces by the
+    /// priority in ascending order (Comparator), so an interface with a lower
+    /// value gets the input events first and the first interface, which accepts
+    /// an event, ends its delivery: the active tool (ToolPriority) comes before
+    /// the page content scene (ToolPriority + 1), the forms (FormPriority) and the
+    /// annotations (AnnotationPriority), the plugins (UserPriority) come last.
     virtual int getInputPriority() const = 0;
 
     class Comparator

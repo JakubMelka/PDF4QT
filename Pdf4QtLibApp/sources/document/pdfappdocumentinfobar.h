@@ -42,6 +42,24 @@ class PDFIconBadge;
 class PDFIconButton;
 class PDFLabel;
 
+/// Shadow of an info bar: a sibling below the bar, transparent for the mouse, of
+/// the same geometry. The bar itself is masked to its card, so the pointer in the
+/// margins of the shadow reaches the canvas below it (clicks, selection, wheel).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppInfoBarShadow : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    explicit PDFAppInfoBarShadow(QWidget* parent);
+    virtual ~PDFAppInfoBarShadow() override;
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+};
+
 /// Notification bar over the canvas (Figma 1028:24277 link blocked, 1030:25657
 /// printing): a card bg/surface with the border border/default, the radius 14 and
 /// the shadow 0 / 4 / 16, 48 px high. Inside (padding 5 / 10 / 5 / 12, gap 8): the
@@ -49,7 +67,8 @@ class PDFLabel;
 /// text/primary) with the optional second line (Regular 11 text/muted), the
 /// progress line 160 x 4 of the tone Progress, a divider, the buttons (Secondary),
 /// a divider and the close button (Tab close button). The widget holds the margins
-/// of the shadow around the card; the view places the card itself.
+/// of the shadow around the card; the view places the card itself. The widget is
+/// masked to its card, its shadow is drawn by a sibling below it (PDFAppInfoBarShadow).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppInfoBar : public QWidget
 {
     Q_OBJECT
@@ -99,9 +118,11 @@ Q_SIGNALS:
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual bool event(QEvent* event) override;
 
 private:
     void rebuild();
+    void updateShadow();
     void onActionClicked();
     void onActionQueued(const QString& actionId);
     void onCloseClicked();
@@ -116,6 +137,7 @@ private:
     QPointer<PDFIconButton> m_closeButton;
     std::vector<QPointer<QWidget>> m_dynamicWidgets;
     std::vector<QPointer<QPushButton>> m_actionButtons;
+    QPointer<PDFAppInfoBarShadow> m_shadow;
 };
 
 }   // namespace pdf

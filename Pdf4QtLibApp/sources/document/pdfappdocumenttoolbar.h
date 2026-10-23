@@ -157,12 +157,15 @@ protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     QToolButton* createButton(const QString& objectName, const QString& iconName);
     QToolButton* createCommandButton(const QString& commandId, const QString& iconName);
     QToolButton* createMenuButton(const QString& objectName, const QString& iconName);
     void retranslate();
+    void updateCommandToolTips();
+    void onDatabaseChanged(const QString& topic, const QString& key);
     void updateCollapse();
     void applyCollapse(int level);
     void updatePageField();

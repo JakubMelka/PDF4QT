@@ -3231,6 +3231,34 @@ void AppNavigationTest::instanceRequests()
     }
     QVERIFY(commandLineTexts.contains(QStringLiteral("--bogus")));
     QVERIFY(commandLineTexts.contains(QStringLiteral("document.pdf")));
+
+    // The first dialog may have listed both: the dialog of the reading of the file
+    // (its tab is closed after the failure) can still follow - it is closed as well
+    const int factor = qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")) ? 20 : 1;
+    auto isDocumentTabOpen = [&fixture]()
+    {
+        for (const pdf::PDFAppTab* tab : fixture.window->getTabs())
+        {
+            if (tab && tab->getKind() == pdf::PDFAppTabKind::Document)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    failedTimer.restart();
+    while (failedTimer.elapsed() < 10000 * factor && (isDocumentTabOpen() || !fixture.window->findChildren<pdf::PDFMessageBox*>().isEmpty()))
+    {
+        QTest::qWait(20);
+        for (pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>())
+        {
+            if (box->isVisible())
+            {
+                box->reject();
+            }
+        }
+    }
+    QVERIFY(!isDocumentTabOpen());
     QTRY_VERIFY(fixture.window->findChildren<pdf::PDFMessageBox*>().isEmpty());
 
     // A request of another process: the window is raised, its errors and files are listed

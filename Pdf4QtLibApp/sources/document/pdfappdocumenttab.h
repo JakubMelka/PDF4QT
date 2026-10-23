@@ -159,6 +159,7 @@ private:
     void updateStack();
     void onDocumentStateChanged();
     void onDocumentTitleChanged();
+    void onDocumentProgressChanged();
     void onLockChanged();
     void onHandlerStateChanged();
     void onCurrentPageChanged();

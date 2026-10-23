@@ -142,6 +142,79 @@ public:
         }
         return memory;
     }
+
+    /// Memory of the object, which it does not share with \p other (the object of
+    /// the other document at the same place, nullptr if there is none): the parts
+    /// of a changed dictionary, array or stream, which are still shared (the
+    /// content of a stream with a changed dictionary, the unchanged entries), are
+    /// not counted
+    static qint64 getChangedMemory(const PDFObject& object, const PDFObject* other, int depth)
+    {
+        if (other && isShared(object, *other))
+        {
+            return 0;
+        }
+        if (!other || depth >= MAXIMUM_DEPTH || object.getType() != other->getType())
+        {
+            return getMemory(object, depth);
+        }
+
+        switch (object.getType())
+        {
+            case PDFObject::Type::Dictionary:
+                return OBJECT_SIZE + getChangedDictionaryMemory(object.getDictionary(), other->getDictionary(), depth);
+
+            case PDFObject::Type::Array:
+            {
+                const PDFArray* array = object.getArray();
+                const PDFArray* otherArray = other->getArray();
+                qint64 memory = OBJECT_SIZE;
+                for (size_t i = 0; i < array->getCount(); ++i)
+                {
+                    memory += getChangedMemory(array->getItem(i), otherArray && i < otherArray->getCount() ? &otherArray->getItem(i) : nullptr, depth + 1);
+                }
+                return memory;
+            }
+
+            case PDFObject::Type::Stream:
+            {
+                const PDFStream* stream = object.getStream();
+                const PDFStream* otherStream = other->getStream();
+                qint64 memory = OBJECT_SIZE;
+                if (!otherStream || !stream->getContent()->isSharedWith(*otherStream->getContent()))
+                {
+                    memory += stream->getContent()->size();
+                }
+                memory += getChangedDictionaryMemory(stream->getDictionary(), otherStream ? otherStream->getDictionary() : nullptr, depth);
+                return memory;
+            }
+
+            default:
+                return getMemory(object, depth);
+        }
+    }
+
+    /// Memory of the entries of a dictionary, which it does not share with the
+    /// entries of the same keys of \p other
+    static qint64 getChangedDictionaryMemory(const PDFDictionary* dictionary, const PDFDictionary* other, int depth)
+    {
+        if (!other)
+        {
+            return getDictionaryMemory(dictionary, depth);
+        }
+
+        qint64 memory = 0;
+        if (!dictionary)
+        {
+            return memory;
+        }
+
+        for (size_t i = 0; i < dictionary->getCount(); ++i)
+        {
+            memory += OBJECT_SIZE + getChangedMemory(dictionary->getValue(i), &other->get(dictionary->getKey(i)), depth + 1);
+        }
+        return memory;
+    }
 };
 
 PDFAppUndoStack::PDFAppUndoStack(PDFAppDocument* document) :
@@ -319,11 +392,8 @@ qint64 PDFAppUndoStack::estimateMemory(const PDFDocument* document, const PDFDoc
     for (size_t i = 0; i < objects.size(); ++i)
     {
         const PDFObject& object = objects[i].object;
-        if (otherObjects && i < otherObjects->size() && PDFAppUndoStackHelper::isShared(object, (*otherObjects)[i].object))
-        {
-            continue;
-        }
-        memory += PDFAppUndoStackHelper::getMemory(object, 0);
+        const PDFObject* otherObject = otherObjects && i < otherObjects->size() ? &(*otherObjects)[i].object : nullptr;
+        memory += PDFAppUndoStackHelper::getChangedMemory(object, otherObject, 0);
     }
     return memory;
 }

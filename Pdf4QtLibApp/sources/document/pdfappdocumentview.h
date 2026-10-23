@@ -30,6 +30,8 @@
 #include "pdfglobal.h"
 
 #include <QPointer>
+#include <QSplitter>
+#include <QSplitterHandle>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -39,7 +41,6 @@
 #include <vector>
 
 class QAction;
-class QSplitter;
 
 namespace pdf
 {
@@ -65,8 +66,51 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppInfoBarAction
 public:
     bool operator==(const PDFAppInfoBarAction&) const = default;
 
-    QString id;     ///< Identifier given back by PDFAppDocumentView::infoBarActionTriggered
-    QString text;   ///< Translated text of the button
+    QString id;         ///< Identifier given back by PDFAppDocumentView::infoBarActionTriggered
+    QString text;       ///< Translated text of the button
+    QString iconName;   ///< Icon 16 of the button before its text (empty = no icon; btn-stop 1030:25657 = "stop")
+};
+
+/// Handle of the splitter between the sidebar and the canvas (Figma 266:7854):
+/// 6 px of bg/sidebar with the grip 266:7855 - three dots 2 x 2 icon/muted, 3 px
+/// apart, in the middle. The line of the style is drawn over it, when the pointer
+/// rests over the handle or it is dragged.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSplitterHandle : public QSplitterHandle
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QSplitterHandle;
+
+public:
+    /// Size of a dot of the grip and the gap between the dots
+    static constexpr int GRIP_DOT = 2;
+    static constexpr int GRIP_GAP = 3;
+
+    explicit PDFAppDocumentSplitterHandle(Qt::Orientation orientation, QSplitter* parent);
+    virtual ~PDFAppDocumentSplitterHandle() override;
+
+    /// Rectangles of the dots of the grip in the coordinates of the handle
+    std::vector<QRect> getGripDots() const;
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+};
+
+/// Splitter of the document body (266:7854), its handle is PDFAppDocumentSplitterHandle
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSplitter : public QSplitter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QSplitter;
+
+public:
+    explicit PDFAppDocumentSplitter(Qt::Orientation orientation, QWidget* parent);
+    virtual ~PDFAppDocumentSplitter() override;
+
+protected:
+    virtual QSplitterHandle* createHandle() override;
 };
 
 enum class PDFAppInfoBarTone
@@ -340,6 +384,7 @@ private:
     void onDocumentChanged(const pdf::PDFModifiedDocument& modified);
     void onDocumentStateChanged();
     void onDocumentDestroyed();
+    void onSignatureResultsChanged();
     void onThemeChanged();
     void onDrawSpaceChanged();
     void onTabCommandStatesChanged();

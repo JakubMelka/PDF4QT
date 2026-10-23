@@ -590,6 +590,12 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                                     Q_ASSERT(false);
                             }
                         }
+                        else
+                        {
+                            // Not a page number: the pairs would be shifted, the entry is ignored
+                            badPageNumber = true;
+                            break;
+                        }
                     }
 
                     // Did we get negative or zero value? If yes, clear the range.

@@ -71,6 +71,7 @@ public:
     public:
         Outcome outcome = Outcome::Failed;
         QString filePath;               ///< Path of the request
+        QByteArray knownData;           ///< Bytes of the document, against which the file was compared
         PDFDocumentPointer document;    ///< Document of Changed
         QByteArray data;                ///< Bytes of the file (Changed, PasswordRequired)
         bool isPasswordProtected = false;

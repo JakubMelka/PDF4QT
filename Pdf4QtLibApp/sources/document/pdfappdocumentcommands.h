@@ -27,6 +27,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QSet>
 #include <QStringList>
 
 namespace pdf
@@ -64,6 +65,16 @@ public:
 
     /// Package of the command. \returns false, if the command is not a command of the document tab
     static bool findPackage(const QString& commandId, PDFAppDocumentPackage* package);
+
+    /// The command is a command of the package (a lookup in a set built once; the
+    /// window asks it for every command at every change of the state)
+    static bool isCommandOf(PDFAppDocumentPackage package, const QString& commandId);
+
+private:
+    /// Number of the packages (PDFAppDocumentPackage)
+    static constexpr size_t PACKAGE_COUNT = 6;
+
+    static QSet<QString> createSet(PDFAppDocumentPackage package);
 };
 
 /// Base of the command handler of one package (step 3 plan 1.1). The window keeps

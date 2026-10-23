@@ -187,11 +187,12 @@ public:
                 return;
             }
 
-            PDFFindResults flowResults = m_pattern->isEmpty() ? flow.find(*m_query, m_caseSensitivity) : flow.find(expression);
+            // A page cannot give more results than the whole search (a flow of a
+            // hostile page may have millions of occurrences)
+            const size_t remainingResults = m_maximumResults - findResults.size();
+            PDFFindResults flowResults = m_pattern->isEmpty() ? flow.find(*m_query, m_caseSensitivity, remainingResults) : flow.find(expression, remainingResults);
             findResults.insert(findResults.end(), std::make_move_iterator(flowResults.begin()), std::make_move_iterator(flowResults.end()));
-
-            // A page cannot give more results than the whole search
-            if (findResults.size() > m_maximumResults)
+            if (findResults.size() >= m_maximumResults)
             {
                 break;
             }
@@ -429,8 +430,11 @@ PDFDocumentTextSearchResult PDFDocumentTextSearch::find(const PDFDocumentTextInd
         }
 
         const PDFInteger lastPage = qMin(pageCount, firstPage + chunkSize);
+        // A page of the chunk gives at most the results, which are still missing
+        // (and one more, which tells the truncation)
         std::vector<PDFDocumentTextSearchMatches> pageResults(size_t(lastPage - firstPage));
-        PDFDocumentTextSearchPageFunctor functor(&index, &query, &pattern, patternOptions, caseSensitivity, maximumResults + 1, firstPage, &pageResults, operationControl);
+        const size_t remainingResults = maximumResults + 1 - std::min(maximumResults, result.results.size());
+        PDFDocumentTextSearchPageFunctor functor(&index, &query, &pattern, patternOptions, caseSensitivity, remainingResults, firstPage, &pageResults, operationControl);
         PDFIntegerRange<PDFInteger> pageRange(firstPage, lastPage);
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageRange.begin(), pageRange.end(), functor);
 

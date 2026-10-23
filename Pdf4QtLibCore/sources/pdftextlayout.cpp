@@ -1782,10 +1782,15 @@ PDFTextSelection::iterator PDFTextSelection::nextPageRange(iterator currentPageR
 
 PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity) const
 {
+    return find(text, caseSensitivity, std::numeric_limits<size_t>::max());
+}
+
+PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSensitivity, size_t maximumResults) const
+{
     PDFFindResults results;
 
-    int index = m_text.indexOf(text, 0, caseSensitivity);
-    while (index != -1)
+    qsizetype index = m_text.indexOf(text, 0, caseSensitivity);
+    while (index != -1 && results.size() < maximumResults)
     {
         PDFFindResult result;
         if (fillFindResult(result, index, text.length()))
@@ -1801,10 +1806,15 @@ PDFFindResults PDFTextFlow::find(const QString& text, Qt::CaseSensitivity caseSe
 
 PDFFindResults PDFTextFlow::find(const QRegularExpression& expression) const
 {
+    return find(expression, std::numeric_limits<size_t>::max());
+}
+
+PDFFindResults PDFTextFlow::find(const QRegularExpression& expression, size_t maximumResults) const
+{
     PDFFindResults results;
 
     QRegularExpressionMatchIterator iterator = expression.globalMatch(m_text, 0, QRegularExpression::NormalMatch, QRegularExpression::NoMatchOption);
-    while (iterator.hasNext())
+    while (iterator.hasNext() && results.size() < maximumResults)
     {
         QRegularExpressionMatch match = iterator.next();
 
@@ -1995,16 +2005,19 @@ QString PDFTextFlow::getContext(size_t index, size_t length, qsizetype* matchSta
 {
     Q_ASSERT(length > 0);
 
+    // The line around the occurrence, at most MAXIMUM_CONTEXT_LENGTH characters on
+    // each side (the walk itself is bounded, a line may have millions of characters)
     const size_t originalIndex = index;
+    const size_t minimumIndex = index > MAXIMUM_CONTEXT_LENGTH ? index - MAXIMUM_CONTEXT_LENGTH : 0;
     const PDFCharacterPointer& frontComparatorItem = m_characterPointers[index];
-    while (index > 0 && (m_characterPointers[index - 1].hasSameLine(frontComparatorItem) || !m_characterPointers[index - 1].isValid()))
+    while (index > minimumIndex && (m_characterPointers[index - 1].hasSameLine(frontComparatorItem) || !m_characterPointers[index - 1].isValid()))
     {
         --index;
         ++length;
     }
 
     size_t currentEnd = index + length - 1;
-    size_t last = m_characterPointers.size() - 1;
+    const size_t last = std::min(m_characterPointers.size() - 1, currentEnd + MAXIMUM_CONTEXT_LENGTH);
     const PDFCharacterPointer& backComparatorItem = m_characterPointers[currentEnd];
     while (currentEnd < last && (m_characterPointers[currentEnd + 1].hasSameLine(backComparatorItem) || !m_characterPointers[currentEnd + 1].isValid()))
     {

@@ -39,6 +39,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
+#include "pdfappsendmail.h"
 #include "pdfapptopbar.h"
 #include "pdfappviewstate.h"
 #include "pdfsettingdefinitions.h"
@@ -182,6 +183,7 @@ private slots:
     void parts();
     void toolbarGeometry();
     void viewColors();
+    void splitterHandle();
     void routePage();
     void navigationCommands();
     void canvasShortcuts();
@@ -207,6 +209,7 @@ private slots:
     void viewStateText();
     void viewStateApply();
     void filePanel();
+    void filePanelWithoutMail();
     void filePanelCloseDocument();
     void viewPanel();
     void goToPanel();
@@ -220,6 +223,7 @@ private slots:
     void accessibility();
     void languageChange();
     void largeDocument();
+    void toolbarFieldsAndToolTips();
     void popoverStyleFunctions();
     void screenshots();
 };
@@ -308,20 +312,76 @@ void AppDocumentViewTest::viewColors()
     QVERIFY(tab);
     pdf::PDFDrawWidgetProxy* proxy = tab->getView()->getProxy();
 
-    // The canvas has the color of the theme, never the violet leak color
+    // The canvas has the color of the theme (document-canvas 193:1256 = bg/track, the
+    // white page must be seen on it - not bg/canvas, which is white), never the violet
+    // leak color
     pdf::PDFThemeManager* manager = pdf::PDFThemeManager::getInstance();
-    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgCanvas));
+    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgTrack));
+    QVERIFY(proxy->getViewColors().canvas != manager->getColor(pdf::PDFThemeColors::ReadingPaperPage));
     QVERIFY(proxy->getViewColors().canvas != pdf::PDFThemeColors::getLeakColor());
     QVERIFY(proxy->getViewColors().selection != pdf::PDFThemeColors::getLeakColor());
 
     manager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
-    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgCanvas));
+    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgTrack));
     manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
-    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgCanvas));
+    QCOMPARE(proxy->getViewColors().canvas, manager->getColor(pdf::PDFThemeColors::BgTrack));
+
+    // The canvas around a page drawn by the widget (zoomed out, the page is smaller than the canvas)
+    tab->getView()->setZoom(0.1);
+    fixture.settle();
+    pdf::PDFWidget* pdfWidget = tab->getView()->getPdfWidget();
+    const QImage canvas = ViewTestHelper::render(pdfWidget);
+    QCOMPARE(canvas.pixelColor(2, canvas.height() - 3), ViewTestHelper::token(pdf::PDFThemeColors::BgTrack));
 
     // Without colors of the application the proxy keeps the defaults of the old applications
     proxy->resetViewColors();
     QCOMPARE(proxy->getViewColors(), pdf::PDFViewColors::getDefaultColors());
+}
+
+void AppDocumentViewTest::splitterHandle()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Splitter.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QSplitter* splitter = view->getSplitter();
+    QCOMPARE(splitter->handleWidth(), 6);
+
+    // splitter 266:7854: 6 px of bg/sidebar between the sidebar and the canvas, grip
+    // 266:7855 of three dots 2 x 2 (icon/muted) 3 px apart in the middle (y 415 of 842)
+    pdf::PDFAppDocumentSplitterHandle* handle = qobject_cast<pdf::PDFAppDocumentSplitterHandle*>(splitter->handle(1));
+    QVERIFY(handle);
+    QCOMPARE(handle->width(), 6);
+    QCOMPARE(handle->mapTo(view, QPoint(0, 0)).x(), view->getSidebar()->width());
+    const std::vector<QRect> dots = handle->getGripDots();
+    QCOMPARE(dots.size(), size_t(3));
+    QCOMPARE(dots.front(), QRect(2, (handle->height() - 12) / 2, 2, 2));
+    QCOMPARE(dots[1].top() - dots[0].bottom() - 1, 3);
+    QCOMPARE(dots[2].top() - dots[1].bottom() - 1, 3);
+
+    for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Dark, pdf::PDFThemeColors::Scheme::Light })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        fixture.settle();
+        for (qreal ratio : { 1.0, 2.0 })
+        {
+            const QImage image = ViewTestHelper::render(handle, ratio);
+            QCOMPARE(ViewTestHelper::pixel(image, QPoint(1, 10)), ViewTestHelper::token(pdf::PDFThemeColors::BgSidebar));
+            QCOMPARE(ViewTestHelper::pixel(image, QPoint(4, handle->height() - 10)), ViewTestHelper::token(pdf::PDFThemeColors::BgSidebar));
+
+            // The middle of each dot is drawn by icon/muted (anti-aliased at 1x)
+            const QColor muted = ViewTestHelper::token(pdf::PDFThemeColors::IconMuted);
+            const QColor sidebar = ViewTestHelper::token(pdf::PDFThemeColors::BgSidebar);
+            for (const QRect& dot : dots)
+            {
+                const QColor color = image.pixelColor(QPoint(qFloor(dot.center().x() * ratio + ratio / 2), qFloor(dot.center().y() * ratio + ratio / 2)));
+                const int toMuted = qAbs(color.red() - muted.red()) + qAbs(color.green() - muted.green()) + qAbs(color.blue() - muted.blue());
+                const int toSidebar = qAbs(color.red() - sidebar.red()) + qAbs(color.green() - sidebar.green()) + qAbs(color.blue() - sidebar.blue());
+                QVERIFY2(toMuted < toSidebar, qPrintable(color.name()));
+            }
+            QCOMPARE(ViewTestHelper::countLeakPixels(image), 0);
+        }
+    }
 }
 
 void AppDocumentViewTest::routePage()
@@ -535,12 +595,22 @@ void AppDocumentViewTest::selectMenuTools()
     fixture.settle();
     QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
 
-    // The menu opens below the Select button
+    // The menu opens by the Select button: menu-select 198:5517 is 232 px wide and its
+    // panel lies 4 px below the toolbar (y 94 of 198:5380) as the panels of the toolbar
     QToolButton* selectButton = view->getToolbar()->getSelectButton();
-    QTimer::singleShot(0, menu, &QMenu::close);
+    QRect panel;
+    QTimer::singleShot(0, menu, [menu, &panel]()
+    {
+        panel = menu->geometry().marginsRemoved(pdf::PDFWidgetStyle::getPopoverMargins(menu));
+        menu->close();
+    });
     selectButton->showMenu();
     fixture.settle();
     QVERIFY(!menu->isVisible());
+    QVERIFY(panel.isValid());
+    QCOMPARE(panel.width(), pdf::PDFAppDocumentSelectMenu::PANEL_WIDTH);
+    pdf::PDFAppDocumentToolbar* toolbar = view->getToolbar();
+    QCOMPARE(panel.top(), toolbar->mapToGlobal(QPoint(0, toolbar->height())).y() + pdf::PDFAppDocumentToolbar::PANEL_GAP);
 }
 
 void AppDocumentViewTest::magnifier()
@@ -1065,6 +1135,15 @@ void AppDocumentViewTest::statusBar()
     QCOMPARE(trailing->mapTo(statusBar, QPoint(trailing->width(), 0)).x(), statusBar->width() - 8);
     QVERIFY(leading->x() < statusBar->width() / 2);
 
+    // A leading item deleted by its package: the next one is still leading
+    delete leading;
+    QWidget* nextLeading = new QWidget();
+    nextLeading->setFixedSize(40, 22);
+    view->addStatusItem(nextLeading, pdf::PDFAppDocumentStatusBar::Area::Leading);
+    fixture.settle();
+    QVERIFY(nextLeading->x() < statusBar->width() / 2);
+    QCOMPARE(trailing->mapTo(statusBar, QPoint(trailing->width(), 0)).x(), statusBar->width() - 8);
+
     // A timed message gives the permanent message back
     statusBar->showMessage(QStringLiteral("Copied"), 50);
     QCOMPARE(statusBar->getMessage(), QStringLiteral("Copied"));
@@ -1114,8 +1193,29 @@ void AppDocumentViewTest::infoBars()
     QVERIFY(qAbs(card.center().x() - canvas.center().x()) <= 1);
     QVERIFY(card.width() <= canvas.width() - 24);
 
-    // The colors of the card: bg/surface inside, no leak color
-    const QImage image = ViewTestHelper::render(infoBar);
+    // The margins of the shadow are not a part of the bar for the pointer: the
+    // canvas below them gets the clicks; the shadow is a sibling below the bar
+    QWidget* canvasArea = view->getPdfWidget()->parentWidget();
+    const QRect cardRect = infoBar->getCardRect();
+    for (const QPoint& margin : { QPoint(cardRect.center().x(), cardRect.bottom() + 10), QPoint(cardRect.left() - 8, cardRect.center().y()), QPoint(cardRect.right() + 8, cardRect.center().y()) })
+    {
+        QWidget* hit = canvasArea->childAt(infoBar->mapTo(canvasArea, margin));
+        QVERIFY(hit);
+        QVERIFY(hit == view->getPdfWidget() || view->getPdfWidget()->isAncestorOf(hit));
+    }
+    QWidget* cardHit = canvasArea->childAt(infoBar->mapTo(canvasArea, cardRect.center()));
+    QVERIFY(cardHit == infoBar || infoBar->isAncestorOf(cardHit));
+    pdf::PDFAppInfoBarShadow* shadow = canvasArea->findChild<pdf::PDFAppInfoBarShadow*>();
+    QVERIFY(shadow);
+    QVERIFY(shadow->isVisible());
+    QCOMPARE(shadow->geometry(), infoBar->geometry());
+    QVERIFY(canvasArea->children().indexOf(shadow) < canvasArea->children().indexOf(infoBar));
+
+    // The colors of the card: bg/surface inside, no leak color (the bar is masked to
+    // its card: QWidget::render would place the card at the origin of the image)
+    QImage image(infoBar->size(), QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    infoBar->render(&image, QPoint(), QRegion(), QWidget::RenderFlags(QWidget::DrawChildren | QWidget::IgnoreMask));
     QCOMPARE(ViewTestHelper::pixel(image, infoBar->getCardRect().topLeft() + QPoint(14, 2)), ViewTestHelper::token(pdf::PDFThemeColors::BgSurface));
     QCOMPARE(ViewTestHelper::countLeakPixels(image), 0);
 
@@ -1136,7 +1236,7 @@ void AppDocumentViewTest::infoBars()
     printing.iconName = QStringLiteral("printer");
     printing.progress = 25;
     printing.isClosable = false;
-    printing.actions = { { QStringLiteral("stop"), QStringLiteral("Stop") } };
+    printing.actions = { { QStringLiteral("stop"), QStringLiteral("Stop"), QStringLiteral("stop") } };
     view->showInfoBar(printing);
     fixture.settle();
     pdf::PDFAppInfoBar* printingBar = view->findInfoBarWidget(QStringLiteral("printing"));
@@ -1147,6 +1247,28 @@ void AppDocumentViewTest::infoBars()
     QVERIFY(!printingBar->getCloseButton());
     const int secondTop = printingBar->mapTo(view, printingBar->getCardRect().topLeft()).y();
     QCOMPARE(secondTop, card.top() + pdf::PDFAppInfoBar::CARD_HEIGHT + pdf::PDFAppDocumentView::INFO_BAR_GAP);
+
+    // btn-stop 1030:25657 has the icon stop 16 before its text; a button without an icon has none
+    QCOMPARE(printingBar->getActionButtons().size(), size_t(1));
+    QVERIFY(!printingBar->getActionButtons().front()->icon().isNull());
+    QCOMPARE(printingBar->getActionButtons().front()->iconSize(), QSize(16, 16));
+    QVERIFY(infoBar->getActionButtons().front()->icon().isNull());
+
+    // text 1030:25657: the title (16) and the second line (13) 1 px apart in the
+    // middle of the card (y 9 and 26), not spread over its height
+    {
+        QWidget* title = printingBar->findChild<QWidget*>(QStringLiteral("infoBarTitle"));
+        QWidget* text = printingBar->findChild<QWidget*>(QStringLiteral("infoBarText"));
+        QVERIFY(title && text);
+        const QPoint cardTopLeft = printingBar->getCardRect().topLeft();
+        const int titleTop = title->mapTo(printingBar, QPoint(0, 0)).y() - cardTopLeft.y();
+        const int textTop = text->mapTo(printingBar, QPoint(0, 0)).y() - cardTopLeft.y();
+        QVERIFY2(qAbs(titleTop - 9) <= 1, qPrintable(QString::number(titleTop)));
+        QCOMPARE(textTop - (titleTop + title->height()), 1);
+        QVERIFY2(qAbs(textTop - 26) <= 1, qPrintable(QString::number(textTop)));
+        QVERIFY(title->height() <= 17);
+        QVERIFY(text->height() <= 14);
+    }
 
     // Progress updates replace the content
     printing.progress = 80;
@@ -1170,6 +1292,10 @@ void AppDocumentViewTest::infoBars()
     view->hideInfoBar(QStringLiteral("unknown"));
     view->showInfoBar(pdf::PDFAppInfoBarRequest());
     QVERIFY(view->getInfoBarIds().isEmpty());
+
+    // The shadows go with their bars
+    fixture.settle();
+    QVERIFY(canvasArea->findChildren<pdf::PDFAppInfoBarShadow*>().isEmpty());
 }
 
 void AppDocumentViewTest::infoBarsDeletion()
@@ -1391,6 +1517,51 @@ void AppDocumentViewTest::filePanel()
     fixture.settle();
     QVERIFY(!panel->isVisible());
     QTRY_VERIFY(fixture.window->getCurrentTab() != tab);
+}
+
+void AppDocumentViewTest::filePanelWithoutMail()
+{
+    // D2: the tile E-mail is hidden on a platform without e-mail (macOS), the
+    // other tiles of the row share its place; the state is asked at each opening
+    struct OverrideGuard
+    {
+        ~OverrideGuard() { pdf::PDFAppSendMail::setAvailableOverride(std::nullopt); }
+    } overrideGuard;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("FilePanelMail.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QToolButton* fileButton = toolbar->getMenuButton(pdf::PDFAppDocumentToolbar::Panel::File);
+
+    pdf::PDFAppSendMail::setAvailableOverride(false);
+    QVERIFY(!pdf::PDFAppSendMail::isAvailable());
+    QTest::mouseClick(fileButton, Qt::LeftButton);
+    fixture.settle();
+    pdf::PDFAppDocumentPanelPopup* panel = toolbar->getOpenPanel();
+    QVERIFY(qobject_cast<pdf::PDFAppDocumentFilePanel*>(panel));
+    QAbstractButton* mailTile = panel->getCommandButton(pdf::PDFAppCommands::sendMail());
+    QVERIFY(mailTile);
+    QVERIFY(!mailTile->isVisibleTo(panel));
+    QWidget* printTile = panel->getCommandButton(pdf::PDFAppCommands::print());
+    QWidget* saveTile = panel->getCommandButton(pdf::PDFAppCommands::save());
+    QVERIFY(printTile && saveTile && printTile->isVisible() && saveTile->isVisible());
+    QCOMPARE(saveTile->x(), 0);
+    QCOMPARE(printTile->geometry().right(), printTile->parentWidget()->width() - 1);
+    QCOMPARE(ViewTestHelper::countLeakPixels(ViewTestHelper::render(panel)), 0);
+    QTest::mouseClick(fileButton, Qt::LeftButton);
+    fixture.settle();
+    QVERIFY(!panel->isVisible());
+    QTRY_VERIFY(!fileButton->isChecked());
+
+    // E-mail available: four tiles, E-mail at the end of the row
+    pdf::PDFAppSendMail::setAvailableOverride(true);
+    QTest::mouseClick(fileButton, Qt::LeftButton);
+    fixture.settle();
+    QCOMPARE(toolbar->getOpenPanel(), panel);
+    QVERIFY(mailTile->isVisible());
+    QVERIFY(printTile->geometry().right() < mailTile->x());
+    QCOMPARE(mailTile->geometry().right(), mailTile->parentWidget()->width() - 1);
 }
 
 void AppDocumentViewTest::filePanelCloseDocument()
@@ -1883,6 +2054,64 @@ void AppDocumentViewTest::largeDocument()
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(999));
     QVERIFY2(timer.elapsed() < 20000, qPrintable(QString::number(timer.elapsed())));
     qInfo("2000 pages: navigation %lld ms", static_cast<long long>(timer.elapsed()));
+
+    // The number of a page is shown without the separators of the locale, so the
+    // text of the fields can be confirmed again ("1,000" is no page)
+    QCOMPARE(view->getPageLabel(1499), QStringLiteral("1500"));
+    QCOMPARE(view->getToolbar()->getPageField()->text(), QStringLiteral("1000"));
+    view->openGoToPage();
+    fixture.settle();
+    pdf::PDFAppDocumentGoToPanel* panel = qobject_cast<pdf::PDFAppDocumentGoToPanel*>(view->getToolbar()->getOpenPanel());
+    QVERIFY(panel);
+    QCOMPARE(panel->getPageField()->text(), QStringLiteral("1000"));
+    QTest::mouseClick(panel->getGoButton(), Qt::LeftButton);
+    fixture.settle();
+    QVERIFY(!panel->getPageField()->isInvalid());
+    QVERIFY(!panel->isVisible());
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(999));
+}
+
+void AppDocumentViewTest::toolbarFieldsAndToolTips()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Fields.pdf"), 4));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentToolbar* toolbar = view->getToolbar();
+    QWidget* canvas = view->getPdfWidget()->getDrawWidget()->getWidget();
+
+    // An invalid page: the error stays while the field has the focus and goes
+    // with the text of the user, when the field shows the current page again
+    pdf::PDFToolBarField* pageField = toolbar->getPageField();
+    pageField->setFocus();
+    QTRY_VERIFY(pageField->hasFocus());
+    pageField->setText(QStringLiteral("xyz"));
+    QTest::keyClick(pageField, Qt::Key_Return);
+    QVERIFY(pageField->isInvalid());
+    canvas->setFocus();
+    QTRY_VERIFY(!pageField->hasFocus());
+    fixture.settle();
+    QCOMPARE(pageField->text(), QStringLiteral("1"));
+    QVERIFY(!pageField->isInvalid());
+
+    pdf::PDFToolBarField* zoomField = toolbar->getZoomField();
+    zoomField->setFocus();
+    QTRY_VERIFY(zoomField->hasFocus());
+    zoomField->setText(QStringLiteral("abc"));
+    QTest::keyClick(zoomField, Qt::Key_Return);
+    QVERIFY(zoomField->isInvalid());
+    canvas->setFocus();
+    QTRY_VERIFY(!zoomField->hasFocus());
+    fixture.settle();
+    QVERIFY(zoomField->text().endsWith(QStringLiteral("%")));
+    QVERIFY(!zoomField->isInvalid());
+
+    // The tooltips of the buttons show the shortcuts of the user
+    const pdf::PDFAppCommand* command = fixture.context->getCommandRegistry()->findCommand(pdf::PDFAppCommands::nextPage());
+    QVERIFY(command);
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(pdf::PDFAppCommands::nextPage(), QStringLiteral("Ctrl+J")).isError());
+    const QString expected = QStringLiteral("%1 (%2)").arg(command->getTitle(), QKeySequence(Qt::CTRL | Qt::Key_J).toString(QKeySequence::NativeText));
+    QTRY_COMPARE(toolbar->getCommandButton(pdf::PDFAppCommands::nextPage())->toolTip(), expected);
 }
 
 void AppDocumentViewTest::popoverStyleFunctions()
@@ -1967,7 +2196,7 @@ void AppDocumentViewTest::screenshots()
             printing.text = QStringLiteral("Page 313 of copy 1 · 5 of 20 pages · about 1 minute left");
             printing.progress = 25;
             printing.isClosable = false;
-            printing.actions = { { QStringLiteral("stop"), QStringLiteral("Stop") } };
+            printing.actions = { { QStringLiteral("stop"), QStringLiteral("Stop"), QStringLiteral("stop") } };
             view->showInfoBar(printing);
             fixture.settle();
             ViewTestHelper::save(folder, QStringLiteral("view-info-bars-%1-%2").arg(suffix, scale), ViewTestHelper::render(fixture.window, ratio));

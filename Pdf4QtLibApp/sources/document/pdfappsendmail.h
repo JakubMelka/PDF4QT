@@ -32,6 +32,7 @@
 #include <QStringList>
 
 #include <functional>
+#include <optional>
 
 namespace pdf
 {
@@ -76,14 +77,24 @@ public:
     explicit PDFAppSendMail(PDFAppDocumentTab* tab, PDFAppDocumentSaver* saver, QObject* parent);
     virtual ~PDFAppSendMail() override;
 
-    /// E-mail is supported on this platform (or a test launcher is set)
+    /// E-mail is supported on this platform (or a test launcher is set); the
+    /// override of setAvailableOverride decides over both
     static bool isAvailable();
 
     /// Replaces the launcher of the platform (tests); an empty handler restores it
     static void setLauncher(Launcher launcher);
 
-    /// Arguments of xdg-email for the file and the subject
+    /// Overrides the support of the platform (tests: a platform without e-mail -
+    /// macOS, D2 - on another system); std::nullopt restores it
+    static void setAvailableOverride(std::optional<bool> isAvailable);
+
+    /// Arguments of xdg-email for the file and the subject (the subject without
+    /// apostrophes - U+2019 -, control and format characters, at most
+    /// MAXIMUM_SUBJECT_LENGTH characters)
     static QStringList getXdgEmailArguments(const QString& filePath, const QString& subject);
+
+    /// Longest subject of a message
+    static constexpr int MAXIMUM_SUBJECT_LENGTH = 512;
 
     /// The command can be used: a shown document, the platform supports e-mail and
     /// no e-mail is being created
@@ -107,6 +118,7 @@ Q_SIGNALS:
 
 private:
     static Launcher& getLauncher();
+    static std::optional<bool>& getAvailableOverride();
     static PDFAppMailResult launch(QString filePath, QString subject);
     static PDFAppMailResult launchPlatform(const QString& filePath, const QString& subject);
 

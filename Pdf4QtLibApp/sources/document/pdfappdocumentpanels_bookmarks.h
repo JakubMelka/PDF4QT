@@ -33,6 +33,7 @@
 #include <QAbstractListModel>
 #include <QPointer>
 
+#include <optional>
 #include <vector>
 
 #include <QListView>
@@ -221,6 +222,7 @@ private:
     void onMenuRemove();
     void selectCurrentPage();
     void updateButtons();
+    int findMenuRow() const;
     PDFAppContext* getContext() const;
 
     QPointer<PDFAppPanelListView> m_view;
@@ -231,7 +233,7 @@ private:
     QPointer<PDFAppDocument> m_connectedDocument;
     QPointer<PDFAppDocumentView> m_connectedView;
     QPointer<PDFAppRenameBookmarkDialog> m_renameDialog;
-    int m_menuRow = -1;
+    std::optional<PDFAppBookmarkItem> m_menuItem;   ///< Bookmark of the open context menu (the rows may change meanwhile)
     bool m_isSelecting = false;
 };
 

@@ -36,6 +36,7 @@
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappnavigator.h"
 #include "pdfappundostack.h"
 #include "pdfbookmarkrepository.h"
 #include "pdfdatabasestatement.h"
@@ -90,12 +91,14 @@ private slots:
     void outline();
     void outlineHostile();
     void layers();
+    void listGeometry();
     void attachmentsList();
     void attachmentsSave();
     void attachmentsOpen();
     void attachmentsRefused();
     void attachmentsFileNames();
     void attachmentsDeletedDuringWrite();
+    void attachmentsDocumentChanged();
     void bookmarkRepository();
     void bookmarkRepositoryHostileRows();
     void bookmarkJson();
@@ -105,9 +108,12 @@ private slots:
     void bookmarksExportImport();
     void bookmarksOtherConnection();
     void bookmarksRenameMoveRemove();
+    void bookmarksMenuAfterReload();
     void notes();
     void notesFilterAndHostile();
     void deletionMatrix();
+    void deletionFromOwnSignals_data();
+    void deletionFromOwnSignals();
     void screenshots();
 };
 
@@ -254,6 +260,27 @@ public:
         }
         document->setLoaded(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(pdfDocument))), data, QFileInfo(path).canonicalFilePath(), false);
         return document->isReady();
+    }
+
+    /// Replaces the document of the tab by the content of the file (one undo step,
+    /// as a change of another package)
+    static bool replaceDocument(pdf::PDFAppDocumentTab* tab, const QString& path)
+    {
+        pdf::PDFAppDocument* document = tab ? tab->getDocument() : nullptr;
+        QFile file(path);
+        if (!document || !file.open(QIODevice::ReadOnly))
+        {
+            return false;
+        }
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+        pdf::PDFDocument pdfDocument = reader.readFromBuffer(file.readAll());
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            return false;
+        }
+        const pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(std::move(pdfDocument)));
+        const pdf::PDFModifiedDocument modified(pointer, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset);
+        return document->commit(modified, QStringLiteral("Replace"), document->getVersion(), pdf::PDFAppChangeSource::User);
     }
 
     static pdf::PDFAppDocumentSidebar* sidebar(pdf::PDFAppDocumentTab* tab)
@@ -1082,6 +1109,39 @@ void AppDocumentPanelsTest::layers()
     QCOMPARE(layerA.data(Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
 }
 
+void AppDocumentPanelsTest::listGeometry()
+{
+    // The lists of the sidebar (195:2070 attachments, 195:3910 notes, 195:3445
+    // bookmarks): rows 275 wide at x 12 of the sidebar, 2 px between two rows
+    // (QListView::setSpacing puts its spacing on both rows - not 4 px)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
+    pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+    fixture.settle();
+
+    pdf::PDFAppDocumentSidebar* bar = PanelsTestHelper::sidebar(tab);
+    auto checkRows = [&bar](QListView* list, int firstRow)
+    {
+        QVERIFY(list);
+        const QRect first = list->visualRect(list->model()->index(firstRow, 0));
+        const QRect second = list->visualRect(list->model()->index(firstRow + 1, 0));
+        QCOMPARE(second.top() - first.bottom() - 1, 2);
+        QCOMPARE(list->viewport()->mapTo(bar, first.topLeft()).x(), 12);
+        QCOMPARE(first.width(), bar->width() - 1 - 24);
+    };
+    checkRows(attachments->getListView(), 0);
+
+    const QString notesPath = PanelsTestHelper::notes(fixture.folder());
+    QVERIFY(!notesPath.isEmpty());
+    pdf::PDFAppDocumentTab* notesTab = fixture.open(notesPath);
+    pdf::PDFAppNotesPanel* notes = PanelsTestHelper::panel<pdf::PDFAppNotesPanel>(notesTab, QStringLiteral("notes"));
+    QVERIFY(notes);
+    fixture.settle();
+    bar = PanelsTestHelper::sidebar(notesTab);
+    checkRows(notes->getListView(), 1);
+}
+
 void AppDocumentPanelsTest::attachmentsList()
 {
     pdftest::AppDocumentFixture fixture;
@@ -1322,6 +1382,60 @@ void AppDocumentPanelsTest::attachmentsDeletedDuringWrite()
     QThreadPool::globalInstance()->waitForDone(10000);
     fixture.settle();
     QTRY_VERIFY(!dialog || !dialog->isVisible());
+}
+
+void AppDocumentPanelsTest::attachmentsDocumentChanged()
+{
+    // The document changes while the confirmation or the save dialog is open: the
+    // rows change with it, but the confirmed (chosen) attachment is written - never
+    // the attachment, which has its row now (a program of the new version)
+    pdftest::AppDocumentFixture fixture;
+    const QString first = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("first.pdf"), { QStringLiteral("a-readme.txt"), QStringLiteral("b-data.txt") });
+    const QString second = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("second.pdf"), { QStringLiteral("a-readme.txt"), QStringLiteral("b-evil.exe") });
+    QVERIFY(!first.isEmpty() && !second.isEmpty());
+    pdf::PDFAppDocumentTab* tab = fixture.open(first);
+    pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+    QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-data.txt"));
+
+    QStringList launched;
+    pdf::PDFAppPanelFileDialogs::setLaunchHandler([&](const QString& file) { launched << file; return true; });
+
+    attachments->openAttachment(1);
+    fixture.settle();
+    pdf::PDFMessageBox* dialog = PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"));
+    QVERIFY(dialog);
+    QVERIFY(PanelsTestHelper::replaceDocument(tab, second));
+    fixture.settle();
+    QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-evil.exe"));
+    dialog->findChild<QPushButton*>(QStringLiteral("openFileButton"))->click();
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    fixture.settle();
+    QCOMPARE(launched.size(), 1);
+    QVERIFY(launched.front().endsWith(QStringLiteral("b-data.txt")));
+    QFile launchedFile(launched.front());
+    QVERIFY(launchedFile.open(QIODevice::ReadOnly));
+    QCOMPARE(launchedFile.readAll(), QByteArray("data of b-data.txt"));
+    launchedFile.close();
+
+    // The save dialog: the document changes back while it runs
+    const QString target = fixture.path(QStringLiteral("chosen.bin"));
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString& proposed, const QString&)
+    {
+        if (!proposed.endsWith(QStringLiteral("b-evil.exe")))
+        {
+            return QString();
+        }
+        PanelsTestHelper::replaceDocument(tab, first);
+        return target;
+    });
+    attachments->saveAttachment(1);
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    fixture.settle();
+    QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-data.txt"));
+    QFile savedFile(target);
+    QVERIFY(savedFile.open(QIODevice::ReadOnly));
+    QCOMPARE(savedFile.readAll(), QByteArray("data of b-evil.exe"));
 }
 
 void AppDocumentPanelsTest::bookmarkRepository()
@@ -1808,6 +1922,64 @@ void AppDocumentPanelsTest::bookmarksRenameMoveRemove()
     QTRY_COMPARE(panel->getModel()->rowCount(), 1);
 }
 
+void AppDocumentPanelsTest::bookmarksMenuAfterReload()
+{
+    // The context menu does not block: another instance adds a bookmark while it is
+    // open, the rows are reloaded, the action works on the bookmark of the menu
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("menu.pdf"), 6));
+    pdf::PDFAppBookmarksPanel* panel = PanelsTestHelper::panel<pdf::PDFAppBookmarksPanel>(tab, QStringLiteral("bookmarks"));
+    QVERIFY(panel);
+    for (const int page : { 1, 3, 5 })
+    {
+        tab->getView()->goToPage(page);
+        fixture.settle();
+        tab->executeCommand(pdf::PDFAppCommands::addBookmark());
+    }
+    QTRY_COMPARE(panel->getModel()->rowCount(), 3);
+
+    const QString filePath = tab->getDocument()->getFilePath();
+    pdf::PDFBookmarkRepository repository(fixture.context->getDatabase());
+
+    QPointer<QMenu> menu = panel->createContextMenu(1);
+    QVERIFY(menu);
+    QVERIFY(!repository.addBookmark(filePath, 0, QStringLiteral("Other instance")).isError());
+    panel->reload();
+    QCOMPARE(panel->getModel()->rowCount(), 4);
+    QCOMPARE(panel->getModel()->getItem(1)->page, pdf::PDFInteger(1));
+    PanelsTestHelper::findAction(menu, QStringLiteral("removeBookmark"))->trigger();
+    delete menu;
+    QTRY_COMPARE(panel->getModel()->rowCount(), 3);
+    std::vector<pdf::PDFInteger> pages;
+    for (const pdf::PDFAppBookmarkItem& item : panel->getModel()->getItems())
+    {
+        pages.push_back(item.page);
+    }
+    QCOMPARE(pages, std::vector<pdf::PDFInteger>({ 0, 1, 5 }));
+
+    // Go to Page of the menu goes to the page of its bookmark
+    menu = panel->createContextMenu(2);
+    QVERIFY(!repository.addBookmark(filePath, 2, QStringLiteral("Another")).isError());
+    panel->reload();
+    tab->getView()->goToPage(0);
+    fixture.settle();
+    QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
+    PanelsTestHelper::findAction(menu, QStringLiteral("goToBookmark"))->trigger();
+    delete menu;
+    QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(5));
+
+    // The bookmark of the menu removed elsewhere: the action does nothing
+    menu = panel->createContextMenu(0);
+    const qint64 removedId = panel->getModel()->getItem(0)->id;
+    QVERIFY(!repository.removeBookmark(removedId).isError());
+    panel->reload();
+    const int rows = panel->getModel()->rowCount();
+    PanelsTestHelper::findAction(menu, QStringLiteral("removeBookmark"))->trigger();
+    delete menu;
+    fixture.settle();
+    QCOMPARE(panel->getModel()->rowCount(), rows);
+}
+
 void AppDocumentPanelsTest::notes()
 {
     pdftest::AppDocumentFixture fixture;
@@ -1902,6 +2074,115 @@ void AppDocumentPanelsTest::notesFilterAndHostile()
 
     // A limit of the notes
     QCOMPARE(pdf::PDFAppNotes::collect(tab->getDocument()->getDocument().data(), 2).size(), size_t(2));
+}
+
+void AppDocumentPanelsTest::deletionFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::addColumn<bool>("deleteWindow");
+    // A thumbnail clicked by the mouse is not a row: the view moves from the slot of
+    // the selection model inside of QAbstractItemView::mousePressEvent, which Qt
+    // itself does not survive, when a slot deletes the view there
+    for (const char* name : { "panelChanged", "thumbnailsScrolled", "rotateFromMenu", "toolFromMenu" })
+    {
+        QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
+        QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
+    }
+}
+
+void AppDocumentPanelsTest::deletionFromOwnSignals()
+{
+    // The application deletes the tab (or the window) synchronously from a signal
+    // of the sidebar, of the view (a click on a thumbnail moves the view) or of the
+    // document (Rotate of the context menu of the thumbnails), from the navigation
+    // of a page tool of the menu, and while the thumbnails of a scrolled list are
+    // being compiled (valgrind finds the reads)
+    QFETCH(QString, signal);
+    QFETCH(bool, deleteWindow);
+
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+    const bool isLarge = signal == QStringLiteral("thumbnailsScrolled");
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(isLarge ? pdftest::AppDocumentSamples::large(fixture.folder(), 2000) : pdftest::AppDocumentSamples::outline(fixture.folder()));
+    QVERIFY(tab);
+    QObject receiver;
+    bool isDeleted = false;
+    auto deleteNow = [&isDeleted, &tab, &window, deleteWindow]()
+    {
+        if (isDeleted)
+        {
+            return;
+        }
+        isDeleted = true;
+        if (deleteWindow)
+        {
+            delete window.data();
+        }
+        else
+        {
+            delete tab.data();
+        }
+    };
+
+    pdf::PDFAppDocumentSidebar* bar = PanelsTestHelper::sidebar(tab);
+    QVERIFY(bar);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    QVERIFY(thumbnails);
+    fixture.settle();
+
+    if (signal == QStringLiteral("panelChanged"))
+    {
+        connect(bar, &pdf::PDFAppDocumentSidebar::currentPanelChanged, &receiver, deleteNow);
+        bar->showPanel(QStringLiteral("outline"));
+    }
+    else if (signal == QStringLiteral("thumbnailsScrolled"))
+    {
+        // Pages of the middle of the document are compiled for the visible rows
+        pdf::PDFAppThumbnailListView* list = thumbnails->getListView();
+        list->scrollTo(thumbnails->getModel()->index(1000, 0));
+        QTest::qWait(20);
+        list->scrollTo(thumbnails->getModel()->index(1500, 0));
+        deleteNow();
+    }
+    else if (signal == QStringLiteral("rotateFromMenu") || signal == QStringLiteral("toolFromMenu"))
+    {
+        thumbnails->selectPages({ 0, 1 });
+        QMenu* menu = thumbnails->createContextMenu();
+        QVERIFY(menu);
+        QAction* found = nullptr;
+        for (QAction* action : menu->actions())
+        {
+            const QString text = action->text();
+            if ((signal == QStringLiteral("rotateFromMenu") && text.contains(QStringLiteral("Rotate"))) ||
+                (signal == QStringLiteral("toolFromMenu") && text.contains(QStringLiteral("Extract"))))
+            {
+                found = action;
+                break;
+            }
+        }
+        QVERIFY(found);
+        if (signal == QStringLiteral("rotateFromMenu"))
+        {
+            connect(tab->getDocument(), &pdf::PDFAppDocument::documentChanged, &receiver, deleteNow);
+        }
+        else
+        {
+            connect(fixture.window->getNavigator(), &pdf::PDFAppNavigator::navigated, &receiver, deleteNow);
+        }
+        found->trigger();
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 30000);
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    QTest::qWait(50);
+    fixture.settle();
+    QVERIFY(deleteWindow ? !window : !tab);
+    if (!deleteWindow)
+    {
+        QVERIFY(window);
+        QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
+    }
 }
 
 void AppDocumentPanelsTest::deletionMatrix()

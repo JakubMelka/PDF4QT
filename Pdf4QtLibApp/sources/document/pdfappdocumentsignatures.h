@@ -250,6 +250,7 @@ private:
     QPointer<PDFIconBadge> m_bannerIcon;
     std::vector<QPointer<PDFSignatureCard>> m_cards;
     std::vector<QByteArray> m_trustableCertificates;    ///< Certificate of the link of each card (empty = no link)
+    std::vector<bool> m_expanded;                       ///< Expansion of the cards, kept while a verification shows no cards
     QPointer<PDFMessageBox> m_trustDialog;
     QByteArray m_pendingCertificate;
 };

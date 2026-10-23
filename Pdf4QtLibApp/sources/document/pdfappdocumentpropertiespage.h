@@ -219,6 +219,11 @@ private:
     QTimer m_rebuildTimer;
     bool m_isRebuildPending = false;
     int m_pendingScroll = -1;
+
+    /// The shown section has been built for a document, which could be changed
+    /// (editable rows): a change of the state of the document rebuilds the
+    /// section only, when this changes (not with each step of an operation)
+    bool m_isSectionEditable = false;
 };
 
 }   // namespace pdf

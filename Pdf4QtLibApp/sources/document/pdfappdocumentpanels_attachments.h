@@ -36,6 +36,7 @@
 #include <QPointer>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <QListView>
@@ -214,7 +215,7 @@ private:
     void onWriteFinished();
     void onConfirmFinished(int result);
     void rebuild();
-    void startWrite(int row, const QString& filePath, bool isOpenRequested);
+    void startWrite(const PDFAppAttachment& attachment, PDFDocumentPointer document, const QString& filePath, bool isOpenRequested);
     QString createTemporaryPath(const QString& fileName);
     void showError(const QString& title, const QString& text);
 
@@ -223,7 +224,8 @@ private:
     QPointer<PDFAppAttachmentDelegate> m_delegate;
     QPointer<PDFAppDocument> m_connectedDocument;
     QPointer<PDFAppCardDialog> m_confirmDialog;
-    int m_confirmRow = -1;
+    std::optional<PDFAppAttachment> m_confirmAttachment;   ///< Attachment of the open confirmation
+    PDFDocumentPointer m_confirmDocument;                   ///< Its document (the version shown then)
     PDFDocumentPointer m_document;
     std::unique_ptr<QTemporaryDir> m_temporaryDirectory;
     std::vector<QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>> m_watchers;

@@ -90,6 +90,7 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
     Result result;
     result.version = request.version;
     result.isIncremental = request.isIncremental;
+    result.requestedFilePath = request.filePath;
 
     if (request.document.isNull() || request.filePath.isEmpty())
     {
@@ -449,13 +450,22 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     request.version = snapshot.version;
 
     // The document stays usable: the worker writes the snapshot
-    m_operation = document->beginOperation(PDFAppDocumentOperationKind::Save, tr("Saving %1").arg(QFileInfo(filePath).fileName()), false);
     m_step = Step::Writing;
-
     QFutureWatcher<PDFAppDocumentFileWriter::Result>* watcher = new QFutureWatcher<PDFAppDocumentFileWriter::Result>(this);
     m_watcher = watcher;
     connect(watcher, &QFutureWatcher<PDFAppDocumentFileWriter::Result>::finished, this, &PDFAppDocumentSaver::onWriterFinished);
     watcher->setFuture(QtConcurrent::run(&PDFAppDocumentFileWriter::write, std::move(request)));
+
+    // The document announces the operation (operationsChanged): a slot may delete
+    // the tab (the started worker writes the file anyway)
+    const QString fileName = QFileInfo(filePath).fileName();
+    QPointer<PDFAppDocumentSaver> guard(this);
+    PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Save, tr("Saving %1").arg(fileName), false);
+    if (!guard)
+    {
+        return;
+    }
+    m_operation = operation;
     Q_EMIT stateChanged();
 }
 
@@ -471,10 +481,16 @@ void PDFAppDocumentSaver::onWriterFinished()
     m_watcher = nullptr;
     watcher->deleteLater();
 
+    // The document announces the finished operation (a slot may delete the tab)
     if (PDFAppDocumentOperation* operation = m_operation.data())
     {
+        QPointer<PDFAppDocumentSaver> operationGuard(this);
         m_operation = nullptr;
         operation->finish();
+        if (!operationGuard)
+        {
+            return;
+        }
     }
 
     PDFAppDocument* document = getDocument();
@@ -486,8 +502,10 @@ void PDFAppDocumentSaver::onWriterFinished()
 
     if (!result.isSaved)
     {
-        const QString nativePath = QDir::toNativeSeparators(QFileInfo(result.filePath.isEmpty() ? document->getFilePath() : result.filePath).absoluteFilePath());
-        showErrorDialog(document->getFilePath(), tr("The file could not be written. Your changes are still in the document – save them to another file, or try it again."),
+        // The file of the request (Save As writes another file than the document has)
+        const QString failedPath = !result.requestedFilePath.isEmpty() ? result.requestedFilePath : document->getFilePath();
+        const QString nativePath = failedPath.isEmpty() ? QString() : QDir::toNativeSeparators(QFileInfo(failedPath).absoluteFilePath());
+        showErrorDialog(failedPath, tr("The file could not be written. Your changes are still in the document – save them to another file, or try it again."),
                         result.errorMessage.isEmpty() ? nativePath : QStringLiteral("%1\n%2").arg(nativePath, result.errorMessage));
         return;
     }

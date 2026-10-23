@@ -75,7 +75,8 @@ public:
     bool contains(const QByteArray& data) const;
 
     /// Adds the certificate (DER). A certificate, which is trusted already, is not
-    /// added again; data, which are not a certificate, are refused.
+    /// added again; data, which are not a certificate, are refused, and so is a
+    /// certificate over MAXIMUM_CERTIFICATE_COUNT rows (it would not be read).
     PDFDatabaseError addCertificate(const QByteArray& data);
 
     /// Removes the certificate of the row
@@ -87,6 +88,9 @@ public:
 private:
     qint64 getCurrentTime() const;
     PDFDatabaseConnection* getConnection() const;
+
+    /// Number of the rows read by getCertificates (blobs of a sane size)
+    int getCertificateRowCount() const;
 
     QPointer<PDFDatabase> m_database;
     qint64 m_currentTime = 0;

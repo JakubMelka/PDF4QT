@@ -103,7 +103,6 @@ private:
     QPointer<QToolButton> m_pageItem;
     QPointer<QTimer> m_messageTimer;
     QString m_permanentMessage;
-    int m_leadingCount = 0;
     std::vector<QPointer<QWidget>> m_items;
 };
 

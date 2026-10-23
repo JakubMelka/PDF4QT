@@ -65,6 +65,8 @@ public:
     static constexpr int CONTROL_GAP = 8;       ///< controls of one row
     static constexpr int PREVIEW_GAP = 10;      ///< stage, navigation and the paper text
     static constexpr int FIELD_WIDTH = 88;      ///< copies, the custom scale
+    static constexpr int ORIENTATION_SEGMENT_WIDTH = 112;   ///< segments of Orientation (seg-Auto 1029:24804)
+    static constexpr int SEGMENT_WIDTH = 104;   ///< segments of Scaling and Color (1029:24830, 1029:24854)
     static constexpr int WINDOW_MARGIN = 16;    ///< smallest distance of the card from the edge of the window
 
     /// Segments of the controls (the order of the design)
@@ -568,6 +570,7 @@ QWidget* PDFAppPrintDialog::createSettingsColumn()
         m_orientationControl->addSegment(tr("Auto"), QStringLiteral("orientation-auto"));
         m_orientationControl->addSegment(tr("Portrait"), QStringLiteral("file-tall"));
         m_orientationControl->addSegment(tr("Landscape"), QStringLiteral("file-wide"));
+        m_orientationControl->setMinimumWidth(m_orientationControl->getCount() * Helper::ORIENTATION_SEGMENT_WIDTH);
         controlLayout->addWidget(m_orientationControl);
         controlLayout->addStretch(1);
         layout->addWidget(createRow(tr("Orientation"), control, false));
@@ -597,6 +600,7 @@ QWidget* PDFAppPrintDialog::createSettingsColumn()
         m_scalingControl->addSegment(tr("Fit to page"));
         m_scalingControl->addSegment(tr("Actual size"));
         m_scalingControl->addSegment(tr("Custom"));
+        m_scalingControl->setMinimumWidth(m_scalingControl->getCount() * Helper::SEGMENT_WIDTH);
         controlLayout->addWidget(m_scalingControl);
         m_scaleSpinBox = new PDFSpinBox(control);
         m_scaleSpinBox->setObjectName(QStringLiteral("scaleSpinBox"));
@@ -623,6 +627,7 @@ QWidget* PDFAppPrintDialog::createSettingsColumn()
         m_colorControl->setAccessibleName(tr("Color"));
         m_colorControl->addSegment(tr("Color"));
         m_colorControl->addSegment(tr("Grayscale"));
+        m_colorControl->setMinimumWidth(m_colorControl->getCount() * Helper::SEGMENT_WIDTH);
         controlLayout->addWidget(m_colorControl);
         controlLayout->addStretch(1);
         layout->addWidget(createRow(tr("Color"), control, false));
@@ -1166,10 +1171,11 @@ PDFAppPrintDialog::PreviewGeometry PDFAppPrintDialog::getPreviewGeometry(const P
     geometry.printableRect = geometry.paperRect;
     if (m_printer)
     {
+        // The minimal margins of the printer stay (setPageSize resets them)
         QPageLayout layout = m_printer->pageLayout();
-        layout.setPageSize(settings.pageSize);
+        layout.setPageSize(settings.pageSize, layout.minimumMargins());
         layout.setOrientation(orientation);
-        geometry.printableRect = layout.paintRect(QPageLayout::Point);
+        geometry.printableRect = PDFAppPrinters::getPrintableLayout(layout).paintRect(QPageLayout::Point);
     }
     return geometry;
 }
@@ -1315,7 +1321,10 @@ void PDFAppPrintDialog::adaptToHost()
     QWidget* body = m_scrollArea->widget();
     const int contentWidth = getContentWidth() > 0 ? getContentWidth() : body->sizeHint().width();
     const int bodyHeight = body->hasHeightForWidth() ? body->heightForWidth(contentWidth) : body->sizeHint().height();
-    const int otherHeight = sizeHint().height() - m_scrollArea->minimumHeight();
+    // The parts of the card around the body (the shadow margins of the window are
+    // outside of the card, they may lie over the margin of the window)
+    const QMargins shadowMargins = getShadowMargins();
+    const int otherHeight = sizeHint().height() - shadowMargins.top() - shadowMargins.bottom() - m_scrollArea->minimumHeight();
     const int availableHeight = host->height() - 2 * Helper::WINDOW_MARGIN - qMax(0, otherHeight);
     const int scrollAreaHeight = qMax(120, qMin(bodyHeight, availableHeight));
     m_scrollArea->setFixedHeight(scrollAreaHeight);

@@ -247,11 +247,24 @@ bool PDFAppPrinters::showNativePrinterProperties(QWidget* parent, QPrinter* prin
     {
         HGLOBAL devModeHandle = ::GlobalAlloc(GHND, SIZE_T(size));
         DEVMODEW* devMode = devModeHandle ? static_cast<DEVMODEW*>(::GlobalLock(devModeHandle)) : nullptr;
+
+        // The settings accepted before (a previous Printer properties… of this
+        // printer, held by the engine) are the start: the private settings of the
+        // driver (tray, quality, ...) are not reset to the defaults
+        HGLOBAL previousHandle = engine->globalDevMode();
+        const DEVMODEW* previous = previousHandle ? static_cast<const DEVMODEW*>(::GlobalLock(previousHandle)) : nullptr;
         if (devMode)
         {
-            // The defaults of the driver, then the settings of the dialog, which the
-            // driver shows as the start of its settings
-            if (::DocumentPropertiesW(window, printerHandle, name.data(), devMode, nullptr, DM_OUT_BUFFER) == IDOK)
+            // The defaults of the driver (merged with the previous settings), then
+            // the settings of the dialog, which the driver shows as the start
+            const DWORD startMode = previous ? DWORD(DM_IN_BUFFER | DM_OUT_BUFFER) : DWORD(DM_OUT_BUFFER);
+            bool isStarted = ::DocumentPropertiesW(window, printerHandle, name.data(), devMode, const_cast<DEVMODEW*>(previous), startMode) == IDOK;
+            if (!isStarted && previous)
+            {
+                isStarted = ::DocumentPropertiesW(window, printerHandle, name.data(), devMode, nullptr, DM_OUT_BUFFER) == IDOK;
+            }
+
+            if (isStarted)
             {
                 devMode->dmOrientation = printer->pageLayout().orientation() == QPageLayout::Landscape ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
                 devMode->dmFields |= DM_ORIENTATION;
@@ -270,11 +283,20 @@ bool PDFAppPrinters::showNativePrinterProperties(QWidget* parent, QPrinter* prin
             }
             ::GlobalUnlock(devModeHandle);
         }
+        if (previous)
+        {
+            ::GlobalUnlock(previousHandle);
+        }
 
         if (isAccepted)
         {
-            // The engine takes the global DEVMODE over (as QPrintDialog of Qt does)
+            // The engine takes the global DEVMODE over (as QPrintDialog of Qt does);
+            // it only unlocks the previous one, which this function has given it
             engine->setGlobalDevMode(nullptr, devModeHandle);
+            if (previousHandle && previousHandle != devModeHandle)
+            {
+                ::GlobalFree(previousHandle);
+            }
         }
         else if (devModeHandle)
         {
@@ -307,6 +329,16 @@ QPageSize PDFAppPrinters::getLocaleDefaultPageSize()
         return QPageSize(QPageSize::Letter);
     }
     return QPageSize(QPageSize::A4);
+}
+
+QPageLayout PDFAppPrinters::getPrintableLayout(const QPageLayout& layout)
+{
+    // The printer of a job prints a full page (setFullPage): the paint rectangle of
+    // its layout is the whole paper, the hardware margins are its minimal margins
+    const QMarginsF minimumMargins = layout.minimumMargins();
+    QPageLayout printable(layout.pageSize(), layout.orientation(), minimumMargins, layout.units(), minimumMargins);
+    printable.setMode(QPageLayout::StandardMode);
+    return printable;
 }
 
 class PDFAppPrintRenderer::Implementation
@@ -621,7 +653,7 @@ PDFAppPrintJob::Result PDFAppPrintJob::run(Data data)
             const qreal resolution = qMax(1, printer->resolution());
             const QPageLayout layout = printer->pageLayout();
             const QRectF paperRect = layout.fullRectPixels(int(resolution));
-            const QRectF printableRect = layout.paintRectPixels(int(resolution));
+            const QRectF printableRect = PDFAppPrinters::getPrintableLayout(layout).paintRectPixels(int(resolution));
             const QRectF targetRect = PDFAppPrintRenderer::getTargetRect(PDFAppPrintRenderer::getPageSize(page), paperRect, printableRect,
                                                                          resolution / PDFAppPrintHelper::POINTS_PER_INCH, data.settings.scaling, data.settings.customScale);
             if (page && targetRect.isValid())
@@ -843,8 +875,15 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
     m_lastCopies = settings.copies;
     m_jobTimer.start();
 
-    // The document stays usable: the job prints its snapshot
-    m_operation = document->beginOperation(PDFAppDocumentOperationKind::Print, tr("Printing on %1").arg(printerName), false);
+    // The document stays usable: the job prints its snapshot. The document
+    // announces the operation (operationsChanged): a slot may delete the tab.
+    QPointer<PDFAppPrintController> guard(this);
+    PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Print, tr("Printing on %1").arg(printerName), false);
+    if (!guard)
+    {
+        return;
+    }
+    m_operation = operation;
     connect(m_operation, &PDFAppDocumentOperation::cancelRequested, this, &PDFAppPrintController::stop);
 
     QFutureWatcher<PDFAppPrintJob::Result>* watcher = new QFutureWatcher<PDFAppPrintJob::Result>(this);
@@ -854,7 +893,10 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
 
     m_progressTimer->start();
     updateInfoBar();
-    Q_EMIT stateChanged();
+    if (guard)
+    {
+        Q_EMIT stateChanged();
+    }
 }
 
 void PDFAppPrintController::stop()
@@ -884,9 +926,15 @@ void PDFAppPrintController::updateInfoBar()
     const int current = qBound(0, m_state->currentItem.load(), total - 1);
     const int progress = printed * 100 / total;
 
+    // The document announces the progress of the operation (a slot may delete the tab)
     if (m_operation)
     {
+        QPointer<PDFAppPrintController> guard(this);
         m_operation->setProgress(progress);
+        if (!guard || !m_state)
+        {
+            return;
+        }
     }
 
     QString remaining;
@@ -918,7 +966,7 @@ void PDFAppPrintController::updateInfoBar()
     request.iconName = QStringLiteral("printer");
     request.title = tr("Printing on %1").arg(m_printerName);
     request.text = tr("%1 · %2 of %3 pages · %4").arg(pageText).arg(printed).arg(total).arg(remaining);
-    request.actions = { PDFAppInfoBarAction{ QStringLiteral("stop"), tr("Stop") } };
+    request.actions = { PDFAppInfoBarAction{ QStringLiteral("stop"), tr("Stop"), QStringLiteral("stop") } };
     request.isClosable = false;
     request.progress = progress;
     view->showInfoBar(request);
@@ -955,10 +1003,16 @@ void PDFAppPrintController::onJobFinished()
     m_state.reset();
     hideInfoBar();
 
+    // The document announces the finished operation (a slot may delete the tab)
+    QPointer<PDFAppPrintController> guard(this);
     if (PDFAppDocumentOperation* operation = m_operation.data())
     {
         m_operation = nullptr;
         operation->finish();
+        if (!guard)
+        {
+            return;
+        }
     }
 
     PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
@@ -974,7 +1028,6 @@ void PDFAppPrintController::onJobFinished()
         }
     }
 
-    QPointer<PDFAppPrintController> guard(this);
     Q_EMIT stateChanged();
     if (!guard)
     {

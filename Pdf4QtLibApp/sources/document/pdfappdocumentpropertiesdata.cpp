@@ -39,6 +39,7 @@
 
 #include <algorithm>
 #include <set>
+#include <tuple>
 
 namespace pdf
 {
@@ -54,7 +55,11 @@ public:
         PDFAppPropertyItem result;
         result.key = key;
         result.value = PDFAppDocumentPropertiesData::sanitize(value);
-        result.infoKey = infoKey;
+
+        // A value, which the row cannot show as it is (line breaks, a text longer
+        // than MAXIMUM_VALUE_LENGTH), is read only: its edit would write the shown
+        // text back and lose the rest of the value
+        result.infoKey = result.value == value ? infoKey : QByteArray();
         result.objectName = QString::fromLatin1(objectName);
         return result;
     }
@@ -371,7 +376,11 @@ public:
         {
             return comparison < 0;
         }
-        return left.type < right.type;
+
+        // Every field of isSameFont is a part of the order, so std::unique finds
+        // the same fonts next to each other
+        return std::tie(left.name, left.type, left.family, left.isEmbedded, left.isSubset) <
+               std::tie(right.name, right.type, right.family, right.isEmbedded, right.isSubset);
     }
 
     static bool isSameFont(const PDFAppFontInfo& left, const PDFAppFontInfo& right)

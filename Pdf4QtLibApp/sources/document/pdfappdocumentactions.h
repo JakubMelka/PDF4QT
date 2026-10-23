@@ -125,9 +125,16 @@ public:
 /// confirmation of each click; with security.openLinks off the info bar
 /// link-blocked (1028:24277) says why. Launch (a program or a file) is always
 /// confirmed and refused with security.launchFiles off. GoToR and a Launch of a
-/// PDF file open the document in a new tab. A missing destination is a status
+/// PDF file open the document in a new tab; a target on another computer than
+/// the document (UNC) is not touched before Open Anyway of an info bar (the
+/// connection would send the sign-in of the user). A missing destination is a status
 /// message. The action is copied first, the document may change while a dialog
-/// is shown; the handler survives the deletion of the tab from a dialog.
+/// is shown; the handler survives the deletion of the tab from a dialog. An
+/// action triggered on the canvas (a link of the annotation manager, a button of
+/// the form manager) is performed after the input event has been delivered, from
+/// the event loop: its dialog never runs inside of the mouse handler of the
+/// canvas, which the deletion of the tab would leave with destroyed objects. The
+/// text selection lets a click on a link through (PDFSelectTextTool::setLinksClickable).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentActionHandler : public QObject
 {
     Q_OBJECT
@@ -144,6 +151,8 @@ public:
     static QString getLinkFailedBarId() { return QStringLiteral("link-failed"); }
     static QString getCopyLinkActionId() { return QStringLiteral("copy-link"); }
     static QString getSecuritySettingsActionId() { return QStringLiteral("security-settings"); }
+    static QString getNetworkBlockedBarId() { return QStringLiteral("network-link-blocked"); }
+    static QString getOpenAnywayActionId() { return QStringLiteral("open-anyway"); }
 
     /// Longest address of a link, which is opened
     static constexpr int MAXIMUM_URL_LENGTH = 8192;
@@ -157,8 +166,14 @@ public:
     /// Performs the action (and its chain) as if the user has clicked it
     void performAction(const PDFAction* action);
 
+    /// An action triggered on the canvas waits for the event loop (performed by
+    /// performPendingAction)
+    bool hasPendingAction() const { return m_pendingAction != nullptr; }
+
     /// Address of a URI action: the URI resolved against the base URI of the
-    /// document (a relative URI only), invalid for an invalid or too long text
+    /// document (a relative URI only), invalid for an invalid or too long text;
+    /// a mailto address keeps only the fields to, cc, bcc, subject and body (no
+    /// "attach" of a local file)
     static QUrl resolveUri(const QByteArray& baseUri, const QByteArray& uri);
 
     /// The address may be opened by a link (http and https with a host, mailto
@@ -167,6 +182,17 @@ public:
 
     /// The file is a program or a script (it is started, not opened)
     static bool isExecutable(const QString& filePath);
+
+    /// Operation of the shell of Windows of a Launch action: "open", "print" or
+    /// empty (the default operation) - other verbs ("runas") are not used
+    static QString getShellOperation(const QByteArray& operation);
+
+    /// Server of a path of another computer (\\server\share\..., //server/share,
+    /// \\?\UNC\server\..., \\.\UNC\server\...) in lowercase; empty for other paths
+    static QString getNetworkServer(const QString& filePath);
+
+    /// A device path of Windows (\\.\..., \\?\... except UNC), never opened by a link
+    static bool isDevicePath(const QString& filePath);
 
     /// Launcher of the tests (nullptr = the system). It returns false, when the
     /// launch has failed.
@@ -193,13 +219,13 @@ private:
     QString getDocumentFolder() const;
 
     void onActionTriggered(const pdf::PDFAction* action);
+    void performPendingAction();
     void onInfoBarActionTriggered(const QString& infoBarId, const QString& actionId);
     void onDocumentStateChanged();
     void onHoverTimeout();
     void updateHover(const QPoint& position);
     void clearHover();
     void showStatusMessage(const QString& text);
-    bool isTextSelectionActive() const;
 
     /// Performs one action of a chain. \returns false, when the chain must stop
     /// (the tab or the document is gone, the document has changed)
@@ -218,6 +244,13 @@ private:
     /// Opens a PDF file in a new tab of the window (page from 1, 0 = default)
     void openDocument(const QString& filePath, int page);
 
+    /// The target of GoToR / Launch may be touched: a device path is refused, a
+    /// path of another computer than the one of the document shows the info bar
+    /// network-link-blocked (Open Anyway for a document) - before any access of
+    /// the file system, which would connect to the server and send the sign-in
+    /// of the user (NTLM). \returns false, when the target must not be used.
+    bool checkTarget(const QString& filePath, int page, bool isDocument);
+
     /// Launches the request (the handler of the tests, or the system)
     static bool launch(const PDFAppExternalLaunch& request);
 
@@ -227,13 +260,14 @@ private:
     QPointer<QWidget> m_drawWidget;
     QTimer m_hoverTimer;
     QPoint m_hoverPosition;
-    PDFActionPtr m_pressedLink;     ///< Link pressed while the text selection is the tool of the canvas
-    QPoint m_pressPosition;
+    PDFActionPtr m_pendingAction;   ///< Copy of the action triggered on the canvas, performed from the event loop
     QString m_hoverTitle;
     QString m_hoverDescription;
     QString m_hoverStatus;
     QString m_shownStatus;
     QString m_blockedLink;
+    QString m_blockedNetworkPath;   ///< Document of the info bar network-link-blocked (Open Anyway)
+    int m_blockedNetworkPage = 0;
     bool m_isPerforming = false;
     bool m_scriptsChecked = false;
 

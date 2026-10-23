@@ -51,13 +51,24 @@
 #include "pdfwidgetstyle.h"
 
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentreader.h"
+#include "pdfoptionalcontent.h"
 
 #include <QClipboard>
+#include <QSemaphore>
+#include <QThreadPool>
 #include <QMimeData>
 #include <QPushButton>
 #include <QtTest>
 
 #include <functional>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 #include <set>
 
 /// Helpers of the test of package A
@@ -234,6 +245,8 @@ private slots:
     void forwardedRequest();
     void deletionDuringLoad();
     void deletionDuringDialogs();
+    void deletionFromOwnSignals_data();
+    void deletionFromOwnSignals();
     void hostileInput();
     void stateScreenGeometry();
     void themesAndDirection();
@@ -241,7 +254,16 @@ private slots:
     void largeDocument();
     void registry();
     void loaderReload();
+    void loaderReadingFailures();
     void screenshots();
+
+    // Fixes of the step 3 review (RC-A)
+    void oldDocumentKeptDuringChange();
+    void progressKeepsCommandStates();
+    void saveAgainAfterRunningSave();
+    void openFailedTitleOfRequest();
+    void registryPathComparison();
+    void undoMemorySharedContent();
 };
 
 void AppDocumentTest::initTestCase()
@@ -310,7 +332,7 @@ void AppDocumentTest::openDocument()
     QVERIFY(tab->isViewShown());
     QVERIFY(!tab->isStateScreenShown());
     QCOMPARE(tab->getTabTitle(), QStringLiteral("Report.pdf"));
-    QCOMPARE(tab->getTabIconName(), QStringLiteral("file-text"));
+    QCOMPARE(tab->getTabIconName(), QStringLiteral("file"));
 
     pdf::PDFAppDocument* document = tab->getDocument();
     QVERIFY(document->isReady());
@@ -1536,6 +1558,31 @@ void AppDocumentTest::deletionDuringLoad()
         QTRY_VERIFY(fixture.window->getOpenFailedDialog());
         fixture.closeMessageBoxes();
     }
+
+    // The window deleted while the password is checked (the second read), the tab
+    // deleted while the file is read again (a reload)
+    for (int scenario = 0; scenario < 2; ++scenario)
+    {
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = fixture.open(scenario == 0 ? pdftest::AppDocumentSamples::userPassword(fixture.folder()) : file);
+        QVERIFY(tab);
+        if (scenario == 0)
+        {
+            QVERIFY(tab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
+            QVERIFY(tab->getLoader()->isRunning());
+            delete fixture.window.data();
+        }
+        else
+        {
+            QVERIFY(tab->getDocument()->isReady());
+            QVERIFY(tab->getLoader()->reload());
+            QVERIFY(tab->getLoader()->isRunning());
+            delete tab;
+        }
+        fixture.settle();
+        QThreadPool::globalInstance()->waitForDone(60000);
+        fixture.settle();
+    }
     QDir(sampleFolder).removeRecursively();
 }
 
@@ -1606,6 +1653,247 @@ void AppDocumentTest::deletionDuringDialogs()
         tab->getLockPopover()->getUnlockButton()->click();
         fixture.settle();
         QVERIFY(!guard);
+    }
+}
+
+void AppDocumentTest::deletionFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::addColumn<bool>("deleteWindow");
+    for (const char* name : { "loaded", "passwordRequired", "passwordLoading", "passwordAccepted", "passwordWrong", "loaderFinished", "commit", "modified",
+                              "undo", "redo", "lock", "unlockPopover", "reload", "signatures", "commandStates", "pageTitle", "editCopy",
+                              "registryAdded", "registryChanged", "registryRemoved" })
+    {
+        QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
+        QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
+    }
+}
+
+void AppDocumentTest::deletionFromOwnSignals()
+{
+    // The application deletes the tab (or the whole window) synchronously from a
+    // signal of the document, of its loader, of the tab or of the registry, also
+    // while the command dispatch of the window or the loader is on the stack: the
+    // emitters must not use anything of the deleted objects after the signal (the
+    // invalid reads are found by valgrind)
+    QFETCH(QString, signal);
+    QFETCH(bool, deleteWindow);
+
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+    QPointer<pdf::PDFAppDocumentTab> tab;
+    QObject receiver;
+    bool isDeleted = false;
+    auto deleteNow = [&isDeleted, &tab, &window, deleteWindow]()
+    {
+        if (isDeleted)
+        {
+            return;
+        }
+        isDeleted = true;
+        if (deleteWindow)
+        {
+            delete window.data();
+        }
+        else
+        {
+            delete tab.data();
+        }
+    };
+    auto trigger = [&window](const QString& commandId)
+    {
+        QAction* action = window ? window->getCommandAction(commandId) : nullptr;
+        if (!action || !action->isEnabled())
+        {
+            return false;
+        }
+        action->trigger();
+        return true;
+    };
+
+    const bool isPassword = signal.startsWith(QStringLiteral("password"));
+    QString file;
+    if (isPassword)
+    {
+        file = pdftest::AppDocumentSamples::userPassword(fixture.folder());
+    }
+    else if (signal == QStringLiteral("signatures"))
+    {
+        file = pdftest::AppDocumentSamples::signedDocument(fixture.folder());
+    }
+    else
+    {
+        file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Own signals.pdf"), 3);
+    }
+    QVERIFY(!file.isEmpty());
+
+    if (signal == QStringLiteral("loaded") || signal == QStringLiteral("passwordRequired") || signal == QStringLiteral("loaderFinished"))
+    {
+        // Connected before the worker has read the file
+        fixture.window->openDocuments(QStringList({ file }), 0);
+        tab = fixture.currentDocumentTab();
+        QVERIFY(tab);
+        pdf::PDFAppDocument* document = tab->getDocument();
+        QVERIFY(document);
+        if (signal == QStringLiteral("loaderFinished"))
+        {
+            connect(tab->getLoader(), &pdf::PDFAppDocumentLoader::finished, &receiver, deleteNow);
+        }
+        else
+        {
+            const pdf::PDFAppDocumentState expected = signal == QStringLiteral("loaded") ? pdf::PDFAppDocumentState::Ready : pdf::PDFAppDocumentState::PasswordRequired;
+            connect(document, &pdf::PDFAppDocument::stateChanged, &receiver, [document, expected, deleteNow]()
+            {
+                if (document->getState() == expected)
+                {
+                    deleteNow();
+                }
+            });
+        }
+    }
+    else if (isPassword)
+    {
+        tab = fixture.open(file);
+        QVERIFY(tab);
+        pdf::PDFAppDocument* document = tab->getDocument();
+        QVERIFY(document);
+        QCOMPARE(document->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+
+        // Loading = from setPassword itself, the others = from the result of the worker
+        pdf::PDFAppDocumentState expected = pdf::PDFAppDocumentState::Loading;
+        if (signal == QStringLiteral("passwordAccepted"))
+        {
+            expected = pdf::PDFAppDocumentState::Ready;
+        }
+        else if (signal == QStringLiteral("passwordWrong"))
+        {
+            expected = pdf::PDFAppDocumentState::PasswordRequired;
+        }
+        connect(document, &pdf::PDFAppDocument::stateChanged, &receiver, [document, expected, deleteNow]()
+        {
+            if (document->getState() == expected)
+            {
+                deleteNow();
+            }
+        });
+        QVERIFY(tab->getLoader()->setPassword(signal == QStringLiteral("passwordAccepted") ? pdftest::AppDocumentSamples::getUserPassword() : QStringLiteral("wrong")));
+    }
+    else
+    {
+        tab = fixture.open(file);
+        QVERIFY(tab);
+        pdf::PDFAppDocument* document = tab->getDocument();
+        QVERIFY(document);
+        QVERIFY(document->isReady());
+        fixture.settle();
+
+        if (signal == QStringLiteral("commit"))
+        {
+            connect(document, &pdf::PDFAppDocument::documentChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+        }
+        else if (signal == QStringLiteral("modified"))
+        {
+            connect(document, &pdf::PDFAppDocument::modifiedChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+        }
+        else if (signal == QStringLiteral("undo") || signal == QStringLiteral("redo"))
+        {
+            QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+            fixture.settle();
+            if (signal == QStringLiteral("redo"))
+            {
+                QVERIFY(trigger(pdf::PDFAppCommands::undo()));
+                fixture.settle();
+            }
+            connect(document, &pdf::PDFAppDocument::documentChanged, &receiver, deleteNow);
+            QVERIFY(trigger(signal == QStringLiteral("undo") ? pdf::PDFAppCommands::undo() : pdf::PDFAppCommands::redo()));
+        }
+        else if (signal == QStringLiteral("lock"))
+        {
+            connect(document, &pdf::PDFAppDocument::lockChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::lockDocument()));
+        }
+        else if (signal == QStringLiteral("unlockPopover"))
+        {
+            document->setLocked(true);
+            tab->showLockPopover(QRect(fixture.window->mapToGlobal(QPoint(100, 10)), QSize(12, 28)));
+            QVERIFY(tab->getLockPopover());
+            connect(document, &pdf::PDFAppDocument::lockChanged, &receiver, deleteNow);
+            tab->getLockPopover()->getUnlockButton()->click();
+        }
+        else if (signal == QStringLiteral("reload"))
+        {
+            connect(document, &pdf::PDFAppDocument::documentChanged, &receiver, deleteNow);
+            QVERIFY(tab->getLoader()->reload());
+        }
+        else if (signal == QStringLiteral("signatures"))
+        {
+            // The results of the verification are cleared by the change
+            QTRY_VERIFY_WITH_TIMEOUT(!document->getSignatureResults().empty(), 120000);
+            connect(document, &pdf::PDFAppDocument::signatureResultsChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+        }
+        else if (signal == QStringLiteral("commandStates"))
+        {
+            connect(tab.data(), &pdf::PDFAppTab::commandStatesChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::rotatePagesRight()));
+        }
+        else if (signal == QStringLiteral("pageTitle"))
+        {
+            connect(tab.data(), &pdf::PDFAppTab::pageTitleChanged, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::lockDocument()));
+        }
+        else if (signal == QStringLiteral("editCopy"))
+        {
+            connect(tab.data(), &pdf::PDFAppDocumentTab::editCopyRequested, &receiver, deleteNow);
+            QVERIFY(trigger(pdf::PDFAppCommands::editCopy()));
+        }
+        else if (signal == QStringLiteral("registryAdded"))
+        {
+            // Another file is being opened by the window
+            connect(fixture.context->getDocumentRegistry(), &pdf::PDFAppDocumentRegistry::documentAdded, &receiver, deleteNow);
+            fixture.window->openDocuments(QStringList({ pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second.pdf"), 1) }), 0);
+        }
+        else if (signal == QStringLiteral("registryRemoved"))
+        {
+            // Another tab is closed (its document is destroyed with it)
+            pdf::PDFAppDocumentTab* second = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second.pdf"), 1));
+            QVERIFY(second);
+            QVERIFY(second != tab);
+            connect(fixture.context->getDocumentRegistry(), &pdf::PDFAppDocumentRegistry::documentRemoved, &receiver, deleteNow);
+            QVERIFY(fixture.window->closeTab(second));
+        }
+        else if (signal == QStringLiteral("registryChanged"))
+        {
+            connect(fixture.context->getDocumentRegistry(), &pdf::PDFAppDocumentRegistry::documentChanged, &receiver, [document, deleteNow](pdf::PDFAppDocument* changed)
+            {
+                if (changed == document)
+                {
+                    deleteNow();
+                }
+            });
+            QVERIFY(trigger(pdf::PDFAppCommands::lockDocument()));
+        }
+        else
+        {
+            QFAIL(qPrintable(signal));
+        }
+    }
+
+    QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 120000);
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(120000);
+    QTest::qWait(50);
+    fixture.settle();
+    QVERIFY(deleteWindow ? !window : !tab);
+
+    // The window, which has lost its tab, stays usable
+    if (!deleteWindow)
+    {
+        QVERIFY(window);
+        QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
+        fixture.closeMessageBoxes();
     }
 }
 
@@ -1824,7 +2112,12 @@ void AppDocumentTest::registry()
     registry.addDocument(first);
     registry.addDocument(first);
     registry.addDocument(second);
-    QCOMPARE(addedSpy.count(), 2);
+
+    // The signal comes from the event loop (the tab of the document is being
+    // constructed), the registry knows the document at once
+    QCOMPARE(addedSpy.count(), 0);
+    QCOMPARE(registry.findDocument(first->getId()), first);
+    QTRY_COMPARE(addedSpy.count(), 2);
     QCOMPARE(registry.getDocuments().size(), size_t(2));
     QCOMPARE(registry.findDocument(second->getId()), second);
     QVERIFY(!registry.findDocument(QStringLiteral("unknown")));
@@ -1837,15 +2130,40 @@ void AppDocumentTest::registry()
 
     // A removed document is not announced any more, a destroyed one leaves the registry
     registry.removeDocument(first);
-    QCOMPARE(removedSpy.count(), 1);
+    QVERIFY(!registry.findDocument(first->getId()));
+    QTRY_COMPARE(removedSpy.count(), 1);
     first->setLocked(false);
     QCOMPARE(changedSpy.count(), 1);
     delete first;
     const QString secondId = second->getId();
     delete second;
-    QCOMPARE(removedSpy.count(), 2);
-    QCOMPARE(removedSpy.back().front().toString(), secondId);
     QVERIFY(registry.getDocuments().empty());
+    QTRY_COMPARE(removedSpy.count(), 2);
+    QCOMPARE(removedSpy.back().front().toString(), secondId);
+
+    // A document added and destroyed before the event loop is never announced
+    pdf::PDFAppDocument* transient = new pdf::PDFAppDocument(nullptr, nullptr);
+    registry.addDocument(transient);
+    delete transient;
+    QTest::qWait(20);
+    QCOMPARE(addedSpy.count(), 2);
+    QCOMPARE(removedSpy.count(), 2);
+
+    // A slot deleting the registry stops the queued signals
+    pdf::PDFAppDocument fourth(nullptr, nullptr);
+    pdf::PDFAppDocument fifth(nullptr, nullptr);
+    QPointer<pdf::PDFAppDocumentRegistry> deleted = new pdf::PDFAppDocumentRegistry();
+    int deletedAdded = 0;
+    connect(deleted.data(), &pdf::PDFAppDocumentRegistry::documentAdded, this, [&deleted, &deletedAdded]()
+    {
+        ++deletedAdded;
+        delete deleted.data();
+    });
+    deleted->addDocument(&fourth);
+    deleted->addDocument(&fifth);
+    QTRY_VERIFY(!deleted);
+    QTest::qWait(20);
+    QCOMPARE(deletedAdded, 1);
 
     // The registry destroyed before its documents
     pdf::PDFAppDocument third(nullptr, nullptr);
@@ -1854,6 +2172,59 @@ void AppDocumentTest::registry()
         shortLived.addDocument(&third);
     }
     third.setLocked(true);
+    QTest::qWait(20);
+}
+
+void AppDocumentTest::loaderReadingFailures()
+{
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Locked.pdf"), 1);
+
+    // A file, which cannot be opened (another program holds it exclusively, or no
+    // permission to read it)
+    {
+#ifdef Q_OS_WIN
+        const std::wstring path = QDir::toNativeSeparators(file).toStdWString();
+        HANDLE handle = ::CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        QVERIFY(handle != INVALID_HANDLE_VALUE);
+#else
+        QVERIFY(QFile::setPermissions(file, QFile::Permissions()));
+#endif
+        pdf::PDFAppDocumentReading::Request request;
+        request.filePath = file;
+        const pdf::PDFAppDocumentReading::Result result = pdf::PDFAppDocumentReading::read(request);
+#ifdef Q_OS_WIN
+        ::CloseHandle(handle);
+#else
+        QFile::setPermissions(file, QFile::ReadOwner | QFile::WriteOwner);
+#endif
+        // root reads any file (a container): then the file is simply read
+        if (result.status != pdf::PDFAppDocumentReading::Status::Loaded)
+        {
+            QCOMPARE(result.status, pdf::PDFAppDocumentReading::Status::Failed);
+            QVERIFY2(result.errorMessage.startsWith(QStringLiteral("The file cannot be read")), qPrintable(result.errorMessage));
+        }
+    }
+
+    // The loader refuses requests, which do not fit its state
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentLoader* loader = tab->getLoader();
+    QVERIFY(tab->getDocument()->isReady());
+    QVERIFY(!loader->setPassword(QStringLiteral("x")));
+    QVERIFY(loader->reload());
+    QVERIFY(loader->isRunning());
+    QVERIFY(!loader->reload());
+    loader->start(file);
+    QVERIFY(loader->isRunning());
+    QTRY_VERIFY_WITH_TIMEOUT(!loader->isRunning(), 30000);
+    QVERIFY(tab->getDocument()->isReady());
+
+    // A document, which is not shown, is not read again
+    pdf::PDFAppDocument document(fixture.context.get(), nullptr);
+    pdf::PDFAppDocumentLoader standalone(&document);
+    QVERIFY(!standalone.reload());
+    QVERIFY(!standalone.setPassword(QStringLiteral("x")));
 }
 
 void AppDocumentTest::loaderReload()
@@ -2041,6 +2412,275 @@ void AppDocumentTest::screenshots()
     center(failed);
     shoot(QStringLiteral("document-open-failed"));
     delete failed.data();
+}
+
+/// Occupies every thread of the global thread pool, so a task started meanwhile
+/// (the writer of a save) waits in its queue until release()
+class AppDocumentPoolBlocker
+{
+public:
+    AppDocumentPoolBlocker()
+    {
+        QThreadPool* pool = QThreadPool::globalInstance();
+        m_count = pool->maxThreadCount();
+        for (int i = 0; i < m_count; ++i)
+        {
+            pool->start([this]() { m_started.release(); m_release.acquire(); });
+        }
+        m_started.acquire(m_count);
+    }
+
+    ~AppDocumentPoolBlocker()
+    {
+        release();
+    }
+
+    void release()
+    {
+        if (m_count > 0)
+        {
+            m_release.release(m_count);
+            m_count = 0;
+        }
+    }
+
+private:
+    int m_count = 0;
+    QSemaphore m_started;
+    QSemaphore m_release;
+};
+
+void AppDocumentTest::oldDocumentKeptDuringChange()
+{
+    // The old document and its optional content activity live until the listeners
+    // of documentChanged have the new ones (the compilers of the view read them in
+    // their threads): a reload, which clears the undo stack, and a change without undo
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Kept.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QWeakPointer<pdf::PDFDocument> oldDocument;
+    QPointer<pdf::PDFOptionalContentActivity> oldActivity;
+    int checks = 0;
+    bool isAlive = true;
+    QObject receiver;
+    QObject::connect(document, &pdf::PDFAppDocument::documentChanged, &receiver, [&](const pdf::PDFModifiedDocument& modified)
+    {
+        ++checks;
+        isAlive = isAlive && !oldDocument.isNull() && !oldActivity.isNull() && modified.getDocument() != oldDocument.toStrongRef().data();
+    });
+
+    // A reload (Reset): the document has no other reference, the activity is new
+    oldDocument = document->getDocument().toWeakRef();
+    oldActivity = document->getOptionalContentActivity();
+    pdf::PDFDocumentBuilder builder(document->getDocument().data());
+    document->reload(pdf::PDFDocumentPointer(new pdf::PDFDocument(builder.build())), document->getOriginalData(), false);
+    QCOMPARE(checks, 1);
+    QVERIFY(isAlive);
+    QVERIFY(document->getOptionalContentActivity() != oldActivity.data());
+    QTRY_VERIFY(oldDocument.isNull());
+    QTRY_VERIFY(oldActivity.isNull());
+
+    // A change without undo (limit 0) does not keep the old document either
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::editingUndoLimit(), 0).isError());
+    oldDocument = document->getDocument().toWeakRef();
+    oldActivity = document->getOptionalContentActivity();
+    pdf::PDFDocumentBuilder changeBuilder(document->getDocument().data());
+    changeBuilder.setDocumentTitle(QStringLiteral("Without undo"));
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(changeBuilder.build())), nullptr, pdf::PDFModifiedDocument::Reset),
+                             QStringLiteral("Change"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QCOMPARE(checks, 2);
+    QVERIFY(isAlive);
+    QVERIFY(!document->getUndoStack()->canUndo());
+    QTRY_VERIFY(oldDocument.isNull());
+    QTRY_VERIFY(oldActivity.isNull());
+}
+
+void AppDocumentTest::progressKeepsCommandStates()
+{
+    // The progress of an operation updates the tab (its progress), not the commands
+    // of the window (each step would update all the actions)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Progress.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Print, QStringLiteral("Print"), false);
+
+    QSignalSpy commandSpy(tab, &pdf::PDFAppDocumentTab::commandStatesChanged);
+    QSignalSpy titleSpy(tab, &pdf::PDFAppDocumentTab::pageTitleChanged);
+    QSignalSpy operationsSpy(document, &pdf::PDFAppDocument::operationsChanged);
+    QSignalSpy progressSpy(document, &pdf::PDFAppDocument::operationProgressChanged);
+    for (int progress = 1; progress <= 50; ++progress)
+    {
+        operation->setProgress(progress);
+    }
+    QCOMPARE(progressSpy.count(), 50);
+    QCOMPARE(titleSpy.count(), 50);
+    QCOMPARE(commandSpy.count(), 0);
+    QCOMPARE(operationsSpy.count(), 0);
+    QTRY_COMPARE(fixture.window->getTabBar()->getTabProgress(AppDocumentTestHelper::tabIndex(fixture.window, tab)), 0.5);
+
+    // The end of the operation changes the commands
+    operation->finish();
+    QVERIFY(commandSpy.count() >= 1);
+    QCOMPARE(operationsSpy.count(), 1);
+
+    // The table of the commands answers by its sets as by its lists
+    for (pdf::PDFAppDocumentPackage package : { pdf::PDFAppDocumentPackage::Model, pdf::PDFAppDocumentPackage::View, pdf::PDFAppDocumentPackage::Panels,
+                                                pdf::PDFAppDocumentPackage::Search, pdf::PDFAppDocumentPackage::File, pdf::PDFAppDocumentPackage::Properties })
+    {
+        for (const QString& command : pdf::PDFAppDocumentCommandTable::getAllCommands())
+        {
+            QCOMPARE(pdf::PDFAppDocumentCommandTable::isCommandOf(package, command), pdf::PDFAppDocumentCommandTable::getCommands(package).contains(command));
+        }
+        QVERIFY(!pdf::PDFAppDocumentCommandTable::isCommandOf(package, QStringLiteral("unknown.command")));
+    }
+    QVERIFY(!pdf::PDFAppDocumentCommandTable::isCommandOf(pdf::PDFAppDocumentPackage(100), pdf::PDFAppCommands::undo()));
+}
+
+void AppDocumentTest::saveAgainAfterRunningSave()
+{
+    // Save of close-unsaved, while a save started before is still writing an older
+    // version: the tab saves the current version and closes only then
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SaveRunning.pdf"), 1);
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(AppDocumentTestHelper::change(document, QStringLiteral("First title")));
+
+    {
+        AppDocumentPoolBlocker blocker;
+        QVERIFY(tab->executeCommand(pdf::PDFAppCommands::save()));
+        QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::save()));
+        QVERIFY(AppDocumentTestHelper::change(document, QStringLiteral("Second title")));
+
+        AppDocumentTestHelper::choose<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Stop);
+        AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+        QVERIFY(!fixture.window->closeTab(tab));
+        QVERIFY(guard);
+        QVERIFY(tab->isClosingAfterSave());
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(!guard, 20000);
+
+    pdf::PDFAppDocumentTab* reopened = fixture.open(file);
+    QVERIFY(reopened);
+    QCOMPARE(reopened->getDocument()->getDocument()->getInfo()->title, QStringLiteral("Second title"));
+
+    // Save All of quit-unsaved, while a save of the document runs: the window
+    // saves the current version and closes
+    QVERIFY(AppDocumentTestHelper::change(reopened->getDocument(), QStringLiteral("Third title")));
+    {
+        AppDocumentPoolBlocker blocker;
+        QVERIFY(reopened->executeCommand(pdf::PDFAppCommands::save()));
+        QVERIFY(AppDocumentTestHelper::change(reopened->getDocument(), QStringLiteral("Fourth title")));
+        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+        QVERIFY(!fixture.window->close());
+        QVERIFY(fixture.window->isVisible());
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);
+    QVERIFY(!reopened->getDocument()->isModified());
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
+
+    pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+    const pdf::PDFDocument saved = reader.readFromFile(file);
+    QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(saved.getInfo()->title, QStringLiteral("Fourth title"));
+}
+
+void AppDocumentTest::openFailedTitleOfRequest()
+{
+    // The dialog open-failed names a document of the same request, never one
+    // opened by an earlier request
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Earlier.pdf"), 1);
+    QVERIFY(fixture.open(file));
+    fixture.settle();
+    QTest::qWait(pdf::PDFAppMainWindow::OPEN_FAILURE_DELAY * 2);
+    QVERIFY(!fixture.window->getOpenFailedDialog());
+
+    const QString missing = QDir(fixture.folder()).filePath(QStringLiteral("Missing.pdf"));
+    fixture.window->openDocuments(QStringList({ missing }), 0);
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    QStringList texts = AppDocumentTestHelper::texts(fixture.window->getOpenFailedDialog());
+    QVERIFY(texts.contains(QStringLiteral("These items were skipped:")));
+    QVERIFY(!texts.contains(QStringLiteral("Earlier.pdf is open; these items were skipped:")));
+    fixture.window->getOpenFailedDialog()->close();
+    fixture.settle();
+
+    // An open document of the same request is named (its tab is activated)
+    fixture.window->openDocuments(QStringList({ file, missing }), 0);
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    texts = AppDocumentTestHelper::texts(fixture.window->getOpenFailedDialog());
+    QVERIFY(texts.contains(QStringLiteral("Earlier.pdf is open; these items were skipped:")));
+    fixture.window->getOpenFailedDialog()->close();
+    fixture.settle();
+
+    // Errors of the command line of another process only
+    pdf::PDFAppInstanceRequest request;
+    request.errors << QStringLiteral("--unknown");
+    fixture.window->handleOpenRequest(request);
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    texts = AppDocumentTestHelper::texts(fixture.window->getOpenFailedDialog());
+    QVERIFY(!texts.contains(QStringLiteral("Earlier.pdf is open; these items were skipped:")));
+    fixture.closeMessageBoxes();
+}
+
+void AppDocumentTest::registryPathComparison()
+{
+    // The paths are compared as the paths of Recent (PDFRepositoryHelper::isSamePath)
+    pdf::PDFAppDocumentRegistry registry;
+    pdf::PDFAppDocument* document = new pdf::PDFAppDocument(nullptr, nullptr);
+    registry.addDocument(document);
+    document->setLoading(QStringLiteral("C:/Files/Folder/Report.pdf"));
+    QCOMPARE(registry.findByCanonicalPath(QStringLiteral("C:/Files/Folder/Report.pdf")), document);
+    QCOMPARE(registry.findByCanonicalPath(QStringLiteral("C:/Files/Folder/../Folder/Report.pdf")), document);
+    QVERIFY(!registry.findByCanonicalPath(QStringLiteral("C:/Files/Folder/Other.pdf")));
+#if defined(Q_OS_WIN)
+    QCOMPARE(registry.findByCanonicalPath(QStringLiteral("C:\\Files\\Folder\\Report.pdf")), document);
+#endif
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    QCOMPARE(registry.findByCanonicalPath(QStringLiteral("c:/files/folder/REPORT.PDF")), document);
+#else
+    QVERIFY(!registry.findByCanonicalPath(QStringLiteral("c:/files/folder/REPORT.PDF")));
+#endif
+    delete document;
+    QVERIFY(!registry.findByCanonicalPath(QStringLiteral("C:/Files/Folder/Report.pdf")));
+}
+
+void AppDocumentTest::undoMemorySharedContent()
+{
+    // A stream with a changed dictionary shares its content with the old one: the
+    // undo step is charged the dictionary, not the content
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const QByteArray content(1024 * 1024, 'x');
+    pdf::PDFDictionaryBuilder dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(content.size()));
+    const pdf::PDFObjectReference reference = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(content))));
+    const pdf::PDFDocument first = builder.build();
+
+    pdf::PDFDocumentBuilder changeBuilder(&first);
+    pdf::PDFDictionaryBuilder changedDictionary;
+    changedDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(content.size()));
+    changedDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Changed"), pdf::PDFObject::createBool(true));
+    changeBuilder.setObject(reference, pdf::PDFObject::createStream(pdf::PDFStream(std::move(changedDictionary), QByteArray(content))));
+    const pdf::PDFDocument second = changeBuilder.build();
+
+    QCOMPARE(pdf::PDFAppUndoStack::estimateMemory(&first, &first), qint64(0));
+    const qint64 sharedMemory = pdf::PDFAppUndoStack::estimateMemory(&first, &second);
+    QVERIFY2(sharedMemory > 0 && sharedMemory < 64 * 1024, qPrintable(QString::number(sharedMemory)));
+
+    // A new content is counted
+    pdf::PDFDocumentBuilder contentBuilder(&first);
+    pdf::PDFDictionaryBuilder contentDictionary;
+    contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(content.size()));
+    contentBuilder.setObject(reference, pdf::PDFObject::createStream(pdf::PDFStream(std::move(contentDictionary), QByteArray(content.size(), 'y'))));
+    const pdf::PDFDocument third = contentBuilder.build();
+    QVERIFY(pdf::PDFAppUndoStack::estimateMemory(&first, &third) >= content.size());
+    QVERIFY(pdf::PDFAppUndoStack::estimateMemory(&first, nullptr) >= content.size());
 }
 
 QTEST_MAIN(AppDocumentTest)

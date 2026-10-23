@@ -326,6 +326,10 @@ Q_SIGNALS:
     /// An operation has started or finished
     void operationsChanged();
 
+    /// The progress of a running operation has changed (the progress of the tab;
+    /// the commands do not change with it)
+    void operationProgressChanged();
+
     /// The signature results have changed
     void signatureResultsChanged();
 

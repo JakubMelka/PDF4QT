@@ -23,6 +23,7 @@
 #include "pdfappdocumentactions.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
@@ -59,6 +60,7 @@
 #include <QMouseEvent>
 #include <QProcess>
 #include <QPushButton>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 
 #if defined(Q_OS_WIN)
@@ -167,18 +169,23 @@ public:
         return button;
     }
 
-    /// Text of a value of the document for a dialog (one line, bounded)
-    static QString value(const QString& text)
+    /// Text of a value of the document for a dialog (one line, bounded). Format
+    /// characters (bidirectional overrides and isolates as U+202E, zero width
+    /// characters) are replaced too: "report" + U+202E + "fdp.exe" would be
+    /// shown as "reportexe.pdf" in the confirmation of a program.
+    static QString value(const QString& text, int maximumLength = 160)
     {
         QString result = text;
         for (QChar& character : result)
         {
-            if (character.category() == QChar::Other_Control)
+            const QChar::Category category = character.category();
+            if (category == QChar::Other_Control || category == QChar::Other_Format ||
+                category == QChar::Separator_Line || category == QChar::Separator_Paragraph)
             {
                 character = QLatin1Char(' ');
             }
         }
-        return PDFAppDocumentActionDialogs::shorten(result, 160);
+        return PDFAppDocumentActionDialogs::shorten(result, maximumLength);
     }
 
     /// Text of a byte string of a Launch action of Windows (local 8-bit encoding)
@@ -220,7 +227,7 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createLinkDialog(QWidget* parent, co
 
     const QString address = url.toDisplayString();
     const QString host = isMail ? url.path() : url.host();
-    box->addContent(Helper::createAddress(Helper::value(host), shorten(address, 300), box));
+    box->addContent(Helper::createAddress(Helper::value(host), Helper::value(address, 300), box));
 
     PDFAppDocumentActionDialogCloser* closer = new PDFAppDocumentActionDialogCloser(box);
     Helper::addButton(box, closer, tr("Copy Link"), "copyLinkButton", PDFMessageBox::ActionPosition::Leading, false, Result::CopyLink);
@@ -342,6 +349,14 @@ PDFAppDocumentActionHandler::PDFAppDocumentActionHandler(PDFAppDocumentTab* tab,
             connect(formManager, &PDFFormManager::actionTriggered, this, &PDFAppDocumentActionHandler::onActionTriggered);
         }
         connect(view, &PDFAppDocumentView::infoBarActionTriggered, this, &PDFAppDocumentActionHandler::onInfoBarActionTriggered);
+
+        // The text selection is the tool of the canvas: a click on a link goes
+        // through it to the annotation manager, which follows the link
+        PDFToolManager* toolManager = view->getToolManager();
+        if (PDFSelectTextTool* selectTextTool = toolManager ? toolManager->getSelectTextTool() : nullptr)
+        {
+            selectTextTool->setLinksClickable(true);
+        }
 
         // The hover of the links: the events of the widget, which draws the pages
         PDFWidget* pdfWidget = view->getPdfWidget();
@@ -469,6 +484,25 @@ QUrl PDFAppDocumentActionHandler::resolveUri(const QByteArray& baseUri, const QB
             url = base.resolved(url);
         }
     }
+
+    // An e-mail link keeps only the usual header fields: "attach", "attachment" and
+    // similar fields made e-mail programs attach a local file to the message
+    // (CVE-2020-11880, CVE-2020-27748 - xdg-email passes them to Thunderbird)
+    if (url.scheme().compare(QStringLiteral("mailto"), Qt::CaseInsensitive) == 0 && url.hasQuery())
+    {
+        const QUrlQuery query(url);
+        QUrlQuery safeQuery;
+        for (const QPair<QString, QString>& item : query.queryItems(QUrl::FullyEncoded))
+        {
+            const QString key = item.first.toLower();
+            if (key == QLatin1String("to") || key == QLatin1String("cc") || key == QLatin1String("bcc") ||
+                key == QLatin1String("subject") || key == QLatin1String("body"))
+            {
+                safeQuery.addQueryItem(item.first, item.second);
+            }
+        }
+        url.setQuery(safeQuery.isEmpty() ? QString() : safeQuery.query(QUrl::FullyEncoded), QUrl::StrictMode);
+    }
     return url;
 }
 
@@ -493,19 +527,10 @@ bool PDFAppDocumentActionHandler::isAllowedUrl(const QUrl& url)
 
 bool PDFAppDocumentActionHandler::isExecutable(const QString& filePath)
 {
-    static const QStringList executableSuffixes =
-    {
-        QStringLiteral("exe"), QStringLiteral("com"), QStringLiteral("bat"), QStringLiteral("cmd"), QStringLiteral("msi"), QStringLiteral("msc"),
-        QStringLiteral("ps1"), QStringLiteral("psm1"), QStringLiteral("vbs"), QStringLiteral("vbe"), QStringLiteral("js"), QStringLiteral("jse"),
-        QStringLiteral("wsf"), QStringLiteral("wsh"), QStringLiteral("scr"), QStringLiteral("pif"), QStringLiteral("cpl"), QStringLiteral("hta"),
-        QStringLiteral("jar"), QStringLiteral("reg"), QStringLiteral("lnk"), QStringLiteral("url"), QStringLiteral("scf"), QStringLiteral("sh"),
-        QStringLiteral("bash"), QStringLiteral("zsh"), QStringLiteral("csh"), QStringLiteral("ksh"), QStringLiteral("command"), QStringLiteral("app"),
-        QStringLiteral("desktop"), QStringLiteral("appimage"), QStringLiteral("run"), QStringLiteral("bin"), QStringLiteral("py"), QStringLiteral("pyw"),
-        QStringLiteral("pl"), QStringLiteral("rb"), QStringLiteral("php")
-    };
-
+    // One list of programs and scripts with the attachments (D8): a file, which
+    // the shell starts, gets the confirmation of a program
     const QFileInfo fileInfo(filePath);
-    if (executableSuffixes.contains(fileInfo.suffix().toLower()))
+    if (PDFAppAttachments::isExecutable(fileInfo.fileName()))
     {
         return true;
     }
@@ -536,7 +561,31 @@ QString PDFAppDocumentActionHandler::resolveFile(const PDFFileSpecification& spe
 
 void PDFAppDocumentActionHandler::onActionTriggered(const PDFAction* action)
 {
-    performAction(action);
+    // The signal comes from the mouse handler of the canvas: a dialog of the action
+    // (and the deletion of the tab while it is shown) must not run inside of it -
+    // PDFDrawWidget and the managers still use themselves after the handler. The
+    // copy is performed from the event loop; a second click before it replaces it.
+    PDFActionPtr copy = action ? action->clone() : PDFActionPtr();
+    if (!copy)
+    {
+        return;
+    }
+
+    const bool isScheduled = m_pendingAction != nullptr;
+    m_pendingAction = std::move(copy);
+    if (!isScheduled)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppDocumentActionHandler::performPendingAction, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentActionHandler::performPendingAction()
+{
+    const PDFActionPtr action = std::move(m_pendingAction);
+    m_pendingAction.reset();
+
+    // The action may run a dialog and delete the tab (and this handler)
+    performAction(action.get());
 }
 
 void PDFAppDocumentActionHandler::performAction(const PDFAction* action)
@@ -754,14 +803,27 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
     const PDFActionLaunch::Win& windows = action->getWinSpecification();
     if (!windows.file.isEmpty())
     {
+        // A relative program is resolved against the folder of the document only:
+        // a bare name ("cmd.exe") of a document without a folder (a copy) would be
+        // searched by the shell in the folders of the system
         filePath = Helper::windowsText(windows.file);
-        if (QDir::isRelativePath(filePath) && !getDocumentFolder().isEmpty())
+        if (filePath.contains(QChar(0)))
         {
-            filePath = QDir(getDocumentFolder()).absoluteFilePath(filePath);
+            filePath.clear();
         }
-        request.parameters = Helper::windowsText(windows.parameters);
-        request.directory = Helper::windowsText(windows.directory);
-        request.operation = Helper::windowsText(windows.operation).left(32);
+        else if (QDir::isRelativePath(filePath))
+        {
+            const QString folder = getDocumentFolder();
+            filePath = folder.isEmpty() ? QString() : QDir(folder).absoluteFilePath(filePath);
+        }
+
+        if (!filePath.isEmpty())
+        {
+            filePath = QDir::cleanPath(filePath);
+            request.parameters = Helper::windowsText(windows.parameters);
+            request.directory = Helper::windowsText(windows.directory);
+            request.operation = getShellOperation(windows.operation);
+        }
     }
 #endif
     if (filePath.isEmpty())
@@ -776,7 +838,12 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
     }
 
     // A PDF document opens in a new tab of PDF4QT (as GoToR)
-    if (Helper::isPdf(filePath) && request.parameters.isEmpty())
+    const bool isDocument = Helper::isPdf(filePath) && request.parameters.isEmpty();
+    if (!checkTarget(filePath, 0, isDocument))
+    {
+        return true;
+    }
+    if (isDocument)
     {
         openDocument(filePath, 0);
         return true;
@@ -842,6 +909,17 @@ void PDFAppDocumentActionHandler::performGoToR(const PDFActionGoToR* action)
         return;
     }
 
+    // A destination of another document is a page number (from 0)
+    const PDFInteger pageIndex = action->getDestination().getPageIndex();
+    const int page = pageIndex >= 0 && pageIndex < std::numeric_limits<int>::max() ? int(pageIndex) + 1 : 0;
+
+    // Nothing of another computer is touched before the user agrees (the
+    // existence check would connect to the server)
+    if (!checkTarget(filePath, page, true))
+    {
+        return;
+    }
+
     if (!QFileInfo::exists(filePath))
     {
         if (PDFAppDocumentView* view = getView())
@@ -856,9 +934,96 @@ void PDFAppDocumentActionHandler::performGoToR(const PDFActionGoToR* action)
         return;
     }
 
-    // A destination of another document is a page number (from 0)
-    const PDFInteger pageIndex = action->getDestination().getPageIndex();
-    openDocument(filePath, pageIndex >= 0 && pageIndex < std::numeric_limits<int>::max() ? int(pageIndex) + 1 : 0);
+    openDocument(filePath, page);
+}
+
+QString PDFAppDocumentActionHandler::getShellOperation(const QByteArray& operation)
+{
+    // PDF 2.0, 12.6.4.6, Table 204: "open" or "print"; another verb of the shell
+    // ("runas" elevates the program) is the default operation
+    const QByteArray lowerOperation = operation.trimmed().toLower();
+    if (lowerOperation == "open" || lowerOperation == "print")
+    {
+        return QString::fromLatin1(lowerOperation);
+    }
+    return QString();
+}
+
+QString PDFAppDocumentActionHandler::getNetworkServer(const QString& filePath)
+{
+    QString path = filePath;
+    path.replace(QChar(u'\\'), QChar(u'/'));
+
+    QString rest;
+    if (path.startsWith(QLatin1String("//?/UNC/"), Qt::CaseInsensitive) || path.startsWith(QLatin1String("//./UNC/"), Qt::CaseInsensitive))
+    {
+        rest = path.mid(8);
+    }
+    else if (path.startsWith(QLatin1String("//?/")) || path.startsWith(QLatin1String("//./")))
+    {
+        // A device path (isDevicePath)
+        return QString();
+    }
+    else if (path.startsWith(QLatin1String("//")))
+    {
+        rest = path.mid(2);
+    }
+    else
+    {
+        return QString();
+    }
+
+    // "//" without a server is a network path of an unknown server
+    const QString server = rest.section(QChar(u'/'), 0, 0, QString::SectionSkipEmpty).toLower();
+    return server.isEmpty() ? QStringLiteral("/") : server;
+}
+
+bool PDFAppDocumentActionHandler::isDevicePath(const QString& filePath)
+{
+    QString path = filePath;
+    path.replace(QChar(u'\\'), QChar(u'/'));
+    return (path.startsWith(QLatin1String("//?/")) || path.startsWith(QLatin1String("//./"))) && getNetworkServer(path).isEmpty();
+}
+
+bool PDFAppDocumentActionHandler::checkTarget(const QString& filePath, int page, bool isDocument)
+{
+    if (isDevicePath(filePath))
+    {
+        showStatusMessage(tr("The link does not name a document, which can be opened."));
+        return false;
+    }
+
+    // A path of another computer (\\server\share): already the connection sends
+    // the sign-in of the user to the server (NTLM of SMB). The server of the
+    // document itself is allowed (the user has opened the document from it).
+    const QString server = getNetworkServer(filePath);
+    const PDFAppDocument* document = getDocument();
+    if (server.isEmpty() || (document && getNetworkServer(document->getFilePath()) == server))
+    {
+        return true;
+    }
+
+    PDFAppDocumentView* view = getView();
+    if (!view)
+    {
+        return false;
+    }
+
+    m_blockedNetworkPath = isDocument ? filePath : QString();
+    m_blockedNetworkPage = page;
+
+    PDFAppInfoBarRequest bar;
+    bar.id = getNetworkBlockedBarId();
+    bar.tone = PDFAppInfoBarTone::Warning;
+    bar.title = isDocument ? tr("The linked document is on another computer – it was not opened")
+                           : tr("The file is on another computer – it was not opened");
+    bar.text = PDFAppDocumentActionsHelper::value(QDir::toNativeSeparators(filePath), 200);
+    if (isDocument)
+    {
+        bar.actions.push_back({ getOpenAnywayActionId(), tr("Open Anyway") });
+    }
+    view->showInfoBar(bar);
+    return false;
 }
 
 void PDFAppDocumentActionHandler::openDocument(const QString& filePath, int page)
@@ -995,6 +1160,22 @@ void PDFAppDocumentActionHandler::showLinkBlocked(const QUrl& url, const QString
 
 void PDFAppDocumentActionHandler::onInfoBarActionTriggered(const QString& infoBarId, const QString& actionId)
 {
+    if (infoBarId == getNetworkBlockedBarId())
+    {
+        // Open Anyway: the user has agreed to connect to the other computer
+        const QString filePath = m_blockedNetworkPath;
+        m_blockedNetworkPath.clear();
+        if (actionId == getOpenAnywayActionId() && !filePath.isEmpty())
+        {
+            if (PDFAppDocumentView* view = getView())
+            {
+                view->hideInfoBar(getNetworkBlockedBarId());
+            }
+            openDocument(filePath, m_blockedNetworkPage);
+        }
+        return;
+    }
+
     if (infoBarId != getLinkBlockedBarId() && infoBarId != getLaunchBlockedBarId())
     {
         return;
@@ -1166,48 +1347,9 @@ bool PDFAppDocumentActionHandler::eventFilter(QObject* watched, QEvent* event)
                 break;
             }
 
-            case QEvent::MouseButtonPress:
-            {
-                // The text selection is the tool of the canvas and it takes every press
-                // before the annotations: a click on a link is handled here (a press
-                // on a link does not start a selection)
-                const QMouseEvent* mouseEvent = static_cast<const QMouseEvent*>(event);
-                m_pressedLink.reset();
-                PDFAppDocumentView* view = getView();
-                PDFWidgetAnnotationManager* annotationManager = view ? view->getAnnotationManager() : nullptr;
-                if (mouseEvent->button() == Qt::LeftButton && mouseEvent->modifiers() == Qt::NoModifier && annotationManager && isTextSelectionActive())
-                {
-                    if (const PDFAction* action = annotationManager->getLinkActionAt(mouseEvent->position().toPoint()))
-                    {
-                        m_pressedLink = action->clone();
-                        m_pressPosition = mouseEvent->position().toPoint();
-                        return true;
-                    }
-                }
-                break;
-            }
-
-            case QEvent::MouseButtonRelease:
-            {
-                const QMouseEvent* mouseEvent = static_cast<const QMouseEvent*>(event);
-                if (m_pressedLink && mouseEvent->button() == Qt::LeftButton)
-                {
-                    const PDFActionPtr action = std::move(m_pressedLink);
-                    m_pressedLink.reset();
-                    if ((mouseEvent->position().toPoint() - m_pressPosition).manhattanLength() <= QApplication::startDragDistance())
-                    {
-                        // The action may run a dialog and delete the tab
-                        performAction(action.get());
-                    }
-                    return true;
-                }
-                break;
-            }
-
             case QEvent::Leave:
             case QEvent::Hide:
                 m_hoverTimer.stop();
-                m_pressedLink.reset();
                 clearHover();
                 break;
 
@@ -1229,13 +1371,6 @@ bool PDFAppDocumentActionHandler::eventFilter(QObject* watched, QEvent* event)
     }
 
     return BaseClass::eventFilter(watched, event);
-}
-
-bool PDFAppDocumentActionHandler::isTextSelectionActive() const
-{
-    PDFAppDocumentView* view = getView();
-    PDFToolManager* toolManager = view ? view->getToolManager() : nullptr;
-    return toolManager && qobject_cast<PDFSelectTextTool*>(toolManager->getActiveTool()) != nullptr;
 }
 
 void PDFAppDocumentActionHandler::onHoverTimeout()

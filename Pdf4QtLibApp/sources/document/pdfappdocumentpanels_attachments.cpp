@@ -88,7 +88,17 @@ public:
             QStringLiteral("py"), QStringLiteral("pyw"), QStringLiteral("pyc"), QStringLiteral("pyz"), QStringLiteral("pl"),
             QStringLiteral("rb"), QStringLiteral("php"), QStringLiteral("lua"), QStringLiteral("tcl"), QStringLiteral("scpt"),
             QStringLiteral("applescript"), QStringLiteral("workflow"), QStringLiteral("action"), QStringLiteral("so"), QStringLiteral("dylib"),
-            QStringLiteral("iso"), QStringLiteral("img"), QStringLiteral("vhd"), QStringLiteral("vhdx")
+            QStringLiteral("iso"), QStringLiteral("img"), QStringLiteral("vhd"), QStringLiteral("vhdx"),
+            // Files, which start programs, connect to servers (and send the sign-in of the
+            // user) or install something, when the shell opens them
+            QStringLiteral("rdp"), QStringLiteral("theme"), QStringLiteral("themepack"), QStringLiteral("deskthemepack"), QStringLiteral("desktopthemepack"),
+            QStringLiteral("search-ms"), QStringLiteral("searchconnector-ms"), QStringLiteral("website"), QStringLiteral("wsb"), QStringLiteral("msu"),
+            QStringLiteral("appinstaller"), QStringLiteral("iqy"), QStringLiteral("slk"), QStringLiteral("xll"), QStringLiteral("ade"),
+            QStringLiteral("adp"), QStringLiteral("mde"), QStringLiteral("shb"), QStringLiteral("shs"), QStringLiteral("job"),
+            QStringLiteral("hlp"), QStringLiteral("ins"), QStringLiteral("isp"), QStringLiteral("xnk"), QStringLiteral("mcf"),
+            QStringLiteral("msh"), QStringLiteral("msh1"), QStringLiteral("msh2"), QStringLiteral("msh1xml"), QStringLiteral("msh2xml"),
+            QStringLiteral("ps2xml"), QStringLiteral("psc2"), QStringLiteral("terminal"), QStringLiteral("webloc"), QStringLiteral("inetloc"),
+            QStringLiteral("fileloc"), QStringLiteral("mobileconfig"), QStringLiteral("prefpane"), QStringLiteral("kext"), QStringLiteral("osax")
         };
         return extensions;
     }
@@ -102,7 +112,11 @@ public:
             QStringLiteral("com1"), QStringLiteral("com2"), QStringLiteral("com3"), QStringLiteral("com4"), QStringLiteral("com5"),
             QStringLiteral("com6"), QStringLiteral("com7"), QStringLiteral("com8"), QStringLiteral("com9"),
             QStringLiteral("lpt1"), QStringLiteral("lpt2"), QStringLiteral("lpt3"), QStringLiteral("lpt4"), QStringLiteral("lpt5"),
-            QStringLiteral("lpt6"), QStringLiteral("lpt7"), QStringLiteral("lpt8"), QStringLiteral("lpt9")
+            QStringLiteral("lpt6"), QStringLiteral("lpt7"), QStringLiteral("lpt8"), QStringLiteral("lpt9"),
+            // Also reserved: the digit 0 and the superscript digits 1, 2 and 3
+            QStringLiteral("com0"), QStringLiteral("lpt0"),
+            QStringLiteral("com¹"), QStringLiteral("com²"), QStringLiteral("com³"),
+            QStringLiteral("lpt¹"), QStringLiteral("lpt²"), QStringLiteral("lpt³")
         };
         return names.count(baseName.toLower()) > 0;
     }
@@ -336,6 +350,14 @@ PDFAppAttachments::WriteResult PDFAppAttachments::write(PDFDocumentPointer docum
     catch (const PDFException& exception)
     {
         result.error = exception.getMessage();
+        return result;
+    }
+    catch (const std::bad_alloc&)
+    {
+        // A decompression bomb (nested Flate filters of a few kB decode to
+        // terabytes): the exception would be thrown again by the result of the
+        // future in the thread of the user interface and end the application
+        result.error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
         return result;
     }
 
@@ -606,17 +628,20 @@ void PDFAppAttachmentsPanel::saveAttachment(int row)
         return;
     }
 
-    // Save always (D8), also programs and scripts; the dialog may run its own loop
+    // Save always (D8), also programs and scripts; the dialog may run its own loop,
+    // in which the document may change and the rows with it: the attachment and its
+    // document are copied before the dialog
+    const PDFAppAttachment saved = *attachment;
+    const PDFDocumentPointer document = m_document;
     const QString folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    const QString name = attachment->name;
     QPointer<PDFAppAttachmentsPanel> self(this);
-    const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(this, tr("Save Attachment"), QDir(folder).filePath(name), tr("All files (*)"));
+    const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(this, tr("Save Attachment"), QDir(folder).filePath(saved.name), tr("All files (*)"));
     if (!self || filePath.isEmpty())
     {
         return;
     }
 
-    startWrite(row, filePath, false);
+    startWrite(saved, document, filePath, false);
 }
 
 void PDFAppAttachmentsPanel::openAttachment(int row)
@@ -643,7 +668,7 @@ void PDFAppAttachmentsPanel::openAttachment(int row)
             showError(tr("The file was not opened"), tr("The temporary folder for the attachment cannot be created."));
             return;
         }
-        startWrite(row, filePath, true);
+        startWrite(*attachment, m_document, filePath, true);
         return;
     }
 
@@ -687,19 +712,24 @@ void PDFAppAttachmentsPanel::openAttachment(int row)
     connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
     connect(dialog, &QDialog::finished, this, &PDFAppAttachmentsPanel::onConfirmFinished);
 
+    // The confirmed attachment and its document are kept: the document may change
+    // while the dialog is open, and its rows with it
     m_confirmDialog = dialog;
-    m_confirmRow = row;
+    m_confirmAttachment = *attachment;
+    m_confirmDocument = m_document;
     dialog->open();
 }
 
 void PDFAppAttachmentsPanel::onConfirmFinished(int result)
 {
-    const int row = m_confirmRow;
-    m_confirmRow = -1;
+    const std::optional<PDFAppAttachment> attachment = std::move(m_confirmAttachment);
+    const PDFDocumentPointer document = std::move(m_confirmDocument);
+    m_confirmAttachment.reset();
+    m_confirmDocument.reset();
     m_confirmDialog = nullptr;
 
-    const PDFAppAttachment* attachment = m_model ? m_model->getAttachment(row) : nullptr;
-    if (result != QDialog::Accepted || !attachment)
+    // Programs and scripts are never started (D8), whatever has been confirmed
+    if (result != QDialog::Accepted || !attachment || PDFAppAttachments::isExecutable(attachment->name))
     {
         return;
     }
@@ -710,7 +740,7 @@ void PDFAppAttachmentsPanel::onConfirmFinished(int result)
         showError(tr("The file was not opened"), tr("The temporary folder for the attachment cannot be created."));
         return;
     }
-    startWrite(row, filePath, true);
+    startWrite(*attachment, document, filePath, true);
 }
 
 QString PDFAppAttachmentsPanel::createTemporaryPath(const QString& fileName)
@@ -758,10 +788,9 @@ int PDFAppAttachmentsPanel::getRunningCount() const
     return count;
 }
 
-void PDFAppAttachmentsPanel::startWrite(int row, const QString& filePath, bool isOpenRequested)
+void PDFAppAttachmentsPanel::startWrite(const PDFAppAttachment& attachment, PDFDocumentPointer document, const QString& filePath, bool isOpenRequested)
 {
-    const PDFAppAttachment* attachment = m_model ? m_model->getAttachment(row) : nullptr;
-    if (!attachment || !m_document)
+    if (!document)
     {
         return;
     }
@@ -771,7 +800,7 @@ void PDFAppAttachmentsPanel::startWrite(int row, const QString& filePath, bool i
     QFutureWatcher<PDFAppAttachments::WriteResult>* watcher = new QFutureWatcher<PDFAppAttachments::WriteResult>(this);
     connect(watcher, &QFutureWatcherBase::finished, this, &PDFAppAttachmentsPanel::onWriteFinished);
     m_watchers.push_back(watcher);
-    watcher->setFuture(QtConcurrent::run(&PDFAppAttachments::write, m_document, attachment->specification, filePath, isOpenRequested));
+    watcher->setFuture(QtConcurrent::run(&PDFAppAttachments::write, std::move(document), attachment.specification, filePath, isOpenRequested));
 }
 
 void PDFAppAttachmentsPanel::onWriteFinished()

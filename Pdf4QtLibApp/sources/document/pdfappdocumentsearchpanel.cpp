@@ -122,16 +122,18 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
     connect(m_closeButton, &QToolButton::clicked, this, &PDFAppDocumentSearchPanel::onCloseClicked);
     layout->addWidget(header);
 
-    // sidebar-content 198:4933: paddings 12 / 2 / 12 / 16; search-options 198:4934:
-    // two columns of chips 134 x 32, gaps 6, 8 below
+    // sidebar-content 198:4933: paddings 12 / 2 / 12 / 16, gap 2; search-options
+    // 198:4934: two columns of chips 134 x 32, gaps 6, 8 below. The layout keeps 1 px
+    // less at the sides and at the top: the spacing 1 of the list lies around its rows,
+    // so the rows of 275 px start at x 12, 2 px below the options (y 174)
     QWidget* content = new QWidget(this);
     content->setObjectName(QStringLiteral("searchContent"));
     QVBoxLayout* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(12, 2, 12, 16);
+    contentLayout->setContentsMargins(11, 1, 11, 16);
     contentLayout->setSpacing(0);
 
     QGridLayout* optionsLayout = new QGridLayout();
-    optionsLayout->setContentsMargins(0, 0, 0, 8);
+    optionsLayout->setContentsMargins(1, 1, 1, 9);
     optionsLayout->setHorizontalSpacing(6);
     optionsLayout->setVerticalSpacing(6);
     m_matchCaseButton = PDFAppDocumentSearchPanelHelper::createOptionButton(QStringLiteral("optionMatchCase"), QStringLiteral("match-case"), content);
@@ -152,12 +154,16 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
     m_messageLabel = new PDFLabel(QString(), PDFThemeFonts::Role::Small, PDFThemeColors::TextMuted, content);
     m_messageLabel->setObjectName(QStringLiteral("searchMessage"));
     m_messageLabel->setWordWrap(true);
-    m_messageLabel->setContentsMargins(10, 8, 10, 8);
+    m_messageLabel->setContentsMargins(11, 8, 11, 8);
     m_messageLabel->setTextFormat(Qt::PlainText);
     contentLayout->addWidget(m_messageLabel);
 
-    // The occurrences (Search result row 191:1073, the spacing of the list 2)
-    m_listView = new PDFListView(content);
+    // The occurrences (Search result row 191:1073, 2 px between the rows = the spacing
+    // 1 of QListView on both rows); the list has no margins of its own (PDFListView
+    // keeps 6 px around the rows of a framed list)
+    PDFAppPanelListView* listView = new PDFAppPanelListView(content);
+    listView->setContentPaddings(QMargins());
+    m_listView = listView;
     m_listView->setObjectName(QStringLiteral("searchResults"));
     PDFAppPanelWidgets::prepareView(m_listView);
     m_listView->setSpacing(1);
@@ -172,7 +178,7 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
     m_noteLabel = new PDFLabel(QString(), PDFThemeFonts::Role::CaptionRegular, PDFThemeColors::TextMuted, content);
     m_noteLabel->setObjectName(QStringLiteral("searchNote"));
     m_noteLabel->setWordWrap(true);
-    m_noteLabel->setContentsMargins(10, 8, 10, 0);
+    m_noteLabel->setContentsMargins(11, 8, 11, 0);
     contentLayout->addWidget(m_noteLabel);
 
     layout->addWidget(content, 1);

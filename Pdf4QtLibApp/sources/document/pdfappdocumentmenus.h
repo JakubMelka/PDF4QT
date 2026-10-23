@@ -200,7 +200,8 @@ private:
     bool m_isOpen = false;
 };
 
-/// File panel (196:2583): tiles Save, Save as, Print, E-mail; rows Properties…,
+/// File panel (196:2583): tiles Save, Save as, Print, E-mail (hidden without
+/// PDFAppSendMail::isAvailable, D2: macOS); rows Properties…,
 /// Automatic refresh, Lock document, Settings…; Close document with its shortcut
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentFilePanel : public PDFAppDocumentPanelPopup
 {
@@ -295,7 +296,9 @@ private:
 };
 
 /// Menu of the Select button (198:5517): Select text, Select table, Screenshot,
-/// Extract image as one exclusive choice (the tool of the canvas)
+/// Extract image as one exclusive choice (the tool of the canvas). The panel is
+/// 232 px wide and it opens 4 px below the toolbar as the panels of the toolbar
+/// (y 94 of 198:5380), not at the bottom of the button.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSelectMenu : public QMenu
 {
     Q_OBJECT
@@ -304,6 +307,9 @@ private:
     using BaseClass = QMenu;
 
 public:
+    /// Width of the panel of the menu (menu-select 198:5517)
+    static constexpr int PANEL_WIDTH = 232;
+
     explicit PDFAppDocumentSelectMenu(PDFAppDocumentView* view, QWidget* parent);
 
     /// Action of the command (nullptr for another command)
@@ -314,9 +320,11 @@ public:
 
 protected:
     virtual void changeEvent(QEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
 
 private:
     void retranslate();
+    void placeBelowToolbar();
     void onAboutToShow();
     void onActionTriggered(QAction* action);
 

@@ -59,7 +59,8 @@ PDFAppDocumentTab::PDFAppDocumentTab(PDFAppContext* context, QWidget* parent) :
     connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentTab::onDocumentStateChanged);
     connect(m_document.data(), &PDFAppDocument::modifiedChanged, this, &PDFAppDocumentTab::onDocumentTitleChanged);
     connect(m_document.data(), &PDFAppDocument::fileChanged, this, &PDFAppDocumentTab::onDocumentTitleChanged);
-    connect(m_document.data(), &PDFAppDocument::loadingProgressChanged, this, &PDFAppDocumentTab::onDocumentTitleChanged);
+    connect(m_document.data(), &PDFAppDocument::loadingProgressChanged, this, &PDFAppDocumentTab::onDocumentProgressChanged);
+    connect(m_document.data(), &PDFAppDocument::operationProgressChanged, this, &PDFAppDocumentTab::onDocumentProgressChanged);
     connect(m_document.data(), &PDFAppDocument::operationsChanged, this, &PDFAppDocumentTab::onDocumentTitleChanged);
     connect(m_document.data(), &PDFAppDocument::lockChanged, this, &PDFAppDocumentTab::onLockChanged);
     connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppDocumentTab::onHandlerStateChanged);
@@ -255,7 +256,8 @@ QString PDFAppDocumentTab::getTabTitle() const
 
 QString PDFAppDocumentTab::getTabIconName() const
 {
-    return QStringLiteral("file-text");
+    // icon/file of the Tab component (48:170): file-text has too many strokes for 14 px
+    return QStringLiteral("file");
 }
 
 void PDFAppDocumentTab::requestClose()
@@ -381,11 +383,29 @@ void PDFAppDocumentTab::onFileSaveFinished(bool isSaved)
         return;
     }
 
+    if (!isClosing || !isSaved || !m_document)
+    {
+        return;
+    }
+
     // Save of close-unsaved: the tab closes only with its changes in the file
-    if (isClosing && isSaved && m_document && !m_document->isModified())
+    if (!m_document->isModified())
     {
         m_isCloseConfirmed = true;
         requestClose();
+        return;
+    }
+
+    // The finished save was started before the question (a save, which ran, when
+    // the user chose Save, wrote an older version): the current version is saved
+    if (m_document->isReady())
+    {
+        m_isClosingAfterSave = true;
+        const bool isStarted = save();
+        if (guard && !isStarted)
+        {
+            m_isClosingAfterSave = false;
+        }
     }
 }
 
@@ -564,6 +584,13 @@ void PDFAppDocumentTab::onDocumentTitleChanged()
     {
         Q_EMIT commandStatesChanged();
     }
+}
+
+void PDFAppDocumentTab::onDocumentProgressChanged()
+{
+    // Only the progress of the tab changes (no command changes with a progress, the
+    // window does not update its actions at each step)
+    Q_EMIT pageTitleChanged();
 }
 
 void PDFAppDocumentTab::onLockChanged()

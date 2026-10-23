@@ -75,6 +75,7 @@ public:
     public:
         bool isSaved = false;           ///< The file has been written
         QString filePath;               ///< Canonical path of the written file (empty on an error)
+        QString requestedFilePath;      ///< Path of the request (also on an error - the file of Save As)
         QByteArray data;                ///< Written bytes
         quint64 version = 0;            ///< Version of the request
         bool isIncremental = false;     ///< The file is an incremental update

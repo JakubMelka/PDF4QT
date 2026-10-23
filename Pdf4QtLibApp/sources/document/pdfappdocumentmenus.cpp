@@ -26,6 +26,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
+#include "pdfappsendmail.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfcomponentbadges.h"
@@ -49,6 +50,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScreen>
+#include <QShowEvent>
 #include <QStyleOptionMenuItem>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -695,6 +697,13 @@ void PDFAppDocumentFilePanel::updateState()
 {
     BaseClass::updateState();
 
+    // E-mail is hidden on a platform without it (D2: macOS); the other tiles of
+    // the row share its place
+    if (QAbstractButton* mailTile = getCommandButton(PDFAppCommands::sendMail()))
+    {
+        mailTile->setVisible(PDFAppSendMail::isAvailable());
+    }
+
     if (m_closeItem)
     {
         // The effective shortcut of the user
@@ -1217,8 +1226,43 @@ void PDFAppDocumentSelectMenu::changeEvent(QEvent* event)
     }
 }
 
+void PDFAppDocumentSelectMenu::showEvent(QShowEvent* event)
+{
+    // The style has placed the window at its anchor (the event filter of the style
+    // runs before this handler), the menu moves it below the toolbar
+    BaseClass::showEvent(event);
+    placeBelowToolbar();
+}
+
+void PDFAppDocumentSelectMenu::placeBelowToolbar()
+{
+    QWidget* button = parentWidget();
+    const PDFAppDocumentToolbar* toolbar = m_view ? m_view->getToolbar() : nullptr;
+    if (!button || !toolbar || !button->isVisible() || !toolbar->isVisible())
+    {
+        return;
+    }
+
+    // Only a menu below its button moves (a menu above the button at the bottom of
+    // the screen, or at the pointer, stays)
+    const QMargins margins = PDFWidgetStyle::getPopoverMargins(this);
+    const int panelTop = y() + margins.top();
+    const int buttonBottom = button->mapToGlobal(QPoint(0, button->height())).y();
+    if (qAbs(panelTop - buttonBottom) > 2)
+    {
+        return;
+    }
+
+    const int targetTop = toolbar->mapToGlobal(QPoint(0, toolbar->height())).y() + PDFAppDocumentToolbar::PANEL_GAP;
+    move(x(), targetTop - margins.top());
+}
+
 void PDFAppDocumentSelectMenu::onAboutToShow()
 {
+    // menu-select 198:5517: the panel is 232 px wide (the window holds the shadow too)
+    const QMargins margins = PDFWidgetStyle::getPopoverMargins(this);
+    setMinimumWidth(PANEL_WIDTH + margins.left() + margins.right());
+
     updateState();
 }
 

@@ -123,8 +123,9 @@ public:
 
     /// Prepares a list of the sidebar (prepareView) with the paddings of the
     /// content of the sidebar and the gap 2 of its rows (QListView::setSpacing
-    /// puts the spacing also around the rows, so the margins are smaller by it;
-    /// a PDFTreeView keeps its own margins of 6)
+    /// puts the spacing on every side of each row, so two neighbors are 2 x the
+    /// spacing apart: the spacing is half of the gap and the margins are smaller
+    /// by it; a PDFTreeView keeps its own margins of 6)
     static void prepareList(PDFAppPanelListView* view);
 
     /// Search field of a panel (component Search field 49:143, pill, 36 px)

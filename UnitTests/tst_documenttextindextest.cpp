@@ -69,12 +69,14 @@ private slots:
     void searchLimits();
     void searchLimitAcrossChunks();
     void searchEmptyMatches();
+    void searchPageWithoutText();
     void searchHostileQueries();
     void searchCatastrophicBacktracking();
     void cancel();
     void cancelDuringSearch();
     void createPattern();
     void flowFindEmptyMatch();
+    void flowFindLongLine();
     void aatlParameter();
     void benchmark2000Pages();
     void pageLabels();
@@ -83,6 +85,7 @@ private slots:
 private:
     static pdf::PDFDocument createDocument(int pageCount);
     static pdf::PDFDocument createDocument(const QStringList& pageTexts);
+    static pdf::PDFDocument createDocument(const QStringList& pageTexts, const QSizeF& pageSize, int pixelSize);
     static pdf::PDFDocument createLabeledDocument(const pdf::PDFObject& nums, int pageCount);
 };
 
@@ -117,10 +120,15 @@ pdf::PDFDocument DocumentTextIndexTest::createDocument(int pageCount)
 
 pdf::PDFDocument DocumentTextIndexTest::createDocument(const QStringList& pageTexts)
 {
+    return createDocument(pageTexts, QSizeF(300, 400), 12);
+}
+
+pdf::PDFDocument DocumentTextIndexTest::createDocument(const QStringList& pageTexts, const QSizeF& pageSize, int pixelSize)
+{
     pdf::PDFDocumentBuilder builder;
     for (const QString& pageText : pageTexts)
     {
-        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
         pdf::PDFPageContentStreamBuilder content(&builder);
         QPainter* painter = content.begin(page);
         if (!painter)
@@ -128,7 +136,7 @@ pdf::PDFDocument DocumentTextIndexTest::createDocument(const QStringList& pageTe
             continue;
         }
         QFont font = painter->font();
-        font.setPixelSize(12);
+        font.setPixelSize(pixelSize);
         painter->setFont(font);
         const QStringList lines = pageText.split(QLatin1Char('\n'));
         for (int line = 0; line < lines.size(); ++line)
@@ -448,6 +456,24 @@ void DocumentTextIndexTest::searchEmptyMatches()
              pdf::PDFDocumentTextSearch::find(*index, QStringLiteral("a"), options, 0, nullptr).results.size());
 }
 
+void DocumentTextIndexTest::searchPageWithoutText()
+{
+    // Pages without any text (an empty page, a page of images) are skipped by the
+    // search, the pages around them are found
+    const pdf::PDFDocument document = createDocument(QStringList({ QStringLiteral("alpha one"), QString(), QStringLiteral("alpha three") }));
+    std::shared_ptr<const pdf::PDFDocumentTextIndex> index = pdf::PDFDocumentTextIndex::build(&document, nullptr, nullptr, nullptr);
+    QVERIFY(index);
+    QCOMPARE(index->getPageCount(), pdf::PDFInteger(3));
+    QVERIFY(index->getTextLayout(1).getTextBlocks().empty());
+    QVERIFY(index->getPageText(1).isEmpty());
+
+    const pdf::PDFDocumentTextSearchResult result = pdf::PDFDocumentTextSearch::find(*index, QStringLiteral("alpha"), pdf::PDFDocumentTextSearchOptions(), 0, nullptr);
+    QVERIFY(result.error.isEmpty());
+    QCOMPARE(result.results.size(), size_t(2));
+    QCOMPARE(result.results.front().pageIndex, pdf::PDFInteger(0));
+    QCOMPARE(result.results.back().pageIndex, pdf::PDFInteger(2));
+}
+
 void DocumentTextIndexTest::searchHostileQueries()
 {
     const pdf::PDFDocument document = createDocument(2);
@@ -584,6 +610,56 @@ void DocumentTextIndexTest::flowFindEmptyMatch()
     const pdf::PDFFindResults results = flows.front().find(QStringLiteral("bc"), Qt::CaseSensitive);
     QCOMPARE(results.size(), size_t(1));
     QCOMPARE(results.front().context.mid(results.front().contextMatchStart, results.front().contextMatchLength), QStringLiteral("bc"));
+}
+
+void DocumentTextIndexTest::flowFindLongLine()
+{
+    // A hostile page with a single line of thousands of characters: the context of
+    // each occurrence used to be the whole line (memory and time of the number of
+    // the occurrences times the length of the line); the search of the index takes
+    // at most the occurrences it needs from a flow
+    const int length = 3000;
+    const pdf::PDFDocument document = createDocument(QStringList({ QString(length, QLatin1Char('a')) }), QSizeF(14000, 100), 4);
+    std::shared_ptr<const pdf::PDFDocumentTextIndex> index = pdf::PDFDocumentTextIndex::build(&document, nullptr, nullptr, nullptr);
+    QVERIFY(index);
+
+    const pdf::PDFTextFlows flows = pdf::PDFTextFlow::createTextFlows(index->getTextLayout(0), pdf::PDFTextFlow::SeparateBlocks, 0);
+    QCOMPARE(flows.size(), size_t(1));
+    QCOMPARE(flows.front().getText().count(QLatin1Char('a')), length);
+
+    const pdf::PDFFindResults all = flows.front().find(QStringLiteral("a"), Qt::CaseSensitive);
+    QCOMPARE(all.size(), size_t(length));
+    const qsizetype maximumContext = qsizetype(2 * pdf::PDFTextFlow::MAXIMUM_CONTEXT_LENGTH + 1);
+    for (const pdf::PDFFindResult& result : all)
+    {
+        QVERIFY(result.context.size() <= maximumContext);
+        QCOMPARE(result.context.mid(result.contextMatchStart, result.contextMatchLength), QStringLiteral("a"));
+    }
+
+    // An occurrence in the middle has the whole window on both sides, the first
+    // one only after it
+    const pdf::PDFFindResult& middle = all[size_t(length / 2)];
+    QCOMPARE(middle.context.size(), maximumContext);
+    QCOMPARE(middle.contextMatchStart, qsizetype(pdf::PDFTextFlow::MAXIMUM_CONTEXT_LENGTH));
+    QCOMPARE(all.front().contextMatchStart, qsizetype(0));
+    QCOMPARE(all.front().context.size(), qsizetype(pdf::PDFTextFlow::MAXIMUM_CONTEXT_LENGTH + 1));
+
+    // The limit of the occurrences of a flow (text and regular expression)
+    QCOMPARE(flows.front().find(QStringLiteral("a"), Qt::CaseSensitive, 7).size(), size_t(7));
+    QCOMPARE(flows.front().find(QRegularExpression(QStringLiteral("a")), 7).size(), size_t(7));
+    QCOMPARE(flows.front().find(QRegularExpression(QStringLiteral("a"))).size(), size_t(length));
+
+    // The search of the index: the first occurrences, truncated; a match longer
+    // than the window keeps the whole match
+    pdf::PDFDocumentTextSearchOptions options;
+    pdf::PDFDocumentTextSearchResult result = pdf::PDFDocumentTextSearch::find(*index, QStringLiteral("a"), options, 10, nullptr);
+    QCOMPARE(result.results.size(), size_t(10));
+    QVERIFY(result.isTruncated);
+    QCOMPARE(result.results.front().contextMatchStart, qsizetype(0));
+    options.regularExpression = true;
+    result = pdf::PDFDocumentTextSearch::find(*index, QStringLiteral("a+"), options, 10, nullptr);
+    QCOMPARE(result.results.size(), size_t(1));
+    QCOMPARE(result.results.front().contextMatchLength, qsizetype(length));
 }
 
 void DocumentTextIndexTest::aatlParameter()

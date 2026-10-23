@@ -28,6 +28,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
+#include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 
 #include <QHBoxLayout>
@@ -65,6 +66,29 @@ public:
         return PDFAccentHue::Neutral;
     }
 };
+
+PDFAppInfoBarShadow::PDFAppInfoBarShadow(QWidget* parent) :
+    BaseClass(parent)
+{
+    setObjectName(QStringLiteral("infoBarShadow"));
+    setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    setFocusPolicy(Qt::NoFocus);
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBarShadow::update));
+}
+
+PDFAppInfoBarShadow::~PDFAppInfoBarShadow() = default;
+
+void PDFAppInfoBarShadow::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    // Shadow 0 / 4 / 16 of the card (the bar above draws the card)
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QRectF card(rect().marginsRemoved(PDFAppInfoBar::getShadowMargins()));
+    PDFStylePainter::shadow(&painter, card, PDFStylePainter::Radii(PDFAppInfoBar::CARD_RADIUS), QPointF(0.0, 4.0), 16.0,
+                            PDFThemeManager::getInstance()->getColor(PDFThemeColors::EffectShadow));
+}
 
 QMargins PDFAppInfoBar::getShadowMargins()
 {
@@ -110,6 +134,10 @@ PDFAppInfoBar::PDFAppInfoBar(const PDFAppInfoBarRequest& request, QWidget* paren
     QVBoxLayout* textsLayout = new QVBoxLayout(texts);
     textsLayout->setContentsMargins(0, 0, 0, 0);
     textsLayout->setSpacing(1);
+
+    // text 1030:25657: the lines (16 + 1 + 13) keep their heights in the middle of
+    // the card - the layout does not spread them over the height of the bar
+    textsLayout->addStretch(1);
     m_title = new PDFLabel(QString(), PDFThemeFonts::Role::BodySemiBold, PDFThemeColors::TextPrimary, texts);
     m_title->setObjectName(QStringLiteral("infoBarTitle"));
     m_title->setTextFormat(Qt::PlainText);
@@ -120,6 +148,7 @@ PDFAppInfoBar::PDFAppInfoBar(const PDFAppInfoBarRequest& request, QWidget* paren
     m_text->setTextFormat(Qt::PlainText);
     m_text->setMinimumWidth(1);
     textsLayout->addWidget(m_text);
+    textsLayout->addStretch(1);
     m_layout->addWidget(texts, 1);
 
     // print-progress 1030:25657: the progress line 160 x 4
@@ -138,9 +167,58 @@ PDFAppInfoBar::PDFAppInfoBar(const PDFAppInfoBarRequest& request, QWidget* paren
 
     rebuild();
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppInfoBar::update));
+
+    // The shadow is a sibling below the bar; the bar takes the pointer only over its card
+    if (parent)
+    {
+        m_shadow = new PDFAppInfoBarShadow(parent);
+        m_shadow->hide();
+    }
+    setMask(QRegion(getCardRect()));
 }
 
-PDFAppInfoBar::~PDFAppInfoBar() = default;
+PDFAppInfoBar::~PDFAppInfoBar()
+{
+    // The shadow goes with the bar (the parent may be deleting its children)
+    delete m_shadow.data();
+}
+
+bool PDFAppInfoBar::event(QEvent* event)
+{
+    const bool result = BaseClass::event(event);
+
+    switch (event->type())
+    {
+        case QEvent::Resize:
+            setMask(QRegion(getCardRect()));
+            updateShadow();
+            break;
+
+        case QEvent::Move:
+        case QEvent::Show:
+        case QEvent::Hide:
+        case QEvent::ZOrderChange:
+            updateShadow();
+            break;
+
+        default:
+            break;
+    }
+
+    return result;
+}
+
+void PDFAppInfoBar::updateShadow()
+{
+    if (!m_shadow || m_shadow->parentWidget() != parentWidget())
+    {
+        return;
+    }
+
+    m_shadow->setGeometry(geometry());
+    m_shadow->setVisible(!isHidden());
+    m_shadow->stackUnder(this);
+}
 
 void PDFAppInfoBar::setRequest(const PDFAppInfoBarRequest& request)
 {
@@ -209,6 +287,12 @@ void PDFAppInfoBar::rebuild()
             button->setObjectName(QStringLiteral("infoBarAction:") + action.id);
             button->setAutoDefault(false);
             button->setProperty(PDFAppInfoBarHelper::ACTION_PROPERTY, action.id);
+            if (!action.iconName.isEmpty())
+            {
+                // btn-stop 1030:25657: the icon 16 before the text
+                button->setIcon(PDFThemeIcons::getIcon(action.iconName));
+                button->setIconSize(QSize(16, 16));
+            }
             connect(button, &QPushButton::clicked, this, &PDFAppInfoBar::onActionClicked);
             m_layout->addWidget(button);
             m_dynamicWidgets.emplace_back(button);
@@ -297,12 +381,12 @@ void PDFAppInfoBar::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
-    // The card bg/surface, border border/default, radius 14, shadow 0 / 4 / 16
+    // The card bg/surface, border border/default, radius 14; the shadow 0 / 4 / 16
+    // is drawn by PDFAppInfoBarShadow below the bar (the bar is masked to its card)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QRectF card(getCardRect());
     const PDFStylePainter::Radii radii(CARD_RADIUS);
-    PDFStylePainter::shadow(&painter, card, radii, QPointF(0.0, 4.0), 16.0, PDFThemeManager::getInstance()->getColor(PDFThemeColors::EffectShadow));
     PDFStylePainter::fill(&painter, card, radii, PDFThemeColors::BgSurface);
     PDFStylePainter::strokeInside(&painter, card, radii, PDFThemeColors::BorderDefault, 1.0);
 }

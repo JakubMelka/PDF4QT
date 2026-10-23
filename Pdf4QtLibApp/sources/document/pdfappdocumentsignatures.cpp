@@ -33,6 +33,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcertificatestore.h"
+#include "pdfexception.h"
 #include "pdfform.h"
 
 #include "pdfaccenthue.h"
@@ -51,6 +52,8 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
+
+#include <new>
 
 namespace pdf
 {
@@ -249,31 +252,44 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
         return verification;
     }
 
-    const PDFForm form = PDFForm::parse(document.data(), document->getCatalog()->getFormObject());
-    int signatureFieldCount = 0;
-    form.apply(PDFAppDocumentSignaturesHelper::SignatureFieldCounter(&signatureFieldCount));
-    verification->signatureFieldCount = signatureFieldCount;
-    if (!settings.verify || signatureFieldCount == 0 || PDFOperationControl::isOperationCancelled(cancelFlag.get()))
+    // An exception must not leave the worker (the watcher would throw it again from
+    // the slot of the GUI thread): a damaged form has no verified signatures
+    try
     {
-        return verification;
-    }
+        const PDFForm form = PDFForm::parse(document.data(), document->getCatalog()->getFormObject());
+        int signatureFieldCount = 0;
+        form.apply(PDFAppDocumentSignaturesHelper::SignatureFieldCounter(&signatureFieldCount));
+        verification->signatureFieldCount = signatureFieldCount;
+        if (!settings.verify || signatureFieldCount == 0 || PDFOperationControl::isOperationCancelled(cancelFlag.get()))
+        {
+            return verification;
+        }
 
-    // Trusted: the certificates of the user, the AATL list always, the system
-    // store by the setting (O15); never the file TrustedCertStorage.bin
-    PDFCertificateStore store;
-    for (const QByteArray& certificate : settings.trustedCertificates)
+        // Trusted: the certificates of the user, the AATL list always, the system
+        // store by the setting (O15); never the file TrustedCertStorage.bin
+        PDFCertificateStore store;
+        for (const QByteArray& certificate : settings.trustedCertificates)
+        {
+            store.add(PDFCertificateEntry::EntryType::User, certificate);
+        }
+
+        PDFSignatureHandler::Parameters parameters;
+        parameters.store = &store;
+        parameters.dss = &document->getCatalog()->getDocumentSecurityStore();
+        parameters.enableVerification = true;
+        parameters.ignoreExpirationDate = settings.ignoreExpiration;
+        parameters.useSystemCertificateStore = settings.useSystemStore;
+        parameters.aatlCertificates = PDFSignatureHandler::AATLCertificates::Always;
+        verification->results = PDFSignatureHandler::verifySignatures(form, sourceData, parameters);
+    }
+    catch (const PDFException&)
     {
-        store.add(PDFCertificateEntry::EntryType::User, certificate);
+        verification->results.clear();
     }
-
-    PDFSignatureHandler::Parameters parameters;
-    parameters.store = &store;
-    parameters.dss = &document->getCatalog()->getDocumentSecurityStore();
-    parameters.enableVerification = true;
-    parameters.ignoreExpirationDate = settings.ignoreExpiration;
-    parameters.useSystemCertificateStore = settings.useSystemStore;
-    parameters.aatlCertificates = PDFSignatureHandler::AATLCertificates::Always;
-    verification->results = PDFSignatureHandler::verifySignatures(form, sourceData, parameters);
+    catch (const std::bad_alloc&)
+    {
+        verification->results.clear();
+    }
     return verification;
 }
 
@@ -870,6 +886,14 @@ void PDFAppDocumentSignaturesPanel::setDocument(PDFAppDocument* document, PDFApp
     {
         connect(m_verifier, &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppDocumentSignaturesPanel::onVerificationChanged);
     }
+
+    // The cards of another document start collapsed
+    for (const QPointer<PDFSignatureCard>& card : m_cards)
+    {
+        delete card.data();
+    }
+    m_cards.clear();
+    m_expanded.clear();
     rebuild();
 }
 
@@ -911,13 +935,19 @@ void PDFAppDocumentSignaturesPanel::onVerificationChanged()
 void PDFAppDocumentSignaturesPanel::rebuild()
 {
     // The expanded cards stay expanded, when the same signatures are shown again
-    std::vector<bool> expanded;
-    for (const QPointer<PDFSignatureCard>& card : m_cards)
+    // (also after a verification, during which no cards are shown - a changed
+    // setting, a trusted certificate)
+    if (!m_cards.empty())
     {
-        expanded.push_back(card && card->isExpanded());
-        delete card.data();
+        m_expanded.clear();
+        for (const QPointer<PDFSignatureCard>& card : m_cards)
+        {
+            m_expanded.push_back(card && card->isExpanded());
+            delete card.data();
+        }
     }
     m_cards.clear();
+    const std::vector<bool> expanded = m_expanded;
     m_trustableCertificates.clear();
 
     const PDFAppSignatureVerificationPointer verification = m_verifier ? m_verifier->getVerification() : nullptr;
