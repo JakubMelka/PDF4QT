@@ -208,6 +208,9 @@ private:
     static constexpr int DETAILS_LONG_LINES = 8;
     static constexpr int PADDING_H = 22;
     static constexpr int PADDING_V = 20;
+    static constexpr int BORDER = 1;
+    static constexpr int TEXT_LINE_HEIGHT = 16;
+    static constexpr int DETAILS_LINE_HEIGHT = 15;
     static constexpr qreal CARD_RADIUS = 16.0;
 
     // The parts are children of the message box, which the application may

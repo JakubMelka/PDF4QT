@@ -36,6 +36,7 @@
 #include <QDateTime>
 #include <QPointer>
 
+#include <memory>
 #include <vector>
 
 #include <QListView>
@@ -85,6 +86,14 @@ public:
 
     /// The document has an annotation, which is listed
     static bool hasNotes(const PDFDocument* document);
+
+    /// Notes of the current version of \p document: collected once per version
+    /// and shared by the panel and the tab of the sidebar
+    /// (PDFAppDocument::getDerivedData); empty for a document, which is not shown
+    static std::shared_ptr<const std::vector<PDFAppNote>> getNotes(const PDFAppDocument* document);
+
+    /// Number of the calls of collect since the start (tests)
+    static int getCollectCount();
 
     /// "Sep 28" (this year), "Sep 28, 2025" (another year); empty for an invalid date
     static QString formatDate(const QDateTime& dateTime, const QDate& today);

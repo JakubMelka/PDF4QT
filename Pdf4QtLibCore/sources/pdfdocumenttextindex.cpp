@@ -197,11 +197,9 @@ public:
                 break;
             }
         }
+        // Each flow is limited by the remaining count: the page never exceeds the limit
+        Q_ASSERT(findResults.size() <= m_maximumResults);
         std::sort(findResults.begin(), findResults.end());
-        if (findResults.size() > m_maximumResults)
-        {
-            findResults.resize(m_maximumResults);
-        }
 
         PDFTextLayoutCache layoutCache{PDFDocumentTextSearchLayoutProvider(&layout)};
         PDFDocumentTextSearchMatches& matches = (*m_pageResults)[size_t(pageIndex - m_firstPage)];

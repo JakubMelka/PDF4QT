@@ -70,11 +70,16 @@ public:
     static constexpr int DESCRIPTION_GAP = 2;
     static constexpr int DESCRIPTION_WIDTH = 260;
     static constexpr int DESCRIPTION_LINE = 15;
+    static constexpr int COMPACT_LINE = 13;
+    static constexpr int COMPACT_MAX_WIDTH = 480;
+    static constexpr int COMPACT_MAX_LINES = 8;
 
     const QString& getTitle() const { return m_title; }
+    PDFToolTip::Style getStyle() const { return m_style; }
 
-    void showTip(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget)
+    void showTip(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget, PDFToolTip::Style style)
     {
+        m_style = style;
         m_title = title;
         m_shortcut = shortcut;
         m_description = description;
@@ -185,6 +190,13 @@ protected:
         Q_UNUSED(event);
 
         QPainter painter(this);
+
+        if (m_style == PDFToolTip::Style::Compact)
+        {
+            paintCompact(&painter);
+            return;
+        }
+
         PDFWidgetStyleImpl::drawPopupPanel(&painter, rect(), this, PDFWidgetStyleImpl::PopupKind::ToolTip, 8.0, PDFThemeColors::BorderStrong);
 
         const QMargins margins = PDFWidgetStyleImpl::getPopupMargins(this);
@@ -222,6 +234,85 @@ protected:
     }
 
 private:
+    /// Returns the lines of the description of the compact tooltip (each line of
+    /// the text is a line of the tooltip, at most COMPACT_MAX_LINES lines)
+    QStringList getCompactLines() const
+    {
+        QStringList lines = m_description.isEmpty() ? QStringList() : m_description.split(QLatin1Char('\n'));
+        if (lines.size() > COMPACT_MAX_LINES)
+        {
+            lines = lines.mid(0, COMPACT_MAX_LINES);
+        }
+        return lines;
+    }
+
+    /// Draws the compact tooltip (link of a document 1028:22472)
+    void paintCompact(QPainter* painter)
+    {
+        PDFWidgetStyleImpl::drawPopupPanel(painter, rect(), this, PDFWidgetStyleImpl::PopupKind::ToolTip, 6.0, PDFThemeColors::BorderDefault);
+
+        const QMargins margins = PDFWidgetStyleImpl::getPopupMargins(this);
+        const QRectF content = QRectF(rect()).marginsRemoved(QMarginsF(margins)).adjusted(BORDER + PADDING_H, BORDER + PADDING_V, -BORDER - PADDING_H, -BORDER - PADDING_V);
+        const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
+        const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft);
+        const QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
+        const QFontMetricsF metrics(font);
+
+        // The name (an address) is elided in the middle, the shortcut follows it
+        qreal titleWidth = content.width();
+        if (!m_shortcut.isEmpty())
+        {
+            titleWidth = qMax(0.0, titleWidth - SHORTCUT_GAP - PDFStylePainter::textWidth(m_shortcut, font));
+        }
+        const QString title = metrics.elidedText(m_title, Qt::ElideMiddle, titleWidth);
+        QRectF titleRect(content.left(), content.top(), titleWidth, COMPACT_LINE);
+        QRectF shortcutRect(content.left() + qMin(titleWidth, PDFStylePainter::textWidth(title, font)) + SHORTCUT_GAP, content.top(), PDFStylePainter::textWidth(m_shortcut, font), COMPACT_LINE);
+        if (isRightToLeft)
+        {
+            titleRect = PDFWidgetStyleImpl::visualRect(true, content, titleRect);
+            shortcutRect = PDFWidgetStyleImpl::visualRect(true, content, shortcutRect);
+        }
+        PDFStylePainter::text(painter, titleRect, alignment, title, font, PDFStylePainter::color(PDFThemeColors::TextPrimary));
+        if (!m_shortcut.isEmpty())
+        {
+            PDFStylePainter::text(painter, shortcutRect, alignment, m_shortcut, font, PDFStylePainter::color(PDFThemeColors::TextTertiary));
+        }
+
+        qreal y = content.top() + COMPACT_LINE + DESCRIPTION_GAP;
+        for (const QString& line : getCompactLines())
+        {
+            const QString shownLine = metrics.elidedText(line, Qt::ElideRight, content.width());
+            PDFStylePainter::text(painter, QRectF(content.left(), y, content.width(), COMPACT_LINE), alignment, shownLine, font, PDFStylePainter::color(PDFThemeColors::TextMuted));
+            y += COMPACT_LINE;
+        }
+    }
+
+    QSize getCompactPanelSize() const
+    {
+        const QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
+
+        qreal width = PDFStylePainter::textWidth(m_title, font);
+        if (!m_shortcut.isEmpty())
+        {
+            width += SHORTCUT_GAP + PDFStylePainter::textWidth(m_shortcut, font);
+        }
+
+        const QStringList lines = getCompactLines();
+        for (const QString& line : lines)
+        {
+            width = qMax(width, PDFStylePainter::textWidth(line, font));
+        }
+        width = qMin<qreal>(qCeil(width), COMPACT_MAX_WIDTH);
+
+        int height = COMPACT_LINE;
+        if (!lines.isEmpty())
+        {
+            height += DESCRIPTION_GAP + static_cast<int>(lines.size()) * COMPACT_LINE;
+        }
+
+        return QSize(qCeil(width) + 2 * (BORDER + PADDING_H), height + 2 * (BORDER + PADDING_V));
+    }
+
     /// Lays the description out into lines of the fixed height
     /// \param width Width of the lines
     /// \param painter Painter, which draws the lines, nullptr, if the lines are only measured
@@ -278,6 +369,11 @@ private:
 
     QSize getPanelSize() const
     {
+        if (m_style == PDFToolTip::Style::Compact)
+        {
+            return getCompactPanelSize();
+        }
+
         const QFont titleFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::SmallMedium);
         const QFont shortcutFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
 
@@ -297,6 +393,7 @@ private:
         return QSize(qCeil(width) + 2 * (BORDER + PADDING_H), qCeil(height) + 2 * (BORDER + PADDING_V));
     }
 
+    PDFToolTip::Style m_style = PDFToolTip::Style::Default;
     QString m_title;
     QString m_shortcut;
     QString m_description;
@@ -329,13 +426,28 @@ QPointer<PDFToolTipWindow> PDFToolTipHelper::s_window;
 
 void PDFToolTip::showText(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget)
 {
+    showText(globalPosition, title, shortcut, description, widget, Style::Default);
+}
+
+void PDFToolTip::showText(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget, Style style)
+{
     if (title.isEmpty() || !qobject_cast<QApplication*>(QCoreApplication::instance()))
     {
         hideText();
         return;
     }
 
-    PDFToolTipHelper::getWindow()->showTip(globalPosition, title, shortcut, description, widget);
+    if (style != Style::Default && style != Style::Compact)
+    {
+        style = Style::Default;
+    }
+
+    PDFToolTipHelper::getWindow()->showTip(globalPosition, title, shortcut, description, widget, style);
+}
+
+PDFToolTip::Style PDFToolTip::getStyle()
+{
+    return isVisible() ? PDFToolTipHelper::s_window->getStyle() : Style::Default;
 }
 
 bool PDFToolTip::showForWidget(QWidget* widget, const QPoint& globalPosition, const QPoint& position)

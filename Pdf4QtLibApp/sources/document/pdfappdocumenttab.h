@@ -90,6 +90,11 @@ public:
     /// false, when the source is not shown or the tab has a document already
     bool openCopyOf(const PDFAppDocument* source);
 
+    /// Starts the reading of a document from the memory \p bytes (a PDF attachment,
+    /// O18): the tab behaves as a copy titled \p title (no file, Save As, not in
+    /// Recent). \returns false, when the tab has a document already
+    bool openFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath);
+
     /// The view is shown (the page of the tab is the document page and the
     /// document is shown)
     bool isViewShown() const;

@@ -206,6 +206,17 @@ public:
     /// the document is not shown or there are too many tabs.
     PDFAppDocumentTab* openDocumentCopy(const PDFAppDocument* source);
 
+    /// Index of a new tab after the tab of \p source (after the current tab, when
+    /// \p source is not shown in this window)
+    int getTabIndexAfter(const PDFAppDocument* source) const;
+
+    /// A PDF attachment (O18): a new document tab after the tab of \p source (the
+    /// current tab, when \p source is not shown in this window), which reads the
+    /// document from the memory \p bytes (no temporary file) and behaves as a copy
+    /// titled \p title (no file, Save As, not recorded in Recent).
+    /// \returns the tab, nullptr when there are too many tabs.
+    PDFAppDocumentTab* openDocumentFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath, const PDFAppDocument* source = nullptr);
+
     /// Stores the documents of the window as the last session (Restore last
     /// session of Home / Open): the files with their current pages
     void saveLastSession();

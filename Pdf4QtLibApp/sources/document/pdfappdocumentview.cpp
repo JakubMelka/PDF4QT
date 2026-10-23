@@ -21,8 +21,10 @@
 // SOFTWARE.
 
 #include "pdfappdocumentview.h"
+#include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
+#include "pdfappdeveloperoverlay.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentcommands.h"
 #include "pdfappdocumentinfobar.h"
@@ -954,6 +956,15 @@ void PDFAppDocumentView::updateViewColors()
     colors.selection = manager->getColor(PDFThemeColors::BgAccentSubtle);
     colors.selectionText = manager->getColor(PDFThemeColors::TextAccent);
     proxy->setViewColors(colors);
+
+    // The pages lie on the canvas with a margin and a shadow (O18, 193:1257), the
+    // fit zooms keep the margin free
+    PDFPageDecoration decoration;
+    decoration.margin = PAGE_MARGIN;
+    decoration.shadowColor = manager->getColor(PDFThemeColors::EffectShadow);
+    decoration.shadowOffset = QPointF(0.0, PAGE_SHADOW_OFFSET_Y);
+    decoration.shadowBlur = PAGE_SHADOW_BLUR;
+    proxy->setPageDecoration(decoration);
 }
 
 void PDFAppDocumentView::onThemeChanged()
@@ -982,7 +993,7 @@ void PDFAppDocumentView::onDrawSpaceChanged()
         if (m_statusBar)
         {
             const bool isPageItemShown = pageIndex >= 0 && hasPageLabels();
-            m_statusBar->setPageText(isPageItemShown ? tr("Page %1 (%2) of %3").arg(QLocale().toString(pageIndex + 1), getPageLabel(pageIndex), QLocale().toString(getPageCount()))
+            m_statusBar->setPageText(isPageItemShown ? tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount()))
                                                      : QString());
         }
 
@@ -1605,8 +1616,10 @@ void PDFAppDocumentView::applySettings()
     const PDFSettingsRepository settings = m_context->getSettings();
     PDFDrawWidgetProxy* proxy = getProxy();
 
-    // Features of the renderer (the developer overlays belong to package F)
-    PDFRenderer::Features features = proxy->getFeatures() & H::getDeveloperFeatures();
+    // Features of the renderer with the developer overlays of package F: all of
+    // them are set at once, so a change of the settings compiles the pages once
+    // (PDFAppDeveloperOverlay finds them set already)
+    PDFRenderer::Features features = PDFAppDeveloperOverlay::readRequestedFeatures(settings) & H::getDeveloperFeatures();
     features.setFlag(PDFRenderer::Antialiasing, settings.getBool(K::renderingAntialiasing()));
     features.setFlag(PDFRenderer::TextAntialiasing, settings.getBool(K::renderingTextAntialiasing()));
     features.setFlag(PDFRenderer::SmoothImages, settings.getBool(K::renderingSmoothImages()));

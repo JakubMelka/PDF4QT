@@ -25,6 +25,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappfiledrop.h"
@@ -129,12 +130,24 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
             return result;
         }
 
+        // The Mark of the Web of a document from the internet (Windows) is read before
+        // the file is replaced: the replacement by a temporary file has no stream
+        // of the old file, the saved file (also of an attachment opened from the
+        // memory, O18) keeps the mark
+        const QByteArray markOfTheWeb = PDFAppAttachments::readMarkOfTheWeb(request.markSourceFilePath);
+
         // A temporary file renamed over the target: a failure leaves the old file. A
         // program, which reads the file at the moment (a thumbnail, an indexer of the
         // system), blocks the replacement on Windows for a short time: it is retried.
         if (!writeFile(request.filePath, data, &result.errorMessage))
         {
             return result;
+        }
+
+        if (!markOfTheWeb.isEmpty())
+        {
+            // Best effort: the document is saved also without its mark
+            PDFAppAttachments::writeMarkOfTheWeb(request.filePath, markOfTheWeb);
         }
 
         result.filePath = QFileInfo(request.filePath).canonicalFilePath();
@@ -448,6 +461,7 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     request.filePath = filePath;
     request.isIncremental = isIncremental;
     request.version = snapshot.version;
+    request.markSourceFilePath = document->getOriginFilePath();
 
     // The document stays usable: the worker writes the snapshot
     m_step = Step::Writing;

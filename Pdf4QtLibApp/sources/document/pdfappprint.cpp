@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappprint.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
@@ -322,7 +323,13 @@ QList<QPageSize> PDFAppPrinters::getStandardPageSizes()
 
 QPageSize PDFAppPrinters::getLocaleDefaultPageSize()
 {
-    const QLocale::Territory territory = QLocale().territory();
+    // The paper is a regional setting of the system, not of the language of the
+    // user interface (O17: an English interface in Czechia prints on A4)
+    return getDefaultPageSize(PDFAppLocale::getRegionalLocale().territory());
+}
+
+QPageSize PDFAppPrinters::getDefaultPageSize(QLocale::Territory territory)
+{
     if (territory == QLocale::UnitedStates || territory == QLocale::Canada || territory == QLocale::Mexico ||
         territory == QLocale::Chile || territory == QLocale::Colombia || territory == QLocale::Philippines)
     {

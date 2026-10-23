@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumenttoolbar.h"
+#include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -686,7 +687,7 @@ void PDFAppDocumentToolbar::updatePageField()
 
     // page-field 193:847: "308" with the suffix "/ 1592"; a document with page
     // labels shows the label and the number of the page in the suffix
-    const QLocale locale;
+    const QLocale locale = PDFAppLocale::getUiLocale();
     m_pageField->setText(view->getPageLabel(pageIndex));
     if (view->hasPageLabels())
     {
@@ -716,7 +717,7 @@ void PDFAppDocumentToolbar::updateZoomField()
     }
 
     // zoom-field 193:861: "151 %"
-    m_zoomField->setText(tr("%1 %").arg(QLocale().toString(qRound(view->getZoom() * 100.0))));
+    m_zoomField->setText(tr("%1 %").arg(PDFAppLocale::formatNumber(qRound(view->getZoom() * 100.0))));
 }
 
 void PDFAppDocumentToolbar::onPageFieldEdited()
@@ -748,13 +749,19 @@ void PDFAppDocumentToolbar::onZoomFieldEdited()
         return;
     }
 
-    // "151 %", "151%", "151", "75,5" (the decimal separator of the locale too)
+    // "151 %", "151%", "151", "75,5": the language of the user interface first (the
+    // text it shows, O17), then the decimal separator of the system (the key of the
+    // keyboard) and the C locale
     QString text = m_zoomField->text().trimmed();
     text.remove(QLatin1Char('%'));
     text = text.trimmed();
 
     bool ok = false;
-    double percent = QLocale().toDouble(text, &ok);
+    double percent = PDFAppLocale::getUiLocale().toDouble(text, &ok);
+    if (!ok)
+    {
+        percent = PDFAppLocale::getRegionalLocale().toDouble(text, &ok);
+    }
     if (!ok)
     {
         percent = QLocale::c().toDouble(text, &ok);

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapprecentpage.h"
+#include "pdfapplocale.h"
 #include "pdfappfiledrop.h"
 #include "pdfapproute.h"
 #include "pdfapptab.h"
@@ -399,7 +400,7 @@ void PDFAppRecentDelegate::paintItem(QPainter* painter, const QStyleOptionViewIt
     const QFont labelFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::SmallSemiBold);
     const QFont countFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::Small);
     const QString label = getString(index, Qt::DisplayRole);
-    const QString count = QString::number(getInt(index, PDFAppRecentModel::CountRole, 0));
+    const QString count = PDFAppLocale::formatNumber(getInt(index, PDFAppRecentModel::CountRole, 0));
     const qreal labelWidth = qMin(rect.width(), PDFStylePainter::textWidth(label, labelFont));
     const QRectF labelRect = state.visualRect(rect, QRectF(rect.left(), rect.top(), labelWidth, rect.height()));
     const QRectF countRect = state.visualRect(rect, QRectF(rect.left() + labelWidth + 6, rect.top(), qMax(0.0, rect.width() - labelWidth - 6), rect.height()));

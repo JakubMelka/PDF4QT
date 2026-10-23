@@ -64,7 +64,8 @@ public:
 
     /// Opens the storage (GUI thread): the database of PDFAppPaths, or the memory
     /// database in the portable mode. \p options replaces the default options
-    /// (tests); empty filePath = PDFAppPaths::getDatabaseFilePath.
+    /// (tests); without a filePath and a directory the folder of the data
+    /// (PDFAppPaths::getDataDirectory) with the file of the schema version.
     void open(PDFDatabaseOptions options = PDFDatabaseOptions());
 
     /// Closes the storage (also done by the destructor)

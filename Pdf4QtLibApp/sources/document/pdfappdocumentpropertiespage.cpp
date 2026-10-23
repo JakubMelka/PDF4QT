@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpropertiespage.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentproperties.h"
@@ -636,13 +637,12 @@ void PDFAppDocumentPropertiesPage::updateSummary()
 
     if (m_fileMeta)
     {
-        const QLocale locale;
         const int pageCount = int(qBound(PDFInteger(0), m_document->getPageCount(), PDFInteger(std::numeric_limits<int>::max())));
         QString meta = pageCount == 1 ? tr("%Ln page", nullptr, pageCount) : tr("%Ln pages", nullptr, pageCount);
         const QFileInfo fileInfo(m_document->getFilePath());
         if (!m_document->getFilePath().isEmpty() && fileInfo.exists())
         {
-            meta = tr("%1 · %2").arg(meta, locale.formattedDataSize(fileInfo.size(), 1, QLocale::DataSizeTraditionalFormat));
+            meta = tr("%1 · %2").arg(meta, PDFAppLocale::formatDataSize(fileInfo.size(), 1, QLocale::DataSizeTraditionalFormat));
         }
         m_fileMeta->setText(meta);
     }
@@ -977,7 +977,7 @@ QString PDFAppDocumentPropertiesPage::getFontsSubtitle() const
         return tr("The document uses no fonts");
     }
     const int count = int(m_fonts.size());
-    return count == 1 ? tr("%n font is used in the document", nullptr, count) : tr("%n fonts are used in the document", nullptr, count);
+    return count == 1 ? tr("%Ln font is used in the document", nullptr, count) : tr("%Ln fonts are used in the document", nullptr, count);
 }
 
 QWidget* PDFAppDocumentPropertiesPage::buildFonts(QWidget* parent)

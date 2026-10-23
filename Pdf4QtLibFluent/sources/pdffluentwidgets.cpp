@@ -29,6 +29,9 @@
 #include "pdfwidgetstyleproperties.h"
 
 #include <QAccessibleWidget>
+#include <QClipboard>
+#include <QContextMenuEvent>
+#include <QKeyEvent>
 #include <QAction>
 #include <QApplication>
 #include <QButtonGroup>
@@ -38,6 +41,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLayout>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
@@ -266,8 +270,403 @@ void PDFLabel::setTextColor(PDFThemeColors::Color color)
     update();
 }
 
+void PDFLabel::setLineHeight(int lineHeight)
+{
+    lineHeight = qBound(0, lineHeight, MAX_LINE_HEIGHT);
+    if (m_lineHeight != lineHeight)
+    {
+        m_lineHeight = lineHeight;
+        m_selectionAnchor = -1;
+        m_selectionCursor = -1;
+        updateGeometry();
+        update();
+    }
+}
+
+bool PDFLabel::isLineLayout() const
+{
+    if (m_lineHeight <= 0 || !pixmap().isNull() || movie() || !picture().isNull())
+    {
+        return false;
+    }
+
+    return textFormat() == Qt::PlainText || (textFormat() == Qt::AutoText && !Qt::mightBeRichText(text()));
+}
+
+QString PDFLabel::selectedText() const
+{
+    if (!isLineLayout())
+    {
+        return QLabel::selectedText();
+    }
+
+    const QString labelText = text();
+    if (m_selectionAnchor < 0 || m_selectionCursor < 0 || m_selectionText != labelText)
+    {
+        return QString();
+    }
+
+    const int start = qBound(0, qMin(m_selectionAnchor, m_selectionCursor), int(labelText.size()));
+    const int end = qBound(0, qMax(m_selectionAnchor, m_selectionCursor), int(labelText.size()));
+    return labelText.mid(start, end - start);
+}
+
+bool PDFLabel::hasSelectedText() const
+{
+    return !selectedText().isEmpty();
+}
+
+QSize PDFLabel::getLineLayoutExtra() const
+{
+    const QMargins margins = contentsMargins();
+    return QSize(margins.left() + margins.right() + 2 * margin(), margins.top() + margins.bottom() + 2 * margin());
+}
+
+int PDFLabel::heightForWidth(int width) const
+{
+    if (!isLineLayout())
+    {
+        return QLabel::heightForWidth(width);
+    }
+
+    const QSize extra = getLineLayoutExtra();
+    return layoutLines(qMax(1, width - extra.width()), nullptr, QPointF(), QPointF(), nullptr) + extra.height();
+}
+
+QSize PDFLabel::sizeHint() const
+{
+    if (!isLineLayout())
+    {
+        return QLabel::sizeHint();
+    }
+
+    const QSize extra = getLineLayoutExtra();
+    if (wordWrap())
+    {
+        // QLabel chooses the width of a wrapped text, the height follows from it
+        const int width = QLabel::sizeHint().width();
+        return QSize(width, heightForWidth(width));
+    }
+
+    // The widest line of the text (lines are not wrapped)
+    qreal width = 0.0;
+    const QFontMetricsF metrics(font());
+    const QStringList lines = text().split(QLatin1Char('\n'));
+    for (const QString& line : lines)
+    {
+        width = qMax(width, metrics.horizontalAdvance(line));
+    }
+
+    return QSize(qCeil(width) + extra.width(), int(lines.size()) * m_lineHeight + extra.height());
+}
+
+QSize PDFLabel::minimumSizeHint() const
+{
+    if (!isLineLayout())
+    {
+        return QLabel::minimumSizeHint();
+    }
+
+    // As QLabel: the width of the longest word (of the whole text without the
+    // wrapping), the height of the text without the wrapping (or less)
+    const QSize extra = getLineLayoutExtra();
+    const int unwrappedHeight = int(text().count(QLatin1Char('\n')) + 1) * m_lineHeight + extra.height();
+    const QSize hint = sizeHint();
+    const int width = wordWrap() ? QLabel::minimumSizeHint().width() : hint.width();
+    return QSize(width, qMin(unwrappedHeight, hint.height()));
+}
+
+int PDFLabel::layoutLines(qreal width, QPainter* painter, const QPointF& origin, const QPointF& point, int* position) const
+{
+    const QString labelText = text();
+    const Qt::Alignment visualAlignment = QStyle::visualAlignment(layoutDirection(), alignment());
+
+    QTextOption textOption;
+    textOption.setWrapMode(wordWrap() ? QTextOption::WordWrap : QTextOption::ManualWrap);
+    textOption.setAlignment(visualAlignment & Qt::AlignHorizontal_Mask);
+    textOption.setTextDirection(layoutDirection());
+
+    // The selection is drawn by the colors of the text palette of the library
+    const bool hasSelection = painter && m_selectionAnchor >= 0 && m_selectionCursor >= 0 && m_selectionAnchor != m_selectionCursor && m_selectionText == labelText;
+    const int selectionStart = qMin(m_selectionAnchor, m_selectionCursor);
+    const int selectionEnd = qMax(m_selectionAnchor, m_selectionCursor);
+    QTextCharFormat selectionFormat;
+    selectionFormat.setBackground(PDFStylePainter::color(PDFThemeColors::BgAccent));
+    selectionFormat.setForeground(PDFStylePainter::color(PDFThemeColors::IconOnAccent));
+
+    int y = 0;
+    int paragraphStart = 0;
+    bool isPositionFound = false;
+    const QStringList paragraphs = labelText.split(QLatin1Char('\n'));
+    for (const QString& paragraph : paragraphs)
+    {
+        QTextLayout layout(paragraph, font());
+        layout.setTextOption(textOption);
+        layout.beginLayout();
+
+        int lineIndex = 0;
+        while (true)
+        {
+            QTextLine line = layout.createLine();
+            if (!line.isValid())
+            {
+                break;
+            }
+
+            // The text is centered in the line of the design
+            line.setLineWidth(width);
+            const qreal textHeight = line.ascent() + line.descent();
+            line.setPosition(QPointF(0.0, lineIndex * m_lineHeight + (m_lineHeight - textHeight) / 2.0));
+            ++lineIndex;
+        }
+        layout.endLayout();
+
+        const int lineCount = qMax(1, layout.lineCount());
+        if (position && !isPositionFound)
+        {
+            const qreal relativeY = point.y() - origin.y() - y;
+            const bool isLast = paragraphStart + paragraph.size() >= labelText.size();
+            if (relativeY < lineCount * m_lineHeight || isLast)
+            {
+                const int lineIndexOfPoint = qBound(0, int(relativeY) / qMax(1, m_lineHeight), layout.lineCount() - 1);
+                const QTextLine line = layout.lineCount() > 0 ? layout.lineAt(lineIndexOfPoint) : QTextLine();
+                const int cursor = line.isValid() ? line.xToCursor(point.x() - origin.x()) : 0;
+                *position = relativeY < 0 ? paragraphStart : paragraphStart + cursor;
+                isPositionFound = true;
+            }
+        }
+
+        if (painter)
+        {
+            QList<QTextLayout::FormatRange> selections;
+            if (hasSelection)
+            {
+                const int start = qMax(selectionStart, paragraphStart) - paragraphStart;
+                const int end = qMin(selectionEnd, paragraphStart + int(paragraph.size())) - paragraphStart;
+                if (end > start)
+                {
+                    QTextLayout::FormatRange range;
+                    range.start = start;
+                    range.length = end - start;
+                    range.format = selectionFormat;
+                    selections << range;
+                }
+            }
+
+            layout.draw(painter, origin + QPointF(0.0, y), selections);
+        }
+
+        y += lineCount * m_lineHeight;
+        paragraphStart += int(paragraph.size()) + 1;
+    }
+
+    return y;
+}
+
+QRectF PDFLabel::getLineLayoutRect(QPointF* origin) const
+{
+    const QRectF rect = QRectF(contentsRect()).adjusted(margin(), margin(), -margin(), -margin());
+    const int height = layoutLines(qMax(1.0, rect.width()), nullptr, QPointF(), QPointF(), nullptr);
+
+    // The vertical alignment of the label places the lines
+    qreal top = rect.top();
+    if (alignment() & Qt::AlignBottom)
+    {
+        top = rect.bottom() - height;
+    }
+    else if (alignment() & Qt::AlignVCenter)
+    {
+        top = rect.top() + (rect.height() - height) / 2.0;
+    }
+
+    if (origin)
+    {
+        *origin = QPointF(rect.left(), qRound(top));
+    }
+    return rect;
+}
+
+int PDFLabel::getTextPosition(const QPointF& point) const
+{
+    QPointF origin;
+    const QRectF rect = getLineLayoutRect(&origin);
+    int position = 0;
+    layoutLines(qMax(1.0, rect.width()), nullptr, origin, point, &position);
+    return qBound(0, position, int(text().size()));
+}
+
+void PDFLabel::mousePressEvent(QMouseEvent* event)
+{
+    if (!isLineLayout())
+    {
+        QLabel::mousePressEvent(event);
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && textInteractionFlags().testFlag(Qt::TextSelectableByMouse))
+    {
+        m_selectionText = text();
+        m_selectionAnchor = getTextPosition(event->position());
+        m_selectionCursor = m_selectionAnchor;
+        m_isSelecting = true;
+        update();
+        event->accept();
+        return;
+    }
+
+    event->ignore();
+}
+
+void PDFLabel::mouseMoveEvent(QMouseEvent* event)
+{
+    if (!isLineLayout())
+    {
+        QLabel::mouseMoveEvent(event);
+        return;
+    }
+
+    if (m_isSelecting && event->buttons().testFlag(Qt::LeftButton) && m_selectionText == text())
+    {
+        m_selectionCursor = getTextPosition(event->position());
+        update();
+        event->accept();
+        return;
+    }
+
+    m_isSelecting = false;
+    event->ignore();
+}
+
+void PDFLabel::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (!isLineLayout())
+    {
+        QLabel::mouseReleaseEvent(event);
+        return;
+    }
+
+    if (m_isSelecting && event->button() == Qt::LeftButton)
+    {
+        m_isSelecting = false;
+        event->accept();
+        return;
+    }
+
+    event->ignore();
+}
+
+void PDFLabel::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (!isLineLayout())
+    {
+        QLabel::mouseDoubleClickEvent(event);
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && textInteractionFlags().testFlag(Qt::TextSelectableByMouse))
+    {
+        // A double click selects the word below the pointer
+        const QString labelText = text();
+        const int position = getTextPosition(event->position());
+        int start = position;
+        int end = position;
+        while (start > 0 && labelText.at(start - 1).isLetterOrNumber())
+        {
+            --start;
+        }
+        while (end < labelText.size() && labelText.at(end).isLetterOrNumber())
+        {
+            ++end;
+        }
+
+        m_selectionText = labelText;
+        m_selectionAnchor = start;
+        m_selectionCursor = end;
+        m_isSelecting = false;
+        update();
+        event->accept();
+        return;
+    }
+
+    event->ignore();
+}
+
+void PDFLabel::keyPressEvent(QKeyEvent* event)
+{
+    if (isLineLayout() && event->matches(QKeySequence::Copy) && hasSelectedText())
+    {
+        QGuiApplication::clipboard()->setText(selectedText());
+        event->accept();
+        return;
+    }
+
+    QLabel::keyPressEvent(event);
+}
+
+void PDFLabel::contextMenuEvent(QContextMenuEvent* event)
+{
+    if (!isLineLayout())
+    {
+        QLabel::contextMenuEvent(event);
+        return;
+    }
+
+    // The text control of QLabel would offer its own selection, which is not the
+    // selection of the label: the menu of a selectable text has Copy and Select All
+    // as the menu of QLabel
+    if (!textInteractionFlags().testFlag(Qt::TextSelectableByMouse) || text().isEmpty())
+    {
+        event->ignore();
+        return;
+    }
+
+    // The application can delete the label while the menu runs its event loop: the
+    // menu (a child of the label) is deleted with it, so it is not an object on the
+    // stack, and the selected text is taken before
+    const QString selection = selectedText();
+    QPointer<QMenu> menu = new QMenu(this);
+    QAction* copyAction = menu->addAction(PDFThemeIcons::getIcon(QStringLiteral("copy")), tr("&Copy"));
+    copyAction->setEnabled(!selection.isEmpty());
+    QAction* selectAllAction = menu->addAction(tr("Select All"));
+    QAction* chosenAction = menu->exec(event->globalPos());
+    if (!menu)
+    {
+        return;
+    }
+    delete menu.data();
+
+    if (chosenAction == copyAction)
+    {
+        QGuiApplication::clipboard()->setText(selection);
+    }
+    else if (chosenAction == selectAllAction)
+    {
+        const QString labelText = text();
+        m_selectionText = labelText;
+        m_selectionAnchor = 0;
+        m_selectionCursor = int(labelText.size());
+        m_isSelecting = false;
+        update();
+    }
+    event->accept();
+}
+
 void PDFLabel::paintEvent(QPaintEvent* event)
 {
+    if (isLineLayout())
+    {
+        // A plain text in the lines of the line height of the design
+        QPainter painter(this);
+        drawFrame(&painter);
+        painter.setFont(font());
+        painter.setPen(PDFStylePainter::color(isEnabled() ? m_color : PDFThemeColors::TextDisabled));
+
+        QPointF origin;
+        const QRectF rect = getLineLayoutRect(&origin);
+        layoutLines(qMax(1.0, rect.width()), &painter, origin, QPointF(), nullptr);
+        return;
+    }
+
     const bool hasGraphics = !pixmap().isNull() || movie() || !picture().isNull();
     const bool isRichText = textFormat() == Qt::RichText || textFormat() == Qt::MarkdownText || (textFormat() == Qt::AutoText && Qt::mightBeRichText(text()));
     const bool isInteractive = textInteractionFlags() & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard | Qt::TextEditable);

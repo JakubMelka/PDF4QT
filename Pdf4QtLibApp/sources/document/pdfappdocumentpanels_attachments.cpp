@@ -21,16 +21,15 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpanels_attachments.h"
+#include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
-#include "pdfapphomedialogs.h"
 #include "pdfappmainwindow.h"
 
 #include "pdfannotation.h"
 #include "pdfcatalog.h"
-#include "pdfcomponentpanels.h"
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
@@ -39,18 +38,16 @@
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
-#include <QFrame>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QMimeDatabase>
-#include <QPushButton>
 #include <QSaveFile>
 #include <QStandardPaths>
-#include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <atomic>
 #include <set>
 
 namespace pdf
@@ -140,6 +137,12 @@ public:
         PDFAppAttachments::getKind(attachment.name, &attachment.kind, &attachment.iconName);
         attachments->push_back(std::move(attachment));
     }
+
+    /// Calls of PDFAppAttachments::collect (tests)
+    static std::atomic<int>& getCollectCounter();
+
+    /// Alternate data stream of NTFS with the Mark of the Web of a file
+    static constexpr const char* ZONE_IDENTIFIER_STREAM = ":Zone.Identifier";
 
     /// Extension of a sanitized file name (lowercase, without the dot)
     static QString getExtension(const QString& fileName)
@@ -261,12 +264,55 @@ QString PDFAppAttachments::formatSize(PDFInteger size)
     }
 
     // 195:2070 "84 kB", "1.2 MB" (decimal units)
-    const QLocale locale;
-    return locale.formattedDataSize(size, size < 1000000 ? 0 : 1, QLocale::DataSizeSIFormat);
+    return PDFAppLocale::formatDataSize(size, size < 1000000 ? 0 : 1, QLocale::DataSizeSIFormat);
+}
+
+/// Attachments of one version of a document (PDFAppDocument::getDerivedData)
+class PDFAppAttachmentList : public PDFAppDocumentDerivedData
+{
+public:
+    static constexpr const char* KEY = "attachments";
+
+    std::shared_ptr<const std::vector<PDFAppAttachment>> attachments;
+};
+
+std::atomic<int>& PDFAppAttachmentsHelper::getCollectCounter()
+{
+    static std::atomic<int> counter = 0;
+    return counter;
+}
+
+int PDFAppAttachments::getCollectCount()
+{
+    return PDFAppAttachmentsHelper::getCollectCounter().load();
+}
+
+std::shared_ptr<const std::vector<PDFAppAttachment>> PDFAppAttachments::getAttachments(const PDFAppDocument* document)
+{
+    if (!document || !document->isReady() || !document->getDocument())
+    {
+        return std::make_shared<const std::vector<PDFAppAttachment>>();
+    }
+
+    const QString key = QLatin1String(PDFAppAttachmentList::KEY);
+    if (const PDFAppAttachmentList* list = dynamic_cast<const PDFAppAttachmentList*>(document->getDerivedData(key).get()))
+    {
+        return list->attachments;
+    }
+
+    std::shared_ptr<PDFAppAttachmentList> list = std::make_shared<PDFAppAttachmentList>();
+    list->attachments = std::make_shared<const std::vector<PDFAppAttachment>>(collect(document->getDocument().data()));
+    document->setDerivedData(key, list);
+    return list->attachments;
 }
 
 std::vector<PDFAppAttachment> PDFAppAttachments::collect(const PDFDocument* document, size_t maximumCount)
 {
+    // Only the lists are counted (hasAttachments asks for one attachment)
+    if (maximumCount > 1)
+    {
+        ++PDFAppAttachmentsHelper::getCollectCounter();
+    }
     std::vector<PDFAppAttachment> attachments;
     if (!document)
     {
@@ -328,18 +374,13 @@ bool PDFAppAttachments::hasAttachments(const PDFDocument* document)
     return !collect(document, 1).empty();
 }
 
-PDFAppAttachments::WriteResult PDFAppAttachments::write(PDFDocumentPointer document, PDFFileSpecification specification, QString filePath, bool isOpenRequested)
+QByteArray PDFAppAttachments::decode(const PDFDocumentPointer& document, const PDFFileSpecification& specification, QString* error)
 {
-    WriteResult result;
-    result.filePath = filePath;
-    result.isOpenRequested = isOpenRequested;
-    result.isPdf = isPdf(QFileInfo(filePath).fileName());
-
     const PDFEmbeddedFile* file = specification.getPlatformFile();
     if (!document || !file || !file->isValid() || !file->getStream())
     {
-        result.error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment has no data.");
-        return result;
+        *error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment has no data.");
+        return QByteArray();
     }
 
     QByteArray data;
@@ -349,21 +390,35 @@ PDFAppAttachments::WriteResult PDFAppAttachments::write(PDFDocumentPointer docum
     }
     catch (const PDFException& exception)
     {
-        result.error = exception.getMessage();
-        return result;
+        *error = exception.getMessage();
+        return QByteArray();
     }
     catch (const std::bad_alloc&)
     {
         // A decompression bomb (nested Flate filters of a few kB decode to
         // terabytes): the exception would be thrown again by the result of the
         // future in the thread of the user interface and end the application
-        result.error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
-        return result;
+        *error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
+        return QByteArray();
     }
 
     if (data.size() > MAXIMUM_FILE_SIZE)
     {
-        result.error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
+        *error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
+        return QByteArray();
+    }
+
+    return data;
+}
+
+PDFAppAttachments::WriteResult PDFAppAttachments::write(PDFDocumentPointer document, PDFFileSpecification specification, QString filePath, QString sourceFilePath)
+{
+    WriteResult result;
+    result.filePath = filePath;
+
+    const QByteArray data = decode(document, specification, &result.error);
+    if (!result.error.isEmpty())
+    {
         return result;
     }
 
@@ -376,7 +431,84 @@ PDFAppAttachments::WriteResult PDFAppAttachments::write(PDFDocumentPointer docum
 
     // Never executable, readable only by the owner
     QFile::setPermissions(filePath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+
+    // The file comes from the internet as its PDF (O18): the Mark of the Web of the
+    // source goes with it (best effort, a failure is not an error of the save)
+    copyMarkOfTheWeb(sourceFilePath, filePath);
     return result;
+}
+
+PDFAppAttachments::WriteResult PDFAppAttachments::read(PDFDocumentPointer document, PDFFileSpecification specification, QString name)
+{
+    WriteResult result;
+    result.name = name;
+    result.isOpenRequested = true;
+    result.data = decode(document, specification, &result.error);
+    if (result.error.isEmpty() && result.data.isEmpty())
+    {
+        result.error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment has no data.");
+    }
+    return result;
+}
+
+bool PDFAppAttachments::copyMarkOfTheWeb(const QString& sourceFilePath, const QString& targetFilePath)
+{
+    if (targetFilePath.isEmpty())
+    {
+        return false;
+    }
+    return writeMarkOfTheWeb(targetFilePath, readMarkOfTheWeb(sourceFilePath));
+}
+
+QByteArray PDFAppAttachments::readMarkOfTheWeb(const QString& filePath)
+{
+#ifdef Q_OS_WIN
+    if (filePath.isEmpty())
+    {
+        return QByteArray();
+    }
+
+    // The alternate data stream of NTFS "<file>:Zone.Identifier" (a small text,
+    // [ZoneTransfer] ZoneId=3 ...); a missing stream is the usual case
+    QFile source(QDir::toNativeSeparators(filePath) + QLatin1String(PDFAppAttachmentsHelper::ZONE_IDENTIFIER_STREAM));
+    if (!source.open(QIODevice::ReadOnly))
+    {
+        return QByteArray();
+    }
+    const QByteArray zoneIdentifier = source.read(MAXIMUM_ZONE_IDENTIFIER_SIZE + 1);
+    source.close();
+    if (zoneIdentifier.size() > MAXIMUM_ZONE_IDENTIFIER_SIZE)
+    {
+        return QByteArray();
+    }
+    return zoneIdentifier;
+#else
+    Q_UNUSED(filePath);
+    return QByteArray();
+#endif
+}
+
+bool PDFAppAttachments::writeMarkOfTheWeb(const QString& filePath, const QByteArray& zoneIdentifier)
+{
+#ifdef Q_OS_WIN
+    if (filePath.isEmpty() || zoneIdentifier.isEmpty() || zoneIdentifier.size() > MAXIMUM_ZONE_IDENTIFIER_SIZE)
+    {
+        return false;
+    }
+
+    QFile target(QDir::toNativeSeparators(filePath) + QLatin1String(PDFAppAttachmentsHelper::ZONE_IDENTIFIER_STREAM));
+    if (!target.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        return false;
+    }
+    const bool isWritten = target.write(zoneIdentifier) == zoneIdentifier.size();
+    target.close();
+    return isWritten;
+#else
+    Q_UNUSED(filePath);
+    Q_UNUSED(zoneIdentifier);
+    return false;
+#endif
 }
 
 PDFAppAttachmentsModel::PDFAppAttachmentsModel(QObject* parent) :
@@ -459,9 +591,9 @@ PDFAppAttachmentDelegate::~PDFAppAttachmentDelegate() = default;
 QList<PDFRowDelegate::Action> PDFAppAttachmentDelegate::getActions(const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
     QList<Action> actions = BaseClass::getActions(option, index);
-    if (index.isValid())
+    if (index.isValid() && PDFAppAttachments::isPdf(index.data(Qt::DisplayRole).toString()))
     {
-        // Open is in the context menu only (a click on the row opens the file too)
+        // Open (a PDF only, O18) is in the context menu only (a click on the row opens it too)
         Action open;
         open.id = OpenAction;
         open.text = tr("Open");
@@ -493,7 +625,7 @@ PDFAppAttachmentsPanel::PDFAppAttachmentsPanel(QWidget* parent) :
     m_view->setItemDelegate(m_delegate);
     layout->addWidget(m_view, 1);
 
-    // A click opens the file (195:2070 "A click opens it"), Enter too
+    // A click (Enter) opens a PDF attachment, another one is saved (O18)
     connect(m_view, &QAbstractItemView::clicked, this, &PDFAppAttachmentsPanel::onActivated);
     m_view->installEventFilter(this);
     connect(m_delegate, &PDFRowDelegate::actionTriggered, this, &PDFAppAttachmentsPanel::onDelegateAction);
@@ -515,11 +647,6 @@ PDFAppAttachmentsPanel::~PDFAppAttachmentsPanel()
         }
     }
 
-    if (m_confirmDialog)
-    {
-        m_confirmDialog->disconnect(this);
-        m_confirmDialog->close();
-    }
 }
 
 QString PDFAppAttachmentsPanel::getId() const
@@ -590,7 +717,8 @@ void PDFAppAttachmentsPanel::rebuild()
     m_document = pointer;
     if (m_model)
     {
-        m_model->setAttachments(PDFAppAttachments::collect(pointer.data()));
+        // The list of the version is shared with the tab of the sidebar
+        m_model->setAttachments(pointer ? *PDFAppAttachments::getAttachments(document) : std::vector<PDFAppAttachment>());
     }
     Q_EMIT titleChanged();
 }
@@ -599,7 +727,7 @@ void PDFAppAttachmentsPanel::onActivated(const QModelIndex& index)
 {
     if (index.isValid())
     {
-        openAttachment(index.row());
+        activateAttachment(index.row());
     }
 }
 
@@ -620,6 +748,32 @@ void PDFAppAttachmentsPanel::onDelegateAction(const QModelIndex& index, int acti
     }
 }
 
+void PDFAppAttachmentsPanel::activateAttachment(int row)
+{
+    const PDFAppAttachment* attachment = m_model ? m_model->getAttachment(row) : nullptr;
+    if (!attachment)
+    {
+        return;
+    }
+
+    // A PDF opens in a new tab; any other file is only saved (O18), which is the
+    // action of its row (195:2070)
+    if (PDFAppAttachments::isPdf(attachment->name))
+    {
+        openAttachment(row);
+    }
+    else
+    {
+        saveAttachment(row);
+    }
+}
+
+QString PDFAppAttachmentsPanel::getSourceFilePath() const
+{
+    PDFAppDocument* document = getDocument();
+    return document ? document->getOriginFilePath() : QString();
+}
+
 void PDFAppAttachmentsPanel::saveAttachment(int row)
 {
     const PDFAppAttachment* attachment = m_model ? m_model->getAttachment(row) : nullptr;
@@ -629,150 +783,36 @@ void PDFAppAttachmentsPanel::saveAttachment(int row)
     }
 
     // Save always (D8), also programs and scripts; the dialog may run its own loop,
-    // in which the document may change and the rows with it: the attachment and its
-    // document are copied before the dialog
+    // in which the document may change and the rows with it: the attachment, its
+    // document and the file of the document are copied before the dialog
     const PDFAppAttachment saved = *attachment;
     const PDFDocumentPointer document = m_document;
+    const QString sourceFilePath = getSourceFilePath();
     const QString folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     QPointer<PDFAppAttachmentsPanel> self(this);
     const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(this, tr("Save Attachment"), QDir(folder).filePath(saved.name), tr("All files (*)"));
-    if (!self || filePath.isEmpty())
+    if (!self || filePath.isEmpty() || !document)
     {
         return;
     }
 
-    startWrite(saved, document, filePath, false);
+    // The decoding and the writing run in a worker with shared copies of the
+    // document and of the file
+    startWatcher(QtConcurrent::run(&PDFAppAttachments::write, document, saved.specification, filePath, sourceFilePath));
 }
 
-void PDFAppAttachmentsPanel::openAttachment(int row)
+bool PDFAppAttachmentsPanel::openAttachment(int row)
 {
     const PDFAppAttachment* attachment = m_model ? m_model->getAttachment(row) : nullptr;
-    if (!attachment)
+    if (!attachment || !m_document || !PDFAppAttachments::isPdf(attachment->name))
     {
-        return;
+        return false;
     }
 
-    if (PDFAppAttachments::isExecutable(attachment->name))
-    {
-        showError(tr("The file was not opened"),
-                  tr("“%1” is a program or a script. PDF4QT does not start programs from documents; save the file, if you need it, and check it first.").arg(attachment->name));
-        return;
-    }
-
-    if (PDFAppAttachments::isPdf(attachment->name))
-    {
-        // A PDF is opened in a new tab of PDF4QT
-        const QString filePath = createTemporaryPath(attachment->name);
-        if (filePath.isEmpty())
-        {
-            showError(tr("The file was not opened"), tr("The temporary folder for the attachment cannot be created."));
-            return;
-        }
-        startWrite(*attachment, m_document, filePath, true);
-        return;
-    }
-
-    // Another file: the confirmation of the launch (1028:23389)
-    if (m_confirmDialog)
-    {
-        m_confirmDialog->disconnect(this);
-        m_confirmDialog->close();
-    }
-
-    const QString extension = QFileInfo(attachment->name).suffix();
-    PDFAppDocument* document = getDocument();
-    const QString documentName = document ? document->getTitle() : QString();
-    const QString text = extension.isEmpty()
-        ? tr("The document wants to open a file in the program your system uses for it. A file from an unknown document can contain malware. Open it only if you trust the author of the document.")
-        : tr("The document wants to open a file in the program your system uses for .%1 files. A file from an unknown document can contain malware. Open it only if you trust the author of the document.").arg(extension);
-    PDFAppCardDialog* dialog = new PDFAppCardDialog(PDFThemeIcons::Badge::Warning, true, tr("Open a file from %1?").arg(documentName), text, 520, window());
-    dialog->setObjectName(QStringLiteral("openAttachmentDialog"));
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-
-    // facts: bg/subtle, radius 10, paddings 4 / 12, Key value rows
-    QFrame* facts = new QFrame(dialog);
-    facts->setObjectName(QStringLiteral("facts"));
-    PDFWidgetStyleProperties::set(facts, PDFWidgetStyleProperties::NOTE);
-    QVBoxLayout* factsLayout = new QVBoxLayout(facts);
-    factsLayout->setContentsMargins(12, 4, 12, 4);
-    factsLayout->setSpacing(0);
-    PDFKeyValueList* list = new PDFKeyValueList(facts);
-    list->setObjectName(QStringLiteral("factsList"));
-    list->addRow(tr("File"), attachment->name);
-    list->addRow(tr("Folder"), QDir::toNativeSeparators(m_temporaryDirectory ? m_temporaryDirectory->path() : QDir::tempPath()));
-    list->addRow(tr("Opens in"), extension.isEmpty() ? tr("The program set for the file") : tr("The program set for .%1 files").arg(extension));
-    factsLayout->addWidget(list);
-    dialog->addContent(facts);
-
-    QPushButton* openButton = dialog->addActionButton(tr("Open File"), false, true);
-    openButton->setObjectName(QStringLiteral("openFileButton"));
-    QPushButton* cancelButton = dialog->addActionButton(tr("Don’t Open"), true, false);
-    cancelButton->setObjectName(QStringLiteral("dontOpenButton"));
-    connect(openButton, &QPushButton::clicked, dialog, &QDialog::accept);
-    connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
-    connect(dialog, &QDialog::finished, this, &PDFAppAttachmentsPanel::onConfirmFinished);
-
-    // The confirmed attachment and its document are kept: the document may change
-    // while the dialog is open, and its rows with it
-    m_confirmDialog = dialog;
-    m_confirmAttachment = *attachment;
-    m_confirmDocument = m_document;
-    dialog->open();
-}
-
-void PDFAppAttachmentsPanel::onConfirmFinished(int result)
-{
-    const std::optional<PDFAppAttachment> attachment = std::move(m_confirmAttachment);
-    const PDFDocumentPointer document = std::move(m_confirmDocument);
-    m_confirmAttachment.reset();
-    m_confirmDocument.reset();
-    m_confirmDialog = nullptr;
-
-    // Programs and scripts are never started (D8), whatever has been confirmed
-    if (result != QDialog::Accepted || !attachment || PDFAppAttachments::isExecutable(attachment->name))
-    {
-        return;
-    }
-
-    const QString filePath = createTemporaryPath(attachment->name);
-    if (filePath.isEmpty())
-    {
-        showError(tr("The file was not opened"), tr("The temporary folder for the attachment cannot be created."));
-        return;
-    }
-    startWrite(*attachment, document, filePath, true);
-}
-
-QString PDFAppAttachmentsPanel::createTemporaryPath(const QString& fileName)
-{
-    if (!m_temporaryDirectory)
-    {
-        // A private folder (only the owner can read it) removed with the panel
-        m_temporaryDirectory = std::make_unique<QTemporaryDir>(QDir(QDir::tempPath()).filePath(QStringLiteral("pdf4qt-attachments-XXXXXX")));
-        if (!m_temporaryDirectory->isValid())
-        {
-            m_temporaryDirectory.reset();
-            return QString();
-        }
-        QFile::setPermissions(m_temporaryDirectory->path(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
-    }
-
-    // Each opening has its own subfolder (the same name may be opened twice)
-    const QDir root(m_temporaryDirectory->path());
-    for (int i = 1; i < 10000; ++i)
-    {
-        const QString folderName = QString::number(i);
-        if (!root.exists(folderName) && root.mkdir(folderName))
-        {
-            return root.filePath(folderName + QChar(u'/') + PDFAppAttachments::sanitizeFileName(fileName));
-        }
-    }
-    return QString();
-}
-
-QString PDFAppAttachmentsPanel::getTemporaryFolder() const
-{
-    return m_temporaryDirectory ? m_temporaryDirectory->path() : QString();
+    // A PDF is decoded in a worker and opened in a new tab from the memory (O18:
+    // no temporary file)
+    startWatcher(QtConcurrent::run(&PDFAppAttachments::read, m_document, attachment->specification, attachment->name));
+    return true;
 }
 
 int PDFAppAttachmentsPanel::getRunningCount() const
@@ -788,19 +828,13 @@ int PDFAppAttachmentsPanel::getRunningCount() const
     return count;
 }
 
-void PDFAppAttachmentsPanel::startWrite(const PDFAppAttachment& attachment, PDFDocumentPointer document, const QString& filePath, bool isOpenRequested)
+void PDFAppAttachmentsPanel::startWatcher(const QFuture<PDFAppAttachments::WriteResult>& future)
 {
-    if (!document)
-    {
-        return;
-    }
-
-    // The decoding and the writing run in a worker with shared copies of the
-    // document and of the file; the watcher dies with the panel
+    // The watcher dies with the panel (the worker finishes alone, its result is dropped)
     QFutureWatcher<PDFAppAttachments::WriteResult>* watcher = new QFutureWatcher<PDFAppAttachments::WriteResult>(this);
     connect(watcher, &QFutureWatcherBase::finished, this, &PDFAppAttachmentsPanel::onWriteFinished);
     m_watchers.push_back(watcher);
-    watcher->setFuture(QtConcurrent::run(&PDFAppAttachments::write, std::move(document), attachment.specification, filePath, isOpenRequested));
+    watcher->setFuture(future);
 }
 
 void PDFAppAttachmentsPanel::onWriteFinished()
@@ -820,7 +854,7 @@ void PDFAppAttachmentsPanel::onWriteFinished()
         return;
     }
 
-    const PDFAppAttachments::WriteResult result = watcher->result();
+    PDFAppAttachments::WriteResult result = watcher->result();
     watcher->deleteLater();
     m_watchers.erase(std::remove(m_watchers.begin(), m_watchers.end(), QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>(watcher)), m_watchers.end());
 
@@ -830,30 +864,22 @@ void PDFAppAttachmentsPanel::onWriteFinished()
         return;
     }
 
-    if (!result.isOpenRequested)
+    if (result.isOpenRequested)
     {
-        if (PDFAppDocumentView* view = getView())
-        {
-            if (PDFAppDocumentStatusBar* statusBar = view->getStatusBar())
-            {
-                statusBar->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(result.filePath)), 5000);
-            }
-        }
-        return;
-    }
-
-    if (result.isPdf)
-    {
+        // A new tab reads the document from the bytes (its password screen too)
         if (PDFAppMainWindow* window = PDFAppPanelWidgets::findMainWindow(this))
         {
-            window->openDocuments(QStringList(result.filePath), 0);
+            window->openDocumentFromMemory(std::move(result.data), result.name, getSourceFilePath(), getDocument());
         }
         return;
     }
 
-    if (!PDFAppPanelFileDialogs::launchFile(result.filePath))
+    if (PDFAppDocumentView* view = getView())
     {
-        showError(tr("The file was not opened"), tr("No program of the system can open “%1”.").arg(QFileInfo(result.filePath).fileName()));
+        if (PDFAppDocumentStatusBar* statusBar = view->getStatusBar())
+        {
+            statusBar->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(result.filePath)), 5000);
+        }
     }
 }
 
@@ -865,7 +891,7 @@ bool PDFAppAttachmentsPanel::eventFilter(QObject* watched, QEvent* event)
         if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) && keyEvent->modifiers() == Qt::NoModifier &&
             m_view->currentIndex().isValid())
         {
-            openAttachment(m_view->currentIndex().row());
+            activateAttachment(m_view->currentIndex().row());
             return true;
         }
     }
@@ -914,7 +940,19 @@ QString PDFAppAttachmentsPanelFactory::getIconName() const
 
 bool PDFAppAttachmentsPanelFactory::isAvailable(const PDFAppDocument* document) const
 {
-    return document && PDFAppAttachments::hasAttachments(document->getDocument().data());
+    if (!document)
+    {
+        return false;
+    }
+
+    // The tab is asked at every change of the document: the list of the version, when
+    // a panel has collected it, otherwise the search for the first attachment (the
+    // whole list of a large document is collected only for a shown panel)
+    if (const PDFAppAttachmentList* list = dynamic_cast<const PDFAppAttachmentList*>(document->getDerivedData(PDFAppAttachmentList::KEY).get()))
+    {
+        return !list->attachments->empty();
+    }
+    return PDFAppAttachments::hasAttachments(document->getDocument().data());
 }
 
 PDFAppDocumentPanel* PDFAppAttachmentsPanelFactory::createPanel(QWidget* parent) const

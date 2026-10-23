@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappsearchengine.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfsupportvideocatalog.h"
 
@@ -760,12 +761,12 @@ QString PDFAppSearchEngine::getOpenedText(qint64 lastOpened, const QDateTime& no
         return Helper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Opened yesterday"));
     }
 
-    const QLocale locale;
+    // O17: the language of the user interface, not the locale of the system
     if (date.year() == today.year())
     {
-        return locale.toString(date, QStringLiteral("MMM d"));
+        return PDFAppLocale::formatShortDate(date);
     }
-    return locale.toString(date, QStringLiteral("MMM d, yyyy"));
+    return PDFAppLocale::formatDate(date);
 }
 
 QString PDFAppSearchEngine::getVisibleText(const QString& text, qsizetype maximumLength)

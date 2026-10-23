@@ -44,7 +44,7 @@ namespace pdf
 class PDFSettingRegistry;
 class PDFDatabaseStatement;
 
-/// State of the thumbnail of a recent file (column thumbnail_state, schema version 3).
+/// State of the thumbnail of a recent file (column thumbnail_state of recent_file).
 /// Every state except Pending is recorded together with thumbnail_mtime = the time of
 /// the modification of the file, from which it was made: the thumbnailer does not try
 /// the file again, until the file changes.
@@ -136,8 +136,8 @@ public:
     QImage toImage() const;
 };
 
-/// Marker of a thumbnail being rendered (table thumbnail_rendering, schema version
-/// 4, no triggers): PDFAppThumbnailer writes it before it reads and renders a
+/// Marker of a thumbnail being rendered (table thumbnail_rendering, no
+/// triggers): PDFAppThumbnailer writes it before it reads and renders a
 /// document and removes it afterwards. A marker, whose process has ended, was left
 /// by a crash of the rendering - the file gets the state Failed until it changes,
 /// so a document killing the process is not rendered again at every start.

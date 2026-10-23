@@ -32,6 +32,7 @@
 #include <QPointer>
 #include <QSortFilterProxyModel>
 
+#include <limits>
 #include <vector>
 
 class QStandardItem;
@@ -61,8 +62,9 @@ public:
 /// editing and the button outline-new 195:1485 are step 4): the header "Outline /
 /// 86 items", the field "Search outline…" and the tree of PDFTreeView with the
 /// preset Outline. A click (Enter) goes to the destination of the item; the item
-/// of the current page is selected (the item with the greatest page not after
-/// the current page, the deepest of equal ones), its parents are expanded.
+/// of the current page is selected when the view reaches another page
+/// (findCurrentItemIndex), its parents are expanded. An item the user has
+/// activated stays selected, while the current page is its page.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppOutlinePanel : public PDFAppDocumentPanel
 {
     Q_OBJECT
@@ -89,6 +91,23 @@ public:
     /// Number of the items of the outline
     int getItemCount() const { return int(m_items.size()); }
 
+    /// Position of an item: its page and the top of its destination in the
+    /// coordinates of the page (+infinity: the top of the page - a destination
+    /// without a position, Fit, a page)
+    struct ItemPosition
+    {
+        PDFInteger page = -1;
+        PDFReal top = std::numeric_limits<PDFReal>::infinity();
+    };
+
+    /// Index of the item of the position of the view (-1 if none): the items of
+    /// the greatest page not after \p currentPage; of them the item, whose
+    /// destination is closest above the top of the viewport \p viewTop (in the
+    /// coordinates of the page, +infinity = the top of the page is not reached),
+    /// of equal ones the later; when none of the page lies above, the topmost
+    /// item of the page. Items of an earlier page: the lowest of its page.
+    static int findCurrentItemIndex(const std::vector<ItemPosition>& items, PDFInteger currentPage, PDFReal viewTop);
+
     /// Filters the items by the text
     void setFilterText(const QString& text);
 
@@ -114,7 +133,12 @@ private:
     {
         QStandardItem* item = nullptr;
         PDFInteger page = -1;
+        PDFReal top = std::numeric_limits<PDFReal>::infinity();
     };
+
+    /// Top of the viewport in the coordinates of the current page (+infinity,
+    /// when the top edge of the view does not lie on the page)
+    PDFReal getViewTop(PDFInteger currentPage) const;
 
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onDocumentDestroyed();
@@ -133,6 +157,7 @@ private:
     QSharedPointer<PDFOutlineItem> m_outlineRoot;   ///< Keeps the items of the actions alive
     PDFDocumentPointer m_document;
     std::vector<Item> m_items;                      ///< Items in the order of the document (pre-order)
+    QPersistentModelIndex m_activatedItem;          ///< Item of m_model, which the user has activated (it stays selected on its page)
     bool m_isSelecting = false;
 };
 

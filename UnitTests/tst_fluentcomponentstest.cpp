@@ -52,6 +52,7 @@
 #include <QElapsedTimer>
 #include <QRandomGenerator>
 #include <QClipboard>
+#include <QTextDocument>
 #include <QCommonStyle>
 #include <QContextMenuEvent>
 #include <QDialog>
@@ -585,6 +586,7 @@ private slots:
     void panelGallery();
     void textDirection();
     void keyValueListDirection();
+    void keyValueListElision();
     void pageRangeReview();
     void pageSelectionReview();
     void pageSelectionHugeDocument();
@@ -659,6 +661,7 @@ private slots:
     void renderingIssueRowPixels();
     void renderingIssueRowWidget();
     void messageBoxBadgeIcon();
+    void messageBoxTextLines();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -8623,6 +8626,44 @@ void FluentComponentsTest::keyValueListDirection()
     }
 }
 
+void FluentComponentsTest::keyValueListElision()
+{
+    // O18: a row elides its value at the end (Data) or in the middle keeping the
+    // extension (FileName - a path of a program); a value is always data
+    pdf::PDFKeyValueList list;
+    const QString path = QStringLiteral("C:\\Users\\Jane\\Downloads\\") + QString(80, QLatin1Char('x')) + QStringLiteral("\\invoice.pdf.exe");
+    QCOMPARE(list.addRow(QStringLiteral("Program"), path, pdf::PDFComponentPainter::TextKind::FileName), 0);
+    QCOMPARE(list.addRow(QStringLiteral("Data"), path), 1);
+    QCOMPARE(list.addRow(QStringLiteral("Data"), path, pdf::PDFComponentPainter::TextKind::Interface), 2);
+    QCOMPARE(list.getValueKind(0), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(list.getValueKind(1), pdf::PDFComponentPainter::TextKind::Data);
+    QCOMPARE(list.getValueKind(2), pdf::PDFComponentPainter::TextKind::Data);
+    QCOMPARE(list.getValueKind(-1), pdf::PDFComponentPainter::TextKind::Data);
+    QCOMPARE(list.getValueKind(3), pdf::PDFComponentPainter::TextKind::Data);
+
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium);
+    const QString middle = pdf::PDFComponentPainter::elidedTextOfKind(path, font, 200, pdf::PDFComponentPainter::TextKind::FileName);
+    const QString end = pdf::PDFComponentPainter::elidedTextOfKind(path, font, 200, pdf::PDFComponentPainter::TextKind::Data);
+    QVERIFY2(middle.endsWith(QStringLiteral("invoice.pdf.exe")) && middle.startsWith(QStringLiteral("C:\\")), qPrintable(middle));
+    QVERIFY(end.endsWith(QChar(0x2026)));
+    QCOMPARE(pdf::PDFComponentPainter::elidedTextOfKind(path, font, 200, pdf::PDFComponentPainter::TextKind::Interface), end);
+    QVERIFY(pdf::PDFComponentPainter::elidedTextOfKind(path, font, 0, pdf::PDFComponentPainter::TextKind::FileName).isEmpty());
+    QCOMPARE(pdf::PDFComponentPainter::elidedTextOfKind(QStringLiteral("a.pdf"), font, 200, pdf::PDFComponentPainter::TextKind::FileName), QStringLiteral("a.pdf"));
+
+    // The rows draw the elisions: the end of the FileName row has ink (the
+    // extension), the rows differ; both directions
+    list.resize(400, 3 * 28);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        list.setLayoutDirection(direction);
+        const QImage image = renderWidget(&list, 1.0);
+        const QImage fileRow = image.copy(QRect(0, 0, 400, 28));
+        const QImage dataRow = image.copy(QRect(0, 28, 400, 28));
+        QVERIFY(fileRow != dataRow);
+        QVERIFY(dataRow == image.copy(QRect(0, 56, 400, 28)));
+    }
+}
+
 void FluentComponentsTest::pageRangeReview()
 {
     using Range = pdf::PDFPageRange;
@@ -14131,7 +14172,7 @@ void FluentComponentsTest::messageBoxCustomContent()
     QCOMPARE(box->getCardWidth(), 0);
     box->setCardWidth(440);
     QCOMPARE(box->getCardWidth(), 440);
-    QCOMPARE(box->getContentWidth(), 440 - 2 * 22);
+    QCOMPARE(box->getContentWidth(), 440 - 2 * 23);
     box->setCardWidth(440);
 
     // The content lies between the head and the buttons, in the order of the calls
@@ -14393,6 +14434,183 @@ void FluentComponentsTest::renderingIssueRowWidget()
     connect(row.data(), &QAbstractButton::clicked, row.data(), [&row]() { row->deleteLater(); });
     QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(20, 10));
     QTRY_VERIFY(!row);
+}
+
+void FluentComponentsTest::messageBoxTextLines()
+{
+    // A plain text of a label in the lines of the design (QLabel has no line height):
+    // the label lays the text out itself, the text stays a plain text
+    const QString text = QStringLiteral("<b>Report</b> & \"data\"\nsecond line");
+    pdf::PDFLabel label(text, pdf::PDFThemeFonts::Role::Small, Color::TextSecondary);
+    label.setTextFormat(Qt::PlainText);
+    QCOMPARE(label.getLineHeight(), 0);
+    const int naturalHeight = label.sizeHint().height();
+    QVERIFY(naturalHeight < 32);
+
+    label.setLineHeight(16);
+    QCOMPARE(label.getLineHeight(), 16);
+    QCOMPARE(label.text(), text);
+    QCOMPARE(label.textFormat(), Qt::PlainText);
+    QCOMPARE(label.sizeHint().height(), 32);
+    QCOMPARE(label.minimumSizeHint().height(), 32);
+    QCOMPARE(label.minimumSizeHint().width(), label.sizeHint().width());
+    label.setLineHeight(15);
+    QCOMPARE(label.sizeHint().height(), 30);
+    label.setLineHeight(-5);
+    QCOMPARE(label.getLineHeight(), 0);
+    QCOMPARE(label.sizeHint().height(), naturalHeight);
+    label.setLineHeight(100000);
+    QCOMPARE(label.getLineHeight(), pdf::PDFLabel::MAX_LINE_HEIGHT);
+    label.setLineHeight(16);
+
+    // A wrapped text: lines of 16 px for every width
+    label.setWordWrap(true);
+    QVERIFY(label.hasHeightForWidth());
+    for (int width : { 40, 80, 160, 400, 1 })
+    {
+        const int height = label.heightForWidth(width);
+        QVERIFY2(height >= 32 && height % 16 == 0, qPrintable(QString("%1: %2").arg(width).arg(height)));
+    }
+    QCOMPARE(label.heightForWidth(400), 32);
+
+    // A rich text and a picture keep the layout of QLabel
+    pdf::PDFLabel rich(QStringLiteral("<b>Rich</b>"), pdf::PDFThemeFonts::Role::Small, Color::TextSecondary);
+    rich.setTextFormat(Qt::RichText);
+    const QSize richSize = rich.sizeHint();
+    rich.setLineHeight(40);
+    QCOMPARE(rich.sizeHint(), richSize);
+
+    // The selection by the mouse: a drag over the first line selects it, the
+    // selection ends with a new text, a double click selects a word
+    label.setWordWrap(false);
+    label.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    label.setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    label.resize(label.sizeHint());
+    label.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&label));
+    QVERIFY(!label.hasSelectedText());
+    QTest::mousePress(&label, Qt::LeftButton, Qt::NoModifier, QPoint(0, 8));
+    {
+        QMouseEvent move(QEvent::MouseMove, QPointF(label.width() - 1, 8), label.mapToGlobal(QPointF(label.width() - 1, 8)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&label, &move);
+    }
+    QTest::mouseRelease(&label, Qt::LeftButton, Qt::NoModifier, QPoint(label.width() - 1, 8));
+    QCOMPARE(label.selectedText(), QStringLiteral("<b>Report</b> & \"data\""));
+    QVERIFY(label.hasSelectedText());
+    QCOMPARE(countLeakPixels(label.grab().toImage()), 0);
+    QTest::keySequence(&label, QKeySequence::Copy);
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("<b>Report</b> & \"data\""));
+
+    // The context menu of the selectable text (as the menu of QLabel): Copy of the
+    // selection, Select All
+    auto chooseFromMenu = [&label](int actionIndex)
+    {
+        QTimer::singleShot(0, &label, [actionIndex]()
+        {
+            QMenu* popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (!popup)
+            {
+                return;
+            }
+            const QList<QAction*> actions = popup->actions();
+            if (actionIndex >= 0 && actionIndex < actions.size() && actions[actionIndex]->isEnabled())
+            {
+                popup->setActiveAction(actions[actionIndex]);
+                QTest::keyClick(popup, Qt::Key_Return);
+            }
+            else
+            {
+                popup->close();
+            }
+        });
+        QContextMenuEvent menuEvent(QContextMenuEvent::Mouse, QPoint(2, 2), label.mapToGlobal(QPoint(2, 2)));
+        QApplication::sendEvent(&label, &menuEvent);
+        return menuEvent.isAccepted();
+    };
+    QGuiApplication::clipboard()->setText(QStringLiteral("other"));
+    QVERIFY(chooseFromMenu(0));
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("<b>Report</b> & \"data\""));
+    QVERIFY(chooseFromMenu(1));
+    QCOMPARE(label.selectedText(), text);
+    QVERIFY(chooseFromMenu(-1));
+    QCOMPARE(label.selectedText(), text);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    QTest::mouseDClick(&label, Qt::LeftButton, Qt::NoModifier, QPoint(2, 16 + 8));
+    QCOMPARE(label.selectedText(), QStringLiteral("second"));
+    label.setText(QStringLiteral("Other"));
+    QVERIFY(!label.hasSelectedText());
+    label.hide();
+
+    // Message box 626:1744 / 955:148444: the content 23 / 21 from the edge of the card
+    // (paddings 22 / 20 inside of the border of 1 px), the text Regular 12 in lines of
+    // 16 px, the details Regular 11 in lines of 15 px, the content 394 px wide in a
+    // card of 440
+    QWidget parent;
+    parent.resize(800, 600);
+    const QString body = QStringLiteral("C:\\Users\\Jakub\\Documents\\Project_Report.pdf is open in another application. Close it and try again.");
+    const QString details = QStringLiteral("Error 32: The process cannot access the file because it is being used by another process.");
+    pdf::PDFMessageBox box(pdf::PDFThemeIcons::Badge::Critical, QStringLiteral("The file could not be written"), body, QDialogButtonBox::Ok, &parent);
+    box.setWindowFlags(Qt::Widget);
+    box.setDetailedText(details);
+    box.setCardWidth(440);
+    QCOMPARE(box.getContentWidth(), 394);
+    parent.show();
+    box.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&parent));
+    QVERIFY(box.getShadowMargins().isNull());
+    QCOMPARE(box.layout()->contentsMargins(), QMargins(23, 21, 23, 21));
+
+    pdf::PDFLabel* bodyLabel = nullptr;
+    pdf::PDFLabel* detailsLabel = nullptr;
+    for (pdf::PDFLabel* child : box.findChildren<pdf::PDFLabel*>())
+    {
+        if (child->text() == body)
+        {
+            bodyLabel = child;
+        }
+        else if (child->text() == details)
+        {
+            detailsLabel = child;
+        }
+    }
+    QVERIFY(bodyLabel && detailsLabel);
+    QCOMPARE(bodyLabel->getLineHeight(), 16);
+    QCOMPARE(detailsLabel->getLineHeight(), 15);
+    QCOMPARE(bodyLabel->textFormat(), Qt::PlainText);
+    QVERIFY2(bodyLabel->height() >= 32 && bodyLabel->height() % 16 == 0, qPrintable(QString::number(bodyLabel->height())));
+    QVERIFY2(detailsLabel->height() >= 30 && detailsLabel->height() % 15 == 0, qPrintable(QString::number(detailsLabel->height())));
+    QCOMPARE(bodyLabel->textInteractionFlags(), Qt::TextInteractionFlags(Qt::TextSelectableByMouse));
+
+    // Copy without a selection gives the whole message, with a selection the selected text
+    QTest::keySequence(&box, QKeySequence::Copy);
+    QString copied = QGuiApplication::clipboard()->text();
+    QVERIFY2(copied.contains(body) && copied.contains(details), qPrintable(copied));
+    QTest::mouseDClick(bodyLabel, Qt::LeftButton, Qt::NoModifier, QPoint(2, 8));
+    QCOMPARE(bodyLabel->selectedText(), QStringLiteral("C"));
+    QTest::keySequence(&box, QKeySequence::Copy);
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("C"));
+    QCOMPARE(countLeakPixels(box.grab().toImage()), 0);
+
+    // The text of 941:135875 wraps into the three lines of the design in a card of 520;
+    // the minimal height of the label is one line (QLabel), so a window of a card is
+    // never taller than the text needs
+    const QString history = QStringLiteral("Recent forgets which documents, folders and workspaces you opened and where you stopped reading. "
+                                           "Your files are not touched, and saved workspaces stay in PDF4QT settings.");
+    pdf::PDFMessageBox historyBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Clear the Recent history?"), history, QDialogButtonBox::NoButton, &parent);
+    historyBox.setCardWidth(520);
+    historyBox.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&historyBox));
+    pdf::PDFLabel* historyLabel = nullptr;
+    for (pdf::PDFLabel* child : historyBox.findChildren<pdf::PDFLabel*>())
+    {
+        if (child->text() == history)
+        {
+            historyLabel = child;
+        }
+    }
+    QVERIFY(historyLabel);
+    QVERIFY2(historyLabel->width() == 426 && historyLabel->height() == 48, qPrintable(QString("%1 x %2").arg(historyLabel->width()).arg(historyLabel->height())));
 }
 
 void FluentComponentsTest::messageBoxBadgeIcon()

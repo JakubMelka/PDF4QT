@@ -35,11 +35,14 @@
 #include <QtTest>
 #include <QAction>
 #include <QBuffer>
+#include <QLayout>
 #include <QPainter>
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <memory>
+#include <set>
 #include <vector>
 
 using namespace pdf;
@@ -70,6 +73,9 @@ private slots:
     void choiceDefaultAppearance();
     void inheritedDefaultAppearance_data();
     void inheritedDefaultAppearance();
+    void damagedFieldTree_data();
+    void damagedFieldTree();
+    void pageDecorationDefault();
 };
 
 /// Creates the documents with the form fields
@@ -1201,6 +1207,221 @@ void FormFieldsTest::inheritedDefaultAppearance()
     {
         QVERIFY2(height * 4 < referenceHeight * 3 && height * 20 > referenceHeight * 9, qPrintable(message));
     }
+}
+
+void FormFieldsTest::damagedFieldTree_data()
+{
+    // Hand-written documents with a damaged tree of the form fields: objects 1 - 3
+    // are the catalog, the page tree and the page, the fields start with the object 4.
+    // Each row gives the dictionaries of the fields, the annotations of the page and
+    // the expected number of the parsed fields and of the levels of the tree.
+    QTest::addColumn<QByteArrayList>("fields");
+    QTest::addColumn<QByteArray>("annotations");
+    QTest::addColumn<int>("fieldCount");
+    QTest::addColumn<int>("levelCount");
+    QTest::addColumn<QString>("widgetFieldName");
+
+    // The root (damaged with a parent) and the child reference each other, the child
+    // references itself and the leaf is referenced twice
+    QTest::newRow("cycle") << QByteArrayList({
+        "<< /FT /Tx /T (root) /Parent 5 0 R /Kids [5 0 R] >>",
+        "<< /T (child) /Parent 4 0 R /Kids [4 0 R 6 0 R 5 0 R 6 0 R] >>",
+        "<< /T (leaf) /Parent 5 0 R /Subtype /Widget /Rect [10 10 100 30] /P 3 0 R >>" })
+        << QByteArray("[6 0 R]") << 3 << 3 << QStringLiteral("root.child.leaf");
+
+    // The child references itself
+    QTest::newRow("self reference") << QByteArrayList({
+        "<< /FT /Tx /T (root) /Kids [5 0 R] >>",
+        "<< /T (child) /Parent 4 0 R /Kids [5 0 R] >>" })
+        << QByteArray("[5 0 R]") << 2 << 2 << QString();
+
+    // Each field references the next one twice: 2^40 fields without the check of the used fields
+    const int sharedCount = 40;
+    QByteArrayList shared;
+    for (int i = 0; i < sharedCount; ++i)
+    {
+        const QByteArray parent = i > 0 ? " /Parent " + QByteArray::number(i + 3) + " 0 R" : QByteArray(" /FT /Tx");
+        if (i + 1 < sharedCount)
+        {
+            const QByteArray next = QByteArray::number(i + 5) + " 0 R";
+            shared << "<< /T (f" + QByteArray::number(i) + ")" + parent + " /Kids [" + next + " " + next + "] >>";
+        }
+        else
+        {
+            shared << "<< /T (leaf)" + parent + " /Subtype /Widget /Rect [10 10 100 30] /P 3 0 R >>";
+        }
+    }
+    QStringList sharedNames;
+    for (int i = 0; i + 1 < sharedCount; ++i)
+    {
+        sharedNames << QString("f%1").arg(i);
+    }
+    sharedNames << QStringLiteral("leaf");
+    QTest::newRow("shared kids") << shared << ("[" + QByteArray::number(sharedCount + 3) + " 0 R]") << sharedCount << sharedCount << sharedNames.join('.');
+
+    // A chain of 5000 fields would overflow the stack, only 129 levels are parsed
+    const int chainCount = 5000;
+    QByteArrayList chain;
+    for (int i = 0; i < chainCount; ++i)
+    {
+        const QByteArray parent = i > 0 ? " /Parent " + QByteArray::number(i + 3) + " 0 R" : QByteArray(" /FT /Tx");
+        const QByteArray kids = i + 1 < chainCount ? " /Kids [" + QByteArray::number(i + 5) + " 0 R]" : QByteArray();
+        chain << "<< /T (f" + QByteArray::number(i) + ")" + parent + kids + " >>";
+    }
+    QTest::newRow("deep chain") << chain << QByteArray("[]") << PDFFormField::MAX_FIELD_TREE_DEPTH + 1 << PDFFormField::MAX_FIELD_TREE_DEPTH + 1 << QString();
+}
+
+void FormFieldsTest::damagedFieldTree()
+{
+    QFETCH(QByteArrayList, fields);
+    QFETCH(QByteArray, annotations);
+    QFETCH(int, fieldCount);
+    QFETCH(int, levelCount);
+    QFETCH(QString, widgetFieldName);
+
+    QByteArrayList objects({
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots " + annotations + " >>" });
+    objects.append(fields);
+
+    QByteArray pdf("%PDF-1.7\n");
+    std::vector<qint64> offsets;
+    for (qsizetype i = 0; i < objects.size(); ++i)
+    {
+        offsets.push_back(pdf.size());
+        pdf += QByteArray::number(i + 1) + " 0 obj\n" + objects[i] + "\nendobj\n";
+    }
+    const qint64 xref = pdf.size();
+    pdf += "xref\n0 " + QByteArray::number(objects.size() + 1) + "\n0000000000 65535 f \n";
+    for (qint64 offset : offsets)
+    {
+        pdf += QByteArray::number(offset).rightJustified(10, '0') + " 00000 n \n";
+    }
+    pdf += "trailer\n<< /Size " + QByteArray::number(objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n" + QByteArray::number(xref) + "\n%%EOF\n";
+
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    PDFDocument document = reader.readFromBuffer(pdf);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+
+    const PDFForm form = PDFForm::parse(&document, document.getCatalog()->getFormObject());
+    QCOMPARE(form.getFormFields().size(), size_t(1));
+
+    // Count of the fields and of the levels of the tree, every field is parsed once
+    int count = 0;
+    int levels = 0;
+    std::vector<std::pair<const PDFFormField*, int>> stack({ { form.getFormFields().front().get(), 1 } });
+    std::set<PDFObjectReference> references;
+    while (!stack.empty())
+    {
+        const auto [field, level] = stack.back();
+        stack.pop_back();
+        QVERIFY(field);
+        QVERIFY(references.insert(field->getSelfReference()).second);
+        ++count;
+        levels = std::max(levels, level);
+        for (const PDFFormFieldPointer& child : field->getChildFields())
+        {
+            QCOMPARE(child->getParentField(), field);
+            stack.emplace_back(child.get(), level + 1);
+        }
+    }
+    QCOMPARE(count, fieldCount);
+    QCOMPARE(levels, levelCount);
+
+    if (!widgetFieldName.isEmpty())
+    {
+        const PDFObjectReference widget(objects.size(), 0);
+        const PDFFormField* field = form.getFormFieldForWidget(widget);
+        QVERIFY(field);
+        QCOMPARE(field->getName(PDFFormField::FullyQualified), widgetFieldName);
+        QCOMPARE(field->getWidgets().size(), size_t(1));
+    }
+
+    // The document is shown in the widget with the form manager, as in the applications
+    FormFixture fixture(std::move(document));
+    QVERIFY(fixture.forms.hasAcroForm());
+}
+
+void FormFieldsTest::pageDecorationDefault()
+{
+    // The decoration of the pages (margin and shadow, PDFPageDecoration) is off by default,
+    // so the old applications draw the pages as before: a decoration set and removed again
+    // gives the same pixels as the view, which never had any
+    FormFixture fixture(FormFieldsTestHelper::createCheckBoxDocument(FormFieldsTestHelper::Appearance::SingleStream, "Yes", "Off", QByteArray(), "Off"));
+    PDFDrawWidgetProxy* proxy = fixture.widget.getDrawWidgetProxy();
+    QWidget* canvas = fixture.widget.getDrawWidget()->getWidget();
+    QCOMPARE(proxy->getPageDecoration(), PDFPageDecoration());
+    QVERIFY(!proxy->getPageDecoration().hasShadow());
+
+    // The fixture sets the sizes without showing the widget - it is shown here, so the
+    // layout of the scrollbars gives the draw widget its size
+    fixture.widget.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&fixture.widget));
+    auto settle = [&fixture]()
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            QCoreApplication::sendPostedEvents();
+            if (QLayout* layout = fixture.widget.layout())
+            {
+                layout->activate();
+            }
+        }
+    };
+
+    proxy->performOperation(PDFDrawWidgetProxy::ZoomFitWidth);
+    settle();
+    const QImage original = canvas->grab().toImage();
+    const PDFWidgetSnapshot originalSnapshot = proxy->getSnapshot();
+    QCOMPARE(originalSnapshot.items.size(), size_t(1));
+    const QRect originalRect = originalSnapshot.items.front().rect.toRect();
+    QVERIFY(originalRect.left() <= 1);
+    QCOMPARE(originalRect.top(), 0);
+
+    // Margin and shadow: the fit width keeps the margin, the canvas next to the page is darker
+    PDFPageDecoration decoration;
+    decoration.margin = 24;
+    decoration.shadowColor = QColor(0, 0, 0, 128);
+    decoration.shadowOffset = QPointF(0.0, 2.0);
+    decoration.shadowBlur = 10.0;
+    proxy->setPageDecoration(decoration);
+    settle();
+    QCOMPARE(proxy->getPageDecoration(), decoration);
+    const QRect decoratedRect = proxy->getSnapshot().items.front().rect.toRect();
+    QCOMPARE(decoratedRect.top(), 24);
+    QVERIFY(decoratedRect.left() >= 24 && decoratedRect.left() <= 26);
+    const QImage decorated = canvas->grab().toImage();
+    QVERIFY(decorated != original);
+    const int middle = qMin(decoratedRect.center().y(), canvas->height() / 2);
+    const qreal ratio = decorated.devicePixelRatio();
+    const QColor canvasColor = decorated.pixelColor(QPoint(2, middle) * ratio);
+    QVERIFY(decorated.pixelColor(QPoint(decoratedRect.left() - 1, middle) * ratio).lightness() < canvasColor.lightness());
+
+    // Without the decoration the view is the same as before, pixel by pixel
+    proxy->setPageDecoration(PDFPageDecoration());
+    settle();
+    QCOMPARE(canvas->size(), original.size() / original.devicePixelRatio());
+    QCOMPARE(proxy->getSnapshot().items.front().rect.toRect(), originalRect);
+    QCOMPARE(canvas->grab().toImage(), original);
+
+    // Hostile values are bounded
+    PDFPageDecoration hostile;
+    hostile.margin = 1000000;
+    hostile.shadowColor = Qt::black;
+    hostile.shadowBlur = std::numeric_limits<qreal>::quiet_NaN();
+    hostile.shadowOffset = QPointF(std::numeric_limits<qreal>::infinity(), -1e9);
+    proxy->setPageDecoration(hostile);
+    QCOMPARE(proxy->getPageDecoration().margin, 512);
+    QCOMPARE(proxy->getPageDecoration().shadowBlur, 0.0);
+    QCOMPARE(proxy->getPageDecoration().shadowOffset, QPointF(0.0, -32.0));
+    canvas->grab();
+    hostile.margin = -5;
+    hostile.shadowBlur = 1e9;
+    proxy->setPageDecoration(hostile);
+    QCOMPARE(proxy->getPageDecoration().margin, 0);
+    QCOMPARE(proxy->getPageDecoration().shadowBlur, 32.0);
+    canvas->grab();
 }
 
 QTEST_MAIN(FormFieldsTest)

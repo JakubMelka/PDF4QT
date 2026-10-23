@@ -671,13 +671,13 @@ void PDFAppClearHistoryDialog::updateFacts()
     QStringList kept;
     if (!isPinnedIncluded() && summary.pinnedFiles > 0)
     {
-        kept << (summary.pinnedFiles == 1 ? tr("%n pinned item", nullptr, 1) : tr("%n pinned items", nullptr, summary.pinnedFiles));
+        kept << (summary.pinnedFiles == 1 ? tr("%Ln pinned item", nullptr, 1) : tr("%Ln pinned items", nullptr, summary.pinnedFiles));
     }
     kept << tr("saved workspaces");
 
     m_facts->clear();
     const int removed = summary.getRemovedEntries();
-    m_facts->addRow(tr("Removed"), removed == 1 ? tr("%n entry", nullptr, 1) : tr("%n entries", nullptr, removed));
+    m_facts->addRow(tr("Removed"), removed == 1 ? tr("%Ln entry", nullptr, 1) : tr("%Ln entries", nullptr, removed));
     m_facts->addRow(tr("Also cleared"), alsoCleared.isEmpty() ? tr("Nothing else") : alsoCleared.join(QStringLiteral(", ")));
     m_facts->addRow(tr("Kept"), kept.join(QStringLiteral(", ")));
     adjustSize();

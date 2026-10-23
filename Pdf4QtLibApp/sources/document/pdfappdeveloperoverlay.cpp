@@ -63,13 +63,16 @@ PDFRenderer::Features PDFAppDeveloperOverlay::getOverlayFeatures()
 
 PDFRenderer::Features PDFAppDeveloperOverlay::readRequestedFeatures() const
 {
-    PDFRenderer::Features features;
     if (!m_context || !m_context->getDatabase())
     {
-        return features;
+        return PDFRenderer::Features();
     }
+    return readRequestedFeatures(m_context->getSettings());
+}
 
-    const PDFSettingsRepository settings = m_context->getSettings();
+PDFRenderer::Features PDFAppDeveloperOverlay::readRequestedFeatures(const PDFSettingsRepository& settings)
+{
+    PDFRenderer::Features features;
     if (!settings.getBool(PDFSettingKeys::advancedDeveloperMode()))
     {
         return features;
@@ -107,26 +110,29 @@ void PDFAppDeveloperOverlay::onSettingChanged(const QString& topic, const QStrin
         return;
     }
 
+    // The view applies its settings with the overlays as a whole (one compilation
+    // of the pages, PDFAppDocumentView::applySettings): only the request is kept
     if (key == PDFSettingKeys::advancedDeveloperMode() || key == PDFSettingKeys::advancedShowTextBlocks() ||
         key == PDFSettingKeys::advancedShowTextLines() || key == PDFSettingKeys::advancedShowRenderTimes())
     {
         m_requested = readRequestedFeatures();
-        apply();
     }
 }
 
 void PDFAppDeveloperOverlay::onEverythingChanged()
 {
     m_requested = readRequestedFeatures();
-    apply();
 }
 
 void PDFAppDeveloperOverlay::onPageImageChanged()
 {
     PDFDrawWidgetProxy* proxy = m_view ? m_view->getProxy() : nullptr;
-    // The settings are not read here (it comes with every compiled page)
+    // The settings are read only, when the overlays of the proxy differ from the
+    // request (the signal comes with every compiled page): the view may have
+    // applied a change of the settings before the overlay has read it
     if (proxy && !m_isApplying && (proxy->getFeatures() & getOverlayFeatures()) != m_requested)
     {
+        m_requested = readRequestedFeatures();
         apply();
     }
 }

@@ -41,6 +41,7 @@
 #include <QPalette>
 
 #include <array>
+#include <cmath>
 
 #include "pdfdbgheap.h"
 
@@ -609,7 +610,10 @@ void PDFDrawWidgetProxy::update()
             m_layout.items.emplace_back(item.pageIndex, item.groupIndex, fromDeviceSpace(item.pageRectMM).toRect());
         }
 
-        m_layout.blockRect = fromDeviceSpace(rectangle).toRect();
+        // Margin of the page decoration: the canvas around the pages belongs to the
+        // block, so it is scrolled with the pages and the pages are placed inside it.
+        const int margin = m_pageDecoration.margin;
+        m_layout.blockRect = fromDeviceSpace(rectangle).toRect().adjusted(-margin, -margin, margin, margin);
     }
 
     QSize blockSize = m_layout.blockRect.size();
@@ -702,7 +706,9 @@ void PDFDrawWidgetProxy::update()
             {
                 const LayoutItem& item = m_layout.items.front();
 
-                const int pageStep = qMax(item.pageRect.height(), 1);
+                // The page step of the decorated pages includes the margin above
+                // the first page, so the next page leaves the previous one hidden
+                const int pageStep = qMax(item.pageRect.height() + m_pageDecoration.margin, 1);
                 const int singleStep = qMax(pageStep / 10, 1);
 
                 m_verticalScrollbar->setPageStep(pageStep);
@@ -864,6 +870,177 @@ PDFViewColors PDFDrawWidgetProxy::getViewColors() const
     return m_viewColors.has_value() ? *m_viewColors : PDFViewColors::getDefaultColors();
 }
 
+void PDFDrawWidgetProxy::setPageDecoration(const PDFPageDecoration& decoration)
+{
+    // The decoration comes from the application, but its values are bounded anyway,
+    // so a wrong value cannot make the layout or the picture of the shadow huge
+    PDFPageDecoration boundedDecoration = decoration;
+    boundedDecoration.margin = qBound(0, decoration.margin, MAX_PAGE_MARGIN);
+    boundedDecoration.shadowBlur = qIsFinite(decoration.shadowBlur) ? qBound(0.0, decoration.shadowBlur, MAX_PAGE_SHADOW_BLUR) : 0.0;
+    const PDFReal offsetX = decoration.shadowOffset.x();
+    const PDFReal offsetY = decoration.shadowOffset.y();
+    boundedDecoration.shadowOffset = QPointF(qIsFinite(offsetX) ? qBound(-MAX_PAGE_SHADOW_OFFSET, offsetX, MAX_PAGE_SHADOW_OFFSET) : 0.0,
+                                             qIsFinite(offsetY) ? qBound(-MAX_PAGE_SHADOW_OFFSET, offsetY, MAX_PAGE_SHADOW_OFFSET) : 0.0);
+
+    if (m_pageDecoration == boundedDecoration)
+    {
+        return;
+    }
+
+    const bool isMarginChanged = m_pageDecoration.margin != boundedDecoration.margin;
+    m_pageDecoration = boundedDecoration;
+    m_pageShadowTile = QImage();
+
+    if (isMarginChanged && m_widget)
+    {
+        // The layout, the scroll ranges and the fit zoom depend on the margin
+        update();
+    }
+
+    Q_EMIT repaintNeeded();
+}
+
+PDFReal PDFDrawWidgetProxy::getPageShadowExtent(PDFReal blur)
+{
+    // The blur is twice the standard deviation, the shadow is invisible
+    // in the distance of the blur (its alpha is below 2.5 % there)
+    return qMax(1.0, std::ceil(blur));
+}
+
+QImage PDFDrawWidgetProxy::createPageShadowTile(PDFReal blur, const QColor& color, PDFReal devicePixelRatio)
+{
+    constexpr int MAX_TILE_SIZE = 2048;
+
+    if (!qIsFinite(blur) || !qIsFinite(devicePixelRatio) || devicePixelRatio <= 0.0 || !color.isValid())
+    {
+        return QImage();
+    }
+
+    // The tile is a square of the size 6 * extent, the shadow rectangle is its middle
+    // of the size 4 * extent. A quarter of the tile is a corner of the shadow and the
+    // middle row / column is an edge - the rectangle is wide enough (four standard
+    // deviations to each side), so the edge is the edge of an infinite rectangle.
+    const PDFReal extent = getPageShadowExtent(blur) * devicePixelRatio;
+    const PDFReal cornerSize = std::ceil(3.0 * extent);
+    if (cornerSize * 2.0 > MAX_TILE_SIZE)
+    {
+        return QImage();
+    }
+
+    const int corner = qMax(1, int(cornerSize));
+    const int size = 2 * corner;
+
+    QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+    {
+        return QImage();
+    }
+    image.fill(Qt::transparent);
+
+    // Gaussian blur of a rectangle is a product of the blurred edges in both
+    // directions, a blurred edge is given by the error function
+    const PDFReal sigma = qMax(blur * devicePixelRatio * 0.5, 0.01);
+    const PDFReal scale = 1.0 / (sigma * std::sqrt(2.0));
+    const PDFReal rectangleStart = corner - 2.0 * extent;
+    const PDFReal rectangleEnd = corner + 2.0 * extent;
+
+    std::vector<PDFReal> profile(size, 0.0);
+    for (int i = 0; i < size; ++i)
+    {
+        const PDFReal x = i + 0.5;
+        profile[i] = 0.5 * (std::erf((x - rectangleStart) * scale) - std::erf((x - rectangleEnd) * scale));
+    }
+
+    const int red = color.red();
+    const int green = color.green();
+    const int blue = color.blue();
+    const PDFReal opacity = color.alphaF();
+
+    for (int y = 0; y < size; ++y)
+    {
+        QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+        for (int x = 0; x < size; ++x)
+        {
+            const int alpha = qBound(0, qRound(profile[x] * profile[y] * opacity * 255.0), 255);
+            line[x] = qPremultiply(qRgba(red, green, blue, alpha));
+        }
+    }
+
+    image.setDevicePixelRatio(devicePixelRatio);
+    return image;
+}
+
+void PDFDrawWidgetProxy::drawPageShadows(QPainter* painter, QRect rect)
+{
+    if (!m_pageDecoration.hasShadow() || m_layout.items.empty())
+    {
+        return;
+    }
+
+    const QPaintDevice* device = painter->device();
+    const PDFReal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
+    if (m_pageShadowTile.isNull() || !qFuzzyCompare(m_pageShadowTile.devicePixelRatio(), devicePixelRatio))
+    {
+        m_pageShadowTile = createPageShadowTile(m_pageDecoration.shadowBlur, m_pageDecoration.shadowColor, devicePixelRatio);
+    }
+
+    if (m_pageShadowTile.isNull())
+    {
+        return;
+    }
+
+    const PDFReal extent = getPageShadowExtent(m_pageDecoration.shadowBlur);
+    const int tileSize = m_pageShadowTile.width();
+    const int tileCorner = tileSize / 2;
+    const PDFReal corner = tileCorner / devicePixelRatio;
+
+    for (const LayoutItem& item : m_layout.items)
+    {
+        // Pages without the paper (overlays of other pages) have no shadow
+        if (!getGroupInfo(item.groupIndex).drawPaper)
+        {
+            continue;
+        }
+
+        const QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+        const QRectF shadowRect = QRectF(placedRect).translated(m_pageDecoration.shadowOffset).adjusted(-extent, -extent, extent, extent);
+        if (!shadowRect.intersects(rect) || shadowRect.isEmpty())
+        {
+            continue;
+        }
+
+        // Corners and edges of the tile (nine-slice), the middle is below the page.
+        // A small page takes smaller corners, the corners never overlap.
+        const PDFReal cornerWidth = qMin(corner, shadowRect.width() * 0.5);
+        const PDFReal cornerHeight = qMin(corner, shadowRect.height() * 0.5);
+        const PDFReal sourceWidth = cornerWidth * devicePixelRatio;
+        const PDFReal sourceHeight = cornerHeight * devicePixelRatio;
+        const PDFReal left = shadowRect.left();
+        const PDFReal top = shadowRect.top();
+        const PDFReal right = shadowRect.right();
+        const PDFReal bottom = shadowRect.bottom();
+        const PDFReal edgeWidth = shadowRect.width() - 2.0 * cornerWidth;
+        const PDFReal edgeHeight = shadowRect.height() - 2.0 * cornerHeight;
+
+        painter->drawImage(QRectF(left, top, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(0.0, 0.0, sourceWidth, sourceHeight));
+        painter->drawImage(QRectF(right - cornerWidth, top, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, 0.0, sourceWidth, sourceHeight));
+        painter->drawImage(QRectF(left, bottom - cornerHeight, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(0.0, tileSize - sourceHeight, sourceWidth, sourceHeight));
+        painter->drawImage(QRectF(right - cornerWidth, bottom - cornerHeight, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, tileSize - sourceHeight, sourceWidth, sourceHeight));
+
+        if (edgeWidth > 0.0)
+        {
+            painter->drawImage(QRectF(left + cornerWidth, top, edgeWidth, cornerHeight), m_pageShadowTile, QRectF(tileCorner - 1, 0.0, 1.0, sourceHeight));
+            painter->drawImage(QRectF(left + cornerWidth, bottom - cornerHeight, edgeWidth, cornerHeight), m_pageShadowTile, QRectF(tileCorner - 1, tileSize - sourceHeight, 1.0, sourceHeight));
+        }
+
+        if (edgeHeight > 0.0)
+        {
+            painter->drawImage(QRectF(left, top + cornerHeight, cornerWidth, edgeHeight), m_pageShadowTile, QRectF(0.0, tileCorner - 1, sourceWidth, 1.0));
+            painter->drawImage(QRectF(right - cornerWidth, top + cornerHeight, cornerWidth, edgeHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, tileCorner - 1, sourceWidth, 1.0));
+        }
+    }
+}
+
 void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features)
 {
     // The canvas of the application (setViewColors), or the gray of the old applications
@@ -871,6 +1048,10 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
     painter->fillRect(rect, backgroundColor);
     QTransform baseMatrix = painter->worldTransform();
+
+    // Shadows of the page decoration are drawn first, so a shadow of a page never
+    // covers the neighboring page, when the pages are near to each other
+    drawPageShadows(painter, rect);
 
     // Use current paper color (it can be a bit different from white)
     QColor paperColor = getPaperColor();
@@ -1500,8 +1681,10 @@ PDFReal PDFDrawWidgetProxy::getZoomToFitSize(ZoomHint hint, QSizeF referenceSize
     {
         const QSizeF viewportSize = getViewportSize(isVerticalScrollbarVisible, isHorizontalScrollbarVisible);
 
-        const PDFReal availableWidth = qMax(viewportSize.width() - FIT_MARGIN_PIXELS, FIT_MARGIN_PIXELS);
-        const PDFReal availableHeight = qMax(viewportSize.height() - FIT_MARGIN_PIXELS, FIT_MARGIN_PIXELS);
+        // The margin of the page decoration around the pages stays free
+        const PDFReal decorationMargin = 2.0 * m_pageDecoration.margin;
+        const PDFReal availableWidth = qMax(viewportSize.width() - FIT_MARGIN_PIXELS - decorationMargin, FIT_MARGIN_PIXELS);
+        const PDFReal availableHeight = qMax(viewportSize.height() - FIT_MARGIN_PIXELS - decorationMargin, FIT_MARGIN_PIXELS);
 
         const PDFReal widthHint = availableWidth / (referenceSizeMM.width() * pixelPerMM);
         const PDFReal heightHint = availableHeight / (referenceSizeMM.height() * pixelPerMM);
@@ -1532,8 +1715,8 @@ PDFReal PDFDrawWidgetProxy::getZoomToFitSize(ZoomHint hint, QSizeF referenceSize
 
         // Which scrollbars will be shown by the update for this zoom? In the block mode,
         // the vertical scrollbar switches the blocks, so it does not depend on the zoom.
-        const PDFReal blockWidth = blockSizeMM.width() * zoom * pixelPerMM;
-        const PDFReal blockHeight = blockSizeMM.height() * zoom * pixelPerMM;
+        const PDFReal blockWidth = blockSizeMM.width() * zoom * pixelPerMM + decorationMargin;
+        const PDFReal blockHeight = blockSizeMM.height() * zoom * pixelPerMM + decorationMargin;
 
         const bool needsVerticalScrollbar = isVerticalScrollbarVisible ||
                                             (!isBlockMode() && blockHeight > viewportSize.height());
@@ -1594,7 +1777,29 @@ void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
         else
         {
             QRect rect = fromDeviceSpace(layoutItem.pageRectMM).toRect();
-            setVerticalOffset(-rect.top() - m_layout.blockRect.top());
+            const int margin = m_pageDecoration.margin;
+            if (margin > 0)
+            {
+                // The margin of the page decoration stays visible above the page,
+                // but never more than the gap to the pages above it - the page
+                // above must not be seen (it would become the current page)
+                int gap = rect.top() - m_layout.blockRect.top();
+                for (const LayoutItem& item : m_layout.items)
+                {
+                    const int bottom = item.pageRect.top() + item.pageRect.height();
+                    if (bottom <= rect.top())
+                    {
+                        gap = qMin(gap, rect.top() - bottom);
+                    }
+                }
+
+                const int top = qBound(0, gap, margin);
+                setVerticalOffset(top - rect.top() + m_layout.blockRect.top());
+            }
+            else
+            {
+                setVerticalOffset(-rect.top() - m_layout.blockRect.top());
+            }
         }
     }
 }

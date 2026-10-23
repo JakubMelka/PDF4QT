@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfdatabaseschema.h"
 
+#include <QDateTime>
 #include <QObject>
 #include <QString>
 #include <QMutex>
@@ -96,8 +97,16 @@ public:
     QString filePath;
 
     /// When not empty, the file was damaged and has been renamed to this path,
-    /// a new database was created (the user gets a message, mode is Disk)
+    /// a new database was created (the user gets a message, mode is Disk). It is
+    /// also an older database file (O19), which could not be copied and migrated
+    /// into the file of the current schema version: that file is kept unchanged
+    /// under its name and the new database is empty.
     QString damagedFilePath;
+
+    /// When not empty, the file of the database was created at this opening from
+    /// a copy of this older database file (O19, PDFDatabaseOptions::directory),
+    /// the older file is unchanged
+    QString upgradedFromFilePath;
 
     /// Version of the schema stored in the file (ReadOnlyNewerSchema: newer than the application knows)
     int fileSchemaVersion = 0;
@@ -129,11 +138,82 @@ public:
     QString getDescription() const;
 };
 
+/// Database file of the folder of the data (owner decision O19)
+class PDF4QTLIBAPPSHARED_EXPORT PDFDatabaseFileInfo
+{
+public:
+    /// Absolute path of the file
+    QString filePath;
+
+    /// Version of the schema given by the name of the file (pdf4qt-<schema>.db)
+    int schemaVersion = 0;
+
+    /// Size of the file and of its write-ahead log in bytes
+    qint64 size = 0;
+
+    /// Last modification of the file or of its write-ahead log
+    QDateTime modified;
+
+    /// The file of the schema version of the application
+    bool isCurrent = false;
+};
+
+/// Files of the databases in the folder of the data (owner decision O19, newapp_storage.md 5).
+/// Every schema version has its own file pdf4qt-<schema>.db: a new version of the
+/// application creates its file from a copy of the newest older file, which is never
+/// changed, so more versions of PDF4QT may run at the same time and the older file
+/// is a backup. Database files are only the names pdf4qt-<n>.db with n from 1 without
+/// leading zeros (at most 9 digits); the development file pdf4qt.db, damaged files
+/// (.damaged-<date>), temporary files of an upgrade and the files of SQLite (-wal,
+/// -shm, -journal) are not. Old files are never deleted automatically.
+class PDF4QTLIBAPPSHARED_EXPORT PDFDatabaseFiles
+{
+public:
+    PDFDatabaseFiles() = delete;
+
+    /// Name of the database file of the schema version: pdf4qt-<schema>.db
+    static QString getFileName(int schemaVersion);
+
+    /// Path of the database file of the schema version in the folder
+    static QString getFilePath(const QString& directory, int schemaVersion);
+
+    /// Schema version of the name of a database file, -1 for any other name
+    static int getSchemaVersion(const QString& fileName);
+
+    /// Database files of the folder, the newest schema version first. \p currentSchemaVersion
+    /// marks the file of the application (Settings > Storage of step 5).
+    static std::vector<PDFDatabaseFileInfo> getFiles(const QString& directory, int currentSchemaVersion);
+
+    /// Lock of the upgrades: a small SQLite file, whose exclusive transaction is held
+    /// while a database file is created (the operating system releases it, when the
+    /// process ends). It is never deleted (a deleted lock file would let two processes
+    /// lock two different files).
+    static QString getUpgradeLockPath(const QString& directory);
+
+    /// A temporary file of an upgrade (pdf4qt-<schema>.db.upgrade-<pid>-<random>, also
+    /// its -journal / -wal / -shm). Such a file exists only while its process holds
+    /// the lock, a file found by the holder of the lock was left by a crash.
+    static bool isUpgradeTemporaryFileName(const QString& fileName);
+
+    /// Name of the lock file
+    static constexpr const char* UPGRADE_LOCK_FILE_NAME = "pdf4qt-upgrade.lock";
+};
+
 /// Parameters of PDFDatabase::open
 class PDF4QTLIBAPPSHARED_EXPORT PDFDatabaseOptions
 {
 public:
-    /// File of the database (PDFAppPaths::getDatabaseFilePath). Ignored in the portable mode.
+    /// Folder of the database files (PDFAppPaths::getDataDirectory, owner decision O19):
+    /// the database is the file pdf4qt-<schema>.db of the schema version of the
+    /// application (PDFDatabaseFiles). When it does not exist, it is created from
+    /// a copy of the newest older file, which is migrated in a temporary file under
+    /// the lock of the upgrades and renamed (the older file is never written); only
+    /// newer files = the newest of them is copied into memory (ReadOnlyNewerSchema).
+    /// When it is set, filePath is ignored. Ignored in the portable mode.
+    QString directory;
+
+    /// File of the database, when no directory is set (tests and tools: one file
+    /// migrated in place). Ignored in the portable mode.
     QString filePath;
 
     /// Portable mode: database in memory (memdb VFS), nothing is written to the disk
@@ -166,6 +246,14 @@ public:
     /// Migrations of the schema. Empty = PDFDatabaseSchema::getMigrations().
     /// Tests pass a longer list to simulate a newer version of the application.
     std::vector<PDFDatabaseMigration> migrations;
+
+    /// Tests: the process ends (std::_Exit with TEST_EXIT_CODE) right after an older
+    /// database file has been copied into the temporary file of an upgrade, before
+    /// its migration (a crash in the middle of the upgrade)
+    bool testExitAfterUpgradeCopy = false;
+
+    /// Exit code of a process ended by testExitAfterUpgradeCopy
+    static constexpr int TEST_EXIT_CODE = 87;
 };
 
 /// Result of PDFDatabase::checkpoint
@@ -284,6 +372,10 @@ public:
     /// Options of the last open()
     const PDFDatabaseOptions& getOptions() const { return m_options; }
 
+    /// Database files of the folder of the options (PDFDatabaseOptions::directory),
+    /// the newest schema version first; empty without a folder (step 5: Settings > Storage)
+    std::vector<PDFDatabaseFileInfo> getDatabaseFiles() const;
+
     /// Returns the connection of the current thread, it is opened at the first use.
     /// Returns nullptr only, if the database is not open. The connection may be
     /// invalid (isValid), when SQLite cannot open it - operations then report errors.
@@ -355,6 +447,9 @@ private:
     bool openDisk(PDFDatabaseError* error);
     bool openDiskWithRetry(PDFDatabaseError* error);
     bool openMemory(const QString& copyFromFile, PDFDatabaseStorageMode mode);
+    QString getDiskFilePath() const;
+    bool prepareSchemaFile(PDFDatabaseError* error, QString* newerFilePath);
+    bool createSchemaFile(const QString& sourcePath, const QString& temporaryPath, const QString& targetPath, PDFDatabaseError* error, bool* isSourceUnusable);
     bool isFileDamaged(sqlite3* handle, const QString& filePath, bool forceFullCheck, bool* fullCheckPerformed, PDFDatabaseError* error) const;
     bool isIntegrityCheckDue(sqlite3* handle, const QString& filePath) const;
     void recordIntegrityCheck(sqlite3* handle, const QString& filePath, qint64 checkTime) const;
@@ -389,6 +484,10 @@ private:
 
     /// The opening runs the full integrity check (damage found after the cheap checks)
     bool m_forceIntegrityCheck = false;
+
+    /// File, whose content is copied into the memory fallback (the file of the
+    /// database, or the older / newer file of an upgrade, which could not be done)
+    QString m_fallbackFilePath;
 };
 
 }   // namespace pdf

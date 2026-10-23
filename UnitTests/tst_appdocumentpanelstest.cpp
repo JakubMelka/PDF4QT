@@ -21,9 +21,14 @@
 // SOFTWARE.
 
 #include "appdocumentfixture.h"
+#include "applocaleguard.h"
 
 #include "pdfappcommand.h"
+#include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentloader.h"
+#include "pdfappdocumentregistry.h"
+#include "pdfappmainwindow.h"
 #include "pdfappdocumentpanel.h"
 #include "pdfappdocumentpanelcommands.h"
 #include "pdfappdocumentpanels_attachments.h"
@@ -46,6 +51,11 @@
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
+#include "pdfoptionalcontent.h"
+#include "pdfrecentrepository.h"
+#include "pdfsecurityhandler.h"
 #include "pdfmessagebox.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
@@ -63,6 +73,8 @@
 #include <QThread>
 #include <QToolButton>
 #include <QtTest>
+
+#include <limits>
 
 /// Package C of step 3: the sidebar, the navigation panels, the personal
 /// bookmarks and their repository, the commands of the package
@@ -91,10 +103,15 @@ private slots:
     void outline();
     void outlineHostile();
     void layers();
+    void layersKeptOverReset();
+    void outlineSamePage();
+    void annotationListsShared();
     void listGeometry();
     void attachmentsList();
     void attachmentsSave();
     void attachmentsOpen();
+    void attachmentsOpenEncrypted();
+    void attachmentsMarkOfTheWeb();
     void attachmentsRefused();
     void attachmentsFileNames();
     void attachmentsDeletedDuringWrite();
@@ -109,6 +126,7 @@ private slots:
     void bookmarksOtherConnection();
     void bookmarksRenameMoveRemove();
     void bookmarksMenuAfterReload();
+    void bookmarksEncryptedTitle();
     void notes();
     void notesFilterAndHostile();
     void deletionMatrix();
@@ -179,6 +197,120 @@ public:
         const pdf::PDFObject embeddedFiles = dictionary({ { "Names", pdf::PDFObject::createArray(std::move(namesArray)) } });
         builder.setCatalogNames(builder.addObject(dictionary({ { "EmbeddedFiles", embeddedFiles } })));
         return write(builder, folder, fileName);
+    }
+
+    /// Attachments with the given names and data
+    static QString attachmentFiles(const QString& folder, const QString& fileName, const std::vector<std::pair<QString, QByteArray>>& files)
+    {
+        pdf::PDFDocumentBuilder builder;
+        builder.appendPage(QRectF(0, 0, 300, 400));
+        pdf::PDFArrayBuilder namesArray;
+        for (const auto& file : files)
+        {
+            const pdf::PDFObjectReference data = builder.addObject(stream(file.second));
+            const pdf::PDFObjectReference specification = builder.addObject(dictionary({ { "Type", name("Filespec") }, { "F", text(file.first) }, { "UF", text(file.first) },
+                                                                                         { "EF", dictionary({ { "F", reference(data) } }) } }));
+            namesArray.appendItem(text(file.first));
+            namesArray.appendItem(reference(specification));
+        }
+        const pdf::PDFObject embeddedFiles = dictionary({ { "Names", pdf::PDFObject::createArray(std::move(namesArray)) } });
+        builder.setCatalogNames(builder.addObject(dictionary({ { "EmbeddedFiles", embeddedFiles } })));
+        return write(builder, folder, fileName);
+    }
+
+    static QByteArray readFile(const QString& path)
+    {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    }
+
+    /// Document tab of the window, whose document has no file and the title
+    static pdf::PDFAppDocumentTab* findMemoryTab(pdftest::AppDocumentFixture& fixture, const QString& title)
+    {
+        for (pdf::PDFAppDocumentTab* tab : fixture.window->getDocumentTabs())
+        {
+            if (tab->getDocument() && tab->getDocument()->getFilePath().isEmpty() && tab->getDocument()->getTitle() == title)
+            {
+                return tab;
+            }
+        }
+        return nullptr;
+    }
+
+    static pdf::PDFObject xyz(pdf::PDFObjectReference page, double top)
+    {
+        return array({ reference(page), name("XYZ"), pdf::PDFObject::createNull(), pdf::PDFObject::createReal(top), pdf::PDFObject::createNull() });
+    }
+
+    /// Outline: two items of page 1 (tops 390, 150), three items of page 2 (tops
+    /// 380, 200, 50) and one of page 3 (Fit)
+    static QString sharedPageOutline(const QString& folder, bool isEncrypted)
+    {
+        pdf::PDFDocumentBuilder builder;
+        std::vector<pdf::PDFObjectReference> pages;
+        for (int i = 0; i < 3; ++i)
+        {
+            pages.push_back(builder.appendPage(QRectF(0, 0, 300, 400)));
+        }
+
+        struct Entry
+        {
+            const char* title;
+            int page;
+            double top;
+        };
+        const std::vector<Entry> entries =
+        {
+            { "Cover top", 0, 390.0 }, { "Cover middle", 0, 150.0 },
+            { "First of page 2", 1, 380.0 }, { "Second of page 2", 1, 200.0 }, { "Third of page 2", 1, 50.0 },
+            { "Chapter of page 3", 2, -1.0 }
+        };
+
+        const pdf::PDFObjectReference root = builder.addObject(pdf::PDFObject());
+        std::vector<pdf::PDFObjectReference> items;
+        for (size_t i = 0; i < entries.size(); ++i)
+        {
+            items.push_back(builder.addObject(pdf::PDFObject()));
+        }
+        for (size_t i = 0; i < entries.size(); ++i)
+        {
+            pdf::PDFDictionaryBuilder item;
+            item.setEntry(pdf::PDFInplaceOrMemoryString("Title"), text(QString::fromLatin1(entries[i].title)));
+            item.setEntry(pdf::PDFInplaceOrMemoryString("Parent"), reference(root));
+            const pdf::PDFObjectReference page = pages[size_t(entries[i].page)];
+            item.setEntry(pdf::PDFInplaceOrMemoryString("Dest"), entries[i].top < 0.0 ? array({ reference(page), name("Fit") }) : xyz(page, entries[i].top));
+            if (i > 0)
+            {
+                item.setEntry(pdf::PDFInplaceOrMemoryString("Prev"), reference(items[i - 1]));
+            }
+            if (i + 1 < entries.size())
+            {
+                item.setEntry(pdf::PDFInplaceOrMemoryString("Next"), reference(items[i + 1]));
+            }
+            builder.setObject(items[i], pdf::PDFObject::createDictionary(std::move(item)));
+        }
+        builder.setObject(root, dictionary({ { "Type", name("Outlines") }, { "First", reference(items.front()) }, { "Last", reference(items.back()) },
+                                             { "Count", pdf::PDFObject::createInteger(pdf::PDFInteger(entries.size())) } }));
+        builder.setOutline(root);
+
+        if (isEncrypted)
+        {
+            pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+            settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+            settings.userPassword = pdftest::AppDocumentSamples::getUserPassword();
+            settings.ownerPassword = pdftest::AppDocumentSamples::getOwnerPassword();
+            settings.permissions = 0xFFFFFFFCu;
+            builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+        }
+        return write(builder, folder, isEncrypted ? QStringLiteral("shared-page-outline-encrypted.pdf") : QStringLiteral("shared-page-outline.pdf"));
+    }
+
+    /// Top of the view in the coordinates of the page (as the outline panel)
+    static double viewTop(pdf::PDFAppDocumentView* view, pdf::PDFInteger page)
+    {
+        QPointF point;
+        QWidget* widget = view->getPdfWidget()->getDrawWidget()->getWidget();
+        return view->getProxy()->getPageUnderPoint(QPoint(widget->width() / 2, 0), &point) == page ? point.y() : std::numeric_limits<double>::infinity();
     }
 
     /// 4 pages: text notes on pages 1 (two) and 3, a highlight on page 3, a link (not listed) on page 2
@@ -360,7 +492,6 @@ public:
     {
         pdf::PDFAppPanelFileDialogs::setSaveHandler(pdf::PDFAppPanelFileDialogs::FileHandler());
         pdf::PDFAppPanelFileDialogs::setOpenHandler(pdf::PDFAppPanelFileDialogs::FileHandler());
-        pdf::PDFAppPanelFileDialogs::setLaunchHandler(pdf::PDFAppPanelFileDialogs::LaunchHandler());
     }
 };
 
@@ -1109,6 +1240,246 @@ void AppDocumentPanelsTest::layers()
     QCOMPARE(layerA.data(Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
 }
 
+void AppDocumentPanelsTest::layersKeptOverReset()
+{
+    // A change, which replaces the activity of the optional content (Rotate is a
+    // Reset change, undo / redo of it too), keeps the layers switched by the user
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::layers(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const auto ocgs = document->getDocument()->getCatalog()->getOptionalContentProperties()->getAllOptionalContentGroups();
+    QCOMPARE(ocgs.size(), size_t(2));
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::ON);
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[1]), pdf::OCState::OFF);
+
+    // The user hides layer A and shows layer B
+    document->getOptionalContentActivity()->setState(ocgs[0], pdf::OCState::OFF);
+    document->getOptionalContentActivity()->setState(ocgs[1], pdf::OCState::ON);
+
+    QPointer<pdf::PDFOptionalContentActivity> oldActivity = document->getOptionalContentActivity();
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::rotatePagesRight()));
+    fixture.settle();
+    QVERIFY(document->getOptionalContentActivity() != oldActivity.data());
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::OFF);
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[1]), pdf::OCState::ON);
+
+    // The view and the layers panel have the new activity with the states
+    pdf::PDFAppLayersPanel* layers = PanelsTestHelper::panel<pdf::PDFAppLayersPanel>(tab, QStringLiteral("layers"));
+    QVERIFY(layers);
+    QCOMPARE(layers->getModel()->index(0, 0, QModelIndex()).data(Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
+    QCOMPARE(layers->getModel()->index(1, 0, QModelIndex()).data(Qt::CheckStateRole).toInt(), int(Qt::Checked));
+
+    // Undo and redo
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    fixture.settle();
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::OFF);
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[1]), pdf::OCState::ON);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::redo()));
+    fixture.settle();
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::OFF);
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[1]), pdf::OCState::ON);
+
+    // A new version with other defaults of the layers (a file changed by another
+    // program and reloaded): only the layer switched by the user keeps its state,
+    // the other one takes the default of the new version (B is shown by default now)
+    document->getOptionalContentActivity()->setState(ocgs[1], pdf::OCState::OFF);
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        pdf::PDFArrayBuilder groups;
+        groups.appendItem(pdf::PDFObject::createReference(ocgs[0]));
+        groups.appendItem(pdf::PDFObject::createReference(ocgs[1]));
+        pdf::PDFArrayBuilder order;
+        order.appendItem(pdf::PDFObject::createReference(ocgs[0]));
+        order.appendItem(pdf::PDFObject::createReference(ocgs[1]));
+        pdf::PDFDictionaryBuilder defaultConfiguration;
+        defaultConfiguration.setEntry(pdf::PDFInplaceOrMemoryString("Order"), pdf::PDFObject::createArray(std::move(order)));
+        pdf::PDFDictionaryBuilder properties;
+        properties.setEntry(pdf::PDFInplaceOrMemoryString("OCGs"), pdf::PDFObject::createArray(std::move(groups)));
+        properties.setEntry(pdf::PDFInplaceOrMemoryString("D"), pdf::PDFObject::createDictionary(std::move(defaultConfiguration)));
+        builder.setCatalogOptionalContentProperties(builder.addObject(pdf::PDFObject::createDictionary(std::move(properties))));
+        const pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(builder.build()));
+        QCOMPARE(pdf::PDFOptionalContentActivity(pointer.data(), pdf::OCUsage::View, nullptr).getState(ocgs[1]), pdf::OCState::ON);
+        const pdf::PDFModifiedDocument modified(pointer, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset);
+        QVERIFY(document->commit(modified, QStringLiteral("Other defaults"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    }
+    fixture.settle();
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::OFF);
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[1]), pdf::OCState::ON);
+
+    // A document without the layers of the old one: nothing is copied (no crash)
+    QVERIFY(PanelsTestHelper::replaceDocument(tab, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("no-layers.pdf"), 1)));
+    fixture.settle();
+    QCOMPARE(document->getOptionalContentActivity()->getState(ocgs[0]), pdf::OCState::Unknown);
+}
+
+void AppDocumentPanelsTest::outlineSamePage()
+{
+    // Owner report: an item of a page with another item earlier on it - the clicked
+    // item stays selected, when the view reaches its page (also with three items
+    // of a page); the sync by the canvas runs, when the view reaches another page,
+    // and takes the item closest above the top of the view
+    using Position = pdf::PDFAppOutlinePanel::ItemPosition;
+    constexpr double pageTop = std::numeric_limits<double>::infinity();
+    const std::vector<Position> positions = { { 0, 390.0 }, { 0, 150.0 }, { 1, 380.0 }, { 1, 200.0 }, { 1, 50.0 }, { 2, pageTop }, { -1, pageTop } };
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, pageTop), 2);  // top of the page not reached: the topmost
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, 400.0), 2);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, 380.0), 2);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, 250.0), 2);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, 199.0), 3);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 1, 10.0), 4);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 0, 100.0), 1);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 2, 0.0), 5);    // Fit: the top of the page
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, 7, 0.0), 5);    // a page without items: the last page with one
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex({ { 3, pageTop }, { 3, pageTop } }, 3, pageTop), 1); // equal: the later
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex({ { 3, 100.0 }, { 3, 300.0 } }, 5, 0.0), 0);         // an earlier page: its lowest
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex(positions, -1, 0.0), -1);
+    QCOMPARE(pdf::PDFAppOutlinePanel::findCurrentItemIndex({ }, 1, 0.0), -1);
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::sharedPageOutline(fixture.folder(), false));
+    pdf::PDFAppOutlinePanel* outline = PanelsTestHelper::panel<pdf::PDFAppOutlinePanel>(tab, QStringLiteral("outline"));
+    QVERIFY(outline);
+    fixture.settle();
+    QAbstractItemModel* model = outline->getViewModel();
+    QCOMPARE(model->rowCount(), 6);
+    pdf::PDFTreeView* tree = outline->getTreeView();
+    pdf::PDFAppDocumentView* view = tab->getView();
+
+    // A click on each item of a page with two and with three items: the clicked one stays
+    for (const int row : { 3, 2, 4, 3, 1, 0, 1 })
+    {
+        const QModelIndex index = model->index(row, 0);
+        const QString title = index.data().toString();
+        tree->scrollTo(index);
+        QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, tree->visualRect(index).center());
+        fixture.settle();
+        QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(row < 2 ? 0 : 1));
+        QTest::qWait(50);
+        fixture.settle();
+        QCOMPARE(outline->getCurrentItem().data().toString(), title);
+    }
+
+    // Another page and back by the view (the top of the page): the topmost item
+    view->goToPage(2);
+    fixture.settle();
+    QTRY_COMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("Chapter of page 3"));
+    view->goToPage(1);
+    fixture.settle();
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
+    QTRY_COMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("First of page 2"));
+
+    // Scrolled down inside of page 2: the item selected by the view (not activated by
+    // the user) follows the view - the second item, when its top is passed (the
+    // selection is updated by a change of the filter here, as by a change of the page)
+    for (int step = 0; step < 400 && view->getCurrentPageIndex() == 1 && PanelsTestHelper::viewTop(view, 1) > 190.0; ++step)
+    {
+        view->getProxy()->scrollByPixels(QPoint(0, -5));
+        fixture.settle();
+    }
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
+    QVERIFY(PanelsTestHelper::viewTop(view, 1) <= 190.0);
+    outline->getSearchField()->setText(QStringLiteral("page"));
+    fixture.settle();
+    QCOMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("Second of page 2"));
+    outline->getSearchField()->clear();
+    fixture.settle();
+    QCOMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("Second of page 2"));
+
+    // The first item activated by the user stays selected on its page (also after
+    // the filter has changed)
+    {
+        const QModelIndex first = model->index(2, 0);
+        QCOMPARE(first.data().toString(), QStringLiteral("First of page 2"));
+        tree->scrollTo(first);
+        QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, tree->visualRect(first).center());
+        fixture.settle();
+        QCOMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("First of page 2"));
+        outline->getSearchField()->setText(QStringLiteral("page"));
+        fixture.settle();
+        QCOMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("First of page 2"));
+        outline->getSearchField()->clear();
+        fixture.settle();
+    }
+
+    // Scrolled up from page 3 into the bottom of page 2: the item closest above the
+    // top of the view (the third one, its destination is above it)
+    view->goToPage(2);
+    fixture.settle();
+    QTRY_COMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("Chapter of page 3"));
+    for (int step = 0; step < 400 && view->getCurrentPageIndex() != 1; ++step)
+    {
+        view->getProxy()->scrollByPixels(QPoint(0, 5));
+        fixture.settle();
+    }
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
+    fixture.settle();
+    const double top = PanelsTestHelper::viewTop(view, 1);
+    const std::vector<Position> documentPositions = { { 0, 390.0 }, { 0, 150.0 }, { 1, 380.0 }, { 1, 200.0 }, { 1, 50.0 }, { 2, pageTop } };
+    const int expected = pdf::PDFAppOutlinePanel::findCurrentItemIndex(documentPositions, 1, top);
+    QVERIFY(expected >= 2 && expected <= 4);
+    QTRY_COMPARE(outline->getCurrentItem().data().toString(), model->index(expected, 0).data().toString());
+    if (top < 50.0)
+    {
+        QCOMPARE(outline->getCurrentItem().data().toString(), QStringLiteral("Third of page 2"));
+    }
+}
+
+void AppDocumentPanelsTest::annotationListsShared()
+{
+    // The attachments and the notes of a version are collected once and shared by
+    // the tabs of the sidebar and the panels (also after a change)
+    pdftest::AppDocumentFixture fixture;
+
+    // The tabs of the sidebar do not collect the lists (they are asked at every
+    // change of the document): only a shown panel collects its list
+    {
+        const int attachmentsHidden = pdf::PDFAppAttachments::getCollectCount();
+        const int notesHidden = pdf::PDFAppNotes::getCollectCount();
+        const QString hiddenPath = fixture.path(QStringLiteral("attachments-hidden.pdf"));
+        QVERIFY(QFile::copy(pdftest::AppDocumentSamples::attachments(fixture.folder()), hiddenPath));
+        pdf::PDFAppDocumentTab* hiddenTab = fixture.open(hiddenPath);
+        QVERIFY(hiddenTab);
+        fixture.settle();
+        pdf::PDFAppDocumentSidebar* sidebar = hiddenTab->getView()->getSidebar();
+        QVERIFY(sidebar->isTabVisible(QStringLiteral("attachments")));
+        QVERIFY(sidebar->isTabVisible(QStringLiteral("notes")));
+        QVERIFY(hiddenTab->executeCommand(pdf::PDFAppCommands::rotatePagesRight()));
+        fixture.settle();
+        QVERIFY(sidebar->isTabVisible(QStringLiteral("attachments")));
+        QVERIFY(sidebar->isTabVisible(QStringLiteral("notes")));
+        QCOMPARE(pdf::PDFAppAttachments::getCollectCount(), attachmentsHidden);
+        QCOMPARE(pdf::PDFAppNotes::getCollectCount(), notesHidden);
+    }
+
+    const int attachmentsBefore = pdf::PDFAppAttachments::getCollectCount();
+    const int notesBefore = pdf::PDFAppNotes::getCollectCount();
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
+    QVERIFY(tab);
+    QVERIFY(PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments")));
+    QVERIFY(PanelsTestHelper::panel<pdf::PDFAppNotesPanel>(tab, QStringLiteral("notes")));
+    fixture.settle();
+    QCOMPARE(pdf::PDFAppAttachments::getCollectCount() - attachmentsBefore, 1);
+    QCOMPARE(pdf::PDFAppNotes::getCollectCount() - notesBefore, 1);
+    const std::shared_ptr<const std::vector<pdf::PDFAppAttachment>> list = pdf::PDFAppAttachments::getAttachments(tab->getDocument());
+    QCOMPARE(list.get(), pdf::PDFAppAttachments::getAttachments(tab->getDocument()).get());
+    QCOMPARE(list->size(), size_t(3));
+
+    // A change (Rotate, a Reset change): once more each
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::rotatePagesRight()));
+    fixture.settle();
+    QCOMPARE(pdf::PDFAppAttachments::getCollectCount() - attachmentsBefore, 2);
+    QCOMPARE(pdf::PDFAppNotes::getCollectCount() - notesBefore, 2);
+    QVERIFY(list.get() != pdf::PDFAppAttachments::getAttachments(tab->getDocument()).get());
+
+    // No document: an empty list, nothing stored
+    QVERIFY(pdf::PDFAppAttachments::getAttachments(nullptr)->empty());
+    QVERIFY(pdf::PDFAppNotes::getNotes(nullptr)->empty());
+    pdf::PDFAppDocument loading(fixture.context.get(), nullptr);
+    QVERIFY(pdf::PDFAppNotes::getNotes(&loading)->empty());
+    QVERIFY(!loading.getDerivedData(QStringLiteral("notes")));
+}
+
 void AppDocumentPanelsTest::listGeometry()
 {
     // The lists of the sidebar (195:2070 attachments, 195:3910 notes, 195:3445
@@ -1159,13 +1530,13 @@ void AppDocumentPanelsTest::attachmentsList()
     QVERIFY(!model->getAttachment(-1));
     QVERIFY(!model->getAttachment(3));
 
-    // The delegate: the save action in the row, Open in the context menu
+    // The delegate: the save action in the row, Open in the context menu of a PDF only (O18)
     pdf::PDFAppAttachmentDelegate delegate(nullptr);
     QStyleOptionViewItem option;
     option.rect = QRect(0, 0, 276, 48);
     const QList<pdf::PDFRowDelegate::Action> actions = delegate.getActions(option, model->index(0));
-    QCOMPARE(actions.size(), 2);
-    QCOMPARE(actions[0].id, int(pdf::PDFAppAttachmentDelegate::OpenAction));
+    QCOMPARE(actions.size(), 1);
+    QCOMPARE(actions[0].id, int(pdf::PDFAttachmentDelegate::SaveAction));
 
     // Kinds and sizes
     QString kind;
@@ -1180,6 +1551,13 @@ void AppDocumentPanelsTest::attachmentsList()
     QVERIFY(pdf::PDFAppAttachments::formatSize(-1).isEmpty());
     QVERIFY(!pdf::PDFAppAttachments::formatSize(84000).isEmpty());
     QVERIFY(!pdf::PDFAppAttachments::formatSize(1200000).isEmpty());
+    {
+        // "kind · size" in the language of the user interface also on a Czech
+        // system (O17)
+        pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+        QCOMPARE(pdf::PDFAppAttachments::formatSize(84000), QStringLiteral("84 kB"));
+        QCOMPARE(pdf::PDFAppAttachments::formatSize(1234567), QStringLiteral("1.2 MB"));
+    }
     QVERIFY(pdf::PDFAppAttachments::collect(nullptr).empty());
 }
 
@@ -1217,66 +1595,171 @@ void AppDocumentPanelsTest::attachmentsSave()
 
 void AppDocumentPanelsTest::attachmentsOpen()
 {
+    // O18: a PDF attachment opens in a new tab directly from the memory (no
+    // temporary file, a copy without a file, not in Recent); another file is only
+    // saved - a click on its row saves it
     pdftest::AppDocumentFixture fixture;
-    const QString path = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("open.pdf"), { QStringLiteral("readme.txt"), QStringLiteral("inner.pdf") });
+    const QByteArray inner = PanelsTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("inner-source.pdf"), 3));
+    QVERIFY(!inner.isEmpty());
+    const QString path = PanelsTestHelper::attachmentFiles(fixture.folder(), QStringLiteral("open.pdf"), { { QStringLiteral("readme.txt"), QByteArray("data of readme.txt") },
+                                                                                                         { QStringLiteral("inner.pdf"), inner } });
     QVERIFY(!path.isEmpty());
-
-    // inner.pdf is a real PDF (the simple sample) embedded by the test
     pdf::PDFAppDocumentTab* tab = fixture.open(path);
     pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
     QVERIFY(attachments);
+    const qsizetype recentCount = fixture.context->getRecent().getFiles().size();
+    const int tabCount = fixture.window->getDocumentTabs().size();
 
-    QStringList launched;
-    pdf::PDFAppPanelFileDialogs::setLaunchHandler([&](const QString& file) { launched << file; return true; });
+    // The context menu offers Open only for the PDF
+    pdf::PDFAppAttachmentDelegate delegate(nullptr);
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 276, 48);
+    QCOMPARE(delegate.getActions(option, attachments->getModel()->index(0)).size(), 2);
+    QCOMPARE(delegate.getActions(option, attachments->getModel()->index(1)).size(), 1);
 
-    // Another file: the confirmation 1028:23389, Don’t Open writes nothing
-    attachments->openAttachment(1);
-    fixture.settle();
-    pdf::PDFMessageBox* dialog = PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"));
-    QVERIFY(dialog);
-    QVERIFY(dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factsList")));
-    QCOMPARE(dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factsList"))->getValue(0), QStringLiteral("readme.txt"));
-    dialog->findChild<QPushButton*>(QStringLiteral("dontOpenButton"))->click();
-    fixture.settle();
+    // Another file: never opened, a click saves it
+    QVERIFY(!attachments->openAttachment(1));
     QCOMPARE(attachments->getRunningCount(), 0);
-    QVERIFY(launched.isEmpty());
+    const QString target = fixture.path(QStringLiteral("readme-saved.txt"));
+    QString proposed;
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString& file, const QString&) { proposed = file; return target; });
+    attachments->activateAttachment(1);
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    QVERIFY(proposed.endsWith(QStringLiteral("readme.txt")));
+    QCOMPARE(PanelsTestHelper::readFile(target), QByteArray("data of readme.txt"));
+    QCOMPARE(fixture.window->getDocumentTabs().size(), tabCount);
 
-    // Open File: written into the private folder, opened by the system
-    attachments->openAttachment(1);
-    fixture.settle();
-    dialog = PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"));
-    QVERIFY(dialog);
-    dialog->findChild<QPushButton*>(QStringLiteral("openFileButton"))->click();
-    QTRY_COMPARE(launched.size(), 1);
-    QVERIFY(launched.front().startsWith(attachments->getTemporaryFolder()));
-    QVERIFY(launched.front().endsWith(QStringLiteral("readme.txt")));
-    QVERIFY(!(QFileInfo(launched.front()).permissions() & (QFileDevice::ExeOwner | QFileDevice::ExeOther | QFileDevice::ExeGroup)));
+    // The PDF: a new tab, read from the memory
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([](QWidget*, const QString&, const QString&, const QString&) { return QString(); });
+    attachments->activateAttachment(0);
+    QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf")));
+    pdf::PDFAppDocumentTab* innerTab = PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf"));
+    QTRY_VERIFY(innerTab->getDocument()->isReady());
+    pdf::PDFAppDocument* document = innerTab->getDocument();
+    QCOMPARE(document->getPageCount(), pdf::PDFInteger(3));
+    QVERIFY(document->getFilePath().isEmpty());
+    QVERIFY(document->isCopy());
+    QVERIFY(document->isModified());
+    QCOMPARE(document->getUnsavedChangeCount(), -1);
+    QCOMPARE(document->getOriginalData(), inner);
+    QCOMPARE(document->getOriginFilePath(), QFileInfo(path).canonicalFilePath());
+    QCOMPARE(innerTab->getTabTitle(), QStringLiteral("inner.pdf"));
+    QCOMPARE(fixture.window->getDocumentTabs().size(), tabCount + 1);
 
-    // The same file again: another subfolder
-    attachments->openAttachment(1);
+    // Not recorded in Recent, the registry does not find it by a path
     fixture.settle();
-    PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"))->findChild<QPushButton*>(QStringLiteral("openFileButton"))->click();
-    QTRY_COMPARE(launched.size(), 2);
-    QVERIFY(launched[0] != launched[1]);
+    QCOMPARE(fixture.context->getRecent().getFiles().size(), recentCount);
+    QVERIFY(!fixture.context->getDocumentRegistry()->findByCanonicalPath(QString()));
 
-    // A launch, which fails: an error box
-    pdf::PDFAppPanelFileDialogs::setLaunchHandler([](const QString&) { return false; });
-    attachments->openAttachment(1);
-    fixture.settle();
-    PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"))->findChild<QPushButton*>(QStringLiteral("openFileButton"))->click();
-    QTRY_VERIFY(PanelsTestHelper::findMessageBox(QStringLiteral("attachmentErrorBox")));
+    // The same attachment again: another tab (a copy, no file to find)
+    attachments->openAttachment(0);
+    QTRY_COMPARE(fixture.window->getDocumentTabs().size(), tabCount + 2);
+
+    // A PDF attachment, which is damaged: the open-failed dialog names the attachment
+    const QString damaged = PanelsTestHelper::attachmentFiles(fixture.folder(), QStringLiteral("damaged-attachment.pdf"), { { QStringLiteral("broken.pdf"), QByteArray("not a PDF at all") } });
+    pdf::PDFAppDocumentTab* damagedTab = fixture.open(damaged);
+    pdf::PDFAppAttachmentsPanel* damagedAttachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(damagedTab, QStringLiteral("attachments"));
+    QVERIFY(damagedAttachments);
+    const int countBefore = fixture.window->getDocumentTabs().size();
+    QVERIFY(damagedAttachments->openAttachment(0));
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    QCOMPARE(fixture.window->getDocumentTabs().size(), countBefore);
     fixture.closeMessageBoxes();
+}
 
-    // The private folder is removed with the panel (the tab)
-    const QString folder = attachments->getTemporaryFolder();
-    QVERIFY(QDir(folder).exists());
-    fixture.window->closeTab(tab);
-    fixture.settle();
-    QTRY_VERIFY(!QDir(folder).exists());
+void AppDocumentPanelsTest::attachmentsOpenEncrypted()
+{
+    // The password screen of an encrypted attachment works from the memory too
+    pdftest::AppDocumentFixture fixture;
+    const QByteArray secret = PanelsTestHelper::readFile(pdftest::AppDocumentSamples::userPassword(fixture.folder()));
+    QVERIFY(!secret.isEmpty());
+    const QString path = PanelsTestHelper::attachmentFiles(fixture.folder(), QStringLiteral("with-secret.pdf"), { { QStringLiteral("secret.pdf"), secret } });
+    pdf::PDFAppDocumentTab* tab = fixture.open(path);
+    pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+    QVERIFY(attachments->openAttachment(0));
+    QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("secret.pdf")));
+    QPointer<pdf::PDFAppDocumentTab> secretTab = PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("secret.pdf"));
+    QTRY_COMPARE(secretTab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+    QVERIFY(secretTab->isStateScreenShown());
+
+    // A wrong password, then the right one
+    QVERIFY(secretTab->getLoader()->setPassword(QStringLiteral("wrong")));
+    QTRY_VERIFY(secretTab->getDocument()->isPasswordWrong());
+    QVERIFY(secretTab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
+    QTRY_VERIFY(secretTab->getDocument()->isReady());
+    QCOMPARE(secretTab->getDocument()->getPageCount(), pdf::PDFInteger(2));
+    QVERIFY(secretTab->getDocument()->isCopy());
+    QVERIFY(secretTab->getDocument()->getFilePath().isEmpty());
+    QCOMPARE(secretTab->getTabTitle(), QStringLiteral("secret.pdf"));
+    QVERIFY(secretTab->isTabPasswordProtected());
+
+    // An empty document from the memory fails (the loader refuses a second start)
+    pdf::PDFAppDocumentTab emptyTab(fixture.context.get(), nullptr);
+    QVERIFY(emptyTab.openFromMemory(QByteArray(), QStringLiteral("empty.pdf"), QString()));
+    QVERIFY(!emptyTab.openFromMemory(QByteArray("x"), QStringLiteral("again.pdf"), QString()));
+    QTRY_COMPARE(emptyTab.getDocument()->getState(), pdf::PDFAppDocumentState::Failed);
+    QCOMPARE(emptyTab.getDocument()->getTitle(), QStringLiteral("empty.pdf"));
+}
+
+void AppDocumentPanelsTest::attachmentsMarkOfTheWeb()
+{
+#ifdef Q_OS_WIN
+    // O18: a saved attachment takes over the Mark of the Web of its PDF (NTFS)
+    pdftest::AppDocumentFixture fixture;
+    const QByteArray inner = PanelsTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("motw-inner.pdf"), 1));
+    const QString path = PanelsTestHelper::attachmentFiles(fixture.folder(), QStringLiteral("downloaded.pdf"), { { QStringLiteral("notes.txt"), QByteArray("data of notes.txt") },
+                                                                                                               { QStringLiteral("inner.pdf"), inner } });
+    const QByteArray zone("[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://example.com/downloaded.pdf\r\n");
+    {
+        QFile stream(QDir::toNativeSeparators(path) + QStringLiteral(":Zone.Identifier"));
+        if (!stream.open(QIODevice::WriteOnly) || stream.write(zone) != zone.size())
+        {
+            QSKIP("The folder of the test has no alternate data streams (not NTFS)");
+        }
+    }
+
+    pdf::PDFAppDocumentTab* tab = fixture.open(path);
+    pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+    const QString target = fixture.path(QStringLiteral("notes-saved.txt"));
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString&, const QString&) { return target; });
+    attachments->saveAttachment(1);
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    QCOMPARE(PanelsTestHelper::readFile(target), QByteArray("data of notes.txt"));
+    QCOMPARE(PanelsTestHelper::readFile(QDir::toNativeSeparators(target) + QStringLiteral(":Zone.Identifier")), zone);
+
+    // A PDF opened from the memory keeps the file of its origin for its own attachments
+    attachments->openAttachment(0);
+    QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf")));
+    QCOMPARE(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf"))->getDocument()->getOriginFilePath(), QFileInfo(path).canonicalFilePath());
+
+    // Without a mark nothing is written, and nothing fails
+    const QString plain = fixture.path(QStringLiteral("plain.txt"));
+    const QString copy = fixture.path(QStringLiteral("copy.txt"));
+    QFile plainFile(plain);
+    QVERIFY(plainFile.open(QIODevice::WriteOnly));
+    plainFile.write("x");
+    plainFile.close();
+    QFile copyFile(copy);
+    QVERIFY(copyFile.open(QIODevice::WriteOnly));
+    copyFile.write("y");
+    copyFile.close();
+    QVERIFY(!pdf::PDFAppAttachments::copyMarkOfTheWeb(plain, copy));
+    QVERIFY(!QFile::exists(QDir::toNativeSeparators(copy) + QStringLiteral(":Zone.Identifier")));
+    QVERIFY(!pdf::PDFAppAttachments::copyMarkOfTheWeb(QString(), copy));
+    QVERIFY(!pdf::PDFAppAttachments::copyMarkOfTheWeb(path, QString()));
+    QVERIFY(pdf::PDFAppAttachments::copyMarkOfTheWeb(path, copy));
+    QCOMPARE(PanelsTestHelper::readFile(QDir::toNativeSeparators(copy) + QStringLiteral(":Zone.Identifier")), zone);
+#else
+    QVERIFY(!pdf::PDFAppAttachments::copyMarkOfTheWeb(QStringLiteral("/tmp/a.pdf"), QStringLiteral("/tmp/b.txt")));
+    QSKIP("The Mark of the Web is a stream of NTFS (Windows only)");
+#endif
 }
 
 void AppDocumentPanelsTest::attachmentsRefused()
 {
+    // Programs and scripts are never opened: a click saves them as any other file
     pdftest::AppDocumentFixture fixture;
     const QString path = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("refused.pdf"),
                                                        { QStringLiteral("setup.exe"), QStringLiteral("run.BAT"), QStringLiteral("invoice.pdf.exe"),
@@ -1285,25 +1768,27 @@ void AppDocumentPanelsTest::attachmentsRefused()
     pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
     QVERIFY(attachments);
     QCOMPARE(attachments->getModel()->rowCount(), 6);
+    const int tabCount = fixture.window->getDocumentTabs().size();
 
-    bool isLaunched = false;
-    pdf::PDFAppPanelFileDialogs::setLaunchHandler([&](const QString&) { isLaunched = true; return true; });
+    int dialogs = 0;
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString&, const QString&) { ++dialogs; return QString(); });
     for (int row = 0; row < 6; ++row)
     {
-        attachments->openAttachment(row);
+        QVERIFY(!attachments->openAttachment(row));
+        attachments->activateAttachment(row);
         fixture.settle();
-        QVERIFY(!PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog")));
-        QVERIFY(PanelsTestHelper::findMessageBox(QStringLiteral("attachmentErrorBox")));
-        fixture.closeMessageBoxes();
         QCOMPARE(attachments->getRunningCount(), 0);
+        QVERIFY(!PanelsTestHelper::findMessageBox(QString()));
     }
-    QVERIFY(!isLaunched);
+    QCOMPARE(dialogs, 6);
+    QCOMPARE(fixture.window->getDocumentTabs().size(), tabCount);
 
     // A program can be saved (D8)
     const QString target = fixture.path(QStringLiteral("setup-saved.bin"));
     pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString&, const QString&) { return target; });
     attachments->saveAttachment(0);
     QTRY_VERIFY(QFile::exists(target));
+    QVERIFY(!(QFileInfo(target).permissions() & (QFileDevice::ExeOwner | QFileDevice::ExeOther | QFileDevice::ExeGroup)));
 }
 
 void AppDocumentPanelsTest::attachmentsFileNames()
@@ -1360,35 +1845,59 @@ void AppDocumentPanelsTest::attachmentsFileNames()
 void AppDocumentPanelsTest::attachmentsDeletedDuringWrite()
 {
     pdftest::AppDocumentFixture fixture;
-    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
+    const QByteArray inner = PanelsTestHelper::readFile(pdftest::AppDocumentSamples::large(fixture.folder(), 300));
+    const QString path = PanelsTestHelper::attachmentFiles(fixture.folder(), QStringLiteral("deleted.pdf"), { { QStringLiteral("a.txt"), QByteArray("data of a.txt") },
+                                                                                                            { QStringLiteral("inner.pdf"), inner } });
+    pdf::PDFAppDocumentTab* tab = fixture.open(path);
     pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
     QVERIFY(attachments);
+    const int tabCount = fixture.window->getDocumentTabs().size();
 
-    // The tab closed while the writes run: the results are dropped, nothing crashes
+    // The tab closed while the writes and the decoding of a PDF run: the results
+    // are dropped (no new tab), nothing crashes
     const QString target = fixture.path(QStringLiteral("late.txt"));
     pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString&, const QString&) { return target; });
     for (int i = 0; i < 5; ++i)
     {
-        attachments->saveAttachment(i % 3);
+        attachments->saveAttachment(i % 2);
     }
-
-    // A confirmation dialog open while the tab is closed
-    attachments->openAttachment(1);
-    fixture.settle();
-    QPointer<pdf::PDFMessageBox> dialog = PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"));
-    QVERIFY(dialog);
+    QVERIFY(attachments->openAttachment(1));
     fixture.window->closeTab(tab);
     fixture.settle();
     QThreadPool::globalInstance()->waitForDone(10000);
     fixture.settle();
-    QTRY_VERIFY(!dialog || !dialog->isVisible());
+    QCOMPARE(fixture.window->getDocumentTabs().size(), tabCount - 1);
+
+    // The new tab closed, while it reads the document from the memory; the window
+    // deleted, while another one reads
+    tab = fixture.open(path);
+    attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+    QVERIFY(attachments->openAttachment(1));
+    QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf")));
+    QPointer<pdf::PDFAppDocumentTab> innerTab = PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf"));
+    if (innerTab->getDocument()->getState() == pdf::PDFAppDocumentState::Loading)
+    {
+        fixture.window->closeTab(innerTab);
+    }
+    else
+    {
+        // Already read (a fast machine): the copy asks about its changes - Don't Save
+        delete innerTab.data();
+    }
+    fixture.settle();
+    QVERIFY(attachments->openAttachment(1));
+    QTRY_VERIFY(PanelsTestHelper::findMemoryTab(fixture, QStringLiteral("inner.pdf")));
+    delete fixture.window.data();
+    QThreadPool::globalInstance()->waitForDone(10000);
+    fixture.settle();
 }
 
 void AppDocumentPanelsTest::attachmentsDocumentChanged()
 {
-    // The document changes while the confirmation or the save dialog is open: the
-    // rows change with it, but the confirmed (chosen) attachment is written - never
-    // the attachment, which has its row now (a program of the new version)
+    // The document changes while the save dialog is open: the rows change with it,
+    // but the chosen attachment is written - never the attachment, which has its
+    // row now
     pdftest::AppDocumentFixture fixture;
     const QString first = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("first.pdf"), { QStringLiteral("a-readme.txt"), QStringLiteral("b-data.txt") });
     const QString second = PanelsTestHelper::attachments(fixture.folder(), QStringLiteral("second.pdf"), { QStringLiteral("a-readme.txt"), QStringLiteral("b-evil.exe") });
@@ -1398,25 +1907,21 @@ void AppDocumentPanelsTest::attachmentsDocumentChanged()
     QVERIFY(attachments);
     QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-data.txt"));
 
-    QStringList launched;
-    pdf::PDFAppPanelFileDialogs::setLaunchHandler([&](const QString& file) { launched << file; return true; });
-
-    attachments->openAttachment(1);
-    fixture.settle();
-    pdf::PDFMessageBox* dialog = PanelsTestHelper::findMessageBox(QStringLiteral("openAttachmentDialog"));
-    QVERIFY(dialog);
-    QVERIFY(PanelsTestHelper::replaceDocument(tab, second));
-    fixture.settle();
-    QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-evil.exe"));
-    dialog->findChild<QPushButton*>(QStringLiteral("openFileButton"))->click();
+    const QString chosen = fixture.path(QStringLiteral("chosen-first.bin"));
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString& proposed, const QString&)
+    {
+        if (!proposed.endsWith(QStringLiteral("b-data.txt")))
+        {
+            return QString();
+        }
+        PanelsTestHelper::replaceDocument(tab, second);
+        return chosen;
+    });
+    attachments->saveAttachment(1);
     QTRY_COMPARE(attachments->getRunningCount(), 0);
     fixture.settle();
-    QCOMPARE(launched.size(), 1);
-    QVERIFY(launched.front().endsWith(QStringLiteral("b-data.txt")));
-    QFile launchedFile(launched.front());
-    QVERIFY(launchedFile.open(QIODevice::ReadOnly));
-    QCOMPARE(launchedFile.readAll(), QByteArray("data of b-data.txt"));
-    launchedFile.close();
+    QCOMPARE(attachments->getModel()->getAttachment(1)->name, QStringLiteral("b-evil.exe"));
+    QCOMPARE(PanelsTestHelper::readFile(chosen), QByteArray("data of b-data.txt"));
 
     // The save dialog: the document changes back while it runs
     const QString target = fixture.path(QStringLiteral("chosen.bin"));
@@ -1980,6 +2485,55 @@ void AppDocumentPanelsTest::bookmarksMenuAfterReload()
     QCOMPARE(panel->getModel()->rowCount(), rows);
 }
 
+void AppDocumentPanelsTest::bookmarksEncryptedTitle()
+{
+    // O18: nothing generated from the content of an encrypted document is written
+    // to the database - its bookmark has no title of its outline; the bookmarks
+    // generated from the outline are never stored; a title of the user is stored
+    pdftest::AppDocumentFixture fixture;
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::bookmarksAutoGenerate(), true).isError());
+
+    // The control: a plain document gets the title of its outline
+    pdf::PDFAppDocumentTab* plainTab = fixture.open(PanelsTestHelper::sharedPageOutline(fixture.folder(), false));
+    QVERIFY(plainTab);
+    plainTab->getView()->goToPage(2);
+    fixture.settle();
+    QVERIFY(plainTab->executeCommand(pdf::PDFAppCommands::addBookmark()));
+    const std::vector<pdf::PDFBookmark> plainRows = pdf::PDFBookmarkRepository(fixture.context->getDatabase()).getBookmarks(plainTab->getDocument()->getFilePath());
+    QCOMPARE(plainRows.size(), size_t(1));
+    QCOMPARE(plainRows.front().title, QStringLiteral("Chapter of page 3"));
+
+    const QString path = PanelsTestHelper::sharedPageOutline(fixture.folder(), true);
+    pdf::PDFAppDocumentTab* tab = fixture.open(path);
+    QVERIFY(tab);
+    QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+    QVERIFY(tab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    QVERIFY(tab->getDocument()->isPasswordProtected());
+
+    // The generated bookmarks are shown, but not stored
+    QVERIFY(!pdf::PDFAppBookmarks::getItems(fixture.context.get(), tab->getDocument()).empty());
+    QVERIFY(pdf::PDFBookmarkRepository(fixture.context->getDatabase()).getBookmarks(tab->getDocument()->getFilePath()).empty());
+
+    tab->getView()->goToPage(2);
+    fixture.settle();
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::addBookmark()));
+    std::vector<pdf::PDFBookmark> rows = pdf::PDFBookmarkRepository(fixture.context->getDatabase()).getBookmarks(tab->getDocument()->getFilePath());
+    QCOMPARE(rows.size(), size_t(1));
+    QCOMPARE(rows.front().page, qint64(2));
+    QVERIFY(rows.front().title.isEmpty());
+
+    // The whole database has no title of the encrypted outline
+    pdf::PDFDatabaseStatement statement(fixture.context->getDatabase()->getConnection(), "SELECT COUNT(*) FROM bookmark WHERE title LIKE '%of page%'");
+    QVERIFY(statement.next());
+    QCOMPARE(statement.getInt64(0), qint64(1));
+
+    // A title the user types is stored
+    QVERIFY(!pdf::PDFBookmarkRepository(fixture.context->getDatabase()).renameBookmark(rows.front().id, QStringLiteral("My own title")).isError());
+    rows = pdf::PDFBookmarkRepository(fixture.context->getDatabase()).getBookmarks(tab->getDocument()->getFilePath());
+    QCOMPARE(rows.front().title, QStringLiteral("My own title"));
+}
+
 void AppDocumentPanelsTest::notes()
 {
     pdftest::AppDocumentFixture fixture;
@@ -2066,6 +2620,11 @@ void AppDocumentPanelsTest::notesFilterAndHostile()
     QVERIFY(pdf::PDFAppNotes::formatDate(QDateTime(), today).isEmpty());
     QVERIFY(!pdf::PDFAppNotes::formatDate(QDateTime(QDate(2026, 9, 28), QTime(10, 0)), today).contains(QStringLiteral("2026")));
     QVERIFY(pdf::PDFAppNotes::formatDate(QDateTime(QDate(2024, 9, 28), QTime(10, 0)), today).contains(QStringLiteral("2024")));
+    {
+        pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+        QCOMPARE(pdf::PDFAppNotes::formatDate(QDateTime(QDate(2026, 9, 28), QTime(10, 0)), today), QStringLiteral("Sep 28"));
+        QCOMPARE(pdf::PDFAppNotes::formatDate(QDateTime(QDate(2024, 9, 28), QTime(10, 0)), today), QStringLiteral("Sep 28, 2024"));
+    }
     QVERIFY(pdf::PDFAppNotes::collect(nullptr).empty());
     QVERIFY(!pdf::PDFAppNotes::hasNotes(nullptr));
     QVERIFY(!model->getNote(0));

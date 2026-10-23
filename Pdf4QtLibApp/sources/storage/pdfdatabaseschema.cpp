@@ -35,27 +35,16 @@ namespace pdf
 
 std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
 {
+    // Rules of the migrations (newapp_storage.md 5, owner decision O19): a released
+    // migration is never changed, a column is never renamed or dropped, a new column
+    // has a default value, SQL always names its columns. A new migration is appended
+    // here; the file of a new schema version is created from a copy of the older file.
     std::vector<PDFDatabaseMigration> migrations;
 
     PDFDatabaseMigration version1;
     version1.version = 1;
     version1.sql = createVersion1();
     migrations.push_back(std::move(version1));
-
-    PDFDatabaseMigration version2;
-    version2.version = 2;
-    version2.sql = createVersion2();
-    migrations.push_back(std::move(version2));
-
-    PDFDatabaseMigration version3;
-    version3.version = 3;
-    version3.sql = createVersion3();
-    migrations.push_back(std::move(version3));
-
-    PDFDatabaseMigration version4;
-    version4.version = 4;
-    version4.sql = createVersion4();
-    migrations.push_back(std::move(version4));
 
     return migrations;
 }
@@ -152,7 +141,26 @@ QByteArray PDFDatabaseSchema::createTriggers(const PDFDatabaseTableInfo& table, 
 
 QByteArray PDFDatabaseSchema::createVersion1()
 {
-    // Schema of phase 1 (newapp_storage.md 4). Times are milliseconds since the epoch (UTC).
+    // Schema of the first release (newapp_storage.md 4; the development versions 1-4
+    // were squashed into it, owner decision O19). Times are milliseconds since the
+    // epoch (UTC).
+    //
+    // recent_file.thumbnail_state: state of the thumbnail (PDFRecentThumbnailState) -
+    // the thumbnailer records also a document, which has no thumbnail (password
+    // protected, damaged, too large, no pages) together with thumbnail_mtime, so it
+    // does not try the same file again until the file changes (no retry loop).
+    //
+    // storage_maintenance: internal state of the storage - time of the last full
+    // integrity check and the damage reported by an instance (PDFDatabase::reportError).
+    //
+    // thumbnail_rendering: crash-loop guard of the thumbnailer (PDFAppThumbnailer) - a
+    // marker is written before a document is read and rendered and removed after it;
+    // a marker left by a process, which has ended (a document crashing the renderer),
+    // makes the file Failed until it changes.
+    //
+    // The last two tables have no triggers: their writes are no changes of the data
+    // shown by the pages, they wake no other instance and Restore defaults never
+    // deletes them.
     QByteArray sql = R"SQL(
 CREATE TABLE change_log(
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,7 +190,8 @@ CREATE TABLE recent_file(
     view_state TEXT,
     locked INTEGER NOT NULL DEFAULT 0,
     thumbnail BLOB,
-    thumbnail_mtime INTEGER);
+    thumbnail_mtime INTEGER,
+    thumbnail_state INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX recent_file_last_opened ON recent_file(last_opened);
 
 CREATE TABLE recent_folder(
@@ -301,6 +310,17 @@ CREATE TABLE mcp_request(
     kind TEXT NOT NULL,
     session TEXT,
     created INTEGER NOT NULL);
+
+CREATE TABLE storage_maintenance(
+    key TEXT PRIMARY KEY NOT NULL,
+    value INTEGER) WITHOUT ROWID;
+
+CREATE TABLE thumbnail_rendering(
+    path TEXT PRIMARY KEY NOT NULL,
+    file_mtime INTEGER NOT NULL,
+    instance TEXT NOT NULL,
+    pid INTEGER NOT NULL,
+    started INTEGER NOT NULL) WITHOUT ROWID;
 )SQL";
 
     for (const PDFDatabaseTableInfo& table : getTables())
@@ -312,47 +332,6 @@ CREATE TABLE mcp_request(
     }
 
     return sql;
-}
-
-QByteArray PDFDatabaseSchema::createVersion2()
-{
-    // Internal state of the storage: time of the last full integrity check and the
-    // damage reported by an instance (PDFDatabase::reportError). It has no triggers,
-    // so its writes wake no other instance, and it is not a part of the settings.
-    return R"SQL(
-CREATE TABLE storage_maintenance(
-    key TEXT PRIMARY KEY NOT NULL,
-    value INTEGER) WITHOUT ROWID;
-)SQL";
-}
-
-QByteArray PDFDatabaseSchema::createVersion3()
-{
-    // State of the thumbnail of a recent file (PDFRecentThumbnailState, step 2): the
-    // thumbnailer records also a document, which has no thumbnail (password protected,
-    // damaged, too large, no pages) together with thumbnail_mtime, so it does not try
-    // the same file again until the file changes (no retry loop). The update trigger
-    // of recent_file is not limited to columns, so the new column is notified too.
-    return R"SQL(
-ALTER TABLE recent_file ADD COLUMN thumbnail_state INTEGER NOT NULL DEFAULT 0;
-)SQL";
-}
-
-QByteArray PDFDatabaseSchema::createVersion4()
-{
-    // Crash-loop guard of the thumbnailer (PDFAppThumbnailer): a marker is written
-    // before a document is read and rendered and removed after it. A marker left by
-    // a process, which has ended (a document crashing the renderer), makes the file
-    // Failed until it changes - it is not rendered again at every start. The table
-    // has no triggers: a marker is no change of the data shown by the pages.
-    return R"SQL(
-CREATE TABLE thumbnail_rendering(
-    path TEXT PRIMARY KEY NOT NULL,
-    file_mtime INTEGER NOT NULL,
-    instance TEXT NOT NULL,
-    pid INTEGER NOT NULL,
-    started INTEGER NOT NULL) WITHOUT ROWID;
-)SQL";
 }
 
 int PDFDatabaseSchema::readVersion(sqlite3* handle)

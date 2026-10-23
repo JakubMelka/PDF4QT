@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentsearchpanel.h"
+#include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentsearch.h"
@@ -225,7 +226,7 @@ QString PDFAppDocumentSearchPanel::getSubtitle() const
             {
                 return tr("No results for “%1”").arg(query);
             }
-            return count == 1 ? tr("1 result for “%1”").arg(query) : tr("%1 results for “%2”").arg(QLocale().toString(count), query);
+            return count == 1 ? tr("1 result for “%1”").arg(query) : tr("%1 results for “%2”").arg(PDFAppLocale::formatNumber(count), query);
         }
 
         case PDFAppDocumentSearchController::State::Idle:
@@ -389,7 +390,7 @@ void PDFAppDocumentSearchPanel::updateState()
 
     const bool isTruncated = m_controller && m_controller->isTruncated();
     m_noteLabel->setText(isTruncated ? tr("Only the first %1 results are shown. Search for a longer text to see the others.")
-                                       .arg(QLocale().toString(qlonglong(PDFAppDocumentSearchController::MAXIMUM_RESULTS)))
+                                       .arg(PDFAppLocale::formatNumber(qint64(PDFAppDocumentSearchController::MAXIMUM_RESULTS)))
                                      : QString());
     m_noteLabel->setVisible(isTruncated);
 

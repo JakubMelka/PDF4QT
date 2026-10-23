@@ -34,6 +34,7 @@
 #include <QMutexLocker>
 #include <QProcess>
 #include <QPushButton>
+#include <QTemporaryDir>
 #include <QThreadPool>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -47,6 +48,7 @@
 #endif
 
 #include <array>
+#include <memory>
 #include <string>
 
 namespace pdf
@@ -81,6 +83,23 @@ public:
 
     /// Width of the message boxes (958:28033)
     static constexpr int MESSAGE_BOX_WIDTH = 440;
+
+    /// Character, which xdg-email cannot pass to the e-mail program in a path
+    static bool isUnsafeXdgCharacter(QChar character)
+    {
+        const QChar::Category category = character.category();
+        return character == QLatin1Char('\'') || character == QLatin1Char(',') || category == QChar::Other_Control || category == QChar::Other_Format ||
+               category == QChar::Separator_Line || category == QChar::Separator_Paragraph || character.isSurrogate() || character.isNonCharacter();
+    }
+
+    /// Private folder of the copies of the attachments: it lives until the exit
+    /// of the application (the e-mail program reads the file after the handover);
+    /// guarded by getMutex
+    static std::unique_ptr<QTemporaryDir>& getCopyFolder()
+    {
+        static std::unique_ptr<QTemporaryDir> folder;
+        return folder;
+    }
 
 #if defined(Q_OS_WIN)
     /// Single-threaded apartment of COM of the current thread for its lifetime
@@ -209,6 +228,111 @@ QStringList PDFAppSendMail::getXdgEmailArguments(const QString& filePath, const 
     return { QStringLiteral("--subject"), safeSubject, QStringLiteral("--attach"), QFileInfo(filePath).absoluteFilePath() };
 }
 
+std::optional<bool>& PDFAppSendMail::getXdgOverride()
+{
+    static std::optional<bool> isXdg;
+    return isXdg;
+}
+
+void PDFAppSendMail::setXdgOverride(std::optional<bool> isXdg)
+{
+    QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
+    getXdgOverride() = isXdg;
+}
+
+bool PDFAppSendMail::isXdg()
+{
+    {
+        QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
+        if (getXdgOverride().has_value())
+        {
+            return *getXdgOverride();
+        }
+    }
+
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool PDFAppSendMail::isSafeXdgAttachmentPath(const QString& filePath)
+{
+    if (filePath.isEmpty())
+    {
+        return false;
+    }
+    for (const QChar character : filePath)
+    {
+        if (PDFAppSendMailHelper::isUnsafeXdgCharacter(character))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+QString PDFAppSendMail::getXdgAttachmentPath(const QString& filePath)
+{
+    const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
+    if (isSafeXdgAttachmentPath(absolutePath))
+    {
+        return absolutePath;
+    }
+
+    // The name of the copy: the unsafe characters replaced, the extension kept
+    QString name = QFileInfo(absolutePath).fileName();
+    for (QChar& character : name)
+    {
+        if (PDFAppSendMailHelper::isUnsafeXdgCharacter(character))
+        {
+            character = QLatin1Char('_');
+        }
+    }
+    if (name.isEmpty())
+    {
+        name = QStringLiteral("document.pdf");
+    }
+
+    QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
+    std::unique_ptr<QTemporaryDir>& folder = PDFAppSendMailHelper::getCopyFolder();
+    if (!folder)
+    {
+        // Readable only by the owner; a temporary folder, whose own path is not
+        // safe, cannot help
+        folder = std::make_unique<QTemporaryDir>(QDir(QDir::tempPath()).filePath(QStringLiteral("pdf4qt-mail-XXXXXX")));
+        if (!folder->isValid() || !isSafeXdgAttachmentPath(folder->path()))
+        {
+            folder.reset();
+            return QString();
+        }
+        QFile::setPermissions(folder->path(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    }
+
+    // Each e-mail has its own subfolder (the same name may be sent twice); the
+    // subfolder is reserved under the lock, the copy is made without it (a large
+    // document would block isAvailable of the thread of the user interface)
+    const QDir root(folder->path());
+    QString copyPath;
+    for (int i = 1; i < 10000 && copyPath.isEmpty(); ++i)
+    {
+        const QString subfolder = QString::number(i);
+        if (!root.exists(subfolder) && root.mkdir(subfolder))
+        {
+            copyPath = root.filePath(subfolder + QLatin1Char('/') + name);
+        }
+    }
+    locker.unlock();
+
+    if (copyPath.isEmpty() || !QFile::copy(absolutePath, copyPath))
+    {
+        return QString();
+    }
+    QFile::setPermissions(copyPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return copyPath;
+}
+
 bool PDFAppSendMail::canSend() const
 {
     const PDFAppDocument* document = m_document.data();
@@ -253,6 +377,17 @@ PDFAppMailResult PDFAppSendMail::launch(QString filePath, QString subject)
     {
         QMutexLocker locker(&PDFAppSendMailHelper::getMutex());
         launcher = getLauncher();
+    }
+
+    // xdg-email: a path, which would inject fields into the -compose text of
+    // Thunderbird, is replaced by a safe copy (or the e-mail is not created)
+    if (isXdg())
+    {
+        filePath = getXdgAttachmentPath(filePath);
+        if (filePath.isEmpty())
+        {
+            return PDFAppMailResult::AttachmentFailed;
+        }
     }
 
     if (launcher)
@@ -446,8 +581,22 @@ void PDFAppSendMail::showErrorDialog(PDFAppMailResult result)
 {
     closeDialog();
 
-    const QString text = result == PDFAppMailResult::NoMailProgram ? tr("No e-mail program is set up on this computer. Set up an e-mail program, or attach the file to a message yourself.")
-                                                                   : tr("The e-mail program has refused the message. Attach the file to a message yourself.");
+    QString text;
+    switch (result)
+    {
+        case PDFAppMailResult::NoMailProgram:
+            text = tr("No e-mail program is set up on this computer. Set up an e-mail program, or attach the file to a message yourself.");
+            break;
+
+        case PDFAppMailResult::AttachmentFailed:
+            text = tr("The file cannot be handed over to the e-mail program. Attach the file to a message yourself.");
+            break;
+
+        case PDFAppMailResult::Created:
+        case PDFAppMailResult::Failed:
+            text = tr("The e-mail program has refused the message. Attach the file to a message yourself.");
+            break;
+    }
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("The e-mail could not be created"), text, QDialogButtonBox::Ok, m_tab ? m_tab->window() : nullptr);
     dialog->setObjectName(QStringLiteral("mailErrorDialog"));
     dialog->setCardWidth(PDFAppSendMailHelper::MESSAGE_BOX_WIDTH);

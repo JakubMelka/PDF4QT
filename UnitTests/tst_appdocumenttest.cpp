@@ -1315,15 +1315,23 @@ void AppDocumentTest::quitUnsaved()
     // Cancel keeps the window; the list names the two documents
     int rows = 0;
     QStringList texts;
-    AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&rows, &texts](pdf::PDFAppQuitUnsavedDialog* dialog)
+    QList<int> rowHeights;
+    AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&rows, &texts, &rowHeights](pdf::PDFAppQuitUnsavedDialog* dialog)
     {
         rows = dialog->getList()->getItemCount();
         texts = AppDocumentTestHelper::texts(dialog);
+        for (const QWidget* row : dialog->getList()->findChildren<QWidget*>(QStringLiteral("itemRow")))
+        {
+            rowHeights << row->height();
+        }
         dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
     });
     QVERIFY(!fixture.window->close());
     QVERIFY(fixture.window->isVisible());
     QCOMPARE(rows, 2);
+
+    // document-row 955:150708: 49 px (the name in a line of 16 px, the folder in a line of 15 px)
+    QCOMPARE(rowHeights, QList<int>({ 49, 49 }));
     QVERIFY(texts.contains(QStringLiteral("Save the changes before quitting?")));
     QVERIFY(texts.contains(QStringLiteral("2 documents have unsaved changes. If you quit without saving, the changes are lost.")));
     QVERIFY(texts.contains(QStringLiteral("1 unsaved change")));

@@ -563,7 +563,7 @@ void PDFDocumentPropertiesDialog::initializeDisplayAndPrintSettings(const pdf::P
             break;
 
         case pdf::PDFViewerPreferences::Duplex::DuplexFlipShortEdge:
-            duplexString = tr("Duplex (flip long edge)");
+            duplexString = tr("Duplex (flip short edge)");
             break;
 
         default:

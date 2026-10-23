@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapprenderingissues.h"
+#include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentview.h"
 
@@ -154,7 +155,7 @@ void PDFAppRenderingIssuesPanel::setIssues(const std::vector<PDFAppRenderingIssu
     // sender of a signal)
     m_rows.erase(std::remove(m_rows.begin(), m_rows.end(), QPointer<QWidget>()), m_rows.end());
 
-    const QLocale locale;
+    const QLocale locale = PDFAppLocale::getUiLocale();
     const int count = int(qMin<size_t>(issues.size(), size_t(MAXIMUM_ROWS)));
     while (int(m_rows.size()) > count)
     {
@@ -194,7 +195,7 @@ void PDFAppRenderingIssuesPanel::setIssues(const std::vector<PDFAppRenderingIssu
     if (m_more)
     {
         const int hidden = int(issues.size()) - count;
-        m_more->setText(hidden == 1 ? tr("%n more issue is not listed.", nullptr, hidden) : tr("%n more issues are not listed.", nullptr, hidden));
+        m_more->setText(hidden == 1 ? tr("%Ln more issue is not listed.", nullptr, hidden) : tr("%Ln more issues are not listed.", nullptr, hidden));
         m_more->setVisible(hidden > 0);
     }
     updateListHeight();
@@ -494,7 +495,7 @@ bool PDFAppRenderingIssues::isPopoverVisible() const
 QString PDFAppRenderingIssues::getStatusText(int count)
 {
     const int validCount = qMax(0, count);
-    return validCount == 1 ? tr("%n rendering issue", nullptr, validCount) : tr("%n rendering issues", nullptr, validCount);
+    return validCount == 1 ? tr("%Ln rendering issue", nullptr, validCount) : tr("%Ln rendering issues", nullptr, validCount);
 }
 
 PDFComponentPainter::IssueSeverity PDFAppRenderingIssues::getSeverity(int renderErrorType)

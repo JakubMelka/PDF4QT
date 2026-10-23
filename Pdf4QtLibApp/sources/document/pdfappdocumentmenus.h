@@ -129,7 +129,9 @@ public:
     /// Button of the command in the panel (a tile or a row), nullptr if there is none
     QAbstractButton* getCommandButton(const QString& commandId) const;
 
-    /// Reads the states of the commands again (enabled, checked)
+    /// Reads the states of the commands again (enabled, checked). A closed panel
+    /// does not follow the view (every scroll step changes it): it reads them,
+    /// when it opens.
     virtual void updateState();
 
 Q_SIGNALS:
@@ -181,6 +183,7 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void onViewStateChanged();
     void onCommandButtonClicked();
     void onHiddenQueued(quint64 openCount);
     void onAnchorDestroyed();

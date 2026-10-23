@@ -189,6 +189,51 @@ std::optional<PDFCertificateInfo> PDFCertificateInfo::getCertificateInfo(const Q
     return result;
 }
 
+QString PDFCertificateInfo::getIssuerName(const QByteArray& certificateData)
+{
+    QString result;
+
+    PDFOpenSSLGlobalLock lock;
+    const unsigned char* data = convertByteArrayToUcharPtr(certificateData);
+    X509* certificate = d2i_X509(nullptr, &data, certificateData.length());
+    if (!certificate)
+    {
+        return result;
+    }
+
+    if (X509_NAME* issuerName = X509_get_issuer_name(certificate))
+    {
+        for (const int nid : { NID_commonName, NID_organizationName })
+        {
+            const int location = X509_NAME_get_index_by_NID(issuerName, nid, -1);
+            ASN1_STRING* string = location >= 0 ? X509_NAME_ENTRY_get_data(X509_NAME_get_entry(issuerName, location)) : nullptr;
+            unsigned char* utf8Buffer = nullptr;
+            const int length = string ? ASN1_STRING_to_UTF8(&utf8Buffer, string) : -1;
+            if (length > 0)
+            {
+                result = QString::fromUtf8(reinterpret_cast<const char*>(utf8Buffer), length);
+            }
+            OPENSSL_free(utf8Buffer);
+            if (!result.isEmpty())
+            {
+                break;
+            }
+        }
+
+        if (result.isEmpty())
+        {
+            if (char* line = X509_NAME_oneline(issuerName, nullptr, 0))
+            {
+                result = QString::fromUtf8(line);
+                OPENSSL_free(line);
+            }
+        }
+    }
+
+    X509_free(certificate);
+    return result;
+}
+
 PDFCertificateInfo PDFCertificateInfo::getCertificateInfo(x509_st* certificate)
 {
     PDFCertificateInfo info;

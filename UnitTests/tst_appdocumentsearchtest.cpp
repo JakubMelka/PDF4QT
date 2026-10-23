@@ -60,6 +60,8 @@
 #include "pdfdocumentwriter.h"
 
 #include <QElapsedTimer>
+#include <QCryptographicHash>
+#include <QLabel>
 #include <QImage>
 #include <QLineEdit>
 #include <QPainter>
@@ -1340,6 +1342,29 @@ void AppDocumentSearchTest::signaturesTrust()
     // Cancel of the confirmation trusts nothing
     Q_EMIT card->certificateLinkActivated(linkIndex);
     QVERIFY(panel->getTrustDialog());
+
+    // O18: the confirmation names the subject, the issuer and the SHA-256
+    // fingerprint (16 groups of 4 hexadecimal digits)
+    {
+        const pdf::PDFSignatureVerificationResult& result = tab->getDocument()->getSignatureResults().front();
+        const int trustable = pdf::PDFAppDocumentSignatureVerifier::getTrustableCertificateIndex(result, { });
+        QVERIFY(trustable >= 0);
+        const QByteArray certificate = result.getCertificateInfos()[size_t(trustable)].getCertificateData();
+        pdf::PDFKeyValueList* facts = panel->getTrustDialog()->findChild<pdf::PDFKeyValueList*>(QStringLiteral("certificateFactsList"));
+        QVERIFY(facts);
+        QCOMPARE(facts->getRowCount(), 2);
+        QCOMPARE(facts->getValue(0), QStringLiteral("PDF4QT document tab test"));
+        QCOMPARE(facts->getValue(1), QStringLiteral("PDF4QT document tab test"));
+        QCOMPARE(facts->getValue(1), pdf::PDFCertificateInfo::getIssuerName(certificate));
+        QLabel* fingerprint = panel->getTrustDialog()->findChild<QLabel*>(QStringLiteral("fingerprint"));
+        QVERIFY(fingerprint);
+        const QString hex = QString::fromLatin1(QCryptographicHash::hash(certificate, QCryptographicHash::Sha256).toHex().toUpper());
+        QCOMPARE(fingerprint->text().size(), 64 + 15);
+        QCOMPARE(fingerprint->text().split(QLatin1Char(' ')).size(), 16);
+        QCOMPARE(QString(fingerprint->text()).remove(QLatin1Char(' ')), hex);
+        QVERIFY(pdf::PDFCertificateInfo::getIssuerName(QByteArray("garbage")).isEmpty());
+        QVERIFY(pdf::PDFCertificateInfo::getIssuerName(QByteArray()).isEmpty());
+    }
     panel->getTrustDialog()->reject();
     fixture.settle();
     QVERIFY(!panel->getTrustDialog());

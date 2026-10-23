@@ -149,7 +149,7 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     setWindowFlag(Qt::NoDropShadowWindowHint, true);
     setAttribute(Qt::WA_TranslucentBackground, PDFWidgetStyleImpl::isTranslucencyAvailable());
 
-    // Paddings 22 / 20, sections 14 px apart
+    // Paddings 22 / 20 inside of the border of 1 px, sections 14 px apart
     QVBoxLayout* mainLayout = m_mainLayout;
     mainLayout->setSpacing(14);
     updateMargins();
@@ -169,6 +169,9 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     // a folder ("<b>Reports</b>") given by an application is never a rich text
     m_titleLabel->setTextFormat(Qt::PlainText);
     m_textLabel->setTextFormat(Qt::PlainText);
+
+    // The text has the lines of the design (Regular 12 in lines of 16 px)
+    m_textLabel->setLineHeight(TEXT_LINE_HEIGHT);
     m_textLabel->setWordWrap(true);
     m_textLabel->setMinimumWidth(336);
     m_textLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -190,8 +193,10 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     m_detailsLabel->setWordWrap(true);
 
     // The details are a plain text as the long details of the editor (QMessageBox
-    // as well): paths and names of files are never interpreted as rich text
+    // as well): paths and names of files are never interpreted as rich text;
+    // they have the lines of the design (Regular 11 in lines of 15 px)
     m_detailsLabel->setTextFormat(Qt::PlainText);
+    m_detailsLabel->setLineHeight(DETAILS_LINE_HEIGHT);
     m_detailsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_detailsLabel->setFocusPolicy(Qt::NoFocus);
     detailsLayout->addWidget(m_detailsLabel);
@@ -247,7 +252,7 @@ void PDFMessageBox::updateMargins()
         return;
     }
 
-    m_mainLayout->setContentsMargins(QMargins(PADDING_H, PADDING_V, PADDING_H, PADDING_V) + getShadowMargins());
+    m_mainLayout->setContentsMargins(QMargins(PADDING_H + BORDER, PADDING_V + BORDER, PADDING_H + BORDER, PADDING_V + BORDER) + getShadowMargins());
 }
 
 void PDFMessageBox::updateSizeConstraint()
@@ -288,7 +293,7 @@ void PDFMessageBox::setCardWidth(int width)
 
 int PDFMessageBox::getContentWidth() const
 {
-    return m_cardWidth > 0 ? qMax(0, m_cardWidth - 2 * PADDING_H) : 0;
+    return m_cardWidth > 0 ? qMax(0, m_cardWidth - 2 * (PADDING_H + BORDER)) : 0;
 }
 
 QSize PDFMessageBox::sizeHint() const

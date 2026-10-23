@@ -141,6 +141,7 @@ private slots:
     void themeSwitch();
     void widgets();
     void toolTip();
+    void toolTipCompact();
     void galleryHasNoLeak();
     void leakPageShowsLeak();
     void iconStrokes();
@@ -1603,6 +1604,85 @@ void WidgetStyleTest::toolTip()
     QVERIFY(!pdf::PDFToolTip::isVisible());
 }
 
+void WidgetStyleTest::toolTipCompact()
+{
+    // The default tooltip of a name only: the panel is 15 + 2 * 7 high; the rest
+    // of the window is the margin of the shadow
+    pdf::PDFToolTip::showText(QPoint(10, 10), QStringLiteral("Title"));
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QCOMPARE(pdf::PDFToolTip::getStyle(), pdf::PDFToolTip::Style::Default);
+    QWidget* window = pdf::PDFToolTip::getWindow();
+    QVERIFY(window);
+    const int verticalMargins = window->height() - 29;
+    const int horizontalMargins = window->width() - (qCeil(pdf::PDFStylePainter::textWidth(QStringLiteral("Title"), pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium))) + 22);
+
+    // Link tooltip 1028:22472: the address and its kind Regular 11 in lines of 13 px,
+    // gap 2, paddings 6 / 10 inside of the border: 300 x 42 for the address of the design
+    const QString address = QStringLiteral("https://market-insight.example/reports/2026?ref=pdf");
+    const QString kind = QStringLiteral("Web link \u00B7 opens in your web browser");
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    pdf::PDFToolTip::showText(QPoint(10, 10), address, QString(), kind, nullptr, pdf::PDFToolTip::Style::Compact);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QCOMPARE(pdf::PDFToolTip::getStyle(), pdf::PDFToolTip::Style::Compact);
+    QCOMPARE(pdf::PDFToolTip::getTitle(), address);
+    QCOMPARE(window->height() - verticalMargins, 42);
+    const int expectedWidth = qCeil(qMax(pdf::PDFStylePainter::textWidth(address, font), pdf::PDFStylePainter::textWidth(kind, font))) + 22;
+    QCOMPARE(window->width() - horizontalMargins, expectedWidth);
+    QVERIFY2(qAbs(expectedWidth - 300) <= 3, qPrintable(QString::number(expectedWidth)));
+
+    for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Dark, pdf::PDFThemeColors::Scheme::Light })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QImage image = window->grab().toImage();
+        QCOMPARE(countLeakPixels(image), 0);
+
+        // The name is drawn by text/primary, the kind by text/muted: the ink of the
+        // name is stronger (darker in the light theme, lighter in the dark theme)
+        // The panel starts at the first opaque pixel (its border) from the top / left
+        const qreal ratio = image.devicePixelRatio();
+        int panelTop = 0;
+        while (panelTop < image.height() - 1 && qAlpha(image.pixel(image.width() / 2, panelTop)) < 255)
+        {
+            ++panelTop;
+        }
+        int panelLeft = 0;
+        while (panelLeft < image.width() - 1 && qAlpha(image.pixel(panelLeft, panelTop + qRound(20 * ratio))) < 255)
+        {
+            ++panelLeft;
+        }
+        const QRect panel(qRound(panelLeft / ratio), qRound(panelTop / ratio), window->width() - horizontalMargins, window->height() - verticalMargins);
+        auto strongestInk = [&image, &panel, scheme, ratio](int top, int bottom)
+        {
+            int strongest = scheme == pdf::PDFThemeColors::Scheme::Light ? 255 : 0;
+            for (int y = qRound((panel.top() + top) * ratio); y < qRound((panel.top() + bottom) * ratio); ++y)
+            {
+                for (int x = qRound((panel.left() + 2) * ratio); x < qRound((panel.right() - 2) * ratio); ++x)
+                {
+                    const int lightness = image.pixelColor(x, y).lightness();
+                    strongest = scheme == pdf::PDFThemeColors::Scheme::Light ? qMin(strongest, lightness) : qMax(strongest, lightness);
+                }
+            }
+            return strongest;
+        };
+        const int titleInk = strongestInk(7, 20);
+        const int kindInk = strongestInk(22, 35);
+        const QString context = QString("%1 %2").arg(titleInk).arg(kindInk);
+        QVERIFY2(scheme == pdf::PDFThemeColors::Scheme::Light ? titleInk < kindInk : titleInk > kindInk, qPrintable(context));
+    }
+
+    // Hostile texts: the lines are not wrapped, the width is bounded, at most 8 lines
+    pdf::PDFToolTip::showText(QPoint(10, 10), QString(5000, QLatin1Char('w')), QStringLiteral("Ctrl+K"), QString(5000, QLatin1Char('\n')), nullptr, pdf::PDFToolTip::Style::Compact);
+    QVERIFY(pdf::PDFToolTip::isVisible());
+    QCOMPARE(window->width() - horizontalMargins, 480 + 22);
+    QCOMPARE(window->height() - verticalMargins, 13 + 2 + 8 * 13 + 14);
+    window->grab();
+    pdf::PDFToolTip::showText(QPoint(10, 10), QStringLiteral("Title"), QString(), QString(), nullptr, static_cast<pdf::PDFToolTip::Style>(77));
+    QCOMPARE(pdf::PDFToolTip::getStyle(), pdf::PDFToolTip::Style::Default);
+
+    pdf::PDFToolTip::hideText();
+    QCOMPARE(pdf::PDFToolTip::getStyle(), pdf::PDFToolTip::Style::Default);
+}
+
 void WidgetStyleTest::galleryHasNoLeak()
 {
     // Pages of the gallery show all controls of the style and all widgets of the
@@ -2025,7 +2105,7 @@ void WidgetStyleTest::messageBoxButtons()
     embeddedBox.setWindowFlags(Qt::Widget);
     embeddedBox.show();
     QVERIFY(embeddedBox.getShadowMargins().isNull());
-    QCOMPARE(embeddedBox.layout()->contentsMargins(), QMargins(22, 20, 22, 20));
+    QCOMPARE(embeddedBox.layout()->contentsMargins(), QMargins(23, 21, 23, 21));
     QCOMPARE(countLeakPixels(embeddedBox.grab().toImage()), 0);
 }
 

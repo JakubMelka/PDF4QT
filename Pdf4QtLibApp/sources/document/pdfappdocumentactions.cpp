@@ -140,8 +140,18 @@ public:
         return frame;
     }
 
+    /// Fact of a launch: a path is elided in the middle (O18: the extension of
+    /// "...\invoice.pdf.exe" stays visible)
+    class Fact
+    {
+    public:
+        QString key;
+        QString value;
+        PDFComponentPainter::TextKind kind = PDFComponentPainter::TextKind::Data;
+    };
+
     /// Panel bg/subtle with the facts of a launch (1028:23369: Key value rows, padding 12 / 4)
-    static QWidget* createFacts(const QList<QPair<QString, QString>>& facts, QWidget* parent)
+    static QWidget* createFacts(const QList<Fact>& facts, QWidget* parent)
     {
         QFrame* frame = new QFrame(parent);
         frame->setObjectName(QStringLiteral("facts"));
@@ -152,9 +162,9 @@ public:
 
         PDFKeyValueList* list = new PDFKeyValueList(frame);
         list->setObjectName(QStringLiteral("factList"));
-        for (const QPair<QString, QString>& fact : facts)
+        for (const Fact& fact : facts)
         {
-            list->addRow(fact.first, fact.second);
+            list->addRow(fact.key, fact.value, fact.kind);
         }
         layout->addWidget(list);
         return frame;
@@ -247,10 +257,12 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createProgramDialog(QWidget* parent,
     box->setObjectName(QStringLiteral("launchConfirmDialog"));
     box->setCardWidth(LAUNCH_WIDTH);
 
-    QList<QPair<QString, QString>> facts;
-    facts << qMakePair(tr("Program"), Helper::value(QDir::toNativeSeparators(program)));
-    facts << qMakePair(tr("Parameters"), parameters.isEmpty() ? tr("None") : Helper::value(parameters));
-    facts << qMakePair(tr("Start in"), Helper::value(QDir::toNativeSeparators(directory)));
+    using Fact = PDFAppDocumentActionsHelper::Fact;
+    using Kind = PDFComponentPainter::TextKind;
+    QList<Fact> facts;
+    facts << Fact{ tr("Program"), Helper::value(QDir::toNativeSeparators(program)), Kind::FileName };
+    facts << Fact{ tr("Parameters"), parameters.isEmpty() ? tr("None") : Helper::value(parameters), Kind::Data };
+    facts << Fact{ tr("Start in"), Helper::value(QDir::toNativeSeparators(directory)), Kind::FileName };
     box->addContent(Helper::createFacts(facts, box));
 
     PDFAppDocumentActionDialogCloser* closer = new PDFAppDocumentActionDialogCloser(box);
@@ -273,10 +285,12 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createFileDialog(QWidget* parent, co
     box->setObjectName(QStringLiteral("launchFileConfirmDialog"));
     box->setCardWidth(LAUNCH_WIDTH);
 
-    QList<QPair<QString, QString>> facts;
-    facts << qMakePair(tr("File"), Helper::value(fileInfo.fileName()));
-    facts << qMakePair(tr("Folder"), Helper::value(QDir::toNativeSeparators(fileInfo.absolutePath())));
-    facts << qMakePair(tr("Opens in"), suffix.isEmpty() ? tr("The program set for the file") : tr("The program set for .%1 files").arg(Helper::value(suffix)));
+    using Fact = PDFAppDocumentActionsHelper::Fact;
+    using Kind = PDFComponentPainter::TextKind;
+    QList<Fact> facts;
+    facts << Fact{ tr("File"), Helper::value(fileInfo.fileName()), Kind::FileName };
+    facts << Fact{ tr("Folder"), Helper::value(QDir::toNativeSeparators(fileInfo.absolutePath())), Kind::FileName };
+    facts << Fact{ tr("Opens in"), suffix.isEmpty() ? tr("The program set for the file") : tr("The program set for .%1 files").arg(Helper::value(suffix)), Kind::Data };
     box->addContent(Helper::createFacts(facts, box));
 
     PDFAppDocumentActionDialogCloser* closer = new PDFAppDocumentActionDialogCloser(box);
@@ -1355,11 +1369,12 @@ bool PDFAppDocumentActionHandler::eventFilter(QObject* watched, QEvent* event)
 
             case QEvent::ToolTip:
             {
-                // The tooltip of the design of a link (1028:22472)
+                // The tooltip of the design of a link (1028:22472): the compact
+                // tooltip, the address and its kind Regular 11
                 if (!m_hoverTitle.isEmpty())
                 {
                     const QHelpEvent* helpEvent = static_cast<const QHelpEvent*>(event);
-                    PDFToolTip::showText(helpEvent->globalPos(), m_hoverTitle, QString(), m_hoverDescription, m_drawWidget);
+                    PDFToolTip::showText(helpEvent->globalPos(), m_hoverTitle, QString(), m_hoverDescription, m_drawWidget, PDFToolTip::Style::Compact);
                     return true;
                 }
                 break;

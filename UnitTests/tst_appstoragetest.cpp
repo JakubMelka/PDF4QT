@@ -250,6 +250,114 @@ public:
         return statement.getError();
     }
 
+    /// Migrations of the application plus \p extraVersions newer versions, as
+    /// newer versions of the application would have (O19: each of them has its file)
+    static std::vector<pdf::PDFDatabaseMigration> getNewerMigrations(int extraVersions)
+    {
+        std::vector<pdf::PDFDatabaseMigration> migrations = getExtendedMigrations();
+        for (int i = 1; i < extraVersions; ++i)
+        {
+            pdf::PDFDatabaseMigration migration;
+            migration.version = int(migrations.size()) + 1;
+            migration.sql = "ALTER TABLE setting ADD COLUMN test_column" + QByteArray::number(migration.version) + " INTEGER NOT NULL DEFAULT 0;";
+            migrations.push_back(migration);
+        }
+        return migrations;
+    }
+
+    /// Options of a database in the folder (file per schema version, O19)
+    static pdf::PDFDatabaseOptions createFolderOptions(const QString& directory, int extraVersions = 0)
+    {
+        pdf::PDFDatabaseOptions options = createOptions(QString());
+        options.directory = directory;
+        if (extraVersions > 0)
+        {
+            options.migrations = getNewerMigrations(extraVersions);
+        }
+        return options;
+    }
+
+    /// Creates a database file of \p version with the setting appearance.colorScheme =
+    /// \p value and \p fileCount recent files with thumbnails of 8 kB (the file is closed,
+    /// its write-ahead log is checkpointed and removed)
+    static bool createSchemaFile(const QString& filePath, int version, const QByteArray& value, int fileCount = 0)
+    {
+        pdf::PDFDatabaseError error;
+        sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, false, 5000, &error);
+        if (!handle)
+        {
+            return false;
+        }
+
+        const std::vector<pdf::PDFDatabaseMigration> migrations = getNewerMigrations(qMax(1, version - pdf::PDFDatabaseSchema::getCurrentVersion()));
+        error = pdf::PDFDatabaseSchema::migrate(handle, migrations, version);
+        if (!error.isError())
+        {
+            const QByteArray sql = "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', '" + value + "', 0)";
+            error = pdf::PDFDatabase::executeOnHandle(handle, sql.constData());
+        }
+        if (!error.isError() && fileCount > 0)
+        {
+            const QByteArray sql = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < " + QByteArray::number(fileCount) + ") "
+                                   "INSERT INTO recent_file(path, name, folder, last_opened, thumbnail) SELECT '/file' || i || '.pdf', 'n', '/', i, randomblob(8192) FROM n";
+            error = pdf::PDFDatabase::executeOnHandle(handle, sql.constData());
+        }
+        pdf::PDFDatabase::closeHandle(handle);
+        return !error.isError();
+    }
+
+    /// Text value of a setting (empty = no row)
+    static QString getSettingText(pdf::PDFDatabase* database, const char* key)
+    {
+        pdf::PDFDatabaseStatement statement(database->getConnection(), "SELECT value FROM setting WHERE key = ?1");
+        statement.bindText(1, QString::fromLatin1(key));
+        const QString value = statement.next() ? statement.getText(0) : QString();
+        statement.reset();
+        return value;
+    }
+
+    /// Hash of a file and of its write-ahead log (an empty log = no log: a reader may
+    /// leave an empty one)
+    static QByteArray fileAndLogHash(const QString& filePath)
+    {
+        const QString logPath = filePath + QStringLiteral("-wal");
+        return fileHash(filePath) + (QFileInfo(logPath).size() > 0 ? fileHash(logPath) : QByteArray());
+    }
+
+    /// Names of the files of the folder without the files of SQLite (-wal, -shm)
+    static QStringList getDatabaseNames(const QString& directory)
+    {
+        QStringList result;
+        for (const QString& name : QDir(directory).entryList(QDir::Files | QDir::Hidden, QDir::Name))
+        {
+            if (!name.endsWith(QLatin1String("-wal")) && !name.endsWith(QLatin1String("-shm")))
+            {
+                result << name;
+            }
+        }
+        return result;
+    }
+
+    /// Temporary files of upgrades in the folder
+    static QStringList getUpgradeTemporaryFiles(const QString& directory)
+    {
+        QStringList result;
+        for (const QString& name : QDir(directory).entryList(QDir::Files | QDir::Hidden | QDir::System))
+        {
+            if (pdf::PDFDatabaseFiles::isUpgradeTemporaryFileName(name))
+            {
+                result << name;
+            }
+        }
+        return result;
+    }
+
+    /// Copies a file byte by byte (a malformed name with valid content)
+    static bool copyFile(const QString& source, const QString& target)
+    {
+        return QFile::copy(source, target);
+    }
+
     static int s_memoryCounter;
 };
 
@@ -283,6 +391,14 @@ public:
         if (mode == QLatin1String("--storage-open-info"))
         {
             return runOpenInfo(arguments.value(2), arguments.value(3) == QLatin1String("scan"));
+        }
+        if (mode == QLatin1String("--storage-crash-writer"))
+        {
+            return runCrashWriter(arguments.value(2));
+        }
+        if (mode == QLatin1String("--storage-upgrade"))
+        {
+            return runUpgrade(arguments.value(2), arguments.value(3).toInt(), arguments.value(4) == QLatin1String("crash"));
         }
         return 2;
     }
@@ -402,6 +518,38 @@ private:
         return 0;
     }
 
+    /// Opens the database of the folder as the version of the application, writes a row
+    /// and ends without closing it: the row stays in the write-ahead log (a crash)
+    static int runCrashWriter(const QString& directory)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory));
+        const bool isWritten = AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('test.crash', 'yes', 0)");
+        print(isWritten ? "written" : "failed");
+        std::_Exit(isWritten ? CRASH_EXIT_CODE : 1);
+    }
+
+    /// Exit code of runCrashWriter
+    static constexpr int CRASH_EXIT_CODE = 33;
+
+    /// Opens the database of the folder (file per schema version) as a version of the
+    /// application with \p extraVersions newer schema versions and prints the result.
+    /// \p crash ends the process after the copy of the older file (test hook).
+    static int runUpgrade(const QString& directory, int extraVersions, bool crash)
+    {
+        pdf::PDFDatabase database;
+        pdf::PDFDatabaseOptions options = AppStorageTestHelper::createFolderOptions(directory, extraVersions);
+        options.testExitAfterUpgradeCopy = crash;
+        database.open(options);
+        const pdf::PDFDatabaseState state = database.getState();
+        print("mode=" + QByteArray::number(int(state.mode)) +
+              " upgraded=" + QByteArray::number(state.upgradedFromFilePath.isEmpty() ? 0 : 1) +
+              " version=" + QByteArray::number(state.schemaVersion) +
+              " value=" + AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme").toUtf8());
+        database.close();
+        return 0;
+    }
+
     /// SQLITE_CORRUPT (the test does not include SQLite)
     static constexpr int SQLITE_CORRUPT_CODE = 11;
 
@@ -504,10 +652,26 @@ private Q_SLOTS:
     void threadConnectionsClosed();
     void portableSharedByThreads();
     void portableInvisibleToOtherProcess();
+    void schemaFileNames();
+    void schemaFileFresh();
+    void schemaFileUpgrade();
+    void schemaFileCrashedOlder();
+    void schemaFileNewestOlder();
+    void schemaFileOnlyNewer();
+    void schemaFileConcurrent_data();
+    void schemaFileConcurrent();
+    void schemaFileCrash();
+    void schemaFileUnusableOlder_data();
+    void schemaFileUnusableOlder();
+    void schemaFileBrokenMigration();
+    void schemaFileFolderErrors();
+    void schemaFilePortable();
 
 private:
     QString createPath(const QString& name);
+    QString createFolder(const QString& name);
     QProcess* startChild(const QStringList& arguments);
+    QByteArray runUpgradeChild(const QString& directory, int extraVersions, bool crash, int* exitCode);
 
     QTemporaryDir m_directory;
     int m_fileCounter = 0;
@@ -1970,7 +2134,7 @@ void AppStorageTest::integrityCheckPolicy()
         QCOMPARE(AppStorageTestHelper::queryInteger(&observer, "SELECT COALESCE(MAX(seq), 0) FROM change_log"), sequence);
     }
 
-    // A file of the version 1 (no table of the time) is checked and migrated
+    // A file without the time of the check is checked
     const QString olderPath = createPath(QStringLiteral("integrity-v1"));
     QVERIFY(AppStorageTestHelper::createFile(olderPath, pdf::PDFDatabaseSchema::getMigrations(), 1));
     QVERIFY(AppStorageTestHelper::openAndCheck(olderPath));
@@ -2373,6 +2537,627 @@ void AppStorageTest::portableInvisibleToOtherProcess()
     QVERIFY(process->state() == QProcess::NotRunning || process->waitForFinished(30000 * factor));
     const QByteArray output = process->readAllStandardOutput();
     QVERIFY2(output.contains("tables=0"), output.constData());
+}
+
+QString AppStorageTest::createFolder(const QString& name)
+{
+    const QString directory = m_directory.filePath(QStringLiteral("%1-%2").arg(name).arg(++m_fileCounter));
+    QDir().mkpath(directory);
+    return QDir::cleanPath(QDir(directory).absolutePath());
+}
+
+QByteArray AppStorageTest::runUpgradeChild(const QString& directory, int extraVersions, bool crash, int* exitCode)
+{
+    QProcess* process = startChild({ QStringLiteral("--storage-upgrade"), directory, QString::number(extraVersions), crash ? QStringLiteral("crash") : QString() });
+    const int factor = AppStorageTestHelper::getTimeoutFactor();
+    if (!(process->state() == QProcess::NotRunning || process->waitForFinished(120000 * factor)))
+    {
+        *exitCode = -1;
+        return QByteArray("timeout");
+    }
+    *exitCode = process->exitStatus() == QProcess::NormalExit ? process->exitCode() : -2;
+    const QByteArray output = process->readAllStandardOutput() + process->readAllStandardError();
+    delete process;
+    return output;
+}
+
+void AppStorageTest::schemaFileNames()
+{
+    using Files = pdf::PDFDatabaseFiles;
+
+    QCOMPARE(Files::getFileName(1), QStringLiteral("pdf4qt-1.db"));
+    QCOMPARE(Files::getFileName(12), QStringLiteral("pdf4qt-12.db"));
+    QCOMPARE(Files::getFilePath(QStringLiteral("C:/data"), 3), QStringLiteral("C:/data/pdf4qt-3.db"));
+    QVERIFY(Files::getFilePath(QString(), 3).isEmpty());
+
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-1.db")), 1);
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-10.db")), 10);
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-999999999.db")), 999999999);
+
+    // The development file, other files of SQLite and of the storage, malformed names
+    const char* const invalidNames[] =
+    {
+        "pdf4qt.db", "pdf4qt-0.db", "pdf4qt-01.db", "pdf4qt--1.db", "pdf4qt-+1.db", "pdf4qt-1x.db", "pdf4qt-1.db-wal",
+        "pdf4qt-1.db-shm", "pdf4qt-1.db-journal", "pdf4qt-1.db.damaged-2026-10-23-120000", "pdf4qt-1.db.upgrade-12-abc",
+        "pdf4qt-1.db-integrity-check", "pdf4qt-1234567890.db", "pdf4qt-99999999999999999999.db", "PDF4QT-1.DB", "xpdf4qt-1.db",
+        "pdf4qt-1.dbx", "pdf4qt-1 .db", "pdf4qt-upgrade.lock", "", "pdf4qt-.db"
+    };
+    for (const char* name : invalidNames)
+    {
+        QVERIFY2(Files::getSchemaVersion(QString::fromLatin1(name)) == -1, name);
+    }
+
+    // Digits of other scripts are no version
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-") + QChar(0x0661) + QStringLiteral(".db")), -1);
+
+    QVERIFY(Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db.upgrade-12-0badf00d")));
+    QVERIFY(Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db.upgrade-12-0badf00d-journal")));
+    QVERIFY(!Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db")));
+    QVERIFY(!Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt.db.upgrade-12-0badf00d")));
+    QVERIFY(!Files::isUpgradeTemporaryFileName(QStringLiteral("other-2.db.upgrade-1")));
+
+    QVERIFY(Files::getFiles(QString(), 1).empty());
+    QVERIFY(Files::getFiles(m_directory.filePath(QStringLiteral("does-not-exist")), 1).empty());
+}
+
+void AppStorageTest::schemaFileFresh()
+{
+    // A fresh start creates the file of the schema version of the application; the
+    // development file pdf4qt.db is ignored and not touched
+    const QString directory = createFolder(QStringLiteral("schema-fresh"));
+    const QString legacyPath = QDir(directory).filePath(QStringLiteral("pdf4qt.db"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(legacyPath, 1, "legacy"));
+    const QByteArray legacyHash = AppStorageTestHelper::fileAndLogHash(legacyPath);
+
+    const QString filePath = pdf::PDFDatabaseFiles::getFilePath(directory, pdf::PDFDatabaseSchema::getCurrentVersion());
+    QCOMPARE(QFileInfo(filePath).fileName(), QStringLiteral("pdf4qt-1.db"));
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory));
+        const pdf::PDFDatabaseState state = database.getState();
+        QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::Disk);
+        QCOMPARE(state.filePath, filePath);
+        QVERIFY(state.upgradedFromFilePath.isEmpty());
+        QVERIFY(state.damagedFilePath.isEmpty());
+        QVERIFY(state.getDescription().isEmpty());
+        QCOMPARE(state.schemaVersion, pdf::PDFDatabaseSchema::getCurrentVersion());
+        QVERIFY(QFile::exists(filePath));
+        QVERIFY(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme").isEmpty());
+        QCOMPARE(AppStorageTestHelper::queryInteger(&database, "PRAGMA application_id"), qint64(pdf::PDFDatabase::APPLICATION_ID));
+        QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 0)"));
+
+        // The file is a WAL database, created with its integrity check
+        QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode = 'wal'"), qint64(1));
+        QVERIFY(AppStorageTestHelper::getMaintenanceValue(&database, pdf::PDFDatabaseSchema::INTEGRITY_LAST_CHECK_KEY) > 0);
+
+        // The list of the files for Settings > Storage
+        const std::vector<pdf::PDFDatabaseFileInfo> files = database.getDatabaseFiles();
+        QCOMPARE(int(files.size()), 1);
+        QCOMPARE(files[0].filePath, filePath);
+        QCOMPARE(files[0].schemaVersion, pdf::PDFDatabaseSchema::getCurrentVersion());
+        QVERIFY(files[0].isCurrent);
+        QVERIFY(files[0].size > 0);
+        QVERIFY(files[0].modified.isValid());
+        QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+    }
+
+    // The second start opens the same file
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory));
+        QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        QCOMPARE(database.getState().filePath, filePath);
+        QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+    }
+
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(legacyPath), legacyHash);
+
+    // A database without a folder (filePath mode) has no list of the files
+    pdf::PDFDatabase single;
+    single.open(AppStorageTestHelper::createOptions(createPath(QStringLiteral("schema-single"))));
+    QVERIFY(single.getDatabaseFiles().empty());
+}
+
+void AppStorageTest::schemaFileUpgrade()
+{
+    // An older version (schema 1) runs and has rows in its write-ahead log, a newer
+    // version (schema 2, the test-only list of migrations) starts: its file is a copy
+    // of the older file with all data, the older file is not written
+    const QString directory = createFolder(QStringLiteral("schema-upgrade"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark", 50));
+
+    pdf::PDFDatabase older;
+    older.open(AppStorageTestHelper::createFolderOptions(directory));
+    QCOMPARE(older.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(older.getState().filePath, olderPath);
+    QVERIFY(older.getState().upgradedFromFilePath.isEmpty());
+    QVERIFY(AppStorageTestHelper::execute(&older, "INSERT INTO setting(key, value, modified) VALUES ('test.inLog', 'yes', 0)"));
+    QVERIFY(QFileInfo(olderPath + QStringLiteral("-wal")).size() > 0);
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    pdf::PDFDatabase newer;
+    newer.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    const pdf::PDFDatabaseState state = newer.getState();
+    QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(state.filePath, newerPath);
+    QCOMPARE(state.upgradedFromFilePath, olderPath);
+    QVERIFY(state.damagedFilePath.isEmpty());
+    QCOMPARE(state.schemaVersion, 2);
+    QCOMPARE(state.applicationSchemaVersion, 2);
+    QVERIFY(state.getDescription().isEmpty());
+
+    // All data, also the rows of the write-ahead log of the running older version
+    QCOMPARE(AppStorageTestHelper::getSettingText(&newer, "appearance.colorScheme"), QStringLiteral("dark"));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&newer, "test.inLog"), QStringLiteral("yes"));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "SELECT COUNT(*) FROM recent_file WHERE LENGTH(thumbnail) = 8192"), qint64(50));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "PRAGMA user_version"), qint64(2));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "SELECT COUNT(*) FROM test_extra"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode = 'wal'"), qint64(1));
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+
+    // The same schema as a new database of the newer version
+    {
+        pdf::PDFDatabase reference;
+        reference.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("schema-reference")), 1));
+        QCOMPARE(AppStorageTestHelper::getSchema(&newer), AppStorageTestHelper::getSchema(&reference));
+    }
+
+    // The older file was not written
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    // Both versions run with their own files
+    QVERIFY(AppStorageTestHelper::execute(&older, "INSERT INTO setting(key, value, modified) VALUES ('test.older', 1, 0)"));
+    QVERIFY(AppStorageTestHelper::execute(&newer, "INSERT INTO setting(key, value, modified) VALUES ('test.newer', 1, 0)"));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&older, "SELECT COUNT(*) FROM setting WHERE key = 'test.newer'"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "SELECT COUNT(*) FROM setting WHERE key = 'test.older'"), qint64(0));
+
+    // Another instance of the older version opens and writes its file
+    {
+        pdf::PDFDatabase secondOlder;
+        secondOlder.open(AppStorageTestHelper::createFolderOptions(directory));
+        QCOMPARE(secondOlder.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        QCOMPARE(secondOlder.getState().filePath, olderPath);
+        QCOMPARE(AppStorageTestHelper::queryInteger(&secondOlder, "SELECT COUNT(*) FROM setting WHERE key = 'test.older'"), qint64(1));
+        QVERIFY(AppStorageTestHelper::execute(&secondOlder, "INSERT INTO setting(key, value, modified) VALUES ('test.secondOlder', 1, 0)"));
+    }
+    QCOMPARE(AppStorageTestHelper::queryInteger(&older, "SELECT COUNT(*) FROM setting WHERE key = 'test.secondOlder'"), qint64(1));
+
+    // The list of the files: the newer one is the current one
+    const std::vector<pdf::PDFDatabaseFileInfo> files = newer.getDatabaseFiles();
+    QCOMPARE(int(files.size()), 2);
+    QCOMPARE(files[0].filePath, newerPath);
+    QVERIFY(files[0].isCurrent);
+    QCOMPARE(files[1].filePath, olderPath);
+    QCOMPARE(files[1].schemaVersion, 1);
+    QVERIFY(!files[1].isCurrent);
+
+    older.close();
+    newer.close();
+
+    // The next start of the newer version opens its file, nothing is copied again
+    pdf::PDFDatabase again;
+    again.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(again.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QVERIFY(again.getState().upgradedFromFilePath.isEmpty());
+    QCOMPARE(AppStorageTestHelper::queryInteger(&again, "SELECT COUNT(*) FROM setting WHERE key = 'test.newer'"), qint64(1));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&again, "SELECT COUNT(*) FROM setting WHERE key = 'test.older'"), qint64(0));
+}
+
+void AppStorageTest::schemaFileCrashedOlder()
+{
+    // An older version crashed and left rows in its write-ahead log: the copy has them,
+    // the older file and its log are not written (no checkpoint by the copy)
+    const QString directory = createFolder(QStringLiteral("schema-crashed-older"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark", 10));
+
+    QProcess* process = startChild({ QStringLiteral("--storage-crash-writer"), directory });
+    QVERIFY(process->state() == QProcess::NotRunning || process->waitForFinished(120000 * AppStorageTestHelper::getTimeoutFactor()));
+    const QByteArray output = process->readAllStandardOutput();
+    QVERIFY2(process->exitCode() == 33 && output.contains("written"), output.constData());
+    delete process;
+    QVERIFY(QFileInfo(olderPath + QStringLiteral("-wal")).size() > 0);
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    {
+        pdf::PDFDatabase newer;
+        newer.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+        QCOMPARE(newer.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        QCOMPARE(newer.getState().upgradedFromFilePath, olderPath);
+        QCOMPARE(AppStorageTestHelper::getSettingText(&newer, "test.crash"), QStringLiteral("yes"));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&newer, "appearance.colorScheme"), QStringLiteral("dark"));
+    }
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    // The older version recovers its log as usual
+    pdf::PDFDatabase older;
+    older.open(AppStorageTestHelper::createFolderOptions(directory));
+    QCOMPARE(older.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(AppStorageTestHelper::getSettingText(&older, "test.crash"), QStringLiteral("yes"));
+}
+
+void AppStorageTest::schemaFileNewestOlder()
+{
+    // Schema 3 of the application: the newest older file (2) is copied; malformed names,
+    // the development file and a newer file are ignored and not touched; a temporary
+    // file of an interrupted upgrade is removed
+    const QString directory = createFolder(QStringLiteral("schema-newest"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(QDir(directory).filePath(QStringLiteral("pdf4qt-1.db")), 1, "one"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(QDir(directory).filePath(QStringLiteral("pdf4qt-2.db")), 2, "two"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(QDir(directory).filePath(QStringLiteral("pdf4qt.db")), 1, "legacy"));
+
+    const QString wrongSource = m_directory.filePath(QStringLiteral("schema-wrong-%1.db").arg(++m_fileCounter));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(wrongSource, 2, "wrong"));
+    const QStringList ignoredNames = { QStringLiteral("pdf4qt-02.db"), QStringLiteral("pdf4qt-2x.db"), QStringLiteral("pdf4qt-0.db"), QStringLiteral("pdf4qt-99999999999.db"),
+                                       QStringLiteral("pdf4qt-2.db.damaged-2026-10-23-120000"), QStringLiteral("pdf4qt-2.5.db"), QStringLiteral("pdf4qt-+2.db") };
+    for (const QString& name : ignoredNames)
+    {
+        QVERIFY(AppStorageTestHelper::copyFile(wrongSource, QDir(directory).filePath(name)));
+    }
+    {
+        QFile newerGarbage(QDir(directory).filePath(QStringLiteral("pdf4qt-9.db")));
+        QVERIFY(newerGarbage.open(QIODevice::WriteOnly));
+        newerGarbage.write(QByteArray(8192, 'x'));
+        QFile temporary(QDir(directory).filePath(QStringLiteral("pdf4qt-3.db.upgrade-1-0badf00d")));
+        QVERIFY(temporary.open(QIODevice::WriteOnly));
+        temporary.write("partial");
+        QFile temporaryJournal(QDir(directory).filePath(QStringLiteral("pdf4qt-3.db.upgrade-1-0badf00d-journal")));
+        QVERIFY(temporaryJournal.open(QIODevice::WriteOnly));
+        temporaryJournal.write("partial");
+    }
+    QVERIFY(QDir(directory).mkdir(QStringLiteral("pdf4qt-4.db")));
+
+    QMap<QString, QByteArray> hashes;
+    for (const QString& name : QDir(directory).entryList(QDir::Files))
+    {
+        if (!pdf::PDFDatabaseFiles::isUpgradeTemporaryFileName(name))
+        {
+            hashes[name] = AppStorageTestHelper::fileHash(QDir(directory).filePath(name));
+        }
+    }
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 2));
+    const pdf::PDFDatabaseState state = database.getState();
+    QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(state.filePath, QDir(directory).filePath(QStringLiteral("pdf4qt-3.db")));
+    QCOMPARE(state.upgradedFromFilePath, QDir(directory).filePath(QStringLiteral("pdf4qt-2.db")));
+    QCOMPARE(state.schemaVersion, 3);
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("two"));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM pragma_table_info('setting') WHERE name = 'test_column3'"), qint64(1));
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+
+    for (auto it = hashes.cbegin(); it != hashes.cend(); ++it)
+    {
+        QVERIFY2(AppStorageTestHelper::fileHash(QDir(directory).filePath(it.key())) == it.value(), qPrintable(it.key()));
+    }
+
+    // The files of the list: 9 (newer), 3 (current), 2, 1 - nothing else
+    const std::vector<pdf::PDFDatabaseFileInfo> files = database.getDatabaseFiles();
+    QCOMPARE(int(files.size()), 4);
+    QCOMPARE(files[0].schemaVersion, 9);
+    QCOMPARE(files[1].schemaVersion, 3);
+    QVERIFY(files[1].isCurrent);
+    QCOMPARE(files[2].schemaVersion, 2);
+    QCOMPARE(files[3].schemaVersion, 1);
+}
+
+void AppStorageTest::schemaFileOnlyNewer()
+{
+    // Only a newer file (an older version started after a newer one): its content is
+    // copied into memory, nothing is written (no file of the own version, no lock)
+    const QString directory = createFolder(QStringLiteral("schema-newer"));
+    const QString newerPath = QDir(directory).filePath(QStringLiteral("pdf4qt-2.db"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(newerPath, 2, "dark"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(QDir(directory).filePath(QStringLiteral("pdf4qt.db")), 1, "legacy"));
+    const QByteArray hash = AppStorageTestHelper::fileAndLogHash(newerPath);
+    const QStringList namesBefore = AppStorageTestHelper::getDatabaseNames(directory);
+
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory));
+        const pdf::PDFDatabaseState state = database.getState();
+        QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::ReadOnlyNewerSchema);
+        QCOMPARE(state.filePath, newerPath);
+        QCOMPARE(state.fileSchemaVersion, 2);
+        QCOMPARE(state.schemaVersion, 2);
+        QCOMPARE(state.applicationSchemaVersion, pdf::PDFDatabaseSchema::getCurrentVersion());
+        QVERIFY(state.contentCopied);
+        QVERIFY(!state.isPersistent());
+        QVERIFY(!state.getDescription().isEmpty());
+        QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+        QVERIFY(AppStorageTestHelper::execute(&database, "UPDATE setting SET value = 'light' WHERE key = 'appearance.colorScheme'"));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("light"));
+    }
+
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(newerPath), hash);
+    QCOMPARE(AppStorageTestHelper::getDatabaseNames(directory), namesBefore);
+    QVERIFY(!QFile::exists(QDir(directory).filePath(QStringLiteral("pdf4qt-1.db"))));
+    QVERIFY(!QFile::exists(pdf::PDFDatabaseFiles::getUpgradeLockPath(directory)));
+}
+
+void AppStorageTest::schemaFileConcurrent_data()
+{
+    QTest::addColumn<int>("processCount");
+    QTest::newRow("2 processes") << 2;
+    QTest::newRow("4 processes") << 4;
+}
+
+void AppStorageTest::schemaFileConcurrent()
+{
+    // Instances of the newer version start at once: exactly one creates the file,
+    // the others wait for the lock and open it
+    QFETCH(int, processCount);
+    const QString directory = createFolder(QStringLiteral("schema-concurrent"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark", 2000));
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    QList<QProcess*> processes;
+    for (int i = 0; i < processCount; ++i)
+    {
+        processes << startChild({ QStringLiteral("--storage-upgrade"), directory, QStringLiteral("1"), QString() });
+    }
+
+    const int factor = AppStorageTestHelper::getTimeoutFactor();
+    int upgradeCount = 0;
+    for (QProcess* process : processes)
+    {
+        QVERIFY(process->state() == QProcess::NotRunning || process->waitForFinished(300000 * factor));
+        const QByteArray output = process->readAllStandardOutput() + process->readAllStandardError();
+        QVERIFY2(process->exitStatus() == QProcess::NormalExit && process->exitCode() == 0, output.constData());
+        QVERIFY2(output.contains("mode=0 ") && output.contains(" version=2 value=dark"), output.constData());
+        if (output.contains("upgraded=1"))
+        {
+            ++upgradeCount;
+        }
+    }
+    qDeleteAll(processes);
+
+    QCOMPARE(upgradeCount, 1);
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QVERIFY(database.getState().upgradedFromFilePath.isEmpty());
+    QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM recent_file"), qint64(2000));
+}
+
+void AppStorageTest::schemaFileCrash()
+{
+    // The process dies after the copy: only its temporary file is left, the next start
+    // removes it and does the upgrade again
+    const QString directory = createFolder(QStringLiteral("schema-crash"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark", 20));
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    int exitCode = 0;
+    const QByteArray output = runUpgradeChild(directory, 1, true, &exitCode);
+    QVERIFY2(exitCode == pdf::PDFDatabaseOptions::TEST_EXIT_CODE, output.constData());
+    QVERIFY(!QFile::exists(newerPath));
+    QVERIFY(!AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    // The lock was released by the end of the process: another process does the upgrade
+    const QByteArray secondOutput = runUpgradeChild(directory, 1, false, &exitCode);
+    QCOMPARE(exitCode, 0);
+    QVERIFY2(secondOutput.contains("mode=0 upgraded=1 version=2 value=dark"), secondOutput.constData());
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+    QVERIFY(QFile::exists(newerPath));
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM recent_file"), qint64(20));
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    // In this process: a temporary file left by a crash is removed by the next upgrade
+    const QString secondDirectory = createFolder(QStringLiteral("schema-crash-local"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(secondDirectory, 1), 1, "light"));
+    const QByteArray secondCrash = runUpgradeChild(secondDirectory, 1, true, &exitCode);
+    QVERIFY2(exitCode == pdf::PDFDatabaseOptions::TEST_EXIT_CODE, secondCrash.constData());
+    QVERIFY(!AppStorageTestHelper::getUpgradeTemporaryFiles(secondDirectory).isEmpty());
+    pdf::PDFDatabase local;
+    local.open(AppStorageTestHelper::createFolderOptions(secondDirectory, 1));
+    QCOMPARE(local.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QVERIFY(!local.getState().upgradedFromFilePath.isEmpty());
+    QCOMPARE(AppStorageTestHelper::getSettingText(&local, "appearance.colorScheme"), QStringLiteral("light"));
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(secondDirectory).isEmpty());
+}
+
+void AppStorageTest::schemaFileUnusableOlder_data()
+{
+    QTest::addColumn<int>("kind");
+    QTest::newRow("garbage") << 0;
+    QTest::newRow("foreign application") << 1;
+    QTest::newRow("corrupted page") << 2;
+    QTest::newRow("version of the name differs") << 3;
+}
+
+void AppStorageTest::schemaFileUnusableOlder()
+{
+    // The older file cannot be copied and migrated: it is kept unchanged under its
+    // name, the file of the new version starts empty and the user is told
+    QFETCH(int, kind);
+    const QString directory = createFolder(QStringLiteral("schema-unusable"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    switch (kind)
+    {
+        case 0:
+        {
+            QFile file(olderPath);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QRandomGenerator random(7);
+            QByteArray data(64 * 1024, Qt::Uninitialized);
+            random.fillRange(reinterpret_cast<quint32*>(data.data()), data.size() / 4);
+            file.write(data);
+            break;
+        }
+
+        case 1:
+        {
+            sqlite3* handle = pdf::PDFDatabase::openFileConnection(olderPath, false, 1000, nullptr);
+            QVERIFY(handle);
+            QVERIFY(!pdf::PDFDatabase::executeOnHandle(handle, "PRAGMA application_id = 42; CREATE TABLE foreign_data(x)").isError());
+            pdf::PDFDatabase::closeHandle(handle);
+            break;
+        }
+
+        case 2:
+            QVERIFY(AppStorageTestHelper::createDamagedThumbnails(olderPath));
+            break;
+
+        case 3:
+            // A file of the schema 5 with the name of the schema 1
+            QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 5, "dark"));
+            break;
+    }
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+        const pdf::PDFDatabaseState state = database.getState();
+        QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::Disk);
+        QCOMPARE(state.filePath, newerPath);
+        QCOMPARE(state.damagedFilePath, olderPath);
+        QVERIFY(state.upgradedFromFilePath.isEmpty());
+        QVERIFY(state.getDescription().contains(QDir::toNativeSeparators(olderPath)));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM setting"), qint64(0));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM recent_file"), qint64(0));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&database, "PRAGMA user_version"), qint64(2));
+        QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'light', 0)"));
+    }
+
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+
+    // The next start opens the new file without a message
+    pdf::PDFDatabase again;
+    again.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(again.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QVERIFY(again.getState().damagedFilePath.isEmpty());
+    QCOMPARE(AppStorageTestHelper::getSettingText(&again, "appearance.colorScheme"), QStringLiteral("light"));
+}
+
+void AppStorageTest::schemaFileBrokenMigration()
+{
+    // A migration of the new version fails (also for a new file): no file of the new
+    // version, the memory fallback with the content of the older file, Try Again
+    const QString directory = createFolder(QStringLiteral("schema-broken"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+
+    pdf::PDFDatabaseOptions options = AppStorageTestHelper::createFolderOptions(directory);
+    options.migrations = pdf::PDFDatabaseSchema::getMigrations();
+    pdf::PDFDatabaseMigration broken;
+    broken.version = int(options.migrations.size()) + 1;
+    broken.sql = "CREATE TABLE test_partial(id INTEGER); THIS IS NOT SQL;";
+    options.migrations.push_back(broken);
+
+    pdf::PDFDatabase database;
+    database.open(options);
+    const pdf::PDFDatabaseState state = database.getState();
+    QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::MemoryFallback);
+    QVERIFY(state.error.isError());
+    QVERIFY(state.contentCopied);
+    QVERIFY(state.isRetryPossible());
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+    QVERIFY(!QFile::exists(pdf::PDFDatabaseFiles::getFilePath(directory, broken.version)));
+    QVERIFY(AppStorageTestHelper::getUpgradeTemporaryFiles(directory).isEmpty());
+
+    QVERIFY(!database.retryOpen());
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::MemoryFallback);
+    database.close();
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+}
+
+void AppStorageTest::schemaFileFolderErrors()
+{
+    // The file of the new version cannot be created (the lock cannot be created - a
+    // folder of its name): the memory fallback with the content of the older file
+    // migrated in memory, the older file unchanged; Try Again does the upgrade
+    const QString directory = createFolder(QStringLiteral("schema-folder"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+    const QByteArray olderHash = AppStorageTestHelper::fileAndLogHash(olderPath);
+    const QString lockPath = pdf::PDFDatabaseFiles::getUpgradeLockPath(directory);
+    QVERIFY(QDir().mkpath(lockPath));
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    pdf::PDFDatabaseState state = database.getState();
+    QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::MemoryFallback);
+    QVERIFY(state.isRetryPossible());
+    QVERIFY(state.error.isError());
+    QVERIFY(state.contentCopied);
+    QCOMPARE(state.filePath, newerPath);
+    QCOMPARE(state.schemaVersion, 2);
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+    QVERIFY(!QFile::exists(newerPath));
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+    // Repaired: Try Again creates the file from the older one
+    QVERIFY(QDir(lockPath).removeRecursively());
+    QVERIFY(database.retryOpen());
+    state = database.getState();
+    QCOMPARE(state.mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(state.upgradedFromFilePath, olderPath);
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+    database.close();
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), olderHash);
+
+#if defined(Q_OS_UNIX)
+    // A read-only folder (Unix: Windows ignores the read-only attribute of a folder)
+    const QString readOnlyDirectory = createFolder(QStringLiteral("schema-readonly"));
+    const QString readOnlyOlder = pdf::PDFDatabaseFiles::getFilePath(readOnlyDirectory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(readOnlyOlder, 1, "dark"));
+    const QByteArray readOnlyHash = AppStorageTestHelper::fileAndLogHash(readOnlyOlder);
+    QVERIFY(QFile::setPermissions(readOnlyDirectory, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    QFile probe(QDir(readOnlyDirectory).filePath(QStringLiteral("probe")));
+    if (probe.open(QIODevice::WriteOnly))
+    {
+        probe.close();
+        probe.remove();
+        QVERIFY(QFile::setPermissions(readOnlyDirectory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+        QSKIP("The folder cannot be made read-only (root)");
+    }
+    {
+        pdf::PDFDatabase readOnly;
+        readOnly.open(AppStorageTestHelper::createFolderOptions(readOnlyDirectory, 1));
+        QCOMPARE(readOnly.getState().mode, pdf::PDFDatabaseStorageMode::MemoryFallback);
+        QVERIFY(readOnly.getState().isRetryPossible());
+        QCOMPARE(readOnly.getState().schemaVersion, 2);
+    }
+    QVERIFY(QFile::setPermissions(readOnlyDirectory, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(readOnlyOlder), readOnlyHash);
+    QVERIFY(!QFile::exists(pdf::PDFDatabaseFiles::getFilePath(readOnlyDirectory, 2)));
+#endif
+}
+
+void AppStorageTest::schemaFilePortable()
+{
+    // The portable mode writes nothing: no folder, no file, no lock
+    const QString directory = QDir(createFolder(QStringLiteral("schema-portable"))).filePath(QStringLiteral("data"));
+    pdf::PDFDatabase database;
+    pdf::PDFDatabaseOptions options = AppStorageTestHelper::createFolderOptions(directory, 1);
+    options.portable = true;
+    database.open(options);
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Portable);
+    QVERIFY(database.getState().filePath.isEmpty());
+    QCOMPARE(database.getState().schemaVersion, 2);
+    QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 0)"));
+    database.close();
+    QVERIFY(!QDir(directory).exists());
 }
 
 int main(int argc, char* argv[])

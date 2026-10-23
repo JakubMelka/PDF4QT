@@ -33,6 +33,7 @@
 #include <QPointer>
 #include <QString>
 
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -86,6 +87,15 @@ public:
     QString filePath;
 
     bool isValid() const { return !document.isNull(); }
+};
+
+/// Data derived from one version of a document (the attachments, the notes):
+/// computed once per version by the first user (a panel, the availability of a
+/// tab of the sidebar) and shared by the others (PDFAppDocument::getDerivedData)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentDerivedData
+{
+public:
+    virtual ~PDFAppDocumentDerivedData();
 };
 
 /// Long operation of a document (save, print, index, MCP change). Created by
@@ -274,6 +284,14 @@ public:
     /// document has changed its page contents since then)
     void setTextIndex(std::shared_ptr<const PDFDocumentTextIndex> index, quint64 version);
 
+    /// Data derived from the current version under \p key (nullptr = not computed
+    /// yet); every change of the document drops all of them. The GUI thread only.
+    std::shared_ptr<const PDFAppDocumentDerivedData> getDerivedData(const QString& key) const;
+
+    /// Stores the data derived from the current version (a cache: the document
+    /// itself does not change)
+    void setDerivedData(const QString& key, std::shared_ptr<const PDFAppDocumentDerivedData> data) const;
+
     /// Results of the verification of the signatures of the current version
     const std::vector<PDFSignatureVerificationResult>& getSignatureResults() const { return m_signatureResults; }
 
@@ -284,8 +302,22 @@ public:
     /// (a document, which is shown, keeps its state - a reload)
     void setLoading(const QString& filePath);
 
+    /// The loader starts reading a document from the memory (a PDF attachment,
+    /// owner decision O18): state Loading, no file, the title \p title. The document
+    /// behaves as a copy (Edit a Copy): it is modified, it is saved only by Save As
+    /// and it is never recorded in Recent. \p originFilePath is the file, from which
+    /// the document comes (getOriginFilePath). Refused (false), when the document
+    /// is not new.
+    bool setLoadingFromMemory(const QString& title, const QString& originFilePath);
+
+    /// File, from which the document comes: its own file, else the file of the
+    /// document of an attachment or of a copy (the Mark of the Web of a saved
+    /// attachment is taken from it); empty when not known
+    QString getOriginFilePath() const;
+
     /// Result of a loader: the document is shown (state Ready, a new saved version,
-    /// the undo stack is cleared)
+    /// the undo stack is cleared). A document read from the memory
+    /// (setLoadingFromMemory, an empty \p filePath) stays a modified copy.
     void setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected);
 
     /// Result of a reload of the file (automatic refresh of package E): the document
@@ -347,6 +379,7 @@ private:
     QString m_errorMessage;
     QString m_filePath;
     QString m_copyTitle;
+    QString m_originFilePath;   ///< File of the source of a copy or of an attachment
     bool m_isCopy = false;
     PDFDocumentPointer m_document;
     quint64 m_version = 0;
@@ -362,6 +395,7 @@ private:
     std::shared_ptr<const PDFDocumentTextIndex> m_textIndex;
     quint64 m_pageContentsVersion = 0;   ///< Version of the last change of the page contents (Reset, PageContents)
     std::vector<PDFSignatureVerificationResult> m_signatureResults;
+    mutable std::map<QString, std::shared_ptr<const PDFAppDocumentDerivedData>> m_derivedData;   ///< Of the current version
 };
 
 }   // namespace pdf

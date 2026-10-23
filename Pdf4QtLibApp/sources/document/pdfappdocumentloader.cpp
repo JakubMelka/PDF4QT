@@ -110,6 +110,18 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
 
     try
     {
+        // A document from the memory has no file
+        if (request.isFromMemory && request.data.isEmpty())
+        {
+            result.errorMessage = tr("The document is empty.");
+            return result;
+        }
+        if (request.isFromMemory && request.data.size() > MAXIMUM_FILE_SIZE)
+        {
+            result.errorMessage = tr("The file is too large.");
+            return result;
+        }
+
         // The file is read once; a second reading with a password uses its bytes
         if (request.data.isEmpty())
         {
@@ -236,6 +248,35 @@ void PDFAppDocumentLoader::start(const QString& filePath)
     {
         startReading(std::move(request), false);
     }
+}
+
+bool PDFAppDocumentLoader::startFromMemory(QByteArray data, const QString& title, const QString& originFilePath)
+{
+    if (!m_document || isRunning())
+    {
+        return false;
+    }
+
+    QPointer<PDFAppDocumentLoader> guard(this);
+    if (!m_document->setLoadingFromMemory(title, originFilePath))
+    {
+        return false;
+    }
+    if (!guard || !m_document)
+    {
+        return false;
+    }
+
+    m_filePath.clear();
+    m_data.clear();
+    m_password.clear();
+    m_hasPassword = false;
+
+    PDFAppDocumentReading::Request request;
+    request.data = std::move(data);
+    request.isFromMemory = true;
+    startReading(std::move(request), false);
+    return true;
 }
 
 bool PDFAppDocumentLoader::setPassword(const QString& password)

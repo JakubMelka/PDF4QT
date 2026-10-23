@@ -20,11 +20,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "applocaleguard.h"
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumentcommands.h"
 #include "pdfappinstance.h"
+#include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
 #include "pdfappmainwindow.h"
@@ -298,6 +300,7 @@ private Q_SLOTS:
     void logSizeLimit();
     void logPortable();
     void contextColorScheme();
+    void uiLocale();
     void executableSmoke();
     void executablePortable();
 
@@ -1898,6 +1901,7 @@ void AppCoreTest::logs()
 #endif
         qputenv("PDF4QT_APP_DATA_DIRECTORY", m_directory.path().toUtf8());
         QCOMPARE(pdf::PDFAppPaths::getLogDirectory(), QDir(m_directory.path()).filePath(QStringLiteral("logs")));
+        QCOMPARE(pdf::PDFAppPaths::getDatabaseFilePath(), QDir(m_directory.path()).filePath(QStringLiteral("pdf4qt-%1.db").arg(pdf::PDFDatabaseSchema::getCurrentVersion())));
         if (dataDirectory.isNull())
         {
             qunsetenv("PDF4QT_APP_DATA_DIRECTORY");
@@ -2045,6 +2049,60 @@ void AppCoreTest::logPortable()
     QVERIFY(!QDir(directory).exists());
 }
 
+void AppCoreTest::uiLocale()
+{
+    // O17: an English user interface on a Czech system - the default locale of the
+    // process is the locale of the system, until the application sets it
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+
+    QCOMPARE(pdf::PDFAppLocale::getDefaultUiLocale().language(), QLocale::English);
+    QCOMPARE(pdf::PDFAppLocale::getDefaultUiLocale().territory(), QLocale::UnitedStates);
+    QCOMPARE(pdf::PDFAppLocale::getUiLocale(), pdf::PDFAppLocale::getDefaultUiLocale());
+    QCOMPARE(pdf::PDFAppLocale::formatDate(QDate(2026, 10, 23)), QStringLiteral("Oct 23, 2026"));
+    QCOMPARE(pdf::PDFAppLocale::formatShortDate(QDate(2026, 10, 23)), QStringLiteral("Oct 23"));
+    QCOMPARE(pdf::PDFAppLocale::formatClock(QTime(14, 5)), QStringLiteral("14:05"));
+    QCOMPARE(pdf::PDFAppLocale::formatDateTime(QDateTime(QDate(2026, 10, 23), QTime(14, 5))), QStringLiteral("Oct 23, 2026, 14:05"));
+    QVERIFY(pdf::PDFAppLocale::formatDateTime(QDateTime()).isEmpty());
+    QCOMPARE(pdf::PDFAppLocale::formatNumber(1234567), QStringLiteral("1,234,567"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSize(1300, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("1.3 kB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSize(1234567, 1, QLocale::DataSizeSIFormat), QStringLiteral("1.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSize(-5, 0, QLocale::DataSizeSIFormat), pdf::PDFAppLocale::formatDataSize(0, 0, QLocale::DataSizeSIFormat));
+
+    // The paper and the units of the printer are regional settings of the system
+    QCOMPARE(pdf::PDFAppLocale::getRegionalLocale(), QLocale::system());
+
+    // The languages of the setting appearance.language (O12: English by default)
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral("en")), pdf::PDFAppLocale::getDefaultUiLocale());
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral(" EN ")), pdf::PDFAppLocale::getDefaultUiLocale());
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QString()), pdf::PDFAppLocale::getDefaultUiLocale());
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral("auto")), QLocale::system());
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral("cs")).language(), QLocale::Czech);
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral("pt_BR")).territory(), QLocale::Brazil);
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QStringLiteral("not a language")), pdf::PDFAppLocale::getDefaultUiLocale());
+    QCOMPARE(pdf::PDFAppLocale::getLocaleForLanguage(QString(100000, QChar('x'))), pdf::PDFAppLocale::getDefaultUiLocale());
+
+    // The context makes it the default locale of the process: "%Ln" of tr(), the
+    // widgets of Qt and of Pdf4QtLibFluent follow the language of the interface
+    {
+        const pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable" }, QString());
+        pdf::PDFAppContext context(commandLine);
+        QCOMPARE(QLocale(), pdf::PDFAppLocale::getUiLocale());
+        QCOMPARE(QCoreApplication::translate("AppCoreTest", "%Ln pages", nullptr, 1592), QStringLiteral("1,592 pages"));
+        QWidget widget;
+        QCOMPARE(widget.locale(), pdf::PDFAppLocale::getUiLocale());
+    }
+
+    // A change of the language (the translator of step 5); the formatting also from
+    // a worker thread
+    pdf::PDFAppLocale::setUiLocale(QLocale(QLocale::German, QLocale::Germany));
+    QCOMPARE(QLocale().language(), QLocale::German);
+    QCOMPARE(pdf::PDFAppLocale::formatNumber(1234), QStringLiteral("1.234"));
+    QString threadText;
+    std::thread worker([&threadText]() { threadText = pdf::PDFAppLocale::formatNumber(5678); });
+    worker.join();
+    QCOMPARE(threadText, QStringLiteral("5.678"));
+}
+
 void AppCoreTest::contextColorScheme()
 {
     const pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable" }, QString());
@@ -2178,8 +2236,9 @@ void AppCoreTest::executableSmoke()
     QCOMPARE(first.exitStatus(), QProcess::NormalExit);
     QCOMPARE(first.exitCode(), 0);
 
-    // Database and log of the first instance
-    QVERIFY(QFile::exists(QDir(dataDirectory).filePath(QStringLiteral("pdf4qt.db"))));
+    // Database (the file of the schema version, O19) and log of the first instance
+    QVERIFY(QFile::exists(QDir(dataDirectory).filePath(QStringLiteral("pdf4qt-%1.db").arg(pdf::PDFDatabaseSchema::getCurrentVersion()))));
+    QVERIFY(!QFile::exists(QDir(dataDirectory).filePath(QStringLiteral("pdf4qt.db"))));
     const QStringList logs = QDir(QDir(dataDirectory).filePath(QStringLiteral("logs"))).entryList(QStringList() << QStringLiteral("pdf4qt-*.log"), QDir::Files);
     QVERIFY(!logs.isEmpty());
     QByteArray content;

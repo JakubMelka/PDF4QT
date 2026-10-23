@@ -35,6 +35,7 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppDocumentView;
+class PDFSettingsRepository;
 
 /// Developer view of a document tab (Settings › Advanced › Developer): with the
 /// setting advanced.developerMode the canvas draws the overlays of the
@@ -42,8 +43,10 @@ class PDFAppDocumentView;
 /// lines of the text layout, numbered) and advanced.showRenderTimes (the times
 /// of the compilation and of the drawing of each page). The overlays are the
 /// renderer features DebugTextBlocks, DebugTextLines and DisplayTimes of the
-/// proxy of the canvas; the other features (of the view) are kept. The settings
-/// are read at each change of the settings (also from another instance).
+/// proxy of the canvas; the other features (of the view) are kept. The view sets
+/// the overlays together with its own features at a change of the settings (also
+/// from another instance), so the pages are compiled once; the overlay keeps
+/// the request and sets the overlays again, when the proxy has lost them.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDeveloperOverlay : public QObject
 {
     Q_OBJECT
@@ -60,6 +63,11 @@ public:
 
     /// Mask of the features, which the overlay controls
     static PDFRenderer::Features getOverlayFeatures();
+
+    /// Features of the overlays asked for by the settings (none without the
+    /// developer mode). The view sets them together with its own features, so a
+    /// change of the settings compiles the pages once.
+    static PDFRenderer::Features readRequestedFeatures(const PDFSettingsRepository& settings);
 
     /// Applies the settings to the proxy of the view
     void apply();

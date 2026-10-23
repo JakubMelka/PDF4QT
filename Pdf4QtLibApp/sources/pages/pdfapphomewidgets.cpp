@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapphomewidgets.h"
+#include "pdfapplocale.h"
 #include "pdfappinfowidgets.h"
 #include "pdfappworkspace.h"
 
@@ -170,8 +171,8 @@ QString PDFAppHomeFormat::formatTime(qint64 time, qint64 now)
     const QDateTime dateTime = PDFAppHomeWidgetsHelper::toLocal(time);
     const QDate date = dateTime.date();
     const QDate today = PDFAppHomeWidgetsHelper::toLocal(now).date();
-    const QLocale locale;
-    const QString clock = locale.toString(dateTime.time(), QStringLiteral("HH:mm"));
+    // O17: the language of the user interface, not the locale of the system
+    const QString clock = PDFAppLocale::formatClock(dateTime.time());
 
     if (date == today)
     {
@@ -181,7 +182,7 @@ QString PDFAppHomeFormat::formatTime(qint64 time, qint64 now)
     {
         return PDFAppHomeWidgetsHelper::translate("Yesterday %1").arg(clock);
     }
-    return locale.toString(date, QStringLiteral("MMM d, yyyy"));
+    return PDFAppLocale::formatDate(date);
 }
 
 QString PDFAppHomeFormat::formatLastUsed(qint64 time, qint64 now)
@@ -200,17 +201,17 @@ QString PDFAppHomeFormat::formatSize(qint64 bytes)
     {
         return QString();
     }
-    return QLocale().formattedDataSize(bytes, 1, QLocale::DataSizeTraditionalFormat);
+    return PDFAppLocale::formatDataSize(bytes, 1, QLocale::DataSizeTraditionalFormat);
 }
 
 QString PDFAppHomeFormat::formatPageCount(int pageCount)
 {
-    return pageCount >= 0 ? PDFAppHomeWidgetsHelper::translate("%n page", "%n pages", pageCount) : QString();
+    return pageCount >= 0 ? PDFAppHomeWidgetsHelper::translate("%Ln page", "%Ln pages", pageCount) : QString();
 }
 
 QString PDFAppHomeFormat::formatDocumentCount(int documentCount)
 {
-    return PDFAppHomeWidgetsHelper::translate("%n document", "%n documents", qMax(0, documentCount));
+    return PDFAppHomeWidgetsHelper::translate("%Ln document", "%Ln documents", qMax(0, documentCount));
 }
 
 QString PDFAppHomeFormat::formatPdfCount(int count, bool isLimited)
@@ -221,9 +222,9 @@ QString PDFAppHomeFormat::formatPdfCount(int count, bool isLimited)
     }
     if (isLimited)
     {
-        return PDFAppHomeWidgetsHelper::translate("%1+ PDF files").arg(count);
+        return PDFAppHomeWidgetsHelper::translate("%1+ PDF files").arg(PDFAppLocale::formatNumber(count));
     }
-    return PDFAppHomeWidgetsHelper::translate("%n PDF file", "%n PDF files", count);
+    return PDFAppHomeWidgetsHelper::translate("%Ln PDF file", "%Ln PDF files", count);
 }
 
 QString PDFAppHomeFormat::formatReading(const PDFRecentFile& file)

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "appdocumentfixture.h"
+#include "applocaleguard.h"
 
 #include "pdfappcommand.h"
 #include "pdfappdeveloperoverlay.h"
@@ -366,6 +367,8 @@ private slots:
     void deleteFromOwnSignals();
     void renderingIssuesPointer();
     void developerOverlay();
+    void developerOverlayCompileOnce();
+    void launchPathElided();
     void settings();
 
     // Pictures of the screens (PDF4QT_APP_SCREENSHOTS)
@@ -782,6 +785,13 @@ void AppDocumentPropertiesTest::dataHostile()
     const QString longText(100000, QLatin1Char('x'));
     QVERIFY(pdf::PDFAppDocumentPropertiesData::sanitize(longText).size() <= pdf::PDFAppDocumentPropertiesData::MAXIMUM_VALUE_LENGTH + 1);
     QVERIFY(pdf::PDFAppDocumentPropertiesData::formatDateTime(QDateTime()).isEmpty());
+
+    // The dates of the properties in the language of the user interface also on a
+    // Czech system (O17)
+    {
+        pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+        QCOMPARE(pdf::PDFAppDocumentPropertiesData::formatDateTime(QDateTime(QDate(2026, 10, 23), QTime(14, 5))), QStringLiteral("Oct 23, 2026, 14:05"));
+    }
 
     // Copy all
     pdf::PDFAppPropertyGroup group;
@@ -1688,6 +1698,7 @@ void AppDocumentPropertiesTest::linkHover()
     QApplication::sendEvent(drawWidget, &help);
     QVERIFY(pdf::PDFToolTip::isVisible());
     QCOMPARE(pdf::PDFToolTip::getTitle(), QStringLiteral("https://example.com/"));
+    QCOMPARE(pdf::PDFToolTip::getStyle(), pdf::PDFToolTip::Style::Compact);
 
     // The link to a page of the document
     const QPoint goTo = PropertiesTestHelper::pagePoint(view, QPointF(100, 108));
@@ -2438,6 +2449,100 @@ void AppDocumentPropertiesTest::developerOverlay()
     pdf::PDFAppDeveloperOverlay orphan(nullptr, nullptr, nullptr);
     orphan.apply();
     QCOMPARE(orphan.getRequestedFeatures(), pdf::PDFRenderer::Features());
+}
+
+void AppDocumentPropertiesTest::developerOverlayCompileOnce()
+{
+    // One change of the settings sets the features of the view and the overlays at
+    // once: the pages are compiled once (not by the view and then by the overlay)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("CompileOnce.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFDrawWidgetProxy* proxy = tab->getView()->getProxy();
+    fixture.settle();
+
+    // Every new set of the features of the proxy (setFeatures restarts the compiler
+    // and sends pageImageChanged)
+    QList<pdf::PDFRenderer::Features> changes;
+    pdf::PDFRenderer::Features last = proxy->getFeatures();
+    QObject::connect(proxy, &pdf::PDFDrawWidgetProxy::pageImageChanged, proxy, [&](bool, const std::vector<pdf::PDFInteger>&)
+    {
+        if (proxy->getFeatures() != last)
+        {
+            last = proxy->getFeatures();
+            changes << last;
+        }
+    });
+
+    // Settings changed by another instance: one notification of everything
+    pdf::PDFSettingsRepository settings = fixture.context->getSettings();
+    const bool antialiasing = settings.getBool(pdf::PDFSettingKeys::renderingAntialiasing());
+    {
+        const QSignalBlocker blocker(fixture.context->getNotifier());
+        QVERIFY(!settings.setValue(pdf::PDFSettingKeys::advancedDeveloperMode(), true).isError());
+        QVERIFY(!settings.setValue(pdf::PDFSettingKeys::advancedShowTextBlocks(), true).isError());
+        QVERIFY(!settings.setValue(pdf::PDFSettingKeys::renderingAntialiasing(), !antialiasing).isError());
+    }
+    Q_EMIT fixture.context->getNotifier()->everythingChanged();
+    fixture.settle();
+    QCOMPARE(changes.size(), 1);
+    QVERIFY(last.testFlag(pdf::PDFRenderer::DebugTextBlocks));
+    QCOMPARE(last.testFlag(pdf::PDFRenderer::Antialiasing), !antialiasing);
+
+    // One setting of the overlay, one of the view: once each, the other features kept
+    changes.clear();
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::advancedShowTextLines(), true).isError());
+    fixture.settle();
+    QCOMPARE(changes.size(), 1);
+    QVERIFY(last.testFlag(pdf::PDFRenderer::DebugTextLines));
+    changes.clear();
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::renderingAntialiasing(), antialiasing).isError());
+    fixture.settle();
+    QCOMPARE(changes.size(), 1);
+    QVERIFY(last.testFlag(pdf::PDFRenderer::DebugTextBlocks) && last.testFlag(pdf::PDFRenderer::DebugTextLines));
+    QCOMPARE(last.testFlag(pdf::PDFRenderer::Antialiasing), antialiasing);
+
+    // Without the developer mode the overlays are gone at once too
+    changes.clear();
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::advancedDeveloperMode(), false).isError());
+    fixture.settle();
+    QCOMPARE(changes.size(), 1);
+    QCOMPARE(last & pdf::PDFAppDeveloperOverlay::getOverlayFeatures(), pdf::PDFRenderer::Features());
+}
+
+void AppDocumentPropertiesTest::launchPathElided()
+{
+    // O18: the paths of Start a program / Open a file are elided in the middle, the
+    // extension of "...\invoice.pdf.exe" stays visible
+    QWidget host;
+    const QString program = QStringLiteral("C:/Users/Jane/Downloads/") + QString(60, QLatin1Char('x')) + QStringLiteral("/Quarterly reports 2026/invoice.pdf.exe");
+    pdf::PDFMessageBox* dialog = pdf::PDFAppDocumentActionDialogs::createProgramDialog(&host, QStringLiteral("Report.pdf"), program, QString(), QStringLiteral("C:/Users/Jane/Downloads/") + QString(60, QLatin1Char('y')));
+    pdf::PDFKeyValueList* facts = dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"));
+    QVERIFY(facts);
+    QCOMPARE(facts->getValueKind(0), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(facts->getValueKind(1), pdf::PDFComponentPainter::TextKind::Data);
+    QCOMPARE(facts->getValueKind(2), pdf::PDFComponentPainter::TextKind::FileName);
+    QVERIFY(facts->getValue(0).endsWith(QStringLiteral("invoice.pdf.exe")));
+
+    // The value as the list draws it: elided, the extension stays
+    dialog->show();
+    QApplication::processEvents();
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium);
+    const qreal valueWidth = facts->width() - 2 * 10 - 120 - 12;
+    QVERIFY(valueWidth > 50);
+    QVERIFY(pdf::PDFStylePainter::textWidth(facts->getValue(0), font) > valueWidth);
+    const QString shown = pdf::PDFComponentPainter::elidedTextOfKind(facts->getValue(0), font, valueWidth, facts->getValueKind(0));
+    QVERIFY2(shown.endsWith(QStringLiteral(".exe")), qPrintable(shown));
+    QVERIFY(shown.contains(QChar(0x2026)));
+    QVERIFY(!pdf::PDFComponentPainter::elidedTextOfKind(facts->getValue(0), font, valueWidth, pdf::PDFComponentPainter::TextKind::Data).endsWith(QStringLiteral(".exe")));
+    delete dialog;
+
+    pdf::PDFMessageBox* file = pdf::PDFAppDocumentActionDialogs::createFileDialog(&host, QStringLiteral("Report.pdf"), program);
+    pdf::PDFKeyValueList* fileFacts = file->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"));
+    QCOMPARE(fileFacts->getValueKind(0), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(fileFacts->getValueKind(1), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(fileFacts->getValueKind(2), pdf::PDFComponentPainter::TextKind::Data);
+    delete file;
 }
 
 void AppDocumentPropertiesTest::settings()

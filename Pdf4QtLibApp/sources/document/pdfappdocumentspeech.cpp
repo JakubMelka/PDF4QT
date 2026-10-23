@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentspeech.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsearch.h"
@@ -123,7 +124,7 @@ public:
 
     static QString formatValue(double value)
     {
-        return QLocale().toString(value, 'f', 2);
+        return PDFAppLocale::getUiLocale().toString(value, 'f', 2);
     }
 
     /// Caption of a field (Medium 11, text/muted)
@@ -249,7 +250,8 @@ QList<QLocale> PDFAppQtSpeechEngine::getLocales() const
 
 QLocale PDFAppQtSpeechEngine::getLocale() const
 {
-    return m_textToSpeech ? m_textToSpeech->locale() : QLocale();
+    // The language of the voice is not the language of the user interface (O17)
+    return m_textToSpeech ? m_textToSpeech->locale() : PDFAppLocale::getRegionalLocale();
 }
 
 void PDFAppQtSpeechEngine::setLocale(const QLocale& locale)

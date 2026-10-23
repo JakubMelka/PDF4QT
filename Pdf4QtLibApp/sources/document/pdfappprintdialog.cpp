@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappprintdialog.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfsettingdefinitions.h"
@@ -77,11 +78,13 @@ public:
     /// Text of a paper size: "A4 · 210 × 297 mm", "Letter · 8.5 × 11 in"
     static QString getPaperSizeText(const QPageSize& pageSize)
     {
-        const QPageSize::Unit unit = QLocale().measurementSystem() == QLocale::MetricSystem ? QPageSize::Millimeter : QPageSize::Inch;
+        // The units are a regional setting of the system, the numbers are in the
+        // language of the user interface (O17)
+        const QPageSize::Unit unit = PDFAppLocale::getRegionalLocale().measurementSystem() == QLocale::MetricSystem ? QPageSize::Millimeter : QPageSize::Inch;
         const QSizeF size = pageSize.size(unit);
         const QString unitText = unit == QPageSize::Millimeter ? QStringLiteral("mm") : QStringLiteral("in");
         const int precision = unit == QPageSize::Millimeter ? 0 : 2;
-        QLocale locale;
+        QLocale locale = PDFAppLocale::getUiLocale();
         locale.setNumberOptions(QLocale::OmitGroupSeparator);
         const QString width = locale.toString(size.width(), 'g', precision == 0 ? 6 : 4);
         const QString height = locale.toString(size.height(), 'g', precision == 0 ? 6 : 4);

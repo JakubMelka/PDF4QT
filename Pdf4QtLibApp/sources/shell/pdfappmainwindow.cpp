@@ -1327,15 +1327,7 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentCopy(const PDFAppDocument* sour
     }
 
     // The copy opens after the tab of its source
-    int index = tabBar->currentIndex() + 1;
-    for (PDFAppDocumentTab* documentTab : getDocumentTabs())
-    {
-        if (documentTab->getDocument() == source)
-        {
-            index = findTabIndex(documentTab->getId()) + 1;
-            break;
-        }
-    }
+    const int index = getTabIndexAfter(source);
 
     PDFAppDocumentTab* documentTab = new PDFAppDocumentTab(m_context, m_stack);
     QPointer<PDFAppDocumentTab> tab(documentTab);
@@ -1349,6 +1341,68 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentCopy(const PDFAppDocument* sour
 
     QPointer<PDFAppMainWindow> guard(this);
     if (m_navigator && tab)
+    {
+        m_navigator->navigate(PDFAppRoutes::document(tab->getDocumentId()), PDFAppNavigationMode::Push, tab);
+    }
+    return guard ? tab.data() : nullptr;
+}
+
+int PDFAppMainWindow::getTabIndexAfter(const PDFAppDocument* source) const
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    if (!tabBar)
+    {
+        return 0;
+    }
+
+    if (source)
+    {
+        for (PDFAppDocumentTab* documentTab : getDocumentTabs())
+        {
+            if (documentTab->getDocument() == source)
+            {
+                return findTabIndex(documentTab->getId()) + 1;
+            }
+        }
+    }
+    return tabBar->currentIndex() + 1;
+}
+
+PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath, const PDFAppDocument* source)
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    if (!tabBar || !m_stack || tabBar->count() >= MAXIMUM_TABS)
+    {
+        PDFAppOpenFailure failure;
+        failure.name = title.left(1024);
+        failure.reason = tr("There are too many tabs");
+        reportOpenFailures({ failure });
+        return nullptr;
+    }
+
+    // The document opens after the tab of its source (the user may have switched
+    // the tab, while the attachment was decoded)
+    const int index = getTabIndexAfter(source);
+    PDFAppDocumentTab* documentTab = new PDFAppDocumentTab(m_context, m_stack);
+    QPointer<PDFAppDocumentTab> tab(documentTab);
+    connectDocumentTab(documentTab);
+    addTab(documentTab, index);
+
+    QPointer<PDFAppMainWindow> guard(this);
+    if (!tab || !tab->openFromMemory(std::move(bytes), title, originFilePath))
+    {
+        if (guard && tab)
+        {
+            closeTab(tab);
+        }
+        return nullptr;
+    }
+    if (!guard || !tab)
+    {
+        return nullptr;
+    }
+
+    if (m_navigator)
     {
         m_navigator->navigate(PDFAppRoutes::document(tab->getDocumentId()), PDFAppNavigationMode::Push, tab);
     }

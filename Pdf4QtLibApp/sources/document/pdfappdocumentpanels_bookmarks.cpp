@@ -258,8 +258,12 @@ qint64 PDFAppBookmarks::addCurrentPage(PDFAppDocumentView* view, QWidget* parent
         }
     }
 
+    // O18: nothing generated from the content of an encrypted document is written
+    // to the database - its bookmark gets no title of its outline (the list shows
+    // the page); a title the user types is stored as any other
+    const QString title = document->isPasswordProtected() ? QString() : getDefaultTitle(document->getDocument().data(), page);
     qint64 id = 0;
-    const PDFDatabaseError error = PDFBookmarkRepository(context->getDatabase()).addBookmark(document->getFilePath(), page, getDefaultTitle(document->getDocument().data(), page), &id);
+    const PDFDatabaseError error = PDFBookmarkRepository(context->getDatabase()).addBookmark(document->getFilePath(), page, title, &id);
     if (error.isError())
     {
         showError(parent, QCoreApplication::translate("pdf::PDFAppBookmarks", "The bookmark was not added"), error.getMessage());

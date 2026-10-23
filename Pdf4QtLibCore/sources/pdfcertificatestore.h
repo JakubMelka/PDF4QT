@@ -161,6 +161,12 @@ public:
     /// Creates certificate info from certificate
     static PDFCertificateInfo getCertificateInfo(x509_st* certificate);
 
+    /// Returns the name of the issuer of a DER-encoded certificate: its common
+    /// name, else its organization name, else the whole name on one line. An
+    /// empty string is returned for invalid data.
+    /// \param certificateData Data
+    static QString getIssuerName(const QByteArray& certificateData);
+
 private:
     static constexpr int persist_version = 1;
 

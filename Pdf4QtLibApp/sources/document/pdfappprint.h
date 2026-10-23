@@ -34,6 +34,7 @@
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QImage>
+#include <QLocale>
 #include <QObject>
 #include <QPageLayout>
 #include <QPageSize>
@@ -110,8 +111,13 @@ public:
     /// Standard paper sizes (a printer without its own list)
     static QList<QPageSize> getStandardPageSizes();
 
-    /// Default paper size of the locale (Letter in the United States and Canada, A4 elsewhere)
+    /// Default paper size of the region of the system (PDFAppLocale::getRegionalLocale,
+    /// not the language of the user interface - O17)
     static QPageSize getLocaleDefaultPageSize();
+
+    /// Default paper size of a territory (Letter in the United States, Canada and some
+    /// countries of America, A4 elsewhere)
+    static QPageSize getDefaultPageSize(QLocale::Territory territory);
 
     /// Layout of the printable area of the paper of \p layout: the paper without
     /// the minimal margins of the printer. The printer prints a full page (its

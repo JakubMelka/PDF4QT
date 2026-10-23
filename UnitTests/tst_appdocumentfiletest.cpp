@@ -33,11 +33,13 @@
 // pictures of the dialogs (both themes; run with QT_SCALE_FACTOR=2 for 2x).
 
 #include "appdocumentfixture.h"
+#include "applocaleguard.h"
 
 #include "pdfappautorefresh.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentcommands.h"
+#include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
@@ -241,6 +243,7 @@ private slots:
     void saveModified();
     void saveRecordsRecent();
     void saveAs();
+    void saveMarkOfTheWeb();
     void saveAsCanceled();
     void saveAsOpenInAnotherTab();
     void saveReadOnlyFile();
@@ -283,6 +286,7 @@ private slots:
 
     // E-mail
     void mailSendsSavedFile();
+    void mailSafeAttachment();
     void mailSaveFirst();
     void mailError();
     void mailArguments();
@@ -302,9 +306,29 @@ private slots:
     void reviewAutoRefreshStaleCheck();
     void reviewPrintableArea();
 
+    // O17
+    void printUiLanguage();
+
     // Pictures for the comparison with Figma
     void screenshots();
 };
+
+void AppDocumentFileTest::printUiLanguage()
+{
+    // O17: the dialog of a window on a Czech system speaks the language of the user
+    // interface - the context makes it the default locale ("%Ln" of the summary)
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+    pdftest::AppDocumentFixture fixture;
+    QCOMPARE(QLocale(), pdf::PDFAppLocale::getUiLocale());
+    FileTestHelper::setTestPrinters(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::large(fixture.folder(), 1500));
+    QVERIFY(tab);
+    pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->setCopies(2);
+    QCOMPARE(dialog->getSummaryText(), QStringLiteral("3,000 pages on 3,000 sheets – 2 copies"));
+    dialog->reject();
+}
 
 void AppDocumentFileTest::initTestCase()
 {
@@ -318,6 +342,7 @@ void AppDocumentFileTest::cleanup()
     pdf::PDFAppPrinters::setProvider(pdf::PDFAppPrinters::Provider());
     pdf::PDFAppPrinters::setPropertiesHandler(pdf::PDFAppPrinters::PropertiesHandler());
     pdf::PDFAppSendMail::setLauncher(pdf::PDFAppSendMail::Launcher());
+    pdf::PDFAppSendMail::setXdgOverride(std::nullopt);
     QThreadPool::globalInstance()->waitForDone(30000);
 }
 
@@ -482,6 +507,92 @@ void AppDocumentFileTest::saveRecordsRecent()
 
     const QString canonical = QFileInfo(target).canonicalFilePath();
     QVERIFY(fixture.context->getRecent().getFile(canonical).has_value());
+}
+
+void AppDocumentFileTest::saveMarkOfTheWeb()
+{
+#ifdef Q_OS_WIN
+    // O18: a document from the internet keeps its Mark of the Web, when it is saved
+    // (the file is replaced by a temporary file) or saved as another file, and a PDF
+    // attachment opened from the memory gives the mark of its origin to its file
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Downloaded.pdf"), 2);
+    const QByteArray zone("[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://example.com/Downloaded.pdf\r\n");
+    const auto zoneOf = [](const QString& filePath) { return FileTestHelper::readFile(QDir::toNativeSeparators(filePath) + QStringLiteral(":Zone.Identifier")); };
+    {
+        QFile stream(QDir::toNativeSeparators(file) + QStringLiteral(":Zone.Identifier"));
+        if (!stream.open(QIODevice::WriteOnly) || stream.write(zone) != zone.size())
+        {
+            QSKIP("The folder of the test has no alternate data streams (not NTFS)");
+        }
+    }
+    QCOMPARE(pdf::PDFAppAttachments::readMarkOfTheWeb(file), zone);
+
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+
+    // Save: the same file with its mark
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Saved")));
+    QVERIFY(handler->save());
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    QVERIFY(finishedSpy.at(0).at(0).toBool());
+    QVERIFY(!document->isModified());
+    QCOMPARE(zoneOf(file), zone);
+
+    // Save As: the new file takes the mark of the document
+    const QString target = fixture.path(QStringLiteral("Saved as.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Saved as")));
+    QVERIFY(handler->saveAs());
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 2, 20000);
+    QVERIFY(finishedSpy.at(1).at(0).toBool());
+    QCOMPARE(zoneOf(target), zone);
+
+    // A PDF attachment opened from the memory: its file takes the mark of its origin.
+    // The tab opens after the tab of its source also when another tab is current.
+    const QByteArray inner = FileTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Inner.pdf"), 1));
+    pdf::PDFAppDocumentTab* otherTab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 1));
+    QVERIFY(otherTab);
+    QCOMPARE(fixture.currentDocumentTab(), otherTab);
+    const int sourceIndex = fixture.window->getDocumentTabs().indexOf(tab);
+    QVERIFY(sourceIndex >= 0);
+    QCOMPARE(fixture.window->getTabIndexAfter(document), fixture.window->getTabIndexAfter(nullptr) - 1);
+    QPointer<pdf::PDFAppDocumentTab> memoryTab = fixture.window->openDocumentFromMemory(inner, QStringLiteral("Inner.pdf"), document->getOriginFilePath(), document);
+    QVERIFY(memoryTab);
+    QCOMPARE(fixture.window->getDocumentTabs().indexOf(memoryTab.data()), sourceIndex + 1);
+    QTRY_VERIFY(memoryTab->getDocument()->isReady());
+    QVERIFY(memoryTab->getDocument()->getFilePath().isEmpty());
+
+    const QString attachmentTarget = fixture.path(QStringLiteral("Inner saved.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([attachmentTarget](QWidget*, const QString&) { return attachmentTarget; });
+    pdf::PDFAppDocumentFileCommandHandler* memoryHandler = FileTestHelper::handler(memoryTab);
+    QSignalSpy memorySpy(memoryHandler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(memoryHandler->saveAs());
+    QTRY_COMPARE_WITH_TIMEOUT(memorySpy.count(), 1, 20000);
+    QVERIFY(memorySpy.at(0).at(0).toBool());
+    QCOMPARE(FileTestHelper::readFile(attachmentTarget).isEmpty(), false);
+    QCOMPARE(zoneOf(attachmentTarget), zone);
+
+    // A document without a mark writes none
+    const QString plainFile = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Plain.pdf"), 1);
+    pdf::PDFAppDocumentTab* plainTab = FileTestHelper::openReady(fixture, plainFile);
+    QVERIFY(plainTab);
+    pdf::PDFAppDocumentFileCommandHandler* plainHandler = FileTestHelper::handler(plainTab);
+    QSignalSpy plainSpy(plainHandler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(FileTestHelper::modify(plainTab->getDocument(), QStringLiteral("Plain")));
+    QVERIFY(plainHandler->save());
+    QTRY_COMPARE_WITH_TIMEOUT(plainSpy.count(), 1, 20000);
+    QVERIFY(plainSpy.at(0).at(0).toBool());
+    QVERIFY(!QFile::exists(QDir::toNativeSeparators(plainFile) + QStringLiteral(":Zone.Identifier")));
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+#else
+    QVERIFY(pdf::PDFAppAttachments::readMarkOfTheWeb(QStringLiteral("/tmp/a.pdf")).isEmpty());
+    QVERIFY(!pdf::PDFAppAttachments::writeMarkOfTheWeb(QStringLiteral("/tmp/a.pdf"), QByteArray("x")));
+    QSKIP("The Mark of the Web is a stream of NTFS (Windows only)");
+#endif
 }
 
 void AppDocumentFileTest::saveAs()
@@ -1605,13 +1716,20 @@ void AppDocumentFileTest::printUnitCases()
     QCOMPARE(target.size(), QSizeF(150, 300));
     QCOMPARE(target.center(), QPointF(150, 150));
 
-    // The paper of the locale
-    const QLocale previous;
-    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
-    QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), QPageSize::Letter);
-    QLocale::setDefault(QLocale(QLocale::Czech, QLocale::Czechia));
-    QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), QPageSize::A4);
-    QLocale::setDefault(previous);
+    // The paper of the region of the system, not of the language of the user
+    // interface (O17: an English interface in Czechia prints on A4)
+    QCOMPARE(pdf::PDFAppPrinters::getDefaultPageSize(QLocale::UnitedStates).id(), QPageSize::Letter);
+    QCOMPARE(pdf::PDFAppPrinters::getDefaultPageSize(QLocale::Canada).id(), QPageSize::Letter);
+    QCOMPARE(pdf::PDFAppPrinters::getDefaultPageSize(QLocale::Czechia).id(), QPageSize::A4);
+    QCOMPARE(pdf::PDFAppPrinters::getDefaultPageSize(QLocale::AnyTerritory).id(), QPageSize::A4);
+    {
+        pdftest::AppSystemLocaleGuard guard(QLocale(QLocale::English, QLocale::UnitedStates));
+        QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), pdf::PDFAppPrinters::getDefaultPageSize(QLocale::system().territory()).id());
+    }
+    {
+        pdftest::AppSystemLocaleGuard guard(QLocale(QLocale::Czech, QLocale::Czechia));
+        QCOMPARE(pdf::PDFAppPrinters::getLocaleDefaultPageSize().id(), pdf::PDFAppPrinters::getDefaultPageSize(QLocale::system().territory()).id());
+    }
 
     // The printers of the system (no test provider): named, the default one first;
     // a printer of the system is created without printing anything
@@ -1797,6 +1915,76 @@ void AppDocumentFileTest::mailSendsSavedFile()
     QCOMPARE(calls.at(0), QFileInfo(file).canonicalFilePath());
     QCOMPARE(calls.at(1), QStringLiteral("Mail.pdf"));
     QVERIFY(!mail->getDialog());
+}
+
+void AppDocumentFileTest::mailSafeAttachment()
+{
+    // xdg-email: a path with an apostrophe or a comma would inject fields into
+    // attachment='...' of Thunderbird - a copy with a safe name is attached
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppSendMail::setXdgOverride(true);
+    QMutex mutex;
+    QStringList calls;
+    pdf::PDFAppSendMail::setLauncher([&mutex, &calls](const QString& filePath, const QString& subject)
+    {
+        QMutexLocker locker(&mutex);
+        calls << filePath << subject;
+        return pdf::PDFAppMailResult::Created;
+    });
+
+    const QString hostileName = QStringLiteral("O'Brien,attachment='secret.pdf");
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), hostileName + QStringLiteral(".pdf"), 1);
+    QVERIFY(QFile::exists(file));
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppSendMail* mail = FileTestHelper::handler(tab)->getSendMail();
+    QSignalSpy finishedSpy(mail, &pdf::PDFAppSendMail::finished);
+    mail->send();
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    QCOMPARE(finishedSpy.at(0).at(0).value<pdf::PDFAppMailResult>(), pdf::PDFAppMailResult::Created);
+
+    QString attached;
+    {
+        QMutexLocker locker(&mutex);
+        QCOMPARE(calls.size(), 2);
+        attached = calls.at(0);
+    }
+    QVERIFY(attached != QFileInfo(file).canonicalFilePath());
+    QVERIFY(pdf::PDFAppSendMail::isSafeXdgAttachmentPath(attached));
+    QCOMPARE(QFileInfo(attached).fileName(), QStringLiteral("O_Brien_attachment=_secret.pdf.pdf"));
+    QCOMPARE(FileTestHelper::readFile(attached), FileTestHelper::readFile(file));
+
+    // The arguments of xdg-email: one --attach with the safe copy
+    const QStringList arguments = pdf::PDFAppSendMail::getXdgEmailArguments(attached, tab->getDocument()->getTitle());
+    QCOMPARE(arguments.size(), 4);
+    QCOMPARE(arguments.at(2), QStringLiteral("--attach"));
+    QCOMPARE(arguments.at(3), attached);
+    QVERIFY(!arguments.at(3).contains(QLatin1Char('\'')) && !arguments.at(3).contains(QLatin1Char(',')));
+    QVERIFY(!arguments.at(1).contains(QLatin1Char('\'')));
+
+    // A safe path is attached as it is; another copy goes to another subfolder
+    const QString safe = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Safe name.pdf"), 1);
+    QCOMPARE(pdf::PDFAppSendMail::getXdgAttachmentPath(safe), QFileInfo(safe).absoluteFilePath());
+    const QString second = pdf::PDFAppSendMail::getXdgAttachmentPath(file);
+    QVERIFY(!second.isEmpty() && second != attached);
+    QVERIFY(!pdf::PDFAppSendMail::isSafeXdgAttachmentPath(QString()));
+    QVERIFY(!pdf::PDFAppSendMail::isSafeXdgAttachmentPath(QStringLiteral("/tmp/a\nb.pdf")));
+    QVERIFY(!pdf::PDFAppSendMail::isSafeXdgAttachmentPath(QStringLiteral("/tmp/a") + QChar(0x202E) + QStringLiteral("b.pdf")));
+
+    // A file, which cannot be copied: the e-mail is not created, the error is shown
+    QVERIFY(pdf::PDFAppSendMail::getXdgAttachmentPath(fixture.path(QStringLiteral("missing'file.pdf"))).isEmpty());
+    QVERIFY(QFile::remove(file));
+    mail->send();
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 2, 20000);
+    QCOMPARE(finishedSpy.at(1).at(0).value<pdf::PDFAppMailResult>(), pdf::PDFAppMailResult::AttachmentFailed);
+    QVERIFY(mail->getDialog());
+    QCOMPARE(mail->getDialog()->objectName(), QStringLiteral("mailErrorDialog"));
+    {
+        QMutexLocker locker(&mutex);
+        QCOMPARE(calls.size(), 2);
+    }
+    fixture.closeMessageBoxes();
+    pdf::PDFAppSendMail::setXdgOverride(std::nullopt);
 }
 
 void AppDocumentFileTest::mailSaveFirst()

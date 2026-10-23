@@ -26,7 +26,10 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
 
+#include "pdfaction.h"
 #include "pdfcatalog.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 
 #include <QEvent>
@@ -60,7 +63,110 @@ public:
         }
         return result.simplified();
     }
+
+    /// Top of the destination of an outline action in the coordinates of its page
+    /// (+infinity: the top of the page - no position, Fit, a damaged value)
+    static PDFReal getActionTop(const PDFCatalog* catalog, const PDFAction* action)
+    {
+        constexpr PDFReal pageTop = std::numeric_limits<PDFReal>::infinity();
+        if (!catalog || !action)
+        {
+            return pageTop;
+        }
+
+        for (const PDFAction* current : action->getActionList())
+        {
+            if (!current || current->getType() != ActionType::GoTo)
+            {
+                continue;
+            }
+
+            const PDFDestination* destination = &static_cast<const PDFActionGoTo*>(current)->getDestination();
+            if (destination->getDestinationType() == DestinationType::Named)
+            {
+                destination = catalog->getNamedDestination(destination->getName());
+            }
+            if (!destination)
+            {
+                return pageTop;
+            }
+
+            switch (destination->getDestinationType())
+            {
+                case DestinationType::XYZ:
+                case DestinationType::FitH:
+                case DestinationType::FitBH:
+                case DestinationType::FitR:
+                    return qIsFinite(destination->getTop()) ? destination->getTop() : pageTop;
+
+                default:
+                    return pageTop;
+            }
+        }
+        return pageTop;
+    }
 };
+
+int PDFAppOutlinePanel::findCurrentItemIndex(const std::vector<ItemPosition>& items, PDFInteger currentPage, PDFReal viewTop)
+{
+    // The page: the greatest page not after the current one
+    PDFInteger bestPage = -1;
+    for (const ItemPosition& item : items)
+    {
+        if (item.page >= 0 && item.page <= currentPage && item.page > bestPage)
+        {
+            bestPage = item.page;
+        }
+    }
+    if (bestPage < 0)
+    {
+        return -1;
+    }
+
+    // An earlier page lies above the view whole: its lowest item (of equal ones
+    // the later); the current page: the item closest above the top of the view
+    const PDFReal limit = bestPage == currentPage ? viewTop : -std::numeric_limits<PDFReal>::infinity();
+    int above = -1;
+    int topmost = -1;
+    for (int i = 0; i < int(items.size()); ++i)
+    {
+        const ItemPosition& item = items[size_t(i)];
+        if (item.page != bestPage)
+        {
+            continue;
+        }
+
+        if (item.top >= limit && (above < 0 || item.top <= items[size_t(above)].top))
+        {
+            above = i;
+        }
+        if (topmost < 0 || item.top > items[size_t(topmost)].top)
+        {
+            topmost = i;
+        }
+    }
+    return above >= 0 ? above : topmost;
+}
+
+PDFReal PDFAppOutlinePanel::getViewTop(PDFInteger currentPage) const
+{
+    PDFAppDocumentView* view = getView();
+    PDFDrawWidgetProxy* proxy = view ? view->getProxy() : nullptr;
+    PDFWidget* pdfWidget = view ? view->getPdfWidget() : nullptr;
+    QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
+    if (!proxy || !drawWidget || currentPage < 0)
+    {
+        return std::numeric_limits<PDFReal>::infinity();
+    }
+
+    // The top edge of the view (the middle, where a page lies in every layout)
+    QPointF pagePoint;
+    if (proxy->getPageUnderPoint(QPoint(drawWidget->width() / 2, 0), &pagePoint) == currentPage && qIsFinite(pagePoint.y()))
+    {
+        return pagePoint.y();
+    }
+    return std::numeric_limits<PDFReal>::infinity();
+}
 
 PDFAppOutlineFilterModel::PDFAppOutlineFilterModel(QObject* parent) :
     BaseClass(parent)
@@ -245,6 +351,7 @@ void PDFAppOutlinePanel::rebuild()
             item.item = new QStandardItem(PDFAppOutlinePanelHelper::sanitizeTitle(entry.outlineItem->getTitle()));
             item.item->setEditable(false);
             item.page = PDFAppPanelWidgets::getActionPage(catalog, entry.outlineItem->getAction());
+            item.top = PDFAppOutlinePanelHelper::getActionTop(catalog, entry.outlineItem->getAction());
             item.item->setData(qlonglong(item.page), PageRole);
             item.item->setToolTip(item.item->text());
             entry.parent->appendRow(item.item);
@@ -301,18 +408,35 @@ void PDFAppOutlinePanel::selectCurrentItem()
     }
 
     const PDFInteger currentPage = view ? view->getCurrentPageIndex() : -1;
-    const QStandardItem* best = nullptr;
-    PDFInteger bestPage = -1;
+    std::vector<ItemPosition> positions;
+    positions.reserve(m_items.size());
     for (const Item& item : m_items)
     {
-        if (item.page >= 0 && item.page <= currentPage && item.page >= bestPage)
-        {
-            best = item.item;
-            bestPage = item.page;
-        }
+        positions.push_back(ItemPosition{ item.page, item.top });
+    }
+    const int bestIndex = findCurrentItemIndex(positions, currentPage, getViewTop(currentPage));
+    const QStandardItem* best = bestIndex >= 0 ? m_items[size_t(bestIndex)].item : nullptr;
+    const PDFInteger bestPage = bestIndex >= 0 ? m_items[size_t(bestIndex)].page : -1;
+
+    QModelIndex index = best ? m_filterModel->mapFromSource(m_model->indexFromItem(best)) : QModelIndex();
+
+    // Several items of the same page: the item the user has activated stays
+    // selected, while the current page is its page - a click on an item is not
+    // replaced by another item of its page, when the view reaches it. An item
+    // selected by the view itself follows the view (the next item of the page).
+    const QModelIndex selected = getCurrentItem();
+    const bool isActivatedSelected = m_activatedItem.isValid() && selected.isValid() && selected.model() == m_filterModel &&
+                                     m_filterModel->mapToSource(selected) == QModelIndex(m_activatedItem);
+    if (best && isActivatedSelected && selected.data(PageRole).toLongLong() == bestPage)
+    {
+        index = selected;
+    }
+    else if (!best || m_activatedItem.data(PageRole).toLongLong() != bestPage)
+    {
+        // The view has left the page of the activated item
+        m_activatedItem = QPersistentModelIndex();
     }
 
-    const QModelIndex index = best ? m_filterModel->mapFromSource(m_model->indexFromItem(best)) : QModelIndex();
     const bool wasSelecting = m_isSelecting;
     m_isSelecting = true;
     if (index.isValid())
@@ -364,6 +488,7 @@ void PDFAppOutlinePanel::activateItem(const QModelIndex& index)
     }
 
     const PDFInteger page = index.data(PageRole).toLongLong();
+    m_activatedItem = QPersistentModelIndex(m_filterModel->mapToSource(index));
     if (page >= 0)
     {
         view->goToPage(page);

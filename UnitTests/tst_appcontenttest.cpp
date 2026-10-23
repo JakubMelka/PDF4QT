@@ -25,6 +25,7 @@
 // against a loopback HTTP server, the What's New pages, the Markdown parser and
 // view and the user manual /help.
 
+#include "applocaleguard.h"
 #include "pdfapppagelayout.h"
 #include "pdfappcontext.h"
 #include "pdfapphelpcatalog.h"
@@ -2151,6 +2152,9 @@ void AppContentTest::updateStatus()
 
 void AppContentTest::updateFormatTime()
 {
+    // The dates of What's New and of the card Update status are in the language of
+    // the user interface also on a Czech system (O17)
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
     const QDateTime now(QDate(2026, 9, 30), QTime(15, 0));
     const qint64 nowTime = now.toMSecsSinceEpoch();
     QCOMPARE(pdf::PDFUpdateStatus::formatTime(QDateTime(QDate(2026, 9, 30), QTime(9, 12)).toMSecsSinceEpoch(), nowTime), QStringLiteral("today at 09:12"));

@@ -67,6 +67,7 @@ public:
     public:
         QString filePath;           ///< File (read, when \p data is empty)
         QByteArray data;            ///< Bytes of the file read before (a second reading with a password)
+        bool isFromMemory = false;  ///< \p data is the document (an attachment), no file is read
         bool hasPassword = false;   ///< \p password is tried (an empty password, too)
         QString password;           ///< Password of the user (never logged, never stored)
 
@@ -125,6 +126,13 @@ public:
 
     /// Starts the reading of the file (the document gets the state Loading)
     void start(const QString& filePath);
+
+    /// Starts the reading of a document from the memory (a PDF attachment, O18):
+    /// no temporary file, the document has no file and the title \p title
+    /// (PDFAppDocument::setLoadingFromMemory); an encrypted document asks for its
+    /// password as a file does. \returns false, when the document is not new or a
+    /// reading runs.
+    bool startFromMemory(QByteArray data, const QString& title, const QString& originFilePath);
 
     /// Reads the file again with the password (state PasswordRequired). \returns
     /// false, when the document does not need a password or a reading runs.

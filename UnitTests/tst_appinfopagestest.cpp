@@ -767,13 +767,14 @@ void AppInfoPagesTest::buildInfoTexts()
 
 void AppInfoPagesTest::buildInfoDiskDatabase()
 {
-    // A database on the disk: the row Settings is its file, Log folder the folder of the logs
+    // A database on the disk: the row Settings is its file (the file of the schema
+    // version in the folder of the data, O19), Log folder the folder of the logs
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     qputenv("PDF4QT_APP_DATA_DIRECTORY", QDir::toNativeSeparators(directory.path()).toLocal8Bit());
     {
-        const QString file = QDir(directory.path()).filePath(QStringLiteral("pdf4qt.db"));
-        InfoFixture fixture(QStringList(), file);
+        const QString file = QDir(directory.path()).filePath(QStringLiteral("pdf4qt-%1.db").arg(pdf::PDFDatabaseSchema::getCurrentVersion()));
+        InfoFixture fixture{ QStringList() };
         QVERIFY(fixture.context->getStorageState().isPersistent());
         fixture.navigate(QStringLiteral("/about"));
         pdf::PDFAppAboutPage* page = fixture.page<pdf::PDFAppAboutPage>();

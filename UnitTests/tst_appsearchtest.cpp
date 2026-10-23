@@ -29,6 +29,7 @@
 // (285:3026: open / close, keys, pointer, focus, window, notifications, deletion,
 // geometry, pixels). PDF4QT_APP_SCREENSHOTS=<folder> writes pictures.
 
+#include "applocaleguard.h"
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
@@ -937,11 +938,11 @@ void AppSearchTest::engineSpeed()
 
 void AppSearchTest::openedText()
 {
-    // A fixed "now" and a fixed locale: the result depends neither on the real
-    // date (midnight), nor on the locale of the machine; the times are local
-    // times of the same zone as "now", so any time zone gives the same days
-    const QLocale defaultLocale;
-    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    // A fixed "now": the result does not depend on the real date (midnight); the
+    // times are local times of the same zone as "now", so any time zone gives the
+    // same days. The machine is Czech, the texts are in the language of the user
+    // interface (O17)
+    std::optional<pdftest::AppSystemLocaleGuard> guard(std::in_place, pdftest::AppSystemLocaleGuard::czech());
     const QDateTime now(QDate(2026, 10, 21), QTime(12, 0));
     QCOMPARE(pdf::PDFAppSearchEngine::getOpenedText(QDateTime(QDate(2026, 10, 21), QTime(0, 0)).toMSecsSinceEpoch(), now), QStringLiteral("Opened today"));
     QCOMPARE(pdf::PDFAppSearchEngine::getOpenedText(QDateTime(QDate(2026, 10, 21), QTime(8, 0)).toMSecsSinceEpoch(), now), QStringLiteral("Opened today"));
@@ -961,8 +962,12 @@ void AppSearchTest::openedText()
     QVERIFY(pdf::PDFAppSearchEngine::getOpenedText(-5, now).isEmpty());
     QVERIFY(pdf::PDFAppSearchEngine::getOpenedText(1000, QDateTime()).isEmpty());
     const QString farFuture = pdf::PDFAppSearchEngine::getOpenedText(std::numeric_limits<qint64>::max(), now);
-    QLocale::setDefault(defaultLocale);
     QVERIFY2(farFuture.isEmpty(), qPrintable(farFuture));
+
+    // The counts of the groups in the language of the user interface
+    QCOMPARE(pdf::PDFAppSearchPainter::getCountText(1234, 20000), QStringLiteral("1,234 of 20,000"));
+    QCOMPARE(pdf::PDFAppSearchPainter::getCountText(20000, 20000), QStringLiteral("20,000"));
+    guard.reset();
 }
 
 void AppSearchTest::visibleText()

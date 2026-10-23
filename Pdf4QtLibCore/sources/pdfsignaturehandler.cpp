@@ -37,6 +37,7 @@
 #pragma warning(disable: 4996)
 #endif
 
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
@@ -210,6 +211,11 @@ PDFSignatureHandler* PDFSignatureHandler::createHandler(const PDFFormFieldSignat
     }
 
     return nullptr;
+}
+
+void PDFSignatureHandler::releaseThreadResources()
+{
+    OPENSSL_thread_stop();
 }
 
 std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignatures(const PDFForm& form, const QByteArray& sourceData, const Parameters& parameters)

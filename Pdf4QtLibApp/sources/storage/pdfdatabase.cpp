@@ -28,6 +28,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QThread>
 #include <QThreadStorage>
 #include <QUrl>
@@ -35,6 +37,8 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
+#include <cstdlib>
 #include <map>
 
 Q_LOGGING_CATEGORY(lcPdf4QtStorage, "pdf4qt.storage")
@@ -124,6 +128,28 @@ public:
 
     /// Time of the damage written into the marker file \p markerPath (-1 = no valid time)
     static qint64 readMarkerTime(const QString& markerPath);
+
+    /// Order of PDFDatabaseFiles::getFiles: the newest schema version first
+    static bool isNewerFile(const PDFDatabaseFileInfo& left, const PDFDatabaseFileInfo& right);
+
+    /// The error comes from the environment of a file (it cannot be created, opened,
+    /// read or written, no memory, a lock), not from its content
+    static bool isEnvironmentError(int code);
+
+    /// Takes the lock of the upgrades of the folder (PDFDatabaseFiles::getUpgradeLockPath),
+    /// \returns nullptr on an error (SQLITE_BUSY after the busy timeout = another process
+    /// holds it)
+    static sqlite3* lockUpgrades(const QString& directory, int busyTimeout, PDFDatabaseError* error);
+
+    /// Releases the lock of the upgrades
+    static void unlockUpgrades(sqlite3* lock);
+
+    /// Removes the temporary files of the upgrades of the folder (called by the holder
+    /// of the lock: such a file was left by a crash)
+    static void removeUpgradeTemporaryFiles(const QString& directory);
+
+    /// Removes the temporary file \p filePath and the files of SQLite next to it
+    static void removeTemporaryFile(const QString& filePath);
 };
 
 PDFDatabaseError::PDFDatabaseError(int code, int extendedCode, QString message) :
@@ -182,7 +208,7 @@ QString PDFDatabaseState::getDescription() const
         case PDFDatabaseStorageMode::Disk:
             if (!damagedFilePath.isEmpty())
             {
-                return QCoreApplication::translate("pdf::PDFDatabase", "The settings database was damaged. It was renamed to %1 and a new one was created.").arg(QDir::toNativeSeparators(damagedFilePath));
+                return QCoreApplication::translate("pdf::PDFDatabase", "The settings database could not be read. It was kept as %1 and a new one was created.").arg(QDir::toNativeSeparators(damagedFilePath));
             }
             return QString();
 
@@ -645,6 +671,176 @@ qint64 PDFDatabaseHelper::readMarkerTime(const QString& markerPath)
     return (isValid && time > 0) ? time : -1;
 }
 
+bool PDFDatabaseHelper::isNewerFile(const PDFDatabaseFileInfo& left, const PDFDatabaseFileInfo& right)
+{
+    return left.schemaVersion > right.schemaVersion;
+}
+
+bool PDFDatabaseHelper::isEnvironmentError(int code)
+{
+    switch (code & 0xFF)
+    {
+        case SQLITE_CANTOPEN:
+        case SQLITE_PERM:
+        case SQLITE_READONLY:
+        case SQLITE_IOERR:
+        case SQLITE_FULL:
+        case SQLITE_NOMEM:
+        case SQLITE_AUTH:
+        case SQLITE_NOLFS:
+        case SQLITE_BUSY:
+        case SQLITE_LOCKED:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+sqlite3* PDFDatabaseHelper::lockUpgrades(const QString& directory, int busyTimeout, PDFDatabaseError* error)
+{
+    // The exclusive transaction of a rollback journal database is a lock of the file
+    // by the operating system: it is released also, when the process crashes. No page
+    // is written, so the file stays empty and no journal is created.
+    const QString lockPath = PDFDatabaseFiles::getUpgradeLockPath(directory);
+    sqlite3* lock = openHandle(lockPath.toUtf8(), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, error);
+    if (!lock)
+    {
+        return nullptr;
+    }
+
+    restrictPermissions(lockPath);
+    sqlite3_busy_timeout(lock, qMax(0, busyTimeout));
+    const int result = sqlite3_exec(lock, "BEGIN EXCLUSIVE", nullptr, nullptr, nullptr);
+    if (result != SQLITE_OK)
+    {
+        *error = PDFDatabaseError::fromHandle(lock, result);
+        PDFDatabase::closeHandle(lock);
+        return nullptr;
+    }
+
+    *error = PDFDatabaseError();
+    return lock;
+}
+
+void PDFDatabaseHelper::unlockUpgrades(sqlite3* lock)
+{
+    if (lock)
+    {
+        sqlite3_exec(lock, "ROLLBACK", nullptr, nullptr, nullptr);
+        PDFDatabase::closeHandle(lock);
+    }
+}
+
+void PDFDatabaseHelper::removeUpgradeTemporaryFiles(const QString& directory)
+{
+    const QStringList names = QDir(directory).entryList(QDir::Files | QDir::Hidden);
+    for (const QString& name : names)
+    {
+        if (PDFDatabaseFiles::isUpgradeTemporaryFileName(name))
+        {
+            const QString filePath = QDir(directory).filePath(name);
+            if (QFile::remove(filePath))
+            {
+                qCInfo(lcPdf4QtStorage) << "Temporary file of an interrupted upgrade removed:" << filePath;
+            }
+        }
+    }
+}
+
+void PDFDatabaseHelper::removeTemporaryFile(const QString& filePath)
+{
+    for (const char* suffix : { "", "-journal", "-wal", "-shm" })
+    {
+        const QString name = filePath + QLatin1String(suffix);
+        if (QFileInfo::exists(name))
+        {
+            QFile::remove(name);
+        }
+    }
+}
+
+QString PDFDatabaseFiles::getFileName(int schemaVersion)
+{
+    return QStringLiteral("pdf4qt-%1.db").arg(schemaVersion);
+}
+
+QString PDFDatabaseFiles::getFilePath(const QString& directory, int schemaVersion)
+{
+    return directory.isEmpty() ? QString() : QDir(directory).filePath(getFileName(schemaVersion));
+}
+
+int PDFDatabaseFiles::getSchemaVersion(const QString& fileName)
+{
+    // Only the exact names written by PDF4QT: no leading zero, no sign, at most
+    // 9 digits (no overflow), no suffix
+    static const QRegularExpression expression(QStringLiteral("^pdf4qt-([1-9][0-9]{0,8})\\.db$"));
+    const QRegularExpressionMatch match = expression.match(fileName);
+    if (!match.hasMatch())
+    {
+        return -1;
+    }
+
+    bool isValid = false;
+    const int version = match.captured(1).toInt(&isValid);
+    return (isValid && version > 0) ? version : -1;
+}
+
+std::vector<PDFDatabaseFileInfo> PDFDatabaseFiles::getFiles(const QString& directory, int currentSchemaVersion)
+{
+    std::vector<PDFDatabaseFileInfo> files;
+    if (directory.isEmpty())
+    {
+        return files;
+    }
+
+    const QDir folder(directory);
+    const QStringList names = folder.entryList(QDir::Files | QDir::Hidden);
+    for (const QString& name : names)
+    {
+        const int version = getSchemaVersion(name);
+        if (version < 0)
+        {
+            continue;
+        }
+
+        PDFDatabaseFileInfo info;
+        info.filePath = QDir::cleanPath(folder.absoluteFilePath(name));
+        info.schemaVersion = version;
+        info.isCurrent = (version == currentSchemaVersion);
+
+        const QFileInfo fileInfo(info.filePath);
+        info.size = fileInfo.size();
+        info.modified = fileInfo.lastModified();
+
+        const QFileInfo walInfo(info.filePath + QStringLiteral("-wal"));
+        if (walInfo.exists())
+        {
+            info.size += walInfo.size();
+            if (walInfo.lastModified() > info.modified)
+            {
+                info.modified = walInfo.lastModified();
+            }
+        }
+
+        files.push_back(std::move(info));
+    }
+
+    std::sort(files.begin(), files.end(), PDFDatabaseHelper::isNewerFile);
+    return files;
+}
+
+QString PDFDatabaseFiles::getUpgradeLockPath(const QString& directory)
+{
+    return QDir(directory).filePath(QLatin1String(UPGRADE_LOCK_FILE_NAME));
+}
+
+bool PDFDatabaseFiles::isUpgradeTemporaryFileName(const QString& fileName)
+{
+    static const QRegularExpression expression(QStringLiteral("^pdf4qt-[1-9][0-9]{0,8}\\.db\\.upgrade-"));
+    return expression.match(fileName).hasMatch();
+}
+
 PDFDatabase::PDFDatabase(QObject* parent) :
     QObject(parent),
     m_builtinMigrations(PDFDatabaseSchema::getMigrations()),
@@ -742,6 +938,10 @@ void PDFDatabase::open(const PDFDatabaseOptions& options)
     close();
 
     m_options = options;
+    if (!m_options.directory.isEmpty())
+    {
+        m_options.directory = QDir::cleanPath(QDir(m_options.directory).absolutePath());
+    }
     if (!PDFDatabaseSchema::isValid(m_options.migrations))
     {
         qCWarning(lcPdf4QtStorage) << "Invalid migrations, the built-in schema is used.";
@@ -762,7 +962,8 @@ void PDFDatabase::openImpl()
 {
     PDFDatabaseState state;
     state.applicationSchemaVersion = PDFDatabaseSchema::getVersion(getMigrations());
-    state.filePath = m_options.portable ? QString() : m_options.filePath;
+    state.filePath = m_options.portable ? QString() : getDiskFilePath();
+    m_fallbackFilePath = state.filePath;
 
     {
         QMutexLocker locker(&m_registry->mutex);
@@ -785,7 +986,7 @@ void PDFDatabase::openImpl()
         fallbackState.error = error;
         setState(fallbackState);
         qCWarning(lcPdf4QtStorage) << "Database cannot be opened, memory fallback is used:" << error.toString();
-        openMemory(m_options.filePath, PDFDatabaseStorageMode::MemoryFallback);
+        openMemory(m_fallbackFilePath, PDFDatabaseStorageMode::MemoryFallback);
     }
 }
 
@@ -1116,9 +1317,307 @@ bool PDFDatabase::openDiskWithRetry(PDFDatabaseError* error)
     return result;
 }
 
+QString PDFDatabase::getDiskFilePath() const
+{
+    if (!m_options.directory.isEmpty())
+    {
+        return PDFDatabaseFiles::getFilePath(m_options.directory, PDFDatabaseSchema::getVersion(getMigrations()));
+    }
+    return m_options.filePath;
+}
+
+std::vector<PDFDatabaseFileInfo> PDFDatabase::getDatabaseFiles() const
+{
+    if (m_options.directory.isEmpty())
+    {
+        return std::vector<PDFDatabaseFileInfo>();
+    }
+    return PDFDatabaseFiles::getFiles(m_options.directory, PDFDatabaseSchema::getVersion(getMigrations()));
+}
+
+bool PDFDatabase::prepareSchemaFile(PDFDatabaseError* error, QString* newerFilePath)
+{
+    // Owner decision O19: the file of the schema version of the application. When it
+    // exists, it is opened. Otherwise the newest older file is copied (backup API: a
+    // consistent snapshot also while an older version writes it), the copy is migrated
+    // and checked in a temporary file and renamed - the older file is never written.
+    // Only newer files: the newest of them is copied into memory (nothing is written).
+    const QString directory = m_options.directory;
+    const int applicationVersion = PDFDatabaseSchema::getVersion(getMigrations());
+    const QString targetPath = PDFDatabaseFiles::getFilePath(directory, applicationVersion);
+    *error = PDFDatabaseError();
+    newerFilePath->clear();
+
+    if (QFileInfo::exists(targetPath))
+    {
+        m_fallbackFilePath = targetPath;
+        return true;
+    }
+
+    QString olderFilePath;
+    QString newestFilePath;
+    for (const PDFDatabaseFileInfo& file : PDFDatabaseFiles::getFiles(directory, applicationVersion))
+    {
+        if (file.schemaVersion > applicationVersion && newestFilePath.isEmpty())
+        {
+            newestFilePath = file.filePath;
+        }
+        if (file.schemaVersion < applicationVersion)
+        {
+            olderFilePath = file.filePath;
+            break;
+        }
+    }
+
+    if (olderFilePath.isEmpty() && !newestFilePath.isEmpty())
+    {
+        // An older version of the application started after a newer one
+        *newerFilePath = newestFilePath;
+        m_fallbackFilePath = newestFilePath;
+        return true;
+    }
+
+    // One process creates the file, the others wait for the lock and find it then.
+    // SQLITE_BUSY after the busy timeout is waited for by openDiskWithRetry.
+    sqlite3* lock = PDFDatabaseHelper::lockUpgrades(directory, m_options.busyTimeout, error);
+    if (!lock)
+    {
+        m_fallbackFilePath = olderFilePath.isEmpty() ? targetPath : olderFilePath;
+        return false;
+    }
+
+    // A temporary file found by the holder of the lock was left by a crash
+    PDFDatabaseHelper::removeUpgradeTemporaryFiles(directory);
+
+    if (QFileInfo::exists(targetPath))
+    {
+        // Another process has created it meanwhile
+        PDFDatabaseHelper::unlockUpgrades(lock);
+        m_fallbackFilePath = targetPath;
+        return true;
+    }
+
+    // The files are listed again under the lock (an older version may have created
+    // its file meanwhile)
+    olderFilePath.clear();
+    for (const PDFDatabaseFileInfo& file : PDFDatabaseFiles::getFiles(directory, applicationVersion))
+    {
+        if (file.schemaVersion < applicationVersion)
+        {
+            olderFilePath = file.filePath;
+            break;
+        }
+    }
+    m_fallbackFilePath = olderFilePath.isEmpty() ? targetPath : olderFilePath;
+
+    const QString temporaryPath = targetPath + QStringLiteral(".upgrade-%1-%2").arg(QCoreApplication::applicationPid()).arg(QRandomGenerator::global()->generate(), 8, 16, QLatin1Char('0'));
+    bool isSourceUnusable = false;
+    bool isCreated = createSchemaFile(olderFilePath, temporaryPath, targetPath, error, &isSourceUnusable);
+    QString unusableFilePath;
+    if (!isCreated && isSourceUnusable && !olderFilePath.isEmpty())
+    {
+        // The older file cannot be copied or migrated (damaged, a foreign file, its
+        // migration fails): it is kept unchanged under its name, the new file starts
+        // empty and the user is told (the banner of a replaced database)
+        qCWarning(lcPdf4QtStorage) << "Older database file cannot be upgraded, it is kept and a new database is created:" << olderFilePath << error->toString();
+        unusableFilePath = olderFilePath;
+        PDFDatabaseHelper::removeTemporaryFile(temporaryPath);
+        isCreated = createSchemaFile(QString(), temporaryPath, targetPath, error, &isSourceUnusable);
+    }
+
+    if (isCreated)
+    {
+        // The rename is atomic: the file of the schema version appears only complete.
+        // A scanner of the system may hold the new file for a moment (Windows).
+        bool isRenamed = false;
+        for (int attempt = 0; attempt < 10 && !isRenamed; ++attempt)
+        {
+            if (attempt > 0)
+            {
+                QThread::msleep(50);
+            }
+            isRenamed = QFile::rename(temporaryPath, targetPath) || QFileInfo::exists(targetPath);
+        }
+
+        if (!isRenamed)
+        {
+            *error = PDFDatabaseError(SQLITE_CANTOPEN, SQLITE_CANTOPEN, QCoreApplication::translate("pdf::PDFDatabase", "The file %1 cannot be created.").arg(QDir::toNativeSeparators(targetPath)));
+            isCreated = false;
+        }
+    }
+
+    PDFDatabaseHelper::removeTemporaryFile(temporaryPath);
+    PDFDatabaseHelper::unlockUpgrades(lock);
+
+    if (!isCreated)
+    {
+        // A busy older file is tried again by openDiskWithRetry, other errors lead to
+        // the memory fallback with the content of the older file (Try Again)
+        qCWarning(lcPdf4QtStorage) << "Database file" << targetPath << "cannot be created:" << error->toString();
+        return false;
+    }
+
+    m_fallbackFilePath = targetPath;
+    if (unusableFilePath.isEmpty() && !olderFilePath.isEmpty())
+    {
+        qCInfo(lcPdf4QtStorage) << "Database file" << targetPath << "was created from" << olderFilePath;
+    }
+
+    // The next attempt of the opening starts from the stored state (no signal, the
+    // opening goes on)
+    QMutexLocker locker(&m_stateMutex);
+    m_state.damagedFilePath = unusableFilePath;
+    m_state.upgradedFromFilePath = unusableFilePath.isEmpty() ? olderFilePath : QString();
+    return true;
+}
+
+bool PDFDatabase::createSchemaFile(const QString& sourcePath, const QString& temporaryPath, const QString& targetPath, PDFDatabaseError* error, bool* isSourceUnusable)
+{
+    *isSourceUnusable = false;
+    PDFDatabaseHelper::removeTemporaryFile(temporaryPath);
+
+    // The temporary file has a rollback journal: it is complete and alone, when it is
+    // renamed (the opening switches the file of the schema version to WAL)
+    sqlite3* destination = PDFDatabaseHelper::openHandle(temporaryPath.toUtf8(), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, error);
+    if (!destination)
+    {
+        return false;
+    }
+    PDFDatabaseHelper::restrictPermissions(temporaryPath);
+
+    if (!sourcePath.isEmpty())
+    {
+        // Read only, never a checkpoint at the closing: the older file is not written
+        // (also when its write-ahead log has frames of a crashed older version)
+        PDFDatabaseError sourceError;
+        sqlite3* source = openFileConnection(sourcePath, true, m_options.busyTimeout, &sourceError);
+        int result = source ? SQLITE_OK : sourceError.getCode();
+        if (source)
+        {
+            sqlite3_db_config(source, SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, nullptr);
+
+            // A foreign file with the name of a database file of PDF4QT is not copied
+            PDFDatabaseConnection probe(nullptr, 0);
+            probe.m_handle = source;
+            const qint64 applicationId = probe.queryInteger("PRAGMA application_id", 0, &sourceError);
+            probe.m_handle = nullptr;
+            if (sourceError.isError())
+            {
+                result = sourceError.getCode();
+            }
+            else if (applicationId != 0 && applicationId != APPLICATION_ID)
+            {
+                sourceError = PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "The file is not a database of PDF4QT."));
+                result = SQLITE_NOTADB;
+            }
+        }
+
+        if (result == SQLITE_OK)
+        {
+            // One step: the whole file in one read transaction of the source
+            sqlite3_backup* backup = sqlite3_backup_init(destination, "main", source, "main");
+            if (!backup)
+            {
+                result = sqlite3_errcode(destination);
+                sourceError = PDFDatabaseError::fromHandle(destination, result);
+            }
+            else
+            {
+                const int stepResult = sqlite3_backup_step(backup, -1);
+                const int finishResult = sqlite3_backup_finish(backup);
+                result = (stepResult != SQLITE_DONE) ? stepResult : finishResult;
+                if (result != SQLITE_OK)
+                {
+                    sourceError = PDFDatabaseError::fromHandle(destination, result);
+                    if (!sourceError.isError())
+                    {
+                        sourceError = PDFDatabaseError::fromHandle(nullptr, result);
+                    }
+                }
+            }
+        }
+        closeHandle(source);
+
+        if (result != SQLITE_OK)
+        {
+            *error = sourceError.isError() ? sourceError : PDFDatabaseError::fromHandle(nullptr, result);
+            *isSourceUnusable = !PDFDatabaseHelper::isEnvironmentError(error->getCode());
+            closeHandle(destination);
+            return false;
+        }
+
+        if (m_options.testExitAfterUpgradeCopy)
+        {
+            // Tests: the process dies after the copy (a crash in the middle of the upgrade)
+            std::_Exit(PDFDatabaseOptions::TEST_EXIT_CODE);
+        }
+
+        // The copy of a WAL file has the header of a WAL file
+        int queryResult = SQLITE_OK;
+        const QString journalMode = PDFDatabaseHelper::queryText(destination, "PRAGMA journal_mode = DELETE", &queryResult);
+        if (queryResult != SQLITE_OK || journalMode.compare(QLatin1String("delete"), Qt::CaseInsensitive) != 0)
+        {
+            *error = queryResult != SQLITE_OK ? PDFDatabaseError::fromHandle(destination, queryResult)
+                                              : PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "The journal mode of the copy cannot be changed."));
+            *isSourceUnusable = !PDFDatabaseHelper::isEnvironmentError(error->getCode());
+            closeHandle(destination);
+            return false;
+        }
+    }
+
+    // The pragmas of the application except WAL (the content of the copy is not trusted)
+    *error = PDFDatabaseHelper::applyPragmas(destination, false, true, m_options.busyTimeout);
+    const int applicationVersion = PDFDatabaseSchema::getVersion(getMigrations());
+    if (!error->isError())
+    {
+        *error = PDFDatabaseSchema::migrate(destination, getMigrations(), applicationVersion);
+    }
+
+    // The result is checked as a whole: the version, the header and every page
+    const qint64 checkTime = QDateTime::currentMSecsSinceEpoch();
+    if (!error->isError())
+    {
+        int result = SQLITE_OK;
+        const QString check = PDFDatabaseHelper::queryText(destination, "PRAGMA quick_check", &result);
+        if (result != SQLITE_OK)
+        {
+            *error = PDFDatabaseError::fromHandle(destination, result);
+        }
+        else if (check != QLatin1String("ok"))
+        {
+            *error = PDFDatabaseError(SQLITE_CORRUPT, SQLITE_CORRUPT, check);
+        }
+        else if (PDFDatabaseSchema::readVersion(destination) != applicationVersion ||
+                 queryIntegerOnHandle(destination, "PRAGMA application_id", 0) != APPLICATION_ID)
+        {
+            *error = PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "The version of the database schema is not supported."));
+        }
+    }
+
+    if (error->isError())
+    {
+        *isSourceUnusable = !sourcePath.isEmpty() && !PDFDatabaseHelper::isEnvironmentError(error->getCode());
+        closeHandle(destination);
+        return false;
+    }
+
+    // The integrity check of the new file has been done just now
+    recordIntegrityCheck(destination, targetPath, checkTime);
+
+    const int closeResult = sqlite3_close(destination);
+    if (closeResult != SQLITE_OK)
+    {
+        *error = PDFDatabaseError::fromHandle(nullptr, closeResult);
+        closeHandle(destination);
+        return false;
+    }
+
+    return true;
+}
+
 bool PDFDatabase::openDisk(PDFDatabaseError* error)
 {
-    const QString filePath = m_options.filePath;
+    const QString filePath = getDiskFilePath();
     if (filePath.isEmpty())
     {
         *error = PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "No file of the database is set."));
@@ -1131,6 +1630,26 @@ bool PDFDatabase::openDisk(PDFDatabaseError* error)
     {
         *error = PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "The folder %1 cannot be created.").arg(QDir::toNativeSeparators(fileInfo.absolutePath())));
         return false;
+    }
+
+    if (!m_options.directory.isEmpty())
+    {
+        QString newerFilePath;
+        if (!prepareSchemaFile(error, &newerFilePath))
+        {
+            return false;
+        }
+
+        if (!newerFilePath.isEmpty())
+        {
+            // Only newer files (an older version of the application started after
+            // a newer one): the content of the newest one is copied into memory
+            PDFDatabaseState state = getState();
+            state.filePath = newerFilePath;
+            state.fileSchemaVersion = PDFDatabaseFiles::getSchemaVersion(QFileInfo(newerFilePath).fileName());
+            setState(state);
+            return openMemory(newerFilePath, PDFDatabaseStorageMode::ReadOnlyNewerSchema);
+        }
     }
 
     PDFDatabaseState state = getState();
@@ -1387,6 +1906,7 @@ bool PDFDatabase::retryOpen()
 
     PDFDatabaseState state = currentState;
     state.damagedFilePath.clear();
+    state.upgradedFromFilePath.clear();
     setState(state);
 
     PDFDatabaseError error;

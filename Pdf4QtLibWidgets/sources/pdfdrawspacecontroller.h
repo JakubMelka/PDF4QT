@@ -221,6 +221,33 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
     static PDFViewColors getColors(const PDFFormManager* formManager);
 };
 
+/// Decoration of the pages of a view: a margin of the canvas around the pages
+/// and a shadow below each page. An application turns it on by
+/// PDFDrawWidgetProxy::setPageDecoration (the new application takes the values
+/// from its design and the color of the shadow from its theme). The default
+/// decoration is off - no margin and no shadow, as in the old applications.
+struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageDecoration
+{
+    /// Margin of the canvas around the pages [pixels of the widget]. The fit
+    /// zooms keep it free and the scrolled area includes it.
+    int margin = 0;
+
+    /// Color of the shadow, an invalid or a transparent color draws no shadow
+    QColor shadowColor;
+
+    /// Offset of the shadow from the page [pixels of the widget]
+    QPointF shadowOffset;
+
+    /// Blur of the shadow [pixels of the widget], twice the standard
+    /// deviation of the Gaussian blur (as the blur of a drop shadow of Figma)
+    qreal shadowBlur = 0.0;
+
+    bool operator==(const PDFPageDecoration&) const = default;
+
+    /// Returns true, if a shadow is drawn below the pages
+    bool hasShadow() const { return shadowColor.isValid() && shadowColor.alpha() > 0; }
+};
+
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFDrawWidgetProxy : public QObject
@@ -421,6 +448,15 @@ public:
     /// Colors of the view: the colors of setViewColors, or the default colors
     PDFViewColors getViewColors() const;
 
+    /// Sets the decoration of the pages (margin around the pages, shadow below
+    /// them). Values out of their limits are bounded (the margin to 0 - 512
+    /// pixels, the blur to 0 - 32 pixels, the offset to -32 - 32 pixels, a non
+    /// finite value is zero). The layout and the fit zoom are updated.
+    void setPageDecoration(const PDFPageDecoration& decoration);
+
+    /// Returns the decoration of the pages (default = no margin, no shadow)
+    const PDFPageDecoration& getPageDecoration() const { return m_pageDecoration; }
+
     /// Transforms pixels to device space
     /// \param pixel Value in pixels
     PDFReal transformPixelToDeviceSpace(PDFReal pixel) const { return pixel * m_pixelToDeviceSpaceUnit; }
@@ -496,6 +532,11 @@ private:
 
     static constexpr PDFReal FIT_MARGIN_PIXELS = 1.0;
 
+    // Limits of the page decoration [pixels]
+    static constexpr int MAX_PAGE_MARGIN = 512;
+    static constexpr PDFReal MAX_PAGE_SHADOW_BLUR = 32.0;
+    static constexpr PDFReal MAX_PAGE_SHADOW_OFFSET = 32.0;
+
     static constexpr qint64 CACHE_CLEAR_TIMEOUT = 5000;
     static constexpr qint64 CACHE_PAGE_EXPIRATION_TIMEOUT = 30000;
 
@@ -509,6 +550,23 @@ private:
 
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
+
+    /// Draws the shadows of the pages intersecting the rectangle (page decoration)
+    /// \param painter Painter
+    /// \param rect Rectangle in which the content is painted
+    void drawPageShadows(QPainter* painter, QRect rect);
+
+    /// Returns the distance, to which the shadow reaches from the shadow rectangle [pixels]
+    /// \param blur Blur of the shadow
+    static PDFReal getPageShadowExtent(PDFReal blur);
+
+    /// Creates the picture of the shadow of a square, whose four quarters are
+    /// the corners of a shadow of a page and whose middle row and column are its
+    /// edges. The square ends getPageShadowExtent(blur) from the edges of the picture.
+    /// \param blur Blur of the shadow
+    /// \param color Color of the shadow
+    /// \param devicePixelRatio Device pixel ratio of the picture
+    static QImage createPageShadowTile(PDFReal blur, const QColor& color, PDFReal devicePixelRatio);
 
     /// Returns the screen on which the widget is currently displayed. Primary screen
     /// is returned as a fallback, when the widget is not assigned to any screen.
@@ -673,6 +731,12 @@ private:
 
     /// Colors of the view set by the application (none = the default colors)
     std::optional<PDFViewColors> m_viewColors;
+
+    /// Decoration of the pages (margin, shadow), default is none
+    PDFPageDecoration m_pageDecoration;
+
+    /// Picture of the shadow of the page decoration (see createPageShadowTile)
+    QImage m_pageShadowTile;
 };
 
 }   // namespace pdf

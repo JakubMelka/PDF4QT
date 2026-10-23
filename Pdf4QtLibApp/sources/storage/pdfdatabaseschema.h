@@ -39,7 +39,8 @@ namespace pdf
 class PDFDatabaseError;
 
 /// One forward and additive step of the schema (newapp_storage.md 5). The SQL of
-/// a released version is never changed, a change of the schema is a new migration.
+/// a released version is never changed, a change of the schema is a new migration
+/// (a new schema version, whose database file is pdf4qt-<version>.db - O19).
 class PDF4QTLIBAPPSHARED_EXPORT PDFDatabaseMigration
 {
 public:
@@ -97,7 +98,7 @@ public:
     /// Name of the table of the change log (it has no triggers)
     static constexpr const char* CHANGE_LOG_TABLE = "change_log";
 
-    /// Internal state of the storage (key, value), version 2. It has no triggers:
+    /// Internal state of the storage (key, value). It has no triggers:
     /// its changes are no notifications and Restore defaults never deletes it.
     static constexpr const char* MAINTENANCE_TABLE = "storage_maintenance";
 
@@ -109,15 +110,12 @@ public:
     /// met by an instance; a request of the full check, when it is not older than the check
     static constexpr const char* INTEGRITY_REQUESTED_KEY = "integrity.requested";
 
-    /// Markers of the thumbnails being rendered (version 4, PDFRecentRepository::beginRendering).
+    /// Markers of the thumbnails being rendered (PDFRecentRepository::beginRendering).
     /// It has no triggers: a marker is no notification.
     static constexpr const char* THUMBNAIL_RENDERING_TABLE = "thumbnail_rendering";
 
 private:
     static QByteArray createVersion1();
-    static QByteArray createVersion2();
-    static QByteArray createVersion3();
-    static QByteArray createVersion4();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

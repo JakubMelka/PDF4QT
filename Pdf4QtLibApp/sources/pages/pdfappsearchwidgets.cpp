@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappsearchwidgets.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappmainwindow.h"
 #include "pdfapptab.h"
@@ -169,9 +170,9 @@ QString PDFAppSearchPainter::getCountText(int shown, int total)
 {
     if (shown >= total || shown < 0)
     {
-        return QString::number(qMax(0, total));
+        return PDFAppLocale::formatNumber(qMax(0, total));
     }
-    return PDFAppSearchWidgetsHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "%1 of %2")).arg(shown).arg(total);
+    return PDFAppSearchWidgetsHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "%1 of %2")).arg(PDFAppLocale::formatNumber(shown), PDFAppLocale::formatNumber(total));
 }
 
 QRectF PDFAppSearchPainter::getBadgeRect(const QRectF& rect)
@@ -820,7 +821,7 @@ QString PDFAppSearchPopup::getShowAllText() const
     {
         return PDFAppSearchWidgetsHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Show the result"));
     }
-    return QCoreApplication::translate(PDFAppSearchWidgetsHelper::CONTEXT, QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Show all %n results"), nullptr, count);
+    return QCoreApplication::translate(PDFAppSearchWidgetsHelper::CONTEXT, QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Show all %Ln results"), nullptr, count);
 }
 
 QRect PDFAppSearchPopup::getShowAllRect() const

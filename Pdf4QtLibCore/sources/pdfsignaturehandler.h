@@ -352,6 +352,13 @@ public:
     /// \param parameters Verification settings
     static std::vector<PDFSignatureVerificationResult> verifySignatures(const PDFForm& form, const QByteArray& sourceData, const Parameters& parameters);
 
+    /// Releases the state of OpenSSL kept for the calling thread (the error queue,
+    /// ...). A worker of a thread pool, which has verified signatures or parsed
+    /// certificates, calls it at its end: a pool thread can be alive at the exit
+    /// of the application, and the cleanup of OpenSSL at the exit does not release
+    /// the state of a thread, which still runs.
+    static void releaseThreadResources();
+
 private:
 
     /// Creates signature handler using format specified by signature in signature field.

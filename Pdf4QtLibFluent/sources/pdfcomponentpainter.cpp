@@ -290,6 +290,20 @@ void PDFComponentPainter::drawDataText(QPainter* painter, const QRectF& rect, in
     painter->setLayoutDirection(previousDirection);
 }
 
+QString PDFComponentPainter::elidedTextOfKind(const QString& text, const QFont& font, qreal width, TextKind kind)
+{
+    switch (kind)
+    {
+        case TextKind::FileName:
+            return elidedFileName(text, font, width);
+
+        case TextKind::Interface:
+        case TextKind::Data:
+            break;
+    }
+    return elidedText(text, font, width);
+}
+
 void PDFComponentPainter::drawElidedText(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QFont& font,
                                          PDFThemeColors::Color color, TextKind kind, bool isTrailing)
 {
@@ -303,12 +317,9 @@ void PDFComponentPainter::drawElidedText(QPainter* painter, const State& state, 
     switch (kind)
     {
         case TextKind::Data:
-            // The direction of the whole text: the elision may cut its first strong character off (review C18)
-            drawDataText(painter, visualRect, alignment, elidedText(text, font, visualRect.width()), font, textColor, getDataTextDirection(text));
-            return;
-
         case TextKind::FileName:
-            drawDataText(painter, visualRect, alignment, elidedFileName(text, font, visualRect.width()), font, textColor, getDataTextDirection(text));
+            // The direction of the whole text: the elision may cut its first strong character off (review C18)
+            drawDataText(painter, visualRect, alignment, elidedTextOfKind(text, font, visualRect.width(), kind), font, textColor, getDataTextDirection(text));
             return;
 
         case TextKind::Interface:

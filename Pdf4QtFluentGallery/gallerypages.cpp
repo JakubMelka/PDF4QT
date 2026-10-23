@@ -2915,6 +2915,7 @@ GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
     facts->addRow(QStringLiteral("Signatures"), QStringLiteral("Kept (incremental save)"));
     facts->addRow(QStringLiteral("Command line"), QStringLiteral("pdftool optimize"));
     facts->addRow(QStringLiteral("Build date"), QStringLiteral("Sep 14, 2026 14:32 (a long value, which is elided)"));
+    facts->addRow(QStringLiteral("Program"), QStringLiteral("C:\\Users\\Jane\\Downloads\\Quarterly reports 2026\\invoice.pdf.exe"), pdf::PDFComponentPainter::TextKind::FileName);
     facts->setFixedWidth(360);
     builder.live(QStringLiteral("Facts of a card, 360 px"), facts);
 

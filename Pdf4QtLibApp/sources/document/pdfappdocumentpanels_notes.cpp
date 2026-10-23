@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpanels_notes.h"
+#include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
@@ -38,6 +39,7 @@
 #include <QPainter>
 #include <QVBoxLayout>
 
+#include <atomic>
 #include <set>
 
 namespace pdf
@@ -148,8 +150,59 @@ void PDFAppNotes::getBadge(AnnotationType type, bool isReply, QString* iconName,
     }
 }
 
+/// Notes of one version of a document (PDFAppDocument::getDerivedData)
+class PDFAppNoteList : public PDFAppDocumentDerivedData
+{
+public:
+    static constexpr const char* KEY = "notes";
+
+    std::shared_ptr<const std::vector<PDFAppNote>> notes;
+};
+
+/// Calls of PDFAppNotes::collect (tests)
+class PDFAppNotesCounter
+{
+public:
+    PDFAppNotesCounter() = delete;
+
+    static std::atomic<int>& get()
+    {
+        static std::atomic<int> counter = 0;
+        return counter;
+    }
+};
+
+int PDFAppNotes::getCollectCount()
+{
+    return PDFAppNotesCounter::get().load();
+}
+
+std::shared_ptr<const std::vector<PDFAppNote>> PDFAppNotes::getNotes(const PDFAppDocument* document)
+{
+    if (!document || !document->isReady() || !document->getDocument())
+    {
+        return std::make_shared<const std::vector<PDFAppNote>>();
+    }
+
+    const QString key = QLatin1String(PDFAppNoteList::KEY);
+    if (const PDFAppNoteList* list = dynamic_cast<const PDFAppNoteList*>(document->getDerivedData(key).get()))
+    {
+        return list->notes;
+    }
+
+    std::shared_ptr<PDFAppNoteList> list = std::make_shared<PDFAppNoteList>();
+    list->notes = std::make_shared<const std::vector<PDFAppNote>>(collect(document->getDocument().data()));
+    document->setDerivedData(key, list);
+    return list->notes;
+}
+
 std::vector<PDFAppNote> PDFAppNotes::collect(const PDFDocument* document, size_t maximumCount)
 {
+    // Only the lists are counted
+    if (maximumCount > 1)
+    {
+        ++PDFAppNotesCounter::get();
+    }
     std::vector<PDFAppNote> notes;
     if (!document)
     {
@@ -239,8 +292,7 @@ QString PDFAppNotes::formatDate(const QDateTime& dateTime, const QDate& today)
 
     // 195:3910 "Sep 28"
     const QDate date = dateTime.toLocalTime().date();
-    const QLocale locale;
-    return date.year() == today.year() ? locale.toString(date, QStringLiteral("MMM d")) : locale.toString(date, QStringLiteral("MMM d, yyyy"));
+    return date.year() == today.year() ? PDFAppLocale::formatShortDate(date) : PDFAppLocale::formatDate(date);
 }
 
 PDFAppNotesModel::PDFAppNotesModel(QObject* parent) :
@@ -550,7 +602,8 @@ void PDFAppNotesPanel::rebuild()
     m_document = pointer;
     if (m_model)
     {
-        m_model->setNotes(PDFAppNotes::collect(pointer.data()), pointer);
+        // The list of the version is shared with the tab of the sidebar
+        m_model->setNotes(pointer ? *PDFAppNotes::getNotes(document) : std::vector<PDFAppNote>(), pointer);
     }
     Q_EMIT titleChanged();
 }
@@ -635,7 +688,19 @@ QString PDFAppNotesPanelFactory::getIconName() const
 
 bool PDFAppNotesPanelFactory::isAvailable(const PDFAppDocument* document) const
 {
-    return document && PDFAppNotes::hasNotes(document->getDocument().data());
+    if (!document)
+    {
+        return false;
+    }
+
+    // The tab is asked at every change of the document: the list of the version, when
+    // a panel has collected it, otherwise the quick test of the subtypes (the whole
+    // list of a large document is collected only for a shown panel)
+    if (const PDFAppNoteList* list = dynamic_cast<const PDFAppNoteList*>(document->getDerivedData(PDFAppNoteList::KEY).get()))
+    {
+        return !list->notes->empty();
+    }
+    return PDFAppNotes::hasNotes(document->getDocument().data());
 }
 
 PDFAppDocumentPanel* PDFAppNotesPanelFactory::createPanel(QWidget* parent) const

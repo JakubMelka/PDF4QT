@@ -183,6 +183,7 @@ private slots:
     void parts();
     void toolbarGeometry();
     void viewColors();
+    void pageDecoration();
     void splitterHandle();
     void routePage();
     void navigationCommands();
@@ -214,6 +215,7 @@ private slots:
     void viewPanel();
     void goToPanel();
     void goToPanelAutoGenerate();
+    void closedPanelsNotRefreshed();
     void panelKeyboard();
     void panelDeletion();
     void requestedCommandAfterClose();
@@ -336,6 +338,160 @@ void AppDocumentViewTest::viewColors()
     // Without colors of the application the proxy keeps the defaults of the old applications
     proxy->resetViewColors();
     QCOMPARE(proxy->getViewColors(), pdf::PDFViewColors::getDefaultColors());
+}
+
+void AppDocumentViewTest::pageDecoration()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Decoration.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFDrawWidgetProxy* proxy = view->getProxy();
+    QWidget* canvas = view->getPdfWidget()->getDrawWidget()->getWidget();
+    pdf::PDFToolBarField* zoomField = view->getToolbar()->getZoomField();
+    pdf::PDFThemeManager* manager = pdf::PDFThemeManager::getInstance();
+
+    // O18, page 193:1257 on the canvas 193:1256: 24 px of the canvas around the pages,
+    // the shadow 0 / 2 / 10 of effect/shadow
+    QCOMPARE(proxy->getPageDecoration().margin, 24);
+    QCOMPARE(proxy->getPageDecoration().shadowOffset, QPointF(0.0, 2.0));
+    QCOMPARE(proxy->getPageDecoration().shadowBlur, 10.0);
+    QCOMPARE(proxy->getPageDecoration().shadowColor, manager->getColor(pdf::PDFThemeColors::EffectShadow));
+
+    auto firstPageRect = [proxy]() -> QRect
+    {
+        const pdf::PDFWidgetSnapshot snapshot = proxy->getSnapshot();
+        for (const pdf::PDFWidgetSnapshot::SnapshotItem& item : snapshot.items)
+        {
+            if (item.pageIndex == 0)
+            {
+                return item.rect.toRect();
+            }
+        }
+        return QRect();
+    };
+    auto zoomText = [view]()
+    {
+        return QString::number(qRound(view->getZoom() * 100.0)) + QStringLiteral(" %");
+    };
+
+    // Fit width (the default): the page lies 24 px below the top of the canvas and it is
+    // centered with 24 px of the canvas at both sides; the zoom field shows the zoom
+    QCOMPARE(proxy->getZoomFitHint(), std::make_optional(pdf::PDFDrawWidgetProxy::ZoomHint::FitWidth));
+    QRect page = firstPageRect();
+    QVERIFY(page.isValid());
+    QCOMPARE(page.top(), 24);
+    QVERIFY2(page.left() >= 24 && page.left() <= 26, qPrintable(QString::number(page.left())));
+    QVERIFY2(qAbs(page.left() - (canvas->width() - 1 - page.right())) <= 1, qPrintable(QString("%1 %2 %3").arg(page.left()).arg(page.right()).arg(canvas->width())));
+    QCOMPARE(zoomField->text(), zoomText());
+
+    // Fit page: the whole page with the margins in the canvas, centered
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitPage());
+    page = firstPageRect();
+    QVERIFY(page.top() >= 24 && page.left() >= 24);
+    QVERIFY(page.bottom() <= canvas->height() - 25 && page.right() <= canvas->width() - 25);
+    QVERIFY(page.top() <= 26 || page.left() <= 26);
+    QVERIFY2(qAbs(page.left() - (canvas->width() - 1 - page.right())) <= 1, qPrintable(QString("%1 %2 %3").arg(page.left()).arg(page.right()).arg(canvas->width())));
+    QCOMPARE(zoomField->text(), zoomText());
+
+    // Fit height: the page with the margins above and below is as high as the canvas
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitHeight());
+    page = firstPageRect();
+    QCOMPARE(page.top(), 24);
+    QVERIFY2(qAbs(page.height() - (canvas->height() - 49)) <= 1, qPrintable(QString("%1 %2").arg(page.height()).arg(canvas->height())));
+    QCOMPARE(zoomField->text(), zoomText());
+
+    // A page reached by the navigation keeps the margin above it
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitWidth());
+    view->goToPage(1);
+    fixture.settle();
+    QRect secondPage;
+    for (const pdf::PDFWidgetSnapshot::SnapshotItem& item : proxy->getSnapshot().items)
+    {
+        if (item.pageIndex == 1)
+        {
+            secondPage = item.rect.toRect();
+        }
+    }
+    QCOMPARE(secondPage.top(), 24);
+    view->goToPage(0);
+    fixture.settle();
+    page = firstPageRect();
+    QCOMPARE(page.top(), 24);
+
+    // At 100 % the gap between the pages (5 mm) is smaller than the margin: the page
+    // reached by the navigation lies the gap below the top, the page above it is not
+    // seen, so it is the current page; the next page leaves the previous one hidden
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::actualSize());
+    view->goToPage(1);
+    fixture.settle();
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
+    for (const pdf::PDFWidgetSnapshot::SnapshotItem& item : proxy->getSnapshot().items)
+    {
+        if (item.pageIndex == 1)
+        {
+            QVERIFY2(item.rect.top() > 0 && item.rect.top() < 24, qPrintable(QString::number(item.rect.top())));
+        }
+    }
+    view->goToPage(0);
+    fixture.settle();
+    QCOMPARE(firstPageRect().top(), 24);
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::nextPage());
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitWidth());
+    view->goToPage(0);
+    fixture.settle();
+
+    // Shadow pixels in both themes at 1x and 2x (fit page - the whole page is seen):
+    // darker than the canvas right outside of the page, fading out, the canvas beyond
+    // the blur; the offset makes the shadow below the page stronger than above it
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitPage());
+    page = firstPageRect();
+    for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        manager->setScheme(scheme);
+        fixture.settle();
+        QCOMPARE(proxy->getPageDecoration().shadowColor, manager->getColor(pdf::PDFThemeColors::EffectShadow));
+
+        const QColor canvasColor = ViewTestHelper::token(pdf::PDFThemeColors::BgTrack);
+        for (qreal ratio : { 1.0, 2.0 })
+        {
+            const QImage image = ViewTestHelper::render(canvas, ratio);
+            const int middle = page.center().y();
+            const QString context = QString("scheme %1, ratio %2").arg(int(scheme)).arg(ratio);
+            auto lightness = [&image](QPoint point) { return ViewTestHelper::pixel(image, point).lightness(); };
+
+            QCOMPARE(ViewTestHelper::pixel(image, QPoint(page.left() - 16, middle)), canvasColor);
+            QCOMPARE(ViewTestHelper::pixel(image, QPoint(page.center().x(), 3)), canvasColor);
+            QVERIFY2(lightness(QPoint(page.left() - 1, middle)) < canvasColor.lightness(), qPrintable(context));
+            QVERIFY2(lightness(QPoint(page.left() - 1, middle)) < lightness(QPoint(page.left() - 5, middle)), qPrintable(context));
+            QVERIFY2(lightness(QPoint(page.left() - 5, middle)) <= lightness(QPoint(page.left() - 9, middle)), qPrintable(context));
+            QVERIFY2(lightness(QPoint(page.right() + 1, middle)) < canvasColor.lightness(), qPrintable(context));
+            QVERIFY2(lightness(QPoint(page.center().x(), page.top() - 2)) > lightness(QPoint(page.center().x(), page.bottom() + 2)), qPrintable(context));
+            QVERIFY2(lightness(QPoint(page.center().x(), page.bottom() + 2)) < canvasColor.lightness(), qPrintable(context));
+
+            // The page itself is not darkened by the shadow
+            QCOMPARE(ViewTestHelper::pixel(image, QPoint(page.left() + 2, middle)), ViewTestHelper::pixel(image, QPoint(page.right() - 2, middle)));
+            QCOMPARE(ViewTestHelper::countLeakPixels(image), 0);
+        }
+    }
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    fixture.settle();
+
+    // Without the decoration the page runs from edge to edge in fit width (the old applications)
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fitWidth());
+    proxy->setPageDecoration(pdf::PDFPageDecoration());
+    fixture.settle();
+    page = firstPageRect();
+    QVERIFY2(page.left() <= 1, qPrintable(QString::number(page.left())));
+    QCOMPARE(page.top(), 0);
+
+    // The theme gives the decoration back
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    fixture.settle();
+    QCOMPARE(proxy->getPageDecoration().margin, 24);
+    QCOMPARE(firstPageRect().top(), 24);
 }
 
 void AppDocumentViewTest::splitterHandle()
@@ -944,6 +1100,7 @@ void AppDocumentViewTest::settingsApplied()
     QVERIFY(proxy->getFeatures().testFlag(pdf::PDFRenderer::Antialiasing));
     QCOMPARE(proxy->getRendererEngine(), pdf::RendererEngine::Blend2D_MultiThread);
     QVERIFY(view->getFormManager()->getAppearanceFlags().testFlag(pdf::PDFFormManager::HighlightFields));
+    QCOMPARE(settings.getInteger(pdf::PDFSettingKeys::cacheThumbnails()), qint64(65536)); // 64 MB as the old Editor (owner, 23. 10. 2026)
 
     // A change of another connection arrives by the notifier
     QVERIFY(!settings.setValue(pdf::PDFSettingKeys::renderingAntialiasing(), false).isError());
@@ -1720,6 +1877,47 @@ void AppDocumentViewTest::goToPanelAutoGenerate()
     QTest::mouseClick(item, Qt::LeftButton);
     fixture.settle();
     QVERIFY(!fixture.context->getSettings().getBool(pdf::PDFSettingKeys::bookmarksAutoGenerate()));
+}
+
+void AppDocumentViewTest::closedPanelsNotRefreshed()
+{
+    // A closed panel (File, View, Go to) does not follow every scroll step of the
+    // view (Go to read the database each time): it reads its states, when it opens
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Closed.pdf"), 5));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QPointer<pdf::PDFAppDocumentGoToPanel> panel = qobject_cast<pdf::PDFAppDocumentGoToPanel*>(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::GoTo));
+    QVERIFY(panel);
+    QVERIFY(!panel->getAutoGenerateItem()->isChecked());
+    panel->close();
+    fixture.settle();
+    QVERIFY(!panel->isVisible());
+
+    // The setting changed by another instance (no notification yet), the view scrolled
+    {
+        const QSignalBlocker blocker(fixture.context->getNotifier());
+        QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::bookmarksAutoGenerate(), true).isError());
+    }
+    for (int page = 1; page < 5; ++page)
+    {
+        tab->getView()->goToPage(page);
+        fixture.settle();
+    }
+    QVERIFY(!panel->getAutoGenerateItem()->isChecked());
+
+    // Opened: the current state
+    QCOMPARE(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::GoTo), panel.data());
+    QVERIFY(panel->getAutoGenerateItem()->isChecked());
+
+    // An open panel follows the view
+    {
+        const QSignalBlocker blocker(fixture.context->getNotifier());
+        QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::bookmarksAutoGenerate(), false).isError());
+    }
+    tab->getView()->goToPage(0);
+    fixture.settle();
+    QVERIFY(!panel->getAutoGenerateItem()->isChecked());
 }
 
 void AppDocumentViewTest::panelKeyboard()

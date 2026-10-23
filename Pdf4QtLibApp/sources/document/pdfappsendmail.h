@@ -47,7 +47,8 @@ enum class PDFAppMailResult
 {
     Created,        ///< The e-mail program has the message (or the user has closed it)
     NoMailProgram,  ///< No e-mail program is set up (MAPI missing, xdg-email failed to start)
-    Failed          ///< The e-mail program has refused the message
+    Failed,         ///< The e-mail program has refused the message
+    AttachmentFailed ///< The file cannot be attached (xdg-email: no copy with a safe name)
 };
 
 /// Send by e-mail of a document tab (package E, D2; no Figma frame - the dialogs
@@ -58,7 +59,11 @@ enum class PDFAppMailResult
 /// - Windows: Simple MAPI (MAPISendMailW of the system MAPI32.dll with its dialog)
 ///   in its own thread, the window stays usable while the e-mail program runs.
 /// - Linux and other Unix systems: `xdg-email --subject <title> --attach <file>`
-///   started detached with an argument list (no shell, no quoting).
+///   started detached with an argument list (no shell, no quoting). A file,
+///   whose path the e-mail program cannot take (Thunderbird gets it inside of
+///   attachment='…' of its -compose text: an apostrophe or a comma would add
+///   other fields), is attached as a copy with a safe name from a private
+///   temporary folder of the process (getXdgAttachmentPath).
 /// - macOS: not available (the command is disabled; the window hides it).
 ///
 /// The launcher is replaced by a handler in the tests.
@@ -93,6 +98,21 @@ public:
     /// MAXIMUM_SUBJECT_LENGTH characters)
     static QStringList getXdgEmailArguments(const QString& filePath, const QString& subject);
 
+    /// The path can be given to xdg-email as it is: no apostrophe, comma, control
+    /// or format character (also not in the names of the folders)
+    static bool isSafeXdgAttachmentPath(const QString& filePath);
+
+    /// File attached by xdg-email: the file itself, when its path is safe
+    /// (isSafeXdgAttachmentPath), else a copy with a safe name (the unsafe
+    /// characters replaced by "_") in a private temporary folder of the process,
+    /// which is removed at the exit of the application (the e-mail program reads
+    /// the file later). An empty path, when the copy cannot be made.
+    static QString getXdgAttachmentPath(const QString& filePath);
+
+    /// Makes the handover behave as xdg-email on any platform (tests: the safe
+    /// copy of the attachment on Windows); std::nullopt restores the platform
+    static void setXdgOverride(std::optional<bool> isXdg);
+
     /// Longest subject of a message
     static constexpr int MAXIMUM_SUBJECT_LENGTH = 512;
 
@@ -119,6 +139,8 @@ Q_SIGNALS:
 private:
     static Launcher& getLauncher();
     static std::optional<bool>& getAvailableOverride();
+    static std::optional<bool>& getXdgOverride();
+    static bool isXdg();
     static PDFAppMailResult launch(QString filePath, QString subject);
     static PDFAppMailResult launchPlatform(const QString& filePath, const QString& subject);
 

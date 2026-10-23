@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfupdatechecker.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfdatabasestatement.h"
 #include "pdfsettingdefinitions.h"
@@ -89,10 +90,10 @@ PDFUpdateStatus PDFUpdateStatus::create(bool isAutoCheck, bool isCheckingHere, q
 
 QString PDFUpdateStatus::formatTime(qint64 time, qint64 now)
 {
-    const QLocale locale(QLocale::English, QLocale::UnitedStates);
+    // O17: the language of the user interface, not the locale of the system
     const QDateTime dateTime = QDateTime::fromMSecsSinceEpoch(time);
     const QDate today = QDateTime::fromMSecsSinceEpoch(now).date();
-    const QString clock = locale.toString(dateTime.time(), QStringLiteral("HH:mm"));
+    const QString clock = PDFAppLocale::formatClock(dateTime.time());
 
     if (dateTime.date() == today)
     {
@@ -107,8 +108,7 @@ QString PDFUpdateStatus::formatTime(qint64 time, qint64 now)
 
 QString PDFUpdateStatus::formatDate(const QDate& date)
 {
-    const QLocale locale(QLocale::English, QLocale::UnitedStates);
-    return locale.toString(date, QStringLiteral("MMM d, yyyy"));
+    return PDFAppLocale::formatDate(date);
 }
 
 PDFUpdateChecker::PDFUpdateChecker(PDFAppContext* context, QObject* parent) :

@@ -65,6 +65,8 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfappinstance.h
     sources/core/pdfapplog.cpp
     sources/core/pdfapplog.h
+    sources/core/pdfapplocale.cpp
+    sources/core/pdfapplocale.h
     sources/core/pdfapppaths.cpp
     sources/core/pdfapppaths.h
     sources/core/pdfappsysteminfo.cpp

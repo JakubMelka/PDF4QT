@@ -96,14 +96,71 @@ public:
     PDFThemeColors::Color getTextColor() const { return m_color; }
     void setTextColor(PDFThemeColors::Color color);
 
+    /// Line height of the design [pixels] of a plain text, 0 = the line spacing
+    /// of the font (as QLabel). QLabel has no line height: a plain text (not a
+    /// rich text, no picture) with a line height is laid out and drawn by the
+    /// label itself, each line of the text in a line of this height (the text is
+    /// centered in it); the text stays the plain text of QLabel. The selection by
+    /// the mouse (Qt::TextSelectableByMouse) works with Ctrl+C and the context menu
+    /// (Copy, Select All), other interactions of a text (keyboard, links) are not
+    /// supported for it. Bounded to 0 - 256.
+    int getLineHeight() const { return m_lineHeight; }
+    void setLineHeight(int lineHeight);
+
+    /// Returns the selected text (also of a text with a line height, which is
+    /// selected by the label itself)
+    QString selectedText() const;
+    bool hasSelectedText() const;
+
+    static constexpr int MAX_LINE_HEIGHT = 256;
+
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+    virtual int heightForWidth(int width) const override;
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
+    virtual void mouseDoubleClickEvent(QMouseEvent* event) override;
+    virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     void init();
 
+    /// Returns true, if the label lays out and draws its text in the lines of the line height
+    bool isLineLayout() const;
+
+    /// Visits the lines of the text laid out at the given width (lines of the line
+    /// height). \returns The height of the text.
+    /// \param width Width of the lines
+    /// \param painter Painter drawing the lines (nullptr = only measure)
+    /// \param origin Top left corner of the text
+    /// \param point Point, whose position in the text is returned in \p position
+    /// \param position Position in the text of the point (nullptr = no hit test)
+    int layoutLines(qreal width, QPainter* painter, const QPointF& origin, const QPointF& point, int* position) const;
+
+    /// Returns the rectangle of the text and the top left corner of its lines
+    QRectF getLineLayoutRect(QPointF* origin) const;
+
+    /// Returns the position in the text of a point of the widget
+    int getTextPosition(const QPointF& point) const;
+
+    /// Returns the width of the widget around the text (margins), horizontally / vertically
+    QSize getLineLayoutExtra() const;
+
     PDFThemeFonts::Role m_fontRole = PDFThemeFonts::Role::Body;
     PDFThemeColors::Color m_color = PDFThemeColors::TextPrimary;
+    int m_lineHeight = 0;
+
+    // Selection of a text with a line height (positions in the text, the text of
+    // the selection - QLabel::setText is not virtual, a new text ends it)
+    int m_selectionAnchor = -1;
+    int m_selectionCursor = -1;
+    QString m_selectionText;
+    bool m_isSelecting = false;
 };
 
 /// Line edit of a single line

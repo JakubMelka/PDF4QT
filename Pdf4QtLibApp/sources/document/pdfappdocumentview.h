@@ -166,6 +166,12 @@ public:
     static constexpr int INFO_BAR_TOP_GAP = 12;
     static constexpr int INFO_BAR_GAP = 8;
 
+    /// Canvas around the pages (page 193:1257 on the document canvas 193:1256):
+    /// the margin around the pages and the drop shadow 0 / 2 / 10 of effect/shadow
+    static constexpr int PAGE_MARGIN = 24;
+    static constexpr int PAGE_SHADOW_OFFSET_Y = 2;
+    static constexpr int PAGE_SHADOW_BLUR = 10;
+
     PDFAppContext* getContext() const;
 
     /// Document shown by the view (nullptr = none); the view follows its changes

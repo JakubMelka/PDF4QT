@@ -167,6 +167,17 @@ bool PDFAppDocumentTab::openCopyOf(const PDFAppDocument* source)
     return m_document->setCopyOf(source);
 }
 
+bool PDFAppDocumentTab::openFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath)
+{
+    if (!m_loader || !m_document || m_loader->isRunning() || m_document->getState() != PDFAppDocumentState::Loading ||
+        !m_document->getFilePath().isEmpty() || m_document->isCopy())
+    {
+        return false;
+    }
+
+    return m_loader->startFromMemory(std::move(bytes), title, originFilePath);
+}
+
 bool PDFAppDocumentTab::isViewShown() const
 {
     return m_stack && m_view && m_stack->currentWidget() == m_view;
@@ -224,7 +235,7 @@ qreal PDFAppDocumentTab::getTabProgress() const
         return -1.0;
     }
 
-    if (m_document->getState() == PDFAppDocumentState::Loading && !m_document->getFilePath().isEmpty())
+    if (m_document->getState() == PDFAppDocumentState::Loading && (!m_document->getFilePath().isEmpty() || m_document->isCopy()))
     {
         return qMax(0, m_document->getLoadingProgress()) / 100.0;
     }
@@ -546,7 +557,9 @@ void PDFAppDocumentTab::onDocumentStateChanged()
 
     if (m_document && m_document->getState() == PDFAppDocumentState::Failed)
     {
-        Q_EMIT loadFailed(m_document->getFilePath(), m_document->getErrorMessage());
+        // A document from the memory (an attachment) is reported by its title
+        const QString name = m_document->getFilePath().isEmpty() ? m_document->getTitle() : m_document->getFilePath();
+        Q_EMIT loadFailed(name, m_document->getErrorMessage());
     }
 }
 

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentmenus.h"
+#include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumenttoolbar.h"
@@ -200,8 +201,8 @@ PDFAppDocumentPanelPopup::PDFAppDocumentPanelPopup(PDFAppDocumentView* view, int
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppDocumentPanelPopup::update));
     if (view)
     {
-        connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentPanelPopup::updateState);
-        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentPanelPopup::updateState);
+        connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
+        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentPanelPopup::onViewStateChanged);
     }
 }
 
@@ -304,6 +305,16 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     // The keyboard starts at the first control of the panel
     activateWindow();
     focusNextPrevChild(true);
+}
+
+void PDFAppDocumentPanelPopup::onViewStateChanged()
+{
+    // A closed panel reads the states, when it opens (popup): the Go to panel
+    // would read the database at every scroll step of the view
+    if (isVisible())
+    {
+        updateState();
+    }
 }
 
 void PDFAppDocumentPanelPopup::updateState()
@@ -1049,7 +1060,7 @@ void PDFAppDocumentGoToPanel::updateState()
     }
     if (m_pageCount)
     {
-        m_pageCount->setText(tr("of %1").arg(QLocale().toString(view ? view->getPageCount() : 0)));
+        m_pageCount->setText(tr("of %1").arg(PDFAppLocale::formatNumber(view ? view->getPageCount() : 0)));
     }
 
     if (m_autoGenerate)

@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdfapppaths.h"
+#include "pdfdatabase.h"
+#include "pdfdatabaseschema.h"
 
 #include <QDir>
 #include <QStandardPaths>
@@ -40,8 +42,7 @@ QString PDFAppPaths::getDataDirectory()
 
 QString PDFAppPaths::getDatabaseFilePath()
 {
-    const QString directory = getDataDirectory();
-    return directory.isEmpty() ? QString() : QDir(directory).filePath(QStringLiteral("pdf4qt.db"));
+    return PDFDatabaseFiles::getFilePath(getDataDirectory(), PDFDatabaseSchema::getCurrentVersion());
 }
 
 QString PDFAppPaths::getLogDirectory()

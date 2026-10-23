@@ -41,12 +41,8 @@
 
 #include <QListView>
 
-class QTemporaryDir;
-
 namespace pdf
 {
-
-class PDFAppCardDialog;
 
 /// File embedded in a document: an item of the /EmbeddedFiles name tree or of a
 /// file attachment annotation
@@ -62,9 +58,11 @@ public:
     PDFFileSpecification specification; ///< Specification with the embedded file (a shared copy)
 };
 
-/// Rules of the attachments (owner decision D8): the file name of a document is
-/// untrusted, programs and scripts are never opened, a file is opened only from
-/// a private temporary folder
+/// Rules of the attachments (owner decisions D8, O18): the file name of a document
+/// is untrusted; every attachment can be saved; only a PDF attachment is opened -
+/// in a new tab of PDF4QT directly from the memory; no other file is ever opened
+/// (no temporary file, no program of the system). A saved attachment takes over
+/// the Mark of the Web of the source PDF (Windows).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppAttachments
 {
 public:
@@ -83,6 +81,14 @@ public:
     /// The document has an attachment
     static bool hasAttachments(const PDFDocument* document);
 
+    /// Attachments of the current version of \p document: collected once per
+    /// version and shared by the panel and the tab of the sidebar
+    /// (PDFAppDocument::getDerivedData); empty for a document, which is not shown
+    static std::shared_ptr<const std::vector<PDFAppAttachment>> getAttachments(const PDFAppDocument* document);
+
+    /// Number of the calls of collect since the start (tests)
+    static int getCollectCount();
+
     /// File name usable on every system: the last part of a path, without control
     /// characters, reserved characters (\ / : * ? " < > |), leading dots, trailing
     /// dots and spaces and reserved names of Windows (CON, NUL, COM1...), at most
@@ -91,11 +97,31 @@ public:
     static QString sanitizeFileName(const QString& name);
 
     /// The file is a program or a script by its extension (exe, bat, cmd, com,
-    /// msi, ps1, vbs, js, jar, sh, app, ...): it is never opened, only saved
+    /// msi, ps1, vbs, js, jar, sh, app, ...): used by the Launch actions
+    /// (PDFAppDocumentActionHandler), which never start them
     static bool isExecutable(const QString& fileName);
 
     /// The file is a PDF by its extension (opened in a new tab of PDF4QT)
     static bool isPdf(const QString& fileName);
+
+    /// Largest Mark of the Web, which is copied
+    static constexpr qint64 MAXIMUM_ZONE_IDENTIFIER_SIZE = 64 * 1024;
+
+    /// Copies the Mark of the Web (the alternate data stream Zone.Identifier of
+    /// NTFS) of \p sourceFilePath to \p targetFilePath. Best effort: \returns
+    /// false, when the source has none or it cannot be copied (never an error of
+    /// the save); always false outside of Windows.
+    static bool copyMarkOfTheWeb(const QString& sourceFilePath, const QString& targetFilePath);
+
+    /// Returns the Mark of the Web of the file (the content of its stream
+    /// Zone.Identifier, at most MAXIMUM_ZONE_IDENTIFIER_SIZE bytes); empty, when
+    /// the file has none, and always outside of Windows
+    static QByteArray readMarkOfTheWeb(const QString& filePath);
+
+    /// Writes the Mark of the Web \p zoneIdentifier (readMarkOfTheWeb) to the file.
+    /// Best effort: \returns false for an empty or too large mark, a write error and
+    /// always outside of Windows.
+    static bool writeMarkOfTheWeb(const QString& filePath, const QByteArray& zoneIdentifier);
 
     /// Kind and icon of the file by its extension
     static void getKind(const QString& fileName, QString* kind, QString* iconName);
@@ -103,20 +129,30 @@ public:
     /// "84 kB", "1.2 MB" (decimal units of the design)
     static QString formatSize(PDFInteger size);
 
-    /// Result of the writing of an attachment
+    /// Result of the writing or of the reading of an attachment
     class WriteResult
     {
     public:
-        QString filePath;   ///< Written file
+        QString filePath;   ///< Written file (save)
+        QString name;       ///< Name of the attachment (open)
         QString error;      ///< Translated error (empty = success)
+        QByteArray data;    ///< Decoded PDF (open)
         bool isOpenRequested = false;
-        bool isPdf = false;
     };
+
+    /// Decodes the embedded file (any thread); an empty result with \p error on a
+    /// failure (no data, a damaged stream, larger than MAXIMUM_FILE_SIZE)
+    static QByteArray decode(const PDFDocumentPointer& document, const PDFFileSpecification& specification, QString* error);
 
     /// Decodes the stream and writes it to the file (worker thread; the document
     /// and the stream are shared copies). The file is readable and writable only
-    /// by the owner, never executable.
-    static WriteResult write(PDFDocumentPointer document, PDFFileSpecification specification, QString filePath, bool isOpenRequested);
+    /// by the owner, never executable; it takes over the Mark of the Web of
+    /// \p sourceFilePath (copyMarkOfTheWeb).
+    static WriteResult write(PDFDocumentPointer document, PDFFileSpecification specification, QString filePath, QString sourceFilePath);
+
+    /// Decodes a PDF attachment for its opening in a new tab (worker thread): the
+    /// bytes are kept in the memory, nothing is written to the disk
+    static WriteResult read(PDFDocumentPointer document, PDFFileSpecification specification, QString name);
 };
 
 /// Rows of the attachments panel (PDFComponentRoles of PDFAttachmentDelegate)
@@ -142,8 +178,8 @@ private:
     std::vector<PDFAppAttachment> m_attachments;
 };
 
-/// Delegate of the attachments: Attachment row with the save action and the
-/// action Open in the context menu
+/// Delegate of the attachments: Attachment row with the save action and, for a
+/// PDF attachment, the action Open in the context menu
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppAttachmentDelegate : public PDFAttachmentDelegate
 {
     Q_OBJECT
@@ -154,7 +190,7 @@ private:
 public:
     enum ExtraActionId
     {
-        OpenAction = 1  ///< Open the file (context menu only)
+        OpenAction = 1  ///< Open the PDF in a new tab (context menu only)
     };
 
     explicit PDFAppAttachmentDelegate(QObject* parent);
@@ -164,13 +200,13 @@ public:
 };
 
 /// Attachments panel (pdf4qt-document-attachments 195:2070): "Attachments / 3
-/// files" and the Attachment rows (name, kind · size, the save button). A click
-/// (Enter) opens the file: a PDF in a new tab of PDF4QT, another file after the
-/// confirmation 1028:23389 by the program of the system - both from a private
-/// temporary folder of the panel; programs and scripts are refused (D8), they can
-/// only be saved. Save As… writes the file anywhere. The decoding and the
-/// writing run in a worker thread; a result arriving after the panel is gone is
-/// dropped.
+/// files" and the Attachment rows (name, kind · size, the save button - the only
+/// action of the row in the design). A click (Enter) on a PDF attachment opens it
+/// in a new tab of PDF4QT directly from the memory (O18: no temporary file, the
+/// tab is a copy without a file, not recorded in Recent); a click on another
+/// attachment saves it (the action of its row) - no other file is ever opened.
+/// The decoding and the writing run in a worker thread; a result arriving after
+/// the panel is gone is dropped.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppAttachmentsPanel : public PDFAppDocumentPanel
 {
     Q_OBJECT
@@ -191,13 +227,14 @@ public:
     /// Saves the attachment of the row (the save dialog)
     void saveAttachment(int row);
 
-    /// Opens the attachment of the row (PDF: a new tab; other files: the confirmation)
-    void openAttachment(int row);
+    /// Opens the PDF attachment of the row in a new tab (decoded in a worker, read
+    /// from the memory). \returns false for another attachment (nothing happens)
+    bool openAttachment(int row);
 
-    /// Folder of the opened attachments (empty until a file is opened)
-    QString getTemporaryFolder() const;
+    /// Action of a click / Enter on the row: a PDF is opened, another file saved
+    void activateAttachment(int row);
 
-    /// Number of the running writes (tests)
+    /// Number of the running writes and readings (tests)
     int getRunningCount() const;
 
     QListView* getListView() const { return m_view; }
@@ -213,21 +250,16 @@ private:
     void onActivated(const QModelIndex& index);
     void onDelegateAction(const QModelIndex& index, int action);
     void onWriteFinished();
-    void onConfirmFinished(int result);
     void rebuild();
-    void startWrite(const PDFAppAttachment& attachment, PDFDocumentPointer document, const QString& filePath, bool isOpenRequested);
-    QString createTemporaryPath(const QString& fileName);
+    void startWatcher(const QFuture<PDFAppAttachments::WriteResult>& future);
+    QString getSourceFilePath() const;
     void showError(const QString& title, const QString& text);
 
     QPointer<PDFAppPanelListView> m_view;
     QPointer<PDFAppAttachmentsModel> m_model;
     QPointer<PDFAppAttachmentDelegate> m_delegate;
     QPointer<PDFAppDocument> m_connectedDocument;
-    QPointer<PDFAppCardDialog> m_confirmDialog;
-    std::optional<PDFAppAttachment> m_confirmAttachment;   ///< Attachment of the open confirmation
-    PDFDocumentPointer m_confirmDocument;                   ///< Its document (the version shown then)
     PDFDocumentPointer m_document;
-    std::unique_ptr<QTemporaryDir> m_temporaryDirectory;
     std::vector<QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>> m_watchers;
 };
 

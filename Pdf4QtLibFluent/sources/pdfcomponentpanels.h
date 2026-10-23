@@ -107,6 +107,12 @@ public:
     /// \returns Index of the row
     int addRow(const QString& key, const QString& value);
 
+    /// Adds a row, whose value is elided by \p valueKind (TextKind::FileName: a
+    /// path or a name of a file elided in the middle, its extension stays visible;
+    /// TextKind::Data is the default - elided at its end; a value is always data)
+    /// \returns Index of the row
+    int addRow(const QString& key, const QString& value, PDFComponentPainter::TextKind valueKind);
+
     /// Changes the value of the row
     void setValue(int index, const QString& value);
 
@@ -116,6 +122,9 @@ public:
     int getRowCount() const { return static_cast<int>(m_rows.size()); }
     QString getKey(int index) const;
     QString getValue(int index) const;
+
+    /// Elision of the value of the row (TextKind::Data for an invalid index)
+    PDFComponentPainter::TextKind getValueKind(int index) const;
 
     /// Returns the rectangle of the row in the coordinates of the widget
     QRect getRowRect(int index) const;
@@ -138,6 +147,7 @@ private:
     {
         QString key;
         QString value;
+        PDFComponentPainter::TextKind valueKind = PDFComponentPainter::TextKind::Data;
     };
 
     int getRowHeight(int index) const;

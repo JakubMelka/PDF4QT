@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappsearchpage.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappinfowidgets.h"
 #include "pdfapppagenotfound.h"
@@ -349,7 +350,7 @@ QString PDFAppSearchPage::getHeaderSubtitle() const
         {
             return tr("No results for “%1” in %2.").arg(text, name);
         }
-        return count == 1 ? tr("1 result for “%1” in %2.").arg(text, name) : tr("%n results for “%1” in %2.", nullptr, count).arg(text, name);
+        return count == 1 ? tr("1 result for “%1” in %2.").arg(text, name) : tr("%Ln results for “%1” in %2.", nullptr, count).arg(text, name);
     }
 
     if (count <= 0)
@@ -357,7 +358,7 @@ QString PDFAppSearchPage::getHeaderSubtitle() const
         return tr("No results for “%1” in tools, commands, settings, documents and help.").arg(text);
     }
     return count == 1 ? tr("1 result for “%1” in tools, commands, settings, documents and help.").arg(text)
-                      : tr("%n results for “%1” in tools, commands, settings, documents and help.", nullptr, count).arg(text);
+                      : tr("%Ln results for “%1” in tools, commands, settings, documents and help.", nullptr, count).arg(text);
 }
 
 void PDFAppSearchPage::setCurrentTime(const QDateTime& now)
@@ -448,7 +449,7 @@ void PDFAppSearchPage::rebuildResults()
             }
 
             // group-*: the title and the count of all results of the group
-            PDFAppSearchGroupHeader* header = new PDFAppSearchGroupHeader(PDFAppSearchGroups::getTitle(group.group), QString::number(group.totalCount), m_resultsContent);
+            PDFAppSearchGroupHeader* header = new PDFAppSearchGroupHeader(PDFAppSearchGroups::getTitle(group.group), PDFAppLocale::formatNumber(group.totalCount), m_resultsContent);
             header->setObjectName(QStringLiteral("group-%1").arg(PDFAppSearchGroups::getId(group.group)));
             layout->addWidget(header);
 

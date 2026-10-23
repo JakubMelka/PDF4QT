@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentsearchcontroller.h"
+#include "pdfapplocale.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumentstatusbar.h"
@@ -696,7 +697,7 @@ void PDFAppDocumentSearchController::showCurrentMatch()
 
     if (m_view && m_view->getStatusBar())
     {
-        m_view->getStatusBar()->showMessage(tr("Result %1 of %2").arg(QLocale().toString(m_currentIndex + 1), QLocale().toString(getResultCount())), 5000);
+        m_view->getStatusBar()->showMessage(tr("Result %1 of %2").arg(PDFAppLocale::formatNumber(m_currentIndex + 1), PDFAppLocale::formatNumber(getResultCount())), 5000);
     }
 }
 

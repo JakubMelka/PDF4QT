@@ -33,12 +33,12 @@ Some documents, for example technical drawings, have layers. Switch a layer off 
 
 ## Attachments
 
-**Attachments** lists the files embedded in the document. The arrow at the right of a file saves it. A click on the file opens it:
+**Attachments** lists the files embedded in the document. The arrow at the right of a file saves it.
 
-- a PDF file opens in a new tab of PDF4QT,
-- another file opens in the program of your system, after you confirm it.
+- A click on a PDF file opens it in a new tab of PDF4QT. The document is read directly from the attachment, no file is written to your disk. The tab works like a copy: it has no file yet, it is not added to your recent files, and **Save** asks where to save it.
+- A click on any other file saves it. PDF4QT never opens other files from a document - a file from an unknown document can contain malware. Save it and check it first.
 
-Programs and scripts (for example *.exe*, *.bat* or *.js* files) are never opened from a document, they can only be saved. A file from an unknown document can contain malware: open it only if you trust its author.
+A saved attachment keeps the mark of a file from the internet (Windows), when the document has it, so your system warns you before you open it.
 
 ## Bookmarks
 

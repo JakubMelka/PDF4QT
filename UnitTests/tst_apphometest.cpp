@@ -35,6 +35,7 @@
 // open dialog or a pending thumbnail, and hostile rows of the database.
 // PDF4QT_APP_SCREENSHOTS=<folder> writes pictures of the pages.
 
+#include "applocaleguard.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumenttab.h"
@@ -650,6 +651,7 @@ private slots:
     void thumbnailCacheLru();
     void focusAfterPin();
     void homeEmptyStates();
+    void formatsUiLanguage();
     void screenshots();
     void screenshotsStates();
 };
@@ -851,6 +853,27 @@ void AppHomeTest::recentRouteRandom()
     }
 }
 
+void AppHomeTest::formatsUiLanguage()
+{
+    // O17: the times and sizes of Home, Open and Recent are in the language of the
+    // user interface (English) also on a Czech system ("zář 18, 2026", "1,3 kB")
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+    const qint64 now = HomeFixture::getNow();
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTime(HomeFixture::at(0, 10, 24), now), QStringLiteral("Today 10:24"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTime(HomeFixture::at(2, 9, 0), now), QStringLiteral("Sep 18, 2026"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatLastOpened(HomeFixture::at(2, 9, 0), now), QStringLiteral("Last opened Sep 18, 2026"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatSize(1300), QStringLiteral("1.3 kB"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatSize(2516582), QStringLiteral("2.4 MB"));
+
+    // The counts are numbers of the language of the user interface ("%Ln" of the
+    // default locale of the process, which the application sets at the start)
+    pdf::PDFAppLocale::applyDefaultLocale();
+    QCOMPARE(pdf::PDFAppHomeFormat::formatPageCount(1592), QStringLiteral("1,592 pages"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatDocumentCount(12345), QStringLiteral("12,345 documents"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(2500, false), QStringLiteral("2,500 PDF files"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(10000, true), QStringLiteral("10,000+ PDF files"));
+}
+
 void AppHomeTest::formats()
 {
     const qint64 now = HomeFixture::getNow();
@@ -867,7 +890,7 @@ void AppHomeTest::formats()
     QCOMPARE(pdf::PDFAppHomeFormat::formatPageCount(-1), QString());
     QCOMPARE(pdf::PDFAppHomeFormat::formatDocumentCount(4), QStringLiteral("4 documents"));
     QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(6, false), QStringLiteral("6 PDF files"));
-    QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(10000, true), QStringLiteral("10000+ PDF files"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(10000, true), QStringLiteral("10,000+ PDF files"));
     QCOMPARE(pdf::PDFAppHomeFormat::formatPdfCount(-1, false), QString());
     QCOMPARE(pdf::PDFAppHomeFormat::formatPercent(0.5), QStringLiteral("50 %"));
     QCOMPARE(pdf::PDFAppHomeFormat::formatPercent(qQNaN()), QStringLiteral("0 %"));
@@ -4451,7 +4474,7 @@ void AppHomeTest::databaseErrors()
     detached.getNameField()->setText(QStringLiteral("x"));
     detached.getReplaceButton()->click();
     QCOMPARE(detached.getErrorText(), QStringLiteral("The settings of PDF4QT are not available."));
-    QCOMPARE(detached.getContentWidth(), 520 - 2 * 22);
+    QCOMPARE(detached.getContentWidth(), 520 - 2 * 23);
     Q_UNUSED(sample);
 }
 

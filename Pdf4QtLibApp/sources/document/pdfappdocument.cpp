@@ -34,6 +34,40 @@
 namespace pdf
 {
 
+/// Helpers of the document model
+class PDFAppDocumentHelper
+{
+public:
+    PDFAppDocumentHelper() = delete;
+
+    /// Copies the states of the optional content groups, which the user has switched
+    /// in \p source (their state differs from the default state of \p sourceDocument),
+    /// to the groups of \p target with the same reference. The other groups keep the
+    /// default states of the new document (a reload of a file, whose defaults have
+    /// changed). The radio button groups are not applied again: the source states
+    /// are consistent already.
+    static void copyLayerStates(const PDFOptionalContentActivity* source, const PDFDocument* sourceDocument, PDFOptionalContentActivity* target)
+    {
+        const PDFOptionalContentProperties* properties = target ? target->getProperties() : nullptr;
+        if (!source || !sourceDocument || !properties || !properties->isValid())
+        {
+            return;
+        }
+
+        const PDFOptionalContentActivity defaults(sourceDocument, OCUsage::View, nullptr);
+        for (const PDFObjectReference& reference : properties->getAllOptionalContentGroups())
+        {
+            const OCState state = source->getState(reference);
+            if (state != OCState::Unknown && state != defaults.getState(reference))
+            {
+                target->setState(reference, state, false);
+            }
+        }
+    }
+};
+
+PDFAppDocumentDerivedData::~PDFAppDocumentDerivedData() = default;
+
 PDFAppDocumentOperation::PDFAppDocumentOperation(PDFAppDocumentOperationKind kind, QString text, bool blocksChanges, QObject* parent) :
     BaseClass(parent),
     m_kind(kind),
@@ -312,11 +346,11 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     // read them in their worker threads by raw pointers (a reload and a cleared or
     // trimmed undo stack hold no other reference to the old document)
     const PDFDocumentPointer oldDocument = m_document;
-    Q_UNUSED(oldDocument);
     QPointer<PDFOptionalContentActivity> oldActivity;
 
     m_document = std::move(document);
     ++m_version;
+    m_derivedData.clear();
     if (isSaved)
     {
         m_savedVersion = m_version;
@@ -334,6 +368,14 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     {
         oldActivity = m_optionalContentActivity;
         m_optionalContentActivity = new PDFOptionalContentActivity(m_document.data(), OCUsage::View, this);
+
+        // The layers, which the user has switched, keep their states (a Rotate, an
+        // undo / redo of a Reset change): the states of the layers, which still
+        // exist, are copied before the view gets the new activity
+        if (oldActivity)
+        {
+            PDFAppDocumentHelper::copyLayerStates(oldActivity.data(), oldDocument.data(), m_optionalContentActivity.data());
+        }
     }
     else
     {
@@ -436,6 +478,21 @@ void PDFAppDocument::onOperationFinished()
     Q_EMIT operationsChanged();
 }
 
+std::shared_ptr<const PDFAppDocumentDerivedData> PDFAppDocument::getDerivedData(const QString& key) const
+{
+    auto it = m_derivedData.find(key);
+    return it != m_derivedData.end() ? it->second : nullptr;
+}
+
+void PDFAppDocument::setDerivedData(const QString& key, std::shared_ptr<const PDFAppDocumentDerivedData> data) const
+{
+    // Data of a document, which is not shown, are not kept (they would be of no version)
+    if (m_document)
+    {
+        m_derivedData[key] = std::move(data);
+    }
+}
+
 void PDFAppDocument::setTextIndex(std::shared_ptr<const PDFDocumentTextIndex> index, quint64 version)
 {
     // An index of a version older than the last change of the page contents is not valid
@@ -468,6 +525,27 @@ void PDFAppDocument::setLoading(const QString& filePath)
     }
 }
 
+QString PDFAppDocument::getOriginFilePath() const
+{
+    return !m_filePath.isEmpty() ? m_filePath : m_originFilePath;
+}
+
+bool PDFAppDocument::setLoadingFromMemory(const QString& title, const QString& originFilePath)
+{
+    if (m_state != PDFAppDocumentState::Loading || !m_filePath.isEmpty() || m_isCopy || m_document)
+    {
+        return false;
+    }
+
+    m_errorMessage.clear();
+    m_loadingProgress = -1;
+    m_originFilePath = originFilePath;
+    m_isCopy = true;
+    m_copyTitle = title.trimmed().isEmpty() ? tr("Attachment") : title.left(1024);
+    Q_EMIT fileChanged();
+    return true;
+}
+
 void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected)
 {
     if (document.isNull())
@@ -476,19 +554,26 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
         return;
     }
 
+    // A document read from the memory (an attachment) has no file: it stays a copy,
+    // which is modified until it is saved by Save As (O18)
+    const bool isFromMemory = m_isCopy && filePath.isEmpty() && m_state != PDFAppDocumentState::Ready;
+
     m_filePath = filePath;
     m_originalData = std::move(originalData);
     m_isPasswordProtected = isPasswordProtected;
     m_isPasswordWrong = false;
-    m_isCopy = false;
-    m_copyTitle.clear();
+    m_isCopy = isFromMemory;
+    if (!isFromMemory)
+    {
+        m_copyTitle.clear();
+    }
     m_errorMessage.clear();
     m_loadingProgress = -1;
     m_undoStack->clear();
     m_state = PDFAppDocumentState::Ready;
 
     QPointer<PDFAppDocument> guard(this);
-    setDocument(std::move(document), PDFModifiedDocument::Reset, true);
+    setDocument(std::move(document), PDFModifiedDocument::Reset, !isFromMemory);
     if (guard)
     {
         Q_EMIT stateChanged();
@@ -546,6 +631,7 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     // The copy has no file: it is modified until it is saved (Save As of package E)
     m_filePath.clear();
     m_copyTitle = tr("Copy of %1").arg(source->getTitle());
+    m_originFilePath = source->getOriginFilePath();
     m_isCopy = true;
     m_originalData = source->getOriginalData();
     m_isPasswordProtected = false;

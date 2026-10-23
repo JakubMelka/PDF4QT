@@ -218,7 +218,34 @@ void PDFFormField::modify(const std::function<void (PDFFormField*)>& functor)
 
 PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField)
 {
+    // The fields above the parsed one are already used, a kid referencing
+    // one of them is a cycle.
+    std::set<PDFObjectReference> usedReferences;
+    int depth = 0;
+    for (const PDFFormField* field = parentField; field; field = field->getParentField())
+    {
+        usedReferences.insert(field->getSelfReference());
+        ++depth;
+    }
+
+    return parseImpl(storage, reference, parentField, usedReferences, depth);
+}
+
+PDFFormFieldPointer PDFFormField::parseImpl(const PDFObjectStorage* storage,
+                                            PDFObjectReference reference,
+                                            PDFFormField* parentField,
+                                            std::set<PDFObjectReference>& usedReferences,
+                                            int depth)
+{
     PDFFormFieldPointer result;
+
+    // Damaged documents: a field may be referenced again in the /Kids arrays
+    // (a cycle, or a kid shared by more fields, which would be parsed again
+    // and again), or the tree may be too deep for the recursion.
+    if (depth > MAX_FIELD_TREE_DEPTH || (reference.isValid() && !usedReferences.insert(reference).second))
+    {
+        return result;
+    }
 
     if (const PDFDictionary* fieldDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(reference)))
     {
@@ -435,8 +462,12 @@ PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObje
 
                     if (isField)
                     {
-                        // This is form field (potentially merged with widget)
-                        formField->m_childFields.emplace_back(PDFFormField::parse(storage, kid, formField));
+                        // This is form field (potentially merged with widget). It is not
+                        // parsed, if it is already used in the tree (damaged document).
+                        if (PDFFormFieldPointer childField = PDFFormField::parseImpl(storage, kid, formField, usedReferences, depth + 1))
+                        {
+                            formField->m_childFields.emplace_back(std::move(childField));
+                        }
                     }
                     else if (isWidget)
                     {

@@ -635,7 +635,9 @@ void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& nam
     }
     ++m_count;
 
-    // row: icon 16, the texts (gap 2), the status; gap 10, paddings 8
+    // row: icon 16, the texts (gap 2), the status; gap 10, paddings 8; the name
+    // Medium 12 in a line of 16 px, the folder Regular 11 in a line of 15 px,
+    // so the row is 49 px high (document-row 955:150708)
     QWidget* row = new QWidget(this);
     row->setObjectName(QStringLiteral("itemRow"));
     QHBoxLayout* rowLayout = PDFAppDocumentDialogsHelper::createLayout<QHBoxLayout>(row, QMargins(0, 8, 0, 8), 10);
@@ -648,12 +650,14 @@ void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& nam
     PDFAppElidedLabel* nameLabel = new PDFAppElidedLabel(PDFThemeFonts::getFont(QFont::Medium, 12), PDFThemeColors::TextPrimary, PDFComponentPainter::TextKind::FileName, texts);
     nameLabel->setObjectName(QStringLiteral("itemName"));
     nameLabel->setText(name.left(1024));
+    nameLabel->setFixedHeight(16);
     textsLayout->addWidget(nameLabel);
     if (!detail.isEmpty())
     {
         PDFAppElidedLabel* detailLabel = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextMuted, PDFComponentPainter::TextKind::Data, texts);
         detailLabel->setObjectName(QStringLiteral("itemDetail"));
         detailLabel->setText(detail.left(1024));
+        detailLabel->setFixedHeight(15);
         textsLayout->addWidget(detailLabel);
     }
     rowLayout->addWidget(texts, 1);
@@ -667,6 +671,7 @@ void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& nam
         statusLabel->setText(status.left(1024));
         statusLabel->setFixedWidth(qBound(0, qCeil(PDFStylePainter::textWidth(statusLabel->text(), statusLabel->font())), STATUS_WIDTH));
         statusLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        statusLabel->setFixedHeight(16);
         rowLayout->addWidget(statusLabel, 0);
     }
 

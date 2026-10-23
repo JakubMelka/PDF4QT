@@ -32,6 +32,7 @@
 #include <QTextLayout>
 
 #include <optional>
+#include <set>
 
 namespace pdf
 {
@@ -270,7 +271,25 @@ public:
     /// \param parameters Parameters
     virtual void resetValue(const ResetValueParameters& parameters);
 
+    /// Maximal depth of the tree of the form fields. Deeper fields are not parsed.
+    static constexpr int MAX_FIELD_TREE_DEPTH = 128;
+
 protected:
+    /// Parses form field from the object reference (see \ref parse). Fields
+    /// already parsed in this tree (a cycle or a shared kid in the /Kids arrays
+    /// of a damaged document) and fields deeper than \ref MAX_FIELD_TREE_DEPTH
+    /// are not parsed, nullptr is returned for them.
+    /// \param storage Storage
+    /// \param reference Field reference
+    /// \param parentField Parent field (or nullptr, if it is root field)
+    /// \param usedReferences References of the fields of the tree parsed so far
+    /// \param depth Depth of the field in the tree (0 for the root field)
+    static PDFFormFieldPointer parseImpl(const PDFObjectStorage* storage,
+                                         PDFObjectReference reference,
+                                         PDFFormField* parentField,
+                                         std::set<PDFObjectReference>& usedReferences,
+                                         int depth);
+
     PDFObjectReference m_selfReference;
     FieldType m_fieldType = FieldType::Invalid;
     PDFFormField* m_parentField = nullptr;
@@ -322,7 +341,7 @@ public:
     virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
-    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parseImpl(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField, std::set<PDFObjectReference>& usedReferences, int depth);
 
     /// Returns true, if widget has a normal appearance stream of the appearance state
     /// \param formManager Form manager
@@ -353,7 +372,7 @@ public:
     virtual void resetValue(const ResetValueParameters& parameters) override;
 
 private:
-    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parseImpl(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField, std::set<PDFObjectReference>& usedReferences, int depth);
 
     /// Maximal length of text in the field. If zero,
     /// no maximal length is specified.
@@ -401,7 +420,7 @@ public:
     virtual void reloadValue(const PDFObjectStorage* storage, PDFObject parentValue) override;
 
 private:
-    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parseImpl(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField, std::set<PDFObjectReference>& usedReferences, int depth);
 
     Options m_options;
     PDFInteger m_topIndex;
@@ -419,7 +438,7 @@ public:
     const PDFSignature& getSignature() const { return m_signature; }
 
 private:
-    friend PDFFormFieldPointer PDFFormField::parse(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField);
+    friend PDFFormFieldPointer PDFFormField::parseImpl(const PDFObjectStorage* storage, PDFObjectReference reference, PDFFormField* parentField, std::set<PDFObjectReference>& usedReferences, int depth);
 
     PDFSignature m_signature;
 };

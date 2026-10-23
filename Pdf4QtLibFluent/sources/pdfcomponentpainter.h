@@ -199,6 +199,12 @@ public:
         FileName    ///< Name of a file: data elided in the middle, the extension stays
     };
 
+    /// Returns the text elided to the width by its kind: a text of the user
+    /// interface and data at its end (\p elidedText), a name of a file or a
+    /// path in the middle, so its extension stays visible (\p elidedFileName) -
+    /// the elision of \p drawElidedText
+    static QString elidedTextOfKind(const QString& text, const QFont& font, qreal width, TextKind kind);
+
     /// Draws a text of a single line, elided to the width of the rectangle, into
     /// the visual (already mirrored) rectangle, centered vertically, aligned to
     /// the leading edge of the state (\p isTrailing: to its trailing edge). A text

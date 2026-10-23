@@ -42,7 +42,10 @@ public:
     /// replaces it (tests, a second profile).
     static QString getDataDirectory();
 
-    /// File of the database: <data>/pdf4qt.db
+    /// File of the database of the schema version of the application:
+    /// <data>/pdf4qt-<schema>.db (owner decision O19, PDFDatabaseFiles). The
+    /// storage is opened with the folder (PDFDatabaseOptions::directory), so an
+    /// older file is upgraded into it.
     static QString getDatabaseFilePath();
 
     /// Folder of the logs: Linux (and other Unix systems except macOS) the state

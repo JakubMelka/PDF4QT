@@ -50,8 +50,7 @@ class PDFLineEdit;
 class PDFMessageBox;
 
 /// Native file dialogs of the navigation panels (attachments, export / import of
-/// the bookmarks) for any type of file, and the opening of a file by the system.
-/// Tests replace them by handlers.
+/// the bookmarks) for any type of file. Tests replace them by handlers.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppPanelFileDialogs
 {
 public:
@@ -60,27 +59,19 @@ public:
     /// (parent, title, proposed file or folder, filter) -> chosen file, empty = canceled
     using FileHandler = std::function<QString(QWidget*, const QString&, const QString&, const QString&)>;
 
-    /// Opens the local file by the program of the system; \returns false on a failure
-    using LaunchHandler = std::function<bool(const QString&)>;
-
     /// Save dialog: \p filePath is the proposed file; an empty text = canceled
     static QString getSaveFileName(QWidget* parent, const QString& title, const QString& filePath, const QString& filter);
 
     /// Open dialog of one file in the folder; an empty text = canceled
     static QString getOpenFileName(QWidget* parent, const QString& title, const QString& folder, const QString& filter);
 
-    /// Opens the local file by the system (QDesktopServices)
-    static bool launchFile(const QString& filePath);
-
-    /// Handlers replacing the dialogs and the launch (tests); an empty handler restores them
+    /// Handlers replacing the dialogs (tests); an empty handler restores them
     static void setSaveHandler(FileHandler handler);
     static void setOpenHandler(FileHandler handler);
-    static void setLaunchHandler(LaunchHandler handler);
 
 private:
     static FileHandler& getSaveHandler();
     static FileHandler& getOpenHandler();
-    static LaunchHandler& getLaunchHandler();
 };
 
 /// List of a navigation panel: PDFListView, whose paddings of the content are

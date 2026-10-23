@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentsignatures.h"
+#include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsearch.h"
@@ -45,7 +46,9 @@
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLocale>
 #include <QPushButton>
@@ -63,6 +66,17 @@ class PDFAppDocumentSignaturesHelper
 {
 public:
     PDFAppDocumentSignaturesHelper() = delete;
+
+    /// Releases the state of OpenSSL of the worker thread at the end of the
+    /// verification, whichever way it ends (PDFSignatureHandler::releaseThreadResources)
+    class ThreadResourcesGuard
+    {
+    public:
+        ThreadResourcesGuard() = default;
+        ThreadResourcesGuard(const ThreadResourcesGuard&) = delete;
+        ThreadResourcesGuard& operator=(const ThreadResourcesGuard&) = delete;
+        ~ThreadResourcesGuard() { PDFSignatureHandler::releaseThreadResources(); }
+    };
 
     /// Counts the signature fields of a form (functor of PDFForm::apply)
     class SignatureFieldCounter
@@ -89,7 +103,7 @@ public:
         {
             return QString();
         }
-        return QLocale().toString(dateTime.toLocalTime().date(), PDFAppDocumentSignatureVerifier::tr("MMM d, yyyy", "Date of a signature card"));
+        return PDFAppLocale::formatDate(dateTime.toLocalTime().date());
     }
 
     /// Date and time of a card ("Sep 28, 2026, 14:02")
@@ -99,7 +113,7 @@ public:
         {
             return QString();
         }
-        return QLocale().toString(dateTime.toLocalTime(), PDFAppDocumentSignatureVerifier::tr("MMM d, yyyy, HH:mm", "Date and time of a signature card"));
+        return PDFAppLocale::formatDateTime(dateTime.toLocalTime());
     }
 
     /// Name of a certificate (common name, organization or "Unknown")
@@ -115,6 +129,19 @@ public:
             }
         }
         return PDFAppDocumentSignatureVerifier::tr("Unknown");
+    }
+
+    /// SHA-256 fingerprint of a certificate in groups of four hexadecimal digits
+    /// ("3A5F 09C1 ...", 16 groups, the line can wrap between them)
+    static QString getFingerprint(const QByteArray& certificate)
+    {
+        const QByteArray hex = QCryptographicHash::hash(certificate, QCryptographicHash::Sha256).toHex().toUpper();
+        QStringList groups;
+        for (qsizetype i = 0; i < hex.size(); i += 4)
+        {
+            groups << QString::fromLatin1(hex.mid(i, 4));
+        }
+        return groups.join(QLatin1Char(' '));
     }
 
     /// Name of the algorithm of a key ("RSA 2048")
@@ -244,6 +271,10 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
                                                                                     PDFAppSignatureSettings settings,
                                                                                     std::shared_ptr<PDFAppCancelFlag> cancelFlag)
 {
+    // The pool thread may outlive the application (valgrind: the error queue of
+    // d2i_PKCS7 left in a live thread at the exit)
+    PDFAppDocumentSignaturesHelper::ThreadResourcesGuard threadResourcesGuard;
+
     std::shared_ptr<PDFAppSignatureVerification> verification = std::make_shared<PDFAppSignatureVerification>();
     verification->isVerified = settings.verify;
     verification->isStrict = settings.strict;
@@ -479,11 +510,11 @@ QString PDFAppDocumentSignatureVerifier::getStatusText(const PDFAppSignatureSumm
     QString items;
     if (summary.signatureCount > 0)
     {
-        items = (summary.signatureCount == 1 ? tr("1 signature") : tr("%n signatures", nullptr, summary.signatureCount));
+        items = (summary.signatureCount == 1 ? tr("1 signature") : tr("%Ln signatures", nullptr, summary.signatureCount));
     }
     else
     {
-        items = (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%n timestamps", nullptr, summary.timestampCount));
+        items = (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%Ln timestamps", nullptr, summary.timestampCount));
     }
 
     QString state;
@@ -493,11 +524,11 @@ QString PDFAppDocumentSignatureVerifier::getStatusText(const PDFAppSignatureSumm
     }
     else if (summary.invalidCount > 0)
     {
-        state = tr("%n invalid", nullptr, summary.invalidCount);
+        state = tr("%Ln invalid", nullptr, summary.invalidCount);
     }
     else if (summary.warningCount > 0)
     {
-        state = (summary.warningCount == 1 ? tr("1 needs attention") : tr("%n need attention", nullptr, summary.warningCount));
+        state = (summary.warningCount == 1 ? tr("1 needs attention") : tr("%Ln need attention", nullptr, summary.warningCount));
     }
     else
     {
@@ -853,17 +884,17 @@ QString PDFAppDocumentSignaturesPanel::getSubtitle() const
     const PDFAppSignatureSummary summary = PDFAppDocumentSignatureVerifier::getSummary(verification->results, verification->isStrict);
     if (summary.signatureCount + summary.timestampCount == 0)
     {
-        return (verification->signatureFieldCount == 1 ? tr("1 signature") : tr("%n signatures", nullptr, verification->signatureFieldCount));
+        return (verification->signatureFieldCount == 1 ? tr("1 signature") : tr("%Ln signatures", nullptr, verification->signatureFieldCount));
     }
     if (summary.timestampCount == 0)
     {
-        return (summary.signatureCount == 1 ? tr("1 signature") : tr("%n signatures", nullptr, summary.signatureCount));
+        return (summary.signatureCount == 1 ? tr("1 signature") : tr("%Ln signatures", nullptr, summary.signatureCount));
     }
     if (summary.signatureCount == 0)
     {
-        return (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%n timestamps", nullptr, summary.timestampCount));
+        return (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%Ln timestamps", nullptr, summary.timestampCount));
     }
-    return tr("%1, %2").arg((summary.signatureCount == 1 ? tr("1 signature") : tr("%n signatures", nullptr, summary.signatureCount)), (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%n timestamps", nullptr, summary.timestampCount)));
+    return tr("%1, %2").arg((summary.signatureCount == 1 ? tr("1 signature") : tr("%Ln signatures", nullptr, summary.signatureCount)), (summary.timestampCount == 1 ? tr("1 timestamp") : tr("%Ln timestamps", nullptr, summary.timestampCount)));
 }
 
 QString PDFAppDocumentSignaturesPanel::getIconName() const
@@ -985,11 +1016,11 @@ void PDFAppDocumentSignaturesPanel::rebuild()
         {
             hue = PDFAccentHue::Red;
             bannerIcon = QStringLiteral("x-circle");
-            bannerTitle = (summary.invalidCount == 1 ? tr("One signature is not valid") : tr("%n signatures are not valid", nullptr, summary.invalidCount));
+            bannerTitle = (summary.invalidCount == 1 ? tr("One signature is not valid") : tr("%Ln signatures are not valid", nullptr, summary.invalidCount));
         }
         else if (summary.warningCount > 0)
         {
-            bannerTitle = (summary.warningCount == 1 ? tr("One signature needs attention") : tr("%n signatures need attention", nullptr, summary.warningCount));
+            bannerTitle = (summary.warningCount == 1 ? tr("One signature needs attention") : tr("%Ln signatures need attention", nullptr, summary.warningCount));
         }
         else
         {
@@ -1000,7 +1031,7 @@ void PDFAppDocumentSignaturesPanel::rebuild()
 
         if (summary.validCount > 0 && summary.validCount < count)
         {
-            bannerText = (summary.validCount == 1 ? tr("The other signature is valid.") : tr("The other %n signatures are valid.", nullptr, summary.validCount));
+            bannerText = (summary.validCount == 1 ? tr("The other signature is valid.") : tr("The other %Ln signatures are valid.", nullptr, summary.validCount));
         }
     }
     else if (verification && verification->signatureFieldCount > 0)
@@ -1076,6 +1107,7 @@ void PDFAppDocumentSignaturesPanel::onCertificateLinkActivated(int index)
 
     QByteArray certificate;
     QString name;
+    QString issuer;
     for (size_t i = 0; i < m_cards.size(); ++i)
     {
         if (m_cards[i] == card && i < m_trustableCertificates.size())
@@ -1083,6 +1115,9 @@ void PDFAppDocumentSignaturesPanel::onCertificateLinkActivated(int index)
             certificate = m_trustableCertificates[i];
             const std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(certificate);
             name = info ? PDFAppDocumentSignaturesHelper::getCertificateName(*info) : QString();
+
+            // The issuer is untrusted text too: one line of a sane length
+            issuer = PDFCertificateInfo::getIssuerName(certificate).simplified().left(256);
         }
     }
     if (certificate.isEmpty())
@@ -1099,6 +1134,31 @@ void PDFAppDocumentSignaturesPanel::onCertificateLinkActivated(int index)
                                       window());
     m_trustDialog->setObjectName(QStringLiteral("trustCertificateDialog"));
     m_trustDialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // O18: the subject, the issuer and the SHA-256 fingerprint, which the user can
+    // compare with the one published by the owner of the certificate
+    QFrame* facts = new QFrame(m_trustDialog);
+    facts->setObjectName(QStringLiteral("certificateFacts"));
+    PDFWidgetStyleProperties::set(facts, PDFWidgetStyleProperties::NOTE);
+    QVBoxLayout* factsLayout = new QVBoxLayout(facts);
+    factsLayout->setContentsMargins(12, 4, 12, 4);
+    factsLayout->setSpacing(0);
+    PDFKeyValueList* list = new PDFKeyValueList(facts);
+    list->setObjectName(QStringLiteral("certificateFactsList"));
+    list->addRow(tr("Issued to"), name);
+    list->addRow(tr("Issued by"), issuer.isEmpty() ? tr("Unknown") : issuer);
+    factsLayout->addWidget(list);
+    PDFLabel* fingerprintLabel = new PDFLabel(tr("SHA-256 fingerprint"), PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, facts);
+    fingerprintLabel->setObjectName(QStringLiteral("fingerprintTitle"));
+    PDFLabel* fingerprint = new PDFLabel(PDFAppDocumentSignaturesHelper::getFingerprint(certificate), PDFThemeFonts::Role::SmallMedium, PDFThemeColors::TextPrimary, facts);
+    fingerprint->setObjectName(QStringLiteral("fingerprint"));
+    fingerprint->setTextFormat(Qt::PlainText);
+    fingerprint->setWordWrap(true);
+    fingerprint->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    factsLayout->addWidget(fingerprintLabel);
+    factsLayout->addWidget(fingerprint);
+    factsLayout->addSpacing(8);
+    m_trustDialog->addContent(facts);
     if (QAbstractButton* button = m_trustDialog->getButtonBox()->button(QDialogButtonBox::Ok))
     {
         button->setText(tr("Trust"));

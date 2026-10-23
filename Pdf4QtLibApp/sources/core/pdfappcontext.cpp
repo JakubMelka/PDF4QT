@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappcontext.h"
+#include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
 #include "pdfdatabasenotifier.h"
@@ -41,6 +42,11 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
 {
     m_documentRegistry = new PDFAppDocumentRegistry(this);
 
+    // O17: the texts of the application are formatted in the language of the user
+    // interface; the default locale of the process follows it ("%Ln", Qt widgets,
+    // Pdf4QtLibFluent) - set before the windows and the worker threads exist
+    PDFAppLocale::applyDefaultLocale();
+
     PDFSettingDefinitions::registerBuiltinDefinitions(&m_settingRegistry);
     PDFAppCommands::registerBuiltinCommands(&m_commandRegistry);
 
@@ -59,9 +65,10 @@ void PDFAppContext::open(PDFDatabaseOptions options)
 {
     close();
 
-    if (options.filePath.isEmpty())
+    if (options.filePath.isEmpty() && options.directory.isEmpty())
     {
-        options.filePath = PDFAppPaths::getDatabaseFilePath();
+        // O19: the file of the schema version in the folder of the data
+        options.directory = PDFAppPaths::getDataDirectory();
     }
     options.portable = options.portable || m_commandLine.isPortable();
 

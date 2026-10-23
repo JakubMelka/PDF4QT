@@ -67,6 +67,7 @@ public:
         QString filePath;               ///< Target file
         bool isIncremental = false;     ///< Append an incremental update to the original data (signed documents)
         quint64 version = 0;            ///< Version of the document (given back in the result)
+        QString markSourceFilePath;     ///< File, whose Mark of the Web the written file takes over (the file of the document or of its origin, O18)
     };
 
     /// Result of the writing

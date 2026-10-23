@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpropertiesdata.h"
+#include "pdfapplocale.h"
 
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
@@ -94,7 +95,7 @@ public:
     /// Length in whole millimeters (the paper sizes of the standards are whole millimeters)
     static QString formatMillimeters(qreal value)
     {
-        return QLocale().toString(qRound(qBound<qreal>(0.0, value, 1.0e9)));
+        return PDFAppLocale::formatNumber(qRound(qBound<qreal>(0.0, value, 1.0e9)));
     }
 
     static QString formatPaperSize(const QSizeF& size)
@@ -210,7 +211,7 @@ public:
             return PDFAppDocumentPropertiesData::tr("All pages");
         }
 
-        const QLocale locale;
+        const QLocale locale = PDFAppLocale::getUiLocale();
         QStringList parts;
         for (const auto& range : ranges)
         {
@@ -434,9 +435,8 @@ QString PDFAppDocumentPropertiesData::formatDateTime(const QDateTime& dateTime)
         return QString();
     }
 
-    const QLocale locale;
-    const QDateTime local = dateTime.toLocalTime();
-    return tr("%1, %2").arg(locale.toString(local.date(), QStringLiteral("MMM d, yyyy")), locale.toString(local.time(), QStringLiteral("HH:mm")));
+    // O17: the language of the user interface, not the locale of the system
+    return PDFAppLocale::formatDateTime(dateTime.toLocalTime());
 }
 
 QString PDFAppDocumentPropertiesData::getFontTypeText(int fontType)
@@ -471,7 +471,7 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createGeneralGrou
 
     const PDFDocumentInfo* info = document->getInfo();
     const PDFCatalog* catalog = document->getCatalog();
-    const QLocale locale;
+    const QLocale locale = PDFAppLocale::getUiLocale();
 
     // Description: the editable texts of the Info dictionary and the producer
     PDFAppPropertyGroup description;
@@ -744,7 +744,7 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createDisplayGrou
     print.items.push_back(Helper::item(tr("Duplex mode"), Helper::duplexText(preferences->getDuplex()), "property-duplex-mode"));
     print.items.push_back(Helper::item(tr("Pick tray by page size"), Helper::yesNo(preferences->getOptions().testFlag(PDFViewerPreferences::PickTrayByPDFSize)), "property-pick-tray"));
     print.items.push_back(Helper::item(tr("Print page ranges"), Helper::pageRangesText(preferences->getPrintPageRanges()), "property-print-page-ranges"));
-    print.items.push_back(Helper::item(tr("Number of copies"), QLocale().toString(qMax<PDFInteger>(1, preferences->getNumberOfCopies())), "property-number-of-copies"));
+    print.items.push_back(Helper::item(tr("Number of copies"), PDFAppLocale::formatNumber(qMax<PDFInteger>(1, preferences->getNumberOfCopies())), "property-number-of-copies"));
     groups.push_back(std::move(print));
 
     return groups;
@@ -783,7 +783,7 @@ QString PDFAppDocumentPropertiesData::getMetadata(const PDFDocument* document, b
         {
             if (errorMessage)
             {
-                *errorMessage = tr("The metadata packet is too large to be shown (%1).").arg(QLocale().formattedDataSize(data.size(), 1, QLocale::DataSizeTraditionalFormat));
+                *errorMessage = tr("The metadata packet is too large to be shown (%1).").arg(PDFAppLocale::formatDataSize(data.size(), 1, QLocale::DataSizeTraditionalFormat));
             }
             return QString();
         }

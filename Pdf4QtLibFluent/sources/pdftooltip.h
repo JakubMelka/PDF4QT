@@ -42,6 +42,20 @@ class PDF4QTLIBFLUENTSHARED_EXPORT PDFToolTip
 public:
     PDFToolTip() = delete;
 
+    /// Look of the tooltip
+    enum class Style
+    {
+        /// Tooltip of a control (Widgets 16): the name Medium 12 text/primary,
+        /// border/strong, radius 8, the description wraps at 260 px
+        Default,
+
+        /// Tooltip of a link of a document (1028:22472): the name and the
+        /// description Regular 11 in lines of 13 px (text/primary, text/muted),
+        /// border/default, radius 6; the lines are not wrapped, the name is
+        /// elided in the middle and the description at the end at 480 px
+        Compact
+    };
+
     /// Shows the tooltip
     /// \param globalPosition Position of the pointer
     /// \param title Name of the control
@@ -50,6 +64,12 @@ public:
     /// \param widget Widget, to which the tooltip belongs. The tooltip is hidden,
     ///        when the pointer leaves the widget.
     static void showText(const QPoint& globalPosition, const QString& title, const QString& shortcut = QString(), const QString& description = QString(), QWidget* widget = nullptr);
+
+    /// Shows the tooltip of the given look (see the other overload)
+    static void showText(const QPoint& globalPosition, const QString& title, const QString& shortcut, const QString& description, QWidget* widget, Style style);
+
+    /// Returns the look of the shown tooltip (Default, when no tooltip is shown)
+    static Style getStyle();
 
     /// Shows the tooltip of the widget (its tooltip text, the shortcut of its
     /// action; lines after the first one are the description).

@@ -298,7 +298,14 @@ PDFKeyValueList::PDFKeyValueList(QWidget* parent) :
 
 int PDFKeyValueList::addRow(const QString& key, const QString& value)
 {
-    m_rows.push_back(Row{ key, value });
+    return addRow(key, value, PDFComponentPainter::TextKind::Data);
+}
+
+int PDFKeyValueList::addRow(const QString& key, const QString& value, PDFComponentPainter::TextKind valueKind)
+{
+    // A value is data: a text of the user interface is elided as data
+    const PDFComponentPainter::TextKind kind = valueKind == PDFComponentPainter::TextKind::FileName ? valueKind : PDFComponentPainter::TextKind::Data;
+    m_rows.push_back(Row{ key, value, kind });
     updateDescription();
     updateGeometry();
     update();
@@ -331,6 +338,11 @@ QString PDFKeyValueList::getKey(int index) const
 QString PDFKeyValueList::getValue(int index) const
 {
     return index >= 0 && index < getRowCount() ? m_rows[index].value : QString();
+}
+
+PDFComponentPainter::TextKind PDFKeyValueList::getValueKind(int index) const
+{
+    return index >= 0 && index < getRowCount() ? m_rows[index].valueKind : PDFComponentPainter::TextKind::Data;
 }
 
 void PDFKeyValueList::updateDescription()
@@ -446,8 +458,9 @@ void PDFKeyValueList::paintEvent(QPaintEvent* event)
         painter.drawText(QStyle::visualRect(layoutDirection(), inner, keyRect), Qt::AlignVCenter | leading | Qt::TextWordWrap, m_rows[i].key);
 
         // The value is data: its base direction is the one of the whole value
-        // (components.md 6.6), elided as the other components (no space before the ellipsis)
-        const QString value = PDFComponentPainter::elidedText(m_rows[i].value, valueFont, valueRect.width());
+        // (components.md 6.6), elided as the other components (no space before the
+        // ellipsis; a path in the middle, so its extension stays visible)
+        const QString value = PDFComponentPainter::elidedTextOfKind(m_rows[i].value, valueFont, valueRect.width(), m_rows[i].valueKind);
         PDFComponentPainter::drawDataText(&painter, QRectF(QStyle::visualRect(layoutDirection(), inner, valueRect)), Qt::AlignVCenter | trailing | Qt::TextSingleLine,
                                           value, valueFont, PDFStylePainter::color(valueColor), PDFComponentPainter::getDataTextDirection(m_rows[i].value));
     }

@@ -35,11 +35,9 @@
 
 #include <QAbstractItemView>
 #include <QCoreApplication>
-#include <QDesktopServices>
 #include <QFileDialog>
 #include <QListView>
 #include <QToolButton>
-#include <QUrl>
 
 namespace pdf
 {
@@ -62,15 +60,6 @@ QString PDFAppPanelFileDialogs::getOpenFileName(QWidget* parent, const QString& 
     return QFileDialog::getOpenFileName(parent, title, folder, filter);
 }
 
-bool PDFAppPanelFileDialogs::launchFile(const QString& filePath)
-{
-    if (const LaunchHandler& handler = getLaunchHandler())
-    {
-        return handler(filePath);
-    }
-    return QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
-}
-
 void PDFAppPanelFileDialogs::setSaveHandler(FileHandler handler)
 {
     getSaveHandler() = std::move(handler);
@@ -79,11 +68,6 @@ void PDFAppPanelFileDialogs::setSaveHandler(FileHandler handler)
 void PDFAppPanelFileDialogs::setOpenHandler(FileHandler handler)
 {
     getOpenHandler() = std::move(handler);
-}
-
-void PDFAppPanelFileDialogs::setLaunchHandler(LaunchHandler handler)
-{
-    getLaunchHandler() = std::move(handler);
 }
 
 PDFAppPanelFileDialogs::FileHandler& PDFAppPanelFileDialogs::getSaveHandler()
@@ -95,12 +79,6 @@ PDFAppPanelFileDialogs::FileHandler& PDFAppPanelFileDialogs::getSaveHandler()
 PDFAppPanelFileDialogs::FileHandler& PDFAppPanelFileDialogs::getOpenHandler()
 {
     static FileHandler handler;
-    return handler;
-}
-
-PDFAppPanelFileDialogs::LaunchHandler& PDFAppPanelFileDialogs::getLaunchHandler()
-{
-    static LaunchHandler handler;
     return handler;
 }
 

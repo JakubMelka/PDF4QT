@@ -2153,7 +2153,8 @@ void AppDataTest::tools()
 
 void AppDataTest::schemaMigration()
 {
-    // A database of version 2 with a recent file gets the column thumbnail_state = Pending
+    // A recent file written without the column thumbnail_state (as by an older
+    // writer, which does not know it) has the default state Pending
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     const QString filePath = directory.filePath(QStringLiteral("old.db"));
@@ -2161,7 +2162,7 @@ void AppDataTest::schemaMigration()
         pdf::PDFDatabaseError error;
         sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, false, 5000, &error);
         QVERIFY(handle);
-        QVERIFY(!pdf::PDFDatabaseSchema::migrate(handle, pdf::PDFDatabaseSchema::getMigrations(), 2).isError());
+        QVERIFY(!pdf::PDFDatabaseSchema::migrate(handle, pdf::PDFDatabaseSchema::getMigrations(), pdf::PDFDatabaseSchema::getCurrentVersion()).isError());
         QVERIFY(!pdf::PDFDatabase::executeOnHandle(handle, "INSERT INTO recent_file(path, name, folder, last_opened, thumbnail, thumbnail_mtime) VALUES ('/old/a.pdf', 'a.pdf', '/old', 5, x'00', 7)").isError());
         pdf::PDFDatabase::closeHandle(handle);
     }
@@ -2169,8 +2170,7 @@ void AppDataTest::schemaMigration()
     pdf::PDFDatabase database;
     database.open(AppDataTestHelper::createFileOptions(filePath));
     QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
-    QCOMPARE(database.getState().fileSchemaVersion, 2);
-    QVERIFY(pdf::PDFDatabaseSchema::getCurrentVersion() >= 3);
+    QCOMPARE(database.getState().fileSchemaVersion, pdf::PDFDatabaseSchema::getCurrentVersion());
 
     pdf::PDFRecentRepository repository(&database, nullptr);
     const std::optional<pdf::PDFRecentFile> file = repository.getFile(QStringLiteral("/old/a.pdf"));
@@ -3476,8 +3476,7 @@ void AppDataTest::renderingMarkers()
     const QString path = fixture.createFile(QStringLiteral("a.pdf"));
     QVERIFY(!fixture.recent().recordOpened(path).isError());
 
-    // The table exists (version 4), it has no triggers: a marker is no notification
-    QVERIFY(pdf::PDFDatabaseSchema::getCurrentVersion() >= 4);
+    // The table exists, it has no triggers: a marker is no notification
     QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'thumbnail_rendering'"), qint64(0));
     const qint64 logBefore = AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM change_log");
 

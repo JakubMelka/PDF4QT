@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpanels_thumbnails.h"
+#include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -602,7 +603,7 @@ QString PDFAppThumbnailsPanel::getSubtitle() const
     if (selected > 1)
     {
         // 266:12502 "3 of 1,592 pages selected"
-        return tr("%1 of %Ln pages selected", nullptr, pageCount).arg(QLocale().toString(qulonglong(selected)));
+        return tr("%1 of %Ln pages selected", nullptr, pageCount).arg(PDFAppLocale::formatNumber(qint64(selected)));
     }
     // 193:756 "1,592 pages"
     return pageCount == 1 ? tr("%Ln page", nullptr, pageCount) : tr("%Ln pages", nullptr, pageCount);

@@ -472,7 +472,7 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setAnchor(QStringLiteral("compiled-page-cache-size"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Compiled page cache size"))
                       .setKeywords({ QStringLiteral("memory"), QStringLiteral("cache") }));
-    add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::cacheThumbnails(), 8192, 1024, 1048576)
+    add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::cacheThumbnails(), 65536, 1024, 1048576)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Cache")))
                       .setAnchor(QStringLiteral("thumbnail-image-cache-size"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Thumbnail image cache size"))
