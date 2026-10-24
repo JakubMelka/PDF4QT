@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfadvancedtools.h"
+#include "pdfannotationproperties.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdrawwidget.h"
 #include "pdfutils.h"
@@ -118,8 +119,10 @@ public:
     /// \param tool Creation tool
     /// \param toolManager Tool manager of the tool
     /// \param pickTool Pick tool of the creation tool (can be nullptr)
+    /// \returns false, when the tool has been deleted (a receiver of the change of the
+    /// active tool - activeToolChanged - may delete the tool and its tab synchronously)
     // TODO(remove-old-apps): the tools always stay active until Escape (tools.md 9.8) - the deactivation after one annotation goes
-    static void finishCreation(PDFWidgetTool* tool, const PDFToolManager* toolManager, PDFPickTool* pickTool)
+    static bool finishCreation(PDFWidgetTool* tool, const PDFToolManager* toolManager, PDFPickTool* pickTool)
     {
         if (isPersistent(toolManager))
         {
@@ -127,10 +130,12 @@ public:
             {
                 pickTool->resetTool();
             }
-            return;
+            return true;
         }
 
+        QPointer<PDFWidgetTool> guard(tool);
         tool->setActive(false);
+        return !guard.isNull();
     }
 };
 
@@ -536,6 +541,7 @@ void PDFCreateInDocumentHyperlinkTool::createLinkAnnotation(const PDFDestination
     // The link is created, while the pick tool of its target is active - a persistent
     // tool is activated again for the next link (the tool manager keeps it active)
     // TODO(remove-old-apps): the tool is always active again
+    // A receiver of the change of the active tool may delete this tool (its tab)
     if (PDFCreationToolHelper::isPersistent(m_toolManager))
     {
         m_toolManager->setActiveTool(this);
@@ -544,7 +550,11 @@ void PDFCreateInDocumentHyperlinkTool::createLinkAnnotation(const PDFDestination
     {
         setActive(false);
     }
-    updateActions();
+
+    if (self)
+    {
+        updateActions();
+    }
 }
 
 PDFDestination PDFCreateInDocumentHyperlinkTool::createDestination(PDFInteger pageIndex, QRectF pageRectangle) const
@@ -615,29 +625,10 @@ void PDFCreateFreeTextTool::setFreeTextStyle(const PDFFreeTextStyle& style)
 
 PDFFreeTextStyle PDFCreateFreeTextTool::boundFreeTextStyle(PDFFreeTextStyle style)
 {
-    // The style can come from the database of the application - untrusted
-    constexpr int MAXIMUM_FAMILY_LENGTH = 256;
-    style.fontFamily = style.fontFamily.trimmed();
-    if (style.fontFamily.isEmpty() || style.fontFamily.size() > MAXIMUM_FAMILY_LENGTH)
-    {
-        style.fontFamily = PDFFreeTextStyle().fontFamily;
-    }
-
-    style.fontSize = std::isfinite(style.fontSize) ? qBound(1.0, style.fontSize, 512.0) : PDFFreeTextStyle().fontSize;
-
-    if (!style.textColor.isValid())
-    {
-        style.textColor = QColor(Qt::black);
-    }
-
-    Qt::Alignment horizontal = Qt::Alignment(style.textAlignment) & (Qt::AlignLeft | Qt::AlignHCenter | Qt::AlignRight);
-    if (horizontal != Qt::AlignLeft && horizontal != Qt::AlignHCenter && horizontal != Qt::AlignRight)
-    {
-        horizontal = Qt::AlignLeft;
-    }
-    style.textAlignment = TextAlignment(Qt::AlignTop | horizontal);
-
-    return style;
+    // The style can come from the database of the application - untrusted; the same
+    // rule as the properties of an annotation (one rule for the tool, its storage and
+    // the properties dialog)
+    return PDFAnnotationPropertyEditor::boundFreeTextStyle(std::move(style));
 }
 
 bool PDFCreateFreeTextTool::configureFreeText(QString& text)
@@ -903,7 +894,10 @@ void PDFCreateLineTypeTool::finishDefinition()
                     return;
                 }
 
-                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
+                if (!PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr))
+                {
+                    return;
+                }
             }
             break;
         }
@@ -936,7 +930,10 @@ void PDFCreateLineTypeTool::finishDefinition()
                     return;
                 }
 
-                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
+                if (!PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr))
+                {
+                    return;
+                }
             }
             break;
         }
@@ -978,7 +975,10 @@ void PDFCreateLineTypeTool::finishDefinition()
                     return;
                 }
 
-                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
+                if (!PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr))
+                {
+                    return;
+                }
             }
             break;
         }
@@ -1026,7 +1026,10 @@ void PDFCreateLineTypeTool::finishDefinition()
                     return;
                 }
 
-                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
+                if (!PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr))
+                {
+                    return;
+                }
             }
             break;
         }
@@ -1581,7 +1584,10 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
                     return;
                 }
 
-                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
+                if (!PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr))
+                {
+                    return;
+                }
             }
         }
 

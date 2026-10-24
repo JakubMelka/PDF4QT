@@ -1023,7 +1023,8 @@ bool PDFWidgetFormManager::focusNextPrevFormField(bool next)
 
     if (m_isPageTabOrder)
     {
-        // The order of the pages, the focus cycles through the fields
+        // The order of the pages; after the last field (before the first one) the focus
+        // leaves the fields and the widget, so the keyboard is never trapped (WCAG 2.1.2)
         const std::vector<PDFFormFieldWidgetEditor*> order = getTabOrderEditors();
         if (order.empty())
         {
@@ -1040,7 +1041,12 @@ bool PDFWidgetFormManager::focusNextPrevFormField(bool next)
         else
         {
             const size_t current = size_t(std::distance(order.cbegin(), it));
-            index = next ? (current + 1) % order.size() : (current + order.size() - 1) % order.size();
+            if (next ? current + 1 >= order.size() : current == 0)
+            {
+                setFocusToEditor(nullptr);
+                return false;
+            }
+            index = next ? current + 1 : current - 1;
         }
 
         setFocusToEditor(order[index]);

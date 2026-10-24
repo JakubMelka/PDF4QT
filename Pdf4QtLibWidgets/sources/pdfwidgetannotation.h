@@ -30,6 +30,7 @@
 #include "pdfannotationmanipulator.h"
 
 #include <QPixmap>
+#include <QPointer>
 #include <QUuid>
 
 #include <map>
@@ -511,6 +512,43 @@ public:
     /// or a handle of the selection, a selectable annotation, or Ctrl / Shift on a page (rubber band)
     bool isInteractionAt(QPoint widgetPos, Qt::KeyboardModifiers modifiers) const;
 
+    /// Updates the hover of the mouse event (the hovered annotation, handle and point, the
+    /// cursor and the tooltip). The text tool with selectable annotations gets a move before
+    /// the manager and asks it, so the cursor of the manager is that of this move, not of the
+    /// last one; inside of a MouseMoveScope the hover is updated once per move.
+    void updateHover(QMouseEvent* event);
+
+    /// Scope of the dispatch of one mouse move by the draw widget. The tool asks the manager
+    /// (updateHover, isInteractionAt) before the manager gets the move, so inside of the scope
+    /// the hover and the hit test of the annotations under the cursor are computed once and
+    /// shared - on a page with thousands of annotations every move made them twice. The cache
+    /// is also keyed by the position, the document and the selection.
+    class MouseMoveScope
+    {
+    public:
+        explicit MouseMoveScope(PDFWidgetAnnotationManager* manager) : m_manager(manager)
+        {
+            if (m_manager)
+            {
+                m_manager->beginMouseMove();
+            }
+        }
+
+        ~MouseMoveScope()
+        {
+            if (m_manager)
+            {
+                m_manager->endMouseMove();
+            }
+        }
+
+        MouseMoveScope(const MouseMoveScope&) = delete;
+        MouseMoveScope& operator=(const MouseMoveScope&) = delete;
+
+    private:
+        QPointer<PDFWidgetAnnotationManager> m_manager;
+    };
+
     /// Read only mode (a locked document): the selection, the copy, the popup windows and the menus
     /// work, every change is refused (isModificationAllowed returns false), the handles are not shown.
     /// Turning it on cancels a running interaction. Off by default.
@@ -616,8 +654,9 @@ private:
     struct HandleLayout
     {
         bool isValid = false;
-        QRectF frame;                       ///< Selection frame (bounding rectangle of the selection)
-        std::array<QPointF, 8> handles;     ///< Resize handles, in the order of the enum Handle (TopLeft ... Left)
+        QRectF frame;                       ///< Bounding rectangle of the selection, the handles move its edges
+        qreal frameOutset = 0.0;            ///< Distance of the drawn frame and of the handles outside of the frame (the design: 4 px)
+        std::array<QPointF, 8> handles;     ///< Resize handles, in the order of the enum Handle (TopLeft ... Left), on the drawn frame
         bool isTextBox = false;             ///< Frame of the text box of a free text annotation with a callout line
         bool hasResizeHandles = false;      ///< Selection can be resized
         bool hasRotationHandle = false;     ///< Selection can be rotated
@@ -626,6 +665,9 @@ private:
         QPointF rotationHandleBase;         ///< Point on the frame, from which the line to the rotation handle is drawn
         qreal handleSize = 0.0;             ///< Size of the resize handle
         qreal rotationHandleRadius = 0.0;   ///< Radius of the rotation handle
+
+        /// Returns the drawn frame - the frame enlarged by the outset
+        QRectF getDrawnFrame() const { return frame.adjusted(-frameOutset, -frameOutset, frameOutset, frameOutset); }
     };
 
     /// Interaction, which is currently performed by the mouse
@@ -732,6 +774,23 @@ private:
     };
 
     void updateFromMouseEvent(QMouseEvent* event);
+
+    /// Shared results of the dispatch of one mouse move (MouseMoveScope)
+    struct MouseMoveCache
+    {
+        int depth = 0;                          ///< Nesting of the scopes (a move inside of a nested event loop)
+        bool isHoverUpdated = false;            ///< The hover of the move has been updated (updateHover)
+        bool isHitTestValid = false;            ///< The hit test below is valid
+        QPoint position;                        ///< Widget position of the hit test
+        const PDFDocument* document = nullptr;  ///< Document of the hit test
+        std::vector<SelectedAnnotation> selection; ///< Selection of the hit test (the selected annotation is hit by its rectangle)
+        PDFInteger pageIndex = -1;              ///< Page of the hit annotations, -1 = none
+        std::vector<const PageAnnotation*> annotations; ///< Result of findSelectableAnnotations
+    };
+
+    void beginMouseMove();
+    void endMouseMove();
+    void invalidateMouseMoveCache() const;
     bool beginAnnotationDrag(QMouseEvent* event, PDFInteger pageIndex);
     void startAnnotationDrag(QMouseEvent* event);
     QPixmap createAnnotationDragPixmap(const QTransform& pagePointToDevicePointMatrix, QPoint& hotSpot) const;
@@ -842,6 +901,18 @@ private:
     /// \param widgetPosition Position in the widget (nullopt for the keyboard)
     /// \param pointContext Point or segment of the selected annotation under the position
     PDFAnnotationMenuRequest createMenuRequest(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext) const;
+
+    /// Returns the eraser of the strokes of the context menu (the menu of the manager and the
+    /// request of the application): the place, where the menu was opened, and the radius given
+    /// on the screen, both in the coordinate system of the annotation. Returns false, if the
+    /// menu was not opened over the page of the annotation, or if there is nothing to erase.
+    bool getMenuInkEraser(PDFObjectReference annotation, PDFInteger pageIndex, std::optional<QPoint> widgetPosition, QPointF& center, PDFReal& radius) const;
+
+    /// Returns the tip of a new callout line of the free text annotation of the context menu:
+    /// the place, where the menu was opened, if it is outside of the text box, otherwise
+    /// a place next to the text box inside of the media box of the page
+    /// \param textRectangle Receives the rectangle of the text box (may be nullptr)
+    QPointF getMenuCalloutTip(PDFObjectReference annotation, PDFInteger pageIndex, std::optional<QPoint> widgetPosition, QRectF* textRectangle) const;
 
     /// Asks for the context menu of the selection: emits menuRequested (setUserInterfaceDelegated),
     /// or shows the menu of the manager
@@ -1053,6 +1124,7 @@ private:
     bool m_isDesignSelectionLook = false;
     bool m_isLinksSelectable = false;
     PDFObjectReference m_highlightedAnnotation;
+    mutable MouseMoveCache m_mouseMoveCache;
 };
 
 }   // namespace pdf

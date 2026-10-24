@@ -230,6 +230,7 @@ private slots:
     void toolbarFieldsAndToolTips();
     void popoverStyleFunctions();
     void screenshots();
+    void viewDestroyedSilently();
 };
 
 void AppDocumentViewTest::initTestCase()
@@ -757,6 +758,29 @@ void AppDocumentViewTest::textSelectionCommands()
     QVERIFY(view->executeCommand(pdf::PDFAppCommands::selectAll()));
     QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
     QTRY_VERIFY(view->hasTextSelection());
+}
+
+void AppDocumentViewTest::viewDestroyedSilently()
+{
+    // RT4: the destructor of the view detached the tool manager from the document,
+    // the Select text tool cleared its selection and the dying view emitted
+    // viewStateChanged (its receivers read a view being destroyed)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Dying.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(view->executeCommand(pdf::PDFAppCommands::selectAll()));
+    QTRY_VERIFY(view->hasTextSelection());
+    pdftest::AppDocumentFixture::settle();
+
+    int emitted = 0;
+    bool isDying = false;
+    QObject receiver;
+    QObject::connect(view, &pdf::PDFAppDocumentView::viewStateChanged, &receiver, [&emitted, &isDying]() { emitted += isDying ? 1 : 0; });
+    isDying = true;
+    delete tab;
+    QCOMPARE(emitted, 0);
+    pdftest::AppDocumentFixture::settle();
 }
 
 void AppDocumentViewTest::selectMenuTools()

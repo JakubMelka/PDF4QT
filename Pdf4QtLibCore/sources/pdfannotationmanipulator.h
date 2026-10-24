@@ -56,7 +56,7 @@ public:
     /// transformations can be applied to it faithfully.
     enum class GeometryKind
     {
-        /// The annotation is not supported by the manipulator (links, widgets, popups, ...)
+        /// The annotation is not supported by the manipulator (widgets, popups, ...)
         NotSupported,
 
         /// Geometry is a set of points (lines, polygons, ink paths, text markup
@@ -65,9 +65,11 @@ public:
         Points,
 
         /// Geometry is the axis aligned rectangle of the annotation (squares,
-        /// circles, free text, carets). Scaling, mirroring and rotations by
+        /// circles, free text, carets, links). Scaling, mirroring and rotations by
         /// a multiple of 90 degrees are exact, a general rotation just moves
-        /// the annotation, because such shapes cannot be rotated in PDF.
+        /// the annotation, because such shapes cannot be rotated in PDF. The
+        /// QuadPoints of a link follow its rectangle (they stay inside of it),
+        /// a link has no appearance created by the library (it keeps its own).
         Box,
 
         /// The annotation is an icon with a fixed size (sticky notes, file
@@ -450,6 +452,13 @@ private:
     /// of the callout line of a free text annotation is transformed exactly, the
     /// text box with the rest of the callout line follows it. Returns the new
     /// annotation rectangle.
+    /// Transforms the QuadPoints of a link by the transformation, which has been applied to
+    /// its rectangle, and keeps them inside of its new rectangle (ISO 32000-2, 12.5.6.5: the
+    /// quadrilaterals are ignored, if they lie outside of the rectangle). A link without
+    /// QuadPoints (fewer than two numbers) is just its rectangle; a trailing unpaired number
+    /// is dropped.
+    static void transformLinkQuadPoints(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const QTransform& transform, const QRectF& rectangle);
+
     static QRectF moveBox(PDFDictionaryBuilder& dictionary,
                           const PDFObjectStorage* storage,
                           const PDFAnnotation* annotation,

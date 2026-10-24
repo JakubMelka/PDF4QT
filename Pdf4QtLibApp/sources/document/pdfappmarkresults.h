@@ -44,7 +44,6 @@ class QVBoxLayout;
 namespace pdf
 {
 
-class PDFAppAnnotationCreator;
 class PDFAppDocumentOperation;
 class PDFAppDocumentSearchController;
 class PDFAppDocumentView;
@@ -174,7 +173,7 @@ public:
     /// Interval of the updates of the progress of the worker (ms)
     static constexpr int PROGRESS_INTERVAL = 100;
 
-    explicit PDFAppMarkResults(PDFAppDocumentView* view, PDFAppAnnotationCreator* creator, QObject* parent);
+    explicit PDFAppMarkResults(PDFAppDocumentView* view, QObject* parent);
     virtual ~PDFAppMarkResults() override;
 
     PDFAppDocumentView* getView() const;
@@ -232,7 +231,6 @@ private:
     using Watcher = QFutureWatcher<PDFAppMarkResultsOutcome>;
 
     QPointer<PDFAppDocumentView> m_view;
-    QPointer<PDFAppAnnotationCreator> m_creator;
     QPointer<PDFAppDocumentSearchController> m_searchController;
     QPointer<PDFAppMarkResultsMenu> m_menu;
     QPointer<Watcher> m_watcher;

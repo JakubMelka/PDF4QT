@@ -28,6 +28,7 @@
 #include <QMenuBar>
 #include <QPainter>
 #include <QStyleOptionMenuItem>
+#include <QWidgetAction>
 
 namespace pdf
 {
@@ -48,7 +49,7 @@ public:
     static constexpr int ITEM_PADDING = 10;
     static constexpr int ITEM_ICON = 16;
     static constexpr int ITEM_GAP = 10;
-    static constexpr int ITEM_SHORTCUT_GAP = 24;
+    static constexpr int ITEM_SHORTCUT_GAP = 10;    ///< Label to shortcut (1019:18817, 619:1471)
     static constexpr int ITEM_MIN_WIDTH = 186;      ///< Panel of 200 px without its border and padding
     static constexpr int SEPARATOR_HEIGHT = 7;
     static constexpr int SEPARATOR_MARGIN = 4;
@@ -61,6 +62,10 @@ public:
 private:
     static bool hasRightSlot(const QStyleOptionMenuItem* option);
     static bool isDestructive(const QStyleOptionMenuItem* option, const QWidget* widget);
+
+    /// Width, which QMenu adds to its widest item for the shortcuts: the widest shortcut
+    /// measured by the font of the menu (QMenuPrivate::updateActionRects)
+    static int getMenuShortcutColumnWidth(const QMenu* menu);
 
     void drawMenuItem(const QStyleOptionMenuItem* option, QPainter* painter, const QWidget* widget) const;
     void drawMenuBarItem(const QStyleOptionMenuItem* option, QPainter* painter, const QWidget* widget) const;
@@ -89,6 +94,46 @@ bool PDFWidgetStyleMenus::isDestructive(const QStyleOptionMenuItem* option, cons
 
     const QAction* action = menu->actionAt(option->rect.center());
     return action && PDFWidgetStyleProperties::isSet(action, PDFWidgetStyleProperties::DESTRUCTIVE);
+}
+
+int PDFWidgetStyleMenus::getMenuShortcutColumnWidth(const QMenu* menu)
+{
+    if (!menu)
+    {
+        return 0;
+    }
+
+    // The same texts as QMenuPrivate::updateActionRects: the text after a tabulator,
+    // or the shortcut of the action. Qt shows the shortcut of an action, which is not
+    // visible in context menus, also in a menu of a menu bar; such shortcuts and widget
+    // actions are left out - a smaller column only makes the menu wider, never cuts a text.
+    const QFontMetrics fontMetrics = menu->fontMetrics();
+    int width = 0;
+    for (const QAction* action : menu->actions())
+    {
+        if (!action || !action->isVisible() || action->isSeparator() || qobject_cast<const QWidgetAction*>(action))
+        {
+            continue;
+        }
+
+        const QString text = action->text();
+        QString shortcut;
+        if (text.contains(QLatin1Char('\t')))
+        {
+            shortcut = text.section(QLatin1Char('\t'), 1);
+        }
+        else if (action->isShortcutVisibleInContextMenu())
+        {
+            shortcut = action->shortcut().toString(QKeySequence::NativeText);
+        }
+
+        if (!shortcut.isEmpty())
+        {
+            width = qMax(width, fontMetrics.horizontalAdvance(shortcut));
+        }
+    }
+
+    return width;
 }
 
 bool PDFWidgetStyleMenus::drawPrimitive(QStyle::PrimitiveElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const
@@ -232,22 +277,27 @@ bool PDFWidgetStyleMenus::sizeFromContents(QStyle::ContentsType type, const QSty
                 return true;
             }
 
-            // 10 + icon 16 + 10 + text (+ 24 before the shortcut) + 10 (+ right slot 16 + 10).
-            // The width of the shortcut itself is added by the menu.
+            // 10 + icon 16 + 10 + text (+ 10 + shortcut Regular 12) + 10 (+ right slot 16 + 10).
+            // QMenu adds a column of the widest shortcut (measured by its own font) to its
+            // widest item, so the item gives its width without that column: the menu is as
+            // wide as its widest row of the design, not as the widest label plus the widest
+            // shortcut of another row.
             const QString label = menuItem->text.section(QLatin1Char('\t'), 0, 0);
-            const bool hasShortcut = menuItem->text.contains(QLatin1Char('\t'));
+            const QString shortcut = menuItem->text.section(QLatin1Char('\t'), 1);
 
             int width = ITEM_PADDING + ITEM_ICON + ITEM_GAP + PDFWidgetStyleImpl::getTextWidth(label, PDFWidgetStyleImpl::getFont(widget, Font::Body)) + ITEM_PADDING;
-            if (hasShortcut)
+            if (!shortcut.isEmpty())
             {
-                width += ITEM_SHORTCUT_GAP;
+                width += ITEM_SHORTCUT_GAP + PDFWidgetStyleImpl::getTextWidth(shortcut, PDFThemeFonts::getFont(Font::Small));
             }
             if (menuItem->menuItemType == QStyleOptionMenuItem::SubMenu || menuItem->checkType != QStyleOptionMenuItem::NotCheckable)
             {
                 width += ITEM_ICON + ITEM_GAP;
             }
 
-            size = QSize(qMax(ITEM_MIN_WIDTH, width), ITEM_HEIGHT);
+            // An empty size removes the item from the menu, so the width is at least 1
+            const int shortcutColumnWidth = getMenuShortcutColumnWidth(qobject_cast<const QMenu*>(widget));
+            size = QSize(qMax(1, qMax(ITEM_MIN_WIDTH, width) - shortcutColumnWidth), ITEM_HEIGHT);
             return true;
         }
 

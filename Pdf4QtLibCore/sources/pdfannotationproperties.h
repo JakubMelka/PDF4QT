@@ -81,6 +81,7 @@ public:
     static constexpr PDFReal MAXIMUM_BORDER_WIDTH = 100.0;
     static constexpr PDFReal MINIMUM_FONT_SIZE = 1.0;
     static constexpr PDFReal MAXIMUM_FONT_SIZE = 512.0;
+    static constexpr qsizetype MAXIMUM_FONT_FAMILY_LENGTH = 127;   ///< The family is a PDF name of DA (limit 127 bytes)
     static constexpr PDFReal MAXIMUM_LEADER_LINE = 10000.0;
     static constexpr size_t MAXIMUM_DASH_ITEMS = 16;
     static constexpr PDFReal MAXIMUM_DASH_LENGTH = 1000.0;
@@ -145,6 +146,15 @@ public:
 
     /// Bounds every value (texts, numbers, colors, names, the dash pattern)
     static PDFAnnotationProperties bound(PDFAnnotationProperties properties);
+
+    /// Bounds the style of a text box - the one rule for every untrusted source (the
+    /// dictionary of an annotation, the stored style of the tool, the dialogs): the family
+    /// without the null characters and trimmed, an empty one or one longer than
+    /// MAXIMUM_FONT_FAMILY_LENGTH is Helvetica (a cut family would be another font); the
+    /// size MINIMUM_FONT_SIZE - MAXIMUM_FONT_SIZE (not finite = 10); an invalid text color
+    /// is black; exactly one of left / center / right, anything else (none, more of them,
+    /// justify) is left; the text is always at the top
+    static PDFFreeTextStyle boundFreeTextStyle(PDFFreeTextStyle style);
 
     /// Writes the fields of \p fields (intersected with the supported fields of
     /// the annotation) and creates the appearance stream again.

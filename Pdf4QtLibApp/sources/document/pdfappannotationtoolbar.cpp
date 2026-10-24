@@ -200,13 +200,11 @@ void PDFAppAnnotationToolBar::clearParts()
             delete item;
         }
     }
-    m_parts.clear();
     setFoldableSwatchRow(nullptr);
 }
 
 void PDFAppAnnotationToolBar::addPart(QWidget* widget)
 {
-    m_parts.emplace_back(widget);
     addWidget(widget);
 }
 
@@ -279,7 +277,7 @@ void PDFAppAnnotationToolBar::buildParts()
     toolLayout->addWidget(m_icon);
     toolLayout->addWidget(m_name);
     addPart(toolBlock);
-    m_parts.emplace_back(addDivider());
+    addDivider();
 
     m_hint = nullptr;
     m_stepBadge = nullptr;
@@ -289,7 +287,6 @@ void PDFAppAnnotationToolBar::buildParts()
     m_widthSelect = nullptr;
     m_targetSelect = nullptr;
     m_backButton = nullptr;
-    m_backDivider = nullptr;
 
     if (kind == Kind::PageLink)
     {
@@ -305,7 +302,7 @@ void PDFAppAnnotationToolBar::buildParts()
         stepLayout->addWidget(m_stepBadge);
         stepLayout->addWidget(m_instruction);
         addPart(stepBlock);
-        m_parts.emplace_back(addDivider());
+        addDivider();
 
         // target 1169:26839: Select "Target  Whole page" with the Target menu
         m_targetSelect = new PDFAppPageLinkTargetSelect(this);
@@ -361,7 +358,7 @@ void PDFAppAnnotationToolBar::buildParts()
         if (PDFAppAnnotationTools::hasWidth(kind))
         {
             // line-width 207:6757: Select "Width  2 pt", 111 x 32
-            m_parts.emplace_back(addDivider());
+            addDivider();
             m_widthSelect = new PDFComboBox(this);
             m_widthSelect->setObjectName(QStringLiteral("toolWidth"));
             for (PDFReal width : PDFAppAnnotationTools::getPenWidths())
@@ -379,7 +376,7 @@ void PDFAppAnnotationToolBar::buildParts()
     }
 
     // tool-close 207:6299: Tab close button 20
-    m_parts.emplace_back(addDivider());
+    addDivider();
     m_closeButton = new PDFIconButton(QStringLiteral("x"), PDFIconButton::Size::TabClose, this);
     m_closeButton->setObjectName(QStringLiteral("toolClose"));
     connect(m_closeButton.data(), &QAbstractButton::clicked, this, &PDFAppAnnotationToolBar::onCloseClicked);

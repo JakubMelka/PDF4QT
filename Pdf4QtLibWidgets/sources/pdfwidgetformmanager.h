@@ -112,10 +112,10 @@ public:
     /// Tab order of the pages (ISO 32000-2, 12.5.1, entry Tabs of the page): Tab moves
     /// through the fields page by page, on a page in the order of its entry Tabs (R rows,
     /// C columns; S, A, W or no entry - the order of the array Annots), it skips read
-    /// only fields and hidden widgets, and it cycles - after the last field the first
-    /// one, before the first field the last one (focusNextPrevFormField). Off by default:
-    /// the order of the field tree, every field, and the focus leaves the fields after
-    /// the last one (the old applications).
+    /// only fields and hidden widgets; after the last field (Shift+Tab: before the first
+    /// one) the focus leaves the fields to the next widget of the window, the keyboard is
+    /// never trapped (focusNextPrevFormField). Off by default: the order of the field
+    /// tree with every field (the old applications).
     // TODO(remove-old-apps): the tab order of the pages becomes the only order - the switch and the order of the field tree go
     void setPageTabOrder(bool pageTabOrder) { m_isPageTabOrder = pageTabOrder; }
     bool isPageTabOrder() const { return m_isPageTabOrder; }

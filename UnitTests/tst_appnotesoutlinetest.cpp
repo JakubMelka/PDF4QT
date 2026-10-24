@@ -461,6 +461,30 @@ public:
             builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
             builder.setDocumentInfo(c);
         }
+        else if (kind == QStringLiteral("annotationItem"))
+        {
+            // /Next reaches an annotation of the page
+            builder.setObject(c, dictionary({ { "Type", name("Annot") }, { "Subtype", name("Text") }, { "Contents", text(QStringLiteral("Note")) },
+                                              { "Rect", array({ integer(10), integer(10), integer(30), integer(30) }) }, { "P", reference(page) } }));
+            builder.mergeTo(page, dictionary({ { "Annots", array({ reference(c) }) } }));
+            builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
+        }
+        else if (kind == QStringLiteral("acroFormItem"))
+        {
+            // /Next reaches the interactive form (a dictionary without /Type): the
+            // outline is editable, but the form is never emptied (review RC-CD)
+            builder.setObject(c, dictionary({ { "Fields", array({}) }, { "DA", pdf::PDFObject::createString(QByteArray("/Helv 0 Tf 0 g")) } }));
+            builder.mergeTo(builder.getCatalogReference(), dictionary({ { "AcroForm", reference(c) } }));
+            builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
+        }
+        else if (kind == QStringLiteral("titledAcroForm"))
+        {
+            // The same with a form, which looks like an item of this outline (a
+            // /Title and the /Parent of the outline): the catalog references it
+            builder.setObject(c, dictionary({ { "Fields", array({}) }, { "Title", text(QStringLiteral("Form")) }, { "Parent", reference(root) } }));
+            builder.mergeTo(builder.getCatalogReference(), dictionary({ { "AcroForm", reference(c) } }));
+            builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
+        }
         builder.mergeTo(builder.getCatalogReference(), dictionary({ { "Outlines", reference(root) } }));
         return write(builder, folder, QStringLiteral("hostile-%1.pdf").arg(kind));
     }
@@ -526,6 +550,7 @@ private slots:
     void reviewStaleCurrentItem();
     void reviewGroupMembersNotDeleted();
     void reviewNotesMenuEmptyArea();
+    void reviewOutlineEditableCache();
     void screenshots();
 };
 
@@ -912,7 +937,7 @@ void AppNotesOutlineTest::outlineHostile()
     // the editing would write /Parent, /Prev, /Next into the page (its page tree) or
     // empty the object of a removed item - such an outline is read only, a new
     // outline replacing it leaves the objects untouched
-    for (const QString& kind : { QStringLiteral("pageItem"), QStringLiteral("infoItem") })
+    for (const QString& kind : { QStringLiteral("pageItem"), QStringLiteral("infoItem"), QStringLiteral("annotationItem") })
     {
         document = H::read(H::hostileOutline(folder.path(), kind));
         QVERIFY2(document, qPrintable(kind));
@@ -936,6 +961,61 @@ void AppNotesOutlineTest::outlineHostile()
         {
             QCOMPARE(changed->getObjectByReference(info), infoObject);
         }
+    }
+
+    // An item, which is the interactive form (review RC-CD): the outline is
+    // editable, a removed item is emptied only when it is provably an item of
+    // this outline referenced by nothing else - the form is only unlinked
+    for (const QString& kind : { QStringLiteral("acroFormItem"), QStringLiteral("titledAcroForm") })
+    {
+        document = H::read(H::hostileOutline(folder.path(), kind));
+        QVERIFY2(document, qPrintable(kind));
+        QCOMPARE(H::titles(document.data()).size(), 2);
+        QVERIFY2(Operations::isOutlineEditable(document.data()), qPrintable(kind));
+        const std::vector<pdf::PDFObjectReference> items = Operations::getOutlineItemReferences(document.data());
+        QCOMPARE(items.size(), size_t(2));
+        const pdf::PDFObject formObject = document->getObjectByReference(items[1]);
+        QVERIFY(formObject.isDictionary() && formObject.getDictionary()->hasKey("Fields"));
+
+        // The form removed: unlinked, the object of the form unchanged
+        changed = H::apply(Operations::removeOutlineItem(document, { 1 }));
+        QVERIFY2(changed, qPrintable(kind));
+        QCOMPARE(H::titles(changed.data()), QStringList({ "A" }));
+        QCOMPARE(H::checkStructure(changed.data()), QString());
+        QCOMPARE(changed->getObjectByReference(items[1]), formObject);
+
+        // The real item removed: emptied (only the outline referenced it)
+        changed = H::apply(Operations::removeOutlineItem(document, { 0 }));
+        QVERIFY2(changed, qPrintable(kind));
+        QCOMPARE(H::titles(changed.data()).size(), 1);
+        QVERIFY(changed->getObjectByReference(items[0]).isNull());
+        QVERIFY(changed->getObjectByReference(items[1]).isDictionary());
+        QVERIFY(changed->getObjectByReference(items[1]).getDictionary()->hasKey("Fields"));
+
+        // A new outline: the old real item emptied, the form untouched
+        changed = H::apply(Operations::setOutline(document, nullptr));
+        QVERIFY2(changed, qPrintable(kind));
+        QVERIFY(H::titles(changed.data()).isEmpty());
+        QVERIFY(changed->getObjectByReference(items[0]).isNull());
+        QCOMPARE(changed->getObjectByReference(items[1]), formObject);
+    }
+
+    // A removed item, which another object of the document references (here an
+    // entry of the catalog), is unlinked, not emptied
+    {
+        document = H::read(H::richOutline(folder.path()));
+        QVERIFY(document);
+        const std::vector<pdf::PDFObjectReference> items = Operations::getOutlineItemReferences(document.data());
+        QCOMPARE(items.size(), size_t(3));
+        const pdf::PDFObject childObject = document->getObjectByReference(items[2]);
+        pdf::PDFDocumentBuilder builder(document.data());
+        builder.mergeTo(builder.getCatalogReference(), H::dictionary({ { "XReferencesChild", H::reference(items[2]) } }));
+        pdf::PDFDocumentPointer referencing(new pdf::PDFDocument(builder.build()));
+        changed = H::apply(Operations::removeOutlineItem(referencing, { 1 }));
+        QVERIFY(changed);
+        QCOMPARE(H::titles(changed.data()), QStringList({ "Web" }));
+        QVERIFY(changed->getObjectByReference(items[1]).isNull());
+        QCOMPARE(changed->getObjectByReference(items[2]), childObject);
     }
 
     // Too deep: read only; at the limit: editable, but nothing goes deeper
@@ -2817,6 +2897,49 @@ void AppNotesOutlineTest::reviewGroupMembersNotDeleted()
     QCOMPARE(primaryThread, std::vector<pdf::PDFObjectReference>({ notes[0].reference, notes[2].reference }));
     const std::vector<pdf::PDFObjectReference> memberThread = model.getThreads({ notes[1].reference });
     QCOMPARE(memberThread, std::vector<pdf::PDFObjectReference>({ notes[1].reference, notes[3].reference }));
+}
+
+void AppNotesOutlineTest::reviewOutlineEditableCache()
+{
+    using H = NotesOutlineTestHelper;
+
+    // Wrap-up RC-CD: the editability of the outline was read again (the whole
+    // outline) at every commit; a change of annotations or of form fields keeps it
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    QVERIFY(tab);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+    QVERIFY(document->isReady());
+    QVERIFY(editor->isEditingAllowed());
+
+    // A document, whose outline cannot be edited (shared children), committed as a
+    // change of annotations: the outline is not read again (the probe shows it)
+    const pdf::PDFDocumentPointer shared = H::read(H::hostileOutline(fixture.folder(), QStringLiteral("shared")));
+    QVERIFY(shared);
+    QVERIFY(!pdf::PDFAppAnnotationOperations::isOutlineEditable(shared.data()));
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(shared, nullptr, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Annotation)),
+                             QStringLiteral("Annotation"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QVERIFY(editor->isEditingAllowed());
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(shared, nullptr, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::FormField | pdf::PDFModifiedDocument::Annotation)),
+                             QStringLiteral("Form"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QVERIFY(editor->isEditingAllowed());
+
+    // A change of the outline, of the pages or a reset reads it again
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(shared, nullptr, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Outline)),
+                             QStringLiteral("Outline"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QVERIFY(!editor->isEditingAllowed());
+    QTemporaryDir otherFolder;
+    const pdf::PDFDocumentPointer editable = H::read(pdftest::AppDocumentSamples::outline(otherFolder.path()));
+    QVERIFY(editable);
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(editable, nullptr, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::PageContents)),
+                             QStringLiteral("Pages"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QVERIFY(editor->isEditingAllowed());
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(shared, nullptr, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset)),
+                             QStringLiteral("Reset"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QVERIFY(!editor->isEditingAllowed());
+    fixture.settle();
 }
 
 void AppNotesOutlineTest::reviewNotesMenuEmptyArea()

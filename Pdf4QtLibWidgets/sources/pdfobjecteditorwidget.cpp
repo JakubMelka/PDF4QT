@@ -51,6 +51,7 @@ namespace pdf
 
 PDFObjectEditorWidget::PDFObjectEditorWidget(EditObjectType type, QWidget* parent) :
     BaseClass(parent),
+    m_model(nullptr),
     m_mapper(nullptr),
     m_tabWidget(nullptr)
 {
@@ -71,8 +72,17 @@ PDFObjectEditorWidget::PDFObjectEditorWidget(EditObjectType type, QWidget* paren
     }
     Q_ASSERT(model);
 
+    m_model = model;
     m_mapper = new PDFObjectEditorWidgetMapper(model, this);
     m_mapper->initialize(m_tabWidget);
+}
+
+void PDFObjectEditorWidget::setStorage(const PDFObjectStorage* storage)
+{
+    if (m_model)
+    {
+        m_model->setStorage(storage);
+    }
 }
 
 void PDFObjectEditorWidget::setObject(PDFObject object)
@@ -1140,6 +1150,11 @@ PDFEditObjectDialog::PDFEditObjectDialog(EditObjectType type, QWidget* parent) :
 
     setMinimumSize(PDFWidgetUtils::scaleDPI(this, QSize(480, 320)));
     pdf::PDFWidgetUtils::style(this);
+}
+
+void PDFEditObjectDialog::setStorage(const PDFObjectStorage* storage)
+{
+    m_widget->setStorage(storage);
 }
 
 void PDFEditObjectDialog::setObject(PDFObject object)

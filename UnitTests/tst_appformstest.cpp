@@ -531,6 +531,7 @@ private slots:
     void comboAndListBox();
     void pushButtonResetForm();
     void reviewResetFormByLink();
+    void reviewResetFormWithoutChange();
     void reviewPendingEditsCommitPoints();
     void highlightSettings();
     void readOnlyField();
@@ -849,6 +850,52 @@ void AppFormsTest::reviewResetFormByLink()
     // The description is not left for the next change
     QVERIFY(H::click(tab, QStringLiteral("agree")));
     QCOMPARE(tab->getDocument()->getUndoStack()->getUndoDescription(), QStringLiteral("Fill form field"));
+}
+
+void AppFormsTest::reviewResetFormWithoutChange()
+{
+    using H = FormsTestHelper;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFWidgetFormManager* formManager = tab->getView()->getFormManager();
+    QVERIFY(formManager);
+    const pdf::PDFObjectStorage storage;
+    const pdf::PDFActionPtr reset = pdf::PDFAction::parse(&storage, H::dictionary({ { "S", H::name("ResetForm") } }));
+    QVERIFY(reset && reset->getType() == pdf::ActionType::ResetForm);
+    const pdf::PDFActionResetForm* resetAction = static_cast<const pdf::PDFActionResetForm*>(reset.data());
+
+    // The values of the sample are not their defaults: the reset is one step
+    QVERIFY(pdf::PDFAppFormController::isResetEffective(formManager, resetAction));
+    QVERIFY(H::click(tab, QStringLiteral("reset")));
+    QTRY_COMPARE(H::undoCount(tab), 1);
+    const pdf::PDFDocument* resetDocument = tab->getDocument()->getDocument().data();
+
+    // A form at its defaults: no change, no undo step (review RC-CD) - the push
+    // button and the action of a link annotation
+    QVERIFY(!pdf::PDFAppFormController::isResetEffective(formManager, resetAction));
+    QVERIFY(H::click(tab, QStringLiteral("reset")));
+    fixture.settle();
+    QCOMPARE(H::undoCount(tab), 1);
+    Q_EMIT tab->getView()->getAnnotationManager()->actionTriggered(reset.data());
+    fixture.settle();
+    QCOMPARE(H::undoCount(tab), 1);
+    QCOMPARE(tab->getDocument()->getDocument().data(), resetDocument);
+    QVERIFY(tab->getView()->getAnnotationController()->getPendingDescription().isEmpty());
+
+    // One field changed: the reset is a step again; a check box checked by the
+    // user (another appearance state) too
+    QVERIFY(H::click(tab, QStringLiteral("agree")));
+    QCOMPARE(H::undoCount(tab), 2);
+    QVERIFY(pdf::PDFAppFormController::isResetEffective(formManager, resetAction));
+    QVERIFY(H::click(tab, QStringLiteral("reset")));
+    QTRY_COMPARE(H::undoCount(tab), 3);
+    QCOMPARE(tab->getDocument()->getUndoStack()->getUndoDescription(), QStringLiteral("Reset form"));
+    QVERIFY(!pdf::PDFAppFormController::isResetEffective(formManager, resetAction));
+
+    // Nothing for no form manager, no action and a read-only form
+    QVERIFY(!pdf::PDFAppFormController::isResetEffective(nullptr, resetAction));
+    QVERIFY(!pdf::PDFAppFormController::isResetEffective(formManager, nullptr));
 }
 
 void AppFormsTest::reviewPendingEditsCommitPoints()
@@ -1413,27 +1460,45 @@ void AppFormsTest::keyboardTab()
     H::key(tab, Qt::Key_Backtab, Qt::ShiftModifier);
     QCOMPARE(H::focusedFieldName(tab), QStringLiteral("name"));
 
-    // Every field, which can be filled, is reached by Tab in the order of the page
-    // (entry Tabs); the read only field is skipped; after the last field the first one
-    // comes again (the focus cycles), Esc leaves the field
+    // Shift+Tab before the first field leaves the canvas to the previous widget of the
+    // window - the keyboard is never trapped in the form (O20, WCAG 2.1.2)
+    QWidget* window = H::canvas(tab)->window();
+    for (int i = 0; i < 40 && !H::focusedFieldName(tab).isEmpty(); ++i)
+    {
+        H::key(tab, Qt::Key_Backtab, Qt::ShiftModifier);
+    }
+    QVERIFY(H::focusedFieldName(tab).isEmpty());
+    QVERIFY(window->focusWidget());
+    QVERIFY(window->focusWidget() != H::canvas(tab));
+    QVERIFY(!H::canvas(tab)->isAncestorOf(window->focusWidget()));
+
+    // Every field, which can be filled, is reached by Tab from the canvas in the order
+    // of the page (entry Tabs); the read only field is skipped; after the last field
+    // the focus leaves the canvas to the next widget of the window
+    H::canvas(tab)->setFocus(Qt::TabFocusReason);
+    H::key(tab, Qt::Key_Tab);
     QStringList visited;
-    for (int i = 0; i < 40; ++i)
+    for (int i = 0; i < 40 && !H::focusedFieldName(tab).isEmpty(); ++i)
     {
         visited << H::focusedFieldName(tab);
         H::key(tab, Qt::Key_Tab);
-        if (H::focusedFieldName(tab) == QStringLiteral("name"))
-        {
-            break;
-        }
     }
-    QCOMPARE(H::focusedFieldName(tab), QStringLiteral("name"));
-    QVERIFY(!visited.contains(QString()));
+    QVERIFY(H::focusedFieldName(tab).isEmpty());
+    QVERIFY(window->focusWidget());
+    QVERIFY(window->focusWidget() != H::canvas(tab));
+    QVERIFY(!H::canvas(tab)->isAncestorOf(window->focusWidget()));
     for (const char* name : { "name", "notes", "code", "secret", "required", "total", "agree", "fruit", "colors", "reset" })
     {
         QVERIFY2(visited.contains(QString::fromLatin1(name)), name);
     }
     QVERIFY(!visited.contains(QStringLiteral("fixed")));
     QCOMPARE(visited.size(), int(H::formManager(tab)->getTabOrder().size()));
+    QCOMPARE(visited.front(), QStringLiteral("name"));
+
+    // Back in the canvas, Tab starts at the first field again; Esc leaves the field
+    H::canvas(tab)->setFocus(Qt::TabFocusReason);
+    H::key(tab, Qt::Key_Tab);
+    QCOMPARE(H::focusedFieldName(tab), QStringLiteral("name"));
     H::key(tab, Qt::Key_Escape);
     QVERIFY(H::focusedFieldName(tab).isEmpty());
     QVERIFY(!tab->getDocument()->hasPendingEdits());
@@ -1479,8 +1544,9 @@ void AppFormsTest::keyboardTabScrolls()
         H::key(tab, Qt::Key_Tab);
     }
 
-    // The focus cycles: after the last field (page 2) the first one again
-    QCOMPARE(H::focusedFieldName(tab), QStringLiteral("first"));
+    // After the last field (page 2) the focus leaves the canvas (no keyboard trap)
+    QVERIFY(H::focusedFieldName(tab).isEmpty());
+    QVERIFY(H::canvas(tab)->window()->focusWidget() != H::canvas(tab));
 }
 
 void AppFormsTest::signedDocumentFill()

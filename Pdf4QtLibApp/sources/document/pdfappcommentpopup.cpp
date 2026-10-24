@@ -1117,6 +1117,13 @@ void PDFAppCommentPopup::onPrimaryClicked()
 
 void PDFAppCommentPopup::onReplyTextChanged()
 {
+    // Typing into the shown reply field enables the primary button only: the
+    // annotation is not read again at every key (review RC-B)
+    if (m_mode == Mode::Thread && !m_isEditingContents && m_replyField->isVisibleTo(this))
+    {
+        m_primaryButton->setEnabled(!m_replyField->text().trimmed().isEmpty());
+        return;
+    }
     updateButtons();
 }
 

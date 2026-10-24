@@ -62,16 +62,14 @@ public:
         return color.isValid() ? color.toRgb() : QColor();
     }
 
-    /// Horizontal alignment of a text box (Q): left, center or right
+    /// Horizontal alignment of a text box (Q): exactly one of left, center or right,
+    /// anything else is left; the text is at the top
     static TextAlignment boundAlignment(TextAlignment alignment)
     {
-        if (alignment.testFlag(Qt::AlignHCenter))
+        const int horizontal = alignment.toInt() & int(Qt::AlignHorizontal_Mask);
+        if (horizontal == int(Qt::AlignHCenter) || horizontal == int(Qt::AlignRight))
         {
-            return TextAlignment(Qt::AlignHCenter | Qt::AlignTop);
-        }
-        if (alignment.testFlag(Qt::AlignRight))
-        {
-            return TextAlignment(Qt::AlignRight | Qt::AlignTop);
+            return TextAlignment(horizontal | int(Qt::AlignTop));
         }
         return TextAlignment(Qt::AlignLeft | Qt::AlignTop);
     }
@@ -343,6 +341,24 @@ PDFAnnotationProperties PDFAnnotationPropertyEditor::read(const PDFObjectStorage
     return bound(std::move(properties));
 }
 
+PDFFreeTextStyle PDFAnnotationPropertyEditor::boundFreeTextStyle(PDFFreeTextStyle style)
+{
+    using H = PDFAnnotationPropertyEditorHelper;
+    using P = PDFAnnotationProperties;
+
+    const PDFFreeTextStyle defaultStyle;
+    style.fontFamily.remove(QChar(u'\0'));
+    style.fontFamily = style.fontFamily.trimmed();
+    if (style.fontFamily.isEmpty() || style.fontFamily.size() > P::MAXIMUM_FONT_FAMILY_LENGTH)
+    {
+        style.fontFamily = defaultStyle.fontFamily;
+    }
+    style.fontSize = H::bound(style.fontSize, P::MINIMUM_FONT_SIZE, P::MAXIMUM_FONT_SIZE, defaultStyle.fontSize);
+    style.textColor = style.textColor.isValid() ? style.textColor.toRgb() : QColor(Qt::black);
+    style.textAlignment = H::boundAlignment(style.textAlignment);
+    return style;
+}
+
 PDFAnnotationProperties PDFAnnotationPropertyEditor::bound(PDFAnnotationProperties properties)
 {
     using H = PDFAnnotationPropertyEditorHelper;
@@ -388,15 +404,7 @@ PDFAnnotationProperties PDFAnnotationPropertyEditor::bound(PDFAnnotationProperti
         properties.iconName.clear();
     }
 
-    PDFFreeTextStyle& style = properties.freeTextStyle;
-    style.fontFamily = H::boundText(style.fontFamily, 127).trimmed();
-    if (style.fontFamily.isEmpty())
-    {
-        style.fontFamily = QStringLiteral("Helvetica");
-    }
-    style.fontSize = H::bound(style.fontSize, P::MINIMUM_FONT_SIZE, P::MAXIMUM_FONT_SIZE, 10.0);
-    style.textColor = style.textColor.isValid() ? style.textColor.toRgb() : QColor(Qt::black);
-    style.textAlignment = H::boundAlignment(style.textAlignment);
+    properties.freeTextStyle = boundFreeTextStyle(properties.freeTextStyle);
 
     properties.leaderLineLength = H::bound(properties.leaderLineLength, -P::MAXIMUM_LEADER_LINE, P::MAXIMUM_LEADER_LINE, 0.0);
     properties.leaderLineExtension = H::bound(properties.leaderLineExtension, 0.0, P::MAXIMUM_LEADER_LINE, 0.0);

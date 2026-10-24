@@ -635,15 +635,23 @@ private:
     /// stroked by strokeDashedPath.
     static void setBLPen(BLContext& context, const QPen& pen);
 
-    /// Strokes the path by the current dashed pen: the outline of the dashes
-    /// (QPainterPathStroker) is filled by the color of the pen
+    /// Strokes the path by the current dashed or cosmetic pen: the outline of the
+    /// dashes (QPainterPathStroker) is filled by the color of the pen. A cosmetic pen
+    /// (width 0, or QPen::setCosmetic) has its width and its dashes in device pixels at
+    /// every zoom, as QPainter draws it: the outline is made of the path mapped to the
+    /// device and it is filled without the transform.
     void strokeDashedPath(const QPainterPath& path);
 
     /// Largest number of dashes of one dashed stroke (a stroke of more dashes is solid)
     static constexpr qreal MAXIMUM_DASH_COUNT = 100000.0;
 
-    /// The current pen is dashed (strokeDashedPath draws it)
+    /// The current pen is dashed
     bool isStrokeDashed() const { return m_currentPen.style() > Qt::SolidLine && m_currentPen.style() <= Qt::CustomDashLine; }
+
+    /// The current pen is stroked by its outline (strokeDashedPath): a dashed pen, or a
+    /// cosmetic pen - the stroker of Blend2D draws nothing for the width 0 and it would
+    /// scale a cosmetic width by the zoom
+    bool isStrokeOutlined() const { return isStrokeDashed() || m_currentPen.isCosmetic(); }
 
     /// Set brush to the context
     static void setBLBrush(BLContext& context, const QBrush& brush);
@@ -956,7 +964,7 @@ void PDFBLPaintEngine::drawRects(const QRect* rects, int rectCount)
 
     if (isStrokeActive())
     {
-        if (isStrokeDashed())
+        if (isStrokeOutlined())
         {
             QPainterPath path;
             for (int i = 0; i < rectCount; ++i)
@@ -1014,7 +1022,7 @@ void PDFBLPaintEngine::drawRects(const QRectF* rects, int rectCount)
 
     if (isStrokeActive())
     {
-        if (isStrokeDashed())
+        if (isStrokeOutlined())
         {
             QPainterPath path;
             for (int i = 0; i < rectCount; ++i)
@@ -1076,7 +1084,7 @@ void PDFBLPaintEngine::drawLines(const QLine* lines, int lineCount)
             }
         }
 
-        if (isStrokeDashed())
+        if (isStrokeOutlined())
         {
             QPainterPath path;
             path.moveTo(line.p1());
@@ -1135,7 +1143,7 @@ void PDFBLPaintEngine::drawLines(const QLineF* lines, int lineCount)
             }
         }
 
-        if (isStrokeDashed())
+        if (isStrokeOutlined())
         {
             QPainterPath path;
             path.moveTo(line.p1());
@@ -1207,9 +1215,11 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
             if (isStrokeActive() && enableStroke)
             {
+                // A cosmetic pen is stroked in the device space (its width in pixels)
                 QPainterPathStroker stroker(m_currentPen);
-                QPainterPath strokedPath = stroker.createStroke(path);
-                QPainterPath transformedStrokedPath = m_currentTransform.map(strokedPath);
+                const bool isCosmetic = m_currentPen.isCosmetic();
+                QPainterPath strokedPath = stroker.createStroke(isCosmetic ? transformedPath : path);
+                QPainterPath transformedStrokedPath = isCosmetic ? strokedPath : m_currentTransform.map(strokedPath);
                 QPainterPath finalTransformedStrokedPath = PDFPathBoolean::intersect(transformedStrokedPath, m_finalClipPath.value());
 
                 if (!finalTransformedStrokedPath.isEmpty())
@@ -1235,7 +1245,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
     if (isStrokeActive() && enableStroke)
     {
-        if (isStrokeDashed())
+        if (isStrokeOutlined())
         {
             strokeDashedPath(path);
         }
@@ -1541,7 +1551,9 @@ void PDFBLPaintEngine::strokeDashedPath(const QPainterPath& path)
     // segments and tiny dashes would need billions of elements (QDashStroker
     // limits only the repetitions of one segment). Above the limit the path
     // is stroked solid (the dashes are too dense to be seen anyway).
-    const QList<qreal> pattern = m_currentPen.dashPattern();
+    const bool isCosmetic = m_currentPen.isCosmetic();
+    const QPainterPath strokedPath = isCosmetic ? m_currentTransform.map(path) : path;
+    const QList<qreal> pattern = isStrokeDashed() ? m_currentPen.dashPattern() : QList<qreal>();
     const qsizetype patternSize = qMin<qsizetype>(pattern.size(), 32);
     const qreal width = m_currentPen.widthF() > 0.0 ? m_currentPen.widthF() : 1.0;
     qreal patternLength = 0.0;
@@ -1549,24 +1561,41 @@ void PDFBLPaintEngine::strokeDashedPath(const QPainterPath& path)
     {
         patternLength += qMax(pattern[i], qreal(0.0)) * width;
     }
-    const qreal dashCount = patternLength > 0.0 ? path.length() / patternLength * qreal(patternSize / 2) : 0.0;
+    const qreal dashCount = patternLength > 0.0 ? strokedPath.length() / patternLength * qreal(patternSize / 2) : 0.0;
     if (!qIsFinite(dashCount) || dashCount > MAXIMUM_DASH_COUNT)
     {
-        blcompat::stroke_path(*m_blContext, getBLPath(path));
+        if (isCosmetic)
+        {
+            // Solid in the device space (the width in pixels)
+            m_blContext->save();
+            blcompat::reset_transform(*m_blContext);
+            blcompat::set_stroke_width(*m_blContext, width);
+            blcompat::stroke_path(*m_blContext, getBLPath(strokedPath));
+            m_blContext->restore();
+        }
+        else
+        {
+            blcompat::stroke_path(*m_blContext, getBLPath(path));
+        }
         return;
     }
 
     // The outline of the dashes in the user space (the stroke options of the
-    // context have the transform order "after"), filled by the color of the pen
-    // as the stroke draws it (style and alpha)
+    // context have the transform order "after"), or in the device space for
+    // a cosmetic pen, filled by the color of the pen as the stroke draws it
+    // (style and alpha)
     QPainterPathStroker stroker(m_currentPen);
-    const QPainterPath outline = stroker.createStroke(path);
+    const QPainterPath outline = stroker.createStroke(strokedPath);
     if (outline.isEmpty())
     {
         return;
     }
 
     m_blContext->save();
+    if (isCosmetic)
+    {
+        blcompat::reset_transform(*m_blContext);
+    }
     blcompat::set_fill_style(*m_blContext, BLRgba32(m_currentPen.color().rgba()));
     blcompat::set_fill_alpha(*m_blContext, m_currentPen.color().alphaF());
     blcompat::set_fill_rule(*m_blContext, BL_FILL_RULE_NON_ZERO);

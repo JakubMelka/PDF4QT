@@ -583,12 +583,33 @@ void PDFAppTextBoxPopup::updateState()
 void PDFAppTextBoxPopup::onTextChanged()
 {
     updateState();
-    Q_EMIT previewChanged();
+    schedulePreviewChanged();
 }
 
 void PDFAppTextBoxPopup::onValueChanged()
 {
-    Q_EMIT previewChanged();
+    schedulePreviewChanged();
+}
+
+void PDFAppTextBoxPopup::schedulePreviewChanged()
+{
+    // Slots of the signals of the text document and of the fields: previewChanged
+    // goes from the event loop, so its receivers may delete the tab (with this
+    // popup) while Qt is not on the stack (wrap-up item 10)
+    if (!m_isPreviewChangePending)
+    {
+        m_isPreviewChangePending = true;
+        QMetaObject::invokeMethod(this, &PDFAppTextBoxPopup::onPreviewChangeQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppTextBoxPopup::onPreviewChangeQueued()
+{
+    if (m_isPreviewChangePending)
+    {
+        m_isPreviewChangePending = false;
+        Q_EMIT previewChanged();
+    }
 }
 
 void PDFAppTextBoxPopup::watchApplication(bool watch)

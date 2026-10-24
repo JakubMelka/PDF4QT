@@ -13,7 +13,7 @@ A PDF form has fields, which you can fill in directly on the page: text fields, 
 1. Open the document with the form.
 2. Click a field and type its value, or choose a value of a list. Check boxes and radio buttons change by a click or by **Space**.
 3. **Enter** confirms a text field, **Esc** returns its previous value. A field is also confirmed, when you click elsewhere.
-4. **Tab** moves to the next field and **Shift+Tab** to the previous one; the page scrolls to the field.
+4. **Tab** moves to the next field and **Shift+Tab** to the previous one, page by page in the order of the fields of each page; the page scrolls to the field. After the last field **Tab** goes on to the next part of the window.
 5. Save the document by **Save**, or save a filled copy by **Save as**.
 
 Every confirmed field is one step, which **Undo** takes back. **Undo** in a field, which you are just typing, confirms the field first and then takes the step back – **Redo** gives your text back. **Save** and closing the document confirm the field you are typing in, so nothing you have typed is lost.

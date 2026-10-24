@@ -140,7 +140,8 @@ PDFAppFormController::PDFAppFormController(PDFAppDocumentView* view) :
         m_formManager = view->getFormManager();
         if (m_formManager)
         {
-            // Tab goes through the fields in the order of the pages (entry Tabs) and cycles
+            // Tab goes through the fields in the order of the pages (entry Tabs), after the
+            // last field the focus leaves the canvas (O20, no keyboard trap)
             m_formManager->setPageTabOrder(true);
         }
         if (PDFWidget* pdfWidget = view->getPdfWidget(); pdfWidget && pdfWidget->getDrawWidget())
@@ -641,6 +642,114 @@ void PDFAppFormController::onPendingEditsCommitRequested()
 QString PDFAppFormController::getResetFormDescription()
 {
     return tr("Reset form");
+}
+
+bool PDFAppFormController::isResetEffective(const PDFFormManager* formManager, const PDFActionResetForm* action)
+{
+    const PDFDocument* document = formManager ? formManager->getDocument() : nullptr;
+    if (!document || !action || formManager->isReadOnlyForm())
+    {
+        return false;
+    }
+
+    // The fields of the scope as PDFFormManager::performResetAction takes them
+    // (every field of the tree, the parents first)
+    const PDFObjectStorage& storage = document->getStorage();
+    PDFDocumentDataLoaderDecorator loader(document);
+    const PDFFormAction::FieldList& fieldList = action->getFieldList();
+    std::vector<const PDFFormField*> stack;
+    for (const PDFFormFieldPointer& field : formManager->getForm()->getFormFields())
+    {
+        stack.push_back(field.data());
+    }
+
+    while (!stack.empty())
+    {
+        const PDFFormField* field = stack.back();
+        stack.pop_back();
+        if (!field)
+        {
+            continue;
+        }
+        for (const PDFFormFieldPointer& child : field->getChildFields())
+        {
+            stack.push_back(child.data());
+        }
+
+        const bool isInFieldList = std::find(fieldList.fieldReferences.cbegin(), fieldList.fieldReferences.cend(), field->getSelfReference()) != fieldList.fieldReferences.cend() ||
+                                   fieldList.qualifiedNames.contains(field->getName(PDFFormField::NameType::FullyQualified));
+        const bool accepted = action->getFieldScope() == PDFFormAction::FieldScope::All ||
+                              (action->getFieldScope() == PDFFormAction::FieldScope::Include && isInFieldList) ||
+                              (action->getFieldScope() == PDFFormAction::FieldScope::Exclude && !isInFieldList);
+        if (!accepted)
+        {
+            continue;
+        }
+
+        const PDFObject& value = storage.getObject(field->getValue());
+        const PDFObject& defaultValue = storage.getObject(field->getDefaultValue());
+        switch (field->getFieldType())
+        {
+            case PDFFormField::FieldType::Button:
+            {
+                if (field->getFlags().testFlag(PDFFormField::PushButton))
+                {
+                    break;
+                }
+                if (value != defaultValue)
+                {
+                    return true;
+                }
+
+                // The appearance states, which the reset writes
+                const QByteArray defaultState = loader.readString(field->getDefaultValue());
+                for (const PDFFormWidget& widget : field->getWidgets())
+                {
+                    const QByteArray onState = PDFFormFieldButton::getOnAppearanceState(formManager, &widget);
+                    const QByteArray state = defaultState == onState ? onState : PDFFormFieldButton::getOffAppearanceState(formManager, &widget);
+                    const PDFDictionary* annotation = storage.getDictionaryFromObject(storage.getObjectByReference(widget.getWidget()));
+                    if (!annotation || loader.readNameFromDictionary(annotation, "AS") != state)
+                    {
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            case PDFFormField::FieldType::Text:
+            {
+                if (value != defaultValue)
+                {
+                    return true;
+                }
+                break;
+            }
+
+            case PDFFormField::FieldType::Choice:
+            {
+                if (value != defaultValue)
+                {
+                    return true;
+                }
+
+                const PDFFormFieldChoice* choice = dynamic_cast<const PDFFormFieldChoice*>(field);
+                if (choice && choice->isListBox())
+                {
+                    const PDFObject& selection = storage.getObject(choice->getSelection());
+                    if (choice->getTopIndex() != 0 || (selection.isArray() ? selection.getArray()->getCount() > 0 : !selection.isNull()))
+                    {
+                        return true;
+                    }
+                }
+                break;
+            }
+
+            default:
+                // Other fields are not reset (PDFFormField::resetValue)
+                break;
+        }
+    }
+    return false;
 }
 
 void PDFAppFormController::onInfoBarActionTriggered(const QString& infoBarId, const QString& actionId)

@@ -909,6 +909,24 @@ void WidgetStyleTest::sizesFromContents()
     QCOMPARE(m_style->sizeFromContents(QStyle::CT_MenuBarItem, &menuItem, QSize(), nullptr).height(), 28);
     QCOMPARE(m_style->sizeFromContents(QStyle::CT_MenuBar, nullptr, QSize(100, 10), nullptr).height(), 36);
 
+    // Menu with shortcuts (1019:18817, 619:1471): 10 px between a label and its shortcut (Regular 12),
+    // the menu is as wide as its widest row - a long label without a shortcut does not get the
+    // column of the shortcut of another row (QMenu adds the widest shortcut to the widest item)
+    {
+        const QString label = QStringLiteral("Paste at Original Position of the page");
+        QMenu oneRow;
+        oneRow.addAction(label + QStringLiteral("\tCtrl+Shift+V"));
+        QMenu twoRows;
+        twoRows.addAction(label);
+        twoRows.addAction(QStringLiteral("Cut\tCtrl+Shift+V"));
+        const int shortcutWidth = QFontMetrics(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Small)).horizontalAdvance(QStringLiteral("Ctrl+Shift+V"));
+        QVERIFY2(qAbs(oneRow.sizeHint().width() - twoRows.sizeHint().width() - (10 + shortcutWidth)) <= 1,
+                 qPrintable(QStringLiteral("%1 %2 %3").arg(oneRow.sizeHint().width()).arg(twoRows.sizeHint().width()).arg(shortcutWidth)));
+        QMenu noShortcut;
+        noShortcut.addAction(label);
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+    }
+
     // Tabs: chip 32 with the margin of the focus ring, row of the navigation 240 x 38 with the gap 2
     QStyleOptionTab tab;
     tab.shape = QTabBar::RoundedNorth;

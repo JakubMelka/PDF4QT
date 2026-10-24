@@ -79,6 +79,7 @@ private slots:
     void readOnlyFormFlag();
     void pageTabOrder_data();
     void pageTabOrder();
+    void emptyFieldVisit();
 };
 
 /// Creates the documents with the form fields
@@ -1629,7 +1630,8 @@ void FormFieldsTest::pageTabOrder()
     QVERIFY(!forms.getFocusedWidget().isValid());
 
     // On: the order of the pages and of their entry Tabs, without the read only field
-    // and the hidden widget; the focus cycles
+    // and the hidden widget; after the last field the focus leaves the fields (no
+    // keyboard trap, WCAG 2.1.2) and the next Tab starts at the first one again
     forms.setPageTabOrder(true);
     QCOMPARE(names(forms.getTabOrder()), expected);
     for (int round = 0; round < 2; ++round)
@@ -1639,18 +1641,25 @@ void FormFieldsTest::pageTabOrder()
             QVERIFY(forms.focusNextPrevFormField(true));
             QCOMPARE(name(forms.getFocusedWidget()), field);
         }
+        QVERIFY(!forms.focusNextPrevFormField(true));
+        QVERIFY(!forms.getFocusedWidget().isValid());
     }
-    QVERIFY(forms.focusNextPrevFormField(true));
-    QCOMPARE(name(forms.getFocusedWidget()), expected.front());
+
+    // Shift+Tab without a focused field starts at the last one, before the first field
+    // the focus leaves the fields
     QVERIFY(forms.focusNextPrevFormField(false));
     QCOMPARE(name(forms.getFocusedWidget()), expected.back());
     QVERIFY(forms.focusNextPrevFormField(false));
     QCOMPARE(name(forms.getFocusedWidget()), expected.at(expected.size() - 2));
-
-    // Shift+Tab without a focused field starts at the last one
-    forms.setFocusToEditor(nullptr);
-    QVERIFY(forms.focusNextPrevFormField(false));
+    QVERIFY(forms.focusNextPrevFormField(true));
     QCOMPARE(name(forms.getFocusedWidget()), expected.back());
+    for (qsizetype i = expected.size() - 2; i >= 0; --i)
+    {
+        QVERIFY(forms.focusNextPrevFormField(false));
+        QCOMPARE(name(forms.getFocusedWidget()), expected.at(i));
+    }
+    QVERIFY(!forms.focusNextPrevFormField(false));
+    QVERIFY(!forms.getFocusedWidget().isValid());
 
     // The read only field is reached, when read only fields can be edited
     forms.setFocusToEditor(nullptr);
@@ -1663,6 +1672,79 @@ void FormFieldsTest::pageTabOrder()
     QVERIFY(!forms.focusNextPrevFormField(true));
     QVERIFY(!forms.getFocusedWidget().isValid());
     QCOMPARE(fixture.modificationCount, 0);
+}
+
+void FormFieldsTest::emptyFieldVisit()
+{
+    // The old applications (no tab order of the pages, default flags): a text field
+    // without a value, which is only visited - by a click, Tab or keys, which leave its
+    // text empty -, and left by any loss of the focus is no change of the document (the
+    // fix of step 4; before it, every visit wrote an empty value /V () and the document
+    // was modified - the Editor showed unsaved changes after a click into a field)
+    FormFixture fixture(FormFieldsTabOrderHelper::createDocument(QByteArray(), 0));
+    PDFWidgetFormManager& forms = fixture.forms;
+    QWidget* target = fixture.widget.getDrawWidget()->getWidget();
+    const PDFObjectReference a = fixture.widgetReference(1);
+    const QPointF center(40, 160);
+    const QPointF outside(100, 60);
+    QVERIFY(!forms.isPageTabOrder());
+    QVERIFY(fixture.dictionary(a)->get("V").isNull());
+
+    auto key = [target](Qt::Key key, const QString& text)
+    {
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
+        QCoreApplication::sendEvent(target, &press);
+        QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
+        QCoreApplication::sendEvent(target, &release);
+    };
+
+    // A click and a click outside
+    fixture.click(center);
+    QVERIFY(forms.isFocused(a));
+    fixture.click(outside);
+    QVERIFY(!forms.isFocused(a));
+    QCOMPARE(fixture.modificationCount, 0);
+    QVERIFY(fixture.dictionary(a)->get("V").isNull());
+
+    // Tab through every field and out of them
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(forms.focusNextPrevFormField(true));
+    }
+    QVERIFY(!forms.focusNextPrevFormField(true));
+    QCOMPARE(fixture.modificationCount, 0);
+
+    // A text typed and deleted again, the focus removed by the application
+    fixture.click(center);
+    QVERIFY(forms.isFocused(a));
+    key(Qt::Key_X, QStringLiteral("x"));
+    key(Qt::Key_Backspace, QString());
+    forms.setFocusToEditor(nullptr);
+    QCOMPARE(fixture.modificationCount, 0);
+    QVERIFY(fixture.dictionary(a)->get("V").isNull());
+
+    // A typed text is committed by the loss of the focus
+    fixture.click(center);
+    key(Qt::Key_H, QStringLiteral("H"));
+    key(Qt::Key_I, QStringLiteral("i"));
+    fixture.click(outside);
+    QCOMPARE(fixture.modificationCount, 1);
+    PDFDocumentDataLoaderDecorator loader(fixture.document.data());
+    QCOMPARE(loader.readTextString(fixture.dictionary(a)->get("V"), QString()), QStringLiteral("Hi"));
+
+    // The text of a field with a value deleted - the empty value is a change
+    fixture.click(center);
+    QVERIFY(forms.isFocused(a));
+    for (int i = 0; i < 4; ++i)
+    {
+        key(Qt::Key_Backspace, QString());
+        key(Qt::Key_Delete, QString());
+    }
+    fixture.click(outside);
+    QCOMPARE(fixture.modificationCount, 2);
+    const PDFObject value = fixture.document->getObject(fixture.dictionary(a)->get("V"));
+    QVERIFY(value.isString());
+    QVERIFY(loader.readTextString(value, QStringLiteral("x")).isEmpty());
 }
 
 QTEST_MAIN(FormFieldsTest)

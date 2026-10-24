@@ -154,6 +154,8 @@ private:
     void updateState();
     void onTextChanged();
     void onValueChanged();
+    void schedulePreviewChanged();
+    void onPreviewChangeQueued();
     void watchApplication(bool watch);
 
     QPointer<QWidget> m_shadow;
@@ -176,6 +178,7 @@ private:
     QRect m_anchor;
     bool m_isWatchingApplication = false;
     bool m_isClosing = false;
+    bool m_isPreviewChangePending = false;       ///< previewChanged waits for the event loop
 };
 
 /// Dialog of a new web link (Insert - Web link, a dialog of the design built on

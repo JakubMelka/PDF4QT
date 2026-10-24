@@ -2229,6 +2229,16 @@ void AnnotationSelectionTest::propertiesModelAttributes()
                                                                  "Title", "Subject", "Contents", AnnotationLineEnding::None, AnnotationLineEnding::None);
     const PDFObjectReference freeText = builder.createAnnotationFreeText(page, QRectF(150, 200, 100, 50), "Title", "Subject", "Contents", Qt::AlignLeft);
     const PDFObjectReference note = builder.createAnnotationText(page, QRectF(50, 50, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", false);
+
+    // A free text annotation, whose border style is an indirect object
+    const PDFObjectReference indirectFreeText = builder.createAnnotationFreeText(page, QRectF(150, 100, 100, 50), "Title", "Subject", "Contents", Qt::AlignLeft);
+    PDFObjectFactory borderStyleFactory;
+    borderStyleFactory.beginDictionary();
+    borderStyleFactory.beginDictionaryItem("W");
+    borderStyleFactory << 7.0;
+    borderStyleFactory.endDictionaryItem();
+    borderStyleFactory.endDictionary();
+    SelectionFixture::setEntry(builder, indirectFreeText, "BS", PDFObject::createReference(builder.addObject(borderStyleFactory.takeObject())));
     const PDFDocument document = builder.build();
 
     // The functions of the model are public in its base class
@@ -2301,6 +2311,19 @@ void AnnotationSelectionTest::propertiesModelAttributes()
     model.setEditedObject(object);
     QCOMPARE(loader.readNumber(baseModel.getValue(captionAlong, true), 0.0), -3.0);
     QCOMPARE(loader.readNumber(baseModel.getValue(captionPerpendicular, true), 0.0), 5.0);
+
+    // The model always has a storage: an empty one, until the storage of the document is
+    // set - a reference of the edited object is a null object then (no call through null)
+    QVERIFY(baseModel.getStorage());
+    model.setEditedObject(document.getObjectByReference(indirectFreeText));
+    QVERIFY(document.getDictionaryFromObject(model.getEditedObject())->get("BS").isReference());
+    QVERIFY(baseModel.getValue(borderWidth, true).isNull());
+    baseModel.setStorage(&document.getStorage());
+    QCOMPARE(baseModel.getStorage(), &document.getStorage());
+    QCOMPARE(loader.readNumber(baseModel.getValue(borderWidth, true), 0.0), 7.0);
+    baseModel.setStorage(nullptr);
+    QVERIFY(baseModel.getStorage());
+    QVERIFY(baseModel.getValue(borderWidth, true).isNull());
 }
 
 void AnnotationSelectionTest::partsAreDrawnByMouse()

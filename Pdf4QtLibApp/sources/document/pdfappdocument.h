@@ -208,6 +208,11 @@ public:
     /// Version of the document (+1 on every change, also on undo / redo)
     quint64 getVersion() const { return m_version; }
 
+    /// Version of the last change, which may have changed the outline: every change
+    /// except a change of annotations or of form fields (the objects of the outline
+    /// are kept by them); data read from the outline are valid while it is the same
+    quint64 getOutlineVersion() const { return m_outlineVersion; }
+
     /// Version, which is saved in the file
     quint64 getSavedVersion() const { return m_savedVersion; }
 
@@ -423,6 +428,7 @@ private:
     std::vector<QPointer<PDFAppDocumentOperation>> m_operations;
     std::shared_ptr<const PDFDocumentTextIndex> m_textIndex;
     quint64 m_pageContentsVersion = 0;   ///< Version of the last change of the page contents (Reset, PageContents)
+    quint64 m_outlineVersion = 0;        ///< Version of the last change, which may have changed the outline
     std::vector<PDFSignatureVerificationResult> m_signatureResults;
     mutable std::map<QString, std::shared_ptr<const PDFAppDocumentDerivedData>> m_derivedData;   ///< Of the current version
 };

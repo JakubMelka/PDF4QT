@@ -193,7 +193,14 @@ public:
     /// \param index Attribute index
     QVariant getMaximumValue(size_t index) const;
 
+    /// Returns the storage of the objects, which resolves the references of the edited
+    /// object (never nullptr - an empty storage, until setStorage is called)
     const PDFObjectStorage* getStorage() const { return m_storage; }
+
+    /// Sets the storage of the objects of the document of the edited object; the storage
+    /// must live until the model is destroyed or another storage is set. nullptr sets
+    /// an empty storage (references of the edited object are resolved as null objects).
+    void setStorage(const PDFObjectStorage* storage);
 
 signals:
     void editedObjectChanged();
@@ -231,6 +238,7 @@ protected:
     std::vector<PDFObjectEditorModelAttribute> m_attributes;
 
     PDFObject m_editedObject;
+    PDFObjectStorage m_emptyStorage;
     const PDFObjectStorage* m_storage;
     size_t m_typeAttribute;
     std::map<size_t, std::vector<size_t>> m_similarAttributes;

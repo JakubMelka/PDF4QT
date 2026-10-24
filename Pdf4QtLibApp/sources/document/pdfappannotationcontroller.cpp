@@ -664,6 +664,7 @@ void PDFAppAnnotationController::applyThemeColors(PDFViewColors& colors)
     colors.infoText = manager->getColor(PDFThemeColors::TextSecondary);
     colors.infoBackground = manager->getColor(PDFThemeColors::BgSurface);
     colors.infoBorder = manager->getColor(PDFThemeColors::BorderDefault);
+    colors.infoShadow = manager->getColor(PDFThemeColors::EffectShadow);
 }
 
 // ---------------------------------------------------------------------- tools

@@ -1169,10 +1169,6 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
             selectTextTool->setAnnotationsSelectable(false);
             isStarted = true;
         }
-        if (guard && kind != PDFAppAnnotationToolKind::HighlightComment)
-        {
-            PDFAppAnnotationToolSettings::setLastMarkupType(getContext(), PDFAppAnnotationTools::getMarkupType(kind));
-        }
     }
     else if (PDFWidgetTool* tool = getTool(kind))
     {
@@ -1197,6 +1193,12 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
             selectTextTool->setAnnotationsSelectable(true);
         }
         return false;
+    }
+
+    // The last used markup is remembered only for a markup tool, which has started
+    if (PDFAppAnnotationTools::isMarkup(kind) && kind != PDFAppAnnotationToolKind::HighlightComment)
+    {
+        PDFAppAnnotationToolSettings::setLastMarkupType(getContext(), PDFAppAnnotationTools::getMarkupType(kind));
     }
 
     setActiveKind(kind);
@@ -1601,8 +1603,9 @@ void PDFAppAnnotationCreator::setColor(PDFAppAnnotationToolKind kind, ColorTarge
         styleManager->setStyle(style);
     }
 
-    // The tools sharing the style (Shape) read it again
-    reloadStyles();
+    // The tools sharing the style (Shape) read it again (once, also for the
+    // notification of the stored style)
+    scheduleStyleReload();
 }
 
 PDFReal PDFAppAnnotationCreator::getPenWidth(PDFAppAnnotationToolKind kind) const
@@ -1624,11 +1627,29 @@ void PDFAppAnnotationCreator::setPenWidth(PDFAppAnnotationToolKind kind, PDFReal
     PDFAnnotationStyle style = styleManager->getStyle();
     style.penWidth = qBound(0.0, penWidth, PDFAnnotationStyleSettings::MAXIMUM_PEN_WIDTH);
     styleManager->setStyle(style);
-    reloadStyles();
+    scheduleStyleReload();
+}
+
+void PDFAppAnnotationCreator::scheduleStyleReload()
+{
+    if (!m_isStyleReloadPending)
+    {
+        m_isStyleReloadPending = true;
+        QMetaObject::invokeMethod(this, &PDFAppAnnotationCreator::onStyleReloadQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppAnnotationCreator::onStyleReloadQueued()
+{
+    if (m_isStyleReloadPending)
+    {
+        reloadStyles();
+    }
 }
 
 void PDFAppAnnotationCreator::reloadStyles()
 {
+    m_isStyleReloadPending = false;
     for (PDFAppAnnotationToolKind kind : PDFAppAnnotationTools::getKinds())
     {
         if (PDFWidgetTool* tool = getTool(kind))
@@ -2213,7 +2234,18 @@ void PDFAppAnnotationCreator::onDatabaseChanged(const QString& topic, const QStr
 {
     if (topic == PDFAnnotationStyleRepository::getTopic())
     {
-        reloadStyles();
+        // The last markup is not a style of a tool (the panel and the markup bar
+        // read it at their update)
+        if (key == PDFAnnotationStyleRepository::toolLastMarkup())
+        {
+            if (m_markupBar && m_markupBar->isVisible())
+            {
+                m_markupBar->updateState();
+            }
+            Q_EMIT toolStateChanged();
+            return;
+        }
+        scheduleStyleReload();
     }
     else if (topic == PDFSettingsRepository::getTopic() && key == PDFSettingKeys::annotationsShowMarkupBar())
     {
@@ -2224,7 +2256,7 @@ void PDFAppAnnotationCreator::onDatabaseChanged(const QString& topic, const QStr
 void PDFAppAnnotationCreator::onSettingsChanged()
 {
     // Everything has changed (another instance, Restore defaults)
-    reloadStyles();
+    scheduleStyleReload();
     updateMarkupBar();
 }
 

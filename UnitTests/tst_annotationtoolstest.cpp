@@ -22,6 +22,7 @@
 
 #include "pdfadvancedtools.h"
 #include "pdfannotationmanipulator.h"
+#include "pdfannotationproperties.h"
 #include "pdfannotationstyle.h"
 #include "pdfcms.h"
 #include "pdfcompiler.h"
@@ -37,6 +38,7 @@
 #include <QActionGroup>
 #include <QClipboard>
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QMimeData>
 #include <QPainter>
 #include <QSettings>
@@ -87,10 +89,14 @@ private slots:
     void reviewAnnotationsOutsideOfView();
     void noteIconIsMemo();
     void reviewLinksSelectable();
+    void reviewLinksMovable();
+    void reviewOwnerDeletedFromEmissions();
     void reviewHighlightedAnnotation();
     void reviewPickTargetToolDeleted();
     void reviewSpecificationShapeTypes();
     void reviewPickToolViewColors();
+    void reviewInteractionHitTestCost();
+    void reviewInkStrokeSmooth();
 
 private:
     QTemporaryDir m_settingsDirectory;
@@ -683,6 +689,41 @@ void AnnotationToolsTest::variantSetters()
     freeText->setAutoResizeToContents(false);
     QVERIFY(!freeText->isAutoResizeToContents());
     QVERIFY(!freeText->getStyleManager());
+
+    // One rule of the text box style for the tool, its storage and the properties of an
+    // annotation: a family longer than the limit of a PDF name (127) is Helvetica, not
+    // a cut family; more horizontal alignments (left and right) are left
+    std::vector<PDFFreeTextStyle> styles(8);
+    styles[0].fontFamily = QString(200, QChar('A'));
+    styles[1].fontFamily = QString(128, QChar('B'));
+    styles[2].fontFamily = QString(127, QChar('C'));
+    styles[3].fontFamily = QStringLiteral(" Ari") + QChar(u'\0') + QStringLiteral("al ");
+    styles[4].textAlignment = TextAlignment(Qt::AlignLeft | Qt::AlignRight);
+    styles[5].textAlignment = TextAlignment(Qt::AlignHCenter | Qt::AlignRight | Qt::AlignBottom);
+    styles[6].textAlignment = TextAlignment(Qt::AlignJustify);
+    styles[7].fontSize = -std::numeric_limits<PDFReal>::infinity();
+    styles[7].textColor = QColor::fromCmykF(0.0, 1.0, 0.0, 0.0);
+    for (const PDFFreeTextStyle& hostile : styles)
+    {
+        PDFAnnotationProperties properties;
+        properties.freeTextStyle = hostile;
+        const PDFFreeTextStyle tool = PDFCreateFreeTextTool::boundFreeTextStyle(hostile);
+        const PDFFreeTextStyle core = PDFAnnotationPropertyEditor::bound(properties).freeTextStyle;
+        QCOMPARE(tool.fontFamily, core.fontFamily);
+        QCOMPARE(tool.fontSize, core.fontSize);
+        QCOMPARE(tool.textColor, core.textColor);
+        QCOMPARE(tool.textAlignment, core.textAlignment);
+        QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(tool).fontFamily, tool.fontFamily);
+    }
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[0]).fontFamily, QStringLiteral("Helvetica"));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[1]).fontFamily, QStringLiteral("Helvetica"));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[2]).fontFamily, QString(127, QChar('C')));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[3]).fontFamily, QStringLiteral("Arial"));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[4]).textAlignment, TextAlignment(Qt::AlignTop | Qt::AlignLeft));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[5]).textAlignment, TextAlignment(Qt::AlignTop | Qt::AlignLeft));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[6]).textAlignment, TextAlignment(Qt::AlignTop | Qt::AlignLeft));
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[7]).fontSize, 10.0);
+    QCOMPARE(PDFCreateFreeTextTool::boundFreeTextStyle(styles[7]).textColor.spec(), QColor::Rgb);
 
     // Tools with a style
     PDFCreateLineTypeTool* polygon = fixture.addTool(new PDFCreateLineTypeTool(proxy, tools, PDFCreateLineTypeTool::Type::Polygon, nullptr, tools));
@@ -1382,6 +1423,8 @@ void AnnotationToolsTest::designSelectionLook()
     colors.infoText = QColor(0, 0, 180);
     colors.infoBackground = infoBackground;
     colors.infoBorder = infoBorder;
+    const QColor infoShadow(255, 0, 0);
+    colors.infoShadow = infoShadow;
     fixture.proxy()->setViewColors(colors);
     QVERIFY(!annotations.isDesignSelectionLook());
 
@@ -1390,6 +1433,10 @@ void AnnotationToolsTest::designSelectionLook()
     const QPoint rotationNear(qRound(frame.center().x()), qRound(frame.top() - 15.0));
     const QPoint rotationOld(qRound(frame.center().x()), qRound(frame.top() - 26.0));
     const QPoint rotationFar(qRound(frame.center().x()), qRound(frame.top() - 32.0));
+    // The design: the frame 4 px outside of the annotation (1015:17767), the rotation handle 22 above it
+    const QRectF designFrame = frame.adjusted(-4.0, -4.0, 4.0, 4.0);
+    const QPoint rotationDesign(qRound(frame.center().x()), qRound(designFrame.top() - 22.0));
+    const QPoint rotationDesignFar(qRound(frame.center().x()), qRound(designFrame.top() - 33.0));
 
     // Rows of the stem of the rotation handle without a pixel (a dashed stem has gaps)
     auto stemGaps = [&](const QImage& image)
@@ -1428,8 +1475,23 @@ void AnnotationToolsTest::designSelectionLook()
     image = fixture.drawMarkers();
     QCOMPARE(stemGaps(image), 0);
     QVERIFY(qAbs(image.pixelColor(center).alpha() - 15) <= 4);
-    QVERIFY(annotations.isInteractionAt(rotationNear, Qt::NoModifier));
-    QVERIFY(!annotations.isInteractionAt(rotationFar, Qt::NoModifier));
+    QVERIFY(annotations.isInteractionAt(rotationDesign, Qt::NoModifier));
+    QVERIFY(!annotations.isInteractionAt(rotationNear, Qt::NoModifier));
+    QVERIFY(!annotations.isInteractionAt(rotationDesignFar, Qt::NoModifier));
+
+    // The frame 4 px outside of the annotation, the edge of the annotation inside of the fill,
+    // the handles on the frame
+    const int middleY = qRound(frame.top() + frame.height() * 0.25);
+    QColor frameLine(0, 0, 0, 0);
+    for (int x = qRound(designFrame.left()) - 1; x <= qRound(designFrame.left()) + 1; ++x)
+    {
+        frameLine = image.pixelColor(x, middleY).alpha() > frameLine.alpha() ? image.pixelColor(x, middleY) : frameLine;
+    }
+    QVERIFY(frameLine.alpha() > 150);
+    QCOMPARE(frameLine.rgb(), selection.rgb());
+    QVERIFY(qAbs(image.pixelColor(qRound(frame.left()) + 1, middleY).alpha() - 15) <= 4);
+    QCOMPARE(image.pixelColor(qRound(frame.center().x()), qRound(designFrame.bottom())).rgb(), handle.rgb());
+    QVERIFY(qAbs(image.pixelColor(qRound(frame.center().x()), qRound(frame.bottom()) - 6).alpha() - 15) <= 4);
 
     annotations.setSelectedAnnotations({ polygon });
     image = fixture.drawMarkers();
@@ -1450,20 +1512,45 @@ void AnnotationToolsTest::designSelectionLook()
     const QRectF lockedFrame = fixture.pageToDevice().mapRect(QRectF(190, 60, 70, 40)).normalized();
     QCOMPARE(image.pixelColor(QPoint(qRound(lockedFrame.right() - 7.0), qRound(lockedFrame.top()))).rgb(), handle.rgb());
 
-    // The box of the numbers of a drag (1017:18217): the fill and the outline of the view colors
+    // The box of the numbers of a drag (1017:18217): the fill and the outline of the view colors,
+    // the shadow 0 / 4 / 16; the handle on the frame 4 px outside moves the edge of the annotation
     annotations.setSelectedAnnotations({ square });
-    const QPoint corner = frame.bottomRight().toPoint();
+    const QPoint corner = designFrame.bottomRight().toPoint();
     fixture.moveTo(corner);
     fixture.mouse(QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
     fixture.mouse(QEvent::MouseMove, corner + QPoint(30, 30), Qt::NoButton, Qt::LeftButton);
     image = fixture.drawMarkers();
     QVERIFY(ToolsFixture::countColor(image, infoBackground, 2) > 100);
     QVERIFY(ToolsFixture::countColor(image, infoBorder, 2) > 20);
+    QRect infoBox;
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() == 255 && pixel.rgb() == infoBackground.rgb())
+            {
+                infoBox = infoBox.united(QRect(x, y, 1, 1));
+            }
+        }
+    }
+    QVERIFY(infoBox.isValid());
+    const QColor shadowBelow = image.pixelColor(infoBox.center().x(), infoBox.bottom() + 4);
+    QVERIFY(shadowBelow.alpha() > 40);
+    QVERIFY(shadowBelow.red() > 200 && shadowBelow.green() < 60 && shadowBelow.blue() < 60);
+    QVERIFY(image.pixelColor(infoBox.center().x(), infoBox.bottom() + 30).alpha() < 8);
+    QVERIFY(image.pixelColor(infoBox.center().x(), infoBox.top() - 3).alpha() < image.pixelColor(infoBox.center().x(), infoBox.bottom() + 4).alpha());
     if (!qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS").isEmpty())
     {
         image.save(qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS") + QStringLiteral("/design-selection-drag.png"));
     }
-    QVERIFY(fixture.annotationKey(Qt::Key_Escape));
+    fixture.mouse(QEvent::MouseButtonRelease, corner + QPoint(30, 30), Qt::LeftButton, Qt::NoButton);
+    {
+        PDFDocumentDataLoaderDecorator loader(fixture.document.data());
+        const QRectF resized = fixture.pageToDevice().mapRect(loader.readRectangle(fixture.entry(square, "Rect"), QRectF())).normalized();
+        QVERIFY(AnnotationToolsTestHelper::fuzzyCompare(resized, frame.adjusted(0.0, 0.0, 30.0, 30.0)));
+    }
+    fixture.annotationKey(Qt::Key_Escape);
 
     // The rubber band: the fill 8 %
     annotations.clearSelection();
@@ -2089,6 +2176,250 @@ void AnnotationToolsTest::reviewLinksSelectable()
     Q_UNUSED(square);
 }
 
+void AnnotationToolsTest::reviewLinksMovable()
+{
+    // Owner (O20): a selected link is moved and resized by the mouse (its Rect and its
+    // QuadPoints); a Locked link is not (ISO 32000-2, Table 167) - no handles, the lock badge
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(50, 50, 60, 40), QStringLiteral("https://example.com/"), LinkHighlightMode::Invert);
+    {
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("QuadPoints");
+        factory << std::vector<PDFReal>{ 55, 55, 105, 55, 105, 85, 55, 85 };
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(link, factory.takeObject());
+    }
+    const PDFObjectReference locked = builder.createAnnotationLink(page, QRectF(150, 150, 60, 40), QStringLiteral("https://example.com/"), LinkHighlightMode::Invert);
+    AnnotationToolsTestHelper::setFlags(builder, locked, PDFAnnotation::Locked);
+    ToolsFixture fixture(builder.build());
+    PDFWidgetAnnotationManager& annotations = fixture.annotations;
+    annotations.setUserInterfaceDelegated(true);
+    PDFSelectTextTool* textTool = fixture.tools.getSelectTextTool();
+    QVERIFY(textTool);
+    textTool->setLinksClickable(true);
+    textTool->setAnnotationsSelectable(true);
+    fixture.tools.setActiveTool(PDFToolManager::SelectTextTool);
+    PDFViewColors colors = PDFViewColors::getDefaultColors();
+    colors.annotationHandle = QColor(250, 240, 20);
+    colors.lockBadge = QColor(255, 0, 255);
+    fixture.proxy()->setViewColors(colors);
+    QSignalSpy followed(&annotations, &PDFWidgetAnnotationManager::actionTriggered);
+
+    auto readRectangle = [&fixture](PDFObjectReference annotation)
+    {
+        PDFDocumentDataLoaderDecorator loader(fixture.document.data());
+        return loader.readRectangle(fixture.entry(annotation, "Rect"), QRectF()).normalized();
+    };
+    auto readQuadPoints = [&fixture](PDFObjectReference annotation)
+    {
+        PDFDocumentDataLoaderDecorator loader(fixture.document.data());
+        return loader.readNumberArray(fixture.entry(annotation, "QuadPoints"));
+    };
+    auto drag = [&fixture](QPoint from, QPoint to)
+    {
+        fixture.moveTo(from);
+        fixture.mouse(QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        fixture.mouse(QEvent::MouseMove, (from + to) / 2, Qt::NoButton, Qt::LeftButton);
+        fixture.mouse(QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+        fixture.mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    };
+
+    // Off: a drag on a link, which is not selectable, changes nothing
+    const QPoint onLink = fixture.device(QPointF(80, 70));
+    drag(onLink, onLink + QPoint(40, 0));
+    QCOMPARE(fixture.modificationCount, 0);
+    annotations.setLinksSelectable(true);
+
+    // Selected (Ctrl + click), it has the handles of a box and it is moved by a drag
+    // (the drag and drop of the annotations) - not followed - with its areas
+    fixture.click(onLink, Qt::ControlModifier);
+    QVERIFY(annotations.isAnnotationSelected(link));
+    const int handlePixels = ToolsFixture::countColor(fixture.drawMarkers(), colors.annotationHandle);
+    QVERIFY(handlePixels > 100);
+    fixture.mouse(QEvent::MouseButtonPress, onLink, Qt::LeftButton, Qt::LeftButton);
+    std::unique_ptr<QMimeData> dragData(annotations.createAnnotationDragData());
+    QVERIFY(dragData);
+    QVERIFY(annotations.handleAnnotationDrop(dragData.get(), onLink + QPoint(40, -20), Qt::MoveAction, false));
+    fixture.mouse(QEvent::MouseButtonRelease, onLink + QPoint(40, -20), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(fixture.modificationCount, 1);
+    QCOMPARE(followed.count(), 0);
+    QRectF moved = readRectangle(link);
+    QVERIFY(qAbs(moved.width() - 60.0) < 0.01 && qAbs(moved.height() - 40.0) < 0.01);
+    QVERIFY(moved.left() > 55.0 && moved.top() > 52.0);
+    std::vector<PDFReal> quadPoints = readQuadPoints(link);
+    QCOMPARE(quadPoints.size(), size_t(8));
+    QVERIFY(qAbs(quadPoints[0] - (moved.left() + 5.0)) < 0.01);
+    QVERIFY(qAbs(quadPoints[1] - (moved.top() + 5.0)) < 0.01);
+    QVERIFY(annotations.isAnnotationSelected(link));
+
+    // Resized by the bottom right handle: the areas are scaled with the rectangle and stay inside of it
+    const QRectF frame = fixture.pageToDevice().mapRect(moved).normalized();
+    const QPoint corner = frame.bottomRight().toPoint();
+    QVERIFY(annotations.isInteractionAt(corner, Qt::NoModifier));
+    drag(corner, corner + QPoint(30, 20));
+    QCOMPARE(fixture.modificationCount, 2);
+    const QRectF resized = readRectangle(link);
+    QVERIFY2(resized.width() > 65.0 && resized.height() > 42.0, qPrintable(QString("%1 x %2").arg(resized.width()).arg(resized.height())));
+    quadPoints = readQuadPoints(link);
+    QCOMPARE(quadPoints.size(), size_t(8));
+    for (size_t i = 0; i < quadPoints.size(); i += 2)
+    {
+        QVERIFY(resized.adjusted(-0.01, -0.01, 0.01, 0.01).contains(QPointF(quadPoints[i], quadPoints[i + 1])));
+    }
+    QVERIFY(quadPoints[2] - quadPoints[0] > 50.0 + 0.5);
+
+    // Locked: selected with the lock badge and without handles, a drag does not move it
+    annotations.clearSelection();
+    const QPoint onLocked = fixture.device(QPointF(180, 170));
+    fixture.click(onLocked, Qt::ControlModifier);
+    QVERIFY(annotations.isAnnotationSelected(locked));
+    const QImage lockedImage = fixture.drawMarkers();
+    QVERIFY(ToolsFixture::countColor(lockedImage, colors.lockBadge) > 0);
+    QVERIFY(ToolsFixture::countColor(lockedImage, colors.annotationHandle) < handlePixels / 2); // the padlock glyph only
+    const QRectF lockedRectangle = readRectangle(locked);
+    fixture.mouse(QEvent::MouseButtonPress, onLocked, Qt::LeftButton, Qt::LeftButton);
+    std::unique_ptr<QMimeData> lockedData(annotations.createAnnotationDragData());
+    QVERIFY(!lockedData || !annotations.handleAnnotationDrop(lockedData.get(), onLocked + QPoint(40, 20), Qt::MoveAction, false));
+    fixture.mouse(QEvent::MouseButtonRelease, onLocked, Qt::LeftButton, Qt::NoButton);
+    drag(onLocked, onLocked + QPoint(40, 20));
+    const QPoint lockedCorner = fixture.pageToDevice().mapRect(lockedRectangle).normalized().bottomRight().toPoint();
+    drag(lockedCorner, lockedCorner + QPoint(30, 20));
+    QCOMPARE(fixture.modificationCount, 2);
+    QCOMPARE(readRectangle(locked), lockedRectangle);
+    QCOMPARE(followed.count(), 0);
+}
+
+/// A view, which owns the widget and its managers on the heap (as the document view of the
+/// application), so a receiver of their signals can delete it synchronously
+class DeletableToolsView : public QWidget
+{
+public:
+    explicit DeletableToolsView(PDFDocument initialDocument) :
+        QWidget(nullptr),
+        document(new PDFDocument(std::move(initialDocument)))
+    {
+        widget = new PDFWidget(&cms, RendererEngine::QPainter, this);
+        widget->resize(800, 800);
+        widget->getDrawWidget()->getWidget()->resize(800, 800);
+        annotations = new PDFWidgetAnnotationManager(widget->getDrawWidgetProxy(), this);
+        tools = new PDFToolManager(widget->getDrawWidgetProxy(), this);
+        widget->setAnnotationManager(annotations);
+        widget->setToolManager(tools);
+        widget->getDrawWidgetProxy()->setProgress(&progress);
+        const PDFModifiedDocument modified(document, nullptr);
+        widget->setDocument(modified, {});
+        annotations->setDocument(modified);
+        tools->setDocument(modified);
+    }
+
+    virtual ~DeletableToolsView() override
+    {
+        // As the view of the application: nothing is emitted any more, the managers are
+        // detached from the widget and the document, then they go
+        tools->disconnect();
+        annotations->disconnect();
+        tools->blockSignals(true);
+        annotations->blockSignals(true);
+        tools->setActiveTool(nullptr);
+        tools->setDocument(PDFModifiedDocument());
+        annotations->setDocument(PDFModifiedDocument());
+        widget->setDocument(PDFModifiedDocument(), {});
+        widget->setAnnotationManager(nullptr);
+        widget->setToolManager(nullptr);
+        delete tools;
+        delete annotations;
+        delete widget;
+    }
+
+    QPoint device(const QPointF& pagePoint) const
+    {
+        const PDFWidgetSnapshot snapshot = widget->getDrawWidgetProxy()->getSnapshot();
+        return snapshot.items.empty() ? QPoint() : snapshot.items.front().pageToDeviceMatrix.map(pagePoint).toPoint();
+    }
+
+    PDFDocumentPointer document;
+    PDFCMSManager cms{ nullptr };
+    PDFProgress progress{ nullptr };
+    PDFWidget* widget = nullptr;
+    PDFWidgetAnnotationManager* annotations = nullptr;
+    PDFToolManager* tools = nullptr;
+};
+
+void AnnotationToolsTest::reviewOwnerDeletedFromEmissions()
+{
+    // The application commits a change from the signals and the callbacks of the engine
+    // and that can delete the tab (with the view, the widget and the managers) at once:
+    // the engine uses nothing after such an emission (review RT4: the pick callback in
+    // PDFPickTool::mousePressEvent, activeToolChanged, pasteAnnotations)
+    auto createDocument = []()
+    {
+        PDFDocumentBuilder builder;
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+        builder.createAnnotationSquare(page, QRectF(50, 50, 60, 40), 1.0, Qt::yellow, Qt::black, "Square", "Subject", "Contents");
+        return builder.build();
+    };
+    auto click = [](QPointer<DeletableToolsView> view, QPoint position)
+    {
+        QPointer<QWidget> target = view->widget->getDrawWidget()->getWidget();
+        QMouseEvent move(QEvent::MouseMove, position, target->mapToGlobal(position), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &move);
+        QMouseEvent press(QEvent::MouseButtonPress, position, target->mapToGlobal(position), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        if (target)
+        {
+            QMouseEvent release(QEvent::MouseButtonRelease, position, target->mapToGlobal(position), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(target, &release);
+        }
+    };
+
+    // The callback of the pick of a rectangle deletes the view
+    {
+        QPointer<DeletableToolsView> view = new DeletableToolsView(createDocument());
+        const QPoint first = view->device(QPointF(150, 150));
+        const QPoint second = view->device(QPointF(200, 200));
+        bool isCalled = false;
+        view->tools->pickRectangle([view, &isCalled](PDFInteger, QRectF) { isCalled = true; delete view.data(); });
+        click(view, first);
+        QVERIFY(view);
+        click(view, second);
+        QVERIFY(isCalled);
+        QVERIFY(!view);
+    }
+
+    // The receiver of activeToolChanged deletes the view, when the rectangle tool ends
+    // after its annotation (the old one-shot behavior)
+    {
+        QPointer<DeletableToolsView> view = new DeletableToolsView(createDocument());
+        PDFCreateLineTypeTool* rectangle = new PDFCreateLineTypeTool(view->widget->getDrawWidgetProxy(), view->tools, PDFCreateLineTypeTool::Type::Rectangle, nullptr, view->tools);
+        view->tools->addTool(rectangle);
+        rectangle->setDocument(PDFModifiedDocument(view->document, nullptr));
+        view->tools->setActiveTool(rectangle);
+        int modifications = 0;
+        QObject::connect(view->tools, &PDFToolManager::documentModified, view->tools, [&modifications](const PDFModifiedDocument&) { ++modifications; });
+        QObject::connect(view->tools, &PDFToolManager::activeToolChanged, view->tools, [view](PDFWidgetTool* tool) { if (!tool) { delete view.data(); } });
+        click(view, view->device(QPointF(150, 150)));
+        QVERIFY(view);
+        click(view, view->device(QPointF(200, 200)));
+        QCOMPARE(modifications, 1);
+        QVERIFY(!view);
+    }
+
+    // The receiver of documentModified deletes the view during pasteAnnotations
+    {
+        QPointer<DeletableToolsView> view = new DeletableToolsView(createDocument());
+        const PDFObjectReference square = view->document->getCatalog()->getPage(0)->getAnnotations().front();
+        view->annotations->setSelectedAnnotations({ square });
+        view->annotations->copySelectedAnnotations();
+        QVERIFY(view->annotations->canPasteAnnotations());
+        QObject::connect(view->annotations, &PDFWidgetAnnotationManager::documentModified, view->annotations, [view](const PDFModifiedDocument&) { delete view.data(); });
+        view->annotations->pasteAnnotations(view->device(QPointF(200, 200)));
+        QVERIFY(!view);
+    }
+}
+
 void AnnotationToolsTest::reviewHighlightedAnnotation()
 {
     // The application outlines an annotation of its chooser of overlapping annotations
@@ -2233,6 +2564,171 @@ void AnnotationToolsTest::reviewSpecificationShapeTypes()
             QVERIFY(PDFAnnotationManipulator::getCapabilities(curve.data()).testFlag(PDFAnnotationManipulator::Move));
         }
     }
+}
+
+void AnnotationToolsTest::reviewInkStrokeSmooth()
+{
+    // An ink drawn by the freehand tool is a stroke through many close points. Every
+    // segment was drawn as a quadratic curve bulging to the same side by an eighth of its
+    // length, so the stroke was scalloped at the joins of the segments. The stroke goes
+    // through the points smoothly now: points on a straight line give a straight band
+    // of the width of the pen, points of a zigzag are all on the stroke, the ends are round.
+    constexpr qreal SCALE = 4.0;
+    constexpr qreal WIDTH = 2.0;
+    QPolygonF straight;
+    for (qreal x = 20.0; x <= 280.0; x += 10.0)
+    {
+        straight << QPointF(x, 150.0);
+    }
+    QPolygonF zigzag;
+    for (int i = 0; i <= 26; ++i)
+    {
+        zigzag << QPointF(20.0 + i * 10.0, 60.0 + (i % 2 ? 6.0 : -6.0));
+    }
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference straightInk = builder.createAnnotationInk(page, Polygons{ straight }, WIDTH, Qt::black, QString(), QString(), QString());
+    const PDFObjectReference zigzagInk = builder.createAnnotationInk(page, Polygons{ zigzag }, WIDTH, Qt::black, QString(), QString(), QString());
+    const PDFDocument document = builder.build();
+
+    auto render = [&document](PDFObjectReference reference, QRectF* boundingRectangle)
+    {
+        QImage image(int(300 * SCALE), int(300 * SCALE), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        const PDFAnnotationPtr annotation = PDFAnnotation::parse(&document.getStorage(), reference);
+        if (annotation)
+        {
+            QPainter painter(&image);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setWorldTransform(QTransform(SCALE, 0, 0, -SCALE, 0, 300 * SCALE));
+            AnnotationDrawParameters parameters;
+            parameters.painter = &painter;
+            parameters.annotation = annotation.data();
+            annotation->draw(parameters);
+            *boundingRectangle = parameters.boundingRectangle;
+        }
+        return image;
+    };
+    auto isDark = [](const QImage& image, int x, int y)
+    {
+        return x >= 0 && y >= 0 && x < image.width() && y < image.height() && qGray(image.pixel(x, y)) < 128;
+    };
+
+    // Straight: every column between the points has a band of the width of the pen at
+    // the line, nothing above or below it (the curves bulged 1.25 pt = 5 px)
+    QRectF boundingRectangle;
+    const QImage straightImage = render(straightInk, &boundingRectangle);
+    const int lineY = int(150 * SCALE);
+    for (int x = int(25 * SCALE); x < int(275 * SCALE); ++x)
+    {
+        int painted = 0;
+        for (int y = lineY - 20; y <= lineY + 20; ++y)
+        {
+            if (isDark(straightImage, x, y))
+            {
+                ++painted;
+                QVERIFY2(std::abs(y - lineY) <= int(WIDTH * SCALE / 2.0) + 1, qPrintable(QString("x %1, y %2").arg(x).arg(y)));
+            }
+        }
+        QVERIFY2(painted >= int(WIDTH * SCALE) - 2, qPrintable(QString("x %1").arg(x)));
+    }
+
+    // The round end is beyond the last point by a half of the width (a flat cap is not)
+    QVERIFY(isDark(straightImage, int((280.0 + WIDTH * 0.25) * SCALE), lineY));
+    QVERIFY(boundingRectangle.contains(QRectF(20, 150 - WIDTH / 2.0, 260, WIDTH)));
+
+    // Zigzag: the stroke goes through every point
+    const QImage zigzagImage = render(zigzagInk, &boundingRectangle);
+    for (const QPointF& point : zigzag)
+    {
+        QVERIFY2(isDark(zigzagImage, int(point.x() * SCALE), int((300.0 - point.y()) * SCALE)), qPrintable(QString("%1 %2").arg(point.x()).arg(point.y())));
+    }
+}
+
+void AnnotationToolsTest::reviewInteractionHitTestCost()
+{
+    // A page with 5000 annotations: every mouse move of the text tool with selectable
+    // annotations asks PDFWidgetAnnotationManager::isInteractionAt, then the manager
+    // updates its hover - one hit test of the annotations under the cursor is shared by
+    // both in the dispatch of the move, and a rectangle is tested by its bounding box
+    // before its path is made. The time of a move is printed (measured by the review).
+    constexpr int COLUMNS = 70;
+    constexpr int ROWS = 72;
+    constexpr qreal CELL = 8.0;
+    constexpr qreal SIZE = 6.0;
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, COLUMNS * CELL, ROWS * CELL));
+    std::vector<PDFObjectReference> squares;
+    for (int row = 0; row < ROWS && squares.size() < 5000; ++row)
+    {
+        for (int column = 0; column < COLUMNS && squares.size() < 5000; ++column)
+        {
+            squares.push_back(builder.createAnnotationSquare(page, QRectF(column * CELL + 1.0, row * CELL + 1.0, SIZE, SIZE), 0.5, Qt::yellow, Qt::black, QString(), QString(), QString()));
+        }
+    }
+    ToolsFixture fixture(builder.build());
+    PDFWidgetAnnotationManager& annotations = fixture.annotations;
+    PDFSelectTextTool* textTool = fixture.tools.getSelectTextTool();
+    QVERIFY(textTool);
+    fixture.tools.setActiveTool(PDFToolManager::SelectTextTool);
+    textTool->setAnnotationsSelectable(true);
+
+    QElapsedTimer timer;
+    timer.start();
+    constexpr int MOVES = 400;
+    int moves = 0;
+    int onSquares = 0;
+    int hovered = 0;
+    int gaps = 0;
+    for (int i = 0; i < MOVES; ++i)
+    {
+        const qreal x = (i % COLUMNS) * CELL + (i % 2 ? 4.0 : 0.4);
+        const qreal y = ((i * 7) % ROWS) * CELL + (i % 2 ? 4.0 : 0.4);
+        const QPoint position = fixture.device(QPointF(x, y));
+        if (!fixture.target()->rect().adjusted(2, 2, -2, -2).contains(position))
+        {
+            continue;
+        }
+        ++moves;
+        onSquares += (i % 2 && size_t(((i * 7) % ROWS) * COLUMNS + i % COLUMNS) < squares.size()) ? 1 : 0;
+        fixture.moveTo(position);
+        hovered += fixture.target()->cursor().shape() == Qt::SizeAllCursor ? 1 : 0;
+        gaps += fixture.target()->cursor().shape() == Qt::ArrowCursor ? 1 : 0;
+    }
+    const qint64 elapsed = timer.nsecsElapsed();
+    QVERIFY(moves > MOVES / 2);
+    qInfo("%d annotations: %.3f ms per mouse move of the text tool with selectable annotations", int(squares.size()), double(elapsed) / 1.0e6 / moves);
+
+    // The cursor of every move is that of its own position (the hover of the manager is
+    // not one move late): a move to a gap after an annotation shows the arrow of the tool
+    QCOMPARE(hovered, onSquares);
+    QCOMPARE(gaps, moves - onSquares);
+
+    // The cursor and the hit test follow the annotation under the cursor
+    const QPoint onSquare = fixture.device(QPointF(CELL * 3 + 4.0, CELL * 5 + 4.0));
+    const QPoint inGap = fixture.device(QPointF(CELL * 3 + 0.4, CELL * 5 + 0.4));
+    QCOMPARE(annotations.getSelectableAnnotationsAt(onSquare), std::vector<PDFObjectReference>({ squares[5 * COLUMNS + 3] }));
+    QVERIFY(annotations.getSelectableAnnotationsAt(inGap).empty());
+    fixture.moveTo(onSquare);
+    QCOMPARE(fixture.target()->cursor().shape(), Qt::SizeAllCursor);
+    fixture.moveTo(inGap);
+    QCOMPARE(fixture.target()->cursor().shape(), Qt::ArrowCursor);
+    fixture.moveTo(onSquare);
+    QCOMPARE(fixture.target()->cursor().shape(), Qt::SizeAllCursor);
+
+    // A selected annotation is hit by its rectangle - the hit test of the move after the
+    // selection is not the one of the move before it
+    fixture.click(onSquare);
+    QVERIFY(annotations.isAnnotationSelected(squares[5 * COLUMNS + 3]));
+    fixture.moveTo(onSquare);
+    QVERIFY(fixture.target()->cursor().shape() != Qt::ArrowCursor);
+    QVERIFY(annotations.isInteractionAt(onSquare, Qt::NoModifier));
+    fixture.key(Qt::Key_Escape);
+    fixture.moveTo(inGap);
+    QCOMPARE(fixture.target()->cursor().shape(), Qt::ArrowCursor);
+    QVERIFY(!annotations.hasSelection());
+
 }
 
 void AnnotationToolsTest::reviewPickToolViewColors()

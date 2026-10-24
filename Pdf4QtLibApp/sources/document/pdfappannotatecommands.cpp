@@ -49,7 +49,7 @@ PDFAppAnnotateCommandHandler::PDFAppAnnotateCommandHandler(PDFAppDocumentTab* ta
         connect(m_creator.data(), &PDFAppAnnotationCreator::activeKindChanged, this, &PDFAppAnnotateCommandHandler::onCreatorStateChanged);
         connect(m_creator.data(), &PDFAppAnnotationCreator::toolStateChanged, this, &PDFAppAnnotateCommandHandler::onCreatorStateChanged);
 
-        m_markResults = new PDFAppMarkResults(view, m_creator, this);
+        m_markResults = new PDFAppMarkResults(view, this);
         connect(m_markResults.data(), &PDFAppMarkResults::stateChanged, this, &PDFAppAnnotateCommandHandler::onCreatorStateChanged);
     }
 }

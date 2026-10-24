@@ -121,6 +121,7 @@ private slots:
     void removableParts();
     void freeTextRectangle();
     void freeTextCalloutLine();
+    void linkGeometry();
 
 private:
     /// Text stored under the key of the annotation dictionary
@@ -331,12 +332,13 @@ void AnnotationManipulatorTest::geometryKinds()
     QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Text), Kind::Icon);
     QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::FileAttachment), Kind::Icon);
     QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Stamp), Kind::Appearance);
-    QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Link), Kind::NotSupported);
+    QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Link), Kind::Box);
     QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Widget), Kind::NotSupported);
     QCOMPARE(PDFAnnotationManipulator::getGeometryKind(AnnotationType::Popup), Kind::NotSupported);
 
     QVERIFY(PDFAnnotationManipulator::isTransformable(AnnotationType::Stamp));
-    QVERIFY(!PDFAnnotationManipulator::isTransformable(AnnotationType::Link));
+    QVERIFY(PDFAnnotationManipulator::isTransformable(AnnotationType::Link));
+    QVERIFY(!PDFAnnotationManipulator::isTransformable(AnnotationType::Widget));
 }
 
 void AnnotationManipulatorTest::axisAlignment()
@@ -756,7 +758,7 @@ void AnnotationManipulatorTest::transformedOutline()
     QVERIFY(fuzzyCompare(outline.boundingRect(), expected));
 
     // Unsupported annotations are not transformed at all
-    outline = PDFAnnotationManipulator::getTransformedOutline(AnnotationType::Link, rectangle, scale);
+    outline = PDFAnnotationManipulator::getTransformedOutline(AnnotationType::Widget, rectangle, scale);
     QVERIFY(fuzzyCompare(outline.boundingRect(), rectangle));
 }
 
@@ -1710,7 +1712,10 @@ void AnnotationManipulatorTest::capabilities()
     const PDFObjectReference stamp = builder.createAnnotationStamp(page, QRectF(100, 100, 200, 50), Stamp::Approved, "Title", "Subject", "Contents");
     const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(100, 100, 50, 30), "https://example.com", LinkHighlightMode::Invert);
     const PDFObjectReference polygon = builder.createAnnotationPolygon(page, triangle, 2.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference noteWithPopup = builder.createAnnotationText(page, QRectF(250, 250, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", true);
     const PDFDocument document = builder.build();
+    const PDFObjectReference popup = entry(document, noteWithPopup, "Popup").getReference();
+    QVERIFY(popup.isValid());
 
     auto getCapabilities = [&document](PDFObjectReference annotation)
     {
@@ -1737,7 +1742,10 @@ void AnnotationManipulatorTest::capabilities()
     // An icon can only be moved
     QCOMPARE(getCapabilities(note), Manipulator::Capabilities(Manipulator::Move));
 
-    QCOMPARE(getCapabilities(link), Manipulator::Capabilities(Manipulator::NoCapability));
+    // A link can be moved and resized (its areas follow the rectangle), not rotated
+    QCOMPARE(getCapabilities(link), Manipulator::Capabilities(Manipulator::Move | Manipulator::Resize));
+
+    QCOMPARE(getCapabilities(popup), Manipulator::Capabilities(Manipulator::NoCapability));
     QCOMPARE(Manipulator::getCapabilities(nullptr), Manipulator::Capabilities(Manipulator::NoCapability));
 }
 
@@ -2565,7 +2573,9 @@ void AnnotationManipulatorTest::effectiveTransform()
     QCOMPARE(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Square, rectangle, scaling), scaling);
     QVERIFY(qFuzzyCompare(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Square, rectangle, rotation), translation));
     QVERIFY(qFuzzyCompare(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Text, rectangle, rotation), translation));
-    QCOMPARE(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Link, rectangle, rotation), QTransform());
+    QVERIFY(qFuzzyCompare(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Link, rectangle, rotation), translation));
+    QCOMPARE(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Link, rectangle, scaling), scaling);
+    QCOMPARE(PDFAnnotationManipulator::getEffectiveTransform(AnnotationType::Widget, rectangle, rotation), QTransform());
 }
 
 void AnnotationManipulatorTest::markedRegionEnds()
@@ -3093,7 +3103,16 @@ void AnnotationManipulatorTest::setRectangle()
     const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(300, 300, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
     const PDFObjectReference empty = builder.createAnnotationSquare(page, QRectF(10, 10, 50, 30), 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
     setEntry(builder, empty, "Rect", numberArray({ 10.0, 10.0, 10.0, 10.0 }));
+    const PDFObjectReference noteWithPopup = builder.createAnnotationText(page, QRectF(250, 250, 20, 20), TextAnnotationIcon::Note, "Title", "Subject", "Contents", true);
     const PDFDocument document = builder.build();
+    const PDFObjectReference popup = entry(document, noteWithPopup, "Popup").getReference();
+
+    // A link is moved and resized to the rectangle
+    {
+        PDFDocumentBuilder modifyBuilder(&document);
+        QVERIFY(PDFAnnotationManipulator::setRectangle(&modifyBuilder, link, QRectF(20, 30, 100, 40)));
+        QVERIFY(fuzzyCompare(rectangle(modifyBuilder.build(), link), QRectF(20, 30, 100, 40)));
+    }
 
     // The rectangle of a polygon is its geometry with the margin of the line. The margin is
     // not scaled with the geometry, but the rectangle, which the user has asked for, is reached.
@@ -3137,7 +3156,7 @@ void AnnotationManipulatorTest::setRectangle()
     QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, polygon, QRectF(0, 0, 0, 10)));
     QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, PDFObjectReference(), QRectF(0, 0, 10, 10)));
     QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, empty, QRectF(0, 0, 10, 10)));
-    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, link, QRectF(0, 0, 10, 10)));
+    QVERIFY(!PDFAnnotationManipulator::setRectangle(&modifyBuilder, popup, QRectF(0, 0, 10, 10)));
 }
 
 void AnnotationManipulatorTest::addedAndReplacedParts()
@@ -3419,6 +3438,73 @@ void AnnotationManipulatorTest::replacedFileAttachment()
     QVERIFY(embeddedFile && embeddedFile->isValid());
     QCOMPARE(embeddedFile->getSize(), PDFInteger(data.size()));
     QCOMPARE(reopened.getDecodedStream(embeddedFile->getStream()), data);
+}
+
+void AnnotationManipulatorTest::linkGeometry()
+{
+    // Owner (O20): a link is moved and resized in the new application - its rectangle
+    // and its QuadPoints, which stay inside of the rectangle; the library creates no
+    // appearance of a link (an appearance of other software is kept)
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
+    const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(100, 100, 100, 40), QString("https://example.com"), LinkHighlightMode::Invert);
+    setEntry(builder, link, "QuadPoints", numberArray({ 110, 110, 150, 110, 150, 130, 110, 130,  160, 105, 190, 105, 190, 135, 160, 135 }));
+    const PDFObjectReference plainLink = builder.createAnnotationLink(page, QRectF(10, 10, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    const PDFObjectReference oddLink = builder.createAnnotationLink(page, QRectF(10, 300, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    setEntry(builder, oddLink, "QuadPoints", numberArray({ 10, 300, 60, 300, 60, 320, 10, 320, 99 }));
+    const PDFObjectReference outsideLink = builder.createAnnotationLink(page, QRectF(200, 200, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    setEntry(builder, outsideLink, "QuadPoints", numberArray({ 0, 0, 1000, 0, 1e300, -1e300, 210, 210 }));
+    const PDFObjectReference appearanceLink = builder.createAnnotationLink(page, QRectF(300, 100, 50, 20), QString("https://example.com"), LinkHighlightMode::Invert);
+    const PDFObjectReference stamp = builder.createAnnotationStamp(page, QRectF(0, 0, 100, 50), Stamp::Approved, "Title", "Subject", "Contents");
+    const PDFDocument withStamp = builder.build();
+    const PDFObject stampAppearance = entry(withStamp, stamp, "AP");
+    QVERIFY(stampAppearance.isDictionary() || stampAppearance.isReference());
+    PDFDocumentBuilder appearanceBuilder(&withStamp);
+    setEntry(appearanceBuilder, appearanceLink, "AP", stampAppearance);
+    const PDFDocument document = appearanceBuilder.build();
+    const PDFObject linkAppearance = entry(document, link, "AP");
+
+    // Moved: the rectangle and the areas, the appearance is not created again
+    PDFDocument modified = transform(document, link, QTransform::fromTranslate(20.0, -30.0));
+    QVERIFY(fuzzyCompare(rectangle(modified, link), QRectF(120, 70, 100, 40)));
+    QVERIFY(fuzzyCompare(numbers(modified, link, "QuadPoints"), { 130, 80, 170, 80, 170, 100, 130, 100,  180, 75, 210, 75, 210, 105, 180, 105 }));
+    QCOMPARE(entry(modified, link, "AP"), linkAppearance);
+
+    // Resized: the areas are scaled with the rectangle
+    const QTransform scale = QTransform::fromTranslate(-100.0, -100.0) * QTransform::fromScale(2.0, 0.5) * QTransform::fromTranslate(100.0, 100.0);
+    modified = transform(document, link, scale);
+    QVERIFY(fuzzyCompare(rectangle(modified, link), QRectF(100, 100, 200, 20)));
+    QVERIFY(fuzzyCompare(numbers(modified, link, "QuadPoints"), { 120, 105, 200, 105, 200, 115, 120, 115,  220, 102.5, 280, 102.5, 280, 117.5, 220, 117.5 }));
+    QCOMPARE(entry(modified, link, "AP"), linkAppearance);
+
+    // Rotated (a link cannot be rotated): moved to the rotated position, the areas with it
+    const QTransform rotation = rotationAroundCenter(QRectF(0, 0, 400, 400), 90.0);
+    modified = transform(document, link, rotation);
+    const QRectF rotatedRectangle = rectangle(modified, link);
+    QVERIFY(qAbs(rotatedRectangle.width() - 100.0) < 0.01 && qAbs(rotatedRectangle.height() - 40.0) < 0.01);
+    const QPointF offset = rotatedRectangle.center() - QPointF(150, 120);
+    QVERIFY(QLineF(rotatedRectangle.center(), rotation.map(QPointF(150, 120))).length() < 0.01);
+    const std::vector<PDFReal> rotatedQuadPoints = numbers(modified, link, "QuadPoints");
+    QCOMPARE(rotatedQuadPoints.size(), size_t(16));
+    QVERIFY(qAbs(rotatedQuadPoints[0] - (110.0 + offset.x())) < 0.01);
+    QVERIFY(qAbs(rotatedQuadPoints[1] - (110.0 + offset.y())) < 0.01);
+
+    // A link without areas is its rectangle
+    modified = transform(document, plainLink, scale);
+    QVERIFY(entry(modified, plainLink, "QuadPoints").isNull());
+
+    // A trailing unpaired number is dropped
+    modified = transform(document, oddLink, QTransform::fromTranslate(5.0, 5.0));
+    QVERIFY(fuzzyCompare(numbers(modified, oddLink, "QuadPoints"), { 15, 305, 65, 305, 65, 325, 15, 325 }));
+
+    // Hostile areas outside of the rectangle are moved onto its border
+    modified = transform(document, outsideLink, QTransform::fromTranslate(10.0, 10.0));
+    QVERIFY(fuzzyCompare(rectangle(modified, outsideLink), QRectF(210, 210, 50, 20)));
+    QVERIFY(fuzzyCompare(numbers(modified, outsideLink, "QuadPoints"), { 210, 210, 260, 210, 260, 210, 220, 220 }));
+
+    // An appearance of other software is kept (the viewer fits it into the rectangle)
+    modified = transform(document, appearanceLink, scale);
+    QCOMPARE(entry(modified, appearanceLink, "AP"), entry(document, appearanceLink, "AP"));
 }
 
 QTEST_MAIN(AnnotationManipulatorTest)

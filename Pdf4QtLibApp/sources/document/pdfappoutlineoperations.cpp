@@ -548,13 +548,13 @@ public:
                 builder->setOutline(rootReference);
             }
 
-            // A removed item is not referenced any more: its object is emptied
-            for (const PDFObjectReference& reference : tree.originalReferences)
+            // A removed item is not referenced by the outline any more: its object
+            // is emptied only when it is provably an item of this outline, which
+            // nothing else references; otherwise it is only unlinked (a hostile
+            // /Next can reach an object of another structure - the form, ...)
+            for (const PDFObjectReference& reference : getEmptiedReferences(document, tree, used))
             {
-                if (!used.count(reference))
-                {
-                    builder->setObject(reference, PDFObject());
-                }
+                builder->setObject(reference, PDFObject());
             }
 
             if (!modifier.finalize() || !modifier.getDocument())
@@ -567,6 +567,118 @@ public:
         {
             return std::nullopt;
         }
+    }
+
+    /// Entries of an item, which the writer writes again (their old values do
+    /// not keep an object alive)
+    static bool isStructureKey(const PDFInplaceOrMemoryString& key)
+    {
+        return key == "Parent" || key == "Prev" || key == "Next" || key == "First" || key == "Last";
+    }
+
+    /// Adds the references of \p object (direct objects walked without recursion),
+    /// which are in \p candidates, into \p referenced
+    static void collectReferences(const PDFObject& object, const std::set<PDFObjectReference>& candidates, std::set<PDFObjectReference>& referenced)
+    {
+        std::vector<const PDFObject*> stack = { &object };
+        while (!stack.empty())
+        {
+            const PDFObject* current = stack.back();
+            stack.pop_back();
+            if (current->isReference())
+            {
+                if (candidates.count(current->getReference()))
+                {
+                    referenced.insert(current->getReference());
+                }
+            }
+            else if (current->isArray())
+            {
+                const PDFArray* array = current->getArray();
+                for (size_t i = 0; i < array->getCount(); ++i)
+                {
+                    stack.push_back(&array->getItem(i));
+                }
+            }
+            else if (current->isDictionary() || current->isStream())
+            {
+                const PDFDictionary* dictionary = current->isDictionary() ? current->getDictionary() : current->getStream()->getDictionary();
+                for (size_t i = 0; i < dictionary->getCount(); ++i)
+                {
+                    stack.push_back(&dictionary->getValue(i));
+                }
+            }
+        }
+    }
+
+    /// Objects of the removed items (read from the document, not used by the
+    /// written tree), which can be emptied: an outline item (a /Title and the
+    /// /Parent of the outline dictionary or of an item of the tree), which no
+    /// object of the document references - apart from the entries of the
+    /// structure of the outline, which are written again, and the other
+    /// emptied items. Any other object is only unlinked and stays as it is.
+    static std::set<PDFObjectReference> getEmptiedReferences(const PDFDocument* document, const PDFAppOutlineTree& tree, const std::set<PDFObjectReference>& used)
+    {
+        const PDFObjectStorage& storage = document->getStorage();
+        std::set<PDFObjectReference> outline(tree.originalReferences.begin(), tree.originalReferences.end());
+        std::set<PDFObjectReference> candidates;
+        for (const PDFObjectReference& reference : tree.originalReferences)
+        {
+            const PDFObject& object = storage.getObjectByReference(reference);
+            if (used.count(reference) || !object.isDictionary() || !object.getDictionary()->hasKey("Title"))
+            {
+                continue;
+            }
+
+            const PDFObject& parent = object.getDictionary()->get("Parent");
+            if (parent.isReference() && ((tree.rootReference.isValid() && parent.getReference() == tree.rootReference) || outline.count(parent.getReference())))
+            {
+                candidates.insert(reference);
+            }
+        }
+        if (tree.rootReference.isValid())
+        {
+            outline.insert(tree.rootReference);
+        }
+
+        // A kept candidate keeps the candidates it references (until nothing changes)
+        const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+        bool changed = !candidates.empty();
+        while (changed)
+        {
+            std::set<PDFObjectReference> referenced;
+            collectReferences(storage.getTrailerDictionary(), candidates, referenced);
+            for (size_t i = 0; i < objects.size(); ++i)
+            {
+                const PDFObjectReference reference(PDFInteger(i), objects[i].generation);
+                const PDFObject& object = objects[i].object;
+                if (candidates.count(reference))
+                {
+                    continue;
+                }
+
+                if (outline.count(reference) && object.isDictionary())
+                {
+                    const PDFDictionary* dictionary = object.getDictionary();
+                    for (size_t j = 0; j < dictionary->getCount(); ++j)
+                    {
+                        if (!isStructureKey(dictionary->getKey(j)))
+                        {
+                            collectReferences(dictionary->getValue(j), candidates, referenced);
+                        }
+                    }
+                    continue;
+                }
+                collectReferences(object, candidates, referenced);
+            }
+
+            for (const PDFObjectReference& reference : referenced)
+            {
+                candidates.erase(reference);
+            }
+            changed = !referenced.empty() && !candidates.empty();
+        }
+        return candidates;
     }
 
     /// The node \p ancestor is \p node or one of its parents

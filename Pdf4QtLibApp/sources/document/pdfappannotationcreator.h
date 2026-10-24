@@ -323,6 +323,14 @@ public:
     /// Reads the styles of the tools again (a change of another instance)
     void reloadStyles();
 
+    /// Reads the styles of the tools again from the event loop: a change of a
+    /// style by the bar and its notification by the database (own commits are
+    /// notified from the event loop too) read the styles once
+    void scheduleStyleReload();
+
+    /// A reload of the styles waits for the event loop
+    bool isStyleReloadPending() const { return m_isStyleReloadPending; }
+
     // ------------------------------------------------------------------ text selection
 
     /// Text is selected by the text selection tool
@@ -411,6 +419,7 @@ private:
     void onViewChanged();
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onSettingsChanged();
+    void onStyleReloadQueued();
     void onCanvasReleasedQueued();
     void onEndToolQueued();
     void onRequestedToolQueued();
@@ -460,6 +469,7 @@ private:
     QRect m_markupBarSelection;
     bool m_isStarting = false;
     bool m_isReleasePending = false;
+    bool m_isStyleReloadPending = false;
 };
 
 }   // namespace pdf

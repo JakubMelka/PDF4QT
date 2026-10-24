@@ -58,6 +58,7 @@ PDFAnnotationManipulator::GeometryKind PDFAnnotationManipulator::getGeometryKind
         case AnnotationType::Circle:
         case AnnotationType::FreeText:
         case AnnotationType::Caret:
+        case AnnotationType::Link:
             return GeometryKind::Box;
 
         case AnnotationType::Text:
@@ -651,7 +652,8 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
     }
     else if (kind == GeometryKind::Box)
     {
-        if (isBoxTransformedExactly(parsedAnnotation->getType(), transform))
+        const bool isExact = isBoxTransformedExactly(parsedAnnotation->getType(), transform);
+        if (isExact)
         {
             transformPointArray(modifiedDictionary, storage, "CL", transform);
             newRectangle = transform.mapRect(rectangle);
@@ -663,6 +665,16 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
             // The shape cannot be rotated, so the annotation is just moved
             // to the transformed position.
             newRectangle = moveBox(modifiedDictionary, storage, parsedAnnotation.data(), rectangle, transform, &regenerateAppearance);
+        }
+
+        if (parsedAnnotation->getType() == AnnotationType::Link)
+        {
+            // Jakub Melka: the areas of a link follow its rectangle. The library does not
+            // create the appearance of a link (its highlight is drawn by the viewer), so an
+            // appearance of other software is kept and it is fitted into the new rectangle.
+            const QPointF offset = newRectangle.center() - rectangle.center();
+            transformLinkQuadPoints(modifiedDictionary, storage, isExact ? transform : QTransform::fromTranslate(offset.x(), offset.y()), newRectangle);
+            regenerateAppearance = false;
         }
     }
     else if (kind == GeometryKind::Icon)
@@ -739,6 +751,29 @@ QRectF PDFAnnotationManipulator::setFreeTextGeometry(PDFDictionaryBuilder& dicti
                                                                              rectangle.right() - textRectangle.right(),
                                                                              rectangle.bottom() - textRectangle.bottom() }));
     return rectangle;
+}
+
+void PDFAnnotationManipulator::transformLinkQuadPoints(PDFDictionaryBuilder& dictionary, const PDFObjectStorage* storage, const QTransform& transform, const QRectF& rectangle)
+{
+    PDFDocumentDataLoaderDecorator loader(storage);
+    std::vector<PDFReal> numbers = loader.readNumberArrayFromDictionary(dictionary.getDictionary(), "QuadPoints");
+    const size_t pointCount = numbers.size() / 2;
+    if (pointCount == 0)
+    {
+        return;
+    }
+
+    numbers.resize(pointCount * 2);
+    for (size_t i = 0; i < pointCount; ++i)
+    {
+        // A point outside of the rectangle (also a hostile infinite or NaN value) is
+        // moved onto its border
+        const QPointF point = transform.map(QPointF(numbers[i * 2], numbers[i * 2 + 1]));
+        numbers[i * 2] = qBound(rectangle.left(), point.x(), rectangle.right());
+        numbers[i * 2 + 1] = qBound(rectangle.top(), point.y(), rectangle.bottom());
+    }
+
+    dictionary.setEntry(PDFInplaceOrMemoryString("QuadPoints"), createNumberArray(numbers));
 }
 
 QRectF PDFAnnotationManipulator::moveBox(PDFDictionaryBuilder& dictionary,

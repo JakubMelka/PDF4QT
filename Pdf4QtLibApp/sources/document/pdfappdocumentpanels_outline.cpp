@@ -289,26 +289,6 @@ int PDFAppOutlinePanel::findCurrentItemIndex(const std::vector<ItemPosition>& it
     return above >= 0 ? above : topmost;
 }
 
-PDFReal PDFAppOutlinePanel::getViewTop(PDFInteger currentPage) const
-{
-    PDFAppDocumentView* view = getView();
-    PDFDrawWidgetProxy* proxy = view ? view->getProxy() : nullptr;
-    PDFWidget* pdfWidget = view ? view->getPdfWidget() : nullptr;
-    QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
-    if (!proxy || !drawWidget || currentPage < 0)
-    {
-        return std::numeric_limits<PDFReal>::infinity();
-    }
-
-    // The top edge of the view (the middle, where a page lies in every layout)
-    QPointF pagePoint;
-    if (proxy->getPageUnderPoint(QPoint(drawWidget->width() / 2, 0), &pagePoint) == currentPage && qIsFinite(pagePoint.y()))
-    {
-        return pagePoint.y();
-    }
-    return std::numeric_limits<PDFReal>::infinity();
-}
-
 PDFAppOutlineFilterModel::PDFAppOutlineFilterModel(QObject* parent) :
     BaseClass(parent)
 {
@@ -811,7 +791,7 @@ void PDFAppOutlinePanel::selectCurrentItem()
     {
         positions.push_back(ItemPosition{ item.page, item.top });
     }
-    const int bestIndex = findCurrentItemIndex(positions, currentPage, getViewTop(currentPage));
+    const int bestIndex = findCurrentItemIndex(positions, currentPage, PDFAppOutlineEditor::getViewTop(getView(), currentPage).value_or(std::numeric_limits<PDFReal>::infinity()));
     const QStandardItem* best = bestIndex >= 0 ? m_items[size_t(bestIndex)].item : nullptr;
     const PDFInteger bestPage = bestIndex >= 0 ? m_items[size_t(bestIndex)].page : -1;
 
@@ -1253,39 +1233,46 @@ PDFAppOutlinePanel::DropPosition PDFAppOutlinePanel::getDropPosition(const QRect
     return DropPosition::OnItem;
 }
 
-bool PDFAppOutlinePanel::dropItem(const QModelIndex& source, const QModelIndex& target, DropPosition position)
+PDFAppOutlinePanel::DropRequest PDFAppOutlinePanel::getDropRequest(const OutlinePath& item, const QModelIndex& target, DropPosition position) const
 {
-    PDFAppOutlineEditor* editor = getEditor();
-    const OutlinePath item = getItemPath(source);
-    if (!editor || item.empty() || !m_model)
+    DropRequest request;
+    if (item.empty() || !m_model)
     {
-        return false;
+        return request;
     }
 
-    OutlinePath parent;
-    size_t index = size_t(m_model->rowCount());
+    request.isValid = true;
+    request.item = item;
+    request.index = size_t(m_model->rowCount());
     const OutlinePath targetPath = getItemPath(target);
-    if (!targetPath.empty() && position != DropPosition::OnViewport)
+    if (!targetPath.empty())
     {
         switch (position)
         {
             case DropPosition::Above:
             case DropPosition::Below:
-                parent = targetPath;
-                parent.pop_back();
-                index = targetPath.back() + (position == DropPosition::Below ? 1 : 0);
+                request.parent = targetPath;
+                request.parent.pop_back();
+                request.index = targetPath.back() + (position == DropPosition::Below ? 1 : 0);
                 break;
 
             case DropPosition::OnItem:
-                parent = targetPath;
-                index = size_t(m_model->rowCount(getSourceIndex(targetPath)));
+                request.parent = targetPath;
+                request.index = size_t(m_model->rowCount(getSourceIndex(targetPath)));
                 break;
 
-            default:
+            case DropPosition::OnViewport:
                 break;
         }
     }
-    return editor->moveItem(item, parent, index);
+    return request;
+}
+
+bool PDFAppOutlinePanel::dropItem(const QModelIndex& source, const QModelIndex& target, DropPosition position)
+{
+    PDFAppOutlineEditor* editor = getEditor();
+    const DropRequest request = getDropRequest(getItemPath(source), target, position);
+    return editor && request.isValid && editor->moveItem(request.item, request.parent, request.index);
 }
 
 void PDFAppOutlinePanel::onDropQueued()
@@ -1519,25 +1506,7 @@ bool PDFAppOutlinePanel::eventFilter(QObject* watched, QEvent* event)
                 const QModelIndex target = m_tree->indexAt(position);
                 const DropPosition place = target.isValid() ? getDropPosition(m_tree->visualRect(target), position) : DropPosition::OnViewport;
 
-                DropRequest request;
-                request.isValid = true;
-                request.item = *item;
-                request.index = size_t(m_model->rowCount());
-                const OutlinePath targetPath = getItemPath(target);
-                if (!targetPath.empty() && place != DropPosition::OnViewport)
-                {
-                    request.parent = targetPath;
-                    if (place == DropPosition::OnItem)
-                    {
-                        request.index = size_t(m_model->rowCount(getSourceIndex(targetPath)));
-                    }
-                    else
-                    {
-                        request.parent.pop_back();
-                        request.index = targetPath.back() + (place == DropPosition::Below ? 1 : 0);
-                    }
-                }
-                m_dropRequest = request;
+                m_dropRequest = getDropRequest(*item, target, place);
 
                 // The view does not remove the dragged rows (no action for it - the
                 // items are owned by the model of the panel, which is built again from

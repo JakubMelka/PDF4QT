@@ -214,8 +214,9 @@ PDFFreeTextStyle PDFAppAnnotationStyleStorage::getFreeTextStyle(const PDFFreeTex
 
     if (const std::optional<QJsonObject> value = getRepository().getValue(PDFAnnotationStyleRepository::toolFreeText()))
     {
+        // The family is bounded by the one rule of the text boxes (boundFreeTextStyle below)
         const QJsonValue font = value->value(QStringLiteral("font"));
-        if (font.isString() && !font.toString().isEmpty() && font.toString().size() <= H::MAXIMUM_NAME_LENGTH)
+        if (font.isString())
         {
             style.fontFamily = font.toString();
         }
@@ -253,7 +254,7 @@ void PDFAppAnnotationStyleStorage::setFreeTextStyle(const PDFFreeTextStyle& styl
 {
     const PDFFreeTextStyle bounded = PDFCreateFreeTextTool::boundFreeTextStyle(style);
     QJsonObject value;
-    value.insert(QStringLiteral("font"), bounded.fontFamily.left(PDFAppAnnotationStyleStorageHelper::MAXIMUM_NAME_LENGTH));
+    value.insert(QStringLiteral("font"), bounded.fontFamily);
     value.insert(QStringLiteral("size"), bounded.fontSize);
     value.insert(QStringLiteral("textColor"), PDFAppAnnotationStyleStorageHelper::getColorText(bounded.textColor));
     value.insert(QStringLiteral("alignment"), int(bounded.textAlignment.toInt()));

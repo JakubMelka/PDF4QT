@@ -472,10 +472,9 @@ void PDFAppMarkResultsMenu::changeEvent(QEvent* event)
 
 // ----------------------------------------------------------- PDFAppMarkResults
 
-PDFAppMarkResults::PDFAppMarkResults(PDFAppDocumentView* view, PDFAppAnnotationCreator* creator, QObject* parent) :
+PDFAppMarkResults::PDFAppMarkResults(PDFAppDocumentView* view, QObject* parent) :
     BaseClass(parent),
-    m_view(view),
-    m_creator(creator)
+    m_view(view)
 {
     setObjectName(QStringLiteral("markResults"));
 }

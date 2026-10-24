@@ -382,6 +382,16 @@ PDFAppDocumentView::~PDFAppDocumentView()
         }
     }
 
+    // A dying view emits nothing more: the managers detached from the document
+    // below change their state (the Select text tool clears its selection) and the
+    // receivers would read a view being destroyed (review RT4; QObject::destroyed
+    // is still emitted - it ignores the blocked signals)
+    blockSignals(true);
+    if (PDFSelectTextTool* selectTextTool = m_toolManager ? m_toolManager->getSelectTextTool() : nullptr)
+    {
+        selectTextTool->disconnect(this);
+    }
+
     // The controllers of step 4 go first (they use the managers and the document)
     delete m_commentPopup.data();
     delete m_outlineEditor;

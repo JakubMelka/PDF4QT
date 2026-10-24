@@ -990,9 +990,6 @@ void PDFDrawWidgetProxy::drawPageShadows(QPainter* painter, QRect rect)
     }
 
     const PDFReal extent = getPageShadowExtent(m_pageDecoration.shadowBlur);
-    const int tileSize = m_pageShadowTile.width();
-    const int tileCorner = tileSize / 2;
-    const PDFReal corner = tileCorner / devicePixelRatio;
 
     for (const LayoutItem& item : m_layout.items)
     {
@@ -1009,35 +1006,65 @@ void PDFDrawWidgetProxy::drawPageShadows(QPainter* painter, QRect rect)
             continue;
         }
 
-        // Corners and edges of the tile (nine-slice), the middle is below the page.
-        // A small page takes smaller corners, the corners never overlap.
-        const PDFReal cornerWidth = qMin(corner, shadowRect.width() * 0.5);
-        const PDFReal cornerHeight = qMin(corner, shadowRect.height() * 0.5);
-        const PDFReal sourceWidth = cornerWidth * devicePixelRatio;
-        const PDFReal sourceHeight = cornerHeight * devicePixelRatio;
-        const PDFReal left = shadowRect.left();
-        const PDFReal top = shadowRect.top();
-        const PDFReal right = shadowRect.right();
-        const PDFReal bottom = shadowRect.bottom();
-        const PDFReal edgeWidth = shadowRect.width() - 2.0 * cornerWidth;
-        const PDFReal edgeHeight = shadowRect.height() - 2.0 * cornerHeight;
+        drawShadowTile(painter, m_pageShadowTile, shadowRect);
+    }
+}
 
-        painter->drawImage(QRectF(left, top, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(0.0, 0.0, sourceWidth, sourceHeight));
-        painter->drawImage(QRectF(right - cornerWidth, top, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, 0.0, sourceWidth, sourceHeight));
-        painter->drawImage(QRectF(left, bottom - cornerHeight, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(0.0, tileSize - sourceHeight, sourceWidth, sourceHeight));
-        painter->drawImage(QRectF(right - cornerWidth, bottom - cornerHeight, cornerWidth, cornerHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, tileSize - sourceHeight, sourceWidth, sourceHeight));
+void PDFDrawWidgetProxy::drawShadow(QPainter* painter, const QRectF& rect, const QColor& color, PDFReal blur)
+{
+    if (!painter || !color.isValid() || color.alpha() == 0 || !rect.isValid() || !qIsFinite(blur))
+    {
+        return;
+    }
 
-        if (edgeWidth > 0.0)
-        {
-            painter->drawImage(QRectF(left + cornerWidth, top, edgeWidth, cornerHeight), m_pageShadowTile, QRectF(tileCorner - 1, 0.0, 1.0, sourceHeight));
-            painter->drawImage(QRectF(left + cornerWidth, bottom - cornerHeight, edgeWidth, cornerHeight), m_pageShadowTile, QRectF(tileCorner - 1, tileSize - sourceHeight, 1.0, sourceHeight));
-        }
+    const QPaintDevice* device = painter->device();
+    const PDFReal devicePixelRatio = device ? device->devicePixelRatioF() : 1.0;
+    const PDFReal boundedBlur = qBound(0.0, blur, MAX_PAGE_SHADOW_BLUR);
+    const QImage tile = createPageShadowTile(boundedBlur, color, devicePixelRatio);
+    if (tile.isNull())
+    {
+        return;
+    }
 
-        if (edgeHeight > 0.0)
-        {
-            painter->drawImage(QRectF(left, top + cornerHeight, cornerWidth, edgeHeight), m_pageShadowTile, QRectF(0.0, tileCorner - 1, sourceWidth, 1.0));
-            painter->drawImage(QRectF(right - cornerWidth, top + cornerHeight, cornerWidth, edgeHeight), m_pageShadowTile, QRectF(tileSize - sourceWidth, tileCorner - 1, sourceWidth, 1.0));
-        }
+    const PDFReal extent = getPageShadowExtent(boundedBlur);
+    drawShadowTile(painter, tile, rect.adjusted(-extent, -extent, extent, extent));
+}
+
+void PDFDrawWidgetProxy::drawShadowTile(QPainter* painter, const QImage& tile, const QRectF& shadowRect)
+{
+    const PDFReal devicePixelRatio = tile.devicePixelRatio();
+    const int tileSize = tile.width();
+    const int tileCorner = tileSize / 2;
+    const PDFReal corner = tileCorner / devicePixelRatio;
+
+    // Corners and edges of the tile (nine-slice), the middle is below the page.
+    // A small page takes smaller corners, the corners never overlap.
+    const PDFReal cornerWidth = qMin(corner, shadowRect.width() * 0.5);
+    const PDFReal cornerHeight = qMin(corner, shadowRect.height() * 0.5);
+    const PDFReal sourceWidth = cornerWidth * devicePixelRatio;
+    const PDFReal sourceHeight = cornerHeight * devicePixelRatio;
+    const PDFReal left = shadowRect.left();
+    const PDFReal top = shadowRect.top();
+    const PDFReal right = shadowRect.right();
+    const PDFReal bottom = shadowRect.bottom();
+    const PDFReal edgeWidth = shadowRect.width() - 2.0 * cornerWidth;
+    const PDFReal edgeHeight = shadowRect.height() - 2.0 * cornerHeight;
+
+    painter->drawImage(QRectF(left, top, cornerWidth, cornerHeight), tile, QRectF(0.0, 0.0, sourceWidth, sourceHeight));
+    painter->drawImage(QRectF(right - cornerWidth, top, cornerWidth, cornerHeight), tile, QRectF(tileSize - sourceWidth, 0.0, sourceWidth, sourceHeight));
+    painter->drawImage(QRectF(left, bottom - cornerHeight, cornerWidth, cornerHeight), tile, QRectF(0.0, tileSize - sourceHeight, sourceWidth, sourceHeight));
+    painter->drawImage(QRectF(right - cornerWidth, bottom - cornerHeight, cornerWidth, cornerHeight), tile, QRectF(tileSize - sourceWidth, tileSize - sourceHeight, sourceWidth, sourceHeight));
+
+    if (edgeWidth > 0.0)
+    {
+        painter->drawImage(QRectF(left + cornerWidth, top, edgeWidth, cornerHeight), tile, QRectF(tileCorner - 1, 0.0, 1.0, sourceHeight));
+        painter->drawImage(QRectF(left + cornerWidth, bottom - cornerHeight, edgeWidth, cornerHeight), tile, QRectF(tileCorner - 1, tileSize - sourceHeight, 1.0, sourceHeight));
+    }
+
+    if (edgeHeight > 0.0)
+    {
+        painter->drawImage(QRectF(left, top + cornerHeight, cornerWidth, edgeHeight), tile, QRectF(0.0, tileCorner - 1, sourceWidth, 1.0));
+        painter->drawImage(QRectF(right - cornerWidth, top + cornerHeight, cornerWidth, edgeHeight), tile, QRectF(tileSize - sourceWidth, tileCorner - 1, sourceWidth, 1.0));
     }
 }
 

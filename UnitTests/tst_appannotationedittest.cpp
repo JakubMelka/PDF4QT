@@ -271,6 +271,7 @@ private slots:
     void propertiesApplyOneStep();
     void propertiesReadOnly();
     void propertiesLink();
+    void linksMoveAndResize();
     void geometryDialog();
     void copyToPagesOneStep();
     void hideOnPage();
@@ -302,6 +303,7 @@ private slots:
     void reviewCopyToPagesLimit();
     void reviewCommitBlockedByOperation();
     void reviewOperationsHostileArguments();
+    void reviewBarAndPopupUpdates();
 };
 
 void AppAnnotationEditTest::initTestCase()
@@ -1362,6 +1364,10 @@ void AppAnnotationEditTest::contextMenuSingle()
     const QMargins menuMargins = pdf::PDFWidgetStyle::getPopoverMargins(menu);
     QCOMPARE(menu->minimumWidth(), pdf::PDFAppAnnotationMenus::SINGLE_WIDTH + menuMargins.left() + menuMargins.right());
     QCOMPARE(rotateAndFlip->menu()->minimumWidth(), pdf::PDFAppAnnotationMenus::SUBMENU_WIDTH + menuMargins.left() + menuMargins.right());
+    // The rows of 1019:19318 fit into the panel of 300 (10 px between a label and its
+    // shortcut, the widest row - not the widest label plus the widest shortcut of another row)
+    QCOMPARE(menu->sizeHint().width(), pdf::PDFAppAnnotationMenus::SINGLE_WIDTH + menuMargins.left() + menuMargins.right());
+    QCOMPARE(rotateAndFlip->menu()->sizeHint().width(), pdf::PDFAppAnnotationMenus::SUBMENU_WIDTH + menuMargins.left() + menuMargins.right());
     QMenu* shown = menus->showMenu(H::selectionRequest(controller));
     fixture.settle();
     H::save(QStringLiteral("annotation-menu-single"), H::renderWithPopups(fixture.window, { shown }));
@@ -1422,6 +1428,8 @@ void AppAnnotationEditTest::contextMenuMulti()
     const QMargins menuMargins = pdf::PDFWidgetStyle::getPopoverMargins(menu);
     QCOMPARE(menu->minimumWidth(), pdf::PDFAppAnnotationMenus::MULTI_WIDTH + menuMargins.left() + menuMargins.right());
     QCOMPARE(align->menu()->minimumWidth(), pdf::PDFAppAnnotationMenus::SUBMENU_WIDTH + menuMargins.left() + menuMargins.right());
+    QCOMPARE(menu->sizeHint().width(), pdf::PDFAppAnnotationMenus::MULTI_WIDTH + menuMargins.left() + menuMargins.right());
+    QCOMPARE(align->menu()->sizeHint().width(), pdf::PDFAppAnnotationMenus::SUBMENU_WIDTH + menuMargins.left() + menuMargins.right());
     H::save(QStringLiteral("annotation-menu-multi"), H::renderWithPopups(fixture.window, { menu }));
     H::save(QStringLiteral("annotation-menu-multi-only"), H::render(menu));
 
@@ -1911,6 +1919,92 @@ void AppAnnotationEditTest::propertiesLink()
     QVERIFY(!dialog->findChild<pdf::PDFPlainTextEdit*>(QStringLiteral("propertiesText"))->isReadOnly());
     dialog->reject();
     fixture.settle();
+}
+
+void AppAnnotationEditTest::linksMoveAndResize()
+{
+    using H = AppAnnotationEditTestHelper;
+    using F = pdf::PDFAnnotationProperties;
+
+    // Owner (O20): a link is moved and resized on the page like the other annotations, one
+    // undo step each through the controller; a Locked link is not (ISO 32000-2, Table 167)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::links(fixture.folder()));
+    QVERIFY(tab && tab->getDocument()->isReady());
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    pdf::PDFWidgetAnnotationManager* manager = controller->getAnnotationManager();
+    const std::vector<pdf::PDFObjectReference> links = document->getDocument()->getCatalog()->getPage(0)->getAnnotations();
+    QVERIFY(links.size() >= 3);
+    const pdf::PDFObjectReference link = links[2];
+    auto rectangle = [document](pdf::PDFObjectReference annotation)
+    {
+        return pdf::PDFAppAnnotationInfo::read(document->getDocument().data(), annotation).rectangle.normalized();
+    };
+    const QRectF original = rectangle(link);
+    QVERIFY(original.isValid());
+
+    controller->selectAnnotations({ link });
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ link }));
+
+    // Moved by the drag and drop of the canvas (a press on the selected link is not a
+    // click on the link, nothing is opened)
+    bool ok = false;
+    const QPoint from = pdftest::AppDocumentFixture::pageToWidget(view, 0, original.center(), &ok);
+    QVERIFY(ok);
+    const QPoint to = pdftest::AppDocumentFixture::pageToWidget(view, 0, original.center() + QPointF(40, -30), &ok);
+    QVERIFY(ok);
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, from);
+    std::unique_ptr<QMimeData> data(manager->createAnnotationDragData());
+    QVERIFY(data);
+    QVERIFY(manager->handleAnnotationDrop(data.get(), to, Qt::MoveAction, false));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, to);
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    const QRectF moved = rectangle(link);
+    QVERIFY(qAbs(moved.width() - original.width()) < 0.01 && qAbs(moved.height() - original.height()) < 0.01);
+    QVERIFY(QLineF(moved.center(), original.center() + QPointF(40, -30)).length() < 2.0);
+    QVERIFY(fixture.closeMessageBoxes() == 0);
+
+    // Resized by the bottom right handle of the selection frame (the bottom of the page coordinates)
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(moved.right(), moved.top()), QPointF(moved.right() + 30, moved.top() - 10)));
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    const QRectF resized = rectangle(link);
+    QVERIFY2(resized.width() > moved.width() + 20.0 && resized.height() > moved.height() + 5.0,
+             qPrintable(QString("%1 x %2").arg(resized.width()).arg(resized.height())));
+
+    // Undo gives the size and then the place back
+    QVERIFY(document->getUndoStack()->undo());
+    fixture.settle();
+    QVERIFY(qAbs(rectangle(link).width() - moved.width()) < 0.01);
+    QVERIFY(document->getUndoStack()->undo());
+    fixture.settle();
+    QVERIFY(QLineF(rectangle(link).center(), original.center()).length() < 0.01);
+
+    // Locked: selected, but neither moved nor resized
+    F lockedProperties = H::properties(document, link);
+    lockedProperties.flags = pdf::PDFAnnotation::Flags(pdf::PDFAnnotation::Locked);
+    QVERIFY(controller->commit(*pdf::PDFAppAnnotationOperations::setProperties(document->getDocument(), link, lockedProperties, F::Flags),
+                               pdf::PDFAppAnnotationChangeKind::Annotation));
+    fixture.settle();
+    const int lockedCount = pdftest::AppDocumentFixture::undoCount(document);
+    controller->selectAnnotations({ link });
+    fixture.settle();
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, from);
+    std::unique_ptr<QMimeData> lockedData(manager->createAnnotationDragData());
+    QVERIFY(!lockedData || !manager->handleAnnotationDrop(lockedData.get(), to, Qt::MoveAction, false));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, from);
+    fixture.settle();
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(original.right(), original.top()), QPointF(original.right() + 30, original.top() - 10)));
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), lockedCount);
+    QCOMPARE(rectangle(link), original);
+    fixture.closeMessageBoxes();
 }
 
 void AppAnnotationEditTest::geometryDialog()
@@ -3592,6 +3686,67 @@ void AppAnnotationEditTest::reviewCommitBlockedByOperation()
     // A change without a document is no step
     QVERIFY(!controller->commit(pdf::PDFModifiedDocument(), pdf::PDFAppAnnotationChangeKind::Annotation, QString()));
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount + 1);
+}
+
+void AppAnnotationEditTest::reviewBarAndPopupUpdates()
+{
+    using H = AppAnnotationEditTestHelper;
+
+    // Wrap-up RC-B: the bar read the selection at every change of the command
+    // states, the reply field of the popup read the annotation at every key
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    pdf::PDFAppAnnotationBar* bar = H::handler(tab)->getAnnotationBar();
+    const pdf::PDFObjectReference square = H::find(tab->getDocument(), 0, QStringLiteral("square"));
+    controller->selectAnnotations({ square });
+    fixture.settle();
+    QVERIFY(bar->isVisible());
+    QCOMPARE(bar->getWidthComboBox()->currentData().toDouble(), 2.0);
+
+    // The same selection, version and editing: the controls are not read again
+    // (a probe value of the width select stays)
+    {
+        const QSignalBlocker blocker(bar->getWidthComboBox());
+        bar->getWidthComboBox()->setCurrentIndex(0);
+    }
+    Q_EMIT view->commandStatesChanged();
+    QCOMPARE(bar->getWidthComboBox()->currentIndex(), 0);
+
+    // The lock (the editing changes) reads the bar again; so does a new selection
+    tab->getDocument()->setLocked(true);
+    fixture.settle();
+    QVERIFY(!bar->getWidthComboBox()->isVisible());
+    tab->getDocument()->setLocked(false);
+    fixture.settle();
+    QVERIFY(bar->getWidthComboBox()->isVisible());
+    QCOMPARE(bar->getWidthComboBox()->currentData().toDouble(), 2.0);
+    controller->selectAnnotations({});
+    fixture.settle();
+    QVERIFY(!bar->isVisible());
+    Q_EMIT view->commandStatesChanged();
+    QVERIFY(!bar->isVisible());
+    controller->selectAnnotations({ square });
+    fixture.settle();
+    QVERIFY(bar->isVisible());
+
+    // Typing a reply enables the primary button only (a probe text stays)
+    const pdf::PDFObjectReference note = H::find(tab->getDocument(), 0, QStringLiteral("text"));
+    controller->requestComment(note, false);
+    fixture.settle();
+    pdf::PDFAppCommentPopup* popup = view->getCommentPopup();
+    QVERIFY(popup->getReplyField()->isVisible());
+    QVERIFY(!popup->getPrimaryButton()->isEnabled());
+    popup->getPrimaryButton()->setText(QStringLiteral("probe"));
+    QTest::keyClicks(popup->getReplyField(), QStringLiteral("Typed"));
+    QVERIFY(popup->getPrimaryButton()->isEnabled());
+    QCOMPARE(popup->getPrimaryButton()->text(), QStringLiteral("probe"));
+    popup->getReplyField()->clear();
+    QVERIFY(!popup->getPrimaryButton()->isEnabled());
+    QTest::keyClicks(popup->getReplyField(), QStringLiteral("   "));
+    QVERIFY(!popup->getPrimaryButton()->isEnabled());
 }
 
 void AppAnnotationEditTest::reviewOperationsHostileArguments()

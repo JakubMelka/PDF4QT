@@ -120,7 +120,7 @@ void PDFAppOutlineEditor::setDocument(PDFAppDocument* document)
 
     m_document = document;
     m_currentItem.clear();
-    m_editableDocument.reset();
+    m_editableDocument = nullptr;
     if (document)
     {
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlineEditor::onDocumentChanged);
@@ -154,7 +154,7 @@ void PDFAppOutlineEditor::onDocumentDestroyed()
     m_document = nullptr;
     m_isCreationPending = false;
     m_currentItem.clear();
-    m_editableDocument.reset();
+    m_editableDocument = nullptr;
 }
 
 bool PDFAppOutlineEditor::isEditingAllowed() const
@@ -171,10 +171,14 @@ bool PDFAppOutlineEditor::isEditingAllowed() const
         return false;
     }
 
-    // The outline is read once per version
-    if (m_editableDocument != pdfDocument)
+    // The outline is read once per version of the outline, not at every commit: a
+    // change of annotations or of form fields keeps the objects of the outline - an
+    // object of another structure in the outline makes it read only by its type,
+    // which these changes do not change (review RC-CD)
+    if (m_editableDocument != document || m_editableVersion != document->getOutlineVersion())
     {
-        m_editableDocument = pdfDocument;
+        m_editableDocument = document;
+        m_editableVersion = document->getOutlineVersion();
         m_isOutlineEditable = PDFAppAnnotationOperations::isOutlineEditable(pdfDocument.data());
     }
     return m_isOutlineEditable;
@@ -222,19 +226,30 @@ std::optional<PDFDestination> PDFAppOutlineEditor::getCurrentViewDestination() c
     // The top edge of the view (in the middle, where a page lies in every layout);
     // the top of the page, when the view shows the area above it
     const PDFPage* page = catalog->getPage(size_t(pageIndex));
-    PDFReal top = page->getCropBox().bottom();
-    PDFWidget* pdfWidget = m_view->getPdfWidget();
-    QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
-    QPointF pagePoint;
-    if (drawWidget && proxy->getPageUnderPoint(QPoint(drawWidget->width() / 2, 0), &pagePoint) == pageIndex && qIsFinite(pagePoint.y()))
-    {
-        top = pagePoint.y();
-    }
+    const PDFReal top = getViewTop(m_view, pageIndex).value_or(page->getCropBox().bottom());
 
     constexpr PDFReal undefined = std::numeric_limits<PDFReal>::quiet_NaN();
     PDFDestination destination = PDFDestination::createXYZ(page->getPageReference(), undefined, top, undefined);
     destination.setPageIndex(pageIndex);
     return destination;
+}
+
+std::optional<PDFReal> PDFAppOutlineEditor::getViewTop(const PDFAppDocumentView* view, PDFInteger pageIndex)
+{
+    PDFDrawWidgetProxy* proxy = view ? view->getProxy() : nullptr;
+    PDFWidget* pdfWidget = view ? view->getPdfWidget() : nullptr;
+    QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
+    if (!proxy || !drawWidget || pageIndex < 0)
+    {
+        return std::nullopt;
+    }
+
+    QPointF pagePoint;
+    if (proxy->getPageUnderPoint(QPoint(drawWidget->width() / 2, 0), &pagePoint) == pageIndex && qIsFinite(pagePoint.y()))
+    {
+        return pagePoint.y();
+    }
+    return std::nullopt;
 }
 
 QString PDFAppOutlineEditor::getDefaultTitle()
@@ -473,7 +488,24 @@ void PDFAppOutlineEditor::setCurrentItem(const OutlinePath& path)
         return;
     }
     m_currentItem = path;
-    Q_EMIT stateChanged();
+
+    // The panel sets the current item from a signal of the selection model of its
+    // view: stateChanged goes from the event loop, so its receivers may delete the
+    // tab (with the view) while Qt is not on the stack (wrap-up item 10)
+    if (!m_isCurrentItemChangePending)
+    {
+        m_isCurrentItemChangePending = true;
+        QMetaObject::invokeMethod(this, &PDFAppOutlineEditor::onCurrentItemChangeQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppOutlineEditor::onCurrentItemChangeQueued()
+{
+    if (m_isCurrentItemChangePending)
+    {
+        m_isCurrentItemChangePending = false;
+        Q_EMIT stateChanged();
+    }
 }
 
 bool PDFAppOutlineEditor::hasCurrentItem() const

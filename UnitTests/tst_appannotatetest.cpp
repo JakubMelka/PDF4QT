@@ -49,6 +49,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfappfloatingbar.h"
 #include "pdfapphelpcatalog.h"
+#include "pdfapplocale.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmarkresults.h"
 #include "pdfappmarkupbar.h"
@@ -81,6 +82,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScreen>
+#include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QToolButton>
 #include <QTranslator>
@@ -429,6 +431,9 @@ private slots:
     void reviewPluralTexts();
     void reviewIconsAndHelp();
     void reviewMarkResultsKinds();
+    void reviewStyleReloadOnce();
+    void reviewLastMarkupOfStartedTool();
+    void reviewCommentCountCached();
     void screenshots();
 };
 
@@ -1025,7 +1030,7 @@ void AppAnnotateTest::toolStyleFromOtherInstance()
     value.insert(QStringLiteral("penWidth"), 1.0);
     QVERIFY(!storage->getRepository().setValue(pdf::PDFAnnotationStyleSettings::STYLE_HIGHLIGHT, value).isError());
     QTRY_VERIFY(spy.count() > 0);
-    QCOMPARE(creator->getToolBar()->getColorRow()->getColor().rgb(), QColor(0x34, 0xc7, 0x59).rgb());
+    QTRY_COMPARE(creator->getToolBar()->getColorRow()->getColor().rgb(), QColor(0x34, 0xc7, 0x59).rgb());
 
     // The rectangle tool reads the shared style of another instance
     QJsonObject shape;
@@ -3127,6 +3132,128 @@ void AppAnnotateTest::screenshots()
     pdftest::AppDocumentFixture::settle();
     H::save(folder, QStringLiteral("annotate-rtl"), H::render(fixture.window));
     H::creator(tab)->endTool();
+}
+
+void AppAnnotateTest::reviewStyleReloadOnce()
+{
+    // Wrap-up RC-A: a color or a width of the bar was read back twice - by the
+    // creator at once and by the notification of the stored style; now one reload
+    // from the event loop serves both (and the tools sharing the style)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Reload.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    pdftest::AppDocumentFixture::settle();
+
+    QSignalSpy spy(creator, &pdf::PDFAppAnnotationCreator::toolStateChanged);
+    creator->setColor(Kind::Rectangle, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke, QColor(Qt::green));
+    QVERIFY(creator->isStyleReloadPending());
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!creator->isStyleReloadPending());
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(creator->getColor(Kind::Ellipse, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), QColor(Qt::green).rgb());
+
+    spy.clear();
+    creator->setPenWidth(Kind::Rectangle, 4.0);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(creator->getPenWidth(Kind::Ellipse), 4.0);
+
+    // The change of another instance (a notification only) reads the styles too
+    spy.clear();
+    pdf::PDFAppAnnotationStyleStorage* storage = fixture.context->getAnnotationStyleStorage();
+    QVERIFY(storage);
+    pdf::PDFAnnotationStyle style = pdf::PDFAnnotationStyleSettings::getStyle(pdf::PDFAnnotationStyleSettings::STYLE_SHAPE, pdf::PDFAnnotationStyle());
+    style.strokeColor = QColor(Qt::magenta);
+    storage->setStyle(pdf::PDFAnnotationStyleSettings::STYLE_SHAPE, style);
+    QTRY_COMPARE(creator->getColor(Kind::Rectangle, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), QColor(Qt::magenta).rgb());
+    QCOMPARE(creator->getColor(Kind::Ellipse, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), QColor(Qt::magenta).rgb());
+    QCOMPARE(spy.count(), 1);
+    creator->endTool();
+}
+
+void AppAnnotateTest::reviewLastMarkupOfStartedTool()
+{
+    // Wrap-up RC-A: the last markup was stored before the tool had started
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("LastMarkup.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    QVERIFY(creator->startTool(Kind::Highlight));
+    creator->endTool();
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getLastMarkupType(fixture.context.get()), pdf::AnnotationType::Highlight);
+
+    // Another tool takes the canvas, when the markup wants the Select text tool:
+    // the markup does not start and is not remembered
+    pdf::PDFToolManager* toolManager = view->getToolManager();
+    QVERIFY(toolManager && toolManager->getSelectTextTool());
+    view->setCanvasTool(pdf::PDFToolManager::ScreenshotTool);
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ScreenshotTool));
+    QMetaObject::Connection connection = QObject::connect(toolManager->getSelectTextTool(), &pdf::PDFWidgetTool::toolActivityChanged, toolManager, [toolManager](bool active)
+    {
+        if (active)
+        {
+            toolManager->setActiveTool(pdf::PDFToolManager::ScreenshotTool);
+        }
+    });
+    QVERIFY(!creator->startTool(Kind::Underline));
+    QObject::disconnect(connection);
+    QCOMPARE(creator->getActiveKind(), pdf::PDFAppAnnotationToolKind::None);
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getLastMarkupType(fixture.context.get()), pdf::AnnotationType::Highlight);
+
+    // A markup, which starts, is remembered
+    QVERIFY(creator->startTool(Kind::Underline));
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getLastMarkupType(fixture.context.get()), pdf::AnnotationType::Underline);
+    creator->endTool();
+    pdftest::AppDocumentFixture::settle();
+}
+
+void AppAnnotateTest::reviewCommentCountCached()
+{
+    // Wrap-up RC-A: the Annotate panel counted the comments of the whole document
+    // at every change of the tools; it counts them once per version
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::annotatedLarge(fixture.folder(), 2000, 5));
+    QVERIFY(tab);
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::annotatePanel()));
+    pdf::PDFAppAnnotatePanel* annotate = qobject_cast<pdf::PDFAppAnnotatePanel*>(toolbar->findPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(annotate && annotate->isVisible());
+    const pdf::PDFDocument* document = tab->getDocument()->getDocument().data();
+    const int comments = pdf::PDFAppAnnotatePanel::countComments(document);
+    QVERIFY(comments >= 2000);
+    QVERIFY(annotate->getShowCommentsItem()->text().contains(pdf::PDFAppLocale::formatNumber(comments)));
+
+    constexpr int updates = 100;
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < updates; ++i)
+    {
+        pdf::PDFAppAnnotatePanel::countComments(document);
+    }
+    const qint64 counting = timer.elapsed();
+    timer.restart();
+    for (int i = 0; i < updates; ++i)
+    {
+        Q_EMIT creator->toolStateChanged();
+    }
+    const qint64 panelUpdates = timer.elapsed();
+    qInfo("Annotate panel, 2000 pages x 5 annotations: %d counts of the comments %lld ms, %d updates of the panel %lld ms", updates, counting, updates, panelUpdates);
+
+    // A new version is counted again
+    annotate->hide();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    QVERIFY(H::pickRectangle(tab->getView(), 0, QRectF(40, 100, 80, 60)));
+    pdftest::AppDocumentFixture::settle();
+    creator->endTool();
+    QCOMPARE(pdf::PDFAppAnnotatePanel::countComments(tab->getDocument()->getDocument().data()), comments + 1);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::annotatePanel()));
+    QVERIFY(annotate->isVisible());
+    QVERIFY(annotate->getShowCommentsItem()->text().contains(pdf::PDFAppLocale::formatNumber(comments + 1)));
 }
 
 void AppAnnotateTest::reviewMarkResultsKinds()

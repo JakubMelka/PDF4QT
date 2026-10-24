@@ -212,10 +212,21 @@ void PDFAppAnnotatePanel::updateState()
         m_colorRow->setEnabled(m_creator && m_creator->isCreationAllowed());
     }
 
-    // The count of the comments is read, when the panel opens
+    // The count of the comments is read, when the panel opens - once per version
+    // of the document (a change of the tools updates the panel, not the count)
     const PDFAppDocumentView* view = getView();
     const PDFAppDocument* document = view ? view->getDocument() : nullptr;
-    const int count = document && document->isReady() ? countComments(document->getDocument().data()) : 0;
+    int count = 0;
+    if (document && document->isReady())
+    {
+        if (m_countedDocument != document || m_countedVersion != document->getVersion())
+        {
+            m_countedDocument = document;
+            m_countedVersion = document->getVersion();
+            m_countedComments = countComments(document->getDocument().data());
+        }
+        count = m_countedComments;
+    }
     if (count != m_commentCount || m_showComments->text().isEmpty())
     {
         m_commentCount = count;

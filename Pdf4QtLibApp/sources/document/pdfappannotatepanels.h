@@ -36,6 +36,7 @@ class QToolButton;
 namespace pdf
 {
 
+class PDFAppDocument;
 class PDFColorSwatchRow;
 class PDFStampChip;
 
@@ -91,6 +92,9 @@ private:
     QPointer<PDFColorSwatchRow> m_colorRow;
     QPointer<PDFAppPanelMenuItem> m_showComments;
     int m_commentCount = 0;
+    QPointer<const PDFAppDocument> m_countedDocument;   ///< Document model of the counted comments (read once per version)
+    quint64 m_countedVersion = 0;
+    int m_countedComments = 0;
 };
 
 /// Insert panel (Figma 196:3160, 778 wide): Text and notes (Text box, the seven

@@ -37,6 +37,7 @@
 #include <QPushButton>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QWheelEvent>
 #include <QClipboard>
 #include <QApplication>
@@ -961,7 +962,14 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     }
     else
     {
-        // The cursor of the annotation manager is shown over an annotation (its handles)
+        // The cursor of the annotation manager is shown over an annotation (its handles).
+        // The manager gets the move after the tool, so its hover is updated by this move
+        // first - its cursor would be that of the last move (once per move in the dispatch
+        // of the draw widget, PDFWidgetAnnotationManager::MouseMoveScope)
+        if (PDFWidgetAnnotationManager* manager = m_isAnnotationsSelectable ? getProxy()->getAnnotationManager() : nullptr)
+        {
+            manager->updateHover(event);
+        }
         const PDFWidgetAnnotationManager* annotationManager = m_isAnnotationsSelectable ? getProxy()->getAnnotationManager() : nullptr;
         m_isCursorOverAnnotation = annotationManager && (annotationManager->getCursor().has_value() || isAnnotationInteractionAt(event->pos(), event->modifiers()));
     }
@@ -1471,12 +1479,17 @@ void PDFToolManager::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangl
     // The callback is taken out - it can activate another tool, which clears it
     std::function<void(PDFInteger, QRectF)> callback = std::move(m_pickRectangleCallback);
     m_pickRectangleCallback = nullptr;
+    // The callback may delete the manager (a commit of the application deletes its tab)
+    QPointer<PDFToolManager> guard(this);
     if (callback)
     {
         callback(pageIndex, pageRectangle);
     }
 
-    finishPicking(PickRectangleTool);
+    if (guard)
+    {
+        finishPicking(PickRectangleTool);
+    }
 }
 
 void PDFToolManager::onToolDestroyed(QObject* object)
@@ -1527,12 +1540,17 @@ void PDFToolManager::onPagePicked(PDFInteger pageIndex)
     // The callback is taken out - it can activate another tool, which clears it
     std::function<void(PDFInteger)> callback = std::move(m_pickPageCallback);
     m_pickPageCallback = nullptr;
+    // The callback may delete the manager (a commit of the application deletes its tab)
+    QPointer<PDFToolManager> guard(this);
     if (callback)
     {
         callback(pageIndex);
     }
 
-    finishPicking(PickPageTool);
+    if (guard)
+    {
+        finishPicking(PickPageTool);
+    }
 }
 
 void PDFToolManager::finishPicking(PredefinedTools pickTool)
@@ -1789,6 +1807,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
                 if (pageIndex != -1)
                 {
+                    // A slot may delete the tool (its tab) synchronously - nothing is used after it
                     m_pageIndex = pageIndex;
                     Q_EMIT pagePicked(pageIndex);
                 }
@@ -1808,8 +1827,14 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                     m_pickedPoints.push_back(pagePoint);
                     m_snapper.setReferencePoint(pageIndex, pagePoint);
 
-                    // Emit signal about picked point
+                    // Emit signal about picked point. A slot (a callback of the application
+                    // committing a change) may delete the tool and its tab synchronously.
+                    QPointer<PDFPickTool> guard(this);
                     Q_EMIT pointPicked(pageIndex, pagePoint);
+                    if (!guard)
+                    {
+                        return;
+                    }
 
                     if (m_mode == Mode::Rectangles && m_pickedPoints.size() == 2)
                     {
@@ -1823,6 +1848,10 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 
                         QRectF pageRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
                         Q_EMIT rectanglePicked(pageIndex, pageRectangle);
+                        if (!guard)
+                        {
+                            return;
+                        }
 
                         // We must reset tool, to pick next rectangle
                         resetTool();

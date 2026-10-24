@@ -72,6 +72,82 @@
 namespace pdf
 {
 
+/// Drawing of the selection in the look of the design (PDFWidgetAnnotationManager::setDesignSelectionLook)
+class PDFWidgetAnnotationDesignHelper
+{
+public:
+    PDFWidgetAnnotationDesignHelper() = delete;
+
+    /// Returns the rectangle mapped to the device, enlarged by the outset, when the matrix keeps
+    /// it a rectangle (the selection frame 4 px outside of the annotation - 1015:17767);
+    /// otherwise the mapped rectangle
+    static QPolygonF getOutsetPolygon(const QTransform& matrix, const QRectF& rectangle, qreal outset)
+    {
+        const bool isAxisAligned = (qFuzzyIsNull(matrix.m12()) && qFuzzyIsNull(matrix.m21())) || (qFuzzyIsNull(matrix.m11()) && qFuzzyIsNull(matrix.m22()));
+        if (!isAxisAligned || matrix.type() == QTransform::TxProject)
+        {
+            return matrix.map(QPolygonF(rectangle));
+        }
+        return QPolygonF(matrix.mapRect(rectangle).normalized().adjusted(-outset, -outset, outset, outset));
+    }
+
+    // Texts of the box with the numbers of a dragged point (drag-tooltip 1017:18217:
+    // "Callout tip · length 33.8 pt, angle 229° · snapped to a corner")
+
+    /// Returns the name of the point of the editable points
+    static QString getPointName(const PDFAnnotationManipulator::EditablePoints& points, size_t index)
+    {
+        const size_t count = points.points.size();
+        const int number = int(qMin(index, size_t(1000000))) + 1;
+        if (points.isCalloutLine)
+        {
+            if (index == 0)
+            {
+                return PDFWidgetAnnotationManager::tr("Callout tip");
+            }
+            return index + 1 == count ? PDFWidgetAnnotationManager::tr("Callout end") : PDFWidgetAnnotationManager::tr("Callout knee");
+        }
+        if (points.isQuadEnds)
+        {
+            return (index % 2 == 0) ? PDFWidgetAnnotationManager::tr("Start of line %1").arg(int(index / 2) + 1) : PDFWidgetAnnotationManager::tr("End of line %1").arg(int(index / 2) + 1);
+        }
+        if (points.isStrokePoints())
+        {
+            return PDFWidgetAnnotationManager::tr("Point %1").arg(number);
+        }
+        if (!points.isClosed && points.maximalCount == 2 && count == 2)
+        {
+            return index == 0 ? PDFWidgetAnnotationManager::tr("Start point") : PDFWidgetAnnotationManager::tr("End point");
+        }
+        return PDFWidgetAnnotationManager::tr("Vertex %1").arg(number);
+    }
+
+    /// Returns the text of the snapped point, an empty text, if no point is snapped
+    static QString getSnapText(SnapType type)
+    {
+        switch (type)
+        {
+            case SnapType::Invalid:
+                return QString();
+            case SnapType::PageCorner:
+            case SnapType::ImageCorner:
+                return PDFWidgetAnnotationManager::tr("snapped to a corner");
+            case SnapType::PageCenter:
+            case SnapType::ImageCenter:
+                return PDFWidgetAnnotationManager::tr("snapped to a center");
+            case SnapType::LineCenter:
+                return PDFWidgetAnnotationManager::tr("snapped to the middle of a line");
+            case SnapType::GeneratedLineProjection:
+                return PDFWidgetAnnotationManager::tr("snapped to a line");
+            case SnapType::Annotation:
+                return PDFWidgetAnnotationManager::tr("snapped to a point of an annotation");
+            case SnapType::Custom:
+                break;
+        }
+        return PDFWidgetAnnotationManager::tr("snapped");
+    }
+};
+
 /// Serialization of the data, which describe the annotations dragged by the mouse.
 /// The data are light - they hold only references to the dragged annotations, so
 /// the drop inside the same document just moves (or copies) the annotations. For
@@ -194,6 +270,8 @@ PDFWidgetAnnotationManager::~PDFWidgetAnnotationManager()
 
 void PDFWidgetAnnotationManager::setDocument(const PDFModifiedDocument& document)
 {
+    // The hit test of a running move holds the annotations of the old document
+    invalidateMouseMoveCache();
     BaseClass::setDocument(document);
 
     if (document.hasReset() || document.getFlags().testFlag(PDFModifiedDocument::Annotation))
@@ -1644,6 +1722,22 @@ std::vector<const PDFAnnotationManager::PageAnnotation*> PDFWidgetAnnotationMana
         return shapeHits;
     }
 
+    // The hit test of the same position in the dispatch of one mouse move (the tool and
+    // the manager ask for it) is made once
+    MouseMoveCache& cache = m_mouseMoveCache;
+    const bool isCached = cache.depth > 0;
+    if (isCached && cache.isHitTestValid && cache.position == widgetPos && cache.document == m_document &&
+        std::equal(cache.selection.cbegin(), cache.selection.cend(), m_selection.cbegin(), m_selection.cend(),
+                   [](const SelectedAnnotation& left, const SelectedAnnotation& right) { return left.annotation == right.annotation && left.pageIndex == right.pageIndex; }))
+    {
+        if (pageIndex && cache.pageIndex != -1)
+        {
+            *pageIndex = cache.pageIndex;
+        }
+        return cache.annotations;
+    }
+
+    PDFInteger hitPageIndex = -1;
     PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
 
     for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
@@ -1665,8 +1759,17 @@ std::vector<const PDFAnnotationManager::PageAnnotation*> PDFWidgetAnnotationMana
             }
 
             const QTransform matrix = getAnnotationToDeviceMatrix(pageAnnotation, snapshotItem.pageIndex, snapshotItem.pageToDeviceMatrix);
+
+            // A position outside of the bounding box is outside of the rectangle - the path
+            // is made only for the annotations near the position (thousands of annotations)
+            const QRectF rectangle = pageAnnotation.annotation->getRectangle();
+            if (!matrix.mapRect(rectangle).contains(QPointF(widgetPos)))
+            {
+                continue;
+            }
+
             QPainterPath path;
-            path.addRect(pageAnnotation.annotation->getRectangle());
+            path.addRect(rectangle);
             path = matrix.map(path);
 
             if (!path.contains(widgetPos))
@@ -1690,6 +1793,7 @@ std::vector<const PDFAnnotationManager::PageAnnotation*> PDFWidgetAnnotationMana
 
         if (!shapeHits.empty() || !rectangleHits.empty())
         {
+            hitPageIndex = snapshotItem.pageIndex;
             if (pageIndex)
             {
                 *pageIndex = snapshotItem.pageIndex;
@@ -1699,7 +1803,64 @@ std::vector<const PDFAnnotationManager::PageAnnotation*> PDFWidgetAnnotationMana
     }
 
     shapeHits.insert(shapeHits.end(), rectangleHits.cbegin(), rectangleHits.cend());
+
+    if (isCached)
+    {
+        cache.isHitTestValid = true;
+        cache.position = widgetPos;
+        cache.document = m_document;
+        cache.selection = m_selection;
+        cache.pageIndex = hitPageIndex;
+        cache.annotations = shapeHits;
+    }
+
     return shapeHits;
+}
+
+void PDFWidgetAnnotationManager::beginMouseMove()
+{
+    // A new move (also a move inside of a nested event loop) starts with nothing shared
+    ++m_mouseMoveCache.depth;
+    invalidateMouseMoveCache();
+}
+
+void PDFWidgetAnnotationManager::endMouseMove()
+{
+    if (m_mouseMoveCache.depth > 0)
+    {
+        --m_mouseMoveCache.depth;
+    }
+    invalidateMouseMoveCache();
+}
+
+void PDFWidgetAnnotationManager::invalidateMouseMoveCache() const
+{
+    m_mouseMoveCache.isHoverUpdated = false;
+    m_mouseMoveCache.isHitTestValid = false;
+    m_mouseMoveCache.document = nullptr;
+    m_mouseMoveCache.selection.clear();
+    m_mouseMoveCache.pageIndex = -1;
+    m_mouseMoveCache.annotations.clear();
+}
+
+void PDFWidgetAnnotationManager::updateHover(QMouseEvent* event)
+{
+    if (!event)
+    {
+        return;
+    }
+
+    // The tool (before the manager) and the manager ask for the hover of the same move
+    if (m_mouseMoveCache.depth > 0)
+    {
+        if (m_mouseMoveCache.isHoverUpdated)
+        {
+            return;
+        }
+        m_mouseMoveCache.isHoverUpdated = true;
+    }
+
+    updateFromMouseEvent(event);
 }
 
 const PDFAnnotationManager::PageAnnotation* PDFWidgetAnnotationManager::findSelectableAnnotation(QPoint widgetPos, PDFInteger* pageIndex) const
@@ -1776,14 +1937,19 @@ PDFWidgetAnnotationManager::HandleLayout PDFWidgetAnnotationManager::computeHand
 
     layout.isValid = true;
     layout.frame = frame;
-    layout.handles[0] = frame.topLeft();
-    layout.handles[1] = QPointF(frame.center().x(), frame.top());
-    layout.handles[2] = frame.topRight();
-    layout.handles[3] = QPointF(frame.right(), frame.center().y());
-    layout.handles[4] = frame.bottomRight();
-    layout.handles[5] = QPointF(frame.center().x(), frame.bottom());
-    layout.handles[6] = frame.bottomLeft();
-    layout.handles[7] = QPointF(frame.left(), frame.center().y());
+
+    // The design (1015:17767, 1018:19099): the frame and its handles lie 4 px outside of
+    // the annotation; the handles still move the edges of the annotation (layout.frame)
+    layout.frameOutset = m_isDesignSelectionLook ? PDFWidgetUtils::scaleDPI_x(widget, 4) : 0.0;
+    const QRectF drawnFrame = layout.getDrawnFrame();
+    layout.handles[0] = drawnFrame.topLeft();
+    layout.handles[1] = QPointF(drawnFrame.center().x(), drawnFrame.top());
+    layout.handles[2] = drawnFrame.topRight();
+    layout.handles[3] = QPointF(drawnFrame.right(), drawnFrame.center().y());
+    layout.handles[4] = drawnFrame.bottomRight();
+    layout.handles[5] = QPointF(drawnFrame.center().x(), drawnFrame.bottom());
+    layout.handles[6] = drawnFrame.bottomLeft();
+    layout.handles[7] = QPointF(drawnFrame.left(), drawnFrame.center().y());
     layout.rotationHandleBase = layout.handles[1];
     layout.rotationHandle = layout.rotationHandleBase - QPointF(0.0, rotationHandleDistance);
 
@@ -2765,28 +2931,12 @@ void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::o
         const PDFAnnotationManipulator::Parts parts = PDFAnnotationManipulator::getParts(&m_document->getStorage(), annotation);
         if (parts.isSupported && !parts.isFilled)
         {
-            QPointF pagePoint;
-            if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex)
+            QPointF center;
+            PDFReal radius = 0.0;
+            if (getMenuInkEraser(annotation, annotationPageIndex, widgetPosition, center, radius))
             {
-                // Jakub Melka: the stroke is erased around the place, where the menu was opened.
-                // The radius of the eraser is given on the screen, the place is in the coordinate
-                // system of the annotation. The action is offered, if there is something to erase.
-                const QTransform annotationToDevice = getSelectionToDeviceMatrix(annotationPageIndex, getPageToDeviceMatrix(annotationPageIndex));
-                const PDFReal scale = std::sqrt(std::abs(annotationToDevice.determinant()));
-                bool invertible = false;
-                const QTransform deviceToAnnotation = annotationToDevice.inverted(&invertible);
-                if (invertible && scale > 0.0)
-                {
-                    const QPointF center = deviceToAnnotation.map(QPointF(*widgetPosition));
-                    const PDFReal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) / scale;
-
-                    PDFDocumentBuilder testBuilder(m_document);
-                    if (PDFAnnotationManipulator::eraseInk(&testBuilder, annotation, center, radius))
-                    {
-                        QAction* eraseAction = menu.addAction(tr("Erase Stroke at This Place"));
-                        connect(eraseAction, &QAction::triggered, this, [this, annotation, center, radius]() { eraseAnnotationInk(annotation, center, radius); });
-                    }
-                }
+                QAction* eraseAction = menu.addAction(tr("Erase Stroke at This Place"));
+                connect(eraseAction, &QAction::triggered, this, [this, annotation, center, radius]() { eraseAnnotationInk(annotation, center, radius); });
             }
 
             QAction* addStrokeAction = menu.addAction(tr("Add Stroke"));
@@ -2813,27 +2963,7 @@ void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::o
             }
             else
             {
-                // The callout line points to the place, where the menu was opened (if it is
-                // outside of the text box), otherwise to a place next to the text box
-                const QRectF textRectangle = PDFAnnotationManipulator::getFreeTextRectangle(&m_document->getStorage(), annotation);
-                const QRectF mediaBox = m_document->getCatalog()->getPage(annotationPageIndex)->getMediaBox().normalized();
-                QPointF tip = textRectangle.topLeft() + QPointF(-40.0, -40.0);
-                for (const QPointF& candidate : { textRectangle.topLeft() + QPointF(-40.0, -40.0), textRectangle.topRight() + QPointF(40.0, -40.0),
-                                                  textRectangle.bottomLeft() + QPointF(-40.0, 40.0), textRectangle.bottomRight() + QPointF(40.0, 40.0) })
-                {
-                    if (mediaBox.contains(candidate))
-                    {
-                        tip = candidate;
-                        break;
-                    }
-                }
-
-                QPointF pagePoint;
-                if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex && !textRectangle.contains(pagePoint))
-                {
-                    tip = pagePoint;
-                }
-
+                const QPointF tip = getMenuCalloutTip(annotation, annotationPageIndex, widgetPosition, nullptr);
                 QAction* addCalloutAction = menu.addAction(tr("Add Callout Line"));
                 connect(addCalloutAction, &QAction::triggered, this, [this, annotation, tip]() { addAnnotationCalloutLine(annotation, tip); });
             }
@@ -3127,8 +3257,13 @@ bool PDFWidgetAnnotationManager::handleAnnotationDrop(const QMimeData* data, con
 
     if (modifier.finalize())
     {
+        // A slot of the application may delete the manager (its tab) synchronously
+        QPointer<PDFWidgetAnnotationManager> guard(this);
         Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
-        setSelectedAnnotations(resultAnnotations);
+        if (guard)
+        {
+            setSelectedAnnotations(resultAnnotations);
+        }
     }
 
     return true;
@@ -3389,7 +3524,7 @@ void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
 {
     Q_UNUSED(widget);
 
-    updateFromMouseEvent(event);
+    updateHover(event);
     m_lastMousePosition = event->pos();
 
     if (m_interaction.type == Interaction::None && m_partEdit != PartEdit::None)
@@ -3505,11 +3640,20 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
             const PDFAppeareanceStreams::Appearance oldAppearance = pageAnnotation.appearance;
             QRectF annotationRect = pageAnnotation.annotation->getRectangle();
             QTransform matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
-            QPainterPath path;
-            path.addRect(annotationRect);
-            path = matrix.map(path);
 
-            if (path.contains(event->pos()))
+            // Jakub Melka: a position outside of the bounding box is outside of the rectangle,
+            // the path is made only for the annotations near the cursor (a page can have
+            // thousands of annotations and this runs at every move of the mouse)
+            bool isUnderCursor = false;
+            if (matrix.mapRect(annotationRect).contains(QPointF(event->pos())))
+            {
+                QPainterPath path;
+                path.addRect(annotationRect);
+                path = matrix.map(path);
+                isUnderCursor = path.contains(event->pos());
+            }
+
+            if (isUnderCursor)
             {
                 pageAnnotation.appearance = hoverAppearance;
                 pageAnnotation.isHovered = true;
@@ -4781,8 +4925,13 @@ void PDFWidgetAnnotationManager::pasteAnnotations(std::optional<QPoint> widgetPo
 
     if (!insertedAnnotations.empty() && modifier.finalize())
     {
+        // A slot of the application may delete the manager (its tab) synchronously
+        QPointer<PDFWidgetAnnotationManager> guard(this);
         Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
-        setSelectedAnnotations(insertedAnnotations);
+        if (guard)
+        {
+            setSelectedAnnotations(insertedAnnotations);
+        }
     }
 }
 
@@ -5163,6 +5312,7 @@ void PDFWidgetAnnotationManager::copySelectedAnnotationsToPages(const std::vecto
 void PDFWidgetAnnotationManager::onEditAnnotation()
 {
     PDFEditObjectDialog dialog(EditObjectType::Annotation, m_proxy->getWidget());
+    dialog.setStorage(&m_document->getStorage());
 
     PDFObject originalObject = m_document->getObjectByReference(m_editableAnnotation);
     dialog.setObject(originalObject);
@@ -5470,7 +5620,16 @@ void PDFWidgetAnnotationManager::drawInfoText(QPainter* painter, const QString& 
         const QString shownText = QString(text).replace(QStringLiteral(" | "), QStringLiteral(" ") + QChar(0x00B7) + QStringLiteral(" "));
         const QFontMetricsF metrics(font);
         const QRectF textBox(textPosition, QSizeF(metrics.horizontalAdvance(shownText), metrics.height()));
-        const QRectF box = textBox.adjusted(-8.0, -5.0, 8.0, 5.0);
+        // padding 8 / 5 inside of the border of 1 px (330 x 25 of the design)
+        const QRectF box = textBox.adjusted(-9.0, -6.0, 9.0, 6.0);
+
+        // Shadow 0 / 4 / 16 of effect/shadow
+        if (viewColors.infoShadow.isValid())
+        {
+            const QWidget* widget = m_proxy->getWidget();
+            PDFDrawWidgetProxy::drawShadow(painter, box.translated(0.0, PDFWidgetUtils::scaleDPI_y(widget, 4)), getMarkerColor(viewColors.infoShadow, convertor, false),
+                                           PDFWidgetUtils::scaleDPI_x(widget, 16));
+        }
 
         painter->setRenderHint(QPainter::Antialiasing, true);
         QPen borderPen(getMarkerColor(viewColors.infoBorder.isValid() ? viewColors.infoBorder : viewColors.infoText, convertor, true), 1.0);
@@ -5580,6 +5739,7 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
     const bool isMultipleDesign = isDesign && selectedAnnotations.size() > 1;
     const QPen memberPen = (isDesign && !isMultipleDesign) ? framePen : solidPen;
     const QBrush memberBrush = isMultipleDesign ? QBrush(Qt::NoBrush) : QBrush(fillColor);
+    const qreal designFrameOutset = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
 
     // 1026:21990: a locked annotation has a dashed gray frame (the color of the outline of the lock badge)
     const QColor lockedFrameColor = getMarkerColor(viewColors.lockBadgeBorder.isValid() ? viewColors.lockBadgeBorder : viewColors.lockBadge, convertor, true);
@@ -5658,11 +5818,12 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
         {
             PDFPainterStateGuard guard(painter);
             painter->setPen(lockedFramePen);
-            painter->drawPolygon(matrix.map(QPolygonF(rectangle)));
+            painter->drawPolygon(PDFWidgetAnnotationDesignHelper::getOutsetPolygon(matrix, rectangle, isMultipleDesign ? 0.0 : designFrameOutset));
         }
         else
         {
-            painter->drawPolygon(matrix.map(QPolygonF(rectangle)));
+            // A single annotation of the design is the selection frame 4 px outside of it
+            painter->drawPolygon(PDFWidgetAnnotationDesignHelper::getOutsetPolygon(matrix, rectangle, (isDesign && !isMultipleDesign) ? designFrameOutset : 0.0));
         }
     }
 
@@ -5675,7 +5836,7 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             const QTransform deviceTransform = m_interaction.deviceToPage * m_interaction.previewTransform * m_interaction.pageToDevice;
             painter->setPen(dashedPen);
             painter->setBrush(Qt::NoBrush);
-            painter->drawPolygon(deviceTransform.map(QPolygonF(m_interaction.layout.frame)));
+            painter->drawPolygon(deviceTransform.map(QPolygonF(m_interaction.layout.getDrawnFrame())));
 
             if (m_interaction.isSnapped)
             {
@@ -5711,7 +5872,7 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             {
                 painter->setPen(framePen);
                 painter->setBrush(isMultipleDesign ? QBrush(fillColor) : QBrush(Qt::NoBrush));
-                painter->drawRect(layout.frame);
+                painter->drawRect(layout.getDrawnFrame());
 
                 if (layout.hasRotationHandle)
                 {
@@ -5860,6 +6021,21 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
                 const QPointF neighbour = points[pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1)];
                 const QLineF segment(neighbour, point);
                 text = tr("%1 | length %2 pt, angle %3°").arg(text, QLocale::system().toString(segment.length(), 'f', 1), QLocale::system().toString(std::fmod(360.0 - segment.angle(), 360.0), 'f', 1));
+
+                if (isDesign)
+                {
+                    // drag-tooltip 1017:18217: the name of the point instead of its position,
+                    // whole degrees, the kind of the snapped point (the parts are joined by
+                    // a middle dot in drawInfoText); the locale of the application (O17)
+                    const QLocale locale;
+                    const int angle = qRound(std::fmod(360.0 - segment.angle(), 360.0)) % 360;
+                    text = tr("%1 | length %2 pt, angle %3°").arg(PDFWidgetAnnotationDesignHelper::getPointName(pointInfo.points, pointIndex), locale.toString(segment.length(), 'f', 1), locale.toString(angle));
+                    const QString snapText = m_interaction.isSnapped ? PDFWidgetAnnotationDesignHelper::getSnapText(m_snapper.getSnappedPointType()) : QString();
+                    if (!snapText.isEmpty())
+                    {
+                        text = QString("%1 | %2").arg(text, snapText);
+                    }
+                }
             }
             drawInfoText(painter, text, convertor);
         }
@@ -6369,29 +6545,7 @@ PDFAnnotationMenuRequest PDFWidgetAnnotationManager::createMenuRequest(QPoint gl
     if (parts.isSupported && !parts.isFilled)
     {
         request.canAddStroke = true;
-
-        QPointF pagePoint;
-        if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex)
-        {
-            // The same eraser as the eraser of the menu of the manager
-            const QTransform annotationToDevice = getSelectionToDeviceMatrix(annotationPageIndex, getPageToDeviceMatrix(annotationPageIndex));
-            const PDFReal scale = std::sqrt(std::abs(annotationToDevice.determinant()));
-            bool invertible = false;
-            const QTransform deviceToAnnotation = annotationToDevice.inverted(&invertible);
-            if (invertible && scale > 0.0)
-            {
-                const QPointF center = deviceToAnnotation.map(QPointF(*widgetPosition));
-                const PDFReal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) / scale;
-
-                PDFDocumentBuilder testBuilder(m_document);
-                if (PDFAnnotationManipulator::eraseInk(&testBuilder, annotation, center, radius))
-                {
-                    request.canEraseInk = true;
-                    request.eraseCenter = center;
-                    request.eraseRadius = radius;
-                }
-            }
-        }
+        request.canEraseInk = getMenuInkEraser(annotation, annotationPageIndex, widgetPosition, request.eraseCenter, request.eraseRadius);
     }
     else if (parts.isSupported)
     {
@@ -6406,33 +6560,82 @@ PDFAnnotationMenuRequest PDFWidgetAnnotationManager::createMenuRequest(QPoint gl
         }
         else
         {
-            // The same tip as the tip of the menu of the manager
-            const QRectF textRectangle = PDFAnnotationManipulator::getFreeTextRectangle(&m_document->getStorage(), annotation);
-            const PDFPage* page = m_document->getCatalog()->getPage(annotationPageIndex);
-            const QRectF mediaBox = page ? page->getMediaBox().normalized() : QRectF();
-            QPointF tip = textRectangle.topLeft() + QPointF(-40.0, -40.0);
-            for (const QPointF& candidate : { textRectangle.topLeft() + QPointF(-40.0, -40.0), textRectangle.topRight() + QPointF(40.0, -40.0),
-                                              textRectangle.bottomLeft() + QPointF(-40.0, 40.0), textRectangle.bottomRight() + QPointF(40.0, 40.0) })
-            {
-                if (mediaBox.contains(candidate))
-                {
-                    tip = candidate;
-                    break;
-                }
-            }
-
-            QPointF pagePoint;
-            if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex && !textRectangle.contains(pagePoint))
-            {
-                tip = pagePoint;
-            }
-
+            QRectF textRectangle;
+            request.calloutTip = getMenuCalloutTip(annotation, annotationPageIndex, widgetPosition, &textRectangle);
             request.canAddCalloutLine = textRectangle.isValid();
-            request.calloutTip = tip;
         }
     }
 
     return request;
+}
+
+bool PDFWidgetAnnotationManager::getMenuInkEraser(PDFObjectReference annotation, PDFInteger pageIndex, std::optional<QPoint> widgetPosition, QPointF& center, PDFReal& radius) const
+{
+    if (!m_document || !widgetPosition || m_proxy->getPageUnderPoint(*widgetPosition, nullptr) != pageIndex)
+    {
+        return false;
+    }
+
+    // Jakub Melka: the stroke is erased around the place, where the menu was opened.
+    // The radius of the eraser is given on the screen, the place is in the coordinate
+    // system of the annotation. The action is offered, if there is something to erase.
+    const QTransform annotationToDevice = getSelectionToDeviceMatrix(pageIndex, getPageToDeviceMatrix(pageIndex));
+    const PDFReal scale = std::sqrt(std::abs(annotationToDevice.determinant()));
+    bool invertible = false;
+    const QTransform deviceToAnnotation = annotationToDevice.inverted(&invertible);
+    if (!invertible || !(scale > 0.0))
+    {
+        return false;
+    }
+
+    const QPointF eraseCenter = deviceToAnnotation.map(QPointF(*widgetPosition));
+    const PDFReal eraseRadius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) / scale;
+
+    PDFDocumentBuilder testBuilder(m_document);
+    if (!PDFAnnotationManipulator::eraseInk(&testBuilder, annotation, eraseCenter, eraseRadius))
+    {
+        return false;
+    }
+
+    center = eraseCenter;
+    radius = eraseRadius;
+    return true;
+}
+
+QPointF PDFWidgetAnnotationManager::getMenuCalloutTip(PDFObjectReference annotation, PDFInteger pageIndex, std::optional<QPoint> widgetPosition, QRectF* textRectangle) const
+{
+    if (!m_document)
+    {
+        return QPointF();
+    }
+
+    // The callout line points to the place, where the menu was opened (if it is
+    // outside of the text box), otherwise to a place next to the text box
+    const QRectF rectangle = PDFAnnotationManipulator::getFreeTextRectangle(&m_document->getStorage(), annotation);
+    const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+    const QRectF mediaBox = page ? page->getMediaBox().normalized() : QRectF();
+    QPointF tip = rectangle.topLeft() + QPointF(-40.0, -40.0);
+    for (const QPointF& candidate : { rectangle.topLeft() + QPointF(-40.0, -40.0), rectangle.topRight() + QPointF(40.0, -40.0),
+                                      rectangle.bottomLeft() + QPointF(-40.0, 40.0), rectangle.bottomRight() + QPointF(40.0, 40.0) })
+    {
+        if (mediaBox.contains(candidate))
+        {
+            tip = candidate;
+            break;
+        }
+    }
+
+    QPointF pagePoint;
+    if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == pageIndex && !rectangle.contains(pagePoint))
+    {
+        tip = pagePoint;
+    }
+
+    if (textRectangle)
+    {
+        *textRectangle = rectangle;
+    }
+    return tip;
 }
 
 }   // namespace pdf

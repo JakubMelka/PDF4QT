@@ -3061,86 +3061,105 @@ void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.fillPath(path, QBrush(parameters.colorConvertor.convert(getStrokeColor(), false, false), Qt::SolidPattern));
 }
 
+/// Helper of the drawing of the ink annotation
+class PDFInkAnnotationHelper
+{
+public:
+    PDFInkAnnotationHelper() = delete;
+
+    /// Returns a smooth stroke through the points of one path of the ink list: a
+    /// Catmull-Rom spline (cubic Bezier segments, the tangent at a point is parallel to
+    /// the line of its neighbours), so the stroke goes through every point and its
+    /// segments join without a corner. Jakub Melka: every segment was a quadratic curve
+    /// bulging to the same side by an eighth of its length, so a freehand stroke made of
+    /// many short segments was scalloped at their joins.
+    static QPainterPath createSmoothStroke(const std::vector<QPointF>& points)
+    {
+        QPainterPath path;
+        if (points.empty())
+        {
+            return path;
+        }
+
+        path.moveTo(points.front());
+        if (points.size() == 1)
+        {
+            // A single point is a dot (the round cap of the pen)
+            path.lineTo(points.front());
+            return path;
+        }
+
+        for (size_t i = 0; i + 1 < points.size(); ++i)
+        {
+            const QPointF& previous = points[i > 0 ? i - 1 : i];
+            const QPointF& start = points[i];
+            const QPointF& end = points[i + 1];
+            const QPointF& next = points[i + 2 < points.size() ? i + 2 : i + 1];
+            path.cubicTo(start + (end - previous) / 6.0, end - (next - start) / 6.0, end);
+        }
+
+        return path;
+    }
+};
+
 void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QPainter& painter = *parameters.painter;
-    QPainterPath path = getInkPath();
+    const QPainterPath& path = getInkPath();
 
-    painter.setPen(getPen(parameters.colorConvertor));
+    // A freehand stroke has round ends and joins
+    QPen pen = getPen(parameters.colorConvertor);
+    if (pen.style() != Qt::NoPen)
+    {
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
+    }
+    painter.setPen(pen);
     painter.setBrush(getBrush(parameters.colorConvertor));
     painter.setCompositionMode(getCompositionMode());
 
     QPainterPath boundingPath;
-    QPainterPath currentPath;
+    auto drawStroke = [&painter, &boundingPath](const QPainterPath& strokePath)
+    {
+        if (!strokePath.isEmpty())
+        {
+            boundingPath.addPath(strokePath);
+            painter.drawPath(strokePath);
+        }
+    };
+
+    // Jakub Melka: a path with curves (the entry Path of PDF 2.0) is drawn as it is
     const int elementCount = path.elementCount();
     bool hasSpline = false;
     for (int i = 0; i < elementCount; ++i)
     {
-        QPainterPath::Element element = path.elementAt(i);
-        switch (element.type)
+        const QPainterPath::ElementType type = path.elementAt(i).type;
+        if (type == QPainterPath::CurveToElement || type == QPainterPath::CurveToDataElement)
         {
-            case QPainterPath::MoveToElement:
-            {
-                // Reset the path
-                if (!currentPath.isEmpty())
-                {
-                    boundingPath.addPath(currentPath);
-                    painter.drawPath(currentPath);
-                    currentPath.clear();
-                }
-                currentPath.moveTo(element.x, element.y);
-                break;
-            }
-
-            case QPainterPath::LineToElement:
-            {
-                const QPointF p0 = currentPath.currentPosition();
-                const QPointF p1(element.x, element.y);
-
-                QLineF line(p0, p1);
-                QPointF normal = line.normalVector().p2() - p0;
-
-                // Jakub Melka: This computation should be clarified. We use second order Bezier curves.
-                // We must calculate single control point. Let B(t) is bezier curve of second order.
-                // Then second derivation is B''(t) = 2(p0 - 2*Pc + p1). Second derivation curve is its
-                // normal. So, we calculate normal vector of the line (which has norm equal to line length),
-                // then we get following formula:
-                //
-                // Pc = (p0 + p1) / 2 - B''(t) / 4
-                //
-                // So, for bezier curves of second order, second derivative is constant (which is not surprising,
-                // because second derivative of polynomial of order 2 is also a constant). Control point is then
-                // used to paint the path.
-                QPointF controlPoint = -normal * 0.25 + (p0 + p1) * 0.5;
-                currentPath.quadTo(controlPoint, p1);
-                break;
-            }
-
-            case QPainterPath::CurveToElement:
-            case QPainterPath::CurveToDataElement:
-                hasSpline = true;
-                break;
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
-
-        // Jakub Melka: If we have a spline, then we don't do anything...
-        // Just copy the spline path.
-        if (hasSpline)
-        {
-            currentPath = path;
+            hasSpline = true;
             break;
         }
     }
 
-    // Reset the path
-    if (!currentPath.isEmpty())
+    if (hasSpline)
     {
-        boundingPath.addPath(currentPath);
-        painter.drawPath(currentPath);
-        currentPath.clear();
+        drawStroke(path);
+    }
+    else
+    {
+        // Each path of the ink list is drawn as a smooth stroke through its points
+        std::vector<QPointF> points;
+        for (int i = 0; i < elementCount; ++i)
+        {
+            const QPainterPath::Element element = path.elementAt(i);
+            if (element.type == QPainterPath::MoveToElement)
+            {
+                drawStroke(PDFInkAnnotationHelper::createSmoothStroke(points));
+                points.clear();
+            }
+            points.emplace_back(element.x, element.y);
+        }
+        drawStroke(PDFInkAnnotationHelper::createSmoothStroke(points));
     }
 
     const qreal penWidth = painter.pen().widthF();

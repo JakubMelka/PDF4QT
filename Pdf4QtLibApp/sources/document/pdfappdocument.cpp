@@ -403,6 +403,14 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
         m_textIndex.reset();
     }
 
+    // Changes of annotations and of form fields keep the objects of the outline
+    const PDFModifiedDocument::ModificationFlags keepingOutline(PDFModifiedDocument::Annotation | PDFModifiedDocument::FormField |
+                                                               PDFModifiedDocument::PreserveView | PDFModifiedDocument::PreserveUndoRedo);
+    if (flags.toInt() == 0 || (flags & ~keepingOutline))
+    {
+        m_outlineVersion = m_version;
+    }
+
     // A new optional content activity for a reset (the old one refers to the old
     // document); otherwise the activity is kept and points to the new document
     if (isReset || !m_optionalContentActivity)

@@ -673,10 +673,13 @@ bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 ve
             return true;
 
         case ActionType::ResetForm:
-            if (PDFWidgetFormManager* formManager = view->getFormManager())
+            if (PDFWidgetFormManager* formManager = view->getFormManager();
+                formManager && PDFAppFormController::isResetEffective(formManager, static_cast<const PDFActionResetForm*>(action)))
             {
                 // One undo step with its own description (also a reset in a chain
-                // of actions); a reset, which changes nothing, leaves none behind
+                // of actions); a reset, which changes nothing, is not performed
+                // (the engine would write new appearance streams - an undo step
+                // without a visible change)
                 QPointer<PDFAppAnnotationController> controller = view->getAnnotationController();
                 if (controller)
                 {

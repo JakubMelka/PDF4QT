@@ -256,10 +256,6 @@ private:
         PDFObjectReference reference;   ///< Object of the item (invalid, when the outline cannot be edited)
     };
 
-    /// Top of the viewport in the coordinates of the current page (+infinity,
-    /// when the top edge of the view does not lie on the page)
-    PDFReal getViewTop(PDFInteger currentPage) const;
-
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onDocumentDestroyed();
     void onCurrentPageChanged(PDFInteger pageIndex);
@@ -330,6 +326,10 @@ private:
         size_t index = 0;
     };
     DropRequest m_dropRequest;
+
+    /// Move of the item \p item to the place of the drop at the item \p target
+    /// (an index of the view model; an invalid target = the end)
+    DropRequest getDropRequest(const OutlinePath& item, const QModelIndex& target, DropPosition position) const;
 };
 
 /// Factory of the outline panel (the tab only for a document with an outline)

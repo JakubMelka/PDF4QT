@@ -192,6 +192,7 @@ private slots:
     void testHighDpiImageResolution();
     void testBlend2DDashedPen();
     void testBlend2DDashedPenLimit();
+    void testBlend2DCosmeticPen();
 };
 
 
@@ -1372,6 +1373,102 @@ void ImageScalingTest::testBlend2DDashedPenLimit()
             else
             {
                 QVERIFY2(transitions > 10, qPrintable(QString::number(transitions)));
+            }
+        }
+    }
+}
+
+void ImageScalingTest::testBlend2DCosmeticPen()
+{
+    // A cosmetic pen (width 0) is 1 device pixel wide and its dashes are in device
+    // pixels at every zoom, as QPainter draws it. The Blend2D engine stroked the dashes
+    // in the user space, so a dashed cosmetic line got thick and long dashes when zoomed.
+    // Measured on a horizontal line: the painted rows at the middle of a dash and the
+    // changes painted / not painted along the line.
+    struct Measure
+    {
+        int thickness = 0;
+        int transitions = 0;
+    };
+
+    auto measure = [](const QImage& image, bool isAlpha)
+    {
+        auto isPainted = [&image, isAlpha](int x, int y)
+        {
+            const QRgb pixel = image.pixel(x, y);
+            return isAlpha ? qAlpha(pixel) >= 96 : qGray(pixel) < 160;
+        };
+
+        Measure result;
+        int dashColumn = -1;
+        bool wasPainted = false;
+        for (int x = 20; x < 220; ++x)
+        {
+            bool painted = false;
+            for (int y = 0; y < image.height(); ++y)
+            {
+                painted = painted || isPainted(x, y);
+            }
+            if (x > 20 && painted != wasPainted)
+            {
+                ++result.transitions;
+            }
+            if (painted && dashColumn == -1 && x > 30)
+            {
+                dashColumn = x;
+            }
+            wasPainted = painted;
+        }
+
+        for (int y = 0; dashColumn != -1 && y < image.height(); ++y)
+        {
+            result.thickness += isPainted(dashColumn, y) ? 1 : 0;
+        }
+        return result;
+    };
+
+    for (const qreal zoom : { 1.0, 4.0, 8.0 })
+    {
+        for (const Qt::PenStyle style : { Qt::DashLine, Qt::DotLine, Qt::SolidLine })
+        {
+            QPen pen(QColor(0, 0, 0), 0.0, style, Qt::FlatCap);
+            QVERIFY(pen.isCosmetic());
+            const QLineF line(QPointF(10.0, 40.25) / zoom, QPointF(230.0, 40.25) / zoom);
+
+            // The reference: QPainter
+            QImage reference(240, 80, QImage::Format_ARGB32_Premultiplied);
+            reference.fill(Qt::white);
+            {
+                QPainter painter(&reference);
+                painter.scale(zoom, zoom);
+                painter.setPen(pen);
+                painter.drawLine(line);
+            }
+            const Measure expected = measure(reference, false);
+
+            for (const bool isMultithreaded : { false, true })
+            {
+                QImage image(240, 80, QImage::Format_ARGB32_Premultiplied);
+                image.fill(Qt::white);
+                {
+                    pdf::PDFBLPaintDevice paintDevice(image, isMultithreaded);
+                    QPainter painter;
+                    QVERIFY(painter.begin(&paintDevice));
+                    painter.scale(zoom, zoom);
+                    painter.setPen(pen);
+                    painter.drawLine(line);
+                    QPainterPath path;
+                    path.moveTo(line.p1());
+                    path.lineTo(line.p2());
+                    painter.drawPath(path);
+                    painter.end();
+                }
+
+                const Measure measured = measure(image, true);
+                const QString message = QString("zoom %1, style %2, thickness %3 (QPainter %4), transitions %5 (QPainter %6)")
+                                            .arg(zoom).arg(int(style)).arg(measured.thickness).arg(expected.thickness).arg(measured.transitions).arg(expected.transitions);
+                QVERIFY2(measured.thickness >= 1 && measured.thickness <= 2, qPrintable(message));
+                QVERIFY2(std::abs(measured.transitions - expected.transitions) <= qMax(4, expected.transitions / 5), qPrintable(message));
             }
         }
     }

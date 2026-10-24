@@ -184,7 +184,6 @@ private:
 
     QPointer<PDFAppAnnotationCreator> m_creator;
     PDFAppAnnotationToolKind m_kind = PDFAppAnnotationToolKind::None;
-    std::vector<QPointer<QWidget>> m_parts;
     QPointer<PDFAppFloatingBarIcon> m_icon;
     QPointer<PDFLabel> m_name;
     QPointer<PDFLabel> m_hint;
@@ -195,7 +194,6 @@ private:
     QPointer<PDFComboBox> m_widthSelect;
     QPointer<PDFAppPageLinkTargetSelect> m_targetSelect;
     QPointer<QPushButton> m_backButton;
-    QPointer<QWidget> m_backDivider;
     QPointer<PDFIconButton> m_closeButton;
     int m_normalWidth = 0;
     bool m_isUpdating = false;

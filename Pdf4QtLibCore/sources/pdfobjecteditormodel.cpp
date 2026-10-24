@@ -30,10 +30,15 @@ namespace pdf
 
 PDFObjectEditorAbstractModel::PDFObjectEditorAbstractModel(QObject* parent) :
     BaseClass(parent),
-    m_storage(nullptr),
+    m_storage(&m_emptyStorage),
     m_typeAttribute(0)
 {
 
+}
+
+void PDFObjectEditorAbstractModel::setStorage(const PDFObjectStorage* storage)
+{
+    m_storage = storage ? storage : &m_emptyStorage;
 }
 
 PDFObjectEditorAbstractModel::~PDFObjectEditorAbstractModel()
@@ -213,8 +218,6 @@ PDFObject PDFObjectEditorAbstractModel::getValue(size_t index, bool resolveArray
     {
         return PDFObject();
     }
-
-    PDFDocumentDataLoaderDecorator loader(m_storage);
 
     if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(m_editedObject))
     {

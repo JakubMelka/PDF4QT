@@ -31,6 +31,7 @@
 #include "pdfpagecontentelements.h"
 
 #include <QPainter>
+#include <QPointer>
 #include <QGridLayout>
 #include <QKeyEvent>
 #include <QApplication>
@@ -356,9 +357,17 @@ template<typename Event, void (IDrawWidgetInputInterface::* Function)(QWidget*, 
 bool PDFDrawWidget::processEvent(Event* event)
 {
     QString tooltip;
+    QPointer<PDFDrawWidget> self(this);
     for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
     {
         (inputInterface->*Function)(this, event);
+
+        // A receiver of the input (a commit of the application) may delete the widget
+        // with its tab synchronously - the event is consumed then
+        if (!self)
+        {
+            return true;
+        }
 
         // Update tooltip
         if (tooltip.isEmpty())
@@ -517,6 +526,10 @@ void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
 void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
 {
     event->ignore();
+
+    // The tool and the annotation manager share one hit test of the annotations and
+    // one hover of the manager in the dispatch of the move
+    PDFWidgetAnnotationManager::MouseMoveScope annotationScope(m_widget->getAnnotationManager());
 
     if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseMoveEvent>(event))
     {

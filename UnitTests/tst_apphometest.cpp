@@ -2847,9 +2847,15 @@ void AppHomeTest::browseFiles()
     QCOMPARE(fixture.closeMessageBoxes(), 0);
 
 
-    // openFile of an invalid path does nothing
-    fixture.page<pdf::PDFAppOpenPage>()->openFile(QStringLiteral("relative.pdf"));
+    // openFile of an invalid path does nothing (no tab, no message) - on the Open
+    // page (the closed document tab left another page current)
+    fixture.navigate(QStringLiteral("/open"));
+    pdf::PDFAppOpenPage* invalidPathPage = fixture.page<pdf::PDFAppOpenPage>();
+    QVERIFY(invalidPathPage);
+    invalidPathPage->openFile(QStringLiteral("relative.pdf"));
+    fixture.settle();
     QCOMPARE(fixture.closeMessageBoxes(), 0);
+    QCOMPARE(fixture.closeDocumentTabs(), 0);
 
     // Opening outside of a window does nothing
     QVERIFY(!pdf::PDFAppDocumentActions::openFiles(nullptr, { sample.invoice }));

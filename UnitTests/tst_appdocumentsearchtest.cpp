@@ -237,6 +237,19 @@ private:
 
     /// The test runs under valgrind (the time limits are 20 times longer)
     static bool isValgrind() { return qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")); }
+
+    /// Multiplier of the time limits: PDF4QT_TEST_TIMEOUT_FACTOR (3 under the
+    /// sanitizers, 20 under valgrind), or 20 under valgrind without it
+    static int getTimeoutFactor()
+    {
+        bool ok = false;
+        const int factor = qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR", &ok);
+        if (ok && factor > 0)
+        {
+            return factor;
+        }
+        return isValgrind() ? 20 : 1;
+    }
     static pdf::PDFAppDocumentTab* openReady(pdftest::AppDocumentFixture& fixture, const QString& file);
 };
 
@@ -249,7 +262,7 @@ bool AppDocumentSearchTest::waitForSearch(pdf::PDFAppDocumentSearchController* c
 {
     QElapsedTimer timer;
     timer.start();
-    const qint64 limit = qint64(timeout) * (isValgrind() ? 20 : 1);
+    const qint64 limit = qint64(timeout) * getTimeoutFactor();
     while (controller && timer.elapsed() < limit)
     {
         const pdf::PDFAppDocumentSearchController::State state = controller->getState();
@@ -930,7 +943,7 @@ void AppDocumentSearchTest::closeTabDuringIndexing()
     delete tab;
     fixture.settle();
     // valgrind runs the threads one after another: the worker delays the GUI thread
-    QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000), qPrintable(QString::number(timer.elapsed())));
+    QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000 * getTimeoutFactor()), qPrintable(QString::number(timer.elapsed())));
 
     // The application can open the document again meanwhile
     QTest::qWait(200);
@@ -961,7 +974,7 @@ void AppDocumentSearchTest::closeTabDuringSearch()
     delete tab;
     fixture.settle();
     // valgrind runs the threads one after another: the worker delays the GUI thread
-    QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000), qPrintable(QString::number(timer.elapsed())));
+    QVERIFY2(timer.elapsed() < (isValgrind() ? 60000 : 2000 * getTimeoutFactor()), qPrintable(QString::number(timer.elapsed())));
     QTest::qWait(200);
     fixture.settle();
 }

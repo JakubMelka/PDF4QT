@@ -39,6 +39,7 @@ namespace pdf
 
 class PDFAppAnnotationController;
 class PDFAppCommentPopupIcon;
+class PDFAppDocument;
 class PDFAppDocumentView;
 class PDFColorSwatchRow;
 class PDFComboBox;
@@ -144,7 +145,22 @@ private:
     void applyCompaction(int level);
     PDFAppAnnotationController* getController() const;
 
+    /// What the shown bar depends on: a change of the command states of the view
+    /// (every change of the window) updates the bar only, when it has changed
+    struct StateKey
+    {
+        std::vector<PDFObjectReference> selection;
+        QPointer<const PDFAppDocument> document;
+        quint64 version = 0;
+        bool isShown = false;
+        bool isEditingAllowed = false;
+
+        bool operator==(const StateKey&) const = default;
+    };
+    StateKey getStateKey() const;
+
     QPointer<PDFAppDocumentView> m_view;
+    StateKey m_stateKey;
     QPointer<PDFAppCommentPopupIcon> m_typeIcon;
     QPointer<PDFLabel> m_nameLabel;
     QPointer<PDFLabel> m_authorLabel;

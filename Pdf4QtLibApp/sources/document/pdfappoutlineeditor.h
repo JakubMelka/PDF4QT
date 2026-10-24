@@ -83,6 +83,11 @@ public:
     /// left side and the zoom kept by the reader. nullopt without a page.
     std::optional<PDFDestination> getCurrentViewDestination() const;
 
+    /// Top edge of the view \p view in the coordinates of the page \p pageIndex
+    /// (in the middle of the view, where a page lies in every layout); nullopt,
+    /// when the top edge of the view does not lie on the page
+    static std::optional<PDFReal> getViewTop(const PDFAppDocumentView* view, PDFInteger pageIndex);
+
     // ---------------------------------------------------------------- creation
 
     /// Creates a new outline item with the destination XYZ of the current view
@@ -163,16 +168,19 @@ private:
     void setPendingProperty(bool pending);
     void onDocumentChanged();
     void onDocumentDestroyed();
+    void onCurrentItemChangeQueued();
 
     QPointer<PDFAppDocumentView> m_view;
     QPointer<PDFAppDocument> m_document;
     OutlinePath m_currentItem;
     bool m_isCreationPending = false;
+    bool m_isCurrentItemChangePending = false;   ///< stateChanged of a new current item waits for the event loop
     OutlinePath m_pendingParent;
     size_t m_pendingIndex = 0;
     PDFDestination m_pendingDestination;
     QString m_previousPanelId;                  ///< Panel shown before the creation (shown again after a canceled creation of the first item)
-    mutable PDFDocumentPointer m_editableDocument;  ///< Document of the cache of PDFAppAnnotationOperations::isOutlineEditable
+    mutable QPointer<const PDFAppDocument> m_editableDocument;  ///< Document model of the cache of PDFAppAnnotationOperations::isOutlineEditable
+    mutable quint64 m_editableVersion = 0;                      ///< Outline version of the cache (PDFAppDocument::getOutlineVersion)
     mutable bool m_isOutlineEditable = false;
 };
 

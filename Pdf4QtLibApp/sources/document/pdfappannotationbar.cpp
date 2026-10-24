@@ -300,10 +300,31 @@ void PDFAppAnnotationBar::setFillTarget(bool isFill)
     }
 }
 
+PDFAppAnnotationBar::StateKey PDFAppAnnotationBar::getStateKey() const
+{
+    StateKey key;
+    const PDFAppAnnotationController* controller = getController();
+    if (!controller)
+    {
+        return key;
+    }
+
+    key.isShown = controller->hasAnnotationSelection() && !controller->isCreationTool(controller->getActiveTool());
+    if (key.isShown)
+    {
+        const PDFAppDocument* document = controller->getDocument();
+        key.selection = controller->getSelectedAnnotations();
+        key.document = document;
+        key.version = document ? document->getVersion() : 0;
+        key.isEditingAllowed = controller->isAnnotationEditingAllowed();
+    }
+    return key;
+}
+
 void PDFAppAnnotationBar::updateState()
 {
-    const PDFAppAnnotationController* controller = getController();
-    const bool isShown = controller && controller->hasAnnotationSelection() && !controller->isCreationTool(controller->getActiveTool());
+    m_stateKey = getStateKey();
+    const bool isShown = m_stateKey.isShown;
     if (!isShown)
     {
         if (!isHidden())
@@ -798,8 +819,15 @@ void PDFAppAnnotationBar::onSelectionChanged()
 
 void PDFAppAnnotationBar::onStateChanged()
 {
+    // The command states change with every change of the window: the selection is
+    // read again only, when the selection, the document version, the editing or
+    // the visibility of the bar has changed (review RC-B)
     if (!isHidden() || (getController() && getController()->hasAnnotationSelection()))
     {
+        if (getStateKey() == m_stateKey && isHidden() == !m_stateKey.isShown)
+        {
+            return;
+        }
         updateState();
     }
 }

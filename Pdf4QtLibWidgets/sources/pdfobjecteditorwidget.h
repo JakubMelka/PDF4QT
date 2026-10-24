@@ -50,10 +50,15 @@ private:
 public:
     explicit PDFObjectEditorWidget(EditObjectType type, QWidget* parent);
 
+    /// Sets the storage, which resolves the references of the edited object (see
+    /// PDFObjectEditorAbstractModel::setStorage) - call it before setObject
+    void setStorage(const PDFObjectStorage* storage);
+
     void setObject(PDFObject object);
     PDFObject getObject();
 
 private:
+    PDFObjectEditorAbstractModel* m_model;
     PDFObjectEditorWidgetMapper* m_mapper;
     QTabWidget* m_tabWidget;
 };
@@ -67,6 +72,9 @@ private:
 
 public:
     explicit PDFEditObjectDialog(EditObjectType type, QWidget* parent);
+
+    /// Sets the storage of the document of the edited object - call it before setObject
+    void setStorage(const PDFObjectStorage* storage);
 
     void setObject(PDFObject object);
     PDFObject getObject();

@@ -178,6 +178,9 @@ public:
     /// Returns true, if some point of interest is snapped
     bool isSnapped() const { return m_snappedPoint.has_value(); }
 
+    /// Returns the type of the snapped point (Invalid, if no point is snapped)
+    SnapType getSnappedPointType() const { return m_snappedPoint.has_value() ? m_snappedPoint->type : SnapType::Invalid; }
+
     /// Builds snap points from the widget snapshot. Updates current value
     /// of snapped point (from mouse position).
     /// \param snapshot Widget snapshot

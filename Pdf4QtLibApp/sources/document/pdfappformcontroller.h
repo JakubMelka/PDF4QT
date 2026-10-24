@@ -36,6 +36,7 @@ namespace pdf
 {
 
 class PDFAction;
+class PDFActionResetForm;
 class PDFAppAnnotationController;
 class PDFAppDocument;
 class PDFAppDocumentView;
@@ -81,6 +82,14 @@ public:
     /// Description of the undo step of a ResetForm action (the action handler of
     /// the tab sets it around the reset, also of an action in a chain)
     static QString getResetFormDescription();
+
+    /// The ResetForm action changes a value of the form: a field of its scope (not
+    /// a push button) has another value than its default one, a list box has a
+    /// selection or a scrolled top item, a widget of a button shows another
+    /// appearance state than the default value gives. A reset, which changes
+    /// nothing, is not performed (no undo step of a form already at its defaults;
+    /// the engine would write the same values and new appearance streams).
+    static bool isResetEffective(const PDFFormManager* formManager, const PDFActionResetForm* action);
 
     explicit PDFAppFormController(PDFAppDocumentView* view);
     virtual ~PDFAppFormController() override;

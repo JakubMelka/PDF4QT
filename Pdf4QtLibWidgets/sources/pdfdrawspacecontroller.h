@@ -255,6 +255,10 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
     QColor infoBackground;
     QColor infoBorder;
 
+    /// Shadow of the box with the numbers of a drag in the look of the design (0 / 4 / 16 of
+    /// drag-tooltip 1017:18217); an invalid color (the default) draws no shadow
+    QColor infoShadow;
+
     bool operator==(const PDFViewColors&) const = default;
 
     /// Colors of the old applications (canvas gray of the dark / light theme,
@@ -529,6 +533,14 @@ public:
     PDFWidgetAnnotationManager* getAnnotationManager() const;
     const std::vector<PDFSignatureVerificationResult>& getSignatureVerificationResult() const { return m_signatureVerificationResult; }
 
+    /// Draws the shadow of a rectangle (a drop shadow of Figma without a spread) - the
+    /// overlays of the view in the look of the design (the box with the numbers of a drag)
+    /// \param painter Painter
+    /// \param rect Rectangle casting the shadow, the offset of the shadow applied [pixels of the widget]
+    /// \param color Color of the shadow, an invalid or a transparent color draws nothing
+    /// \param blur Blur of the shadow (twice the standard deviation, as in Figma)
+    static void drawShadow(QPainter* painter, const QRectF& rect, const QColor& color, PDFReal blur);
+
 signals:
     void drawSpaceChanged();
     void pageLayoutChanged();
@@ -618,6 +630,13 @@ private:
     /// \param color Color of the shadow
     /// \param devicePixelRatio Device pixel ratio of the picture
     static QImage createPageShadowTile(PDFReal blur, const QColor& color, PDFReal devicePixelRatio);
+
+    /// Draws the picture of createPageShadowTile over the rectangle of a shadow (nine-slice:
+    /// corners, edges; the middle stays empty, it lies below the shadowed rectangle)
+    /// \param painter Painter
+    /// \param tile Picture of createPageShadowTile
+    /// \param shadowRect Rectangle of the whole shadow (the shadowed rectangle enlarged by the extent)
+    static void drawShadowTile(QPainter* painter, const QImage& tile, const QRectF& shadowRect);
 
     /// Returns the screen on which the widget is currently displayed. Primary screen
     /// is returned as a fallback, when the widget is not assigned to any screen.

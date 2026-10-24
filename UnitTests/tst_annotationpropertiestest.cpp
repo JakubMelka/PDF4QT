@@ -733,6 +733,19 @@ void AnnotationPropertiesTest::helpers()
     const P bounded = E::bound(properties);
     QCOMPARE(bounded.freeTextStyle.fontFamily, QStringLiteral("Courier"));
     QCOMPARE(bounded.freeTextStyle.textAlignment, pdf::TextAlignment(Qt::AlignHCenter | Qt::AlignTop));
+
+    // The one rule of the text box style (also of the tool and of its storage): a family
+    // longer than a PDF name is Helvetica, not a cut family; left and right is left
+    pdf::PDFFreeTextStyle style;
+    style.fontFamily = QString(P::MAXIMUM_FONT_FAMILY_LENGTH + 1, QChar(u'F'));
+    style.textAlignment = pdf::TextAlignment(Qt::AlignLeft | Qt::AlignRight);
+    const pdf::PDFFreeTextStyle boundedStyle = E::boundFreeTextStyle(style);
+    QCOMPARE(boundedStyle.fontFamily, QStringLiteral("Helvetica"));
+    QCOMPARE(boundedStyle.textAlignment, pdf::TextAlignment(Qt::AlignLeft | Qt::AlignTop));
+    style.fontFamily = QString(P::MAXIMUM_FONT_FAMILY_LENGTH, QChar(u'F'));
+    style.textAlignment = pdf::TextAlignment(Qt::AlignRight | Qt::AlignBottom);
+    QCOMPARE(E::boundFreeTextStyle(style).fontFamily, style.fontFamily);
+    QCOMPARE(E::boundFreeTextStyle(style).textAlignment, pdf::TextAlignment(Qt::AlignRight | Qt::AlignTop));
 }
 
 QTEST_MAIN(AnnotationPropertiesTest)
