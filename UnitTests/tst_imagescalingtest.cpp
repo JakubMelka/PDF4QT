@@ -190,6 +190,8 @@ private slots:
     void testPrecompiledPageTargets();
     void testHighDpiGeometry();
     void testHighDpiImageResolution();
+    void testBlend2DDashedPen();
+    void testBlend2DDashedPenLimit();
 };
 
 
@@ -1211,6 +1213,169 @@ void ImageScalingTest::testHighDpiImageResolution()
     }
 }
 
+
+void ImageScalingTest::testBlend2DDashedPen()
+{
+    // Dashed pens through the Blend2D paint engine, synchronous and asynchronous
+    // (worker threads of Blend2D). The asynchronous rendering of Blend2D copies the
+    // stroke options into a shared state of its jobs, which is never destroyed, so a
+    // dash array given to the context leaked with every dashed stroke (valgrind:
+    // "definitely lost" from bl_array_assign_data in PDFBLPaintEngine::setBLPen). The
+    // engine strokes the dashes itself; the two modes give the same pixels.
+    auto paint = [](bool isMultithreaded)
+    {
+        QImage image(240, 240, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+
+        pdf::PDFBLPaintDevice paintDevice(image, isMultithreaded);
+        QPainter painter;
+        if (!painter.begin(&paintDevice))
+        {
+            return QImage();
+        }
+
+        const std::array<Qt::PenStyle, 6> styles = { Qt::DashLine, Qt::DotLine, Qt::DashDotLine, Qt::DashDotDotLine, Qt::CustomDashLine, Qt::SolidLine };
+        for (int repeat = 0; repeat < 20; ++repeat)
+        {
+            for (size_t i = 0; i < styles.size(); ++i)
+            {
+                QPen pen(QColor(0, 0, 0), 1.0 + repeat % 3, styles[i]);
+                if (styles[i] == Qt::CustomDashLine)
+                {
+                    pen.setDashPattern({ 3.0, 2.0, 1.0, 2.0 });
+                    pen.setDashOffset(1.0);
+                }
+                painter.setPen(pen);
+                painter.setBrush(Qt::NoBrush);
+
+                const int offset = int(i) * 12;
+                painter.drawRect(QRect(10 + offset, 10 + offset, 60, 30));
+                painter.drawRect(QRectF(80.5 + offset, 10.5 + offset, 60.0, 30.0));
+                painter.drawLine(QLine(10, 120 + offset, 230, 120 + offset));
+                painter.drawLine(QLineF(150.0 + offset, 10.0, 150.0 + offset, 100.0));
+                QPainterPath path;
+                path.moveTo(10, 200);
+                path.cubicTo(60, 150 + offset, 120, 250 - offset, 230, 200);
+                painter.drawPath(path);
+                painter.drawEllipse(QRectF(170.0, 170.0, 40.0 + offset * 0.1, 30.0));
+            }
+        }
+        painter.end();
+        return image;
+    };
+
+    const QImage synchronous = paint(false);
+    const QImage asynchronous = paint(true);
+    QVERIFY(!synchronous.isNull());
+    QVERIFY(!asynchronous.isNull());
+    QVERIFY(synchronous == asynchronous);
+
+    // A dashed line has gaps, a solid line has none (the engine clears the image
+    // to transparent at its beginning: the coverage is the alpha)
+    QImage image(240, 40, QImage::Format_ARGB32_Premultiplied);
+    for (const bool isMultithreaded : { false, true })
+    {
+        for (const Qt::PenStyle style : { Qt::DashLine, Qt::SolidLine })
+        {
+            image.fill(Qt::white);
+            {
+                pdf::PDFBLPaintDevice paintDevice(image, isMultithreaded);
+                QPainter painter;
+                QVERIFY(painter.begin(&paintDevice));
+                painter.setPen(QPen(QColor(0, 0, 0), 2.0, style, Qt::FlatCap));
+                painter.drawLine(QLineF(10.0, 20.0, 230.0, 20.0));
+                painter.drawRect(QRectF(10.0, 4.0, 220.0, 30.0));
+                painter.end();
+            }
+
+            int transitions = 0;
+            bool wasPainted = false;
+            for (int x = 12; x < 228; ++x)
+            {
+                const bool isPainted = qAlpha(image.pixel(x, 20)) >= 128;
+                if (x > 12 && isPainted != wasPainted)
+                {
+                    ++transitions;
+                }
+                wasPainted = isPainted;
+            }
+
+            if (style == Qt::SolidLine)
+            {
+                QCOMPARE(transitions, 0);
+                QVERIFY(wasPainted);
+            }
+            else
+            {
+                QVERIFY2(transitions > 10, qPrintable(QString::number(transitions)));
+            }
+        }
+    }
+}
+
+void ImageScalingTest::testBlend2DDashedPenLimit()
+{
+    // A path of a hostile document with long segments and tiny dashes: the engine
+    // builds the outline of every dash (QDashStroker limits only the repetitions of
+    // one segment, 10 000), so thousands of such segments needed gigabytes. Above
+    // 100 000 dashes the path is stroked solid (security review RS4). Each segment
+    // below has 9 000 dashes, the path 12 of them - the visible line is solid; the
+    // same visible line alone stays dashed.
+    QImage image(240, 40, QImage::Format_ARGB32_Premultiplied);
+    for (const bool isMultithreaded : { false, true })
+    {
+        for (const bool isLong : { false, true })
+        {
+            QPainterPath path;
+            path.moveTo(10.0, 20.0);
+            path.lineTo(230.0, 20.0);
+            if (isLong)
+            {
+                // Pattern 1 + 9 times the width 2 = 20 units: 9 000 dashes per segment
+                path.moveTo(0.0, 1000.0);
+                for (int i = 0; i < 12; ++i)
+                {
+                    path.lineTo(i % 2 == 0 ? 180000.0 : 0.0, 1000.0 + i);
+                }
+            }
+
+            image.fill(Qt::white);
+            {
+                pdf::PDFBLPaintDevice paintDevice(image, isMultithreaded);
+                QPainter painter;
+                QVERIFY(painter.begin(&paintDevice));
+                QPen pen(QColor(0, 0, 0), 2.0, Qt::CustomDashLine, Qt::FlatCap);
+                pen.setDashPattern({ 1.0, 9.0 });
+                painter.setPen(pen);
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(path);
+                painter.end();
+            }
+
+            int transitions = 0;
+            bool wasPainted = false;
+            for (int x = 12; x < 228; ++x)
+            {
+                const bool isPainted = qAlpha(image.pixel(x, 20)) >= 128;
+                if (x > 12 && isPainted != wasPainted)
+                {
+                    ++transitions;
+                }
+                wasPainted = isPainted;
+            }
+
+            if (isLong)
+            {
+                QCOMPARE(transitions, 0);
+                QVERIFY(wasPainted);
+            }
+            else
+            {
+                QVERIFY2(transitions > 10, qPrintable(QString::number(transitions)));
+            }
+        }
+    }
+}
 
 QTEST_MAIN(ImageScalingTest)
 

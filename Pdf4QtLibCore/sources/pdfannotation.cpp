@@ -33,6 +33,8 @@
 #include <QtMath>
 #include <QIcon>
 
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -1425,8 +1427,10 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
                                                          QPainter* painter,
                                                          QTransform userSpaceToDeviceSpace) const
 {
+    // A read-only form (ReadOnlyForm - a locked document, no permission to fill
+    // it, an XFA form) has no field to fill: its fields are not highlighted
     const bool isWidget = annotation->getType() == AnnotationType::Widget;
-    if (m_formManager && isWidget)
+    if (m_formManager && isWidget && !m_formManager->isReadOnlyForm())
     {
         // Is it a form field?
         const PDFFormManager::FormAppearanceFlags flags = m_formManager->getAppearanceFlags();
@@ -1980,13 +1984,22 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
             const PDFReal vCornerRadius = border.getVerticalCornerRadius();
             const bool isRounded = !qFuzzyIsNull(hCornerRadius) || !qFuzzyIsNull(vCornerRadius);
 
+            // Jakub Melka: the border lies inside of the rectangle (ISO 32000-2, 12.5.6.8) - the
+            // stroke is not cut in half by the bounding box of the appearance stream (Rect)
+            const PDFReal halfWidth = std::isfinite(border.getWidth()) ? qMax(border.getWidth(), 0.0) * 0.5 : 0.0;
+            QRectF rectangle = getRectangle();
+            if (rectangle.width() > 2.0 * halfWidth && rectangle.height() > 2.0 * halfWidth)
+            {
+                rectangle.adjust(halfWidth, halfWidth, -halfWidth, -halfWidth);
+            }
+
             if (isRounded)
             {
-                painter.drawRoundedRect(getRectangle(), hCornerRadius, vCornerRadius, Qt::AbsoluteSize);
+                painter.drawRoundedRect(rectangle, hCornerRadius, vCornerRadius, Qt::AbsoluteSize);
             }
             else
             {
-                painter.drawRect(getRectangle());
+                painter.drawRect(rectangle);
             }
             break;
         }
@@ -2177,7 +2190,8 @@ QString PDFTextAnnotation::getTextForIcon(const QString& key)
     }
     else if (key == "Note")
     {
-        text = QString::fromUtf16(u"\u266A");
+        // Jakub Melka: a memo (U+1F4DD), not a musical note - the icon is a note of the user
+        text = QString::fromUtf16(u"\U0001F4DD");
     }
     else if (key == "Paragraph")
     {

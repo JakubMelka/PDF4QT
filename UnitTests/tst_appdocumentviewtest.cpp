@@ -56,6 +56,7 @@
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemecolors.h"
+#include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
@@ -191,6 +192,7 @@ private slots:
     void canvasShortcutScope();
     void toolManager();
     void textSelectionCommands();
+    void textSelectionThemeColor();
     void selectMenuTools();
     void magnifier();
     void layoutCommands();
@@ -301,9 +303,9 @@ void AppDocumentViewTest::toolbarGeometry()
     QVERIFY(!toolbar->getZoomField()->isSuffixVisible());
     QVERIFY(toolbar->getZoomField()->text().endsWith(QStringLiteral(" %")));
 
-    // Annotate and Insert are disabled in step 3
-    QVERIFY(!toolbar->getAnnotateButton()->isEnabled());
-    QVERIFY(!toolbar->getInsertButton()->isEnabled());
+    // Annotate and Insert open the panels of step 4 (an unlocked document)
+    QVERIFY(toolbar->getAnnotateButton()->isEnabled());
+    QVERIFY(toolbar->getInsertButton()->isEnabled());
     QVERIFY(toolbar->getToolsButton()->isEnabled());
 }
 
@@ -673,6 +675,52 @@ void AppDocumentViewTest::toolManager()
     tools->setActiveTool(pdf::PDFToolManager::ToolEnd);
     QVERIFY(!tools->getActiveTool());
     QVERIFY(!tools->getPredefinedTool(pdf::PDFToolManager::FindTextTool));
+}
+
+void AppDocumentViewTest::textSelectionThemeColor()
+{
+    // The selected text is bg/accent-subtle without a border (Figma 877:134209), not the
+    // yellow selection with the darker border of the old applications
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ThemeSelection.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFToolManager* tools = view->getToolManager();
+    tools->setActiveTool(pdf::PDFToolManager::SelectTextTool);
+    pdf::PDFSelectTextTool* selectText = tools->getSelectTextTool();
+    QVERIFY(selectText);
+    QTRY_VERIFY(view->getProxy()->getTextLayoutCompiler()->isTextLayoutReady());
+    QVERIFY(view->getProxy()->hasViewColors());
+    pdftest::AppDocumentFixture::settle();
+
+    QWidget* canvas = view->getPdfWidget()->getDrawWidget()->getWidget();
+    // bg/accent-subtle is a translucent accent: on the white paper it is its blend with white
+    const QColor token = pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::BgAccentSubtle);
+    const qreal alpha = token.alphaF();
+    const QColor subtle = QColor::fromRgbF(float(1.0 - alpha + token.redF() * alpha), float(1.0 - alpha + token.greenF() * alpha), float(1.0 - alpha + token.blueF() * alpha));
+    auto count = [](const QImage& image, auto predicate)
+    {
+        int result = 0;
+        for (int y = 0; y < image.height(); ++y)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                result += predicate(image.pixelColor(x, y)) ? 1 : 0;
+            }
+        }
+        return result;
+    };
+    auto isYellow = [](const QColor& color) { return color.red() > 180 && color.green() > 180 && color.blue() < 120; };
+    auto isSubtle = [&subtle](const QColor& color) { return std::abs(color.red() - subtle.red()) <= 6 && std::abs(color.green() - subtle.green()) <= 6 && std::abs(color.blue() - subtle.blue()) <= 6; };
+
+    const QImage before = canvas->grab().toImage();
+    selectText->selectAll();
+    QVERIFY(selectText->hasSelection());
+    pdftest::AppDocumentFixture::settle();
+    const QImage after = canvas->grab().toImage();
+    QCOMPARE(count(after, isYellow), count(before, isYellow));
+    QVERIFY2(count(after, isSubtle) > count(before, isSubtle) + 50, qPrintable(QStringLiteral("%1 %2").arg(count(after, isSubtle)).arg(count(before, isSubtle))));
+    selectText->deselect();
 }
 
 void AppDocumentViewTest::textSelectionCommands()
@@ -1781,6 +1829,12 @@ void AppDocumentViewTest::viewPanel()
     QTest::mouseClick(panel->getShowAnnotationsCheckBox(), Qt::LeftButton);
     fixture.settle();
     QVERIFY(!view->isShowingAnnotations());
+
+    // Icons of the tiles: Magnifier has its own icon (Figma 1188:1549), not Zoom In
+    QAbstractButton* magnifierTile = panel->getCommandButton(pdf::PDFAppCommands::magnifier());
+    QVERIFY(magnifierTile);
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(magnifierTile->icon()), QStringLiteral("magnifier"));
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(panel->getCommandButton(pdf::PDFAppCommands::fitPage())->icon()), QStringLiteral("maximize"));
 
     // A tile closes the panel and runs its command
     QAbstractButton* rotate = panel->getCommandButton(pdf::PDFAppCommands::rotateViewRight());

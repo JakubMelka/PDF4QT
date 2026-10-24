@@ -210,10 +210,56 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
     /// Selected text of a form field
     QColor selectionText;
 
+    /// Colors of the selection of annotations (PDFWidgetAnnotationManager). The
+    /// defaults are the colors of the old applications, so a view, which sets only
+    /// the colors above, keeps them.
+
+    /// Frames of the selected and of the hovered annotation, the selection frame,
+    /// the outline of the resize and rotation handles (its fill is 12 % of it)
+    QColor annotationSelection = QColor(0, 120, 215);
+
+    /// Fill of the resize and rotation handles, outline of the point handles
+    QColor annotationHandle = QColor(Qt::white);
+
+    /// Point handles (vertices of a polygon, ends of a line, ...) and the shape of a dragged point
+    QColor annotationPoint = QColor(220, 0, 0);
+
+    /// Fill of the point handle under the cursor / dragged
+    QColor annotationPointActive = QColor(Qt::white);
+
+    /// Rubber band selecting the annotations (its fill is 12 % of it)
+    QColor rubberBand = QColor(0, 120, 215);
+
+    /// Marker of the place, to which a dragged handle / point / annotation snaps
+    QColor snapMarker = QColor(0, 160, 0);
+
+    /// Badge of a selected or hovered locked annotation (flags Locked / ReadOnly).
+    /// An invalid color (the default) draws no badge, as in the old applications.
+    QColor lockBadge;
+
+    /// Cross of the pick tools (the point of a created shape, the target of a link).
+    /// An invalid color (the default) draws the cross of the old applications (white in
+    /// the difference composition mode).
+    QColor pickCross;
+
+    /// Outline of the lock badge and the dashed frame of a selected locked annotation in the look
+    /// of the design (PDFWidgetAnnotationManager::setDesignSelectionLook); an invalid color (the
+    /// default) takes the color of the lock badge
+    QColor lockBadgeBorder;
+
+    /// Text, fill and outline of the box with the numbers of a drag (the length and the angle
+    /// of a dragged point, the size of a resized selection) in the look of the design
+    /// (PDFWidgetAnnotationManager::setDesignSelectionLook); invalid text or fill (the
+    /// default) = the box of the old applications
+    QColor infoText;
+    QColor infoBackground;
+    QColor infoBorder;
+
     bool operator==(const PDFViewColors&) const = default;
 
     /// Colors of the old applications (canvas gray of the dark / light theme,
     /// highlight colors of the palette of the application)
+    // TODO(remove-old-apps): the default colors go - the new application always sets the colors of its theme (setViewColors)
     static PDFViewColors getDefaultColors();
 
     /// Colors for drawing of a form field: the colors of the proxy of the form
@@ -226,6 +272,7 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
 /// PDFDrawWidgetProxy::setPageDecoration (the new application takes the values
 /// from its design and the color of the shadow from its theme). The default
 /// decoration is off - no margin and no shadow, as in the old applications.
+// TODO(remove-old-apps): the decoration of the design becomes the default - the off state of the old applications goes
 struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageDecoration
 {
     /// Margin of the canvas around the pages [pixels of the widget]. The fit
@@ -447,6 +494,10 @@ public:
 
     /// Colors of the view: the colors of setViewColors, or the default colors
     PDFViewColors getViewColors() const;
+
+    /// Returns true, if the colors are set by setViewColors (colors of the theme of the
+    /// application - the markers drawn by them are not adjusted by the color mode of the pages)
+    bool hasViewColors() const { return m_viewColors.has_value(); }
 
     /// Sets the decoration of the pages (margin around the pages, shadow below
     /// them). Values out of their limits are bounded (the margin to 0 - 512

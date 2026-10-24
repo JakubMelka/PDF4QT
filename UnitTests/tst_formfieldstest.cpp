@@ -76,6 +76,9 @@ private slots:
     void damagedFieldTree_data();
     void damagedFieldTree();
     void pageDecorationDefault();
+    void readOnlyFormFlag();
+    void pageTabOrder_data();
+    void pageTabOrder();
 };
 
 /// Creates the documents with the form fields
@@ -1422,6 +1425,244 @@ void FormFieldsTest::pageDecorationDefault()
     QCOMPARE(proxy->getPageDecoration().margin, 0);
     QCOMPARE(proxy->getPageDecoration().shadowBlur, 32.0);
     canvas->grab();
+}
+
+void FormFieldsTest::readOnlyFormFlag()
+{
+    // Check box: a read only form (a locked document) refuses the click, the flag
+    // overrides EditReadOnlyFields, turning it off makes the field editable again
+    {
+        FormFixture fixture(FormFieldsTestHelper::createCheckBoxDocument(FormFieldsTestHelper::Appearance::Complete, "Yes", "Off", QByteArray(), "Off"));
+        const PDFObjectReference widget = fixture.widgetReference();
+        const QPointF center = FormFieldsTestHelper::CHECK_BOX.center();
+
+        fixture.forms.setAppearanceFlags(PDFFormManager::FormAppearanceFlags(PDFFormManager::ReadOnlyForm) | PDFFormManager::EditReadOnlyFields);
+        QVERIFY(fixture.forms.isReadOnlyForm());
+        const PDFFormField* formField = fixture.forms.getFormFieldForWidget(widget);
+        QVERIFY(formField);
+        QVERIFY(fixture.forms.isReadOnly(formField));
+        QVERIFY(fixture.forms.getEffectiveFieldFlags(formField).testFlag(PDFFormField::ReadOnly));
+
+        fixture.click(center);
+        QCOMPARE(fixture.modificationCount, 0);
+        QVERIFY(fixture.hasName(widget, "AS", "Off"));
+        QVERIFY(!fixture.forms.isFocused(widget));
+
+        // Tab does not move the focus into a read only form
+        QVERIFY(!fixture.forms.focusNextPrevFormField(true));
+
+        // A value set by the user is refused, an internal value (a reset by the application) is not
+        PDFFormField::SetValueParameters parameters;
+        parameters.formManager = &fixture.forms;
+        parameters.invokingFormField = fixture.forms.getFormFieldForWidget(widget);
+        parameters.scope = PDFFormField::SetValueParameters::Scope::User;
+        parameters.value = PDFObject::createName("Yes");
+        fixture.forms.setFormFieldValue(parameters);
+        QCOMPARE(fixture.modificationCount, 0);
+
+        fixture.forms.setAppearanceFlags(PDFFormManager::FormAppearanceFlags());
+        QVERIFY(!fixture.forms.isReadOnlyForm());
+        fixture.click(center);
+        QCOMPARE(fixture.modificationCount, 1);
+        QVERIFY(fixture.hasName(widget, "AS", "Yes"));
+    }
+
+    // Text field: no editor is focused, the keys do not change the value
+    {
+        FormFixture fixture(FormFieldsTestHelper::createTextFieldDocument(FormFieldsTestHelper::TextField::TextBox, "/Tx BMC EMC", false));
+        const PDFObjectReference widget = fixture.widgetReference();
+        const QPointF center = FormFieldsTestHelper::TEXT_FIELD.center();
+        QWidget* target = fixture.widget.getDrawWidget()->getWidget();
+
+        fixture.forms.setAppearanceFlags(PDFFormManager::FormAppearanceFlags(PDFFormManager::ReadOnlyForm));
+        fixture.click(center);
+        QVERIFY(!fixture.forms.isFocused(widget));
+
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x"));
+        QCoreApplication::sendEvent(target, &press);
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &enter);
+        QCOMPARE(fixture.modificationCount, 0);
+
+        // Editable again - the click focuses the editor
+        fixture.forms.setAppearanceFlags(PDFFormManager::FormAppearanceFlags());
+        fixture.click(center);
+        QVERIFY(fixture.forms.isFocused(widget));
+
+        // The flag set while the editor has the focus removes the focus
+        fixture.forms.setAppearanceFlags(PDFFormManager::FormAppearanceFlags(PDFFormManager::ReadOnlyForm));
+        QVERIFY(!fixture.forms.isFocused(widget));
+    }
+}
+
+/// Documents of the tab order of the pages
+class FormFieldsTabOrderHelper
+{
+public:
+    FormFieldsTabOrderHelper() = delete;
+
+    /// Page 200 x 200 (array Annots c, a, ro, hidden, b, d): a (20, 150), b (120, 150) in
+    /// the top row, ro (20, 100, read only), hidden (70, 150, flag Hidden), d (20, 20), c
+    /// (120, 20) in the bottom row, every widget 40 x 20; page 2: e; f is on no page
+    static PDFDocument createDocument(const QByteArray& tabs, int rotate)
+    {
+        PDFDocumentBuilder builder;
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        const PDFObjectReference secondPage = builder.appendPage(QRectF(0, 0, 200, 200));
+
+        auto createField = [&builder](PDFObjectReference widgetPage, const QString& name, QRectF rectangle, PDFInteger flags, PDFInteger fieldFlags)
+        {
+            PDFObjectFactory factory;
+            factory.beginDictionary();
+            factory.beginDictionaryItem("Type");
+            factory << WrapName("Annot");
+            factory.endDictionaryItem();
+            factory.beginDictionaryItem("Subtype");
+            factory << WrapName("Widget");
+            factory.endDictionaryItem();
+            factory.beginDictionaryItem("Rect");
+            factory << rectangle;
+            factory.endDictionaryItem();
+            if (widgetPage.isValid())
+            {
+                factory.beginDictionaryItem("P");
+                factory << widgetPage;
+                factory.endDictionaryItem();
+            }
+            factory.beginDictionaryItem("F");
+            factory << flags;
+            factory.endDictionaryItem();
+            factory.beginDictionaryItem("FT");
+            factory << WrapName("Tx");
+            factory.endDictionaryItem();
+            factory.beginDictionaryItem("T");
+            factory << name;
+            factory.endDictionaryItem();
+            factory.beginDictionaryItem("Ff");
+            factory << fieldFlags;
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            return builder.addObject(factory.takeObject());
+        };
+
+        const PDFObjectReference a = createField(page, QStringLiteral("a"), QRectF(20, 150, 40, 20), 4, 0);
+        const PDFObjectReference b = createField(page, QStringLiteral("b"), QRectF(120, 150, 40, 20), 4, 0);
+        const PDFObjectReference c = createField(page, QStringLiteral("c"), QRectF(120, 20, 40, 20), 4, 0);
+        const PDFObjectReference d = createField(page, QStringLiteral("d"), QRectF(20, 20, 40, 20), 4, 0);
+        const PDFObjectReference readOnly = createField(page, QStringLiteral("ro"), QRectF(20, 100, 40, 20), 4, PDFFormField::ReadOnly);
+        const PDFObjectReference hidden = createField(page, QStringLiteral("hidden"), QRectF(70, 150, 40, 20), 4 | 2, 0);
+        const PDFObjectReference e = createField(secondPage, QStringLiteral("e"), QRectF(20, 150, 40, 20), 4, 0);
+        const PDFObjectReference f = createField(PDFObjectReference(), QStringLiteral("f"), QRectF(20, 150, 40, 20), 4, 0);
+        FormFieldsTestHelper::addToPage(builder, page, { c, a, readOnly, hidden, b, d });
+        FormFieldsTestHelper::addToPage(builder, secondPage, { e });
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        if (!tabs.isEmpty())
+        {
+            factory.beginDictionaryItem("Tabs");
+            factory << WrapName(tabs);
+            factory.endDictionaryItem();
+        }
+        factory.beginDictionaryItem("Rotate");
+        factory << PDFInteger(rotate);
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(page, factory.takeObject());
+
+        builder.createAcroForm({ f, e, d, c, b, a, readOnly, hidden });
+        return builder.build();
+    }
+};
+
+void FormFieldsTest::pageTabOrder_data()
+{
+    QTest::addColumn<QByteArray>("tabs");
+    QTest::addColumn<int>("rotate");
+    QTest::addColumn<QStringList>("expected");
+
+    // The order of the array Annots (no entry, S - structure, A, W)
+    QTest::newRow("annotations") << QByteArray() << 0 << QStringList({ "c", "a", "b", "d", "e", "f" });
+    QTest::newRow("structure") << QByteArray("S") << 0 << QStringList({ "c", "a", "b", "d", "e", "f" });
+    QTest::newRow("rows") << QByteArray("R") << 0 << QStringList({ "a", "b", "d", "c", "e", "f" });
+    QTest::newRow("columns") << QByteArray("C") << 0 << QStringList({ "a", "d", "b", "c", "e", "f" });
+
+    // The page turned clockwise: its left edge is the top, its bottom is the left side
+    QTest::newRow("rows rotated") << QByteArray("R") << 90 << QStringList({ "d", "a", "c", "b", "e", "f" });
+    QTest::newRow("rows upside down") << QByteArray("R") << 180 << QStringList({ "c", "d", "b", "a", "e", "f" });
+    QTest::newRow("columns rotated left") << QByteArray("C") << 270 << QStringList({ "b", "a", "c", "d", "e", "f" });
+    QTest::newRow("hostile tabs") << QByteArray("Xyz") << 0 << QStringList({ "c", "a", "b", "d", "e", "f" });
+}
+
+void FormFieldsTest::pageTabOrder()
+{
+    QFETCH(QByteArray, tabs);
+    QFETCH(int, rotate);
+    QFETCH(QStringList, expected);
+
+    FormFixture fixture(FormFieldsTabOrderHelper::createDocument(tabs, rotate));
+    PDFWidgetFormManager& forms = fixture.forms;
+    auto name = [&forms](PDFObjectReference widget)
+    {
+        const PDFFormField* field = forms.getFormFieldForWidget(widget);
+        return field ? field->getName(PDFFormField::NameType::FullyQualified) : QString();
+    };
+    auto names = [&name](const std::vector<PDFObjectReference>& widgets)
+    {
+        QStringList result;
+        for (const PDFObjectReference& widget : widgets)
+        {
+            result << name(widget);
+        }
+        return result;
+    };
+
+    // Off (the old applications): the order of the field tree, every widget, the focus
+    // leaves the fields after the last one
+    QVERIFY(!forms.isPageTabOrder());
+    QCOMPARE(names(forms.getTabOrder()), QStringList({ "f", "e", "d", "c", "b", "a", "ro", "hidden" }));
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(forms.focusNextPrevFormField(true));
+    }
+    QVERIFY(!forms.focusNextPrevFormField(true));
+    QVERIFY(!forms.getFocusedWidget().isValid());
+
+    // On: the order of the pages and of their entry Tabs, without the read only field
+    // and the hidden widget; the focus cycles
+    forms.setPageTabOrder(true);
+    QCOMPARE(names(forms.getTabOrder()), expected);
+    for (int round = 0; round < 2; ++round)
+    {
+        for (const QString& field : expected)
+        {
+            QVERIFY(forms.focusNextPrevFormField(true));
+            QCOMPARE(name(forms.getFocusedWidget()), field);
+        }
+    }
+    QVERIFY(forms.focusNextPrevFormField(true));
+    QCOMPARE(name(forms.getFocusedWidget()), expected.front());
+    QVERIFY(forms.focusNextPrevFormField(false));
+    QCOMPARE(name(forms.getFocusedWidget()), expected.back());
+    QVERIFY(forms.focusNextPrevFormField(false));
+    QCOMPARE(name(forms.getFocusedWidget()), expected.at(expected.size() - 2));
+
+    // Shift+Tab without a focused field starts at the last one
+    forms.setFocusToEditor(nullptr);
+    QVERIFY(forms.focusNextPrevFormField(false));
+    QCOMPARE(name(forms.getFocusedWidget()), expected.back());
+
+    // The read only field is reached, when read only fields can be edited
+    forms.setFocusToEditor(nullptr);
+    forms.setAppearanceFlags(PDFFormManager::EditReadOnlyFields);
+    QVERIFY(names(forms.getTabOrder()).contains(QStringLiteral("ro")));
+    QVERIFY(!names(forms.getTabOrder()).contains(QStringLiteral("hidden")));
+
+    // A read only form takes no focus
+    forms.setAppearanceFlags(PDFFormManager::ReadOnlyForm);
+    QVERIFY(!forms.focusNextPrevFormField(true));
+    QVERIFY(!forms.getFocusedWidget().isValid());
+    QCOMPARE(fixture.modificationCount, 0);
 }
 
 QTEST_MAIN(FormFieldsTest)

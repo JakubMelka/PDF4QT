@@ -72,6 +72,8 @@ namespace pdf
 /// | \p StarVisibleRole | bool | true | star (Recent item; false: no star and no pin action - an item, which cannot be pinned) |
 /// | \p MissingRole | bool | false | the badge "No longer exists" instead of the progress, the name text/muted (Recent item) |
 /// | \p LockedRole | bool | false | the lock instead of the thumbnail of a document protected by a password (Recent item, File) |
+/// | \p IndentRole | int (pixels, 0 - 96) | 0 | indentation of the row at its leading side (Note: a reply 24, note-row-reply 1025:21921) |
+/// | \p StateIconRole | QString | empty (no icon) | icon of a state at the trailing side of the text, icon/muted 14 (Note: eye-off of a hidden annotation, 1026:21995) |
 ///
 /// Qt::ToolTipRole is the tooltip of the item outside of its actions. A valid
 /// QSize in Qt::SizeHintRole is the size of the item (as QStyledItemDelegate).
@@ -101,7 +103,9 @@ public:
         StarVisibleRole,
         MissingRole,
         LockedRole,
-        LastRole = LockedRole
+        IndentRole,
+        StateIconRole,
+        LastRole = StateIconRole
     };
 };
 
@@ -453,7 +457,9 @@ protected:
 
 /// Annotation of the Notes tab (component Note row 191:998), the author in
 /// text/accent when selected. Roles: Qt::DisplayRole (author), DateRole,
-/// TextRole, IconNameRole and HueRole (the badge of the type). The height
+/// TextRole, IconNameRole and HueRole (the badge of the type), IndentRole (a
+/// reply is indented by 24 - the whole row with its selection, 1025:21920) and
+/// StateIconRole (eye-off of a hidden annotation, 1026:21995). The height
 /// follows the width. The list of the screens (195:3910) has the spacing 2.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFNoteDelegate : public PDFRowDelegate
 {
@@ -467,6 +473,16 @@ public:
 
     /// Returns the content of the item
     PDFComponentPainter::NoteRow getContent(const QModelIndex& index) const;
+
+    /// Largest indentation of a row (IndentRole is bounded to 0 - 96)
+    static constexpr int MAXIMUM_INDENT = 96;
+
+    /// Indentation of the item (IndentRole, bounded)
+    static int getIndent(const QModelIndex& index);
+
+    /// Rectangle of the row of the item in the rectangle of the item: without the
+    /// indentation at the leading side of \p direction
+    static QRect getIndentedRect(const QRect& itemRect, int indent, Qt::LayoutDirection direction);
 
 protected:
     virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const override;

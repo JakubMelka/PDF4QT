@@ -814,7 +814,7 @@ PDFAppDocumentViewPanel::PDFAppDocumentViewPanel(PDFAppDocumentView* view, QWidg
     toolsSectionLayout->setContentsMargins(0, 0, 0, 0);
     toolsSectionLayout->setSpacing(8);
     toolsSectionLayout->addWidget(createCaption(QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Tools")));
-    toolsSectionLayout->addWidget(createTileRow({ createTile(C::magnifier(), QStringLiteral("zoom-in"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Magnifier")),
+    toolsSectionLayout->addWidget(createTileRow({ createTile(C::magnifier(), QStringLiteral("magnifier"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Magnifier")),
                                                   createTile(C::fullScreen(), QStringLiteral("expand"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Full screen")) }));
     actionsLayout->addWidget(toolsSection);
     layout->addWidget(actions);

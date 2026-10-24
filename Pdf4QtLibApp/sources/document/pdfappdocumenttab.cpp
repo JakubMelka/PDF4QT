@@ -21,6 +21,9 @@
 // SOFTWARE.
 
 #include "pdfappdocumenttab.h"
+#include "pdfappannotatecommands.h"
+#include "pdfappannotationeditcommands.h"
+#include "pdfappnotesoutlinecommands.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentcommands.h"
@@ -105,6 +108,9 @@ PDFAppDocumentTab::PDFAppDocumentTab(PDFAppContext* context, QWidget* parent) :
     m_handlers.emplace_back(new PDFAppDocumentSearchCommandHandler(this));
     m_handlers.emplace_back(new PDFAppDocumentFileCommandHandler(this));
     m_handlers.emplace_back(new PDFAppDocumentPropertiesCommandHandler(this));
+    m_handlers.emplace_back(new PDFAppAnnotateCommandHandler(this));
+    m_handlers.emplace_back(new PDFAppAnnotationEditCommandHandler(this));
+    m_handlers.emplace_back(new PDFAppNotesOutlineCommandHandler(this));
     for (const QPointer<PDFAppDocumentCommandHandler>& handler : m_handlers)
     {
         connect(handler.data(), &PDFAppDocumentCommandHandler::stateChanged, this, &PDFAppDocumentTab::onHandlerStateChanged);
@@ -329,6 +335,16 @@ bool PDFAppDocumentTab::confirmClose()
             return false;
         }
         stopOperations(true);
+    }
+
+    // An open editor of a form field is a change too (step 4, package D)
+    if (m_document)
+    {
+        m_document->commitPendingEdits();
+        if (!guard)
+        {
+            return false;
+        }
     }
 
     // Unsaved changes: pdf4qt-document-close-unsaved

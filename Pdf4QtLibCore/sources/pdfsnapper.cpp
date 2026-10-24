@@ -126,6 +126,11 @@ PDFSnapper::PDFSnapper()
 
 void PDFSnapper::drawSnapPoints(QPainter* painter) const
 {
+    drawSnapPoints(painter, QColor(), QColor());
+}
+
+void PDFSnapper::drawSnapPoints(QPainter* painter, const QColor& pointColor, const QColor& snappedColor) const
+{
     Q_ASSERT(painter);
 
     painter->save();
@@ -168,6 +173,12 @@ void PDFSnapper::drawSnapPoints(QPainter* painter) const
                 break;
         }
 
+        // A color of the application (its theme) for every snap point
+        if (pointColor.isValid())
+        {
+            newColor = pointColor;
+        }
+
         if (color != newColor)
         {
             pen.setColor(newColor);
@@ -180,7 +191,7 @@ void PDFSnapper::drawSnapPoints(QPainter* painter) const
 
     if (isSnapped())
     {
-        pen.setColor(Qt::yellow);
+        pen.setColor(snappedColor.isValid() ? snappedColor : QColor(Qt::yellow));
         painter->setPen(pen);
         QPoint point = m_snappedPoint->viewportPoint.toPoint();
         painter->drawPoint(point);

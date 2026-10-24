@@ -27,6 +27,7 @@
 #include "pdfpainterutils.h"
 #include "pdfcms.h"
 #include "pdfwidgetannotation.h"
+#include "pdfwidgetformmanager.h"
 
 #include <QLabel>
 #include <QAction>
@@ -55,7 +56,8 @@ PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QObject* parent) :
     m_active(false),
     m_document(nullptr),
     m_action(nullptr),
-    m_proxy(proxy)
+    m_proxy(proxy),
+    m_proxyGuard(proxy)
 {
 
 }
@@ -65,14 +67,22 @@ PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject
     m_active(false),
     m_document(nullptr),
     m_action(action),
-    m_proxy(proxy)
+    m_proxy(proxy),
+    m_proxyGuard(proxy)
 {
     updateActions();
 }
 
 PDFWidgetTool::~PDFWidgetTool()
 {
-
+    // A tool destroyed while it is active (the application deletes it) must not stay
+    // registered as a draw interface of the proxy. Only the registration is removed -
+    // no virtual function is called and no signal is emitted from the destructor (the
+    // tool manager forgets the tool at its signal destroyed).
+    if (m_active && m_proxyGuard)
+    {
+        m_proxyGuard->unregisterDrawInterface(this);
+    }
 }
 
 void PDFWidgetTool::setDocument(const PDFModifiedDocument& document)
@@ -224,6 +234,11 @@ PDFWidgetTool* PDFWidgetTool::getTopToolstackTool() const
 
 void PDFWidgetTool::drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize)
 {
+    drawCross(painter, rect, point, markSize, QColor());
+}
+
+void PDFWidgetTool::drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize, const QColor& color)
+{
     QPoint hleft = point;
     QPoint hright = point;
     QPoint vtop = point;
@@ -248,12 +263,19 @@ void PDFWidgetTool::drawCross(QPainter* painter, QRect rect, QPoint point, std::
     // color (white page, dark page via inverted colors, dark UI theme, etc.).
     // CompositionMode_Difference draws the inverse of whatever is underneath,
     // so a white pen is guaranteed to contrast with both light and dark content.
-    painter->save();
-    painter->setCompositionMode(QPainter::CompositionMode_Difference);
-    painter->setPen(Qt::white);
+    PDFPainterStateGuard guard(painter);
+    if (color.isValid())
+    {
+        // A color of the theme of the application, drawn as it is
+        painter->setPen(color);
+    }
+    else
+    {
+        painter->setCompositionMode(QPainter::CompositionMode_Difference);
+        painter->setPen(Qt::white);
+    }
     painter->drawLine(hleft, hright);
     painter->drawLine(vtop, vbottom);
-    painter->restore();
 }
 
 void PDFWidgetTool::addTool(PDFWidgetTool* tool)
@@ -788,13 +810,18 @@ void PDFSelectTextTool::drawPage(QPainter* painter,
     Q_UNUSED(errors);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
+
+    // The new application draws the selection by its theme (Figma 877:134209: bg/accent-subtle, no border)
+    // TODO(remove-old-apps): always the color of the theme
+    if (getProxy()->hasViewColors())
+    {
+        textSelectionPainter.setThemeColor(getProxy()->getViewColors().selection);
+    }
     textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
-    Q_UNUSED(widget);
-
     if (event->button() == Qt::LeftButton)
     {
         // A link is followed by the annotation manager, which gets the press after
@@ -806,6 +833,52 @@ void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
             {
                 m_selectionInfo = SelectionInfo();
                 return;
+            }
+        }
+
+        // A field of a form is filled by the form manager, which gets the press after
+        // the tools (the text tool is the default tool of the new application)
+        // TODO(remove-old-apps): a press on a field always goes to the form manager
+        PDFWidgetFormManager* formManager = m_isAnnotationsSelectable && getProxy()->getWidget() ? getProxy()->getWidget()->getFormManager() : nullptr;
+        if (formManager && formManager->isEditorAt(widget, event->pos()))
+        {
+            QPointer<PDFSelectTextTool> self(this);
+            m_selectionInfo = SelectionInfo();
+            setSelection(pdf::PDFTextSelection());
+            if (self)
+            {
+                updateCursor();
+            }
+            return;
+        }
+
+        // An annotation (its handle, a rubber band) is selected and edited by the
+        // annotation manager, which gets the press after the tools
+        if (isAnnotationInteractionAt(event->pos(), event->modifiers()))
+        {
+            // The signals of the selections run the code of the application
+            QPointer<PDFSelectTextTool> self(this);
+            m_selectionInfo = SelectionInfo();
+            setSelection(pdf::PDFTextSelection());
+            if (self)
+            {
+                m_isCursorOverAnnotation = true;
+                updateCursor();
+            }
+            return;
+        }
+
+        // A text selection starts - a click elsewhere deselects the annotations
+        if (m_isAnnotationsSelectable)
+        {
+            if (PDFWidgetAnnotationManager* annotationManager = getProxy()->getAnnotationManager())
+            {
+                QPointer<PDFSelectTextTool> self(this);
+                annotationManager->clearSelection();
+                if (!self || !isActive())
+                {
+                    return;
+                }
             }
         }
 
@@ -872,6 +945,8 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
     if (m_selectionInfo.pageIndex != -1)
     {
+        m_isCursorOverAnnotation = false;
+
         if (m_selectionInfo.pageIndex == pageIndex)
         {
             // Jakub Melka: handle the selection
@@ -884,8 +959,51 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
         event->accept();
     }
+    else
+    {
+        // The cursor of the annotation manager is shown over an annotation (its handles)
+        const PDFWidgetAnnotationManager* annotationManager = m_isAnnotationsSelectable ? getProxy()->getAnnotationManager() : nullptr;
+        m_isCursorOverAnnotation = annotationManager && (annotationManager->getCursor().has_value() || isAnnotationInteractionAt(event->pos(), event->modifiers()));
+    }
 
     updateCursor();
+}
+
+void PDFSelectTextTool::setAnnotationsSelectable(bool annotationsSelectable)
+{
+    if (m_isAnnotationsSelectable != annotationsSelectable)
+    {
+        m_isAnnotationsSelectable = annotationsSelectable;
+        m_isCursorOverAnnotation = false;
+        updateCursor();
+    }
+}
+
+bool PDFSelectTextTool::isAnnotationInteractionAt(QPoint position, Qt::KeyboardModifiers modifiers) const
+{
+    if (!m_isAnnotationsSelectable)
+    {
+        return false;
+    }
+
+    const PDFWidgetAnnotationManager* annotationManager = getProxy()->getAnnotationManager();
+    return annotationManager && annotationManager->isInteractionAt(position, modifiers);
+}
+
+void PDFSelectTextTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (m_isAnnotationsSelectable && event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier)
+    {
+        // Escape clears the text selection, without it the annotation manager gets it
+        if (hasSelection())
+        {
+            setSelection(pdf::PDFTextSelection());
+            event->accept();
+        }
+        return;
+    }
+
+    BaseClass::keyPressEvent(widget, event);
 }
 
 void PDFSelectTextTool::setActiveImpl(bool active)
@@ -931,7 +1049,12 @@ void PDFSelectTextTool::updateCursor()
 {
     if (isActive())
     {
-        if (m_isCursorOverText)
+        if (m_isCursorOverAnnotation && m_isAnnotationsSelectable)
+        {
+            // The annotation manager shows its cursor (handles, a movable annotation)
+            unsetCursor();
+        }
+        else if (m_isCursorOverText)
         {
             setCursor(QCursor(Qt::IBeamCursor));
         }
@@ -1040,6 +1163,7 @@ PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObje
     createPredefinedTools(proxy, actions, parentDialog, true);
 }
 
+// TODO(remove-old-apps): the only constructor - the one with the actions goes
 PDFToolManager::PDFToolManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(parent),
     m_predefinedTools()
@@ -1075,7 +1199,9 @@ void PDFToolManager::createPredefinedTools(PDFDrawWidgetProxy* proxy, const Acti
 void PDFToolManager::addTool(PDFWidgetTool* tool)
 {
     m_tools.insert(tool);
+    m_toolObjects[tool] = tool;
     connect(tool, &PDFWidgetTool::messageDisplayRequest, this, &PDFToolManager::messageDisplayRequest);
+    connect(tool, &QObject::destroyed, this, &PDFToolManager::onToolDestroyed);
 
     if (QAction* action = tool->getAction())
     {
@@ -1202,9 +1328,13 @@ void PDFToolManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     event->ignore();
 
-    // Escape key cancels current tool
+    // Escape key cancels current tool. The text selection tool, which lets the
+    // annotations be edited, is the default tool of the new application - it
+    // handles the key itself (PDFSelectTextTool::setAnnotationsSelectable).
     PDFWidgetTool* activeTool = getActiveTool();
-    if (event->key() == Qt::Key_Escape && activeTool)
+    const PDFSelectTextTool* selectTextTool = qobject_cast<const PDFSelectTextTool*>(activeTool);
+    const bool isEscapeHandledByTool = selectTextTool && selectTextTool->isAnnotationsSelectable();
+    if (event->key() == Qt::Key_Escape && activeTool && !isEscapeHandledByTool)
     {
         activeTool->setActive(false);
         event->accept();
@@ -1338,19 +1468,81 @@ void PDFToolManager::onToolActionTriggered(bool checked)
 
 void PDFToolManager::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
-    if (m_pickRectangleCallback)
+    // The callback is taken out - it can activate another tool, which clears it
+    std::function<void(PDFInteger, QRectF)> callback = std::move(m_pickRectangleCallback);
+    m_pickRectangleCallback = nullptr;
+    if (callback)
     {
-        m_pickRectangleCallback(pageIndex, pageRectangle);
+        callback(pageIndex, pageRectangle);
     }
 
-    setActiveTool(nullptr);
+    finishPicking(PickRectangleTool);
+}
+
+void PDFToolManager::onToolDestroyed(QObject* object)
+{
+    // The tool is being destroyed - its members are not used, the pointer of the
+    // tool is the one stored, when the tool was alive
+    auto it = m_toolObjects.find(object);
+    if (it == m_toolObjects.end())
+    {
+        return;
+    }
+
+    PDFWidgetTool* tool = it->second;
+    m_toolObjects.erase(it);
+    m_tools.erase(tool);
+
+    for (auto actionIt = m_actionsToTools.begin(); actionIt != m_actionsToTools.end();)
+    {
+        actionIt = (actionIt->second == tool) ? m_actionsToTools.erase(actionIt) : std::next(actionIt);
+    }
+
+    for (PDFWidgetTool*& predefinedTool : m_predefinedTools)
+    {
+        if (predefinedTool == tool)
+        {
+            predefinedTool = nullptr;
+        }
+    }
+
+    // An active tool has been destroyed - the listeners learn, that no tool is active
+    // (the destroyed tool is never passed to them). Nothing is used after the emission.
+    if (m_notifiedActiveTool == tool)
+    {
+        m_notifiedActiveTool = nullptr;
+        if (getActiveTool())
+        {
+            notifyActiveTool();
+        }
+        else if (m_activityChangeNesting == 0)
+        {
+            Q_EMIT activeToolChanged(nullptr);
+        }
+    }
 }
 
 void PDFToolManager::onPagePicked(PDFInteger pageIndex)
 {
-    if (m_pickPageCallback)
+    // The callback is taken out - it can activate another tool, which clears it
+    std::function<void(PDFInteger)> callback = std::move(m_pickPageCallback);
+    m_pickPageCallback = nullptr;
+    if (callback)
     {
-        m_pickPageCallback(pageIndex);
+        callback(pageIndex);
+    }
+
+    finishPicking(PickPageTool);
+}
+
+void PDFToolManager::finishPicking(PredefinedTools pickTool)
+{
+    // A persistent creation tool (the link to a page) has been activated again by the
+    // callback - it stays active; otherwise the picking ends with no active tool
+    // TODO(remove-old-apps): only the pick tool itself is turned off (setCreationToolsPersistent)
+    if (m_isCreationToolsPersistent && getActiveTool() != getPredefinedTool(pickTool))
+    {
+        return;
     }
 
     setActiveTool(nullptr);
@@ -1553,7 +1745,12 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
 
     if (m_mode != Mode::Images)
     {
-        m_snapper.drawSnapPoints(painter);
+        // The colors of the theme of the application (PDFDrawWidgetProxy::setViewColors),
+        // the old applications draw the colors of the points and the difference cross
+        // TODO(remove-old-apps): the colors of the old applications go
+        const bool hasViewColors = getProxy()->hasViewColors();
+        const PDFViewColors viewColors = hasViewColors ? getProxy()->getViewColors() : PDFViewColors();
+        m_snapper.drawSnapPoints(painter, hasViewColors ? viewColors.annotationPoint : QColor(), hasViewColors ? viewColors.snapMarker : QColor());
 
         std::optional<int> markSize;
         if (m_hideLargeCross)
@@ -1561,7 +1758,7 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
             markSize = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 4);
         }
 
-        drawCross(painter, rect, m_snapper.getSnappedPoint().toPoint(), markSize);
+        drawCross(painter, rect, m_snapper.getSnappedPoint().toPoint(), markSize, hasViewColors ? viewColors.pickCross : QColor());
     }
 
     if (m_mode == Mode::Pages && m_pageIndex != -1)

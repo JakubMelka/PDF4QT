@@ -540,6 +540,7 @@ public:
         HighlightFields         = 0x0001,
         HighlightRequiredFields = 0x0002,
         EditReadOnlyFields      = 0x0004, ///< Allow the user to edit read only form fields
+        ReadOnlyForm            = 0x0008, ///< Every form field is read only (a locked document, no permission to fill the form), overrides EditReadOnlyFields; the user cannot change the values and the widgets do not react to the user
     };
     Q_DECLARE_FLAGS(FormAppearanceFlags, FormAppearanceFlag)
 
@@ -564,6 +565,9 @@ public:
 
     FormAppearanceFlags getAppearanceFlags() const;
     void setAppearanceFlags(FormAppearanceFlags flags);
+
+    /// Returns true, if every form field is read only (flag ReadOnlyForm)
+    bool isReadOnlyForm() const { return m_flags.testFlag(ReadOnlyForm); }
 
     /// Returns true, if read only form field is unlocked for editing, because
     /// its value is calculated by a script (calculate action), which is not

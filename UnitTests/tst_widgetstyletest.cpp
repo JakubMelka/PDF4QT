@@ -591,6 +591,58 @@ void WidgetStyleTest::icons()
     }
 
     QCOMPARE(m_style->standardPixmap(QStyle::SP_MessageBoxCritical).deviceIndependentSize().toSize(), QSize(36, 36));
+
+    // Icons of step 4 of the new application (annotations, Insert, bookmarks) exist,
+    // load and draw opaque pixels of the color of the theme at each size of the design
+    for (const QString& theme : { QStringLiteral("light"), QStringLiteral("dark") })
+    {
+        QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+        const QColor expected = pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::IconDefault);
+
+        for (const char* name : { "bookmark-next", "bookmark-prev", "copy-to-pages", "distribute-h", "distribute-v", "image-mode", "link-page",
+                                  "note-help", "note-insert", "note-key", "note-new-paragraph", "note-note", "note-paragraph", "stroke",
+                                  "zoom-out", "zoom-level", "magnifier", "actual-size" })
+        {
+            const QString iconName = QString::fromLatin1(name);
+            QVERIFY2(names.contains(iconName), name);
+            QVERIFY2(pdf::PDFThemeIcons::hasIcon(iconName), name);
+
+            const QIcon stepIcon = pdf::PDFThemeIcons::getIcon(iconName);
+            QVERIFY2(!stepIcon.isNull(), name);
+            QCOMPARE(pdf::PDFThemeIcons::getIconName(stepIcon), iconName);
+
+            for (const int size : { 16, 20, 24 })
+            {
+                const QImage stepImage = stepIcon.pixmap(QSize(size, size), 1.0, QIcon::Normal, QIcon::Off).toImage().convertToFormat(QImage::Format_ARGB32);
+                QCOMPARE(stepImage.size(), QSize(size, size));
+
+                int opaque = 0;
+                for (int y = 0; y < stepImage.height(); ++y)
+                {
+                    for (int x = 0; x < stepImage.width(); ++x)
+                    {
+                        const QColor color = stepImage.pixelColor(x, y);
+                        if (color.alpha() == 255)
+                        {
+                            ++opaque;
+                            QCOMPARE(color.rgb(), expected.rgb());
+                        }
+                    }
+                }
+
+                const QByteArray message = QStringLiteral("%1 %2 %3: %4 opaque pixels").arg(theme, iconName).arg(size).arg(opaque).toLatin1();
+                // The thinnest glyph (the question mark of note-help) has 14 opaque pixels at 16 px
+                QVERIFY2(opaque >= size / 2, message.constData());
+            }
+        }
+    }
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
+
+    // Icons of the view of Figma 1188:1537 - 1188:1556: the Magnifier tool has its own icon,
+    // the icon loupe was removed from Figma; the title bar maximize button is the window
+    // button of the design, not the Fit page icon maximize
+    QVERIFY(!pdf::PDFThemeIcons::hasIcon(QStringLiteral("loupe")));
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(m_style->standardIcon(QStyle::SP_TitleBarMaxButton)), QStringLiteral("window-maximize"));
 }
 
 void WidgetStyleTest::pixelMetrics_data()

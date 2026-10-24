@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "pdfannotationstylerepository.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfdatabaseschema.h"
@@ -41,6 +42,7 @@
 #include <QThread>
 #include <QtTest>
 
+#include <algorithm>
 #include <atomic>
 #include <thread>
 
@@ -630,6 +632,7 @@ private Q_SLOTS:
     void settingDefinitions();
     void settingsRepository();
     void shortcutRepository();
+    void annotationStyleRepository();
     void notifierOwnWrites();
     void notifierGap();
     void notifierOtherProcess();
@@ -1292,6 +1295,88 @@ void AppStorageTest::shortcutRepository()
     QCOMPARE(shortcuts.getShortcuts().size(), size_t(1));
     QVERIFY(!shortcuts.resetAll().isError());
     QVERIFY(shortcuts.getShortcuts().empty());
+}
+
+void AppStorageTest::annotationStyleRepository()
+{
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createOptions(createPath(QStringLiteral("annotation-styles"))));
+    pdf::PDFAnnotationStyleRepository styles(&database);
+    pdf::PDFDatabaseNotifier notifier(&database);
+    notifier.setPollInterval(20);
+    QSignalSpy changedSpy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+
+    // Ids: printable ASCII, bounded
+    QVERIFY(pdf::PDFAnnotationStyleRepository::isValidStyleId(QStringLiteral("Highlight")));
+    QVERIFY(pdf::PDFAnnotationStyleRepository::isValidStyleId(pdf::PDFAnnotationStyleRepository::toolStickyNote()));
+    QVERIFY(!pdf::PDFAnnotationStyleRepository::isValidStyleId(QString()));
+    QVERIFY(!pdf::PDFAnnotationStyleRepository::isValidStyleId(QStringLiteral("with space")));
+    QVERIFY(!pdf::PDFAnnotationStyleRepository::isValidStyleId(QStringLiteral("tab\tid")));
+    QVERIFY(!pdf::PDFAnnotationStyleRepository::isValidStyleId(QString::fromUtf8("\xC4\x8D")));
+    QVERIFY(!pdf::PDFAnnotationStyleRepository::isValidStyleId(QString(pdf::PDFAnnotationStyleRepository::MAXIMUM_STYLE_ID_LENGTH + 1, QLatin1Char('a'))));
+
+    // Round trip of a value, notified with the topic and the id
+    QVERIFY(!styles.getValue(QStringLiteral("Highlight")).has_value());
+    const QJsonObject value({ { QStringLiteral("strokeColor"), QStringLiteral("#ffd400") }, { QStringLiteral("fillColor"), QJsonValue() }, { QStringLiteral("penWidth"), 2.0 } });
+    QVERIFY(!styles.setValue(QStringLiteral("Highlight"), value).isError());
+    QCOMPARE(styles.getValue(QStringLiteral("Highlight")).value_or(QJsonObject()), value);
+    QTRY_VERIFY(!changedSpy.isEmpty());
+    QCOMPARE(changedSpy.last().at(0).toString(), pdf::PDFAnnotationStyleRepository::getTopic());
+    QCOMPARE(changedSpy.last().at(1).toString(), QStringLiteral("Highlight"));
+
+    // The same value again is not written (no notification)
+    changedSpy.clear();
+    QVERIFY(!styles.setValue(QStringLiteral("Highlight"), value).isError());
+    QTest::qWait(100);
+    QVERIFY(changedSpy.isEmpty());
+
+    // Invalid writes are refused
+    QVERIFY(styles.setValue(QStringLiteral("bad id"), value).isError());
+    QJsonObject huge;
+    huge.insert(QStringLiteral("text"), QString(pdf::PDFAnnotationStyleRepository::MAXIMUM_VALUE_SIZE, QLatin1Char('x')));
+    QVERIFY(styles.setValue(QStringLiteral("Huge"), huge).isError());
+    QVERIFY(styles.removeValue(QString()).isError());
+
+    // Hostile rows written by another version or a damaged file read as no row
+    {
+        auto insert = [&database](const QString& id, const QVariant& rowValue)
+        {
+            pdf::PDFDatabaseStatement statement(database.getConnection(), "INSERT OR REPLACE INTO annotation_style(style_id, value) VALUES (?1, ?2)");
+            statement.bindText(1, id);
+            statement.bindVariant(2, rowValue);
+            return statement.execute();
+        };
+        QVERIFY(insert(QStringLiteral("NotJson"), QStringLiteral("{broken")));
+        QVERIFY(insert(QStringLiteral("Array"), QStringLiteral("[1, 2, 3]")));
+        QVERIFY(insert(QStringLiteral("Number"), qint64(42)));
+        QVERIFY(insert(QStringLiteral("Null"), QVariant()));
+        QVERIFY(insert(QStringLiteral("Empty"), QString()));
+        QVERIFY(insert(QStringLiteral("Large"), QString(QStringLiteral("{\"a\":\"%1\"}")).arg(QString(pdf::PDFAnnotationStyleRepository::MAXIMUM_VALUE_SIZE, QLatin1Char('y')))));
+        QVERIFY(insert(QStringLiteral("Blob"), QByteArray("{\"penWidth\": 3}")));
+        QVERIFY(insert(QStringLiteral("bad\nid"), QStringLiteral("{}")));
+    }
+    for (const char* id : { "NotJson", "Array", "Number", "Null", "Empty", "Large" })
+    {
+        QVERIFY2(!styles.getValue(QString::fromLatin1(id)).has_value(), id);
+    }
+    QCOMPARE(styles.getValue(QStringLiteral("Blob")).value_or(QJsonObject()).value(QStringLiteral("penWidth")).toDouble(), 3.0);
+    const QStringList ids = styles.getStyleIds();
+    QVERIFY(ids.contains(QStringLiteral("Highlight")));
+    QVERIFY(ids.contains(QStringLiteral("NotJson")));
+    QVERIFY(!ids.contains(QStringLiteral("bad\nid")));
+    QVERIFY(std::is_sorted(ids.cbegin(), ids.cend()));
+
+    // Remove one, Restore defaults removes all
+    QVERIFY(!styles.removeValue(QStringLiteral("Highlight")).isError());
+    QVERIFY(!styles.getValue(QStringLiteral("Highlight")).has_value());
+    QVERIFY(!styles.resetAll().isError());
+    QVERIFY(styles.getStyleIds().isEmpty());
+
+    // A closed database: reads give nothing, writes report an error
+    pdf::PDFAnnotationStyleRepository detached(nullptr);
+    QVERIFY(!detached.getValue(QStringLiteral("Highlight")).has_value());
+    QVERIFY(detached.setValue(QStringLiteral("Highlight"), value).isError());
+    QVERIFY(detached.getStyleIds().isEmpty());
 }
 
 void AppStorageTest::notifierOwnWrites()

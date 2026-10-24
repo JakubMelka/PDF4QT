@@ -28,6 +28,7 @@
 #include "pdfappdocumentsearchcontroller.h"
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmarkresults.h"
 #include "pdfappworkspace.h"
 
 #include "pdfcomponentdelegates.h"
@@ -184,6 +185,9 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
 
     layout->addWidget(content, 1);
 
+    // Footer mark-results 737:9129 (step 4, package A): Mark as annotations
+    layout->addWidget(new PDFAppMarkResultsFooter(this));
+
     retranslate();
     updateState();
 }
@@ -266,6 +270,11 @@ void PDFAppDocumentSearchPanel::setDocument(PDFAppDocument* document, PDFAppDocu
     if (m_listView->selectionModel())
     {
         connect(m_listView->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFAppDocumentSearchPanel::onCurrentRowChanged, Qt::UniqueConnection);
+    }
+
+    if (PDFAppMarkResultsFooter* footer = findChild<PDFAppMarkResultsFooter*>())
+    {
+        footer->setView(view);
     }
 
     updateOptions();

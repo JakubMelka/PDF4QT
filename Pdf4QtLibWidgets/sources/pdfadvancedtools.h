@@ -44,13 +44,24 @@ private:
     using BaseClass = PDFWidgetTool;
 
 public:
+    /// Creates the tool
+    /// \param actionGroup Actions of the icons (data = TextAnnotationIcon), can be nullptr
+    ///        (the application activates the tool by PDFToolManager::setActiveTool and
+    ///        chooses the icon by setIcon)
     explicit PDFCreateStickyNoteTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
 
+    /// Icon of the created sticky notes (an invalid value is ignored)
+    TextAnnotationIcon getIcon() const { return m_icon; }
+    void setIcon(TextAnnotationIcon icon);
+
 protected:
+    // TODO(remove-old-apps): the code of the action group (updateActions, onActionTriggered) goes - the application sets the icon by setIcon
     virtual void updateActions() override;
 
 private:
     void onActionTriggered(QAction* action);
+
+    // TODO(remove-old-apps): the QInputDialog for the text goes - the application asks for it (PDFToolManager::setUserInterfaceDelegated)
     void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
 
     PDFToolManager* m_toolManager;
@@ -90,6 +101,7 @@ public:
     void setHighlightMode(const LinkHighlightMode& highlightMode);
 
 private:
+    // TODO(remove-old-apps): the QInputDialog for the address goes - the application asks for it (PDFToolManager::setUserInterfaceDelegated)
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     PDFToolManager* m_toolManager;
@@ -106,12 +118,27 @@ private:
     using BaseClass = PDFWidgetTool;
 
 public:
+    /// Creates the tool
+    /// \param actionGroup Actions of the destination types (data = DestinationType, property
+    ///        inheritZoom), can be nullptr (the application sets the type by setDestinationType)
     explicit PDFCreateInDocumentHyperlinkTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
 
     LinkHighlightMode getHighlightMode() const;
     void setHighlightMode(const LinkHighlightMode& highlightMode);
 
+    /// Type of the destination of the created links (Fit, FitH, FitV, FitB, FitBH,
+    /// FitBV - the target page is picked; XYZ, FitR - the target rectangle is picked;
+    /// Invalid and Named are ignored). Fit by default.
+    DestinationType getDestinationType() const { return m_destinationType; }
+    void setDestinationType(DestinationType destinationType);
+
+    /// The destination keeps the zoom of the viewer (the zoom of XYZ is left out),
+    /// otherwise it has the current zoom. Off by default.
+    bool isInheritZoom() const { return m_inheritZoom; }
+    void setInheritZoom(bool inheritZoom) { m_inheritZoom = inheritZoom; }
+
 protected:
+    // TODO(remove-old-apps): the code of the action group (updateActions, onActionTriggered) goes - the application sets the destination type
     virtual void updateActions() override;
     virtual void setActiveImpl(bool active) override;
 
@@ -147,7 +174,21 @@ private:
 public:
     explicit PDFCreateFreeTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
 
+    /// Style of the created free text (font, size, color, alignment). Values out of
+    /// their limits are bounded (font size 1 - 512, an empty font family is Helvetica,
+    /// an invalid color is black, an alignment without a horizontal part is left).
+    const PDFFreeTextStyle& getFreeTextStyle() const { return m_style; }
+    void setFreeTextStyle(const PDFFreeTextStyle& style);
+
+    /// The created annotation is expanded to fit its text. On by default.
+    bool isAutoResizeToContents() const { return m_autoResizeToContents; }
+    void setAutoResizeToContents(bool autoResizeToContents) { m_autoResizeToContents = autoResizeToContents; }
+
+    /// Returns the bounded style (see setFreeTextStyle)
+    static PDFFreeTextStyle boundFreeTextStyle(PDFFreeTextStyle style);
+
 private:
+    // TODO(remove-old-apps): the dialog of the tool goes - the application asks for the text (PDFToolManager::setUserInterfaceDelegated)
     bool configureFreeText(QString& text);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
@@ -195,6 +236,10 @@ public:
 
     QColor getFillColor() const;
     void setFillColor(const QColor& fillColor);
+
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
+
+    Type getType() const { return m_type; }
 
 private:
     bool canHaveOrthogonalMode() const;
@@ -244,6 +289,8 @@ public:
     QColor getFillColor() const;
     void setFillColor(const QColor& fillColor);
 
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
+
 private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
     void onStyleChanged(const pdf::PDFAnnotationStyle& style);
@@ -282,8 +329,11 @@ public:
     QColor getStrokeColor() const;
     void setStrokeColor(const QColor& strokeColor);
 
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
+
 private:
     void resetTool();
+    void onStyleChanged();
 
     PDFToolManager* m_toolManager;
     PDFAnnotationStyleManager* m_styleManager;
@@ -301,7 +351,14 @@ private:
     using BaseClass = PDFWidgetTool;
 
 public:
+    /// Creates the tool
+    /// \param actionGroup Actions of the stamps (data = Stamp), can be nullptr (the
+    ///        application chooses the stamp by setStamp)
     explicit PDFCreateStampTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
+
+    /// Stamp of the created annotations (an invalid value is ignored)
+    Stamp getStamp() const { return m_stampAnnotation.getStamp(); }
+    void setStamp(Stamp stamp);
 
     virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
@@ -313,6 +370,7 @@ public:
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
 protected:
+    // TODO(remove-old-apps): the code of the action group (updateActions, onActionTriggered) goes - the application sets the stamp by setStamp
     virtual void updateActions() override;
 
 private:
@@ -340,8 +398,19 @@ public:
     /// \param proxy Proxy
     /// \param type Annotation type, must be one of: Highlight, Underline, Squiggly, StrikeOut
     /// \param actionGroup Action group with actions. Each action must define annotation type.
+    ///        It can be nullptr (the application sets the type by setAnnotationType).
     /// \param parent Parent
     explicit PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
+
+    /// Type of the created text markup annotations: Highlight, Underline, Squiggly or
+    /// StrikeOut (other types are ignored). Each type has its own persisted style.
+    AnnotationType getAnnotationType() const { return m_type; }
+    void setAnnotationType(AnnotationType type);
+
+    /// Returns true, if the type is a type of a text markup created by this tool
+    static bool isTextMarkupType(AnnotationType type);
+
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
@@ -356,6 +425,7 @@ public:
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
 protected:
+    // TODO(remove-old-apps): the code of the action group (updateActions, onActionTriggered) goes - the application sets the type by setAnnotationType
     virtual void updateActions() override;
     virtual void setActiveImpl(bool active) override;
 
@@ -405,6 +475,8 @@ public:
     /// (and remembered across restarts) by all redaction tools.
     static QColor getRedactColor();
     static void setRedactColor(const QColor& color);
+
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
 
 protected:
     virtual void setActiveImpl(bool active) override;
@@ -530,6 +602,8 @@ private:
 
 public:
     explicit PDFCreateRedactTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+    virtual PDFAnnotationStyleManager* getStyleManager() const override { return m_styleManager; }
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,

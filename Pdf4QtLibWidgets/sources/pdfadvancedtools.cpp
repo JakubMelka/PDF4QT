@@ -47,7 +47,7 @@
 #include <QVector2D>
 #include <QVBoxLayout>
 #include <QApplication>
-#include <QSettings>
+#include <QPointer>
 
 #include <limits>
 #include <algorithm>
@@ -101,6 +101,39 @@ static QBrush getAnnotationFillBrush(const PDFAnnotationStyle& style)
     return QBrush(color.isValid() ? color : QColor(Qt::transparent), Qt::SolidPattern);
 }
 
+/// Helper of the annotation creation tools
+class PDFCreationToolHelper
+{
+public:
+    PDFCreationToolHelper() = delete;
+
+    /// Returns true, if the creation tools stay active after an annotation has been
+    /// created (PDFToolManager::setCreationToolsPersistent)
+    static bool isPersistent(const PDFToolManager* toolManager) { return toolManager && toolManager->isCreationToolsPersistent(); }
+
+    /// Finishes the creation of an annotation: the tool is turned off (the old
+    /// applications), or it stays active for the next annotation and its pick tool
+    /// starts again. Call it only, when the tool still exists (the receivers of the
+    /// modification of the document or of the request can delete it).
+    /// \param tool Creation tool
+    /// \param toolManager Tool manager of the tool
+    /// \param pickTool Pick tool of the creation tool (can be nullptr)
+    // TODO(remove-old-apps): the tools always stay active until Escape (tools.md 9.8) - the deactivation after one annotation goes
+    static void finishCreation(PDFWidgetTool* tool, const PDFToolManager* toolManager, PDFPickTool* pickTool)
+    {
+        if (isPersistent(toolManager))
+        {
+            if (pickTool)
+            {
+                pickTool->resetTool();
+            }
+            return;
+        }
+
+        tool->setActive(false);
+    }
+};
+
 PDFCreateStickyNoteTool::PDFCreateStickyNoteTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
     BaseClass(proxy, parent),
     m_toolManager(toolManager),
@@ -112,9 +145,34 @@ PDFCreateStickyNoteTool::PDFCreateStickyNoteTool(PDFDrawWidgetProxy* proxy, PDFT
     m_pickTool->setSnapToAnnotations(true);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateStickyNoteTool::onPointPicked);
-    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateStickyNoteTool::onActionTriggered);
+
+    // The new application has no actions
+    if (m_actionGroup)
+    {
+        connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateStickyNoteTool::onActionTriggered);
+    }
 
     updateActions();
+}
+
+void PDFCreateStickyNoteTool::setIcon(TextAnnotationIcon icon)
+{
+    switch (icon)
+    {
+        case TextAnnotationIcon::Comment:
+        case TextAnnotationIcon::Help:
+        case TextAnnotationIcon::Insert:
+        case TextAnnotationIcon::Key:
+        case TextAnnotationIcon::NewParagraph:
+        case TextAnnotationIcon::Note:
+        case TextAnnotationIcon::Paragraph:
+            m_icon = icon;
+            break;
+
+        default:
+            // An invalid value from the application (database) is ignored
+            break;
+    }
 }
 
 void PDFCreateStickyNoteTool::updateActions()
@@ -139,12 +197,38 @@ void PDFCreateStickyNoteTool::onActionTriggered(QAction* action)
 
     if (action)
     {
-        m_icon = static_cast<TextAnnotationIcon>(action->data().toInt());
+        setIcon(static_cast<TextAnnotationIcon>(action->data().toInt()));
     }
 }
 
 void PDFCreateStickyNoteTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
+    const PDFPage* pickedPage = getDocument() ? getDocument()->getCatalog()->getPage(pageIndex) : nullptr;
+    if (!pickedPage)
+    {
+        m_pickTool->resetTool();
+        return;
+    }
+
+    if (m_toolManager && m_toolManager->isUserInterfaceDelegated())
+    {
+        // The application asks for the text and creates the annotation
+        PDFAnnotationCreationRequest request;
+        request.kind = PDFAnnotationCreationRequest::Kind::StickyNote;
+        request.pageIndex = pageIndex;
+        request.pageReference = pickedPage->getPageReference();
+        request.point = pagePoint;
+        request.icon = m_icon;
+
+        QPointer<PDFCreateStickyNoteTool> self(this);
+        Q_EMIT m_toolManager->annotationCreationRequested(request);
+        if (self)
+        {
+            PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+        }
+        return;
+    }
+
     bool ok = false;
     QString text = QInputDialog::getText(getProxy()->getWidget(), tr("Sticky note"), tr("Enter text to be displayed in the sticky note"), QLineEdit::Normal, QString(), &ok);
 
@@ -157,12 +241,16 @@ void PDFCreateStickyNoteTool::onPointPicked(PDFInteger pageIndex, QPointF pagePo
         modifier.getBuilder()->createAnnotationText(page, QRectF(pagePoint, QSizeF(0, 0)), m_icon, author, QString(), text, false);
         modifier.markAnnotationsChanged();
 
+        QPointer<PDFCreateStickyNoteTool> self(this);
         if (modifier.finalize())
         {
             Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
 
-        setActive(false);
+        if (self)
+        {
+            PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+        }
     }
     else
     {
@@ -195,6 +283,37 @@ void PDFCreateHyperlinkTool::setHighlightMode(const LinkHighlightMode& highlight
 
 void PDFCreateHyperlinkTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
+    const PDFPage* pickedPage = getDocument() ? getDocument()->getCatalog()->getPage(pageIndex) : nullptr;
+    if (!pickedPage)
+    {
+        return;
+    }
+
+    if (m_toolManager && m_toolManager->isUserInterfaceDelegated())
+    {
+        if (pageRectangle.isEmpty())
+        {
+            m_pickTool->resetTool();
+            return;
+        }
+
+        // The application asks for the address and creates the annotation
+        PDFAnnotationCreationRequest request;
+        request.kind = PDFAnnotationCreationRequest::Kind::Hyperlink;
+        request.pageIndex = pageIndex;
+        request.pageReference = pickedPage->getPageReference();
+        request.rectangle = pageRectangle.normalized();
+        request.highlightMode = m_highlightMode;
+
+        QPointer<PDFCreateHyperlinkTool> self(this);
+        Q_EMIT m_toolManager->annotationCreationRequested(request);
+        if (self)
+        {
+            PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+        }
+        return;
+    }
+
     bool ok = false;
     QString url = QInputDialog::getText(getProxy()->getWidget(), tr("Hyperlink"), tr("Enter url address of the hyperlink"), QLineEdit::Normal, QString(), &ok);
 
@@ -206,12 +325,16 @@ void PDFCreateHyperlinkTool::onRectanglePicked(PDFInteger pageIndex, QRectF page
         modifier.getBuilder()->createAnnotationLink(page, pageRectangle, url, m_highlightMode);
         modifier.markAnnotationsChanged();
 
+        QPointer<PDFCreateHyperlinkTool> self(this);
         if (modifier.finalize())
         {
             Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
 
-        setActive(false);
+        if (self)
+        {
+            PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+        }
     }
 }
 
@@ -225,9 +348,35 @@ PDFCreateInDocumentHyperlinkTool::PDFCreateInDocumentHyperlinkTool(PDFDrawWidget
     m_pickTool->setSnapToAnnotations(true);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateInDocumentHyperlinkTool::onLinkRectanglePicked);
-    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateInDocumentHyperlinkTool::onActionTriggered);
+
+    // The new application has no actions
+    if (m_actionGroup)
+    {
+        connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateInDocumentHyperlinkTool::onActionTriggered);
+    }
 
     updateActions();
+}
+
+void PDFCreateInDocumentHyperlinkTool::setDestinationType(DestinationType destinationType)
+{
+    switch (destinationType)
+    {
+        case DestinationType::XYZ:
+        case DestinationType::Fit:
+        case DestinationType::FitH:
+        case DestinationType::FitV:
+        case DestinationType::FitR:
+        case DestinationType::FitB:
+        case DestinationType::FitBH:
+        case DestinationType::FitBV:
+            m_destinationType = destinationType;
+            break;
+
+        default:
+            // Invalid / named destination cannot be created by picking
+            break;
+    }
 }
 
 LinkHighlightMode PDFCreateInDocumentHyperlinkTool::getHighlightMode() const
@@ -279,7 +428,7 @@ void PDFCreateInDocumentHyperlinkTool::onActionTriggered(QAction* action)
 {
     if (action)
     {
-        m_destinationType = static_cast<DestinationType>(action->data().toInt());
+        setDestinationType(static_cast<DestinationType>(action->data().toInt()));
         m_inheritZoom = action->property("inheritZoom").toBool();
     }
 
@@ -297,17 +446,32 @@ void PDFCreateInDocumentHyperlinkTool::onLinkRectanglePicked(PDFInteger pageInde
     m_linkPageIndex = pageIndex;
     m_linkRectangle = pageRectangle;
 
+    // The tool is not active while its target is picked - the application can delete
+    // it meanwhile (deleteLater), the callback kept by the tool manager must not call it then
+    QPointer<PDFCreateInDocumentHyperlinkTool> self(this);
     if (isRectangleDestination())
     {
         Q_EMIT messageDisplayRequest(tr("Select target rectangle."), 5000);
         m_isPickingTarget = true;
-        m_toolManager->pickRectangle([this](PDFInteger targetPageIndex, QRectF targetRectangle) { onTargetRectanglePicked(targetPageIndex, targetRectangle); });
+        m_toolManager->pickRectangle([self](PDFInteger targetPageIndex, QRectF targetRectangle)
+        {
+            if (self)
+            {
+                self->onTargetRectanglePicked(targetPageIndex, targetRectangle);
+            }
+        });
     }
     else
     {
         Q_EMIT messageDisplayRequest(tr("Select target page."), 5000);
         m_isPickingTarget = true;
-        m_toolManager->pickPage([this](PDFInteger targetPageIndex) { onTargetPagePicked(targetPageIndex); });
+        m_toolManager->pickPage([self](PDFInteger targetPageIndex)
+        {
+            if (self)
+            {
+                self->onTargetPagePicked(targetPageIndex);
+            }
+        });
     }
 }
 
@@ -322,6 +486,13 @@ void PDFCreateInDocumentHyperlinkTool::onTargetRectanglePicked(PDFInteger pageIn
     {
         resetPendingLink();
         updateActions();
+
+        // A persistent tool picks the next link (an empty target is no link)
+        // TODO(remove-old-apps): the tool is always active again
+        if (PDFCreationToolHelper::isPersistent(m_toolManager))
+        {
+            m_toolManager->setActiveTool(this);
+        }
         return;
     }
 
@@ -330,8 +501,15 @@ void PDFCreateInDocumentHyperlinkTool::onTargetRectanglePicked(PDFInteger pageIn
 
 void PDFCreateInDocumentHyperlinkTool::createLinkAnnotation(const PDFDestination& destination)
 {
-    if (m_linkPageIndex < 0 || m_linkRectangle.isEmpty() || !destination.isValid())
+    if (m_linkPageIndex < 0 || m_linkRectangle.isEmpty() || !destination.isValid() || !getDocument() ||
+        m_linkPageIndex >= PDFInteger(getDocument()->getCatalog()->getPageCount()))
     {
+        // No link - a persistent tool picks the next one (as after an empty target)
+        resetPendingLink();
+        if (PDFCreationToolHelper::isPersistent(m_toolManager))
+        {
+            m_toolManager->setActiveTool(this);
+        }
         return;
     }
 
@@ -342,13 +520,30 @@ void PDFCreateInDocumentHyperlinkTool::createLinkAnnotation(const PDFDestination
     modifier.getBuilder()->createAnnotationLink(page, m_linkRectangle, action, m_highlightMode);
     modifier.markAnnotationsChanged();
 
+    QPointer<PDFCreateInDocumentHyperlinkTool> self(this);
     if (modifier.finalize())
     {
         Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
+    if (!self)
+    {
+        return;
+    }
+
     resetPendingLink();
-    setActive(false);
+
+    // The link is created, while the pick tool of its target is active - a persistent
+    // tool is activated again for the next link (the tool manager keeps it active)
+    // TODO(remove-old-apps): the tool is always active again
+    if (PDFCreationToolHelper::isPersistent(m_toolManager))
+    {
+        m_toolManager->setActiveTool(this);
+    }
+    else
+    {
+        setActive(false);
+    }
     updateActions();
 }
 
@@ -411,6 +606,38 @@ PDFCreateFreeTextTool::PDFCreateFreeTextTool(PDFDrawWidgetProxy* proxy, PDFToolM
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateFreeTextTool::onRectanglePicked);
 
     updateActions();
+}
+
+void PDFCreateFreeTextTool::setFreeTextStyle(const PDFFreeTextStyle& style)
+{
+    m_style = boundFreeTextStyle(style);
+}
+
+PDFFreeTextStyle PDFCreateFreeTextTool::boundFreeTextStyle(PDFFreeTextStyle style)
+{
+    // The style can come from the database of the application - untrusted
+    constexpr int MAXIMUM_FAMILY_LENGTH = 256;
+    style.fontFamily = style.fontFamily.trimmed();
+    if (style.fontFamily.isEmpty() || style.fontFamily.size() > MAXIMUM_FAMILY_LENGTH)
+    {
+        style.fontFamily = PDFFreeTextStyle().fontFamily;
+    }
+
+    style.fontSize = std::isfinite(style.fontSize) ? qBound(1.0, style.fontSize, 512.0) : PDFFreeTextStyle().fontSize;
+
+    if (!style.textColor.isValid())
+    {
+        style.textColor = QColor(Qt::black);
+    }
+
+    Qt::Alignment horizontal = Qt::Alignment(style.textAlignment) & (Qt::AlignLeft | Qt::AlignHCenter | Qt::AlignRight);
+    if (horizontal != Qt::AlignLeft && horizontal != Qt::AlignHCenter && horizontal != Qt::AlignRight)
+    {
+        horizontal = Qt::AlignLeft;
+    }
+    style.textAlignment = TextAlignment(Qt::AlignTop | horizontal);
+
+    return style;
 }
 
 bool PDFCreateFreeTextTool::configureFreeText(QString& text)
@@ -501,6 +728,38 @@ bool PDFCreateFreeTextTool::configureFreeText(QString& text)
 
 void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
+    const PDFPage* pickedPage = getDocument() ? getDocument()->getCatalog()->getPage(pageIndex) : nullptr;
+    if (!pickedPage)
+    {
+        return;
+    }
+
+    if (m_toolManager && m_toolManager->isUserInterfaceDelegated())
+    {
+        if (pageRectangle.isEmpty())
+        {
+            m_pickTool->resetTool();
+            return;
+        }
+
+        // The application asks for the text and creates the annotation
+        PDFAnnotationCreationRequest request;
+        request.kind = PDFAnnotationCreationRequest::Kind::FreeText;
+        request.pageIndex = pageIndex;
+        request.pageReference = pickedPage->getPageReference();
+        request.rectangle = pageRectangle.normalized();
+        request.freeTextStyle = m_style;
+        request.autoResizeToContents = m_autoResizeToContents;
+
+        QPointer<PDFCreateFreeTextTool> self(this);
+        Q_EMIT m_toolManager->annotationCreationRequested(request);
+        if (self)
+        {
+            PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+        }
+        return;
+    }
+
     QString text;
     if (!configureFreeText(text))
     {
@@ -514,12 +773,16 @@ void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageR
     modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, author, QString(), text, m_style, m_autoResizeToContents);
     modifier.markAnnotationsChanged();
 
+    QPointer<PDFCreateFreeTextTool> self(this);
     if (modifier.finalize())
     {
         Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
-    setActive(false);
+    if (self)
+    {
+        PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+    }
 }
 
 PDFCreateAnnotationTool::PDFCreateAnnotationTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
@@ -629,12 +892,18 @@ void PDFCreateLineTypeTool::finishDefinition()
                 modifier.getBuilder()->createAnnotationLine(page, QRectF(), pickedPoints.front(), pickedPoints.back(), penWidth, fillColor, strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
                 modifier.markAnnotationsChanged();
 
+                QPointer<PDFCreateLineTypeTool> self(this);
                 if (modifier.finalize())
                 {
                     Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
-                setActive(false);
+                if (!self)
+                {
+                    return;
+                }
+
+                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
             }
             break;
         }
@@ -656,12 +925,18 @@ void PDFCreateLineTypeTool::finishDefinition()
                 modifier.getBuilder()->createAnnotationPolyline(page, polygon, penWidth, fillColor, strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
                 modifier.markAnnotationsChanged();
 
+                QPointer<PDFCreateLineTypeTool> self(this);
                 if (modifier.finalize())
                 {
                     Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
-                setActive(false);
+                if (!self)
+                {
+                    return;
+                }
+
+                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
             }
             break;
         }
@@ -692,12 +967,18 @@ void PDFCreateLineTypeTool::finishDefinition()
                 modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
                 modifier.markAnnotationsChanged();
 
+                QPointer<PDFCreateLineTypeTool> self(this);
                 if (modifier.finalize())
                 {
                     Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
-                setActive(false);
+                if (!self)
+                {
+                    return;
+                }
+
+                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
             }
             break;
         }
@@ -708,16 +989,25 @@ void PDFCreateLineTypeTool::finishDefinition()
             {
                 PDFDocumentModifier modifier(getDocument());
 
-                QPolygonF polygon;
-                polygon << m_rectOnPage.topLeft();
-                polygon << m_rectOnPage.topRight();
-                polygon << m_rectOnPage.bottomRight();
-                polygon << m_rectOnPage.bottomLeft();
-                polygon << m_rectOnPage.topLeft();
-
                 QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
-                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, penWidth, fillColor, strokeColor, author, QString(), QString());
+                PDFObjectReference annotation;
+                if (m_toolManager && m_toolManager->isSpecificationShapeTypes())
+                {
+                    // A Square annotation, its border lies inside of the drawn rectangle
+                    annotation = modifier.getBuilder()->createAnnotationSquare(page, m_rectOnPage.normalized(), penWidth, fillColor, strokeColor, author, QString(), QString());
+                }
+                else
+                {
+                    // TODO(remove-old-apps): the rectangle as a closed Polygon goes
+                    QPolygonF polygon;
+                    polygon << m_rectOnPage.topLeft();
+                    polygon << m_rectOnPage.topRight();
+                    polygon << m_rectOnPage.bottomRight();
+                    polygon << m_rectOnPage.bottomLeft();
+                    polygon << m_rectOnPage.topLeft();
+                    annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, penWidth, fillColor, strokeColor, author, QString(), QString());
+                }
                 if (fillColor.isValid())
                 {
                     modifier.getBuilder()->setAnnotationFillOpacity(annotation, fillColor.alphaF());
@@ -725,12 +1015,18 @@ void PDFCreateLineTypeTool::finishDefinition()
                 modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
                 modifier.markAnnotationsChanged();
 
+                QPointer<PDFCreateLineTypeTool> self(this);
                 if (modifier.finalize())
                 {
                     Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
-                setActive(false);
+                if (!self)
+                {
+                    return;
+                }
+
+                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
             }
             break;
         }
@@ -1126,12 +1422,16 @@ void PDFCreateEllipseTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRe
     modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
     modifier.markAnnotationsChanged();
 
+    QPointer<PDFCreateEllipseTool> self(this);
     if (modifier.finalize())
     {
         Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
-    setActive(false);
+    if (self)
+    {
+        PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+    }
 }
 
 PDFCreateFreehandCurveTool::PDFCreateFreehandCurveTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
@@ -1149,7 +1449,12 @@ PDFCreateFreehandCurveTool::PDFCreateFreehandCurveTool(PDFDrawWidgetProxy* proxy
                                                    PDFAnnotationStyleWidget::StrokeColor | PDFAnnotationStyleWidget::PenWidth,
                                                    defaultStyle,
                                                    PDFAnnotationStyleSettings::STYLE_FREEHAND);
-    connect(m_styleManager, &PDFAnnotationStyleManager::styleChanged, this, [this]() { Q_EMIT getProxy()->repaintNeeded(); });
+    connect(m_styleManager, &PDFAnnotationStyleManager::styleChanged, this, &PDFCreateFreehandCurveTool::onStyleChanged);
+}
+
+void PDFCreateFreehandCurveTool::onStyleChanged()
+{
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreateFreehandCurveTool::setActiveImpl(bool active)
@@ -1253,15 +1558,30 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
                 QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pageIndex)->getPageReference();
                 const PDFAnnotationStyle& style = m_styleManager->getStyle();
-                modifier.getBuilder()->createAnnotationPolyline(page, polygon, style.penWidth, Qt::black, style.strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                if (m_toolManager && m_toolManager->isSpecificationShapeTypes())
+                {
+                    // A freehand scribble is an Ink annotation (one stroke)
+                    modifier.getBuilder()->createAnnotationInk(page, polygon, style.penWidth, style.strokeColor, author, QString(), QString());
+                }
+                else
+                {
+                    // TODO(remove-old-apps): the freehand curve as a PolyLine goes
+                    modifier.getBuilder()->createAnnotationPolyline(page, polygon, style.penWidth, Qt::black, style.strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                }
                 modifier.markAnnotationsChanged();
 
+                QPointer<PDFCreateFreehandCurveTool> self(this);
                 if (modifier.finalize())
                 {
                     Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
-                setActive(false);
+                if (!self)
+                {
+                    return;
+                }
+
+                PDFCreationToolHelper::finishCreation(this, m_toolManager, nullptr);
             }
         }
 
@@ -1331,7 +1651,12 @@ PDFCreateStampTool::PDFCreateStampTool(PDFDrawWidgetProxy* proxy, PDFToolManager
     m_pickTool->setSnapToAnnotations(true);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateStampTool::onPointPicked);
-    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateStampTool::onActionTriggered);
+
+    // The new application has no actions
+    if (m_actionGroup)
+    {
+        connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateStampTool::onActionTriggered);
+    }
 
     m_stampAnnotation.setStrokingOpacity(0.5);
     m_stampAnnotation.setFillingOpacity(0.5);
@@ -1407,12 +1732,27 @@ void PDFCreateStampTool::onActionTriggered(QAction* action)
 
     if (action)
     {
-        m_stampAnnotation.setStamp(static_cast<Stamp>(action->data().toInt()));
+        setStamp(static_cast<Stamp>(action->data().toInt()));
+    }
+}
+
+void PDFCreateStampTool::setStamp(Stamp stamp)
+{
+    const int value = static_cast<int>(stamp);
+    if (value >= static_cast<int>(Stamp::Approved) && value <= static_cast<int>(Stamp::TopSecret))
+    {
+        m_stampAnnotation.setStamp(stamp);
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
 void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
+    if (!getDocument() || !getDocument()->getCatalog()->getPage(pageIndex))
+    {
+        return;
+    }
+
     PDFDocumentModifier modifier(getDocument());
 
     QString author = PDFAuthorSettings::getAuthorName();
@@ -1420,12 +1760,16 @@ void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
     modifier.getBuilder()->createAnnotationStamp(page, QRectF(pagePoint, QSizeF(0, 0)), m_stampAnnotation.getStamp(), author, QString(), QString());
     modifier.markAnnotationsChanged();
 
+    QPointer<PDFCreateStampTool> self(this);
     if (modifier.finalize())
     {
         Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
-    setActive(false);
+    if (self)
+    {
+        PDFCreationToolHelper::finishCreation(this, m_toolManager, m_pickTool);
+    }
 }
 
 PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
@@ -1436,7 +1780,11 @@ PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy
     m_type(AnnotationType::Highlight),
     m_isCursorOverText(false)
 {
-    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateHighlightTextTool::onActionTriggered);
+    // The new application has no actions
+    if (m_actionGroup)
+    {
+        connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateHighlightTextTool::onActionTriggered);
+    }
 
     PDFAnnotationStyle defaultStyle;
     defaultStyle.strokeColor = getDefaultColor();
@@ -1630,23 +1978,45 @@ void PDFCreateHighlightTextTool::onActionTriggered(QAction* action)
 {
     if (action)
     {
-        AnnotationType type = static_cast<AnnotationType>(action->data().toInt());
-
-        if (m_type != type)
-        {
-            m_type = type;
-
-            // Each kind of the text markup has its own persisted style, so the color
-            // selected by the user for the highlight is not lost, when he switches
-            // to the underline and back.
-            PDFAnnotationStyle defaultStyle;
-            defaultStyle.strokeColor = getDefaultColor();
-            defaultStyle.fillColor = QColor();
-            m_styleManager->setStyleId(getStyleId(), defaultStyle);
-        }
+        setAnnotationType(static_cast<AnnotationType>(action->data().toInt()));
     }
 
     setActive(action && action->isChecked());
+}
+
+bool PDFCreateHighlightTextTool::isTextMarkupType(AnnotationType type)
+{
+    switch (type)
+    {
+        case AnnotationType::Highlight:
+        case AnnotationType::Underline:
+        case AnnotationType::Squiggly:
+        case AnnotationType::StrikeOut:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+void PDFCreateHighlightTextTool::setAnnotationType(AnnotationType type)
+{
+    if (!isTextMarkupType(type) || m_type == type)
+    {
+        return;
+    }
+
+    m_type = type;
+
+    // Each kind of the text markup has its own persisted style, so the color
+    // selected by the user for the highlight is not lost, when he switches
+    // to the underline and back.
+    PDFAnnotationStyle defaultStyle;
+    defaultStyle.strokeColor = getDefaultColor();
+    defaultStyle.fillColor = QColor();
+    m_styleManager->setStyleId(getStyleId(), defaultStyle);
 }
 
 void PDFCreateHighlightTextTool::onStyleChanged(const PDFAnnotationStyle& style)
@@ -1759,11 +2129,10 @@ QColor PDFCreateRedactRectangleTool::getRedactColor()
 {
     // Jakub Melka: the redaction color was originally stored in a separate group
     // of the settings. Value stored by the older versions of the application is
-    // used as a default value, so the choice of the user is not lost.
-    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.beginGroup("RedactTool");
-    QColor legacyColor = settings.value("redactColor", QColor(Qt::black)).value<QColor>();
-    settings.endGroup();
+    // used as a default value, so the choice of the user is not lost. A storage of
+    // the application (not QSettings) has no legacy value.
+    // TODO(remove-old-apps): the legacy group RedactTool of QSettings goes
+    QColor legacyColor = PDFAnnotationStyleSettings::isDefaultStorage() ? PDFAnnotationStyleQSettingsStorage::getLegacyRedactColor() : QColor();
 
     if (!legacyColor.isValid())
     {

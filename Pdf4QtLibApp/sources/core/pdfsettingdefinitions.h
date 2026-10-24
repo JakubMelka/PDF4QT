@@ -105,6 +105,9 @@ public:
     static QString formsHighlightFields() { return QStringLiteral("forms.highlightFields"); }
     static QString formsHighlightRequiredFields() { return QStringLiteral("forms.highlightRequiredFields"); }
     static QString formsAllowEditReadOnly() { return QStringLiteral("forms.allowEditReadOnly"); }
+    static QString annotationsAuthorMode() { return QStringLiteral("annotations.authorMode"); }
+    static QString annotationsCustomAuthorName() { return QStringLiteral("annotations.customAuthorName"); }
+    static QString annotationsShowMarkupBar() { return QStringLiteral("annotations.showMarkupBar"); }
 
     // Settings › Security
     static QString securityOpenLinks() { return QStringLiteral("security.openLinks"); }
@@ -169,6 +172,11 @@ public:
     static QString colorSchemeLight() { return QStringLiteral("light"); }
     static QString colorSchemeDark() { return QStringLiteral("dark"); }
     static QString colorSchemeAuto() { return QStringLiteral("auto"); }
+
+    // annotations.authorMode (step 4, owner question Q1: Anonymous by default)
+    static QString authorModeAnonymous() { return QStringLiteral("anonymous"); }
+    static QString authorModeSystemUserName() { return QStringLiteral("systemUserName"); }
+    static QString authorModeCustomName() { return QStringLiteral("customName"); }
 
     // mcp.permission*
     static QString permissionAllow() { return QStringLiteral("allow"); }

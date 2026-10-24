@@ -604,7 +604,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppCore
         tst_appcoretest.cpp
     )
-    target_link_libraries(UnitTestsAppCore PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    target_link_libraries(UnitTestsAppCore PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
     add_dependencies(UnitTestsAppCore Pdf4QtApp)
     set_target_properties(UnitTestsAppCore PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -756,6 +756,71 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # Package E prints by QPrinter (printers of the test write PDF files)
     target_link_libraries(UnitTestsAppDocumentFile PRIVATE Qt6::PrintSupport)
 endif()
+
+# Annotations, Insert, Notes / Outline editing and form filling (step 4 of the new
+# application): one executable per package of wave 1, all with the shared fixture
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    foreach(PDF4QT_ANNOTATION_TEST
+            AppAnnotate
+            AppAnnotationEdit
+            AppNotesOutline
+            AppForms)
+        string(TOLOWER "${PDF4QT_ANNOTATION_TEST}" PDF4QT_ANNOTATION_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_ANNOTATION_TEST}
+            tst_${PDF4QT_ANNOTATION_TEST_FILE}test.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+        )
+        target_link_libraries(UnitTests${PDF4QT_ANNOTATION_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        set_target_properties(UnitTests${PDF4QT_ANNOTATION_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_ANNOTATION_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_ANNOTATION_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_ANNOTATION_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
+    # Generic lifetime test of step 4: the tab / window deleted from every signal of
+    # the application in the scenarios of the user. It follows the emissions on the
+    # stack by the signal spy callbacks of QtCore (private headers, as
+    # UnitTestsFluentLifetime), so it is built only when they are installed.
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        add_executable(UnitTestsAppAnnotationLifetime
+            tst_appannotationlifetimetest.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+        )
+        target_link_libraries(UnitTestsAppAnnotationLifetime PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test Qt6::CorePrivate)
+        set_target_properties(UnitTestsAppAnnotationLifetime PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTestsAppAnnotationLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppAnnotationLifetime")
+        set_tests_properties(UnitTestsAppAnnotationLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    else()
+        message(STATUS "UnitTestsAppAnnotationLifetime is not built: the private headers of QtCore (Qt6::CorePrivate) are not installed")
+    endif()
+endif()
+
+# Properties of the annotations read and written by PDFAnnotationPropertyEditor
+# (Pdf4QtLibCore, step 4 package B)
+add_executable(UnitTestsAnnotationProperties
+    tst_annotationpropertiestest.cpp
+)
+target_link_libraries(UnitTestsAnnotationProperties PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsAnnotationProperties PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsAnnotationProperties "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationProperties")
+set_tests_properties(UnitTestsAnnotationProperties PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Text index of a whole document and the search in it, page labels (Pdf4QtLibCore, step 3)
 add_executable(UnitTestsDocumentTextIndex

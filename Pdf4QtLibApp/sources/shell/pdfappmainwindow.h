@@ -247,7 +247,9 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
     /// Drag and drop of PDF files onto the window (PDFAppFileDrop): local files
-    /// only, a PDF by its extension or content, folders and other files refused
+    /// only, a PDF by its extension or content, folders and other files refused.
+    /// Annotations dragged over a tab of the tab bar switch to the tab after a
+    /// short delay (the drop goes to the canvas of the tab, note 1030:161012).
     virtual void dragEnterEvent(QDragEnterEvent* event) override;
     virtual void dragMoveEvent(QDragMoveEvent* event) override;
     virtual void dragLeaveEvent(QDragLeaveEvent* event) override;
@@ -281,6 +283,12 @@ private:
 
     /// The drop zones of the pages show, that files are dragged over the window
     void setFileDragActive(bool isActive);
+
+    /// Annotations dragged over a tab, which is not current: the tab becomes
+    /// current, when the pointer rests on it (SH_TabBar_ChangeCurrentDelay)
+    bool updateDragTabSwitch(const QMimeData* mimeData, const QPoint& windowPosition);
+    void stopDragTabSwitch();
+    void onDragTabSwitchTimeout();
 
     /// Files and errors of the own command line (after the window is shown)
     void processCommandLine();
@@ -332,6 +340,8 @@ private:
     QPointer<PDFAppTopBar> m_topBar;
     QPointer<QStackedWidget> m_stack;
     bool m_isFileDragActive = false;
+    QPointer<QTimer> m_dragTabTimer;    ///< Switches to the tab under the dragged annotations
+    int m_dragTabIndex = -1;            ///< Tab under the dragged annotations (-1 = none)
     QPointer<PDFAppNavigator> m_navigator;
     QPointer<PDFAppWindowFrame> m_frame;
     QPointer<QWindow> m_filteredWindow;

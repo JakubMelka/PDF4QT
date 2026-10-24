@@ -97,7 +97,8 @@ QString PDFAppPage::getDirectionalIconName(const QString& iconName, Qt::LayoutDi
     static constexpr std::pair<const char*, const char*> MIRRORED_ICONS[] = {
         { "chevron-left", "chevron-right" },
         { "chevron-first", "chevron-last" },
-        { "arrow-left", "arrow-right" }
+        { "arrow-left", "arrow-right" },
+        { "corner-down-left", "corner-down-right" }
     };
 
     for (const auto& [first, second] : MIRRORED_ICONS)

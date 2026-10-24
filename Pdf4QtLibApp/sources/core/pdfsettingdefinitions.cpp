@@ -290,6 +290,30 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Ignore the read-only flag of form fields"))
                       .setKeywords({ QStringLiteral("forms"), QStringLiteral("read only") }));
 
+    // Settings › Editing, author of the annotations (step 4; Anonymous by default -
+    // owner question Q1, the name is stored in the document)
+    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::annotationsAuthorMode(), PDFSettingValues::authorModeAnonymous(),
+                                                   { { PDFSettingValues::authorModeAnonymous(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Anonymous (do not disclose the user name)")), false },
+                                                     { PDFSettingValues::authorModeSystemUserName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "System user name")), false },
+                                                     { PDFSettingValues::authorModeCustomName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom name")), false } })
+                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
+                      .setAnchor(QStringLiteral("author-of-new-annotations"))
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author of new annotations"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Name written into comments and markups"))
+                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations"), QStringLiteral("privacy") }));
+    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::annotationsCustomAuthorName(), QString(), 256)
+                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
+                      .setAnchor(QStringLiteral("custom-author-name"))
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom author name"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Used when “Custom name” is selected"))
+                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations") }));
+    add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::annotationsShowMarkupBar(), true)
+                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Annotations")))
+                      .setAnchor(QStringLiteral("show-markup-bar-when-text-is-selected"))
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Show markup bar when text is selected"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Highlight, underline, strike out or comment the selected text from a small bar above it"))
+                      .setKeywords({ QStringLiteral("markup"), QStringLiteral("highlight"), QStringLiteral("selection"), QStringLiteral("bar") }));
+
     // Settings › Security
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::securityOpenLinks(), true)
                       .setSection(sectionSecurity(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Links and actions")))

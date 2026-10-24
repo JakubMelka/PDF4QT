@@ -35,6 +35,8 @@ These shortcuts work in the whole window. You can change each of them in [Settin
 
 The back and forward buttons of the mouse go back and forward as well.
 
+In the list of results of the [search](/help/search), **Up** and **Down** move between the results, **Enter** opens the selected result, **Ctrl+Enter** shows all results on their own page and **Esc** closes the list.
+
 ## Document
 
 These shortcuts work in the tab of a document.
@@ -55,6 +57,18 @@ These shortcuts work in the tab of a document.
 | Next bookmark | Ctrl+. |
 | Previous bookmark | Ctrl+, |
 | Rendering issues | Ctrl+E |
+
+## Annotations
+
+These shortcuts mark the selected text, or they start the tool, when no text is selected.
+
+| Command | Shortcut |
+| --- | --- |
+| Highlight | Ctrl+Shift+H |
+| Underline | Ctrl+Shift+L |
+| Strikeout | Ctrl+Shift+K |
+| Squiggly | Ctrl+Shift+Q |
+| Highlight and comment | Ctrl+Shift+M |
 
 ## View
 
@@ -80,6 +94,12 @@ These keys work, when the page has the keyboard focus (click the page first).
 | Command | Shortcut |
 | --- | --- |
 | Copy | Ctrl+C |
+| Cut | Ctrl+X |
+| Paste | Ctrl+V |
+| Paste at original position | Ctrl+Shift+V |
+| Delete | Del |
+| Annotation properties… | F2 |
+| Annotation properties… (second key) | Alt+Return |
 | Select all | Ctrl+A |
 | First page | Home |
 | Last page | End |
@@ -87,6 +107,14 @@ These keys work, when the page has the keyboard focus (click the page first).
 | Previous page | PgUp |
 | Next line | Down |
 | Previous line | Up |
+
+## Outline
+
+This key works in the Outline panel of the sidebar (F2 on the page opens the properties of the selected annotation).
+
+| Command | Shortcut |
+| --- | --- |
+| Rename outline item | F2 |
 
 ## Change a shortcut
 

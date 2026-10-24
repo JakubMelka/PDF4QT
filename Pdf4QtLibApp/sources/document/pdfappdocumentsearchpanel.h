@@ -47,7 +47,7 @@ class PDFSearchResultDelegate;
 /// virtualized list of the occurrences (PDFSearchResultDelegate) and a note,
 /// when the results reach the safety limit. The panel has no tab of the sidebar,
 /// the search field of the toolbar shows it. The footer "Mark as annotations"
-/// of the design is step 4 and is not shown.
+/// (PDFAppMarkResultsFooter, step 4 package A) is shown with the results.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSearchPanel : public PDFAppDocumentPanel
 {
     Q_OBJECT

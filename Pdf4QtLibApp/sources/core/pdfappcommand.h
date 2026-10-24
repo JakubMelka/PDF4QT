@@ -42,9 +42,12 @@ enum class PDFAppCommandScope
     Window,     ///< The whole window (an action of the main window, Qt::WindowShortcut)
     Document,   ///< A command of the current document tab (an action of the main window,
                 ///< Qt::WindowShortcut, dispatched to the current tab, disabled without a document)
-    Canvas      ///< Keys of the page canvas (Ctrl+C, Ctrl+A, arrows, PgUp / PgDn, Home / End):
+    Canvas,     ///< Keys of the page canvas (Ctrl+C, Ctrl+A, arrows, PgUp / PgDn, Home / End):
                 ///< an action of the canvas of the document view, Qt::WidgetWithChildrenShortcut,
                 ///< so the keys keep their meaning in the fields of the window
+    Panel       ///< Keys of a panel of the sidebar (F2 renames an outline item, step 4): the
+                ///< window action has no shortcut, the panel creates its own action with
+                ///< Qt::WidgetWithChildrenShortcut, so the key works only in the panel
 };
 
 /// Command of the application: the data, which the global search (step 2), the
@@ -69,6 +72,11 @@ public:
 
     /// Default shortcut (empty = none)
     QKeySequence defaultShortcut;
+
+    /// Further keys of the command, which work as long as the user has not
+    /// changed its shortcut (annotation.properties: F2 and Alt+Return). Menus,
+    /// tooltips and the search show only the shortcut.
+    QList<QKeySequence> alternateShortcuts;
 
     /// Keywords for the search (English, lowercase)
     QStringList keywords;
@@ -126,11 +134,17 @@ public:
     /// the default one. A stored text, which is not a valid key sequence, is ignored.
     QKeySequence getShortcut(const QString& id, const UserShortcuts& userShortcuts) const;
 
-    /// Conflicts of the effective shortcuts of all commands
+    /// All keys of the command for its QAction: the effective shortcut and, while
+    /// the user has not changed it, the alternate shortcuts
+    QList<QKeySequence> getShortcuts(const QString& id, const UserShortcuts& userShortcuts) const;
+
+    /// Conflicts of the effective shortcuts (and of the alternate keys) of all
+    /// commands. A key of the canvas and a key of a panel of the sidebar do not
+    /// conflict (they work in different widgets, isScopeConflict).
     std::vector<PDFAppShortcutConflict> findConflicts(const UserShortcuts& userShortcuts) const;
 
-    /// Commands, whose effective shortcut conflicts with \p shortcut, if it is
-    /// assigned to the command \p id (the command itself is not reported)
+    /// Commands, whose keys conflict with \p shortcut, if it is assigned to the
+    /// command \p id (the command itself is not reported)
     QStringList getConflictingCommands(const QString& id, const QKeySequence& shortcut, const UserShortcuts& userShortcuts) const;
 
     /// Text of the shortcut for the table shortcut
@@ -142,6 +156,11 @@ public:
 
     /// The two shortcuts conflict (equal, or one is the beginning of the other)
     static bool isConflict(const QKeySequence& first, const QKeySequence& second);
+
+    /// The keys of the two scopes can conflict: everything except a key of the
+    /// canvas against a key of a panel (both are actions with
+    /// Qt::WidgetWithChildrenShortcut of two different widgets)
+    static bool isScopeConflict(PDFAppCommandScope first, PDFAppCommandScope second);
 
 private:
     std::deque<PDFAppCommand> m_commands;
@@ -241,6 +260,66 @@ public:
     static QString findPrevious() { return QStringLiteral("search.findPrevious"); }
     static QString readAloud() { return QStringLiteral("speech.readAloud"); }
 
+    // Document tab (step 4, package A): Annotate and Insert
+    static QString annotatePanel() { return QStringLiteral("annotate.panel"); }
+    static QString insertPanel() { return QStringLiteral("insert.panel"); }
+    static QString annotateHighlight() { return QStringLiteral("annotate.highlight"); }
+    static QString annotateUnderline() { return QStringLiteral("annotate.underline"); }
+    static QString annotateStrikeout() { return QStringLiteral("annotate.strikeout"); }
+    static QString annotateSquiggly() { return QStringLiteral("annotate.squiggly"); }
+    static QString annotateHighlightComment() { return QStringLiteral("annotate.highlightComment"); }
+    static QString insertTextBox() { return QStringLiteral("insert.textBox"); }
+    static QString insertStickyNote() { return QStringLiteral("insert.stickyNote"); }
+    static QString insertLine() { return QStringLiteral("insert.line"); }
+    static QString insertPolyline() { return QStringLiteral("insert.polyline"); }
+    static QString insertRectangle() { return QStringLiteral("insert.rectangle"); }
+    static QString insertPolygon() { return QStringLiteral("insert.polygon"); }
+    static QString insertEllipse() { return QStringLiteral("insert.ellipse"); }
+    static QString insertFreehand() { return QStringLiteral("insert.freehand"); }
+    static QString insertWebLink() { return QStringLiteral("insert.webLink"); }
+    static QString insertPageLink() { return QStringLiteral("insert.pageLink"); }
+    static QString insertStamp() { return QStringLiteral("insert.stamp"); }
+    static QString annotateDeleteTool() { return QStringLiteral("annotate.deleteTool"); }
+    static QString annotateMarkResults() { return QStringLiteral("annotate.markResults"); }
+
+    // Document tab (step 4, package B): editing of the annotations on the page
+    static QString cut() { return QStringLiteral("edit.cut"); }
+    static QString paste() { return QStringLiteral("edit.paste"); }
+    static QString pasteInPlace() { return QStringLiteral("edit.pasteInPlace"); }
+    static QString deleteSelection() { return QStringLiteral("edit.delete"); }
+    static QString annotationProperties() { return QStringLiteral("annotation.properties"); }
+    static QString annotationComment() { return QStringLiteral("annotation.comment"); }
+    static QString annotationReply() { return QStringLiteral("annotation.reply"); }
+    static QString annotationGeometry() { return QStringLiteral("annotation.geometry"); }
+    static QString annotationCopyToPages() { return QStringLiteral("annotation.copyToPages"); }
+    static QString annotationHide() { return QStringLiteral("annotation.hide"); }
+    static QString annotationSelectAll() { return QStringLiteral("annotation.selectAll"); }
+    static QString annotationRotateClockwise() { return QStringLiteral("annotation.rotateClockwise"); }
+    static QString annotationRotateCounterclockwise() { return QStringLiteral("annotation.rotateCounterclockwise"); }
+    static QString annotationRotate180() { return QStringLiteral("annotation.rotate180"); }
+    static QString annotationFlipHorizontal() { return QStringLiteral("annotation.flipHorizontal"); }
+    static QString annotationFlipVertical() { return QStringLiteral("annotation.flipVertical"); }
+    static QString annotationAlignLeft() { return QStringLiteral("annotation.alignLeft"); }
+    static QString annotationAlignCenter() { return QStringLiteral("annotation.alignCenter"); }
+    static QString annotationAlignRight() { return QStringLiteral("annotation.alignRight"); }
+    static QString annotationAlignTop() { return QStringLiteral("annotation.alignTop"); }
+    static QString annotationAlignMiddle() { return QStringLiteral("annotation.alignMiddle"); }
+    static QString annotationAlignBottom() { return QStringLiteral("annotation.alignBottom"); }
+    static QString annotationDistributeHorizontally() { return QStringLiteral("annotation.distributeHorizontally"); }
+    static QString annotationDistributeVertically() { return QStringLiteral("annotation.distributeVertically"); }
+
+    // Document tab (step 4, package C): editing of the outline
+    static QString outlineNewItem() { return QStringLiteral("outline.newItem"); }
+    static QString outlineRename() { return QStringLiteral("outline.rename"); }
+    static QString outlineDelete() { return QStringLiteral("outline.delete"); }
+    static QString outlineMoveUp() { return QStringLiteral("outline.moveUp"); }
+    static QString outlineMoveDown() { return QStringLiteral("outline.moveDown"); }
+    static QString outlineIndent() { return QStringLiteral("outline.indent"); }
+    static QString outlineOutdent() { return QStringLiteral("outline.outdent"); }
+    static QString outlineSetTarget() { return QStringLiteral("outline.setTarget"); }
+    static QString outlineBold() { return QStringLiteral("outline.bold"); }
+    static QString outlineItalic() { return QStringLiteral("outline.italic"); }
+
     /// Registers all built-in commands
     static void registerBuiltinCommands(PDFAppCommandRegistry* registry);
 
@@ -249,9 +328,11 @@ private:
     static void registerFileCommands(PDFAppCommandRegistry* registry);
     static void registerNavigationCommands(PDFAppCommandRegistry* registry);
     static void registerDocumentCommands(PDFAppCommandRegistry* registry);
+    static void registerAnnotationCommands(PDFAppCommandRegistry* registry);
     static void add(PDFAppCommandRegistry* registry, QString id, const char* title, const char* group,
                     QString iconName, QKeySequence shortcut, QStringList keywords,
-                    PDFAppCommandScope scope = PDFAppCommandScope::Window, bool isCheckable = false);
+                    PDFAppCommandScope scope = PDFAppCommandScope::Window, bool isCheckable = false,
+                    QList<QKeySequence> alternateShortcuts = QList<QKeySequence>());
 };
 
 }   // namespace pdf

@@ -2104,6 +2104,16 @@ void PDFTextSelectionPainter::draw(QPainter* painter,
         const PDFTextBlock& block = blocks[start.blockIndex];
         QPainterPath path = block.getCharacterRangeBoundingPath(start, end, matrix, HEIGHT_INCREASE_FACTOR);
 
+        if (m_themeColor.isValid())
+        {
+            // The color of the theme is the color of the screen, the page below stays readable
+            painter->setCompositionMode(QPainter::CompositionMode_Multiply);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QBrush(m_themeColor, Qt::SolidPattern));
+            painter->drawPath(path);
+            continue;
+        }
+
         QColor penColor = item.color.darker();
         QColor brushColor = item.color;
         brushColor.setAlphaF(SELECTION_ALPHA);

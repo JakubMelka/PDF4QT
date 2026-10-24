@@ -203,6 +203,7 @@ QWidget* PDFAppSearchPage::createSideColumn(QWidget* parent)
     keyboardCard->getLayout()->addWidget(createKeyRow(PDFAppKeyCap::getKeyNames(getSearchShortcut()), tr("Search everywhere"), keyboardCard));
     keyboardCard->getLayout()->addWidget(createKeyRow({ QString(QChar(0x2191)), QString(QChar(0x2193)) }, tr("Move between results"), keyboardCard));
     keyboardCard->getLayout()->addWidget(createKeyRow({ PDFAppSearchPainter::getEnterKeyText() }, tr("Open the selected result"), keyboardCard));
+    keyboardCard->getLayout()->addWidget(createKeyRow(PDFAppSearchPainter::getShowAllKeys(), tr("Show all results"), keyboardCard));
     keyboardCard->getLayout()->addWidget(createKeyRow({ tr("Esc") }, tr("Clear the search"), keyboardCard));
     keyboardLayout->addWidget(keyboardCard);
     layout->addWidget(keyboard);

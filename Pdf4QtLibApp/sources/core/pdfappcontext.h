@@ -42,8 +42,12 @@
 #include <QObject>
 #include <QPointer>
 
+#include <memory>
+
 namespace pdf
 {
+
+class PDFAppAnnotationStyleStorage;
 
 /// Context of the running application: the storage, its notifier, the registries
 /// of the settings and of the commands, the command line and the server of the
@@ -98,6 +102,19 @@ public:
     /// documents, Recent and MCP list them. It lives as long as the context.
     PDFAppDocumentRegistry* getDocumentRegistry() const { return m_documentRegistry; }
 
+    /// Storage of the styles of the annotation tools (step 4): installed into
+    /// PDFAnnotationStyleSettings of the engine while the database is open
+    /// (nullptr when it is closed)
+    PDFAppAnnotationStyleStorage* getAnnotationStyleStorage() const { return m_annotationStyleStorage.get(); }
+
+    /// Applies the author of new annotations (annotations.authorMode and
+    /// annotations.customAuthorName) to PDFAuthorSettings of the engine; called at
+    /// the opening and at every change of the two settings
+    void applyAuthorSettings();
+
+    /// Custom author name without control characters, bounded to 256 characters
+    static QString sanitizeAuthorName(const QString& name);
+
     /// State of the storage for the banners of the Home tab
     PDFDatabaseState getStorageState() const;
 
@@ -145,6 +162,7 @@ private:
     QPointer<PDFAppThumbnailer> m_thumbnailer;
     QPointer<PDFAppFolderInfoService> m_folderInfo;
     QPointer<PDFAppDocumentRegistry> m_documentRegistry;
+    std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
     bool m_isPagesEnabled = true;
 };
 

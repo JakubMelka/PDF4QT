@@ -34,21 +34,95 @@
 #include <QPushButton>
 #include <QSettings>
 
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
 {
 
-static QSettings createSettings()
+/// Settings of the old applications and the process wide state of the styles
+// TODO(remove-old-apps): the helper goes with the QSettings storage and the style window
+class PDFAnnotationStyleHelper
 {
-    return QSettings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+public:
+    PDFAnnotationStyleHelper() = delete;
+
+    static QSettings createSettings()
+    {
+        return QSettings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    }
+
+    static PDFAnnotationStyleQSettingsStorage* getDefaultStorage()
+    {
+        static PDFAnnotationStyleQSettingsStorage storage;
+        return &storage;
+    }
+
+    static bool s_isStyleWindowEnabled;
+};
+
+bool PDFAnnotationStyleHelper::s_isStyleWindowEnabled = true;
+PDFAnnotationStyleStorage* PDFAnnotationStyleSettings::s_storage = nullptr;
+
+PDFAnnotationStyleStorage::~PDFAnnotationStyleStorage()
+{
+
 }
 
 PDFAnnotationStyle PDFAnnotationStyleSettings::getStyle(const QString& styleId, const PDFAnnotationStyle& defaultStyle)
 {
+    return boundStyle(getStorage()->getStyle(styleId, defaultStyle), defaultStyle);
+}
+
+void PDFAnnotationStyleSettings::setStyle(const QString& styleId, const PDFAnnotationStyle& style)
+{
+    getStorage()->setStyle(styleId, style);
+}
+
+void PDFAnnotationStyleSettings::setStorage(PDFAnnotationStyleStorage* storage)
+{
+    s_storage = storage;
+}
+
+PDFAnnotationStyleStorage* PDFAnnotationStyleSettings::getStorage()
+{
+    return s_storage ? s_storage : PDFAnnotationStyleHelper::getDefaultStorage();
+}
+
+bool PDFAnnotationStyleSettings::isDefaultStorage()
+{
+    return !s_storage;
+}
+
+PDFAnnotationStyle PDFAnnotationStyleSettings::boundStyle(PDFAnnotationStyle style, const PDFAnnotationStyle& defaultStyle)
+{
+    if (!style.strokeColor.isValid())
+    {
+        style.strokeColor = defaultStyle.strokeColor.isValid() ? defaultStyle.strokeColor : QColor(Qt::red);
+    }
+    style.strokeColor.setAlpha(255);
+
+    // Jakub Melka: invalid fill color is a valid value - the shape is not filled
+    if (style.fillColor.isValid())
+    {
+        style.fillColor.setAlpha(255);
+    }
+
+    if (!std::isfinite(style.penWidth))
+    {
+        style.penWidth = std::isfinite(defaultStyle.penWidth) ? defaultStyle.penWidth : 1.0;
+    }
+    style.penWidth = qBound(0.0, style.penWidth, MAXIMUM_PEN_WIDTH);
+
+    return style;
+}
+
+PDFAnnotationStyle PDFAnnotationStyleQSettingsStorage::getStyle(const QString& styleId, const PDFAnnotationStyle& defaultStyle) const
+{
     PDFAnnotationStyle style = defaultStyle;
 
-    QSettings settings = createSettings();
+    QSettings settings = PDFAnnotationStyleHelper::createSettings();
     settings.beginGroup("AnnotationStyles");
     settings.beginGroup(styleId);
 
@@ -74,9 +148,9 @@ PDFAnnotationStyle PDFAnnotationStyleSettings::getStyle(const QString& styleId, 
     return style;
 }
 
-void PDFAnnotationStyleSettings::setStyle(const QString& styleId, const PDFAnnotationStyle& style)
+void PDFAnnotationStyleQSettingsStorage::setStyle(const QString& styleId, const PDFAnnotationStyle& style)
 {
-    QSettings settings = createSettings();
+    QSettings settings = PDFAnnotationStyleHelper::createSettings();
     settings.beginGroup("AnnotationStyles");
     settings.beginGroup(styleId);
     settings.setValue("strokeColor", style.strokeColor);
@@ -84,6 +158,34 @@ void PDFAnnotationStyleSettings::setStyle(const QString& styleId, const PDFAnnot
     settings.setValue("penWidth", style.penWidth);
     settings.endGroup();
     settings.endGroup();
+}
+
+QPoint PDFAnnotationStyleQSettingsStorage::getWindowPosition()
+{
+    QSettings settings = PDFAnnotationStyleHelper::createSettings();
+    settings.beginGroup("AnnotationStyles");
+    const QPoint position = settings.value("windowPosition").toPoint();
+    settings.endGroup();
+    return position;
+}
+
+void PDFAnnotationStyleQSettingsStorage::setWindowPosition(QPoint position)
+{
+    QSettings settings = PDFAnnotationStyleHelper::createSettings();
+    settings.beginGroup("AnnotationStyles");
+    settings.setValue("windowPosition", position);
+    settings.endGroup();
+}
+
+QColor PDFAnnotationStyleQSettingsStorage::getLegacyRedactColor()
+{
+    // Jakub Melka: the redaction color was originally stored in a separate group
+    // of the settings
+    QSettings settings = PDFAnnotationStyleHelper::createSettings();
+    settings.beginGroup("RedactTool");
+    const QColor color = settings.value("redactColor").value<QColor>();
+    settings.endGroup();
+    return color;
 }
 
 PDFAnnotationStyleWidget::PDFAnnotationStyleWidget(QWidget* parent, StyleItems items, const PDFAnnotationStyle& style) :
@@ -143,10 +245,7 @@ PDFAnnotationStyleWidget::~PDFAnnotationStyleWidget()
 
 void PDFAnnotationStyleWidget::showStyleWindow()
 {
-    QSettings settings = createSettings();
-    settings.beginGroup("AnnotationStyles");
-    const QPoint position = settings.value("windowPosition").toPoint();
-    settings.endGroup();
+    const QPoint position = PDFAnnotationStyleQSettingsStorage::getWindowPosition();
 
     // Jakub Melka: the remembered position can be outside of the available screens
     // (for example when the user disconnects a monitor), in that case we must fall
@@ -181,10 +280,7 @@ void PDFAnnotationStyleWidget::showStyleWindow()
 
 void PDFAnnotationStyleWidget::closeStyleWindow()
 {
-    QSettings settings = createSettings();
-    settings.beginGroup("AnnotationStyles");
-    settings.setValue("windowPosition", pos());
-    settings.endGroup();
+    PDFAnnotationStyleQSettingsStorage::setWindowPosition(pos());
 
     hide();
 
@@ -300,6 +396,9 @@ PDFAnnotationStyleManager::PDFAnnotationStyleManager(QObject* parent,
 
 void PDFAnnotationStyleManager::setStyle(PDFAnnotationStyle style)
 {
+    // The style comes from the application, it is bounded as a stored style
+    style = PDFAnnotationStyleSettings::boundStyle(std::move(style), m_defaultStyle);
+
     if (m_style == style)
     {
         return;
@@ -362,6 +461,11 @@ void PDFAnnotationStyleManager::showStyleWindow(QWidget* parentWidget)
     // style id, so it must be reloaded before the window is created from it.
     reloadStyle();
 
+    if (!PDFAnnotationStyleHelper::s_isStyleWindowEnabled || !parentWidget)
+    {
+        return;
+    }
+
     m_styleWidget = new PDFAnnotationStyleWidget(parentWidget, m_items, m_style);
     connect(m_styleWidget, &PDFAnnotationStyleWidget::styleChanged, this, &PDFAnnotationStyleManager::onStyleChanged);
     m_styleWidget->showStyleWindow();
@@ -374,6 +478,16 @@ void PDFAnnotationStyleManager::closeStyleWindow()
         m_styleWidget->closeStyleWindow();
         m_styleWidget = nullptr;
     }
+}
+
+void PDFAnnotationStyleManager::setStyleWindowEnabled(bool enabled)
+{
+    PDFAnnotationStyleHelper::s_isStyleWindowEnabled = enabled;
+}
+
+bool PDFAnnotationStyleManager::isStyleWindowEnabled()
+{
+    return PDFAnnotationStyleHelper::s_isStyleWindowEnabled;
 }
 
 void PDFAnnotationStyleManager::onStyleChanged(const PDFAnnotationStyle& style)

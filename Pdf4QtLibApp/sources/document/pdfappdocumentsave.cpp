@@ -339,7 +339,8 @@ bool PDFAppDocumentSaver::canSave() const
         return true;
     }
 
-    return document->isModified() && PDFAppDocumentFileWriter::isWritable(document->getFilePath());
+    // An open editor of a form field is committed by the save (step 4, package D)
+    return (document->isModified() || document->hasPendingEdits()) && PDFAppDocumentFileWriter::isWritable(document->getFilePath());
 }
 
 bool PDFAppDocumentSaver::canSaveAs() const
@@ -376,6 +377,20 @@ void PDFAppDocumentSaver::start(bool isSaveAs)
     PDFAppDocument* document = getDocument();
     if (!document)
     {
+        return;
+    }
+
+    // An open editor of a form field is saved too (step 4, package D)
+    QPointer<PDFAppDocumentSaver> guard(this);
+    document->commitPendingEdits();
+    if (!guard)
+    {
+        return;
+    }
+    document = getDocument();
+    if (!document || !document->isReady())
+    {
+        finish(false);
         return;
     }
 

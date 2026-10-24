@@ -33,6 +33,7 @@
 #include "pdflockeddocumentpicture.h"
 #include "pdfmessagebox.h"
 #include "pdfpreviewpainter.h"
+#include "pdfreferencepointpicker.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
 #include "pdfthemefonts.h"
@@ -577,6 +578,9 @@ private slots:
     void colorButtonAndPalette();
     void colorPaletteDestroyed();
     void colorPaletteDetails();
+    void colorSwatchRow();
+    void colorSwatchRowPalette();
+    void referencePointPicker();
     void signatureCard();
     void strengthMeter();
     void panelPixels_data();
@@ -616,6 +620,7 @@ private slots:
     void shortcutControlAltActions();
     void delegateReviewDetails();
     void delegateListWidth();
+    void delegateNoteReplies();
 
     // R2: lambdas of the components replaced by member functions, safe constructs
     void r2AccentHueDefensive();
@@ -7913,6 +7918,714 @@ void FluentComponentsTest::colorPaletteDetails()
     QCOMPARE(Painter::getColorPaletteSize(nothing), QSize(232, 24));
 }
 
+void FluentComponentsTest::colorSwatchRow()
+{
+    using Row = pdf::PDFColorSwatchRow;
+    using Option = Row::Option;
+    using Scheme = pdf::PDFThemeColors::Scheme;
+
+    // The colors of the design in their order, the canonical values of the light theme
+    static constexpr Color order[] = { Color::AnnotationYellow, Color::AnnotationOrange, Color::AnnotationRed, Color::AnnotationPink,
+                                       Color::AnnotationPurple, Color::AnnotationBlue, Color::AnnotationGreen, Color::AnnotationBlack };
+    const QStringList names = { QStringLiteral("Yellow"), QStringLiteral("Orange"), QStringLiteral("Red"), QStringLiteral("Pink"),
+                                QStringLiteral("Purple"), QStringLiteral("Blue"), QStringLiteral("Green"), QStringLiteral("Black") };
+    auto canonical = [](Color color) { return QColor(QString::fromLatin1(pdf::PDFThemeColors::getBuiltinTokenValue(color, Scheme::Light))); };
+    const std::vector<Row::Entry> defaults = Row::getAnnotationColors(Option::More);
+    QCOMPARE(defaults.size(), size_t(8));
+    for (int i = 0; i < 8; ++i)
+    {
+        QCOMPARE(defaults[i].token, order[i]);
+        QCOMPARE(defaults[i].canonicalColor, canonical(order[i]));
+        QCOMPARE(defaults[i].name, names[i]);
+    }
+    const std::vector<Row::Entry> fill = Row::getAnnotationColors(Option::NoColor | Option::White | Option::More);
+    QCOMPARE(fill.size(), size_t(10));
+    QCOMPARE(fill.front().token, Color::ColorCount);
+    QVERIFY(!fill.front().canonicalColor.isValid());
+    QCOMPARE(fill.front().name, QStringLiteral("No color"));
+    QCOMPARE(fill.back().token, Color::AnnotationWhite);
+    QCOMPARE(fill.back().canonicalColor, QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(fill.back().name, QStringLiteral("White"));
+    QCOMPARE(fill[1].token, Color::AnnotationYellow);
+
+    // Sizes of a row
+    QCOMPARE(Row::getRowSize(0, false), QSize(0, 0));
+    QCOMPARE(Row::getRowSize(3, false), QSize(88, 28));
+    QCOMPARE(Row::getRowSize(0, true), QSize(32, 32));
+    QCOMPARE(Row::getRowSize(-4, true), QSize(32, 32));
+
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(20, 20, 20, 20);
+    QLineEdit* before = new QLineEdit(&window);
+    Row* row = new Row(&window);
+    Row* fillRow = new Row(&window);
+    QLineEdit* after = new QLineEdit(&window);
+    layout->addWidget(before);
+    layout->addWidget(row);
+    layout->addWidget(fillRow);
+    layout->addWidget(after);
+    layout->addStretch(1);
+    window.resize(500, 400);
+
+    // Geometry against Figma 877:10188: 8 swatches 28 with gaps 2, More 32 x 32, 272 x 32
+    QCOMPARE(row->getOptions(), Row::Options(Option::More));
+    QCOMPARE(row->getSwatchCount(), 8);
+    QCOMPARE(row->sizeHint(), QSize(272, 32));
+    QCOMPARE(row->minimumSizeHint(), QSize(272, 32));
+    QVERIFY(row->getMoreButton());
+    QVERIFY(!row->getSwatch(-1));
+    QVERIFY(!row->getSwatch(8));
+    QVERIFY(!row->getEntry(8).canonicalColor.isValid());
+    QCOMPARE(row->getEntry(2).name, QStringLiteral("Red"));
+
+    // Fill of a shape (207:7199): none first, white after black, 332 x 32
+    fillRow->setOptions(Option::NoColor | Option::White | Option::More);
+    QCOMPARE(fillRow->getSwatchCount(), 10);
+    QCOMPARE(fillRow->sizeHint(), QSize(332, 32));
+    QCOMPARE(fillRow->getSwatch(0)->getKind(), pdf::PDFColorSwatch::Kind::None);
+    QCOMPARE(fillRow->getSwatch(9)->getKind(), pdf::PDFColorSwatch::Kind::Color);
+
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QCOMPARE(row->size(), QSize(272, 32));
+    for (int i = 0; i < 8; ++i)
+    {
+        QCOMPARE(row->getSwatch(i)->geometry(), QRect(i * 30, 2, 28, 28));
+        QCOMPARE(row->getSwatch(i)->getColor(), token(order[i]));
+    }
+    QCOMPARE(row->getMoreButton()->geometry(), QRect(240, 0, 32, 32));
+    QCOMPARE(fillRow->size(), QSize(332, 32));
+    QCOMPARE(fillRow->getSwatch(9)->geometry(), QRect(270, 2, 28, 28));
+    QCOMPARE(fillRow->getMoreButton()->geometry(), QRect(300, 0, 32, 32));
+
+    // setColor never emits; the canonical value, rgb compared; custom colors; none
+    QSignalSpy selectedSpy(row, &Row::colorSelected);
+    QSignalSpy fillSpy(fillRow, &Row::colorSelected);
+    QVERIFY(!row->getColor().isValid());
+    QVERIFY(!row->isNoColorSelected());
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(!row->getSwatch(i)->isSelected());
+    }
+    row->setColor(QColor(QStringLiteral("#ff3b30")));
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationRed));
+    QVERIFY(row->getSwatch(2)->isSelected());
+    row->setColor(QColor(0xff, 0x3b, 0x30, 0x80));
+    QVERIFY(row->getSwatch(2)->isSelected());
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationRed));
+    QCOMPARE(row->getColor().alpha(), 255);
+    row->setColor(QColor(QStringLiteral("#123456")));
+    QCOMPARE(row->getColor(), QColor(QStringLiteral("#123456")));
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(!row->getSwatch(i)->isSelected());
+    }
+    row->setColor(QColor());
+    QVERIFY(!row->isNoColorSelected());
+    QVERIFY(!row->getColor().isValid());
+    fillRow->setColor(QColor());
+    QVERIFY(fillRow->isNoColorSelected());
+    QVERIFY(!fillRow->getColor().isValid());
+    QVERIFY(fillRow->getSwatch(0)->isSelected());
+    fillRow->setColor(QColor(Qt::white));
+    QVERIFY(fillRow->getSwatch(9)->isSelected());
+    QVERIFY(!fillRow->isNoColorSelected());
+    QCOMPARE(fillRow->getColor(), QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(selectedSpy.count(), 0);
+    QCOMPARE(fillSpy.count(), 0);
+
+    // A theme with other annotation colors: the swatches show it, the row keeps the canonical values
+    pdf::PDFThemeManager* themeManager = pdf::PDFThemeManager::getInstance();
+    pdf::PDFThemeColors custom(QStringLiteral("swatch-row-test"), QStringLiteral("Swatch row test"), Scheme::Dark);
+    custom.setColor(Color::AnnotationYellow, QColor(QStringLiteral("#806000")));
+    themeManager->registerTheme(custom);
+    QVERIFY(themeManager->setTheme(QStringLiteral("swatch-row-test")));
+    QCOMPARE(row->getSwatch(0)->getColor(), QColor(QStringLiteral("#806000")));
+    QVERIFY(isNear(pixel(renderWidget(row, 1.0), 14, 16), QColor(QStringLiteral("#806000"))));
+    row->setColor(QColor(QStringLiteral("#ffd60a")));
+    QVERIFY(row->getSwatch(0)->isSelected());
+    QCOMPARE(row->getColor(), QColor(QStringLiteral("#ffd60a")));
+    row->setColor(QColor(QStringLiteral("#806000")));
+    QVERIFY(!row->getSwatch(0)->isSelected());
+    QTest::mouseClick(row->getSwatch(0), Qt::LeftButton);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), QColor(QStringLiteral("#ffd60a")));
+    QCOMPARE(row->getColor(), QColor(QStringLiteral("#ffd60a")));
+    themeManager->setScheme(Scheme::Dark);
+    QCOMPARE(row->getSwatch(0)->getColor(), token(Color::AnnotationYellow));
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationYellow));
+    themeManager->setScheme(Scheme::Light);
+
+    // A click selects (the selected swatch again too: the user has chosen it), only the user emits
+    QTest::mouseClick(row->getSwatch(5), Qt::LeftButton);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), canonical(Color::AnnotationBlue));
+    QVERIFY(row->getSwatch(5)->isSelected());
+    QVERIFY(!row->getSwatch(0)->isSelected());
+    QTest::mouseClick(row->getSwatch(5), Qt::LeftButton);
+    QCOMPARE(selectedSpy.count(), 1);
+    QVERIFY(row->getSwatch(5)->isSelected());
+    selectedSpy.clear();
+    QTest::mouseClick(fillRow->getSwatch(0), Qt::LeftButton);
+    QCOMPARE(fillSpy.count(), 1);
+    QVERIFY(!fillSpy.takeFirst().at(0).value<QColor>().isValid());
+    QVERIFY(fillRow->isNoColorSelected());
+
+    // Keyboard: the swatches are one stop of Tab (the selected one), More the next stop
+    auto tabStops = [](Row* tested)
+    {
+        int count = 0;
+        for (int i = 0; i < tested->getSwatchCount(); ++i)
+        {
+            if (tested->getSwatch(i) && (tested->getSwatch(i)->focusPolicy() & Qt::TabFocus))
+            {
+                ++count;
+            }
+        }
+        return count;
+    };
+    QCOMPARE(tabStops(row), 1);
+    QVERIFY(row->getSwatch(5)->focusPolicy() & Qt::TabFocus);
+    window.setAttribute(Qt::WA_KeyboardFocusChange, true);
+    before->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(before, Qt::Key_Tab);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(5));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+    QCOMPARE(QApplication::focusWidget(), row->getMoreButton());
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+    QCOMPARE(QApplication::focusWidget(), fillRow->getSwatch(0));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Backtab);
+    QCOMPARE(QApplication::focusWidget(), row->getMoreButton());
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Backtab);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(5));
+
+    // The arrows, Home and End move the focus, they do not select
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Right);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(6));
+    QVERIFY(row->getSwatch(5)->isSelected());
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_End);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(7));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Right);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(7));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Home);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(0));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Left);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(0));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Down);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(1));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Up);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(0));
+    QCOMPARE(tabStops(row), 1);
+    QVERIFY(row->getSwatch(0)->focusPolicy() & Qt::TabFocus);
+    QCOMPARE(selectedSpy.count(), 0);
+    QVERIFY(row->getSwatch(5)->isSelected());
+
+    // Space and Enter select the focused swatch
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Space);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), canonical(Color::AnnotationYellow));
+    QVERIFY(row->getSwatch(0)->isSelected());
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Right);
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Return);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), canonical(Color::AnnotationOrange));
+    QVERIFY(row->getSwatch(1)->isSelected());
+
+    // Accessibility: radio buttons named by the colors, the row "Colors", More "More colors"
+    for (int i = 0; i < 8; ++i)
+    {
+        QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(row->getSwatch(i));
+        QVERIFY(accessible);
+        QCOMPARE(accessible->role(), QAccessible::RadioButton);
+        QCOMPARE(accessible->text(QAccessible::Name), names[i]);
+    }
+    QCOMPARE(QAccessible::queryAccessibleInterface(fillRow->getSwatch(0))->text(QAccessible::Name), QStringLiteral("No color"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(fillRow->getSwatch(9))->text(QAccessible::Name), QStringLiteral("White"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(row->getMoreButton())->text(QAccessible::Name), QStringLiteral("More colors"));
+    QCOMPARE(row->accessibleName(), QStringLiteral("Colors"));
+    row->setAccessibleName(QStringLiteral("Highlight color"));
+    QEvent languageChange(QEvent::LanguageChange);
+    QApplication::sendEvent(row, &languageChange);
+    QCOMPARE(row->accessibleName(), QStringLiteral("Highlight color"));
+    QVERIFY(row->getSwatch(1)->isSelected());
+    QCOMPARE(QAccessible::queryAccessibleInterface(row->getSwatch(3))->text(QAccessible::Name), QStringLiteral("Pink"));
+
+    // Right-to-left: the first color at the right, More at the left, the arrows by the picture
+    row->setLayoutDirection(Qt::RightToLeft);
+    QCOMPARE(row->getSwatch(0)->geometry(), QRect(244, 2, 28, 28));
+    QCOMPARE(row->getSwatch(7)->geometry(), QRect(34, 2, 28, 28));
+    QCOMPARE(row->getMoreButton()->geometry(), QRect(0, 0, 32, 32));
+    row->getSwatch(1)->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(row->getSwatch(1), Qt::Key_Right);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(0));
+    QTest::keyClick(row->getSwatch(0), Qt::Key_Left);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(1));
+    row->setLayoutDirection(Qt::LeftToRight);
+    QCOMPARE(row->getSwatch(0)->geometry(), QRect(0, 2, 28, 28));
+
+    // Visible limit: the swatches over it are hidden, More stays; the hidden color stays selectable by setColor
+    row->setVisibleSwatchLimit(4);
+    QCOMPARE(row->getVisibleSwatchLimit(), 4);
+    QCOMPARE(row->getVisibleSwatchCount(), 4);
+    QCOMPARE(row->sizeHint(), QSize(152, 32));
+    QTRY_COMPARE(row->size(), QSize(152, 32));
+    QCOMPARE(row->getSwatchCount(), 8);
+    for (int i = 0; i < 8; ++i)
+    {
+        QCOMPARE(row->getSwatch(i)->isHidden(), i >= 4);
+    }
+    QCOMPARE(row->getMoreButton()->geometry(), QRect(120, 0, 32, 32));
+    row->getSwatch(0)->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(row->getSwatch(0), Qt::Key_End);
+    QCOMPARE(QApplication::focusWidget(), row->getSwatch(3));
+    row->setColor(canonical(Color::AnnotationGreen));
+    QVERIFY(row->getSwatch(6)->isSelected());
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationGreen));
+    QCOMPARE(tabStops(row), 1);
+    row->setVisibleSwatchLimit(-5);
+    QCOMPARE(row->getVisibleSwatchLimit(), -1);
+    QCOMPARE(row->getVisibleSwatchCount(), 8);
+    QCOMPARE(row->sizeHint(), QSize(272, 32));
+    row->setVisibleSwatchLimit(0);
+    QCOMPARE(row->sizeHint(), QSize(32, 32));
+    row->setVisibleSwatchLimit(-1);
+
+    // Without More: the swatches alone, 28 high
+    row->setOptions(Row::Options());
+    QVERIFY(!row->getMoreButton());
+    QCOMPARE(row->sizeHint(), QSize(238, 28));
+    QVERIFY(!row->showPalette());
+    QVERIFY(row->getSwatch(6)->isSelected());
+    row->setOptions(Option::More);
+    QVERIFY(row->getMoreButton());
+    QCOMPARE(row->sizeHint(), QSize(272, 32));
+
+    // Options dropping "No color" drop its selection
+    fillRow->setColor(QColor());
+    QVERIFY(fillRow->isNoColorSelected());
+    fillRow->setOptions(Option::White | Option::More);
+    QVERIFY(!fillRow->isNoColorSelected());
+    QCOMPARE(fillRow->getSwatchCount(), 9);
+    for (int i = 0; i < 9; ++i)
+    {
+        QVERIFY(!fillRow->getSwatch(i)->isSelected());
+    }
+    QCOMPARE(fillSpy.count(), 0);
+
+    // Pixel probes in both themes at the device pixel ratios 1, 1.5 and 2: the
+    // colors, the selection ring of the selected swatch, the gaps, More, no leak color
+    fillRow->setOptions(Option::NoColor | Option::White | Option::More);
+    fillRow->setColor(canonical(Color::AnnotationRed));
+    QTRY_COMPARE(fillRow->size(), QSize(332, 32));
+    for (const char* theme : { "light", "dark" })
+    {
+        QVERIFY(themeManager->setTheme(QString::fromLatin1(theme)));
+        const QColor surface = token(Color::BgSurface);
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QString where = QStringLiteral("%1 %2").arg(QString::fromLatin1(theme)).arg(scale);
+            const QImage image = renderWidget(fillRow, scale);
+            QVERIFY2(countLeakPixels(image) == 0, qPrintable(where));
+            for (int i = 1; i < 10; ++i)
+            {
+                const Color color = i < 9 ? order[i - 1] : Color::AnnotationWhite;
+                QVERIFY2(isNear(pixel(image, i * 30 + 14, 16), token(color)), qPrintable(where));
+            }
+            // "No color": the surface crossed by the slash icon/danger
+            QVERIFY2(colorDistance(strongestInk(image, QRect(6, 8, 16, 16), surface), token(Color::IconDanger)) < 80, qPrintable(where));
+            // The selected swatch (red, index 3) has the ring bg/accent inside, the others none
+            QVERIFY2(isNear(pixel(image, 90 + 14, 3), token(Color::BgAccent), 40), qPrintable(where));
+            QVERIFY2(isNear(pixel(image, 60 + 14, 3), surface, 3), qPrintable(where));
+            // The gaps are the background, More has its icon
+            QVERIFY2(isNear(pixel(image, 29, 16), surface, 3), qPrintable(where));
+            QVERIFY2(isNear(pixel(image, 299, 16), surface, 3), qPrintable(where));
+            QVERIFY2(colorDistance(strongestInk(image, QRect(300, 0, 32, 32), surface), token(Color::IconDefault)) < 80, qPrintable(where));
+        }
+    }
+    themeManager->setScheme(Scheme::Light);
+
+    // Defensive: hostile limits and colors
+    Row hostile;
+    hostile.setVisibleSwatchLimit(std::numeric_limits<int>::max());
+    QCOMPARE(hostile.getVisibleSwatchCount(), 8);
+    hostile.setVisibleSwatchLimit(std::numeric_limits<int>::min());
+    QCOMPARE(hostile.getVisibleSwatchLimit(), -1);
+    hostile.setColor(QColor(0x12, 0x34, 0x56, 0));
+    QVERIFY(hostile.getColor().isValid());
+    QVERIFY(!hostile.getSwatch(7)->isSelected());
+    // The rgb values are compared: a transparent black is black, reported opaque
+    hostile.setColor(QColor::fromRgba(0));
+    QVERIFY(hostile.getSwatch(7)->isSelected());
+    QCOMPARE(hostile.getColor(), QColor(Qt::black));
+}
+
+void FluentComponentsTest::colorSwatchRowPalette()
+{
+    using Row = pdf::PDFColorSwatchRow;
+    using Option = Row::Option;
+    using Scheme = pdf::PDFThemeColors::Scheme;
+    auto canonical = [](Color color) { return QColor(QString::fromLatin1(pdf::PDFThemeColors::getBuiltinTokenValue(color, Scheme::Light))); };
+
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(20, 20, 20, 20);
+    Row* row = new Row(&window);
+    QLineEdit* other = new QLineEdit(&window);
+    layout->addWidget(row);
+    layout->addWidget(other);
+    layout->addStretch(1);
+    window.resize(500, 500);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QSignalSpy selectedSpy(row, &Row::colorSelected);
+    row->setColor(canonical(Color::AnnotationRed));
+
+    // More opens the palette 4 px below it, with the colors of the row as the suggested ones
+    QVERIFY(!row->isPaletteVisible());
+    QTest::mouseClick(row->getMoreButton(), Qt::LeftButton);
+    QVERIFY(row->isPaletteVisible());
+    pdf::PDFColorPalette* palette = row->getPalette();
+    QVERIFY(palette->isPopup());
+    QCOMPARE(palette->parentWidget(), row);
+    QCOMPARE(QApplication::activePopupWidget(), palette);
+    QCOMPARE(palette->getSuggestedColors().size(), 8);
+    for (int i = 0; i < 8; ++i)
+    {
+        QCOMPARE(palette->getSuggestedColors().at(i).color, row->getEntry(i).canonicalColor);
+        QCOMPARE(palette->getSuggestedColors().at(i).name, row->getEntry(i).name);
+    }
+    const QMargins margins = palette->testAttribute(Qt::WA_TranslucentBackground) ? QMargins(24, 16, 24, 32) : QMargins();
+    QAbstractButton* more = row->getMoreButton();
+    QCOMPARE(palette->mapToGlobal(QPoint(margins.left(), margins.top())), more->mapToGlobal(QPoint(0, more->height() + 4)));
+    QVERIFY(palette->getSuggestedSwatch(2)->isSelected());
+    QCOMPARE(QApplication::focusWidget(), palette->getSuggestedSwatch(2));
+    QCOMPARE(countLeakPixels(renderWidget(palette, 1.0)), 0);
+
+    // A suggested color picked by the keyboard: emitted once, the swatch of the row selected, the focus back on More
+    window.setAttribute(Qt::WA_KeyboardFocusChange, true);
+    for (int i = 0; i < 3; ++i)
+    {
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_Right);
+    }
+    QCOMPARE(QApplication::focusWidget(), palette->getSuggestedSwatch(5));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Return);
+    QVERIFY(!row->isPaletteVisible());
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), canonical(Color::AnnotationBlue));
+    QVERIFY(row->getSwatch(5)->isSelected());
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationBlue));
+    QTRY_VERIFY(more->hasFocus());
+
+    // A custom color (a recent color of the palette): emitted as chosen, no swatch selected
+    palette->setRecentColors({ pdf::PDFColorPalette::Entry{ QColor(QStringLiteral("#123456")), QStringLiteral("Navy") } });
+    QVERIFY(row->showPalette());
+    QTest::mouseClick(palette->getRecentSwatch(0), Qt::LeftButton);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedSpy.takeFirst().at(0).value<QColor>(), QColor(QStringLiteral("#123456")));
+    QCOMPARE(row->getColor(), QColor(QStringLiteral("#123456")));
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(!row->getSwatch(i)->isSelected());
+    }
+
+    // Opened again: no suggested color is selected; Esc closes, nothing is emitted
+    QVERIFY(row->showPalette());
+    for (int i = 0; i < 8; ++i)
+    {
+        QVERIFY(!palette->getSuggestedSwatch(i)->isSelected());
+    }
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+    QVERIFY(!row->isPaletteVisible());
+    QCOMPARE(selectedSpy.count(), 0);
+    QCOMPARE(row->getColor(), QColor(QStringLiteral("#123456")));
+    QTRY_VERIFY(more->hasFocus());
+
+    // Nothing selected: the palette selects nothing either (also not "No color")
+    Row* fillRow = new Row(&window);
+    fillRow->setOptions(Option::NoColor | Option::White | Option::More);
+    layout->insertWidget(1, fillRow);
+    QTRY_VERIFY(fillRow->isVisible() && fillRow->size() == QSize(332, 32));
+    QSignalSpy fillSpy(fillRow, &Row::colorSelected);
+    QVERIFY(fillRow->showPalette());
+    pdf::PDFColorPalette* fillPalette = fillRow->getPalette();
+    QCOMPARE(fillPalette->getSuggestedColors().size(), 10);
+    QVERIFY(!fillPalette->getSuggestedColors().front().color.isValid());
+    for (int i = 0; i < 10; ++i)
+    {
+        QVERIFY(!fillPalette->getSuggestedSwatch(i)->isSelected());
+    }
+
+    // "No color" picked in the palette
+    QTest::mouseClick(fillPalette->getSuggestedSwatch(0), Qt::LeftButton);
+    QCOMPARE(fillSpy.count(), 1);
+    QVERIFY(!fillSpy.takeFirst().at(0).value<QColor>().isValid());
+    QVERIFY(fillRow->isNoColorSelected());
+    QVERIFY(fillRow->getSwatch(0)->isSelected());
+
+    // More colors… of the palette
+    QSignalSpy moreSpy(row, &Row::moreColorsRequested);
+    QVERIFY(row->showPalette());
+    QTest::mouseClick(palette->getMoreColorsLink(), Qt::LeftButton);
+    QCOMPARE(moreSpy.count(), 1);
+    QVERIFY(!row->isPaletteVisible());
+
+    // Keyboard: Space on More opens the palette
+    more->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(more, Qt::Key_Space);
+    QVERIFY(row->isPaletteVisible());
+    palette->close();
+    QVERIFY(!row->isPaletteVisible());
+
+    // A disabled row does not open it and closes it; a hidden window closes it
+    QVERIFY(row->showPalette());
+    row->setEnabled(false);
+    QVERIFY(!row->isPaletteVisible());
+    QVERIFY(!row->showPalette());
+    row->setEnabled(true);
+    QVERIFY(row->showPalette());
+    window.hide();
+    QVERIFY(!row->isPaletteVisible());
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    // The palette deleted while it is open: a new one is created
+    QVERIFY(row->showPalette());
+    QPointer<pdf::PDFColorPalette> deletedPalette = palette;
+    delete palette;
+    QVERIFY(!deletedPalette);
+    QVERIFY(!row->isPaletteVisible());
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    palette = row->getPalette();
+    QVERIFY(palette);
+    QVERIFY(row->showPalette());
+    palette->close();
+
+    // A theme change and a language change with the palette open
+    QVERIFY(row->showPalette());
+    pdf::PDFThemeManager::getInstance()->setScheme(Scheme::Dark);
+    QEvent languageChange(QEvent::LanguageChange);
+    QApplication::sendEvent(row, &languageChange);
+    QVERIFY(row->isPaletteVisible());
+    QCOMPARE(palette->getSuggestedColors().size(), 8);
+    pdf::PDFThemeManager::getInstance()->setScheme(Scheme::Light);
+    palette->close();
+
+    // Nested widgets deleted by the application: a swatch, the More button
+    delete row->getSwatch(3);
+    QVERIFY(!row->getSwatch(3));
+    QCOMPARE(row->getSwatchCount(), 8);
+    QCOMPARE(row->getVisibleSwatchCount(), 7);
+    QCOMPARE(row->sizeHint(), QSize(242, 32));
+    QTRY_COMPARE(row->getSwatch(4)->geometry(), QRect(90, 2, 28, 28));
+    row->setColor(canonical(Color::AnnotationPink));
+    QCOMPARE(row->getColor(), canonical(Color::AnnotationPink));
+    delete row->getMoreButton();
+    QVERIFY(!row->getMoreButton());
+    QVERIFY(!row->showPalette());
+    QCOMPARE(row->sizeHint(), QSize(208, 28));
+    // Options set again create the missing widgets
+    row->setOptions(Option::White | Option::More);
+    QCOMPARE(row->getSwatchCount(), 9);
+    for (int i = 0; i < 9; ++i)
+    {
+        QVERIFY(row->getSwatch(i));
+    }
+    QVERIFY(row->getMoreButton());
+    QVERIFY(row->getSwatch(3)->isSelected());
+    QTRY_VERIFY(row->getMoreButton()->isVisible());
+    QVERIFY(row->showPalette());
+    palette->close();
+
+    // A swatch moved to another parent is forgotten
+    QWidget foreign;
+    pdf::PDFColorSwatch* moved = row->getSwatch(1);
+    moved->setParent(&foreign);
+    QVERIFY(!row->getSwatch(1));
+    moved->click();
+    QCOMPARE(selectedSpy.count(), 0);
+
+    // The row deleted from its own signal: a swatch, the palette
+    QPointer<Row> deleted = new Row(&window);
+    layout->addWidget(deleted);
+    QTRY_VERIFY(deleted->isVisible());
+    connect(deleted.data(), &Row::colorSelected, &window, [&deleted]() { delete deleted.data(); });
+    deleted->getSwatch(1)->click();
+    QVERIFY(!deleted);
+
+    deleted = new Row(&window);
+    layout->addWidget(deleted);
+    QTRY_VERIFY(deleted->isVisible() && deleted->getMoreButton()->isVisible());
+    connect(deleted.data(), &Row::colorSelected, &window, [&deleted]() { delete deleted.data(); });
+    QVERIFY(deleted->showPalette());
+    QPointer<pdf::PDFColorPalette> deletedRowPalette = deleted->getPalette();
+    deletedRowPalette->getSuggestedSwatch(2)->click();
+    QVERIFY(!deleted);
+    QVERIFY(!deletedRowPalette);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    QApplication::processEvents();
+
+    // The row deleted from moreColorsRequested and from toggled of its swatch
+    deleted = new Row(&window);
+    layout->addWidget(deleted);
+    QTRY_VERIFY(deleted->isVisible() && deleted->getMoreButton()->isVisible());
+    connect(deleted.data(), &Row::moreColorsRequested, &window, [&deleted]() { delete deleted.data(); });
+    QVERIFY(deleted->showPalette());
+    deleted->getPalette()->getMoreColorsLink()->click();
+    QVERIFY(!deleted);
+    QApplication::processEvents();
+
+    deleted = new Row(&window);
+    connect(deleted->getSwatch(4), &QAbstractButton::toggled, &window, [&deleted]() { delete deleted.data(); });
+    deleted->setColor(canonical(Color::AnnotationPurple));
+    QVERIFY(!deleted);
+
+    // The row deleted while its palette is open (directly and with its window)
+    Row* open = new Row(&window);
+    layout->addWidget(open);
+    QTRY_VERIFY(open->isVisible() && open->getMoreButton()->isVisible());
+    QVERIFY(open->showPalette());
+    QPointer<pdf::PDFColorPalette> openPalette = open->getPalette();
+    delete open;
+    QVERIFY(!openPalette);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    QApplication::processEvents();
+
+    QWidget* otherWindow = new QWidget();
+    QVBoxLayout* otherLayout = new QVBoxLayout(otherWindow);
+    Row* otherRow = new Row(otherWindow);
+    otherLayout->addWidget(otherRow);
+    otherWindow->resize(400, 300);
+    otherWindow->show();
+    otherWindow->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(otherWindow));
+    QVERIFY(otherRow->showPalette());
+    QPointer<pdf::PDFColorPalette> otherPalette = otherRow->getPalette();
+    delete otherWindow;
+    QVERIFY(!otherPalette);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    QApplication::processEvents();
+}
+
+void FluentComponentsTest::referencePointPicker()
+{
+    using Picker = pdf::PDFReferencePointPicker;
+    using Scheme = pdf::PDFThemeColors::Scheme;
+
+    // 1024:21781: 62 x 62, padding 6, points 14, gap 4
+    QWidget window;
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    QLineEdit* before = new QLineEdit(&window);
+    Picker* picker = new Picker(&window);
+    layout->addWidget(before);
+    layout->addWidget(picker);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QCOMPARE(picker->sizeHint(), QSize(Picker::EXTENT, Picker::EXTENT));
+    QCOMPARE(picker->size(), QSize(Picker::EXTENT, Picker::EXTENT));
+    QCOMPARE(picker->getPointRect(0), QRect(Picker::PADDING, Picker::PADDING, Picker::POINT, Picker::POINT));
+    QCOMPARE(picker->getPointRect(8), QRect(Picker::PADDING + 2 * (Picker::POINT + Picker::GAP), Picker::PADDING + 2 * (Picker::POINT + Picker::GAP), Picker::POINT, Picker::POINT));
+    QVERIFY(picker->getPointRect(9).isNull());
+    QVERIFY(picker->getPointRect(-1).isNull());
+    QCOMPARE(picker->getPointAt(QPoint(0, 0)), -1);
+
+    // The alignments of the points (center for a missing part)
+    QCOMPARE(Picker::getAlignment(0), Qt::Alignment(Qt::AlignLeft | Qt::AlignTop));
+    QCOMPARE(Picker::getAlignment(4), Qt::Alignment(Qt::AlignHCenter | Qt::AlignVCenter));
+    QCOMPARE(Picker::getAlignment(8), Qt::Alignment(Qt::AlignRight | Qt::AlignBottom));
+    QCOMPARE(Picker::getAlignment(100), Qt::Alignment(Qt::AlignRight | Qt::AlignBottom));
+    for (int i = 0; i < Picker::POINT_COUNT; ++i)
+    {
+        QCOMPARE(Picker::getIndex(Picker::getAlignment(i)), i);
+        QVERIFY(!Picker::getPointName(i).isEmpty());
+    }
+    QCOMPARE(Picker::getIndex(Qt::Alignment()), 4);
+    QCOMPARE(Picker::getIndex(Qt::AlignRight), 5);
+
+    // A click chooses a point (also in the gap next to it); invalid indices are ignored
+    QSignalSpy changed(picker, &Picker::currentIndexChanged);
+    QCOMPARE(picker->getCurrentIndex(), 0);
+    QTest::mouseClick(picker, Qt::LeftButton, Qt::NoModifier, picker->getPointRect(5).center());
+    QCOMPARE(picker->getCurrentIndex(), 5);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(picker->accessibleDescription(), Picker::getPointName(5));
+    QTest::mouseClick(picker, Qt::LeftButton, Qt::NoModifier, picker->getPointRect(5).center());
+    QCOMPARE(changed.count(), 1);
+    QTest::mouseClick(picker, Qt::LeftButton, Qt::NoModifier, picker->getPointRect(1).bottomLeft() + QPoint(0, 2));
+    QCOMPARE(picker->getCurrentIndex(), 1);
+    picker->setCurrentIndex(-1);
+    picker->setCurrentIndex(9);
+    QCOMPARE(picker->getCurrentIndex(), 1);
+    picker->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    QCOMPARE(picker->getCurrentIndex(), 6);
+    QCOMPARE(picker->getAlignment(), Qt::Alignment(Qt::AlignLeft | Qt::AlignBottom));
+
+    // The keyboard: the arrows move (not mirrored for right-to-left), Home / End
+    picker->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(picker, Qt::Key_Up);
+    QCOMPARE(picker->getCurrentIndex(), 3);
+    QTest::keyClick(picker, Qt::Key_Right);
+    QCOMPARE(picker->getCurrentIndex(), 4);
+    window.setLayoutDirection(Qt::RightToLeft);
+    QTest::keyClick(picker, Qt::Key_Right);
+    QCOMPARE(picker->getCurrentIndex(), 5);
+    QTest::keyClick(picker, Qt::Key_Right);
+    QCOMPARE(picker->getCurrentIndex(), 5);
+    QTest::keyClick(picker, Qt::Key_Down);
+    QTest::keyClick(picker, Qt::Key_Down);
+    QCOMPARE(picker->getCurrentIndex(), 8);
+    QTest::keyClick(picker, Qt::Key_Home);
+    QCOMPARE(picker->getCurrentIndex(), 0);
+    QTest::keyClick(picker, Qt::Key_Left);
+    QTest::keyClick(picker, Qt::Key_Up);
+    QCOMPARE(picker->getCurrentIndex(), 0);
+    QTest::keyClick(picker, Qt::Key_End);
+    QCOMPARE(picker->getCurrentIndex(), 8);
+    window.setLayoutDirection(Qt::LeftToRight);
+
+    // Pixels: the chosen point bg/accent, another point bg/surface, the frame bg/subtle,
+    // both themes at 1x and 2x; disabled: icon/disabled
+    picker->setCurrentIndex(0);
+    picker->clearFocus();
+    QApplication::processEvents();
+    for (const Scheme scheme : { Scheme::Light, Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        for (const qreal ratio : { 1.0, 2.0 })
+        {
+            QImage image(QSize(Picker::EXTENT, Picker::EXTENT) * ratio, QImage::Format_ARGB32_Premultiplied);
+            image.setDevicePixelRatio(ratio);
+            image.fill(Qt::transparent);
+            picker->render(&image, QPoint(), QRegion(), QWidget::DrawChildren);
+            auto pixel = [&](QPoint point) { return image.pixelColor(point * ratio); };
+            QCOMPARE(pixel(picker->getPointRect(0).center()), token(Color::BgAccent));
+            QCOMPARE(pixel(picker->getPointRect(4).center()), token(Color::BgSurface));
+            QCOMPARE(pixel(QPoint(Picker::EXTENT / 2, 2)), token(Color::BgSubtle));
+            QCOMPARE(countLeakPixels(image), 0);
+        }
+        picker->setEnabled(false);
+        const QImage disabled = picker->grab().toImage();
+        QCOMPARE(disabled.pixelColor(picker->getPointRect(0).center() * disabled.devicePixelRatio()), token(Color::IconDisabled));
+        picker->setEnabled(true);
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(Scheme::Light);
+
+    // Hover: the border of the point under the pointer is bg/accent; Leave clears it
+    QTest::mouseMove(picker, picker->getPointRect(4).center());
+    QCOMPARE(picker->getHoveredIndex(), 4);
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(picker, &leave);
+    QCOMPARE(picker->getHoveredIndex(), -1);
+
+    // A language change keeps the description
+    QEvent language(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(picker, &language);
+    QCOMPARE(picker->accessibleDescription(), Picker::getPointName(0));
+}
+
 void FluentComponentsTest::signatureCard()
 {
     using Status = Painter::SignatureStatus;
@@ -12090,6 +12803,128 @@ void FluentComponentsTest::delegateListWidth()
             view.setItemDelegate(nullptr);
         }
     }
+}
+
+// Step 4 (package C): the replies of the Notes panel are indented by IndentRole
+// (note-row-reply 1025:21921 at x 24, the selection with the row) and a hidden
+// annotation has the eye-off mark of StateIconRole (1026:21995)
+void FluentComponentsTest::delegateNoteReplies()
+{
+    using Roles = pdf::PDFComponentRoles;
+    using Painter = pdf::PDFComponentPainter;
+
+    QStandardItemModel model;
+    QStandardItem* note = new QStandardItem(QStringLiteral("Jakub Melka"));
+    note->setData(QStringLiteral("Shorten this paragraph."), Roles::TextRole);
+    model.appendRow(note);
+    QStandardItem* reply = new QStandardItem(QStringLiteral("Jane Novak"));
+    reply->setData(QStringLiteral("Agreed."), Roles::TextRole);
+    reply->setData(QStringLiteral("corner-down-right"), Roles::IconNameRole);
+    reply->setData(static_cast<int>(pdf::PDFAccentHue::Neutral), Roles::HueRole);
+    reply->setData(24, Roles::IndentRole);
+    model.appendRow(reply);
+    QStandardItem* hidden = new QStandardItem(QStringLiteral("Peter Dvorak"));
+    hidden->setData(QStringLiteral("Hidden on the page"), Roles::TextRole);
+    hidden->setData(QStringLiteral("eye-off"), Roles::StateIconRole);
+    model.appendRow(hidden);
+
+    pdf::PDFNoteDelegate delegate;
+    QCOMPARE(pdf::PDFNoteDelegate::getIndent(model.index(0, 0)), 0);
+    QCOMPARE(pdf::PDFNoteDelegate::getIndent(model.index(1, 0)), 24);
+    QCOMPARE(delegate.getContent(model.index(2, 0)).stateIconName, QStringLiteral("eye-off"));
+
+    // The size: the whole width, the height of the row without the indentation
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 276, 48);
+    const QSize replySize = delegate.sizeHint(option, model.index(1, 0));
+    QCOMPARE(replySize.width(), 276);
+    QCOMPARE(replySize.height(), Painter::getNoteRowHeight(delegate.getContent(model.index(1, 0)), 252));
+
+    // A longer text wraps in the indented row: the cached height follows the indentation
+    reply->setData(QStringLiteral("Agreed - keep only the first sentence of the paragraph."), Roles::TextRole);
+    reply->setData(0, Roles::IndentRole);
+    const int unindented = delegate.sizeHint(option, model.index(1, 0)).height();
+    reply->setData(96, Roles::IndentRole);
+    const int indented = delegate.sizeHint(option, model.index(1, 0)).height();
+    QVERIFY(indented >= unindented);
+    QCOMPARE(indented, Painter::getNoteRowHeight(delegate.getContent(model.index(1, 0)), 276 - 96));
+
+    // Hostile indentations are bounded
+    for (const QVariant& value : { QVariant(-5), QVariant(100000), QVariant(QStringLiteral("x")), QVariant() })
+    {
+        reply->setData(value, Roles::IndentRole);
+        const int indent = pdf::PDFNoteDelegate::getIndent(model.index(1, 0));
+        QVERIFY(indent >= 0 && indent <= pdf::PDFNoteDelegate::MAXIMUM_INDENT);
+        QVERIFY(delegate.sizeHint(option, model.index(1, 0)).isValid());
+    }
+    reply->setData(QStringLiteral("Agreed."), Roles::TextRole);
+    reply->setData(24, Roles::IndentRole);
+
+    // The selected reply: the indentation keeps the background, the row is selected
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        for (const qreal scale : { 1.0, 2.0 })
+        {
+            const QImage image = renderDelegate(&delegate, model.index(1, 0), QStyle::State_Enabled | QStyle::State_Selected, QSize(276, 48), scale, direction);
+            const qreal indentX = direction == Qt::LeftToRight ? 12 : 276 - 12;
+            const qreal rowX = direction == Qt::LeftToRight ? 24 + 4 : 252 - 4;
+            QCOMPARE(pixel(image, indentX, 24).name(), token(Color::BgSurface).name());
+            QVERIFY(colorDistance(pixel(image, rowX, 4), blend(token(Color::BgAccentSubtle), token(Color::BgSurface))) < 12);
+            QCOMPARE(countLeakPixels(image), 0);
+        }
+    }
+
+    // The eye-off mark at the trailing side (mirrored right-to-left), icon/muted
+    const Painter::NoteRow hiddenRow = delegate.getContent(model.index(2, 0));
+    const QRectF iconRect = Painter::getNoteRowStateIconRect(QRectF(0, 0, 276, 48), hiddenRow);
+    QCOMPARE(iconRect.size(), QSizeF(14, 14));
+    QCOMPARE(iconRect.right(), 272.0);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        const QImage image = renderDelegate(&delegate, model.index(2, 0), QStyle::State_Enabled, QSize(276, 48), 1.0, direction);
+        const QRectF probe = direction == Qt::LeftToRight ? iconRect : QRectF(276 - iconRect.right(), iconRect.top(), iconRect.width(), iconRect.height());
+        int inked = 0;
+        for (int y = int(probe.top()); y < int(probe.bottom()); ++y)
+        {
+            for (int x = int(probe.left()); x < int(probe.right()); ++x)
+            {
+                inked += colorDistance(pixel(image, x, y), token(Color::BgSurface)) > 60 ? 1 : 0;
+            }
+        }
+        QVERIFY2(inked > 8, qPrintable(QString::number(inked)));
+    }
+
+    // The text of a hidden row leaves the place of the icon free; without a text
+    // the mark lies on the head line
+    Painter::NoteRow noText = hiddenRow;
+    noText.text.clear();
+    QCOMPARE(Painter::getNoteRowStateIconRect(QRectF(0, 0, 276, 48), noText).top(), 8.5);
+    QVERIFY(Painter::getNoteRowStateIconRect(QRectF(), hiddenRow).isEmpty());
+
+    // The date of the head line keeps the gap before the mark of a row without a text
+    // (the place of the mark is the same with and without the date)
+    {
+        Painter::NoteRow dated = noText;
+        dated.date = QStringLiteral("Oct 19, 2026 14:05");
+        Painter::NoteRow undated = noText;
+        undated.date.clear();
+        const QRectF markRect = Painter::getNoteRowStateIconRect(QRectF(0, 0, 276, 48), dated).adjusted(-2, 0, 0, 0);
+        QImage datedImage(276, 48, QImage::Format_ARGB32_Premultiplied);
+        QImage undatedImage(276, 48, QImage::Format_ARGB32_Premultiplied);
+        datedImage.fill(Qt::transparent);
+        undatedImage.fill(Qt::transparent);
+        {
+            QPainter painter(&datedImage);
+            Painter::paintNoteRow(&painter, QRectF(0, 0, 276, 48), dated, Painter::State());
+        }
+        {
+            QPainter painter(&undatedImage);
+            Painter::paintNoteRow(&painter, QRectF(0, 0, 276, 48), undated, Painter::State());
+        }
+        QCOMPARE(datedImage.copy(markRect.toAlignedRect()), undatedImage.copy(markRect.toAlignedRect()));
+        QVERIFY(datedImage != undatedImage);
+    }
+    Painter::paintNoteRow(nullptr, QRectF(0, 0, 276, 48), hiddenRow, Painter::State());
 }
 
 // R2: an invalid hue or role of an accent color is Neutral / Background (its

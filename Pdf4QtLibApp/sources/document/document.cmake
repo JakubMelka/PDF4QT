@@ -20,16 +20,28 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Sources of the document tab (step 3 of phase 1, GUI_overhaul/newapplication.md 4):
+# Sources of the document tab (steps 3 and 4 of phase 1, GUI_overhaul/newapplication.md 4):
 # the model of a document, its view, the panels of the sidebar, the search, the
-# file operations and the properties. Paths are relative to the directory of
-# Pdf4QtLibApp. Each package of step 3 owns one of the included files.
+# file operations and the properties (step 3), the annotations, the outline and
+# the forms (step 4). Paths are relative to the directory of Pdf4QtLibApp. Each
+# package owns one of the included files.
 
 # Commands of the document tab: the table command id -> package and the base of
 # the command handlers (wave 0, shared)
 set(PDF4QT_LIBAPP_DOCUMENT_SOURCES
     sources/document/pdfappdocumentcommands.cpp
     sources/document/pdfappdocumentcommands.h
+)
+
+# Step 4, wave 0 (shared): the controller of the annotations of a view (commit,
+# merge sessions, delegated engine user interface, lock), the widget-free
+# operations (their bodies are in the package files) and the floating bar
+list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
+    sources/document/pdfappannotationcontroller.cpp
+    sources/document/pdfappannotationcontroller.h
+    sources/document/pdfappannotationoperations.h
+    sources/document/pdfappfloatingbar.cpp
+    sources/document/pdfappfloatingbar.h
 )
 
 # Package A - model, lifecycle, undo / redo, window integration
@@ -49,3 +61,15 @@ include(${CMAKE_CURRENT_LIST_DIR}/file.cmake)
 
 # Package F - properties, links and actions, rendering issues, developer view
 include(${CMAKE_CURRENT_LIST_DIR}/properties.cmake)
+
+# Step 4, package A - Annotate and Insert, creation of annotations
+include(${CMAKE_CURRENT_LIST_DIR}/annotate.cmake)
+
+# Step 4, package B - editing of the annotations on the page
+include(${CMAKE_CURRENT_LIST_DIR}/annotationedit.cmake)
+
+# Step 4, package C - Notes and Outline editing
+include(${CMAKE_CURRENT_LIST_DIR}/notesoutline.cmake)
+
+# Step 4, package D - form filling
+include(${CMAKE_CURRENT_LIST_DIR}/forms.cmake)

@@ -42,6 +42,11 @@ public:
     QString description;
     PDFAppChangeSource source = PDFAppChangeSource::User;
 
+    /// Key of a merge session (step 4, owner decision O20): consecutive commits
+    /// with the same key - a live change of the color or of the width of the
+    /// selected annotations - are one undo step (empty = the step is never merged)
+    QString mergeKey;
+
     /// Estimate of the memory, which the step holds beyond the document of the
     /// neighboring version (objects, which the two documents do not share)
     qint64 memory = 0;
@@ -79,6 +84,22 @@ public:
     /// steps are removed, the oldest steps over the limits are dropped.
     void push(PDFAppUndoStep step);
 
+    /// A commit with the key \p mergeKey can be merged into the top undo step: the
+    /// key is not empty, it equals the key of the top step and nothing has happened
+    /// since that step was pushed (no other commit, undo, redo, save, closeMerge)
+    bool canMerge(const QString& mergeKey) const;
+
+    /// Merges a change into the top undo step (canMerge must be true): the step
+    /// keeps the document before the first change of the session, its flags are
+    /// joined with \p flags and its memory is estimated against \p newDocument
+    void merge(PDFModifiedDocument::ModificationFlags flags, const PDFDocument* newDocument);
+
+    /// Ends the merge session: the next commit is a new step, whatever its key
+    void closeMerge() { m_isMergeOpen = false; }
+
+    /// A merge session is open (the top step can take a commit of its key)
+    bool isMergeOpen() const { return m_isMergeOpen; }
+
     bool canUndo() const { return !m_undoSteps.empty(); }
     bool canRedo() const { return !m_redoSteps.empty(); }
 
@@ -109,12 +130,12 @@ public:
     size_t getUndoCount() const { return m_undoSteps.size(); }
     size_t getRedoCount() const { return m_redoSteps.size(); }
 
-    /// The current version is saved (PDFAppDocument::setSaved)
+    /// The current version is saved (PDFAppDocument::setSaved); ends the merge session
     void setSavedPosition();
 
     /// The saved version is not a version of the stack (an older version written
-    /// by a save, while the document was changed)
-    void setSavedPositionUnknown() { m_savedPosition = -1; }
+    /// by a save, while the document was changed); ends the merge session
+    void setSavedPositionUnknown() { m_savedPosition = -1; m_isMergeOpen = false; }
 
     /// The current position is the saved version
     bool isAtSavedPosition() const { return m_savedPosition == int(m_undoSteps.size()); }
@@ -137,6 +158,7 @@ private:
     int m_limit = DEFAULT_LIMIT;
     qint64 m_memoryLimit = DEFAULT_MEMORY_LIMIT;
     int m_savedPosition = 0;    ///< Number of undo steps of the saved version, -1 = unreachable
+    bool m_isMergeOpen = false; ///< The top undo step takes the commits of its merge key
 };
 
 }   // namespace pdf

@@ -109,6 +109,21 @@ public:
     /// \param next Focus next (true) or previous (false) widget
     bool focusNextPrevFormField(bool next);
 
+    /// Tab order of the pages (ISO 32000-2, 12.5.1, entry Tabs of the page): Tab moves
+    /// through the fields page by page, on a page in the order of its entry Tabs (R rows,
+    /// C columns; S, A, W or no entry - the order of the array Annots), it skips read
+    /// only fields and hidden widgets, and it cycles - after the last field the first
+    /// one, before the first field the last one (focusNextPrevFormField). Off by default:
+    /// the order of the field tree, every field, and the focus leaves the fields after
+    /// the last one (the old applications).
+    // TODO(remove-old-apps): the tab order of the pages becomes the only order - the switch and the order of the field tree go
+    void setPageTabOrder(bool pageTabOrder) { m_isPageTabOrder = pageTabOrder; }
+    bool isPageTabOrder() const { return m_isPageTabOrder; }
+
+    /// Returns the widget annotations in the order of Tab (setPageTabOrder; without it
+    /// the order of the field tree with every widget)
+    std::vector<PDFObjectReference> getTabOrder() const;
+
     /// Sets focus to the editor. Is is allowed to pass nullptr to this
     /// function, it means that no editor is focused.
     /// \param editor Editor to be focused
@@ -117,6 +132,17 @@ public:
     /// Returns true, if widget is focused.
     /// \param widget Widget annotation reference
     virtual bool isFocused(PDFObjectReference widget) const override;
+
+    /// Returns the widget annotation of the focused editor (an invalid reference,
+    /// when no editor has the focus)
+    PDFObjectReference getFocusedWidget() const;
+
+    /// Returns true, if a mouse press at the point of the widget goes to an editor
+    /// of a field (a field is under the point, the form is not read only, or the
+    /// mouse is grabbed by an editor)
+    /// \param widget Widget (the draw widget of the proxy)
+    /// \param point Point in the coordinates of the widget
+    bool isEditorAt(QWidget* widget, QPoint point);
 
     /// Returns editor for form field
     PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
@@ -159,6 +185,9 @@ protected:
 private:
     void updateFormWidgetEditors();
 
+    /// Returns the editors in the order of Tab (see setPageTabOrder)
+    std::vector<PDFFormFieldWidgetEditor*> getTabOrderEditors() const;
+
     /// Releases all form widget editors
     void clearEditors();
 
@@ -192,6 +221,7 @@ private:
     std::optional<QCursor> m_mouseCursor;
     std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
     PDFFormFieldWidgetEditor* m_focusedEditor;
+    bool m_isPageTabOrder = false;
 };
 
 }   // namespace pdf

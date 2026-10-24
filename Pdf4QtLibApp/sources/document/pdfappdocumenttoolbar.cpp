@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdfappdocumenttoolbar.h"
+#include "pdfappannotatepanels.h"
+#include "pdfappannotationcontroller.h"
 #include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
@@ -58,7 +60,9 @@ public:
     /// Property of a button: the id of its command
     static constexpr const char* COMMAND_PROPERTY = "pdf4qtCommandId";
 
-    /// Levels of the narrowing of the toolbar
+    /// Levels of the narrowing of the toolbar. Annotate and Insert are the only
+    /// entries of their panels (step 4), so they are hidden last: the page
+    /// navigation has the page item of the status bar and the keys.
     enum CollapseLevel
     {
         Full = 0,
@@ -66,9 +70,9 @@ public:
         SearchNarrow,
         ZoomHidden,
         SearchMinimum,
-        AnnotateInsertHidden,
         PageNavigationHidden,
-        LastLevel = PageNavigationHidden
+        AnnotateInsertHidden,
+        LastLevel = AnnotateInsertHidden
     };
 
     /// Creates a horizontal group without margins
@@ -191,10 +195,10 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
         leftLayout->addWidget(button);
     }
 
-    // Annotate and Insert are the annotations of step 4; Tools opens the catalog of the tools
-    m_annotateButton->setCheckable(false);
+    // Annotate and Insert open the panels of step 4 (enabled by their commands -
+    // a locked document or one without the permission disables them); Tools opens
+    // the catalog of the tools
     m_annotateButton->setEnabled(false);
-    m_insertButton->setCheckable(false);
     m_insertButton->setEnabled(false);
     m_toolsButton->setCheckable(false);
     disconnect(m_toolsButton.data(), &QToolButton::clicked, this, &PDFAppDocumentToolbar::onMenuButtonClicked);
@@ -340,14 +344,6 @@ void PDFAppDocumentToolbar::retranslate()
             item.first->setAccessibleName(item.second);
         }
     }
-    if (m_annotateButton)
-    {
-        m_annotateButton->setToolTip(tr("Annotations are available in a later version"));
-    }
-    if (m_insertButton)
-    {
-        m_insertButton->setToolTip(tr("Inserting is available in a later version"));
-    }
 
     updateCommandToolTips();
 
@@ -454,6 +450,10 @@ QToolButton* PDFAppDocumentToolbar::getMenuButton(Panel panel) const
             return m_viewButton.data();
         case Panel::GoTo:
             return m_goToButton.data();
+        case Panel::Annotate:
+            return m_annotateButton.data();
+        case Panel::Insert:
+            return m_insertButton.data();
     }
     return nullptr;
 }
@@ -529,6 +529,12 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
             case Panel::GoTo:
                 popup = new PDFAppDocumentGoToPanel(m_view, this);
                 break;
+            case Panel::Annotate:
+                popup = new PDFAppAnnotatePanel(m_view, this);
+                break;
+            case Panel::Insert:
+                popup = new PDFAppInsertPanel(m_view, this);
+                break;
         }
         connect(popup.data(), &PDFAppDocumentPanelPopup::closed, this, &PDFAppDocumentToolbar::onPanelClosed);
     }
@@ -554,7 +560,7 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
         return;
     }
 
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
     {
         if (getMenuButton(panel) != button)
         {
@@ -578,7 +584,7 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
 void PDFAppDocumentToolbar::onPanelClosed()
 {
     // The buttons of the closed panels are not checked
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
     {
         QToolButton* button = getMenuButton(panel);
         PDFAppDocumentPanelPopup* popup = findPanel(panel);
@@ -624,6 +630,23 @@ void PDFAppDocumentToolbar::updateState()
     // The panels and the tools need a shown document
     const PDFAppDocument* document = view ? view->getDocument() : nullptr;
     const bool isReady = document && document->isReady();
+
+    // Annotate and Insert follow their commands (O20: a locked document or one
+    // without the permission disables them, the tooltip says why)
+    for (const auto& item : { std::make_pair(m_annotateButton.data(), PDFAppCommands::annotatePanel()),
+                              std::make_pair(m_insertButton.data(), PDFAppCommands::insertPanel()) })
+    {
+        if (!item.first)
+        {
+            continue;
+        }
+
+        const bool isEnabled = view && view->isCommandEnabled(item.second);
+        item.first->setEnabled(isEnabled);
+        const PDFAppAnnotationController* controller = view ? view->getAnnotationController() : nullptr;
+        const QString reason = (!isEnabled && controller && isReady) ? controller->getEditingRefusalReason() : QString();
+        item.first->setToolTip(reason.isEmpty() ? item.first->accessibleName() : reason);
+    }
     for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_goToButton.data(), m_selectButton.data() })
     {
         if (button)
@@ -857,7 +880,7 @@ void PDFAppDocumentToolbar::updateCollapse()
     for (; level < PDFAppDocumentToolbarHelper::LastLevel; ++level)
     {
         applyCollapse(level);
-        m_layout->invalidate();
+        invalidateGroupSizes();
         if (m_layout->sizeHint().width() <= width())
         {
             break;
@@ -866,6 +889,26 @@ void PDFAppDocumentToolbar::updateCollapse()
     applyCollapse(level);
     m_collapseLevel = level;
     m_isUpdatingCollapse = false;
+}
+
+void PDFAppDocumentToolbar::invalidateGroupSizes()
+{
+    // The items of the layout keep the sizes of the groups until the event loop
+    // (a group measures itself again only after its LayoutRequest): each level is
+    // measured with the sizes of its own buttons, not with those of the previous one
+    for (int i = 0; i < m_layout->count(); ++i)
+    {
+        QLayoutItem* item = m_layout->itemAt(i);
+        if (QWidget* group = item ? item->widget() : nullptr)
+        {
+            if (QLayout* groupLayout = group->layout())
+            {
+                groupLayout->invalidate();
+            }
+            group->updateGeometry();
+        }
+    }
+    m_layout->invalidate();
 }
 
 void PDFAppDocumentToolbar::applyCollapse(int level)

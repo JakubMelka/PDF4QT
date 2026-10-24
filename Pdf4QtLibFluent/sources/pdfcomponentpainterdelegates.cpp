@@ -100,6 +100,13 @@ public:
     static constexpr int NOTE_TEXT_GAP = 2;
     static constexpr int NOTE_MAX_LINES = 2;
 
+    // State icon of a note row (eye-off of a hidden annotation, 1026:21995): icon/muted
+    // 14 at 4 from the trailing edge, centered on the first line of the text; the
+    // text keeps the gap 4 before it
+    static constexpr int NOTE_STATE_ICON = 14;
+    static constexpr int NOTE_STATE_ICON_RIGHT = 4;
+    static constexpr int NOTE_STATE_ICON_GAP = 4;
+
     // Attachment row 191:1045: 276 x 48, padding 8, 6, 8, 8, gap 10, save 24
     static constexpr int ATTACHMENT_WIDTH = 276;
     static constexpr int ATTACHMENT_HEIGHT = 48;
@@ -457,6 +464,12 @@ public:
         return width - NOTE_LEFT - BADGE - NOTE_GAP - NOTE_RIGHT;
     }
 
+    /// Returns the width, which the state icon takes from the lines of the text of a note
+    static qreal getNoteStateIconReserve(const PDFComponentPainter::NoteRow& row)
+    {
+        return row.stateIconName.isEmpty() ? 0.0 : qMax(0, NOTE_STATE_ICON + NOTE_STATE_ICON_RIGHT + NOTE_STATE_ICON_GAP - NOTE_RIGHT);
+    }
+
     /// Returns the width of a key cap of a shortcut row (the text and the padding of 10 at each side)
     static int getShortcutCapWidth(const PDFComponentPainter::ShortcutRow& row)
     {
@@ -655,7 +668,7 @@ int PDFComponentPainter::getNoteRowHeight(const NoteRow& row, int width)
 {
     using Helper = PDFComponentDelegatePainterHelper;
 
-    const int lines = Helper::getNoteLines(row, Helper::getNoteTextWidth(qBound(0, width, Helper::MAX_EXTENT)));
+    const int lines = Helper::getNoteLines(row, Helper::getNoteTextWidth(qBound(0, width, Helper::MAX_EXTENT)) - Helper::getNoteStateIconReserve(row));
     const int textHeight = Helper::LINE_12 + (lines > 0 ? Helper::NOTE_TEXT_GAP + lines * Helper::LINE_12 : 0);
     return 2 * Helper::NOTE_TOP + qMax(Helper::BADGE, textHeight);
 }
@@ -671,6 +684,20 @@ QSize PDFComponentPainter::getNoteRowMinimumSize(const NoteRow& row)
     Q_UNUSED(row);
     using Helper = PDFComponentDelegatePainterHelper;
     return QSize(Helper::NOTE_LEFT + Helper::BADGE + Helper::NOTE_GAP + Helper::MIN_TEXT + Helper::NOTE_RIGHT, 2 * Helper::NOTE_TOP + Helper::BADGE);
+}
+
+QRectF PDFComponentPainter::getNoteRowStateIconRect(const QRectF& rect, const NoteRow& row)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    if (row.stateIconName.isEmpty() || !Helper::isDrawable(rect))
+    {
+        return QRectF();
+    }
+
+    // Centered on the first line of the text (on the head line without a text)
+    const qreal lineTop = rect.top() + Helper::NOTE_TOP + (row.text.isEmpty() ? 0 : Helper::LINE_12 + Helper::NOTE_TEXT_GAP);
+    const qreal top = lineTop + (Helper::LINE_12 - Helper::NOTE_STATE_ICON) / 2.0;
+    return QRectF(rect.right() - Helper::NOTE_STATE_ICON_RIGHT - Helper::NOTE_STATE_ICON, top, Helper::NOTE_STATE_ICON, Helper::NOTE_STATE_ICON);
 }
 
 void PDFComponentPainter::paintNoteRow(QPainter* painter, const QRectF& rect, const NoteRow& row, const State& state)
@@ -700,26 +727,37 @@ void PDFComponentPainter::paintNoteRow(QPainter* painter, const QRectF& rect, co
     const qreal textLeft = badgeRect.right() + Helper::NOTE_GAP;
     const qreal textWidth = rect.right() - Helper::NOTE_RIGHT - textLeft;
     const qreal headTop = rect.top() + Helper::NOTE_TOP;
-    qreal authorWidth = textWidth;
-    if (!row.date.isEmpty() && textWidth > 0.0)
+
+    // Without a text the state icon lies on the head line - the date keeps the gap before it
+    const qreal headWidth = qMax<qreal>(0.0, textWidth - (row.text.isEmpty() ? Helper::getNoteStateIconReserve(row) : 0.0));
+    qreal authorWidth = headWidth;
+    if (!row.date.isEmpty() && headWidth > 0.0)
     {
         const QFont dateFont = Helper::font(PDFThemeFonts::Role::CaptionRegular);
-        const qreal dateWidth = qMin<qreal>(Helper::textWidth(row.date, dateFont), textWidth);
-        const QRectF dateRect(textLeft + textWidth - dateWidth, headTop + (Helper::LINE_12 - Helper::LINE_11) / 2, dateWidth, Helper::LINE_11);
+        const qreal dateWidth = qMin<qreal>(Helper::textWidth(row.date, dateFont), headWidth);
+        const QRectF dateRect(textLeft + headWidth - dateWidth, headTop + (Helper::LINE_12 - Helper::LINE_11) / 2, dateWidth, Helper::LINE_11);
         Helper::drawText(painter, state, rect, dateRect, row.date, dateFont, Helper::text(state, Color::TextMuted), Helper::TextKind::Interface, true);
-        authorWidth = textWidth - dateWidth - Helper::NOTE_HEAD_GAP;
+        authorWidth = headWidth - dateWidth - Helper::NOTE_HEAD_GAP;
     }
     Helper::drawText(painter, state, rect, QRectF(textLeft, headTop, authorWidth, Helper::LINE_12), row.author, Helper::font(PDFThemeFonts::Role::SmallSemiBold),
                      Helper::text(state, isSelected ? Color::TextAccent : Color::TextPrimary), Helper::TextKind::Data);
 
+    // The state icon at the trailing side of the first line of the text
+    const QRectF stateIconRect = getNoteRowStateIconRect(rect, row);
+    if (!stateIconRect.isEmpty())
+    {
+        PDFStylePainter::icon(painter, state.visualRect(rect, stateIconRect), row.stateIconName, Helper::icon(state, Color::IconMuted));
+    }
+
     // The text of at most two lines (content of the user: its own direction)
     const QFont bodyFont = Helper::font(PDFThemeFonts::Role::Small);
-    const QStringList lines = wrapText(row.text, bodyFont, textWidth, Helper::NOTE_MAX_LINES);
+    const qreal bodyWidth = qMax<qreal>(0.0, textWidth - Helper::getNoteStateIconReserve(row));
+    const QStringList lines = wrapText(row.text, bodyFont, bodyWidth, Helper::NOTE_MAX_LINES);
     const Qt::LayoutDirection bodyDirection = getDataTextDirection(row.text);
     const qreal bodyTop = headTop + Helper::LINE_12 + Helper::NOTE_TEXT_GAP;
     for (int i = 0; i < lines.size(); ++i)
     {
-        const QRectF lineRect = state.visualRect(rect, QRectF(textLeft, bodyTop + i * Helper::LINE_12, textWidth, Helper::LINE_12));
+        const QRectF lineRect = state.visualRect(rect, QRectF(textLeft, bodyTop + i * Helper::LINE_12, bodyWidth, Helper::LINE_12));
         drawDataText(painter, lineRect, Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment(), lines.at(i), bodyFont,
                      PDFStylePainter::color(Helper::text(state, Color::TextSecondary)), bodyDirection);
     }

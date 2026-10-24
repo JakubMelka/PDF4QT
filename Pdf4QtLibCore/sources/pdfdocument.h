@@ -527,6 +527,7 @@ public:
         XFA_Pagination      = 0x0020,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
         PreserveUndoRedo    = 0x0040,   ///< Preserve undo/red even when Reset flag is being set
         PreserveView        = 0x0080,   ///< Try to preserve view
+        Outline             = 0x0100,   ///< Document outline changed (set only by the new application, the old code ignores it)
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)

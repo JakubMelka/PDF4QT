@@ -641,11 +641,19 @@ public:
     /// \param matrix Matrix which translates from page space to device space
     QPainterPath prepareGeometry(PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix, QPolygonF* quadrilaterals);
 
+    /// Color of the theme of the application (bg/accent-subtle of the new application):
+    /// the selection is filled by it as it is (multiplied with the page, the text stays
+    /// readable), without a border and without the colors of the items. An invalid color
+    /// (the default) draws the colors of the items with a darker border (the old applications).
+    // TODO(remove-old-apps): the colored items with the border go for the text selection of the user
+    void setThemeColor(const QColor& color) { m_themeColor = color; }
+
 private:
     static constexpr const PDFReal HEIGHT_INCREASE_FACTOR = 0.40;
     static constexpr const PDFReal SELECTION_ALPHA = 0.25;
 
     const PDFTextSelection* m_selection;
+    QColor m_themeColor;
 };
 
 /// Storage for text layouts of all pages of a document. Layouts are stored

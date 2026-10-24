@@ -45,12 +45,16 @@ class QAction;
 namespace pdf
 {
 
+class PDFAppAnnotationController;
+class PDFAppCommentPopup;
 class PDFAppContext;
 class PDFAppDocument;
 class PDFAppDocumentSidebar;
 class PDFAppDocumentTab;
 class PDFAppDocumentToolbar;
+class PDFAppFormController;
 class PDFAppInfoBar;
+class PDFAppOutlineEditor;
 class PDFCMSManager;
 class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
@@ -196,6 +200,24 @@ public:
     PDFWidgetFormManager* getFormManager() const { return m_formManager; }
     PDFCMSManager* getCMSManager() const { return m_cmsManager; }
     PDFProgress* getProgress() const { return m_progress; }
+
+    /// Controller of the annotations (step 4): the commits of the engine, the
+    /// delegated user interface, the lock (nullptr only while the view is destroyed)
+    PDFAppAnnotationController* getAnnotationController() const { return m_annotationController; }
+
+    /// Form filling of the view (step 4, package D)
+    PDFAppFormController* getFormController() const { return m_formController; }
+
+    /// Editing of the outline (step 4, package C; package A uses it for the
+    /// Insert › Outline item tile)
+    PDFAppOutlineEditor* getOutlineEditor() const { return m_outlineEditor; }
+
+    /// Comment popup of the view (step 4, package B; package A uses its compose
+    /// mode), created at the first call as a child of the canvas area
+    PDFAppCommentPopup* getCommentPopup();
+
+    /// Area of the canvas (parent of the floating bars and of the info bars)
+    QWidget* getCanvasArea() const { return m_canvasArea.data(); }
 
     /// Page navigation (page index from 0; an index out of range is ignored)
     void goToPage(PDFInteger pageIndex);
@@ -431,6 +453,10 @@ private:
     PDFWidgetAnnotationManager* m_annotationManager = nullptr;
     PDFWidgetFormManager* m_formManager = nullptr;
     PDFToolManager* m_toolManager = nullptr;
+    PDFAppAnnotationController* m_annotationController = nullptr;
+    PDFAppFormController* m_formController = nullptr;
+    PDFAppOutlineEditor* m_outlineEditor = nullptr;
+    QPointer<PDFAppCommentPopup> m_commentPopup;
     std::map<QString, QPointer<QAction>> m_canvasActions;
     std::vector<PDFAppInfoBarRequest> m_infoBars;
     std::vector<QPointer<PDFAppInfoBar>> m_infoBarWidgets;

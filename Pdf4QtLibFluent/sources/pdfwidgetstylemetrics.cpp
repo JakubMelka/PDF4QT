@@ -698,7 +698,7 @@ QString PDFWidgetStyleMetrics::getStandardIconName(QStyle::StandardPixmap standa
         case QStyle::SP_TitleBarNormalButton:
             return QStringLiteral("expand");
         case QStyle::SP_TitleBarMaxButton:
-            return QStringLiteral("maximize");
+            return QStringLiteral("window-maximize");
         case QStyle::SP_TitleBarMinButton:
             return QStringLiteral("minus");
         case QStyle::SP_TitleBarMenuButton:

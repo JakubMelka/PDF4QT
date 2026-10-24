@@ -54,11 +54,54 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationStyle
     PDFReal penWidth = 1.0;
 };
 
+/// Storage of the annotation styles. The application installs its own storage by
+/// PDFAnnotationStyleSettings::setStorage (the new application keeps the styles in
+/// its database); without it the styles are kept in QSettings
+/// (PDFAnnotationStyleQSettingsStorage). The storage is called in the thread of the
+/// user interface only. Values returned by a storage are untrusted: the caller
+/// (PDFAnnotationStyleSettings::getStyle) bounds them.
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationStyleStorage
+{
+public:
+    virtual ~PDFAnnotationStyleStorage();
+
+    /// Returns the style stored for the style id, or \p defaultStyle, when nothing
+    /// is stored (also for a damaged stored value).
+    /// \param styleId Style identifier
+    /// \param defaultStyle Style used, when nothing is stored yet
+    virtual PDFAnnotationStyle getStyle(const QString& styleId, const PDFAnnotationStyle& defaultStyle) const = 0;
+
+    /// Stores the style for the style id
+    /// \param styleId Style identifier
+    /// \param style Style to be stored
+    virtual void setStyle(const QString& styleId, const PDFAnnotationStyle& style) = 0;
+};
+
+/// Storage of the annotation styles in QSettings (group AnnotationStyles of the
+/// settings of the application) - the storage of the old applications, used when
+/// no other storage is installed.
+// TODO(remove-old-apps): the QSettings storage goes - the new application keeps the styles in its database (PDFAppAnnotationStyleStorage), no QSettings in the libraries
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationStyleQSettingsStorage : public PDFAnnotationStyleStorage
+{
+public:
+    virtual PDFAnnotationStyle getStyle(const QString& styleId, const PDFAnnotationStyle& defaultStyle) const override;
+    virtual void setStyle(const QString& styleId, const PDFAnnotationStyle& style) override;
+
+    /// Position of the style window remembered by closeStyleWindow (null = none)
+    static QPoint getWindowPosition();
+    static void setWindowPosition(QPoint position);
+
+    /// Redaction color stored by the older versions of the old applications
+    /// (group RedactTool), invalid color if none is stored
+    static QColor getLegacyRedactColor();
+};
+
 /// Persistent storage of annotation styles. Each annotation tool (or a group of
 /// tools, which logically share the style, such as the two redaction tools) uses
-/// its own style identified by a style id. Styles are stored in the application
-/// settings, so the user's choice is remembered across the restarts of the
-/// application, and it is not reset when the user switches between the tools.
+/// its own style identified by a style id. Styles are stored in the storage
+/// installed by setStorage (the application settings by default), so the user's
+/// choice is remembered across the restarts of the application, and it is not
+/// reset when the user switches between the tools.
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationStyleSettings
 {
 public:
@@ -82,6 +125,32 @@ public:
     /// \param styleId Style identifier
     /// \param style Style to be stored
     static void setStyle(const QString& styleId, const PDFAnnotationStyle& style);
+
+    /// Installs the storage of the styles (not owned; the caller removes it by
+    /// setStorage(nullptr) before it is destroyed). nullptr restores the default
+    /// QSettings storage.
+    /// \param storage Storage, or nullptr
+    static void setStorage(PDFAnnotationStyleStorage* storage);
+
+    /// Returns the installed storage (the default QSettings storage, when no other
+    /// one is installed) - never nullptr
+    static PDFAnnotationStyleStorage* getStorage();
+
+    /// Returns true, if the default QSettings storage is used
+    static bool isDefaultStorage();
+
+    /// Bounds a style read from a storage: an invalid stroke color is replaced by the
+    /// stroke color of \p defaultStyle, the pen width is bounded to 0 - 100 (a non finite
+    /// width is the width of \p defaultStyle), the colors are made opaque.
+    /// \param style Style read from a storage
+    /// \param defaultStyle Default style
+    static PDFAnnotationStyle boundStyle(PDFAnnotationStyle style, const PDFAnnotationStyle& defaultStyle);
+
+    /// Maximal pen width of a style
+    static constexpr PDFReal MAXIMUM_PEN_WIDTH = 100.0;
+
+private:
+    static PDFAnnotationStyleStorage* s_storage;
 };
 
 /// Modeless tool window, which allows the user to select the style of the created
@@ -92,6 +161,7 @@ public:
 /// The window intentionally has no close button - it is shown when an annotation
 /// tool is activated and it is closed when the tool is deactivated. If the user
 /// could close it, there would be no way of showing it again.
+// TODO(remove-old-apps): the window and its position in QSettings go - the new application turns it off (PDFAnnotationStyleManager::setStyleWindowEnabled) and shows the style in its tool bar
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationStyleWidget : public QWidget
 {
     Q_OBJECT
@@ -210,6 +280,17 @@ public:
 
     /// Closes the style window. Call this when the tool is deactivated.
     void closeStyleWindow();
+
+    /// Returns true, if the style window is shown now
+    bool isStyleWindowShown() const { return !m_styleWidget.isNull(); }
+
+    /// Turns the style window of all tools on or off (process wide). The new
+    /// application turns it off - it shows the style in its own tool bar and sets
+    /// it by setStyle. Turning it off closes no window, which is shown already.
+    /// On by default.
+    // TODO(remove-old-apps): the style window (PDFAnnotationStyleWidget) goes with its switch - the tool bar of the application sets the style
+    static void setStyleWindowEnabled(bool enabled);
+    static bool isStyleWindowEnabled();
 
 signals:
     void styleChanged(const pdf::PDFAnnotationStyle& style);

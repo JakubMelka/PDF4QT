@@ -21,6 +21,10 @@
 // SOFTWARE.
 
 #include "pdfappdocumentview.h"
+#include "pdfappannotationcontroller.h"
+#include "pdfappcommentpopup.h"
+#include "pdfappformcontroller.h"
+#include "pdfappoutlineeditor.h"
 #include "pdfapplocale.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
@@ -331,6 +335,13 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     {
         connect(selectTextTool, &PDFSelectTextTool::selectionChanged, this, &PDFAppDocumentView::viewStateChanged);
     }
+
+    // Step 4: the controller of the annotations commits the changes of the engine
+    // and gives it the delegated user interface; the form and outline controllers
+    // of the packages D and C
+    m_annotationController = new PDFAppAnnotationController(this);
+    m_formController = new PDFAppFormController(this);
+    m_outlineEditor = new PDFAppOutlineEditor(this, this);
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentView::onThemeChanged);
 
     m_statusBar = new PDFAppDocumentStatusBar(this);
@@ -370,6 +381,15 @@ PDFAppDocumentView::~PDFAppDocumentView()
             mainWindow->setFullScreenMode(false);
         }
     }
+
+    // The controllers of step 4 go first (they use the managers and the document)
+    delete m_commentPopup.data();
+    delete m_outlineEditor;
+    m_outlineEditor = nullptr;
+    delete m_formController;
+    m_formController = nullptr;
+    delete m_annotationController;
+    m_annotationController = nullptr;
 
     // The managers are detached from the widget and from the document before the
     // widget and they are destroyed (the order of the test fixtures of Widgets)
@@ -425,6 +445,15 @@ PDFAppDocumentView::~PDFAppDocumentView()
     m_annotationManager = nullptr;
     delete m_pdfWidget;
     m_pdfWidget = nullptr;
+}
+
+PDFAppCommentPopup* PDFAppDocumentView::getCommentPopup()
+{
+    if (!m_commentPopup && m_canvasArea)
+    {
+        m_commentPopup = new PDFAppCommentPopup(this, m_canvasArea);
+    }
+    return m_commentPopup.data();
 }
 
 PDFDrawWidgetProxy* PDFAppDocumentView::getProxy() const
@@ -492,6 +521,18 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
         m_sidebar->setDocument(document);
     }
     applyDocument();
+    if (m_annotationController)
+    {
+        m_annotationController->setDocument(document);
+    }
+    if (m_formController)
+    {
+        m_formController->setDocument(document);
+    }
+    if (m_outlineEditor)
+    {
+        m_outlineEditor->setDocument(document);
+    }
 }
 
 void PDFAppDocumentView::applyDocument()
@@ -547,12 +588,25 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
     if (modified.getDocument() && !m_isDefaultViewApplied)
     {
         applyDefaultView();
+        if (!guard)
+        {
+            return;
+        }
     }
 
+    // Slots of the signals may delete the view (the tab)
     m_lastPageIndex = -2;
     onDrawSpaceChanged();
+    if (!guard)
+    {
+        return;
+    }
     updateStatusMessage();
     Q_EMIT viewChanged();
+    if (!guard)
+    {
+        return;
+    }
     Q_EMIT commandStatesChanged();
 }
 
@@ -955,6 +1009,7 @@ void PDFAppDocumentView::updateViewColors()
     colors.canvas = manager->getColor(PDFThemeColors::BgTrack);
     colors.selection = manager->getColor(PDFThemeColors::BgAccentSubtle);
     colors.selectionText = manager->getColor(PDFThemeColors::TextAccent);
+    PDFAppAnnotationController::applyThemeColors(colors);
     proxy->setViewColors(colors);
 
     // The pages lie on the canvas with a margin and a shadow (O18, 193:1257), the
@@ -997,7 +1052,13 @@ void PDFAppDocumentView::onDrawSpaceChanged()
                                                      : QString());
         }
 
+        // A slot may delete the view (the tab) from the signal
+        QPointer<PDFAppDocumentView> guard(this);
         Q_EMIT currentPageChanged(pageIndex);
+        if (!guard)
+        {
+            return;
+        }
     }
 
     Q_EMIT viewChanged();
@@ -1093,9 +1154,10 @@ void PDFAppDocumentView::createCanvasActions()
         return;
     }
 
-    // The keys of the Canvas commands of the view (D12): the canvas has them with
-    // the context of its children, the fields of the window keep their keys
-    for (const QString& commandId : PDFAppDocumentCommandTable::getCommands(PDFAppDocumentPackage::View))
+    // The keys of the Canvas commands (D12; the view and, since step 4, the editing
+    // of the annotations): the canvas has them with the context of its children,
+    // the fields of the window keep their keys
+    for (const QString& commandId : PDFAppDocumentCommandTable::getAllCommands())
     {
         const PDFAppCommand* command = registry->findCommand(commandId);
         if (!command || command->scope != PDFAppCommandScope::Canvas)
@@ -1139,7 +1201,7 @@ void PDFAppDocumentView::updateCanvasShortcuts()
     {
         if (item.second)
         {
-            item.second->setShortcut(registry->getShortcut(item.first, userShortcuts));
+            item.second->setShortcuts(registry->getShortcuts(item.first, userShortcuts));
         }
     }
 }
@@ -1730,14 +1792,11 @@ void PDFAppDocumentView::applySettings()
         magnifier->setMagnifierZoom(settings.getReal(K::magnifierZoom()));
     }
 
-    // Forms
-    PDFFormManager::FormAppearanceFlags formFlags = PDFFormManager::None;
-    formFlags.setFlag(PDFFormManager::HighlightFields, settings.getBool(K::formsHighlightFields()));
-    formFlags.setFlag(PDFFormManager::HighlightRequiredFields, settings.getBool(K::formsHighlightRequiredFields()));
-    formFlags.setFlag(PDFFormManager::EditReadOnlyFields, settings.getBool(K::formsAllowEditReadOnly()));
-    if (m_formManager->getAppearanceFlags() != formFlags)
+    // Forms (Settings › Editing › Forms) - the form controller of package D of step 4
+    // keeps the read-only form of a locked document
+    if (m_formController)
     {
-        m_formManager->setAppearanceFlags(formFlags);
+        m_formController->applySettings(settings);
     }
 
     m_isApplyingSettings = false;

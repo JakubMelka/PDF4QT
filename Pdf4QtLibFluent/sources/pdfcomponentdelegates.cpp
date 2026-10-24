@@ -1825,21 +1825,38 @@ PDFComponentPainter::NoteRow PDFNoteDelegate::getContent(const QModelIndex& inde
     row.text = getString(index, PDFComponentRoles::TextRole);
     row.iconName = getString(index, PDFComponentRoles::IconNameRole, row.iconName);
     row.hue = getHue(index, PDFComponentRoles::HueRole, row.hue);
+    row.stateIconName = getString(index, PDFComponentRoles::StateIconRole);
     return row;
+}
+
+int PDFNoteDelegate::getIndent(const QModelIndex& index)
+{
+    return qBound(0, getInt(index, PDFComponentRoles::IndentRole, 0), MAXIMUM_INDENT);
+}
+
+QRect PDFNoteDelegate::getIndentedRect(const QRect& itemRect, int indent, Qt::LayoutDirection direction)
+{
+    // The indentation lies at the leading side
+    const int boundedIndent = qBound(0, indent, qMax(0, itemRect.width() - 1));
+    return direction == Qt::RightToLeft ? itemRect.adjusted(0, 0, -boundedIndent, 0) : itemRect.adjusted(boundedIndent, 0, 0, 0);
 }
 
 void PDFNoteDelegate::paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const
 {
-    PDFComponentPainter::paintNoteRow(painter, QRectF(option.rect), getContent(index), state);
+    // A reply is indented with its selection and its focus ring (1025:21920)
+    const QRect rowRect = getIndentedRect(option.rect, getIndent(index), option.direction);
+    PDFComponentPainter::paintNoteRow(painter, QRectF(rowRect), getContent(index), state);
 }
 
 QSize PDFNoteDelegate::getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const
 {
     Q_UNUSED(option);
     const PDFComponentPainter::NoteRow row = getContent(index);
+    const int indent = getIndent(index);
 
-    // The wrapping of the text is remembered by the text and the width (review C5)
-    const QString key = QString::number(width) + QLatin1Char('\x1F') + row.text;
+    // The wrapping of the text is remembered by the text, the width, the
+    // indentation and the state icon (review C5)
+    const QString key = QString::number(width) + QLatin1Char('\x1F') + QString::number(indent) + QLatin1Char('\x1F') + row.stateIconName + QLatin1Char('\x1F') + row.text;
     if (const std::optional<QSize> cachedSize = getCachedSize(key))
     {
         return *cachedSize;
@@ -1847,11 +1864,12 @@ QSize PDFNoteDelegate::getItemSize(const QStyleOptionViewItem& option, const QMo
 
     if (width <= 0)
     {
-        return setCachedSize(key, PDFComponentPainter::getNoteRowSize(row));
+        const QSize size = PDFComponentPainter::getNoteRowSize(row);
+        return setCachedSize(key, QSize(size.width() + indent, size.height()));
     }
 
-    const int itemWidth = qMax(width, PDFComponentPainter::getNoteRowMinimumSize(row).width());
-    return setCachedSize(key, QSize(itemWidth, PDFComponentPainter::getNoteRowHeight(row, itemWidth)));
+    const int rowWidth = qMax(width - indent, PDFComponentPainter::getNoteRowMinimumSize(row).width());
+    return setCachedSize(key, QSize(rowWidth + indent, PDFComponentPainter::getNoteRowHeight(row, rowWidth)));
 }
 
 PDFAttachmentDelegate::PDFAttachmentDelegate(QObject* parent) :

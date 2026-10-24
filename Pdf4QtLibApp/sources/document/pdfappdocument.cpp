@@ -92,6 +92,7 @@ bool PDFAppDocumentOperation::isAskedBeforeClose() const
         case PDFAppDocumentOperationKind::Index:
         case PDFAppDocumentOperationKind::Signatures:
         case PDFAppDocumentOperationKind::Fonts:
+        case PDFAppDocumentOperationKind::Edit:
             break;
     }
     return false;
@@ -270,10 +271,29 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
 
 void PDFAppDocument::setLocked(bool locked)
 {
+    // An open editor of a form field is committed before the document is locked
+    if (locked && !m_isLocked && m_hasPendingEdits)
+    {
+        QPointer<PDFAppDocument> guard(this);
+        commitPendingEdits();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     if (m_isLocked != locked)
     {
         m_isLocked = locked;
         Q_EMIT lockChanged();
+    }
+}
+
+void PDFAppDocument::commitPendingEdits()
+{
+    if (m_hasPendingEdits && isReady())
+    {
+        Q_EMIT pendingEditsCommitRequested();
     }
 }
 
@@ -299,10 +319,25 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
 
 bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source)
 {
+    return commit(modified, description, expectedVersion, source, QString());
+}
+
+bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey)
+{
     const PDFDocumentPointer newDocument = modified;
     if (!isReady() || newDocument.isNull() || expectedVersion != m_version || m_isLocked || isBlockedByOperation())
     {
         return false;
+    }
+
+    // A change of an open merge session replaces the current document; the top
+    // undo step keeps the document before the session
+    const QString boundedMergeKey = mergeKey.left(1024);
+    if (m_undoStack->canMerge(boundedMergeKey))
+    {
+        m_undoStack->merge(modified.getFlags(), newDocument.data());
+        setDocument(newDocument, modified.getFlags(), false);
+        return true;
     }
 
     PDFAppUndoStep step;
@@ -310,6 +345,7 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
     step.flags = modified.getFlags();
     step.description = description.left(1024);
     step.source = source;
+    step.mergeKey = boundedMergeKey;
     step.memory = PDFAppUndoStack::estimateMemory(m_document.data(), newDocument.data());
 
     // The limit is read at each change (no cache of the settings)
@@ -321,6 +357,11 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
 
     setDocument(newDocument, modified.getFlags(), false);
     return true;
+}
+
+void PDFAppDocument::closeUndoMerge()
+{
+    m_undoStack->closeMerge();
 }
 
 void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags)

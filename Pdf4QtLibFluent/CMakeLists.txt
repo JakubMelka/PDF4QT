@@ -63,6 +63,8 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfpreviewpainter.h
     sources/pdflockeddocumentpicture.cpp
     sources/pdflockeddocumentpicture.h
+    sources/pdfreferencepointpicker.cpp
+    sources/pdfreferencepointpicker.h
     sources/pdfstylepainter.cpp
     sources/pdfstylepainter.h
     sources/pdfstylepainterguard.h

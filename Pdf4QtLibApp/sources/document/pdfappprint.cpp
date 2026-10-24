@@ -803,6 +803,18 @@ void PDFAppPrintController::showPrintDialog()
 
 void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPages, int copies)
 {
+    // An open editor of a form field is printed too (step 4, package D: it is
+    // committed first - the dialog takes the focus, which keeps the editor open)
+    QPointer<PDFAppPrintController> guard(this);
+    if (m_document)
+    {
+        m_document->commitPendingEdits();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     PDFAppDocument* document = m_document.data();
     PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
     if (!document || !document->isReady() || !view)

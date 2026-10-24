@@ -403,6 +403,20 @@ public:
         second->setData(QStringLiteral("message-square"), Roles::IconNameRole);
         second->setData(static_cast<int>(pdf::PDFAccentHue::Blue), Roles::HueRole);
         model->appendRow(second);
+
+        // A reply of the note (1025:21920) and a hidden annotation (1026:21995)
+        QStandardItem* reply = item(QStringLiteral("Peter Dvorak"));
+        reply->setData(QStringLiteral("Today"), Roles::DateRole);
+        reply->setData(QStringLiteral("Done."), Roles::TextRole);
+        reply->setData(QStringLiteral("corner-down-right"), Roles::IconNameRole);
+        reply->setData(static_cast<int>(pdf::PDFAccentHue::Neutral), Roles::HueRole);
+        reply->setData(24, Roles::IndentRole);
+        model->appendRow(reply);
+        QStandardItem* hidden = item(QStringLiteral("Jane Novak"));
+        hidden->setData(QStringLiteral("Sep 30"), Roles::DateRole);
+        hidden->setData(QStringLiteral("Hidden on the page"), Roles::TextRole);
+        hidden->setData(QStringLiteral("eye-off"), Roles::StateIconRole);
+        model->appendRow(hidden);
         return model;
     }
 
@@ -710,8 +724,21 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
                      [longNote](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintNoteRow(&painter, rect, longNote, state); });
     Helper::specimen(builder, QStringLiteral("Disabled (O-08)"), noteSize, GalleryPages::Disabled,
                      [note](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintNoteRow(&painter, rect, note, state); });
+    Painter::NoteRow hiddenNote = note;
+    hiddenNote.author = QStringLiteral("Jane Novak");
+    hiddenNote.text = QStringLiteral("Hidden on the page");
+    hiddenNote.stateIconName = QStringLiteral("eye-off");
+    Helper::specimen(builder, QStringLiteral("Hidden on the page - eye-off (1026:21995)"), Painter::getNoteRowSize(hiddenNote), GalleryPages::Hover,
+                     [hiddenNote](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintNoteRow(&painter, rect, hiddenNote, state); });
+    Painter::NoteRow replyNote = note;
+    replyNote.author = QStringLiteral("Jane Novak");
+    replyNote.text = QStringLiteral("Agreed - keep only the first sentence.");
+    replyNote.iconName = QStringLiteral("corner-down-right");
+    replyNote.hue = pdf::PDFAccentHue::Neutral;
+    Helper::specimen(builder, QStringLiteral("Reply - note-row-reply (1025:21921), indented by 24 in a list"), Painter::getNoteRowSize(replyNote), GalleryPages::Default,
+                     [replyNote](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintNoteRow(&painter, rect, replyNote, state); });
     builder.row();
-    Helper::liveViews<pdf::PDFNoteDelegate>(builder, &Helper::noteModel, QSize(296, 63 + 48 + 4 * 2 + 16), 0, 2);
+    Helper::liveViews<pdf::PDFNoteDelegate>(builder, &Helper::noteModel, QSize(296, 63 + 3 * 48 + 4 * 2 + 16), 0, 2);
 
     // Attachment row
     builder.block(QStringLiteral("Attachment row (PDFAttachmentDelegate) - Selected x State, the save action is an Icon button 24"), QStringLiteral("191:1045"));

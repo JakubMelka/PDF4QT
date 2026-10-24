@@ -24,6 +24,8 @@
 
 #include "pdfobject.h"
 
+#include <QPointer>
+
 namespace pdf
 {
 
@@ -239,10 +241,36 @@ void PDFAppUndoStack::push(PDFAppUndoStep step)
         {
             m_savedPosition = -1;
         }
+        m_isMergeOpen = false;
         return;
     }
 
+    m_isMergeOpen = !step.mergeKey.isEmpty();
     m_undoSteps.push_back(std::move(step));
+    trim();
+
+    // The step may have been dropped by the limits (nothing to merge into)
+    if (m_undoSteps.empty())
+    {
+        m_isMergeOpen = false;
+    }
+}
+
+bool PDFAppUndoStack::canMerge(const QString& mergeKey) const
+{
+    return m_isMergeOpen && !mergeKey.isEmpty() && !m_undoSteps.empty() && m_redoSteps.empty() && m_undoSteps.back().mergeKey == mergeKey;
+}
+
+void PDFAppUndoStack::merge(PDFModifiedDocument::ModificationFlags flags, const PDFDocument* newDocument)
+{
+    if (!m_isMergeOpen || m_undoSteps.empty())
+    {
+        return;
+    }
+
+    PDFAppUndoStep& step = m_undoSteps.back();
+    step.flags |= flags;
+    step.memory = estimateMemory(step.document.data(), newDocument);
     trim();
 }
 
@@ -258,11 +286,29 @@ QString PDFAppUndoStack::getRedoDescription() const
 
 bool PDFAppUndoStack::undo()
 {
-    if (m_undoSteps.empty() || !m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
     {
         return false;
     }
 
+    // An open editor of a form field becomes an undo step first (step 4, package D);
+    // the stack belongs to the document, which a slot may delete
+    if (m_document->hasPendingEdits())
+    {
+        QPointer<PDFAppDocument> guard(m_document);
+        m_document->commitPendingEdits();
+        if (!guard || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+        {
+            return false;
+        }
+    }
+
+    if (m_undoSteps.empty())
+    {
+        return false;
+    }
+
+    m_isMergeOpen = false;
     PDFAppUndoStep step = std::move(m_undoSteps.back());
     m_undoSteps.pop_back();
 
@@ -281,11 +327,29 @@ bool PDFAppUndoStack::undo()
 
 bool PDFAppUndoStack::redo()
 {
-    if (m_redoSteps.empty() || !m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
     {
         return false;
     }
 
+    // An open editor of a form field becomes an undo step first (step 4, package D);
+    // the stack belongs to the document, which a slot may delete
+    if (m_document->hasPendingEdits())
+    {
+        QPointer<PDFAppDocument> guard(m_document);
+        m_document->commitPendingEdits();
+        if (!guard || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+        {
+            return false;
+        }
+    }
+
+    if (m_redoSteps.empty())
+    {
+        return false;
+    }
+
+    m_isMergeOpen = false;
     PDFAppUndoStep step = std::move(m_redoSteps.back());
     m_redoSteps.pop_back();
 
@@ -307,6 +371,7 @@ void PDFAppUndoStack::clear()
     m_undoSteps.clear();
     m_redoSteps.clear();
     m_savedPosition = 0;
+    m_isMergeOpen = false;
 }
 
 void PDFAppUndoStack::setLimit(int limit)
@@ -338,6 +403,7 @@ qint64 PDFAppUndoStack::getMemoryUsage() const
 void PDFAppUndoStack::setSavedPosition()
 {
     m_savedPosition = int(m_undoSteps.size());
+    m_isMergeOpen = false;
 }
 
 int PDFAppUndoStack::getUnsavedChangeCount() const

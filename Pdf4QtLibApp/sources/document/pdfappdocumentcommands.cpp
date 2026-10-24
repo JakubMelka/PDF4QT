@@ -61,16 +61,43 @@ QStringList PDFAppDocumentCommandTable::getCommands(PDFAppDocumentPackage packag
 
         case PDFAppDocumentPackage::Properties:
             return { C::properties(), C::renderingIssues() };
+
+        case PDFAppDocumentPackage::Annotate:
+            return { C::annotatePanel(), C::insertPanel(),
+                     C::annotateHighlight(), C::annotateUnderline(), C::annotateStrikeout(), C::annotateSquiggly(), C::annotateHighlightComment(),
+                     C::insertTextBox(), C::insertStickyNote(), C::insertLine(), C::insertPolyline(), C::insertRectangle(), C::insertPolygon(),
+                     C::insertEllipse(), C::insertFreehand(), C::insertWebLink(), C::insertPageLink(), C::insertStamp(),
+                     C::annotateDeleteTool(), C::annotateMarkResults() };
+
+        case PDFAppDocumentPackage::AnnotationEdit:
+            return { C::cut(), C::paste(), C::pasteInPlace(), C::deleteSelection(),
+                     C::annotationProperties(), C::annotationComment(), C::annotationReply(), C::annotationGeometry(), C::annotationCopyToPages(),
+                     C::annotationHide(), C::annotationSelectAll(),
+                     C::annotationRotateClockwise(), C::annotationRotateCounterclockwise(), C::annotationRotate180(),
+                     C::annotationFlipHorizontal(), C::annotationFlipVertical(),
+                     C::annotationAlignLeft(), C::annotationAlignCenter(), C::annotationAlignRight(),
+                     C::annotationAlignTop(), C::annotationAlignMiddle(), C::annotationAlignBottom(),
+                     C::annotationDistributeHorizontally(), C::annotationDistributeVertically() };
+
+        case PDFAppDocumentPackage::NotesOutline:
+            return { C::outlineNewItem(), C::outlineRename(), C::outlineDelete(), C::outlineMoveUp(), C::outlineMoveDown(),
+                     C::outlineIndent(), C::outlineOutdent(), C::outlineSetTarget(), C::outlineBold(), C::outlineItalic() };
     }
 
     return QStringList();
 }
 
+std::array<PDFAppDocumentPackage, PDFAppDocumentCommandTable::PACKAGE_COUNT> PDFAppDocumentCommandTable::getPackages()
+{
+    return { PDFAppDocumentPackage::Model, PDFAppDocumentPackage::View, PDFAppDocumentPackage::Panels,
+             PDFAppDocumentPackage::Search, PDFAppDocumentPackage::File, PDFAppDocumentPackage::Properties,
+             PDFAppDocumentPackage::Annotate, PDFAppDocumentPackage::AnnotationEdit, PDFAppDocumentPackage::NotesOutline };
+}
+
 QStringList PDFAppDocumentCommandTable::getAllCommands()
 {
     QStringList commands;
-    for (PDFAppDocumentPackage package : { PDFAppDocumentPackage::Model, PDFAppDocumentPackage::View, PDFAppDocumentPackage::Panels,
-                                           PDFAppDocumentPackage::Search, PDFAppDocumentPackage::File, PDFAppDocumentPackage::Properties })
+    for (PDFAppDocumentPackage package : getPackages())
     {
         commands << getCommands(package);
     }
@@ -79,8 +106,7 @@ QStringList PDFAppDocumentCommandTable::getAllCommands()
 
 bool PDFAppDocumentCommandTable::findPackage(const QString& commandId, PDFAppDocumentPackage* package)
 {
-    for (PDFAppDocumentPackage item : { PDFAppDocumentPackage::Model, PDFAppDocumentPackage::View, PDFAppDocumentPackage::Panels,
-                                        PDFAppDocumentPackage::Search, PDFAppDocumentPackage::File, PDFAppDocumentPackage::Properties })
+    for (PDFAppDocumentPackage item : getPackages())
     {
         if (getCommands(item).contains(commandId))
         {
@@ -99,7 +125,9 @@ bool PDFAppDocumentCommandTable::isCommandOf(PDFAppDocumentPackage package, cons
     // One set per package, built at the first call (the table is constant)
     static const std::array<QSet<QString>, PACKAGE_COUNT> sets = { createSet(PDFAppDocumentPackage::Model), createSet(PDFAppDocumentPackage::View),
                                                                    createSet(PDFAppDocumentPackage::Panels), createSet(PDFAppDocumentPackage::Search),
-                                                                   createSet(PDFAppDocumentPackage::File), createSet(PDFAppDocumentPackage::Properties) };
+                                                                   createSet(PDFAppDocumentPackage::File), createSet(PDFAppDocumentPackage::Properties),
+                                                                   createSet(PDFAppDocumentPackage::Annotate), createSet(PDFAppDocumentPackage::AnnotationEdit),
+                                                                   createSet(PDFAppDocumentPackage::NotesOutline) };
 
     const size_t index = size_t(package);
     return index < sets.size() && sets[index].contains(commandId);

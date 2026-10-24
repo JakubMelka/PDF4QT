@@ -34,6 +34,7 @@
 #include <QAbstractButton>
 #include <QAccessible>
 #include <QButtonGroup>
+#include <QChildEvent>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QContextMenuEvent>
@@ -47,6 +48,7 @@
 #include <QGuiApplication>
 #include <QHelpEvent>
 #include <QMenu>
+#include <QToolButton>
 #include <QToolTip>
 #include <QPaintEvent>
 #include <QPainter>
@@ -3853,6 +3855,799 @@ void PDFColorButton::hideEvent(QHideEvent* event)
 {
     BaseClass::hideEvent(event);
     hidePalette();
+}
+
+// ---------------------------------------------------------- Color swatch row
+
+/// Helper of the row of the annotation colors
+class PDFColorSwatchRowHelper
+{
+public:
+    PDFColorSwatchRowHelper() = delete;
+
+    /// Extent of the icon of the More button (Sidebar tab 190:619)
+    static constexpr int MORE_ICON = 18;
+
+    /// Returns true, if the colors have the same rgb values (two invalid colors are the same: no color)
+    static bool isSameRgb(const QColor& first, const QColor& second)
+    {
+        if (!first.isValid() || !second.isValid())
+        {
+            return first.isValid() == second.isValid();
+        }
+        return first.rgb() == second.rgb();
+    }
+
+    /// Color of the palette, which equals none of its colors (fully transparent,
+    /// a palette compares all channels): nothing is selected in the palette
+    static QColor getNothingSelectedColor()
+    {
+        return QColor::fromRgba(0);
+    }
+};
+
+PDFColorSwatchRow::PDFColorSwatchRow(QWidget* parent) :
+    BaseClass(parent),
+    m_options(Option::More)
+{
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setFocusPolicy(Qt::NoFocus);
+    m_group.setExclusive(true);
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFColorSwatchRow::onThemeChanged);
+
+    // retranslate takes the entries of the options and creates the swatches
+    retranslate();
+}
+
+PDFColorSwatchRow::~PDFColorSwatchRow()
+{
+    // The children are deleted by QWidget later, when only the QWidget of the
+    // row is left: they do not reach the row any more
+    m_isDestroying = true;
+    for (const QPointer<PDFColorSwatch>& swatch : std::as_const(m_swatches))
+    {
+        if (swatch)
+        {
+            swatch->removeEventFilter(this);
+            swatch->disconnect(this);
+        }
+    }
+    if (m_moreButton)
+    {
+        m_moreButton->disconnect(this);
+    }
+
+    // The palette is deleted now, while the row is still whole (an open popover
+    // closes and its focus returns); its signals do not reach the row any more
+    if (PDFColorPalette* palette = m_palette.data())
+    {
+        palette->disconnect(this);
+        m_palette = nullptr;
+        if (palette->parent() == this)
+        {
+            delete palette;
+        }
+    }
+}
+
+std::vector<PDFColorSwatchRow::Entry> PDFColorSwatchRow::getAnnotationColors(Options options)
+{
+    struct NamedToken
+    {
+        PDFThemeColors::Color token;
+        const char* name;
+    };
+
+    // The order of the design (877:10188, 207:7199)
+    static constexpr NamedToken colors[] =
+    {
+        { PDFThemeColors::AnnotationYellow, QT_TR_NOOP("Yellow") },
+        { PDFThemeColors::AnnotationOrange, QT_TR_NOOP("Orange") },
+        { PDFThemeColors::AnnotationRed, QT_TR_NOOP("Red") },
+        { PDFThemeColors::AnnotationPink, QT_TR_NOOP("Pink") },
+        { PDFThemeColors::AnnotationPurple, QT_TR_NOOP("Purple") },
+        { PDFThemeColors::AnnotationBlue, QT_TR_NOOP("Blue") },
+        { PDFThemeColors::AnnotationGreen, QT_TR_NOOP("Green") },
+        { PDFThemeColors::AnnotationBlack, QT_TR_NOOP("Black") }
+    };
+
+    // The canonical values are the tokens of the built-in light theme
+    const PDFThemeColors light;
+    std::vector<Entry> entries;
+
+    if (options.testFlag(Option::NoColor))
+    {
+        entries.push_back(Entry{ PDFThemeColors::ColorCount, QColor(), tr("No color") });
+    }
+    for (const NamedToken& color : colors)
+    {
+        entries.push_back(Entry{ color.token, light.getColor(color.token), tr(color.name) });
+    }
+    if (options.testFlag(Option::White))
+    {
+        entries.push_back(Entry{ PDFThemeColors::AnnotationWhite, light.getColor(PDFThemeColors::AnnotationWhite), tr("White") });
+    }
+
+    return entries;
+}
+
+void PDFColorSwatchRow::setOptions(Options options)
+{
+    if (m_options == options)
+    {
+        return;
+    }
+
+    // A selection, which the new list does not have (No color), is dropped
+    m_options = options;
+    m_entries = getAnnotationColors(m_options);
+    if (m_selection == Selection::NoColor && !m_options.testFlag(Option::NoColor))
+    {
+        m_selection = Selection::Nothing;
+    }
+
+    QPointer<PDFColorSwatchRow> guard(this);
+    if (!rebuild() || !guard)
+    {
+        return;
+    }
+    if (!m_options.testFlag(Option::More))
+    {
+        hidePalette();
+    }
+    if (guard)
+    {
+        updatePaletteColors();
+    }
+}
+
+QColor PDFColorSwatchRow::getColor() const
+{
+    return m_selection == Selection::Color ? m_color : QColor();
+}
+
+bool PDFColorSwatchRow::isNoColorSelected() const
+{
+    return m_selection == Selection::NoColor;
+}
+
+void PDFColorSwatchRow::setColor(const QColor& color)
+{
+    selectColor(color);
+}
+
+bool PDFColorSwatchRow::selectColor(const QColor& color)
+{
+    // The color is copied: the reference may belong to an object deleted by a slot
+    const QColor value = color;
+    bool hasNoColor = false;
+    const Entry* matching = nullptr;
+    for (const Entry& entry : m_entries)
+    {
+        if (!entry.canonicalColor.isValid())
+        {
+            hasNoColor = true;
+        }
+        else if (!matching && value.isValid() && PDFColorSwatchRowHelper::isSameRgb(entry.canonicalColor, value))
+        {
+            matching = &entry;
+        }
+    }
+
+    if (!value.isValid())
+    {
+        m_selection = hasNoColor ? Selection::NoColor : Selection::Nothing;
+        m_color = QColor();
+    }
+    else
+    {
+        // A color of a swatch is its canonical value, a custom color is kept as it is
+        m_selection = Selection::Color;
+        m_color = matching ? matching->canonicalColor : value;
+    }
+
+    return updateSelection();
+}
+
+PDFColorSwatch* PDFColorSwatchRow::getSwatch(int index) const
+{
+    return (index >= 0 && index < getSwatchCount() && index < m_swatches.size()) ? m_swatches.at(index).data() : nullptr;
+}
+
+PDFColorSwatchRow::Entry PDFColorSwatchRow::getEntry(int index) const
+{
+    return (index >= 0 && index < getSwatchCount()) ? m_entries.at(index) : Entry();
+}
+
+QAbstractButton* PDFColorSwatchRow::getMoreButton() const
+{
+    return m_options.testFlag(Option::More) ? m_moreButton.data() : nullptr;
+}
+
+PDFColorPalette* PDFColorSwatchRow::getPalette()
+{
+    if (!m_palette)
+    {
+        PDFColorPalette* palette = new PDFColorPalette(this, Qt::Popup);
+        m_palette = palette;
+        connect(palette, &PDFColorPalette::colorSelected, this, &PDFColorSwatchRow::onPaletteColorSelected);
+        connect(palette, &PDFColorPalette::moreColorsRequested, this, &PDFColorSwatchRow::moreColorsRequested);
+        connect(palette, &PDFColorPalette::closed, this, &PDFColorSwatchRow::onPaletteClosed);
+        connect(palette, &QObject::destroyed, this, &PDFColorSwatchRow::onPaletteDestroyed);
+        updatePaletteColors();
+    }
+
+    return m_palette.data();
+}
+
+bool PDFColorSwatchRow::showPalette()
+{
+    QAbstractButton* more = getMoreButton();
+    if (!more || !isEnabled() || !more->isVisible() || !more->isEnabled())
+    {
+        return false;
+    }
+
+    // The palette selects its swatch (toggled) and shows itself: a slot or a
+    // filter of the application may delete the palette or this row
+    QPointer<PDFColorSwatchRow> guard(this);
+    QPointer<PDFColorPalette> palette = getPalette();
+    if (!guard || !palette)
+    {
+        return false;
+    }
+
+    {
+        // The hidden palette takes the selection of the row without the signals
+        // toggled of its swatches: they are parts of the palette, the selection
+        // is the state of the row (changed by the swatches of the row, while the
+        // palette is closed), the palette reports a choice by colorSelected
+        std::vector<QSignalBlocker> blockers;
+        blockers.reserve(PDFColorPalette::MAX_SUGGESTED_COLORS);
+        for (int i = 0; i < PDFColorPalette::MAX_SUGGESTED_COLORS; ++i)
+        {
+            if (PDFColorSwatch* swatch = palette->getSuggestedSwatch(i))
+            {
+                blockers.emplace_back(swatch);
+            }
+        }
+        palette->setCurrentColor(m_selection == Selection::Nothing ? PDFColorSwatchRowHelper::getNothingSelectedColor() : getColor());
+    }
+    if (!guard || !palette || !m_moreButton)
+    {
+        return false;
+    }
+
+    // The More button takes the focus (a click does not give it to a button of
+    // the Tab focus only), so the focus returns to it, when the popover closes
+    if (window()->isActiveWindow() && !m_moreButton->hasFocus())
+    {
+        m_moreButton->setFocus(Qt::PopupFocusReason);
+        if (!guard || !palette || !m_moreButton)
+        {
+            return false;
+        }
+    }
+
+    palette->popup(m_moreButton.data());
+    if (!guard || !palette)
+    {
+        return false;
+    }
+
+    return palette->isVisible();
+}
+
+void PDFColorSwatchRow::hidePalette()
+{
+    if (m_palette && m_palette->isVisible())
+    {
+        m_palette->close();
+    }
+}
+
+bool PDFColorSwatchRow::isPaletteVisible() const
+{
+    return m_palette && m_palette->isVisible();
+}
+
+void PDFColorSwatchRow::setVisibleSwatchLimit(int limit)
+{
+    limit = qMax(-1, limit);
+    if (m_visibleSwatchLimit != limit)
+    {
+        m_visibleSwatchLimit = limit;
+        rebuild();
+    }
+}
+
+int PDFColorSwatchRow::getVisibleSwatchCount() const
+{
+    return static_cast<int>(getVisibleSwatches().size());
+}
+
+QSize PDFColorSwatchRow::getRowSize(int visibleSwatches, bool hasMore)
+{
+    visibleSwatches = qMax(0, visibleSwatches);
+    const QSize swatch = PDFComponentPainter::getColorSwatchSize();
+
+    int width = visibleSwatches * swatch.width() + qMax(0, visibleSwatches - 1) * SWATCH_GAP;
+    int height = visibleSwatches > 0 ? swatch.height() : 0;
+    if (hasMore)
+    {
+        width += (visibleSwatches > 0 ? SWATCH_GAP : 0) + MORE_EXTENT;
+        height = qMax(height, MORE_EXTENT);
+    }
+
+    return QSize(width, height);
+}
+
+QSize PDFColorSwatchRow::sizeHint() const
+{
+    return getRowSize(getVisibleSwatchCount(), getMoreButton() != nullptr);
+}
+
+QSize PDFColorSwatchRow::minimumSizeHint() const
+{
+    return sizeHint();
+}
+
+bool PDFColorSwatchRow::isSwatchShown(int index) const
+{
+    return m_visibleSwatchLimit < 0 || index < m_visibleSwatchLimit;
+}
+
+QList<PDFColorSwatch*> PDFColorSwatchRow::getVisibleSwatches() const
+{
+    QList<PDFColorSwatch*> swatches;
+    for (int i = 0; i < getSwatchCount(); ++i)
+    {
+        PDFColorSwatch* swatch = getSwatch(i);
+        if (swatch && isSwatchShown(i) && !swatch->isHidden())
+        {
+            swatches << swatch;
+        }
+    }
+    return swatches;
+}
+
+bool PDFColorSwatchRow::rebuild()
+{
+    // The swatches are reused (a swatch is never deleted, while its signal
+    // clicked is handled); a swatch deleted by the application is replaced by
+    // a new one, the swatches, which are not needed, are hidden
+    m_swatches.removeAll(QPointer<PDFColorSwatch>());
+    while (m_swatches.size() < getSwatchCount())
+    {
+        PDFColorSwatch* swatch = new PDFColorSwatch(this);
+        swatch->installEventFilter(this);
+        m_group.addButton(swatch);
+        connect(swatch, &QAbstractButton::clicked, this, &PDFColorSwatchRow::onSwatchClicked);
+        m_swatches << swatch;
+    }
+
+    for (int i = 0; i < m_swatches.size(); ++i)
+    {
+        PDFColorSwatch* swatch = m_swatches.at(i);
+        if (i < getSwatchCount())
+        {
+            swatch->setKind(m_entries.at(i).canonicalColor.isValid() ? PDFColorSwatch::Kind::Color : PDFColorSwatch::Kind::None);
+            swatch->setColorName(m_entries.at(i).name);
+        }
+        swatch->setVisible(i < getSwatchCount() && isSwatchShown(i));
+    }
+    updateSwatchColors();
+    updateMoreButton();
+
+    if (!updateSelection())
+    {
+        return false;
+    }
+
+    // The order of Tab follows the swatches, the More button is the last one
+    QWidget* previous = nullptr;
+    for (int i = 0; i < getSwatchCount(); ++i)
+    {
+        if (PDFColorSwatch* swatch = getSwatch(i))
+        {
+            if (previous)
+            {
+                QWidget::setTabOrder(previous, swatch);
+            }
+            previous = swatch;
+        }
+    }
+    if (previous && m_moreButton)
+    {
+        QWidget::setTabOrder(previous, m_moreButton.data());
+    }
+
+    updateGeometry();
+    layoutChildren();
+    update();
+    return true;
+}
+
+void PDFColorSwatchRow::updateSwatchColors()
+{
+    // The swatches show the token of the current theme
+    for (int i = 0; i < getSwatchCount(); ++i)
+    {
+        if (PDFColorSwatch* swatch = getSwatch(i))
+        {
+            const Entry& entry = m_entries.at(i);
+            const bool hasToken = entry.canonicalColor.isValid() && entry.token >= 0 && entry.token < PDFThemeColors::ColorCount;
+            swatch->setColor(hasToken ? PDFStylePainter::color(entry.token) : entry.canonicalColor);
+        }
+    }
+}
+
+void PDFColorSwatchRow::updateMoreButton()
+{
+    const bool hasMore = m_options.testFlag(Option::More);
+    if (hasMore && !m_moreButton)
+    {
+        // The look of a Sidebar tab (190:619): 32 x 32, the icon of 18
+        QToolButton* button = new QToolButton(this);
+        PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::SIDEBAR_TAB);
+        button->setAutoRaise(true);
+        button->setIcon(PDFThemeIcons::getIcon(QStringLiteral("more-horizontal")));
+        button->setIconSize(QSize(PDFColorSwatchRowHelper::MORE_ICON, PDFColorSwatchRowHelper::MORE_ICON));
+        button->setFixedSize(MORE_EXTENT, MORE_EXTENT);
+        button->setFocusPolicy(Qt::TabFocus);
+        connect(button, &QAbstractButton::clicked, this, &PDFColorSwatchRow::onMoreClicked);
+        m_moreButton = button;
+    }
+
+    if (m_moreButton)
+    {
+        const QString text = tr("More colors");
+        m_moreButton->setToolTip(text);
+        m_moreButton->setAccessibleName(text);
+        m_moreButton->setVisible(hasMore);
+    }
+}
+
+bool PDFColorSwatchRow::updatePaletteColors()
+{
+    if (!m_palette)
+    {
+        return true;
+    }
+
+    // The palette shows the canonical values: the colors, which are written
+    QList<PDFColorPalette::Entry> colors;
+    for (const Entry& entry : m_entries)
+    {
+        colors << PDFColorPalette::Entry{ entry.canonicalColor, entry.name };
+    }
+
+    // The palette selects its swatches (toggled), a slot may delete the row
+    QPointer<PDFColorSwatchRow> guard(this);
+    m_palette->setSuggestedColors(colors);
+    return !guard.isNull();
+}
+
+bool PDFColorSwatchRow::updateSelection()
+{
+    int selected = -1;
+    for (int i = 0; i < getSwatchCount(); ++i)
+    {
+        const QColor& canonical = m_entries.at(i).canonicalColor;
+        const bool isSelected = (m_selection == Selection::NoColor && !canonical.isValid()) ||
+                                (m_selection == Selection::Color && canonical.isValid() && PDFColorSwatchRowHelper::isSameRgb(canonical, m_color));
+        if (isSelected)
+        {
+            selected = i;
+            break;
+        }
+    }
+
+    // A swatch emits toggled, whose slot of the application may delete the row
+    QPointer<PDFColorSwatchRow> guard(this);
+    for (int i = 0; i < m_swatches.size(); ++i)
+    {
+        if (PDFColorSwatch* swatch = m_swatches.at(i))
+        {
+            swatch->setSelected(i == selected);
+            if (!guard)
+            {
+                return false;
+            }
+        }
+    }
+
+    PDFColorSwatch* focused = nullptr;
+    for (PDFColorSwatch* swatch : getVisibleSwatches())
+    {
+        if (swatch->hasFocus())
+        {
+            focused = swatch;
+        }
+    }
+    updateTabStops(focused);
+    return true;
+}
+
+void PDFColorSwatchRow::updateTabStops(PDFColorSwatch* focused)
+{
+    // The swatches are one stop of Tab: the focused swatch, the selected one, or the first one
+    const QList<PDFColorSwatch*> swatches = getVisibleSwatches();
+    PDFColorSwatch* stop = swatches.contains(focused) ? focused : nullptr;
+    for (PDFColorSwatch* swatch : swatches)
+    {
+        if (!stop && swatch->isSelected())
+        {
+            stop = swatch;
+        }
+    }
+    if (!stop && !swatches.isEmpty())
+    {
+        stop = swatches.front();
+    }
+
+    for (const QPointer<PDFColorSwatch>& swatch : std::as_const(m_swatches))
+    {
+        if (swatch)
+        {
+            swatch->setFocusPolicy(swatch == stop ? Qt::StrongFocus : Qt::ClickFocus);
+        }
+    }
+}
+
+bool PDFColorSwatchRow::moveFocus(PDFColorSwatch* swatch, int key)
+{
+    const QList<PDFColorSwatch*> swatches = getVisibleSwatches();
+    const int index = static_cast<int>(swatches.indexOf(swatch));
+    const int count = static_cast<int>(swatches.size());
+    if (index < 0)
+    {
+        return false;
+    }
+
+    // The arrows Left and Right go by the picture (mirrored in the right-to-left
+    // layout), Up and Down go to the previous and to the next color
+    const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
+    int target = index;
+    switch (key)
+    {
+        case Qt::Key_Left:
+            target = isRightToLeft ? index + 1 : index - 1;
+            break;
+
+        case Qt::Key_Right:
+            target = isRightToLeft ? index - 1 : index + 1;
+            break;
+
+        case Qt::Key_Up:
+            target = index - 1;
+            break;
+
+        case Qt::Key_Down:
+            target = index + 1;
+            break;
+
+        case Qt::Key_Home:
+            target = 0;
+            break;
+
+        case Qt::Key_End:
+            target = count - 1;
+            break;
+
+        default:
+            return false;
+    }
+
+    target = qBound(0, target, count - 1);
+    if (target != index)
+    {
+        swatches.at(target)->setFocus(target < index ? Qt::BacktabFocusReason : Qt::TabFocusReason);
+    }
+    return true;
+}
+
+void PDFColorSwatchRow::layoutChildren()
+{
+    const QRect bounds = rect();
+    const Qt::LayoutDirection direction = layoutDirection();
+    const QSize swatchSize = PDFComponentPainter::getColorSwatchSize();
+
+    // Left-aligned (leading) in the logical layout, centered vertically
+    int x = 0;
+    for (PDFColorSwatch* swatch : getVisibleSwatches())
+    {
+        const QRect logical(QPoint(x, (bounds.height() - swatchSize.height()) / 2), swatchSize);
+        PDFComponentPanelsHelper::placeWidget(swatch, direction, bounds, logical);
+        x += swatchSize.width() + SWATCH_GAP;
+    }
+
+    if (QAbstractButton* more = getMoreButton())
+    {
+        const QRect logical(QPoint(x, (bounds.height() - MORE_EXTENT) / 2), QSize(MORE_EXTENT, MORE_EXTENT));
+        PDFComponentPanelsHelper::placeWidget(more, direction, bounds, logical);
+    }
+}
+
+void PDFColorSwatchRow::retranslate()
+{
+    // The names of the colors
+    m_entries = getAnnotationColors(m_options);
+    QPointer<PDFColorSwatchRow> guard(this);
+    if (!rebuild() || !guard || !updatePaletteColors())
+    {
+        return;
+    }
+
+    // The default name of the row, unless the application has its own
+    const QString name = tr("Colors");
+    if (accessibleName().isEmpty() || accessibleName() == m_accessibleName)
+    {
+        setAccessibleName(name);
+    }
+    m_accessibleName = name;
+}
+
+void PDFColorSwatchRow::onThemeChanged()
+{
+    updateSwatchColors();
+    update();
+}
+
+void PDFColorSwatchRow::onSwatchClicked()
+{
+    // The clicked swatch is the sender (the swatches are created and reused by the row)
+    PDFColorSwatch* swatch = qobject_cast<PDFColorSwatch*>(sender());
+    const int index = swatch ? static_cast<int>(m_swatches.indexOf(swatch)) : -1;
+    if (index < 0 || index >= getSwatchCount())
+    {
+        return;
+    }
+
+    // The state is changed first, the signal is the last (its slot may delete the row)
+    const QColor color = m_entries.at(index).canonicalColor;
+    m_selection = color.isValid() ? Selection::Color : Selection::NoColor;
+    m_color = color;
+    QPointer<PDFColorSwatchRow> guard(this);
+    if (!updateSelection() || !guard)
+    {
+        return;
+    }
+
+    Q_EMIT colorSelected(color);
+}
+
+void PDFColorSwatchRow::onMoreClicked()
+{
+    // The result is not needed by a click
+    showPalette();
+}
+
+void PDFColorSwatchRow::onPaletteColorSelected(const QColor& color)
+{
+    // The color is copied (the reference belongs to the palette, a slot may delete it)
+    const QColor selected = color;
+    QPointer<PDFColorSwatchRow> guard(this);
+    if (!selectColor(selected) || !guard)
+    {
+        return;
+    }
+
+    // A color of a swatch is reported by its canonical value, a custom color as it has been chosen
+    const QColor reported = m_selection == Selection::Color ? m_color : QColor();
+    Q_EMIT colorSelected(reported);
+}
+
+void PDFColorSwatchRow::onPaletteClosed()
+{
+    // The focus returns to the More button (a click outside gives it to the clicked widget after this)
+    QAbstractButton* more = getMoreButton();
+    if (more && more->isVisible() && more->isEnabled() && window()->isActiveWindow())
+    {
+        more->setFocus(Qt::PopupFocusReason);
+    }
+}
+
+void PDFColorSwatchRow::onPaletteDestroyed()
+{
+    // Only the pointer is dropped (nothing of the palette is asked any more)
+    m_palette = nullptr;
+}
+
+bool PDFColorSwatchRow::event(QEvent* event)
+{
+    if (event->type() == QEvent::ChildRemoved && !m_isDestroying)
+    {
+        // A nested widget moved to another parent by the application is
+        // forgotten (a deleted one is already null in its pointer)
+        QObject* child = static_cast<QChildEvent*>(event)->child();
+        for (QPointer<PDFColorSwatch>& swatch : m_swatches)
+        {
+            if (swatch && swatch.data() == child)
+            {
+                m_group.removeButton(swatch.data());
+                swatch->removeEventFilter(this);
+                swatch->disconnect(this);
+                swatch = nullptr;
+            }
+        }
+        if (m_moreButton && m_moreButton.data() == child)
+        {
+            m_moreButton->disconnect(this);
+            m_moreButton = nullptr;
+        }
+        if (m_palette && m_palette.data() == child)
+        {
+            PDFColorPalette* palette = m_palette.data();
+            m_palette = nullptr;
+            palette->disconnect(this);
+        }
+
+        const bool result = BaseClass::event(event);
+        updateTabStops(nullptr);
+        updateGeometry();
+        layoutChildren();
+        return result;
+    }
+
+    return BaseClass::event(event);
+}
+
+void PDFColorSwatchRow::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+
+    switch (event->type())
+    {
+        case QEvent::LanguageChange:
+            retranslate();
+            break;
+
+        case QEvent::LayoutDirectionChange:
+            layoutChildren();
+            update();
+            break;
+
+        case QEvent::EnabledChange:
+            if (!isEnabled())
+            {
+                hidePalette();
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+void PDFColorSwatchRow::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    layoutChildren();
+}
+
+bool PDFColorSwatchRow::eventFilter(QObject* watched, QEvent* event)
+{
+    PDFColorSwatch* swatch = qobject_cast<PDFColorSwatch*>(watched);
+    if (swatch && !m_isDestroying && swatch->parentWidget() == this && m_swatches.contains(swatch))
+    {
+        if (event->type() == QEvent::FocusIn)
+        {
+            updateTabStops(swatch);
+        }
+        else if (event->type() == QEvent::KeyPress)
+        {
+            const QKeyEvent* keyEvent = static_cast<const QKeyEvent*>(event);
+            const int key = keyEvent->key();
+            const bool isNavigation = key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home || key == Qt::Key_End;
+            if (isNavigation && (keyEvent->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier && moveFocus(swatch, key))
+            {
+                return true;
+            }
+        }
+    }
+
+    return BaseClass::eventFilter(watched, event);
 }
 
 // ------------------------------------------------------------ Signature card

@@ -1733,7 +1733,12 @@ public:
         QString text;
         QString iconName = QStringLiteral("highlighter");
         PDFAccentHue hue = PDFAccentHue::Amber;
+        QString stateIconName;  ///< Icon of a state (eye-off of a hidden annotation, 1026:21995), empty = none
     };
+
+    /// Returns the rectangle of the state icon of a note row (icon/muted 14 at the
+    /// trailing side of the line of the text, 1026:21995); empty without the icon
+    static QRectF getNoteRowStateIconRect(const QRectF& rect, const NoteRow& row);
 
     /// Returns the height of the row of the width
     static int getNoteRowHeight(const NoteRow& row, int width);

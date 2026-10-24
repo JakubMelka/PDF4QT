@@ -22,7 +22,11 @@
 
 #include "appdocumentfixture.h"
 
+#include "pdfappannotationcontroller.h"
+#include "pdfappannotationstylestorage.h"
 #include "pdfappcommand.h"
+#include "pdfappcommandline.h"
+#include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentcommands.h"
 #include "pdfappdocumentdialogs.h"
@@ -36,6 +40,7 @@
 #include "pdfapphomebasepage.h"
 #include "pdfappnavigator.h"
 #include "pdfapproutetable.h"
+#include "pdfappfloatingbar.h"
 #include "pdfappundostack.h"
 #include "pdfappworkspace.h"
 #include "pdfrecentrepository.h"
@@ -50,8 +55,11 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include "pdfannotationstyle.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfutils.h"
+#include "pdfwidgetannotation.h"
 #include "pdfoptionalcontent.h"
 
 #include <QClipboard>
@@ -264,6 +272,15 @@ private slots:
     void openFailedTitleOfRequest();
     void registryPathComparison();
     void undoMemorySharedContent();
+    void undoMergeKey();
+    void undoMergeKeyClosedBySave();
+
+    // Fixes of the review of wave 0 of step 4 (RW0-A)
+    void reviewMergeSessionOnlyOwnChanges();
+    void reviewStaleEngineChangeRefused();
+    void reviewSelectionAfterResetChange();
+    void reviewContextCloseKeepsOtherStorage();
+    void reviewFloatingBarRightToLeft();
 };
 
 void AppDocumentTest::initTestCase()
@@ -2689,6 +2706,435 @@ void AppDocumentTest::undoMemorySharedContent()
     const pdf::PDFDocument third = contentBuilder.build();
     QVERIFY(pdf::PDFAppUndoStack::estimateMemory(&first, &third) >= content.size());
     QVERIFY(pdf::PDFAppUndoStack::estimateMemory(&first, nullptr) >= content.size());
+}
+
+void AppDocumentTest::undoMergeKey()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Merge.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppUndoStack* stack = document->getUndoStack();
+    const pdf::PDFDocumentPointer original = document->getDocument();
+
+    auto commitTitle = [document](const QString& title, const QString& key, pdf::PDFModifiedDocument::ModificationFlags flags)
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        builder.setDocumentTitle(title);
+        pdf::PDFDocumentPointer changed(new pdf::PDFDocument(builder.build()));
+        return document->commit(pdf::PDFModifiedDocument(changed, nullptr, flags), title, document->getVersion(), pdf::PDFAppChangeSource::User, key);
+    };
+    auto title = [document]() { return document->getDocument()->getInfo()->title; };
+
+    // Three changes of one session are one undo step, each one a new version
+    const quint64 version = document->getVersion();
+    QVERIFY(commitTitle(QStringLiteral("A"), QStringLiteral("color:1"), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("B"), QStringLiteral("color:1"), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(commitTitle(QStringLiteral("C"), QStringLiteral("color:1"), pdf::PDFModifiedDocument::FormField));
+    QCOMPARE(document->getVersion(), version + 3);
+    QCOMPARE(stack->getUndoCount(), size_t(1));
+    QCOMPARE(stack->getUndoDescription(), QStringLiteral("A"));
+    QCOMPARE(title(), QStringLiteral("C"));
+    QVERIFY(stack->getMemoryUsage() > 0);
+
+    // Another key is a new step; an empty key is never merged
+    QVERIFY(commitTitle(QStringLiteral("D"), QStringLiteral("width:1"), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(2));
+    QVERIFY(commitTitle(QStringLiteral("E"), QString(), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(!stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("F"), QString(), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(4));
+
+    // A commit without a key between two of the same key closes the session
+    QVERIFY(commitTitle(QStringLiteral("G"), QStringLiteral("color:2"), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(commitTitle(QStringLiteral("H"), QString(), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(commitTitle(QStringLiteral("I"), QStringLiteral("color:2"), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(7));
+
+    // closeUndoMerge ends the session
+    document->closeUndoMerge();
+    QVERIFY(commitTitle(QStringLiteral("J"), QStringLiteral("color:2"), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(8));
+
+    // Undo and redo end the session too
+    QVERIFY(stack->undo());
+    QCOMPARE(title(), QStringLiteral("I"));
+    QVERIFY(stack->redo());
+    QCOMPARE(title(), QStringLiteral("J"));
+    QVERIFY(!stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("K"), QStringLiteral("color:2"), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(9));
+
+    // An undo of the merged step goes back before the whole session (flags joined)
+    while (stack->getUndoCount() > 1)
+    {
+        QVERIFY(stack->undo());
+    }
+    QCOMPARE(title(), QStringLiteral("C"));
+    QSignalSpy changedSpy(document, &pdf::PDFAppDocument::documentChanged);
+    QVERIFY(stack->undo());
+    QCOMPARE(document->getDocument(), original);
+    QCOMPARE(changedSpy.count(), 1);
+    const pdf::PDFModifiedDocument modified = changedSpy.at(0).at(0).value<pdf::PDFModifiedDocument>();
+    QVERIFY(modified.hasFlag(pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(modified.hasFlag(pdf::PDFModifiedDocument::FormField));
+    QVERIFY(!document->isModified());
+
+    // A stale version and a locked document are refused; the limit 0 keeps no step
+    QVERIFY(commitTitle(QStringLiteral("L"), QStringLiteral("color:3"), pdf::PDFModifiedDocument::Annotation));
+    pdf::PDFDocumentBuilder builder(document->getDocument().data());
+    builder.setDocumentTitle(QStringLiteral("Stale"));
+    pdf::PDFDocumentPointer stale(new pdf::PDFDocument(builder.build()));
+    QVERIFY(!document->commit(pdf::PDFModifiedDocument(stale, nullptr, pdf::PDFModifiedDocument::Annotation), QStringLiteral("Stale"), document->getVersion() - 1, pdf::PDFAppChangeSource::User, QStringLiteral("color:3")));
+    document->setLocked(true);
+    QVERIFY(!commitTitle(QStringLiteral("M"), QStringLiteral("color:3"), pdf::PDFModifiedDocument::Annotation));
+    document->setLocked(false);
+    QCOMPARE(title(), QStringLiteral("L"));
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::editingUndoLimit(), 0).isError());
+    QVERIFY(commitTitle(QStringLiteral("N"), QStringLiteral("color:4"), pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(!stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("O"), QStringLiteral("color:4"), pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(title(), QStringLiteral("O"));
+    QCOMPARE(stack->getUndoCount(), size_t(0));
+
+    // A hostile (huge) key is bounded and still merges
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::editingUndoLimit(), 100).isError());
+    const QString longKey(100000, QLatin1Char('k'));
+    QVERIFY(commitTitle(QStringLiteral("P"), longKey, pdf::PDFModifiedDocument::Annotation));
+    QVERIFY(commitTitle(QStringLiteral("Q"), longKey, pdf::PDFModifiedDocument::Annotation));
+    QCOMPARE(stack->getUndoCount(), size_t(1));
+}
+
+void AppDocumentTest::undoMergeKeyClosedBySave()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("MergeSave.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppUndoStack* stack = document->getUndoStack();
+
+    auto commitTitle = [document](const QString& title, const QString& key)
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        builder.setDocumentTitle(title);
+        pdf::PDFDocumentPointer changed(new pdf::PDFDocument(builder.build()));
+        return document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Annotation), title, document->getVersion(), pdf::PDFAppChangeSource::User, key);
+    };
+
+    // Saved in the middle of a session: the change after the save is a new step,
+    // so undo returns to the saved version (unmodified)
+    QVERIFY(commitTitle(QStringLiteral("A"), QStringLiteral("width:1")));
+    QVERIFY(commitTitle(QStringLiteral("B"), QStringLiteral("width:1")));
+    QCOMPARE(stack->getUndoCount(), size_t(1));
+    document->setSaved();
+    QVERIFY(!document->isModified());
+    QVERIFY(!stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("C"), QStringLiteral("width:1")));
+    QCOMPARE(stack->getUndoCount(), size_t(2));
+    QVERIFY(document->isModified());
+    QCOMPARE(document->getUnsavedChangeCount(), 1);
+    QVERIFY(commitTitle(QStringLiteral("D"), QStringLiteral("width:1")));
+    QCOMPARE(document->getUnsavedChangeCount(), 1);
+    QVERIFY(stack->undo());
+    QVERIFY(!document->isModified());
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("B"));
+
+    // An older version saved by a worker (setSavedAs) ends the session too
+    QVERIFY(stack->redo());
+    QVERIFY(commitTitle(QStringLiteral("E"), QStringLiteral("width:2")));
+    document->setSavedAs(document->getVersion() - 1, document->getFilePath(), document->getOriginalData());
+    QVERIFY(!stack->isMergeOpen());
+    const size_t count = stack->getUndoCount();
+    QVERIFY(commitTitle(QStringLiteral("F"), QStringLiteral("width:2")));
+    QCOMPARE(stack->getUndoCount(), count + 1);
+
+    // A reload (clear) ends it as well
+    QVERIFY(stack->isMergeOpen());
+    stack->clear();
+    QVERIFY(!stack->isMergeOpen());
+    QVERIFY(commitTitle(QStringLiteral("G"), QStringLiteral("width:2")));
+    QCOMPARE(stack->getUndoCount(), size_t(1));
+}
+
+/// Helpers of the tests of the review of wave 0 of step 4
+class AppDocumentReviewHelper
+{
+public:
+    AppDocumentReviewHelper() = delete;
+
+    /// Annotation of the page 0 of AppDocumentSamples::annotations with the subject
+    static pdf::PDFObjectReference findAnnotation(const pdf::PDFAppDocument* document, const QString& subject);
+};
+
+pdf::PDFObjectReference AppDocumentReviewHelper::findAnnotation(const pdf::PDFAppDocument* document, const QString& subject)
+{
+    const pdf::PDFDocumentPointer pdfDocument = document ? document->getDocument() : pdf::PDFDocumentPointer();
+    const pdf::PDFPage* page = pdfDocument ? pdfDocument->getCatalog()->getPage(0) : nullptr;
+    if (!page)
+    {
+        return pdf::PDFObjectReference();
+    }
+
+    pdf::PDFDocumentDataLoaderDecorator loader(pdfDocument.data());
+    for (const pdf::PDFObjectReference& reference : page->getAnnotations())
+    {
+        const pdf::PDFObject& object = pdfDocument->getObjectByReference(reference);
+        if (object.isDictionary() && loader.readTextStringFromDictionary(object.getDictionary(), "Subj", QString()) == subject)
+        {
+            return reference;
+        }
+    }
+    return pdf::PDFObjectReference();
+}
+
+void AppDocumentTest::reviewMergeSessionOnlyOwnChanges()
+{
+    // A merge session of the bar (live color / width, O20) takes only the changes
+    // of the bar: a press or a key on the canvas (a drag, a nudge), a delete, a
+    // form field or a new annotation are new undo steps
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    QVERIFY(controller);
+    pdf::PDFWidgetAnnotationManager* manager = controller->getAnnotationManager();
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    QVERIFY(canvas);
+
+    const pdf::PDFObjectReference square = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square"));
+    const pdf::PDFObjectReference circle = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("circle"));
+    QVERIFY(square.isValid());
+    QVERIFY(circle.isValid());
+    controller->selectAnnotations({ square });
+
+    // Two live changes are one step
+    controller->beginMergeSession(pdf::PDFAppAnnotationController::createMergeKey(QStringLiteral("color"), { square }, 1));
+    manager->setSelectedAnnotationsColor(QColor(Qt::green));
+    manager->setSelectedAnnotationsColor(QColor(Qt::yellow));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+
+    // A key on the canvas ends the session (a nudge by the arrows would be a new step)
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_Shift, Qt::ShiftModifier);
+    QCoreApplication::sendEvent(canvas, &press);
+    QVERIFY(!controller->isMergeSessionOpen());
+    manager->setSelectedAnnotationsColor(QColor(Qt::red));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+
+    // A press of the mouse on the canvas ends it too (the start of a drag)
+    controller->beginMergeSession(pdf::PDFAppAnnotationController::createMergeKey(QStringLiteral("width"), { square }, 2));
+    manager->setSelectedAnnotationsBorderWidth(3.0);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 3);
+    QMouseEvent mousePress(QEvent::MouseButtonPress, QPointF(2, 2), canvas->mapToGlobal(QPointF(2, 2)), Qt::MiddleButton, Qt::MiddleButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(canvas, &mousePress);
+    QMouseEvent mouseRelease(QEvent::MouseButtonRelease, QPointF(2, 2), canvas->mapToGlobal(QPointF(2, 2)), Qt::MiddleButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(canvas, &mouseRelease);
+    QVERIFY(!controller->isMergeSessionOpen());
+    controller->selectAnnotations({ square });
+    manager->setSelectedAnnotationsBorderWidth(4.0);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 4);
+
+    // A change of a form field and a new annotation are never a part of the session
+    controller->beginMergeSession(pdf::PDFAppAnnotationController::createMergeKey(QStringLiteral("color"), { square }, 3));
+    manager->setSelectedAnnotationsColor(QColor(Qt::blue));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 5);
+    pdf::PDFDocumentBuilder formBuilder(document->getDocument().data());
+    formBuilder.setDocumentTitle(QStringLiteral("Form"));
+    pdf::PDFDocumentPointer formChange(new pdf::PDFDocument(formBuilder.build()));
+    QVERIFY(controller->commit(pdf::PDFModifiedDocument(formChange, nullptr, pdf::PDFModifiedDocument::None), pdf::PDFAppAnnotationChangeKind::Form));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 6);
+    pdf::PDFDocumentBuilder toolBuilder(document->getDocument().data());
+    toolBuilder.setDocumentTitle(QStringLiteral("Tool"));
+    pdf::PDFDocumentPointer toolChange(new pdf::PDFDocument(toolBuilder.build()));
+    QVERIFY(controller->commit(pdf::PDFModifiedDocument(toolChange, nullptr, pdf::PDFModifiedDocument::None), pdf::PDFAppAnnotationChangeKind::Tool));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 7);
+
+    // A delete of the selection during a session is its own step (undo brings the
+    // annotation back with its last color)
+    controller->beginMergeSession(pdf::PDFAppAnnotationController::createMergeKey(QStringLiteral("color"), { square }, 4));
+    manager->setSelectedAnnotationsColor(QColor(Qt::cyan));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 8);
+    controller->deleteSelection();
+    QVERIFY(!controller->isMergeSessionOpen());
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 9);
+    QVERIFY(!AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square")).isValid());
+    QVERIFY(document->getUndoStack()->undo());
+    QVERIFY(AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square")).isValid());
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 8);
+}
+
+void AppDocumentTest::reviewStaleEngineChangeRefused()
+{
+    // A change of the engine is made from the version, which the view shows; when
+    // the model has a newer version (the view has not got it yet), the change is
+    // refused instead of discarding the newer version
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    pdf::PDFWidgetAnnotationManager* manager = controller->getAnnotationManager();
+
+    const pdf::PDFObjectReference square = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square"));
+    controller->selectAnnotations({ square });
+
+    // The current version is accepted
+    manager->setSelectedAnnotationsColor(QColor(Qt::green));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+
+    // The view does not get the next version: the engine still shows the old one
+    QObject::disconnect(document, nullptr, view, nullptr);
+    pdf::PDFDocumentBuilder builder(document->getDocument().data());
+    builder.setDocumentTitle(QStringLiteral("Newer"));
+    pdf::PDFDocumentPointer newer(new pdf::PDFDocument(builder.build()));
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(newer, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Newer"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    const quint64 version = document->getVersion();
+
+    QSignalSpy refusedSpy(controller, &pdf::PDFAppAnnotationController::changeRefused);
+    manager->setSelectedAnnotationsColor(QColor(Qt::red));
+    QCOMPARE(refusedSpy.count(), 1);
+    QCOMPARE(document->getVersion(), version);
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Newer"));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+
+    // A change of the application (built from the current version) is accepted
+    pdf::PDFDocumentBuilder appBuilder(document->getDocument().data());
+    appBuilder.setDocumentTitle(QStringLiteral("Application"));
+    pdf::PDFDocumentPointer applicationChange(new pdf::PDFDocument(appBuilder.build()));
+    QVERIFY(controller->commit(pdf::PDFModifiedDocument(applicationChange, nullptr, pdf::PDFModifiedDocument::None), pdf::PDFAppAnnotationChangeKind::Annotation));
+    QCOMPARE(document->getVersion(), version + 1);
+}
+
+void AppDocumentTest::reviewSelectionAfterResetChange()
+{
+    // A Reset change (another source, undo / redo of a Reset step) clears the
+    // selection of the engine before the controller sees the new version: the
+    // selection of the annotations, which still exist, is given back; a reload
+    // (cleared undo stack) gives nothing back
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
+
+    const pdf::PDFObjectReference square = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square"));
+    const pdf::PDFObjectReference circle = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("circle"));
+    const std::vector<pdf::PDFObjectReference> selection = { square, circle };
+    controller->selectAnnotations(selection);
+    QCOMPARE(controller->getSelectedAnnotations(), selection);
+
+    pdf::PDFDocumentBuilder builder(document->getDocument().data());
+    builder.setDocumentTitle(QStringLiteral("Reset"));
+    pdf::PDFDocumentPointer changed(new pdf::PDFDocument(builder.build()));
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Reset"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), selection);
+
+    QVERIFY(document->getUndoStack()->undo());
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), selection);
+    QVERIFY(document->getUndoStack()->redo());
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), selection);
+
+    // A selection of the user changed in between is the one given back
+    controller->selectAnnotations({ circle });
+    QVERIFY(document->getUndoStack()->undo());
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ circle }));
+
+    // A reloaded file: no selection (the references may be other objects)
+    document->reload(document->getDocument(), document->getOriginalData(), false);
+    fixture.settle();
+    QVERIFY(controller->getSelectedAnnotations().empty());
+}
+
+void AppDocumentTest::reviewContextCloseKeepsOtherStorage()
+{
+    // Two contexts in one process: closing the one, whose storage of the styles is
+    // not installed, does not give the engine its QSettings storage and style
+    // window back; closing the installed one does, and the author of its database
+    // is not used any more
+    const pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable" }, QString());
+    pdf::PDFAppContext first(commandLine);
+    pdf::PDFDatabaseOptions firstOptions;
+    firstOptions.memoryName = QStringLiteral("/pdf4qt-review-first-%1").arg(QCoreApplication::applicationPid());
+    first.open(firstOptions);
+    QVERIFY(first.getAnnotationStyleStorage());
+
+    pdf::PDFAppContext second(commandLine);
+    pdf::PDFDatabaseOptions secondOptions;
+    secondOptions.memoryName = QStringLiteral("/pdf4qt-review-second-%1").arg(QCoreApplication::applicationPid());
+    second.open(secondOptions);
+    QCOMPARE(pdf::PDFAnnotationStyleSettings::getStorage(), second.getAnnotationStyleStorage());
+    QVERIFY(!pdf::PDFAnnotationStyleManager::isStyleWindowEnabled());
+
+    QVERIFY(!second.getSettings().setValue(pdf::PDFSettingKeys::annotationsCustomAuthorName(), QStringLiteral("Second")).isError());
+    QVERIFY(!second.getSettings().setValue(pdf::PDFSettingKeys::annotationsAuthorMode(), pdf::PDFSettingValues::authorModeCustomName()).isError());
+    second.applyAuthorSettings();
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorName(), QStringLiteral("Second"));
+
+    first.close();
+    QCOMPARE(pdf::PDFAnnotationStyleSettings::getStorage(), second.getAnnotationStyleStorage());
+    QVERIFY(!pdf::PDFAnnotationStyleManager::isStyleWindowEnabled());
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorName(), QStringLiteral("Second"));
+
+    second.close();
+    QVERIFY(pdf::PDFAnnotationStyleSettings::isDefaultStorage());
+    QVERIFY(pdf::PDFAnnotationStyleManager::isStyleWindowEnabled());
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorNameMode(), pdf::PDFAuthorSettings::AuthorNameMode::Anonymous);
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorName(), pdf::PDFAuthorSettings::getAnonymousAuthorName());
+}
+
+void AppDocumentTest::reviewFloatingBarRightToLeft()
+{
+    // The padding of the card is 14 at the leading side (the icon) and 8 at the
+    // trailing side (the close button) - mirrored for right-to-left
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        QWidget parent;
+        parent.setLayoutDirection(direction);
+        parent.resize(800, 600);
+        pdf::PDFAppFloatingBar* bar = new pdf::PDFAppFloatingBar(pdf::PDFAppFloatingBar::Size::Normal, &parent);
+        QWidget* leading = new QWidget(bar);
+        leading->setFixedSize(20, 20);
+        QWidget* trailing = new QWidget(bar);
+        trailing->setFixedSize(20, 20);
+        bar->addWidget(leading);
+        bar->addWidget(trailing);
+        bar->placeAtTop();
+        parent.show();
+        pdftest::AppDocumentFixture::settle();
+
+        const QRect card = bar->getCardRect();
+        const QMargins padding = pdf::PDFAppFloatingBar::getContentPadding(pdf::PDFAppFloatingBar::Size::Normal);
+        if (direction == Qt::LeftToRight)
+        {
+            QCOMPARE(leading->geometry().left(), card.left() + padding.left());
+            QCOMPARE(trailing->geometry().right(), card.right() - padding.right());
+        }
+        else
+        {
+            QCOMPARE(leading->geometry().right(), card.right() - padding.left());
+            QCOMPARE(trailing->geometry().left(), card.left() + padding.right());
+        }
+
+        // A change of the direction mirrors the padding again
+        parent.setLayoutDirection(direction == Qt::LeftToRight ? Qt::RightToLeft : Qt::LeftToRight);
+        pdftest::AppDocumentFixture::settle();
+        const QRect changedCard = bar->getCardRect();
+        if (direction == Qt::LeftToRight)
+        {
+            QCOMPARE(leading->geometry().right(), changedCard.right() - padding.left());
+        }
+        else
+        {
+            QCOMPARE(leading->geometry().left(), changedCard.left() + padding.left());
+        }
+    }
 }
 
 QTEST_MAIN(AppDocumentTest)

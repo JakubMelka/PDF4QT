@@ -84,6 +84,11 @@ public:
                            QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok,
                            QWidget* parent = nullptr);
 
+    /// Changes the title and the text given to the constructor (a dialog of the
+    /// application retranslated at a language change); an empty text is hidden
+    void setTitle(const QString& title);
+    void setText(const QString& text);
+
     /// Sets the details shown in a note box below the text
     void setDetailedText(const QString& text);
 

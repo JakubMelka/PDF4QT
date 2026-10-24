@@ -78,7 +78,10 @@ public:
         ~ThreadResourcesGuard() { PDFSignatureHandler::releaseThreadResources(); }
     };
 
-    /// Counts the signature fields of a form (functor of PDFForm::apply)
+    /// Counts the signed signature fields of a form (functor of PDFForm::apply). A signature
+    /// field without a signature dictionary (V) is an empty field of the form waiting to be
+    /// signed - it is not a signature, so it is neither counted nor verified (it would be
+    /// reported as an invalid signature without a handler).
     class SignatureFieldCounter
     {
     public:
@@ -86,15 +89,28 @@ public:
 
         void operator()(const PDFFormField* field) const
         {
-            if (field && field->getFieldType() == PDFFormField::FieldType::Signature)
+            if (field && field->getFieldType() == PDFFormField::FieldType::Signature && isSigned(field))
             {
                 ++(*m_count);
             }
         }
 
+        /// Returns true, if the signature field holds a signature
+        static bool isSigned(const PDFFormField* field)
+        {
+            const PDFFormFieldSignature* signatureField = dynamic_cast<const PDFFormFieldSignature*>(field);
+            return signatureField && signatureField->getSignature().getType() != PDFSignature::Type::Invalid;
+        }
+
     private:
         int* m_count;
     };
+
+    /// Returns true, if the result is the result of a signature field without a signature
+    static bool isUnsignedResult(const PDFSignatureVerificationResult& result)
+    {
+        return result.getType() == PDFSignature::Type::Invalid;
+    }
 
     /// Date of a card ("Sep 28, 2026")
     static QString formatDate(const QDateTime& dateTime)
@@ -312,6 +328,10 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
         parameters.useSystemCertificateStore = settings.useSystemStore;
         parameters.aatlCertificates = PDFSignatureHandler::AATLCertificates::Always;
         verification->results = PDFSignatureHandler::verifySignatures(form, sourceData, parameters);
+
+        // Empty signature fields are not signatures: no result, so the page shows the
+        // field itself, not an invalid signature (the status counts signatures only)
+        std::erase_if(verification->results, PDFAppDocumentSignaturesHelper::isUnsignedResult);
     }
     catch (const PDFException&)
     {
@@ -376,7 +396,12 @@ void PDFAppDocumentSignatureVerifier::onVerificationFinished()
     m_cancelFlag.reset();
 
     m_verification = verification ? verification : std::make_shared<PDFAppSignatureVerification>();
+    QPointer<PDFAppDocumentSignatureVerifier> guard(this);
     applyResults();
+    if (!guard)
+    {
+        return;
+    }
 
     Q_EMIT verificationChanged();
 }
@@ -391,9 +416,14 @@ void PDFAppDocumentSignatureVerifier::applyResults()
     // The results belong to the bytes of the file, they are valid for every
     // version made from them; the document emits signatureResultsChanged, also for
     // an empty list (the sidebar shows or hides the tab of the panel)
+    // A slot of signatureResultsChanged may delete the tab (and the verifier)
+    QPointer<PDFAppDocumentSignatureVerifier> guard(this);
     m_isApplyingResults = true;
     m_document->setSignatureResults(m_verification->results, m_document->getVersion());
-    m_isApplyingResults = false;
+    if (guard)
+    {
+        m_isApplyingResults = false;
+    }
 }
 
 void PDFAppDocumentSignatureVerifier::onDocumentStateChanged()

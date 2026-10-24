@@ -435,6 +435,11 @@ private slots:
     void screenshotsStates();
     void emptyStateFillsColumn();
     void headerClearButton();
+
+    // Ctrl+Enter shows all results (owner decision of 2026-10-24)
+    void popupControlEnter();
+    void popupFooterHints();
+    void pageKeyboardShowAll();
 };
 
 void AppSearchTest::initTestCase()
@@ -2191,7 +2196,7 @@ void AppSearchTest::popupGeometry()
     QCOMPARE(popup->getRowRect(0).top(), 34);
     QCOMPARE(popup->height(), items.back().rect.bottom() + 1 + 34 + 1);
     QCOMPARE(popup->getShowAllRect().right() + 1, popup->width() - 1 - 16);
-    QCOMPARE(popup->getVisibleHintCount(), 3);
+    QCOMPARE(popup->getVisibleHintCount(), 4);
 
     // The shadow around the panel (0 / 8 / 24)
     const QRect shadow = popup->getShadow()->geometry();
@@ -3728,6 +3733,280 @@ void AppSearchTest::pageDeletedByRouteReplaced()
     QVERIFY(!page);
     QCOMPARE(titleChanges, 0);
     SearchFixture::settle();
+}
+
+void AppSearchTest::popupControlEnter()
+{
+    // Ctrl+Enter of the field opens the page of all results of the text (the same
+    // as the link Show all n results), Enter keeps opening the current result
+    SearchFixture fixture;
+    fixture.type(QStringLiteral("sign"));
+    QVERIFY(fixture.controller()->isPopupOpen());
+    QVERIFY(fixture.popup()->getCurrentResult());
+
+    // Ctrl+Enter is not a shortcut of the window, while the field uses it
+    QKeyEvent shortcutOverride(QEvent::ShortcutOverride, Qt::Key_Return, Qt::ControlModifier);
+    shortcutOverride.ignore();
+    QCoreApplication::sendEvent(fixture.field(), &shortcutOverride);
+    QVERIFY(shortcutOverride.isAccepted());
+
+    // The controller handles the key itself (the field does not get it, so its
+    // returnPressed never asks for the page a second time)
+    QSignalSpy navigated(fixture.navigator(), &pdf::PDFAppNavigator::navigated);
+    QSignalSpy requested(fixture.controller(), &pdf::PDFAppSearchController::navigationRequested);
+    QSignalSpy returnPressed(fixture.field(), &QLineEdit::returnPressed);
+    QTest::keyClick(fixture.field(), Qt::Key_Return, Qt::ControlModifier);
+    SearchFixture::settle();
+    QCOMPARE(requested.size(), 1);
+    QCOMPARE(requested.front().at(0).value<pdf::PDFAppRoute>(), pdf::PDFAppRoutes::search(QStringLiteral("sign")));
+    QVERIFY(returnPressed.isEmpty());
+    QVERIFY(!fixture.controller()->isPopupOpen());
+    QCOMPARE(navigated.size(), 1);
+    QCOMPARE(navigated.last().at(1).value<pdf::PDFAppRoute>(), pdf::PDFAppRoutes::search(QStringLiteral("sign")));
+    QVERIFY(fixture.searchPage());
+    QCOMPARE(fixture.searchPage()->getSearchText(), QStringLiteral("sign"));
+
+    // The Enter of the keypad
+    fixture.window->activateTab(fixture.homeTab());
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.type(QStringLiteral("merge"));
+    QVERIFY(fixture.controller()->isPopupOpen());
+    navigated.clear();
+    requested.clear();
+    QTest::keyClick(fixture.field(), Qt::Key_Enter, Qt::ControlModifier | Qt::KeypadModifier);
+    SearchFixture::settle();
+    QVERIFY(!fixture.controller()->isPopupOpen());
+    QCOMPARE(requested.size(), 1);
+    QCOMPARE(navigated.size(), 1);
+    QCOMPARE(navigated.last().at(1).value<pdf::PDFAppRoute>(), pdf::PDFAppRoutes::search(QStringLiteral("merge")));
+
+    // A pending search (Ctrl+Enter right after typing): the typed text, no popup afterwards
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.window->activateTab(fixture.homeTab());
+    fixture.field()->setFocus(Qt::OtherFocusReason);
+    fixture.field()->clear();
+    QTest::keyClicks(fixture.field(), QStringLiteral("timestamp"));
+    QVERIFY(fixture.controller()->isSearchPending());
+    navigated.clear();
+    requested.clear();
+    QTest::keyClick(fixture.field(), Qt::Key_Return, Qt::ControlModifier);
+    QCOMPARE(requested.size(), 1);
+    QVERIFY(!fixture.controller()->isSearchPending());
+    QVERIFY(!fixture.controller()->isPopupOpen());
+    SearchFixture::settle();
+    QVERIFY(!fixture.controller()->isPopupOpen());
+    QCOMPARE(navigated.size(), 1);
+    QCOMPARE(navigated.last().at(1).value<pdf::PDFAppRoute>(), pdf::PDFAppRoutes::search(QStringLiteral("timestamp")));
+
+    // An empty (or blank) text does nothing, also the field does not ask for the page
+    fixture.navigate(QStringLiteral("/home"));
+    for (const QString& text : { QString(), QStringLiteral("   ") })
+    {
+        fixture.field()->setFocus(Qt::OtherFocusReason);
+        fixture.field()->setText(text);
+        navigated.clear();
+        requested.clear();
+        returnPressed.clear();
+        QTest::keyClick(fixture.field(), Qt::Key_Return, Qt::ControlModifier);
+        QTest::keyClick(fixture.field(), Qt::Key_Enter, Qt::ControlModifier | Qt::KeypadModifier);
+        SearchFixture::settle();
+        QVERIFY(navigated.isEmpty());
+        QVERIFY(requested.isEmpty());
+        QVERIFY(returnPressed.isEmpty());
+        QVERIFY(!fixture.controller()->isPopupOpen());
+        QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route.toString(), QStringLiteral("/home"));
+    }
+
+    // Enter still opens the current result
+    fixture.type(QStringLiteral("merge"));
+    QVERIFY(fixture.popup()->getCurrentResult());
+    const pdf::PDFAppSearchResult result = *fixture.popup()->getCurrentResult();
+    navigated.clear();
+    QTest::keyClick(fixture.field(), Qt::Key_Return);
+    SearchFixture::settle();
+    QCOMPARE(navigated.size(), 1);
+    QCOMPARE(navigated.last().at(1).value<pdf::PDFAppRoute>(), result.route);
+    QVERIFY(!fixture.searchPage());
+
+    // The window deleted from the navigation of Ctrl+Enter: nothing touches the deleted objects
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.type(QStringLiteral("sign"));
+    QPointer<pdf::PDFAppSearchController> controller = fixture.controller();
+    QObject::connect(fixture.navigator(), &pdf::PDFAppNavigator::navigated, fixture.window.data(), &QObject::deleteLater);
+    QTest::keyClick(fixture.field(), Qt::Key_Return, Qt::ControlModifier);
+    SearchFixture::settle();
+    QVERIFY(!fixture.window);
+    QVERIFY(!controller);
+}
+
+void AppSearchTest::popupFooterHints()
+{
+    // The footer of 285:2519: ↑↓ navigate · Enter open · Ctrl Enter show all · Esc close, the gaps 12
+#if !defined(Q_OS_MACOS)
+    QCOMPARE(pdf::PDFAppSearchPainter::getShowAllKeys(), QStringList({ QStringLiteral("Ctrl"), QStringLiteral("Enter") }));
+#endif
+    QCOMPARE(pdf::PDFAppSearchPainter::getShowAllKeys().size(), 2);
+    QCOMPARE(pdf::PDFAppSearchPainter::getShowAllKeys().last(), pdf::PDFAppSearchPainter::getEnterKeyText());
+
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        QApplication::setLayoutDirection(direction);
+        SearchFixture fixture;
+        fixture.type(QStringLiteral("sign"));
+        pdf::PDFAppSearchPopup* popup = fixture.popup();
+        QVERIFY(popup && popup->isOpen());
+        QCOMPARE(popup->width(), 560);
+        QCOMPARE(popup->getVisibleHintCount(), 4);
+        QCOMPARE(popup->getHintText(0), QStringLiteral("↑ ↓ navigate"));
+        QCOMPARE(popup->getHintText(1), QStringLiteral("Enter open"));
+        QCOMPARE(popup->getHintText(2), pdf::PDFAppSearchPainter::getShowAllKeys().join(QLatin1Char(' ')) + QStringLiteral(" show all"));
+        QCOMPARE(popup->getHintText(3), QStringLiteral("Esc close"));
+        QVERIFY(popup->getHintText(4).isEmpty());
+        QVERIFY(popup->getHintText(-1).isEmpty());
+        QVERIFY(popup->getHintRect(4).isNull());
+        QVERIFY(popup->getHintRect(-1).isNull());
+
+        // The hints in a row from the leading edge (16 from the border), the gaps 12, the link at the trailing edge
+        const bool isRightToLeft = direction == Qt::RightToLeft;
+        const QRect link = popup->getShowAllRect();
+        const int footerTop = popup->height() - 1 - pdf::PDFAppSearchPainter::FOOTER_HEIGHT;
+        for (int i = 0; i < popup->getVisibleHintCount(); ++i)
+        {
+            const QRect hint = popup->getHintRect(i);
+            QCOMPARE(hint.top(), footerTop);
+            QCOMPARE(hint.height(), pdf::PDFAppSearchPainter::FOOTER_HEIGHT);
+            QVERIFY(!hint.intersects(link));
+            if (i == 0)
+            {
+                QCOMPARE(isRightToLeft ? popup->width() - 1 - hint.right() : hint.left(), 1 + 16);
+            }
+            else
+            {
+                const QRect previous = popup->getHintRect(i - 1);
+                QCOMPARE(isRightToLeft ? previous.left() - hint.right() - 1 : hint.left() - previous.right() - 1, 12);
+            }
+        }
+        const QRect last = popup->getHintRect(3);
+        QVERIFY(isRightToLeft ? last.left() - link.right() - 1 >= 12 : link.left() - last.right() - 1 >= 12);
+
+        // The key cap Ctrl: its border at the leading edge of the hint, bg/subtle inside, both themes
+        const QRect hint = popup->getHintRect(2);
+        const int borderX = isRightToLeft ? hint.right() : hint.left();
+        const int insideX = isRightToLeft ? hint.right() - 3 : hint.left() + 3;
+        for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            SearchFixture::settle();
+            for (const qreal ratio : { 1.0, 2.0 })
+            {
+                const QImage image = SearchTestHelper::render(popup, ratio);
+                const QColor subtle = SearchTestHelper::token(pdf::PDFThemeColors::BgSubtle);
+                const QColor border = SearchTestHelper::blend(SearchTestHelper::token(pdf::PDFThemeColors::BorderDefault), subtle);
+                QVERIFY2(SearchTestHelper::isClose(SearchTestHelper::pixel(image, QPoint(borderX, hint.center().y())), border, 8),
+                         qPrintable(SearchTestHelper::pixel(image, QPoint(borderX, hint.center().y())).name()));
+                QVERIFY(SearchTestHelper::isClose(SearchTestHelper::pixel(image, QPoint(insideX, hint.center().y())), subtle));
+                QCOMPARE(SearchTestHelper::countLeakPixels(image), 0);
+            }
+        }
+    }
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+
+    // The minimal window 720 x 480 and a narrow window: the hints, which fit, never reach the link
+    SearchFixture fixture(QString(), QSize(720, 480));
+    fixture.window->resize(720, 480);
+    SearchFixture::settle();
+    fixture.type(QStringLiteral("sign"));
+    pdf::PDFAppSearchPopup* popup = fixture.popup();
+    QVERIFY(popup->isOpen());
+    QVERIFY(popup->getVisibleHintCount() >= 3);
+    for (int i = 0; i < popup->getVisibleHintCount(); ++i)
+    {
+        QVERIFY(popup->rect().contains(popup->getHintRect(i)));
+        QVERIFY(popup->getHintRect(i).right() + 12 < popup->getShowAllRect().left());
+    }
+
+    QWidget narrow;
+    narrow.resize(300, 480);
+    narrow.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&narrow));
+    pdf::PDFAppSearchPopup* narrowPopup = new pdf::PDFAppSearchPopup(&narrow);
+    narrowPopup->setResults(popup->getResults());
+    narrowPopup->placeBelow(QRect(200, 10, 90, 32));
+    narrowPopup->open();
+    QVERIFY(narrowPopup->getVisibleHintCount() < 4);
+    QVERIFY(narrowPopup->getHintRect(3).isNull());
+    for (int i = 0; i < narrowPopup->getVisibleHintCount(); ++i)
+    {
+        QVERIFY(narrowPopup->getHintRect(i).right() + 12 < narrowPopup->getShowAllRect().left());
+    }
+}
+
+void AppSearchTest::pageKeyboardShowAll()
+{
+    // The side column Keyboard of the page: Ctrl Enter "Show all results" after Enter
+    for (const QSize& size : { QSize(1440, 977), QSize(720, 480) })
+    {
+        for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+        {
+            QApplication::setLayoutDirection(direction);
+            SearchFixture fixture(QString(), size);
+            fixture.window->resize(size);
+            fixture.navigate(QStringLiteral("/search?q=sign"));
+            QVERIFY(fixture.searchPage());
+            QWidget* card = fixture.searchPage()->findChild<QWidget*>(QStringLiteral("searchKeyboardCard"));
+            QVERIFY(card);
+            const QList<QWidget*> rows = card->findChildren<QWidget*>(QStringLiteral("searchKeyRow"));
+            QCOMPARE(rows.size(), 5);
+
+            QStringList labels;
+            for (QWidget* row : rows)
+            {
+                const QList<QLabel*> rowLabels = row->findChildren<QLabel*>();
+                QCOMPARE(rowLabels.size(), 1);
+                labels << rowLabels.front()->text();
+            }
+            QCOMPARE(labels, QStringList({ QStringLiteral("Search everywhere"), QStringLiteral("Move between results"), QStringLiteral("Open the selected result"),
+                                           QStringLiteral("Show all results"), QStringLiteral("Clear the search") }));
+
+            QWidget* row = rows[3];
+            QStringList keys;
+            const QList<pdf::PDFAppKeyCap*> keyCaps = row->findChildren<pdf::PDFAppKeyCap*>();
+            for (const pdf::PDFAppKeyCap* keyCap : keyCaps)
+            {
+                keys << keyCap->getText();
+            }
+            QCOMPARE(keys, pdf::PDFAppSearchPainter::getShowAllKeys());
+
+            // The key caps in the column of 84 at the leading side, the text after them, inside of the card
+            QLabel* label = row->findChild<QLabel*>();
+            QVERIFY(label->width() > 0);
+            QVERIFY(row->width() <= card->width());
+            for (const pdf::PDFAppKeyCap* keyCap : keyCaps)
+            {
+                const QRect capRect(keyCap->mapTo(row, QPoint(0, 0)), keyCap->size());
+                QVERIFY(row->rect().contains(capRect));
+                if (direction == Qt::LeftToRight)
+                {
+                    QVERIFY(capRect.right() < 84);
+                    QVERIFY(capRect.right() < label->geometry().left());
+                }
+                else
+                {
+                    QVERIFY(capRect.left() >= row->width() - 84);
+                    QVERIFY(capRect.left() > label->geometry().right());
+                }
+            }
+
+            // Both themes without the leak color
+            for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+            {
+                pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+                SearchFixture::settle();
+                QCOMPARE(SearchTestHelper::countLeakPixels(SearchTestHelper::render(card)), 0);
+            }
+        }
+    }
+    QApplication::setLayoutDirection(Qt::LeftToRight);
 }
 
 QTEST_MAIN(AppSearchTest)

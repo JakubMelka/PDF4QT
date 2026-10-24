@@ -7,6 +7,7 @@
         <file>fonts/Inter-LICENSE.txt</file>
         <file>logo/pdf4qt-logo.svg</file>
         <file>icons/accessibility.svg</file>
+        <file>icons/actual-size.svg</file>
         <file>icons/ai.svg</file>
         <file>icons/alert-circle.svg</file>
         <file>icons/alert-triangle.svg</file>
@@ -23,7 +24,9 @@
         <file>icons/ban.svg</file>
         <file>icons/bar-chart-2.svg</file>
         <file>icons/book-open.svg</file>
+        <file>icons/bookmark-next.svg</file>
         <file>icons/bookmark-plus.svg</file>
+        <file>icons/bookmark-prev.svg</file>
         <file>icons/bookmark.svg</file>
         <file>icons/box-edit.svg</file>
         <file>icons/boxes-show.svg</file>
@@ -67,6 +70,7 @@
         <file>icons/compress-flate.svg</file>
         <file>icons/compress-rle.svg</file>
         <file>icons/confidence.svg</file>
+        <file>icons/copy-to-pages.svg</file>
         <file>icons/copy.svg</file>
         <file>icons/corner-down-left.svg</file>
         <file>icons/corner-down-right.svg</file>
@@ -91,6 +95,8 @@
         <file>icons/diff-prev.svg</file>
         <file>icons/diff-revised.svg</file>
         <file>icons/diff-side.svg</file>
+        <file>icons/distribute-h.svg</file>
+        <file>icons/distribute-v.svg</file>
         <file>icons/dot.svg</file>
         <file>icons/download.svg</file>
         <file>icons/dpi.svg</file>
@@ -145,6 +151,7 @@
         <file>icons/hourglass.svg</file>
         <file>icons/html.svg</file>
         <file>icons/icc-profile.svg</file>
+        <file>icons/image-mode.svg</file>
         <file>icons/image-replace.svg</file>
         <file>icons/image.svg</file>
         <file>icons/images.svg</file>
@@ -174,6 +181,7 @@
         <file>icons/line-v.svg</file>
         <file>icons/line.svg</file>
         <file>icons/link-off.svg</file>
+        <file>icons/link-page.svg</file>
         <file>icons/link.svg</file>
         <file>icons/linux.svg</file>
         <file>icons/list-ordered.svg</file>
@@ -181,8 +189,8 @@
         <file>icons/list.svg</file>
         <file>icons/locate.svg</file>
         <file>icons/lock.svg</file>
-        <file>icons/loupe.svg</file>
         <file>icons/macos.svg</file>
+        <file>icons/magnifier.svg</file>
         <file>icons/mail.svg</file>
         <file>icons/margins.svg</file>
         <file>icons/mark-accept.svg</file>
@@ -208,6 +216,12 @@
         <file>icons/multi-create.svg</file>
         <file>icons/network.svg</file>
         <file>icons/not-text.svg</file>
+        <file>icons/note-help.svg</file>
+        <file>icons/note-insert.svg</file>
+        <file>icons/note-key.svg</file>
+        <file>icons/note-new-paragraph.svg</file>
+        <file>icons/note-note.svg</file>
+        <file>icons/note-paragraph.svg</file>
         <file>icons/obj-align-bottom.svg</file>
         <file>icons/obj-align-hcenter.svg</file>
         <file>icons/obj-align-left.svg</file>
@@ -335,6 +349,7 @@
         <file>icons/stream.svg</file>
         <file>icons/strength.svg</file>
         <file>icons/strikethrough.svg</file>
+        <file>icons/stroke.svg</file>
         <file>icons/sun.svg</file>
         <file>icons/swap.svg</file>
         <file>icons/sync-view.svg</file>
@@ -386,5 +401,7 @@
         <file>icons/xobject-form.svg</file>
         <file>icons/zap.svg</file>
         <file>icons/zoom-in.svg</file>
+        <file>icons/zoom-level.svg</file>
+        <file>icons/zoom-out.svg</file>
     </qresource>
 </RCC>

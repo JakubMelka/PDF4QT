@@ -34,17 +34,22 @@
 
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QItemSelection>
 #include <QPointer>
+#include <QRectF>
 
+#include <map>
 #include <memory>
 #include <vector>
 
 #include <QListView>
 
+class QMenu;
 
 namespace pdf
 {
 
+class PDFAppAnnotationController;
 class PDFLineEdit;
 
 /// Annotation of the Notes panel
@@ -52,16 +57,20 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppNote
 {
 public:
     PDFInteger page = 0;                ///< Page index from 0
-    PDFObjectReference reference;       ///< Annotation (selection on the page - step 4)
+    PDFObjectReference reference;       ///< Annotation (the selection on the page)
     AnnotationType type = AnnotationType::Invalid;
-    bool isReply = false;               ///< A reply to another annotation (/IRT)
+    bool isReply = false;               ///< A reply to another annotation (/IRT with /RT /R)
+    bool isHidden = false;              ///< The annotation has the flag Hidden
+    PDFObjectReference inReplyTo;       ///< Annotation, to which the note replies (/IRT)
+    QRectF rectangle;                   ///< Rectangle of the annotation on its page (/Rect)
     QString author;                     ///< /T
     QString text;                       ///< /Contents (one paragraph)
     QDateTime date;                     ///< /M, else /CreationDate
 };
 
-/// Annotations of the Notes panel (step 3 read only, O16: the editing, the
-/// synchronization of the selection with the page and the replies are step 4)
+/// Annotations of the Notes panel (step 3 read only; step 4 - O16: the
+/// synchronization of the selection with the page, the replies under their notes
+/// and the editing)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppNotes
 {
 public:
@@ -72,6 +81,9 @@ public:
 
     /// Longest text and author kept of an annotation
     static constexpr int MAXIMUM_TEXT_LENGTH = 2048;
+
+    /// Indentation of a reply (note-row-reply 1025:21921 at x 24)
+    static constexpr int REPLY_INDENT = 24;
 
     /// The type is a markup annotation listed by the panel (Text, Free Text,
     /// Caret, Stamp, the text markups, the shapes, Ink, File Attachment, Sound,
@@ -100,7 +112,10 @@ public:
 };
 
 /// Rows of the Notes panel: a caption of a page ("Page 12", group-caption
-/// 195:4315) before the notes of the page (Note row)
+/// 195:4315) before the notes of the page (Note row); the replies of a note follow
+/// it, indented by 24 (1025:21920), also when they lie on another page. A thread is
+/// shown by the filter, when one of its notes matches (the note and the matching
+/// replies; all replies of a matching note).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppNotesModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -122,12 +137,21 @@ public:
     void setNotes(std::vector<PDFAppNote> notes, PDFDocumentPointer document);
     void setFilterText(const QString& text);
 
-    /// Number of all notes (without the filter) and of their pages
+    /// Number of all notes (without the filter, replies included), of the replies
+    /// among them and of their pages
     int getNoteCount() const { return int(m_notes.size()); }
+    int getReplyCount() const;
     int getPageCount() const;
 
     /// Note of the row (nullptr for a caption)
     const PDFAppNote* getNote(int row) const;
+
+    /// Row of the note of the annotation (-1, when it is not shown)
+    int findRow(PDFObjectReference reference) const;
+
+    /// The annotations with all their replies (also replies of replies), in the
+    /// order of the notes; references, which are not notes, are kept
+    std::vector<PDFObjectReference> getThreads(const std::vector<PDFObjectReference>& references) const;
 
     virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     virtual QVariant data(const QModelIndex& index, int role) const override;
@@ -136,14 +160,20 @@ public:
 private:
     struct Row
     {
-        PDFInteger page = 0;
-        int note = -1;      ///< Index of the note, -1 = caption of the page
+        PDFInteger page = 0;    ///< Page of the note (of the group of a caption)
+        int note = -1;          ///< Index of the note, -1 = caption of the page
+        int indent = 0;         ///< Indentation (a reply)
     };
 
+    bool isMatching(const PDFAppNote& note) const;
     void rebuildRows();
 
     std::vector<PDFAppNote> m_notes;
+    std::vector<int> m_roots;                       ///< Note of the thread of each note (itself for a root)
+    std::vector<std::vector<int>> m_replies;        ///< Replies of a root in the order of the notes
     std::vector<Row> m_rows;
+    std::map<PDFObjectReference, int> m_noteIndices;
+    std::map<PDFObjectReference, int> m_rowIndices;
     PDFDocumentPointer m_document;
     QString m_filterText;
     QDate m_today;
@@ -162,14 +192,26 @@ public:
     explicit PDFAppNotesDelegate(QObject* parent);
     virtual ~PDFAppNotesDelegate() override;
 
+    /// Content of the row painted in the layout direction: the arrow of a reply
+    /// points to its text (corner-down-left in a right-to-left layout)
+    PDFComponentPainter::NoteRow getPaintedContent(const QModelIndex& index, Qt::LayoutDirection direction) const;
+
 protected:
     virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const override;
     virtual QSize getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const override;
 };
 
-/// Notes panel (pdf4qt-document-notes 195:3910), read only with navigation in
-/// step 3 (O16): "Notes / 5 notes on 3 pages", the field "Search notes…", the
-/// notes grouped by their pages. A click (Enter) goes to the page of the note.
+/// Notes panel (pdf4qt-document-notes 195:3910): "Notes / 5 notes on 3 pages",
+/// the field "Search notes…", the notes grouped by their pages, the replies under
+/// their notes (1025:21533). A click (Enter) goes to the note on its page.
+///
+/// Step 4 (O16): the selection of the rows and the selection of the annotations
+/// on the page are one selection (also of more annotations; a hidden annotation
+/// and a reply have no place on the page - they are selected in the panel only),
+/// the filter keeps it. The context menu has Open Comment, Reply, Properties…,
+/// Show / Hide on Page and Delete (1026:21995: a hidden annotation and a reply
+/// have no comment on the page); Del deletes the selected notes with their
+/// replies (one undo step). A locked document keeps Open Comment and Properties….
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppNotesPanel : public PDFAppDocumentPanel
 {
     Q_OBJECT
@@ -187,8 +229,24 @@ public:
     virtual QString getIconName() const override;
     virtual void setDocument(PDFAppDocument* document, PDFAppDocumentView* view) override;
 
-    /// Goes to the page of the row
+    /// Goes to the page of the row and shows its annotation
     void activateRow(int row);
+
+    /// Annotations of the selected rows (in the order of the rows)
+    std::vector<PDFObjectReference> getSelectedNotes() const;
+
+    /// Selects the rows of the annotations (the page is not changed)
+    void selectNotes(const std::vector<PDFObjectReference>& references);
+
+    /// Deletes the selected notes with their replies (one undo step).
+    /// \returns false, when nothing has been deleted.
+    bool deleteSelectedNotes();
+
+    /// Hides / shows the selected notes on the page (one undo step)
+    bool setSelectedNotesHidden(bool hidden);
+
+    /// Context menu of the selected notes (nullptr without a selected note)
+    QMenu* createContextMenu();
 
     QListView* getListView() const { return m_view; }
     PDFAppNotesModel* getModel() const { return m_model; }
@@ -199,18 +257,36 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    PDFAppAnnotationController* getController() const;
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onDocumentDestroyed();
     void onSearchTextChanged(const QString& text);
     void onClicked(const QModelIndex& index);
+    void onListSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
+    void onPageSelectionChanged();
+    void onContextMenuRequested(const QPoint& position);
+    void onMenuOpenComment();
+    void onMenuReply();
+    void onMenuProperties();
+    void onMenuShow();
+    void onMenuHide();
+    void onMenuDelete();
     void rebuild();
+    void restoreSelection(const std::vector<PDFObjectReference>& references);
+    PDFObjectReference getMenuNote() const;
 
     QPointer<PDFLineEdit> m_searchField;
     QPointer<PDFAppPanelListView> m_view;
     QPointer<PDFAppNotesModel> m_model;
     QPointer<PDFAppNotesDelegate> m_delegate;
     QPointer<PDFAppDocument> m_connectedDocument;
+    QPointer<PDFAppAnnotationController> m_connectedController;
     PDFDocumentPointer m_document;
+    bool m_isSyncing = false;                       ///< The selection is being set by the panel itself
+    bool m_hasPushedSelection = false;              ///< m_pushedSelection is the page selection made by the rows
+    std::vector<PDFObjectReference> m_pushedSelection; ///< Page selection made by the rows (the queued selectionChanged of the controller comes later)
+    Qt::KeyboardModifiers m_pressModifiers;         ///< Modifiers of the last press in the list
+    std::vector<PDFObjectReference> m_menuNotes;    ///< Notes of the open context menu
 };
 
 /// Factory of the notes panel (the tab only for a document with a listed annotation)

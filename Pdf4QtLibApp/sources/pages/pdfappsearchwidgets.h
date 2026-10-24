@@ -76,10 +76,11 @@ public:
     static constexpr int SHOW_ALL_HEIGHT = 31;
     static constexpr int SHOW_ALL_INDENT = 56;
 
-    /// Footer of the popup (footer 285:2519): 34 high, bg/subtle, paddings 16 / 8, gaps 14 and 4
+    /// Footer of the popup (footer 285:2519): 34 high, bg/subtle, paddings 16 / 8,
+    /// gaps 12 (between the four hints and the link) and 4 (inside of a hint)
     static constexpr int FOOTER_HEIGHT = 34;
     static constexpr int FOOTER_PADDING = 16;
-    static constexpr int FOOTER_GAP = 14;
+    static constexpr int FOOTER_GAP = 12;
     static constexpr int KEY_GAP = 4;
 
     /// Panel: radius 12, border 1, the padding 6 above the first group
@@ -103,6 +104,10 @@ public:
     /// Text "Open" beside the key cap Enter of the current result
     static QString getOpenText();
     static QString getEnterKeyText();
+
+    /// Key caps of Ctrl+Enter, which opens the page of all results ("Ctrl", "Enter";
+    /// the sign of the Command key and "Enter" on macOS)
+    static QStringList getShowAllKeys();
 
     /// Draws a result into the rectangle of the row (without the row-wrap padding).
     /// The current result has bg/hover, "Open" and the key cap Enter instead of its
@@ -321,8 +326,14 @@ public:
     /// Text of the link of the footer ("Show all 19 results", empty without a result)
     QString getShowAllText() const;
 
-    /// Keyboard hints of the footer, which fit beside the link (navigate, open, close)
+    /// Keyboard hints of the footer, which fit beside the link (navigate, open, show all, close)
     int getVisibleHintCount() const { return m_visibleHints; }
+
+    /// Rectangle of a visible hint of the footer (its key caps and its text, in
+    /// the popup), its key caps and text joined by spaces ("Ctrl Enter show all");
+    /// empty for a hint, which is not shown
+    QRect getHintRect(int index) const;
+    QString getHintText(int index) const;
 
     /// Activates the current row (resultActivated), nothing without a current row
     void activateCurrent();
@@ -377,7 +388,7 @@ private:
     int m_pressedRow = -1;
     bool m_isShowAllPressed = false;
     bool m_isShowAllHovered = false;
-    int m_visibleHints = 3;
+    int m_visibleHints = 4;
 };
 
 /// Controller of the global search of a field (the field Search tools,
@@ -385,7 +396,9 @@ private:
 /// Typing searches after SEARCH_DELAY ms and opens the popup below the field;
 /// the field keeps the focus. Keys of the field: Down / Up move the current row
 /// (Down opens the popup again), Enter opens the current result (without a
-/// popup the field asks for the page of all results), Esc closes the popup (a
+/// popup the field asks for the page of all results), Ctrl+Enter asks for the
+/// page of all results of the text (as the link Show all n results; nothing for
+/// an empty text), Esc closes the popup (a
 /// second Esc clears the field), Tab closes the popup and moves the focus on. The
 /// popup closes, when the field loses the focus or is hidden, by a click outside
 /// of the popup and of the field, when the window is deactivated or hidden. The
@@ -462,6 +475,10 @@ private:
     void onPopupDestroyed();
 
     bool handleFieldKey(QKeyEvent* event);
+
+    /// Ctrl+Enter / Ctrl+keypad Enter (Cmd+Enter on macOS): the page of all results
+    static bool isShowAllKey(const QKeyEvent* event);
+
     void openPopup(const PDFAppSearchResults& results);
     void placePopup();
     void watch(bool isOpen);

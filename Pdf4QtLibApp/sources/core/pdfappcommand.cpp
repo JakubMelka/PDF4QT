@@ -139,15 +139,65 @@ bool PDFAppCommandRegistry::isConflict(const QKeySequence& first, const QKeySequ
     return first.matches(second) != QKeySequence::NoMatch || second.matches(first) != QKeySequence::NoMatch;
 }
 
+QList<QKeySequence> PDFAppCommandRegistry::getShortcuts(const QString& id, const UserShortcuts& userShortcuts) const
+{
+    QList<QKeySequence> shortcuts;
+    const PDFAppCommand* command = findCommand(id);
+    if (!command)
+    {
+        return shortcuts;
+    }
+
+    const QKeySequence shortcut = getShortcut(id, userShortcuts);
+    if (!shortcut.isEmpty())
+    {
+        shortcuts << shortcut;
+    }
+
+    // The alternate keys belong to the default shortcut (a valid shortcut of the
+    // user, also an empty one, replaces all keys of the command)
+    bool isUserShortcut = false;
+    auto it = userShortcuts.find(id);
+    if (it != userShortcuts.end())
+    {
+        fromStoredText(it->second, &isUserShortcut);
+    }
+    if (!isUserShortcut)
+    {
+        for (const QKeySequence& alternate : command->alternateShortcuts)
+        {
+            if (!alternate.isEmpty() && !shortcuts.contains(alternate))
+            {
+                shortcuts << alternate;
+            }
+        }
+    }
+    return shortcuts;
+}
+
+bool PDFAppCommandRegistry::isScopeConflict(PDFAppCommandScope first, PDFAppCommandScope second)
+{
+    const bool isCanvasAndPanel = (first == PDFAppCommandScope::Canvas && second == PDFAppCommandScope::Panel) ||
+                                  (first == PDFAppCommandScope::Panel && second == PDFAppCommandScope::Canvas);
+    return !isCanvasAndPanel;
+}
+
 std::vector<PDFAppShortcutConflict> PDFAppCommandRegistry::findConflicts(const UserShortcuts& userShortcuts) const
 {
-    std::vector<std::pair<QString, QKeySequence>> shortcuts;
+    // Every key of every command (the shortcut and the alternate keys)
+    struct Key
+    {
+        QString id;
+        QKeySequence shortcut;
+        PDFAppCommandScope scope = PDFAppCommandScope::Window;
+    };
+
+    std::vector<Key> shortcuts;
     for (const PDFAppCommand& command : m_commands)
     {
-        QKeySequence shortcut = getShortcut(command.id, userShortcuts);
-        if (!shortcut.isEmpty())
+        for (const QKeySequence& shortcut : getShortcuts(command.id, userShortcuts))
         {
-            shortcuts.emplace_back(command.id, shortcut);
+            shortcuts.push_back(Key{ command.id, shortcut, command.scope });
         }
     }
 
@@ -161,13 +211,18 @@ std::vector<PDFAppShortcutConflict> PDFAppCommandRegistry::findConflicts(const U
         }
 
         PDFAppShortcutConflict conflict;
-        conflict.shortcut = shortcuts[i].second;
-        conflict.commandIds << shortcuts[i].first;
+        conflict.shortcut = shortcuts[i].shortcut;
+        conflict.commandIds << shortcuts[i].id;
         for (size_t j = i + 1; j < shortcuts.size(); ++j)
         {
-            if (!isReported[j] && isConflict(shortcuts[i].second, shortcuts[j].second))
+            if (!isReported[j] && shortcuts[j].id != shortcuts[i].id &&
+                isScopeConflict(shortcuts[i].scope, shortcuts[j].scope) &&
+                isConflict(shortcuts[i].shortcut, shortcuts[j].shortcut))
             {
-                conflict.commandIds << shortcuts[j].first;
+                if (!conflict.commandIds.contains(shortcuts[j].id))
+                {
+                    conflict.commandIds << shortcuts[j].id;
+                }
                 isReported[j] = true;
             }
         }
@@ -190,11 +245,22 @@ QStringList PDFAppCommandRegistry::getConflictingCommands(const QString& id, con
         return result;
     }
 
+    const PDFAppCommand* assignedCommand = findCommand(id);
+    const PDFAppCommandScope scope = assignedCommand ? assignedCommand->scope : PDFAppCommandScope::Window;
     for (const PDFAppCommand& command : m_commands)
     {
-        if (command.id != id && isConflict(shortcut, getShortcut(command.id, userShortcuts)))
+        if (command.id == id || !isScopeConflict(scope, command.scope))
         {
-            result << command.id;
+            continue;
+        }
+
+        for (const QKeySequence& commandShortcut : getShortcuts(command.id, userShortcuts))
+        {
+            if (isConflict(shortcut, commandShortcut))
+            {
+                result << command.id;
+                break;
+            }
         }
     }
     return result;
@@ -202,7 +268,7 @@ QStringList PDFAppCommandRegistry::getConflictingCommands(const QString& id, con
 
 void PDFAppCommands::add(PDFAppCommandRegistry* registry, QString id, const char* title, const char* group,
                          QString iconName, QKeySequence shortcut, QStringList keywords,
-                         PDFAppCommandScope scope, bool isCheckable)
+                         PDFAppCommandScope scope, bool isCheckable, QList<QKeySequence> alternateShortcuts)
 {
     PDFAppCommand command;
     command.id = std::move(id);
@@ -213,6 +279,7 @@ void PDFAppCommands::add(PDFAppCommandRegistry* registry, QString id, const char
     command.keywords = std::move(keywords);
     command.scope = scope;
     command.isCheckable = isCheckable;
+    command.alternateShortcuts = std::move(alternateShortcuts);
 
     const QString commandId = command.id;
     if (!registry->registerCommand(std::move(command)))
@@ -232,6 +299,7 @@ void PDFAppCommands::registerBuiltinCommands(PDFAppCommandRegistry* registry)
     registerFileCommands(registry);
     registerNavigationCommands(registry);
     registerDocumentCommands(registry);
+    registerAnnotationCommands(registry);
 }
 
 void PDFAppCommands::registerWindowCommands(PDFAppCommandRegistry* registry)
@@ -323,9 +391,9 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
     const char* viewGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "View");
     add(registry, zoomIn(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Zoom in"), viewGroup, QStringLiteral("zoom-in"),
         QKeySequence(Qt::CTRL | Qt::Key_Plus), { QStringLiteral("magnify"), QStringLiteral("larger") }, document);
-    add(registry, zoomOut(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Zoom out"), viewGroup, QStringLiteral("minus"),
+    add(registry, zoomOut(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Zoom out"), viewGroup, QStringLiteral("zoom-out"),
         QKeySequence(Qt::CTRL | Qt::Key_Minus), { QStringLiteral("smaller") }, document);
-    add(registry, actualSize(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Actual size"), viewGroup, QStringLiteral("scale"),
+    add(registry, actualSize(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Actual size"), viewGroup, QStringLiteral("actual-size"),
         QKeySequence(Qt::CTRL | Qt::Key_0), { QStringLiteral("zoom"), QStringLiteral("100 %") }, document);
     add(registry, fitPage(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Fit page"), viewGroup, QStringLiteral("maximize"),
         QKeySequence(), { QStringLiteral("zoom"), QStringLiteral("whole page") }, document);
@@ -365,7 +433,7 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
         QKeySequence(Qt::Key_F4), { QStringLiteral("panel"), QStringLiteral("thumbnails"), QStringLiteral("outline") }, document, true);
     add(registry, fullScreen(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Full screen"), viewGroup, QStringLiteral("expand"),
         QKeySequence(Qt::Key_F11), { QStringLiteral("presentation"), QStringLiteral("fullscreen") }, document, true);
-    add(registry, magnifier(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Magnifier"), viewGroup, QStringLiteral("loupe"),
+    add(registry, magnifier(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Magnifier"), viewGroup, QStringLiteral("magnifier"),
         QKeySequence(), { QStringLiteral("loupe"), QStringLiteral("zoom") }, document, true);
     add(registry, renderingIssues(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rendering issues"), viewGroup, QStringLiteral("alert-triangle"),
         QKeySequence(Qt::CTRL | Qt::Key_E), { QStringLiteral("errors"), QStringLiteral("warnings"), QStringLiteral("problems") }, document);
@@ -389,9 +457,9 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
     const char* bookmarksGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Bookmarks");
     add(registry, addBookmark(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Add bookmark"), bookmarksGroup, QStringLiteral("bookmark-plus"),
         QKeySequence(Qt::CTRL | Qt::Key_M), { QStringLiteral("my bookmarks"), QStringLiteral("mark page") }, document);
-    add(registry, nextBookmark(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Next bookmark"), bookmarksGroup, QStringLiteral("chevron-down"),
+    add(registry, nextBookmark(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Next bookmark"), bookmarksGroup, QStringLiteral("bookmark-next"),
         QKeySequence(Qt::CTRL | Qt::Key_Period), { QStringLiteral("my bookmarks") }, document);
-    add(registry, previousBookmark(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Previous bookmark"), bookmarksGroup, QStringLiteral("chevron-up"),
+    add(registry, previousBookmark(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Previous bookmark"), bookmarksGroup, QStringLiteral("bookmark-prev"),
         QKeySequence(Qt::CTRL | Qt::Key_Comma), { QStringLiteral("my bookmarks") }, document);
     add(registry, exportBookmarks(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Export bookmarks…"), bookmarksGroup, QStringLiteral("export"),
         QKeySequence(), { QStringLiteral("my bookmarks"), QStringLiteral("json") }, document);
@@ -415,4 +483,140 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
         QKeySequence(), { QStringLiteral("speech"), QStringLiteral("text to speech"), QStringLiteral("voice") }, document, true);
 }
 
+void PDFAppCommands::registerAnnotationCommands(PDFAppCommandRegistry* registry)
+{
+    // Commands of the annotations, of the Insert panel and of the outline (step 4):
+    // packages Annotate, AnnotationEdit and NotesOutline of PDFAppDocumentCommandTable.
+    // The shortcuts of the text markups are those of tools.md 9.8 (Ctrl+Shift+U is
+    // not used - IBus takes it on Linux); the keys of the selection of the
+    // annotations work on the canvas only (Canvas), F2 of the outline only in the
+    // Outline panel (Panel)
+    const PDFAppCommandScope document = PDFAppCommandScope::Document;
+    const PDFAppCommandScope canvas = PDFAppCommandScope::Canvas;
+    const PDFAppCommandScope panel = PDFAppCommandScope::Panel;
+
+    const char* annotateGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Annotate");
+    add(registry, annotatePanel(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Annotate"), annotateGroup, QStringLiteral("highlighter"),
+        QKeySequence(), { QStringLiteral("annotations"), QStringLiteral("markup"), QStringLiteral("comment"), QStringLiteral("panel") }, document);
+    add(registry, annotateHighlight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Highlight"), annotateGroup, QStringLiteral("highlighter"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H), { QStringLiteral("highlight text"), QStringLiteral("markup"), QStringLiteral("marker") }, document, true);
+    add(registry, annotateUnderline(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Underline"), annotateGroup, QStringLiteral("underline"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_L), { QStringLiteral("underline text"), QStringLiteral("markup") }, document, true);
+    add(registry, annotateStrikeout(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Strikeout"), annotateGroup, QStringLiteral("strikethrough"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K), { QStringLiteral("strike out"), QStringLiteral("strikethrough"), QStringLiteral("markup"), QStringLiteral("cross out") }, document, true);
+    add(registry, annotateSquiggly(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Squiggly"), annotateGroup, QStringLiteral("squiggly"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Q), { QStringLiteral("squiggly underline"), QStringLiteral("wavy"), QStringLiteral("markup") }, document, true);
+    add(registry, annotateHighlightComment(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Highlight and comment"), annotateGroup, QStringLiteral("highlight-comment"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M), { QStringLiteral("highlight"), QStringLiteral("comment"), QStringLiteral("note"), QStringLiteral("markup") }, document, true);
+    // The icons of the tools are those of the tiles of the panels (Figma 196:3160:
+    // line, scribble, eraser) - one icon per meaning in the menus, the search and
+    // the Shortcuts section (PDFAppAnnotationTools::getIconName)
+    add(registry, annotateDeleteTool(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Delete annotations"), annotateGroup, QStringLiteral("eraser"),
+        QKeySequence(), { QStringLiteral("remove annotations"), QStringLiteral("eraser"), QStringLiteral("delete tool") }, document, true);
+    add(registry, annotateMarkResults(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Mark search results as annotations"), annotateGroup, QStringLiteral("to-annotation"),
+        QKeySequence(), { QStringLiteral("search"), QStringLiteral("highlight results"), QStringLiteral("mark all") }, document);
+
+    const char* insertGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Insert");
+    add(registry, insertPanel(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Insert"), insertGroup, QStringLiteral("plus-circle"),
+        QKeySequence(), { QStringLiteral("add"), QStringLiteral("shapes"), QStringLiteral("stamp"), QStringLiteral("link"), QStringLiteral("note"), QStringLiteral("panel") }, document);
+    add(registry, insertTextBox(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Text box"), insertGroup, QStringLiteral("text-box"),
+        QKeySequence(), { QStringLiteral("free text"), QStringLiteral("typewriter"), QStringLiteral("add text") }, document, true);
+    add(registry, insertStickyNote(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Sticky note"), insertGroup, QStringLiteral("note-note"),
+        QKeySequence(), { QStringLiteral("comment"), QStringLiteral("note"), QStringLiteral("text annotation"), QStringLiteral("popup") }, document, true);
+    add(registry, insertLine(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Line"), insertGroup, QStringLiteral("line"),
+        QKeySequence(), { QStringLiteral("shape"), QStringLiteral("arrow"), QStringLiteral("draw") }, document, true);
+    add(registry, insertPolyline(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Polyline"), insertGroup, QStringLiteral("polyline"),
+        QKeySequence(), { QStringLiteral("shape"), QStringLiteral("path"), QStringLiteral("draw") }, document, true);
+    add(registry, insertRectangle(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rectangle"), insertGroup, QStringLiteral("square"),
+        QKeySequence(), { QStringLiteral("shape"), QStringLiteral("square"), QStringLiteral("box"), QStringLiteral("draw") }, document, true);
+    add(registry, insertPolygon(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Polygon"), insertGroup, QStringLiteral("polygon"),
+        QKeySequence(), { QStringLiteral("shape"), QStringLiteral("draw") }, document, true);
+    add(registry, insertEllipse(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Ellipse"), insertGroup, QStringLiteral("circle"),
+        QKeySequence(), { QStringLiteral("shape"), QStringLiteral("circle"), QStringLiteral("oval"), QStringLiteral("draw") }, document, true);
+    add(registry, insertFreehand(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Freehand"), insertGroup, QStringLiteral("scribble"),
+        QKeySequence(), { QStringLiteral("ink"), QStringLiteral("pen"), QStringLiteral("draw"), QStringLiteral("scribble") }, document, true);
+    add(registry, insertWebLink(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Web link"), insertGroup, QStringLiteral("link"),
+        QKeySequence(), { QStringLiteral("hyperlink"), QStringLiteral("url"), QStringLiteral("internet") }, document, true);
+    add(registry, insertPageLink(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Link to page"), insertGroup, QStringLiteral("link-page"),
+        QKeySequence(), { QStringLiteral("hyperlink"), QStringLiteral("go to page"), QStringLiteral("internal link") }, document, true);
+    add(registry, insertStamp(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Stamp"), insertGroup, QStringLiteral("stamp"),
+        QKeySequence(), { QStringLiteral("approved"), QStringLiteral("draft"), QStringLiteral("confidential") }, document, true);
+
+    const char* editGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Edit");
+    add(registry, cut(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Cut"), editGroup, QStringLiteral("clipboard-cut"),
+        QKeySequence(Qt::CTRL | Qt::Key_X), { QStringLiteral("clipboard"), QStringLiteral("annotations") }, canvas);
+    add(registry, paste(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Paste"), editGroup, QStringLiteral("clipboard"),
+        QKeySequence(Qt::CTRL | Qt::Key_V), { QStringLiteral("clipboard"), QStringLiteral("annotations") }, canvas);
+    add(registry, pasteInPlace(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Paste at original position"), editGroup, QStringLiteral("clipboard"),
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V), { QStringLiteral("clipboard"), QStringLiteral("paste in place"), QStringLiteral("annotations") }, canvas);
+    add(registry, deleteSelection(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Delete"), editGroup, QStringLiteral("trash"),
+        QKeySequence(Qt::Key_Delete), { QStringLiteral("remove"), QStringLiteral("annotations") }, canvas);
+
+    const char* annotationGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Annotation");
+    // F2 as in the context menu of an annotation (Figma 1019:18817), Alt+Return
+    // as a second key; F2 of the outline works only in the Outline panel
+    add(registry, annotationProperties(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Annotation properties…"), annotationGroup, QStringLiteral("sliders"),
+        QKeySequence(Qt::Key_F2), { QStringLiteral("color"), QStringLiteral("opacity"), QStringLiteral("border"), QStringLiteral("author") }, canvas, false,
+        { QKeySequence(Qt::ALT | Qt::Key_Return) });
+    add(registry, annotationComment(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Open comment"), annotationGroup, QStringLiteral("message-square"),
+        QKeySequence(), { QStringLiteral("popup"), QStringLiteral("note"), QStringLiteral("text") }, document);
+    add(registry, annotationReply(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Reply"), annotationGroup, QStringLiteral("corner-down-right"),
+        QKeySequence(), { QStringLiteral("comment"), QStringLiteral("thread"), QStringLiteral("answer") }, document);
+    add(registry, annotationGeometry(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Geometry…"), annotationGroup, QStringLiteral("transform"),
+        QKeySequence(), { QStringLiteral("position"), QStringLiteral("size"), QStringLiteral("rotation"), QStringLiteral("coordinates") }, document);
+    add(registry, annotationCopyToPages(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Copy to pages…"), annotationGroup, QStringLiteral("copy-to-pages"),
+        QKeySequence(), { QStringLiteral("duplicate"), QStringLiteral("repeat"), QStringLiteral("all pages") }, document);
+    add(registry, annotationHide(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Hide on page"), annotationGroup, QStringLiteral("eye-off"),
+        QKeySequence(), { QStringLiteral("hidden"), QStringLiteral("invisible") }, document);
+    add(registry, annotationSelectAll(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Select all annotations on displayed pages"), annotationGroup, QStringLiteral("select-all"),
+        QKeySequence(), { QStringLiteral("selection"), QStringLiteral("annotations") }, document);
+    add(registry, annotationRotateClockwise(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rotate clockwise"), annotationGroup, QStringLiteral("rotate-cw"),
+        QKeySequence(), { QStringLiteral("rotation"), QStringLiteral("turn") }, document);
+    add(registry, annotationRotateCounterclockwise(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rotate counterclockwise"), annotationGroup, QStringLiteral("rotate-ccw"),
+        QKeySequence(), { QStringLiteral("rotation"), QStringLiteral("turn") }, document);
+    add(registry, annotationRotate180(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rotate 180°"), annotationGroup, QStringLiteral("rotate-180"),
+        QKeySequence(), { QStringLiteral("rotation"), QStringLiteral("upside down") }, document);
+    add(registry, annotationFlipHorizontal(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Flip horizontally"), annotationGroup, QStringLiteral("swap"),
+        QKeySequence(), { QStringLiteral("mirror") }, document);
+    add(registry, annotationFlipVertical(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Flip vertically"), annotationGroup, QStringLiteral("arrow-up-down"),
+        QKeySequence(), { QStringLiteral("mirror") }, document);
+    add(registry, annotationAlignLeft(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align left"), annotationGroup, QStringLiteral("obj-align-left"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationAlignCenter(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align center"), annotationGroup, QStringLiteral("obj-align-hcenter"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationAlignRight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align right"), annotationGroup, QStringLiteral("obj-align-right"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationAlignTop(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align top"), annotationGroup, QStringLiteral("obj-align-top"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationAlignMiddle(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align middle"), annotationGroup, QStringLiteral("obj-align-vcenter"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationAlignBottom(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Align bottom"), annotationGroup, QStringLiteral("obj-align-bottom"),
+        QKeySequence(), { QStringLiteral("align"), QStringLiteral("arrange") }, document);
+    add(registry, annotationDistributeHorizontally(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Distribute horizontally"), annotationGroup, QStringLiteral("distribute-h"),
+        QKeySequence(), { QStringLiteral("spacing"), QStringLiteral("arrange") }, document);
+    add(registry, annotationDistributeVertically(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Distribute vertically"), annotationGroup, QStringLiteral("distribute-v"),
+        QKeySequence(), { QStringLiteral("spacing"), QStringLiteral("arrange") }, document);
+
+    const char* outlineGroup = QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Outline");
+    add(registry, outlineNewItem(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "New outline item"), outlineGroup, QStringLiteral("plus"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("table of contents"), QStringLiteral("add") }, document);
+    add(registry, outlineRename(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rename outline item"), outlineGroup, QStringLiteral("rename"),
+        QKeySequence(Qt::Key_F2), { QStringLiteral("bookmarks"), QStringLiteral("title") }, panel);
+    add(registry, outlineDelete(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Delete outline item"), outlineGroup, QStringLiteral("trash"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("remove") }, document);
+    add(registry, outlineMoveUp(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Move outline item up"), outlineGroup, QStringLiteral("arrow-up"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("order") }, document);
+    add(registry, outlineMoveDown(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Move outline item down"), outlineGroup, QStringLiteral("arrow-down"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("order") }, document);
+    add(registry, outlineIndent(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Indent outline item"), outlineGroup, QStringLiteral("chevron-right"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("child"), QStringLiteral("level") }, document);
+    add(registry, outlineOutdent(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Outdent outline item"), outlineGroup, QStringLiteral("chevron-left"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("parent"), QStringLiteral("level") }, document);
+    add(registry, outlineSetTarget(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to current view"), outlineGroup, QStringLiteral("destination"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("page") }, document);
+    add(registry, outlineBold(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Bold outline item"), outlineGroup, QStringLiteral("type"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("style"), QStringLiteral("font") }, document, true);
+    add(registry, outlineItalic(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Italic outline item"), outlineGroup, QStringLiteral("text-label"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("style"), QStringLiteral("font") }, document, true);
+}
 }   // namespace pdf

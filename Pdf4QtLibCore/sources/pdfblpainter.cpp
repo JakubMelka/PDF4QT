@@ -268,6 +268,19 @@ decltype(auto) set_comp_op(T& obj, Args&&... args)
 }
 
 template <typename T, typename... Args>
+decltype(auto) set_fill_alpha(T& obj, Args&&... args)
+{
+    if constexpr (requires { obj.set_fill_alpha(args...); })
+    {
+        return obj.set_fill_alpha(std::forward<Args>(args)...);
+    }
+    else
+    {
+        return obj.setFillAlpha(std::forward<Args>(args)...);
+    }
+}
+
+template <typename T, typename... Args>
 decltype(auto) set_fill_rule(T& obj, Args&&... args)
 {
     if constexpr (requires { obj.set_fill_rule(args...); })
@@ -615,8 +628,22 @@ private:
     /// Get BL path from path
     static BLPath getBLPath(const QPainterPath& path);
 
-    /// Set pen to the context
+    /// Set pen to the context. The context never gets a dash array: the stroker
+    /// of Blend2D does not draw dashes, and its asynchronous rendering copies the
+    /// stroke options into a shared state of the render jobs, which is never
+    /// destroyed, so the dash array of every dashed stroke leaked. The dashes are
+    /// stroked by strokeDashedPath.
     static void setBLPen(BLContext& context, const QPen& pen);
+
+    /// Strokes the path by the current dashed pen: the outline of the dashes
+    /// (QPainterPathStroker) is filled by the color of the pen
+    void strokeDashedPath(const QPainterPath& path);
+
+    /// Largest number of dashes of one dashed stroke (a stroke of more dashes is solid)
+    static constexpr qreal MAXIMUM_DASH_COUNT = 100000.0;
+
+    /// The current pen is dashed (strokeDashedPath draws it)
+    bool isStrokeDashed() const { return m_currentPen.style() > Qt::SolidLine && m_currentPen.style() <= Qt::CustomDashLine; }
 
     /// Set brush to the context
     static void setBLBrush(BLContext& context, const QBrush& brush);
@@ -929,7 +956,19 @@ void PDFBLPaintEngine::drawRects(const QRect* rects, int rectCount)
 
     if (isStrokeActive())
     {
-        blcompat::stroke_rect_array(*m_blContext, blRects.view());
+        if (isStrokeDashed())
+        {
+            QPainterPath path;
+            for (int i = 0; i < rectCount; ++i)
+            {
+                path.addRect(rects[i]);
+            }
+            strokeDashedPath(path);
+        }
+        else
+        {
+            blcompat::stroke_rect_array(*m_blContext, blRects.view());
+        }
     }
 }
 
@@ -975,7 +1014,19 @@ void PDFBLPaintEngine::drawRects(const QRectF* rects, int rectCount)
 
     if (isStrokeActive())
     {
-        blcompat::stroke_rect_array(*m_blContext, blRects.view());
+        if (isStrokeDashed())
+        {
+            QPainterPath path;
+            for (int i = 0; i < rectCount; ++i)
+            {
+                path.addRect(rects[i]);
+            }
+            strokeDashedPath(path);
+        }
+        else
+        {
+            blcompat::stroke_rect_array(*m_blContext, blRects.view());
+        }
     }
 }
 
@@ -1025,7 +1076,17 @@ void PDFBLPaintEngine::drawLines(const QLine* lines, int lineCount)
             }
         }
 
-        blcompat::stroke_line(*m_blContext, line.x1(), line.y1(), line.x2(), line.y2());
+        if (isStrokeDashed())
+        {
+            QPainterPath path;
+            path.moveTo(line.p1());
+            path.lineTo(line.p2());
+            strokeDashedPath(path);
+        }
+        else
+        {
+            blcompat::stroke_line(*m_blContext, line.x1(), line.y1(), line.x2(), line.y2());
+        }
     }
 }
 
@@ -1074,7 +1135,17 @@ void PDFBLPaintEngine::drawLines(const QLineF* lines, int lineCount)
             }
         }
 
-        blcompat::stroke_line(*m_blContext, line.x1(), line.y1(), line.x2(), line.y2());
+        if (isStrokeDashed())
+        {
+            QPainterPath path;
+            path.moveTo(line.p1());
+            path.lineTo(line.p2());
+            strokeDashedPath(path);
+        }
+        else
+        {
+            blcompat::stroke_line(*m_blContext, line.x1(), line.y1(), line.x2(), line.y2());
+        }
     }
 }
 
@@ -1164,7 +1235,14 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
     if (isStrokeActive() && enableStroke)
     {
-        blcompat::stroke_path(*m_blContext, blPath);
+        if (isStrokeDashed())
+        {
+            strokeDashedPath(path);
+        }
+        else
+        {
+            blcompat::stroke_path(*m_blContext, blPath);
+        }
     }
 }
 
@@ -1414,9 +1492,6 @@ void PDFBLPaintEngine::setBLPen(BLContext& context, const QPen& pen)
     const QColor color = pen.color();
     const qreal width = pen.widthF();
     const qreal miterLimit = pen.miterLimit();
-    const qreal dashOffset = pen.dashOffset();
-    const QList<qreal> customDashPattern = pen.dashPattern();
-    const Qt::PenStyle penStyle = pen.style();
 
     blcompat::set_stroke_alpha(context, pen.color().alphaF());
     blcompat::set_stroke_width(context, width);
@@ -1438,16 +1513,6 @@ void PDFBLPaintEngine::setBLPen(BLContext& context, const QPen& pen)
         break;
     }
 
-    BLArray<double> dashArray;
-
-    for (double value : customDashPattern)
-    {
-        dashArray.append(value);
-    }
-
-    blcompat::set_stroke_dash_offset(context, dashOffset);
-    blcompat::set_stroke_dash_array(context, dashArray);
-
     switch (joinStyle)
     {
     case Qt::MiterJoin:
@@ -1468,57 +1533,45 @@ void PDFBLPaintEngine::setBLPen(BLContext& context, const QPen& pen)
     }
 
     blcompat::set_stroke_style(context, BLRgba32(color.rgba()));
+}
 
-    BLStrokeOptions strokeOptions = blcompat::stroke_options(context);
-
-    switch (penStyle)
+void PDFBLPaintEngine::strokeDashedPath(const QPainterPath& path)
+{
+    // The outline holds every dash: a path of a hostile document with long
+    // segments and tiny dashes would need billions of elements (QDashStroker
+    // limits only the repetitions of one segment). Above the limit the path
+    // is stroked solid (the dashes are too dense to be seen anyway).
+    const QList<qreal> pattern = m_currentPen.dashPattern();
+    const qsizetype patternSize = qMin<qsizetype>(pattern.size(), 32);
+    const qreal width = m_currentPen.widthF() > 0.0 ? m_currentPen.widthF() : 1.0;
+    qreal patternLength = 0.0;
+    for (qsizetype i = 0; i < patternSize; ++i)
     {
-    case Qt::SolidLine:
-        blcompat::dash_array(strokeOptions).clear();
-        blcompat::dash_offset(strokeOptions) = 0.0;
-        break;
-
-    case Qt::DashLine:
+        patternLength += qMax(pattern[i], qreal(0.0)) * width;
+    }
+    const qreal dashCount = patternLength > 0.0 ? path.length() / patternLength * qreal(patternSize / 2) : 0.0;
+    if (!qIsFinite(dashCount) || dashCount > MAXIMUM_DASH_COUNT)
     {
-        constexpr double dashPattern[] = {4, 4};
-        blcompat::assign_data(blcompat::dash_array(strokeOptions), dashPattern, std::size(dashPattern));
-        break;
+        blcompat::stroke_path(*m_blContext, getBLPath(path));
+        return;
     }
 
-    case Qt::DotLine:
+    // The outline of the dashes in the user space (the stroke options of the
+    // context have the transform order "after"), filled by the color of the pen
+    // as the stroke draws it (style and alpha)
+    QPainterPathStroker stroker(m_currentPen);
+    const QPainterPath outline = stroker.createStroke(path);
+    if (outline.isEmpty())
     {
-        constexpr double dashPattern[] = {1, 3};
-        blcompat::assign_data(blcompat::dash_array(strokeOptions), dashPattern, std::size(dashPattern));
-        break;
+        return;
     }
 
-    case Qt::DashDotLine:
-    {
-        constexpr double dashPattern[] = {4, 2, 1, 2};
-        blcompat::assign_data(blcompat::dash_array(strokeOptions), dashPattern, std::size(dashPattern));
-        break;
-    }
-
-    case Qt::DashDotDotLine:
-    {
-        constexpr double dashPattern[] = {4, 2, 1, 2, 1, 2};
-        blcompat::assign_data(blcompat::dash_array(strokeOptions), dashPattern, std::size(dashPattern));
-        break;
-    }
-
-    case Qt::CustomDashLine:
-    {
-        auto dashPattern = pen.dashPattern();
-        blcompat::assign_data(blcompat::dash_array(strokeOptions), dashPattern.data(), dashPattern.size());
-        blcompat::dash_offset(strokeOptions) = pen.dashOffset();
-        break;
-    }
-
-    default:
-        break;
-    }
-
-    blcompat::set_stroke_options(context, strokeOptions);
+    m_blContext->save();
+    blcompat::set_fill_style(*m_blContext, BLRgba32(m_currentPen.color().rgba()));
+    blcompat::set_fill_alpha(*m_blContext, m_currentPen.color().alphaF());
+    blcompat::set_fill_rule(*m_blContext, BL_FILL_RULE_NON_ZERO);
+    blcompat::fill_path(*m_blContext, getBLPath(outline));
+    m_blContext->restore();
 }
 
 void PDFBLPaintEngine::setBLBrush(BLContext& context, const QBrush& brush)

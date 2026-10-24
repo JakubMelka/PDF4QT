@@ -49,3 +49,17 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** attachments saved by the new application (`PDFAppAttachments`).
 - **Problem:** on Windows a saved attachment takes the `Zone.Identifier` of its source PDF (O18); on Linux there is no equivalent yet (the `user.xdg.origin.url` extended attribute / GIO metadata used by browsers).
 - **Fix:** copy the origin attributes of the source PDF where the file system supports them.
+
+### 8. Outline parsing – recursion and quadratic copies of the visited set
+
+- **Where:** `PDFOutlineItem::parseImpl` (`pdfoutline.cpp`), called when every document is opened (`PDFCatalog::parse`).
+- **Attack:** a deep chain of `/First` items recurses once per level (a stack overflow of the reading thread for tens of thousands of levels); each level copies the whole set of the visited items (`currentVisitedOutlineItems`), so a wide outline with children costs O(N²) time and memory; shared subtrees under several items are parsed again for each of them.
+- **Today:** the outline editing of the new application (step 4, package C) reads the outline itself without recursion, refuses outlines deeper than 256 levels or larger than 100 000 items and outlines with shared items; the parser of Core is unchanged.
+- **Fix:** an iterative parser with one visited set and limits of the depth and of the number of items (the same as `PDFAppAnnotationOperations::MAXIMUM_OUTLINE_DEPTH` / `MAXIMUM_OUTLINE_ITEMS`).
+
+### 9. Annotations pasted or dropped from another process
+
+- **Where:** `PDFAnnotationManipulator::deserializeAnnotations` / `insertAnnotations` (`pdfannotationmanipulator.cpp`), called by `PDFWidgetAnnotationManager::pasteAnnotations` and `handleAnnotationDrop` (Paste, Paste in Place and drag and drop of the new application, step 4, and of the old Editor).
+- **Attack:** the clipboard / drag data of the MIME type `application/x-pdf4qt-annotation` is written by any process. It is read as a whole PDF in the GUI thread without a size limit (a file of hundreds of megabytes or a decompression bomb freezes or ends the application; also items 1, 2, 4), and `importAnnotations` copies every object the pasted annotations reference: link and widget actions (Launch, JavaScript, SubmitForm, GoToR), file attachments with embedded files, huge appearance streams. The user sees only "Paste".
+- **Today:** the actions of a pasted link go through the confirmations of the new application when clicked (step 3, package F); nothing limits the size or the content of the pasted data.
+- **Fix:** a size limit of the MIME data (e.g. 64 MB) before the reader, the reader with the limits of items 1 and 2, and an import filter dropping the actions other than URI / GoTo and the JavaScript of the pasted annotations (or a confirmation, which names them).

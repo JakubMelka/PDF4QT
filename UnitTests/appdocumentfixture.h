@@ -26,16 +26,20 @@
 #include "pdfappcontext.h"
 #include "pdfappmainwindow.h"
 
+#include <QApplication>
 #include <QPointer>
 #include <QSize>
 #include <QString>
 #include <QTemporaryDir>
+#include <QWidget>
 
 #include <memory>
 
 namespace pdf
 {
+class PDFAppDocument;
 class PDFAppDocumentTab;
+class PDFAppDocumentView;
 class PDFDocument;
 }
 
@@ -103,6 +107,38 @@ public:
     /// \p pageCount pages (2000 by default), text on every page (large documents, D11)
     static QString large(const QString& folder, int pageCount = 2000);
 
+    /// 3 pages with annotations (step 4). Page 1 has one annotation of every kind,
+    /// identified by its subject (Subj): "square", "circle", "line", "polyline",
+    /// "polygon", "ink", "highlight", "underline", "strikeout", "squiggly",
+    /// "freetext", "callout" (free text with a callout line), "stamp", "caret",
+    /// "text" (sticky note and two replies - subject "reply", IRT; every sticky
+    /// note has its popup annotation),
+    /// "fileattachment", "measurement" (line with /Measure, IT LineDimension, Cap),
+    /// "hidden" (flag Hidden), "locked" (Locked), "readonly" (ReadOnly), "nozoom"
+    /// (NoZoom + NoRotate). Page 2: "overlapA" and "overlapB" (two overlapping
+    /// rectangles) and "highlight2". Page 3 has no annotations. The author is
+    /// "Tester" (replies "Replier 1", "Replier 2").
+    static QString annotations(const QString& folder);
+
+    /// 2 pages encrypted with the owner password only, which do not allow the
+    /// modification of annotations (bit 6) and the filling of the form (bit 9);
+    /// page 1 has a rectangle (subject "square") and the text field "name"
+    static QString restricted(const QString& folder);
+
+    /// 1 page with an AcroForm of every kind of field: text "name" (John), multi
+    /// line "notes", comb "code" (MaxLen 6), password "secret", read-only "fixed",
+    /// required "required", calculated read-only "total" (JavaScript, in /CO),
+    /// check box "agree" (Yes / Off), radio group "choice" (A / B), editable combo
+    /// box "fruit" (Apple, Banana, Cherry), multi-select list box "colors" (Red,
+    /// Green, Blue), push button "reset" (ResetForm) and the unsigned signature
+    /// field "signature"
+    static QString fullForm(const QString& folder);
+
+    /// \p pageCount pages with \p annotationsPerPage annotations each (rectangles,
+    /// sticky notes and highlights; subjects "large-<page>-<index>"); every sticky
+    /// note has its popup annotation (PDFDocumentBuilder::createAnnotationText)
+    static QString annotatedLarge(const QString& folder, int pageCount = 2000, int annotationsPerPage = 5);
+
     /// Writes the document. \returns false on an error.
     static bool write(pdf::PDFDocument& document, const QString& filePath);
 };
@@ -138,6 +174,49 @@ public:
 
     /// Closes the message boxes of the window. \returns the number of closed boxes.
     int closeMessageBoxes();
+
+    /// Point of the page (page coordinates of the page index \p pageIndex) in the
+    /// coordinates of the draw widget of the canvas (\p ok false, when the page is
+    /// not shown)
+    static QPoint pageToWidget(pdf::PDFAppDocumentView* view, int pageIndex, const QPointF& pagePoint, bool* ok);
+
+    /// Draw widget of the canvas of the view (the target of the mouse events)
+    static QWidget* canvasWidget(pdf::PDFAppDocumentView* view);
+
+    /// Clicks to the point of the page (press and release sent to the draw widget).
+    /// \returns false, when the page is not shown.
+    static bool clickPage(pdf::PDFAppDocumentView* view, int pageIndex, const QPointF& pagePoint,
+                          Qt::KeyboardModifiers modifiers = Qt::NoModifier, Qt::MouseButton button = Qt::LeftButton);
+
+    /// Drags by the left button from one point of the page to another one in
+    /// \p steps moves. \returns false, when the page is not shown.
+    static bool dragPage(pdf::PDFAppDocumentView* view, int pageIndex, const QPointF& from, const QPointF& to,
+                         Qt::KeyboardModifiers modifiers = Qt::NoModifier, int steps = 4);
+
+    /// Number of the undo steps of the document (-1 without a document)
+    static int undoCount(const pdf::PDFAppDocument* document);
+
+    /// Visible widget of the type: a top-level widget or a child of one (a dialog,
+    /// a popup, a message box); nullptr, when there is none
+    template<typename T>
+    static T* findDialog()
+    {
+        for (QWidget* topLevel : QApplication::topLevelWidgets())
+        {
+            if (T* widget = qobject_cast<T*>(topLevel); widget && widget->isVisible())
+            {
+                return widget;
+            }
+            for (T* widget : topLevel->findChildren<T*>())
+            {
+                if (widget->isVisible())
+                {
+                    return widget;
+                }
+            }
+        }
+        return nullptr;
+    }
 
     std::unique_ptr<pdf::PDFAppContext> context;
     QPointer<pdf::PDFAppMainWindow> window;

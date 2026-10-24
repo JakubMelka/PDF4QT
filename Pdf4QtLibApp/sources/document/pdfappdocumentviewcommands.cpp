@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentviewcommands.h"
+#include "pdfappannotationcontroller.h"
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -159,17 +160,44 @@ void PDFAppDocumentViewCommandHandler::execute(const QString& commandId)
         return;
     }
 
+    // Step 4: with selected annotations, Copy / Select all / Deselect work on them
+    // (the keys reach the annotation manager first - its shortcut override - so a
+    // key is never handled twice)
+    PDFAppAnnotationController* annotations = view->getAnnotationController();
+    const bool hasAnnotationSelection = annotations && annotations->hasAnnotationSelection();
+
     if (commandId == C::copy())
     {
-        view->copySelectedText();
+        if (hasAnnotationSelection)
+        {
+            annotations->copySelection();
+        }
+        else
+        {
+            view->copySelectedText();
+        }
     }
     else if (commandId == C::selectAll())
     {
-        view->selectAllText();
+        if (hasAnnotationSelection)
+        {
+            annotations->selectAll();
+        }
+        else
+        {
+            view->selectAllText();
+        }
     }
     else if (commandId == C::deselect())
     {
-        view->deselectText();
+        if (hasAnnotationSelection)
+        {
+            annotations->clearAnnotationSelection();
+        }
+        else
+        {
+            view->deselectText();
+        }
     }
     else if (commandId == C::actualSize())
     {
@@ -215,7 +243,8 @@ bool PDFAppDocumentViewCommandHandler::isEnabled(const QString& commandId) const
     const bool hasPages = view->getPageCount() > 0;
     if (commandId == C::copy() || commandId == C::deselect())
     {
-        return view->hasTextSelection();
+        const PDFAppAnnotationController* annotations = view->getAnnotationController();
+        return view->hasTextSelection() || (annotations && annotations->hasAnnotationSelection());
     }
     if (commandId == C::selectAll() || PDFAppDocumentViewCommandsHelper::isNavigation(commandId) || getCanvasTool(commandId) >= 0)
     {

@@ -78,10 +78,11 @@ bool PDFAppDocumentModelCommandHandler::isEnabled(const QString& commandId) cons
         return false;
     }
 
-    // A locked document cannot be changed: undo and redo are off
+    // A locked document cannot be changed: undo and redo are off. Undo of an open
+    // editor of a form field commits it and undoes it (step 4, package D).
     if (commandId == PDFAppCommands::undo())
     {
-        return !document->isLocked() && !document->isBlockedByOperation() && document->getUndoStack()->canUndo();
+        return !document->isLocked() && !document->isBlockedByOperation() && (document->getUndoStack()->canUndo() || document->hasPendingEdits());
     }
     if (commandId == PDFAppCommands::redo())
     {

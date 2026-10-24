@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentactions.h"
+#include "pdfappannotationcontroller.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_attachments.h"
@@ -28,6 +29,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
+#include "pdfappformcontroller.h"
 #include "pdfappmainwindow.h"
 #include "pdfapproute.h"
 #include "pdfsettingdefinitions.h"
@@ -673,7 +675,18 @@ bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 ve
         case ActionType::ResetForm:
             if (PDFWidgetFormManager* formManager = view->getFormManager())
             {
+                // One undo step with its own description (also a reset in a chain
+                // of actions); a reset, which changes nothing, leaves none behind
+                QPointer<PDFAppAnnotationController> controller = view->getAnnotationController();
+                if (controller)
+                {
+                    controller->beginEngineChange(PDFAppFormController::getResetFormDescription());
+                }
                 formManager->performResetAction(static_cast<const PDFActionResetForm*>(action));
+                if (controller)
+                {
+                    controller->endEngineChange();
+                }
             }
             return guard;
 

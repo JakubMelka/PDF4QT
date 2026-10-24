@@ -35,8 +35,10 @@
 #include "pdfrenderer.h"
 #include "pdfcompiler.h"
 #include "pdftextlayout.h"
+#include "pdfpainterutils.h"
 
 #include <algorithm>
+#include <set>
 #include <cmath>
 #include <QImage>
 #include <QMenu>
@@ -64,6 +66,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QPointer>
 #include <QtMath>
 
 namespace pdf
@@ -250,12 +253,61 @@ void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEven
     }
 
     // The shortcut is claimed only if there is something to select, otherwise
-    // it would be taken away from the selection of the text for nothing
-    if (event->matches(QKeySequence::SelectAll) && hasSelectableAnnotation())
+    // it would be taken away from the selection of the text for nothing. With the
+    // text selection tool active (it lets the annotations be selected), it selects
+    // the text, unless some annotation is selected.
+    if (event->matches(QKeySequence::SelectAll) && hasSelectableAnnotation() && (!isTextToolActive() || hasSelection()))
     {
         event->accept();
         return;
     }
+}
+
+bool PDFWidgetAnnotationManager::isFollowedLink(const PageAnnotation& annotation, QPoint widgetPos) const
+{
+    // A selectable link, which is not selected, is followed by a plain click (a link
+    // without an action is selected by it - there is nothing to follow)
+    return m_isLinksSelectable && annotation.annotation && annotation.annotation->getType() == AnnotationType::Link &&
+           !isAnnotationSelected(annotation.annotation->getSelfReference()) && getLinkActionAtPosition(widgetPos);
+}
+
+void PDFWidgetAnnotationManager::setLinksSelectable(bool linksSelectable)
+{
+    if (m_isLinksSelectable == linksSelectable)
+    {
+        return;
+    }
+
+    m_isLinksSelectable = linksSelectable;
+    m_hoveredAnnotation = HoveredAnnotation();
+
+    // Selected links are not selectable any more (selectionChanged runs the code of the application)
+    QPointer<PDFWidgetAnnotationManager> self(this);
+    if (!m_isLinksSelectable && m_document)
+    {
+        updateSelectionAfterDocumentChange();
+    }
+
+    if (self)
+    {
+        requestRepaint();
+    }
+}
+
+void PDFWidgetAnnotationManager::setHighlightedAnnotation(PDFObjectReference annotation)
+{
+    if (m_highlightedAnnotation != annotation)
+    {
+        m_highlightedAnnotation = annotation;
+        requestRepaint();
+    }
+}
+
+bool PDFWidgetAnnotationManager::isTextToolActive() const
+{
+    const PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
+    const PDFSelectTextTool* selectTextTool = toolManager ? qobject_cast<const PDFSelectTextTool*>(toolManager->getActiveTool()) : nullptr;
+    return selectTextTool && selectTextTool->isAnnotationsSelectable();
 }
 
 void PDFWidgetAnnotationManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
@@ -266,13 +318,15 @@ void PDFWidgetAnnotationManager::keyReleaseEvent(QWidget* widget, QKeyEvent* eve
 
 bool PDFWidgetAnnotationManager::isToolActive() const
 {
+    // The text selection tool, which lets the annotations be selected, is not a tool,
+    // which would take the keys away from the annotations
     const PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
-    return toolManager && toolManager->getActiveTool();
+    return toolManager && toolManager->getActiveTool() && !isTextToolActive();
 }
 
 bool PDFWidgetAnnotationManager::isModificationAllowed() const
 {
-    return m_document && m_document->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
+    return !m_isReadOnly && m_document && m_document->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
 }
 
 bool PDFWidgetAnnotationManager::isAnnotationSelectable(const PageAnnotation& annotation) const
@@ -283,7 +337,7 @@ bool PDFWidgetAnnotationManager::isAnnotationSelectable(const PageAnnotation& an
     }
 
     const AnnotationType type = annotation.annotation->getType();
-    if (!PDFAnnotation::isTypeEditable(type) || type == AnnotationType::Link)
+    if (!PDFAnnotation::isTypeEditable(type) || (type == AnnotationType::Link && !m_isLinksSelectable))
     {
         return false;
     }
@@ -1048,10 +1102,30 @@ void PDFWidgetAnnotationManager::distributeSelectedAnnotations(Qt::Orientation o
     });
 }
 
-QString PDFWidgetAnnotationManager::getCapabilitiesHint(PDFAnnotationManipulator::Capabilities capabilities) const
+QString PDFWidgetAnnotationManager::getCapabilitiesHint(const PageAnnotation& annotation) const
 {
+    const PDFAnnotationManipulator::Capabilities capabilities = getAnnotationCapabilities(annotation);
     if (!capabilities.testFlag(PDFAnnotationManipulator::Move))
     {
+        // Jakub Melka: the document, which does not allow changes, and a locked
+        // annotation are two different reasons for the user (owner decision O8)
+        if (!isModificationAllowed())
+        {
+            return tr("The document does not allow changes.");
+        }
+
+        const PDFAnnotation::Flags flags = annotation.annotation ? annotation.annotation->getEffectiveFlags() : PDFAnnotation::Flags();
+        if (flags.testFlag(PDFAnnotation::Locked) || flags.testFlag(PDFAnnotation::ReadOnly))
+        {
+            return tr("This annotation is locked and cannot be modified.");
+        }
+
+        // A link keeps its place on the page, its properties can be changed (setLinksSelectable)
+        if (annotation.annotation && annotation.annotation->getType() == AnnotationType::Link)
+        {
+            return tr("The link cannot be moved or resized, change it in its properties.");
+        }
+
         return tr("This annotation cannot be modified.");
     }
 
@@ -1226,16 +1300,22 @@ void PDFWidgetAnnotationManager::updateSelectionAfterDocumentChange()
 
     for (const SelectedAnnotation& item : m_selection)
     {
-        // Annotation is still on its page
-        if (item.pageIndex >= 0 && item.pageIndex < PDFInteger(m_document->getCatalog()->getPageCount()) && findPageAnnotation(item.pageIndex, item.annotation))
+        // Annotation is still on its page. An annotation, which cannot be selected any
+        // more (it has been hidden), leaves the selection.
+        const PageAnnotation* pageAnnotation = (item.pageIndex >= 0 && item.pageIndex < PDFInteger(m_document->getCatalog()->getPageCount())) ? findPageAnnotation(item.pageIndex, item.annotation) : nullptr;
+        if (pageAnnotation)
         {
-            selection.push_back(item);
+            if (isAnnotationSelectable(*pageAnnotation))
+            {
+                selection.push_back(item);
+            }
             continue;
         }
 
         // Annotation has been moved to another page
         const PDFInteger pageIndex = findAnnotationPage(item.annotation);
-        if (pageIndex != -1)
+        const PageAnnotation* movedAnnotation = pageIndex != -1 ? findPageAnnotation(pageIndex, item.annotation) : nullptr;
+        if (movedAnnotation && isAnnotationSelectable(*movedAnnotation))
         {
             selection.push_back(SelectedAnnotation{ item.annotation, pageIndex });
         }
@@ -1687,10 +1767,12 @@ PDFWidgetAnnotationManager::HandleLayout PDFWidgetAnnotationManager::computeHand
         layout.hasRotationHandle = false;
     }
 
+    // Design of the new application (1015:17767): handles 7, the rotation handle 12 with
+    // its center 22 above the frame (a stem of 16)
     const QWidget* widget = m_proxy->getWidget();
-    layout.handleSize = PDFWidgetUtils::scaleDPI_x(widget, 8);
-    layout.rotationHandleRadius = PDFWidgetUtils::scaleDPI_x(widget, 5);
-    const qreal rotationHandleDistance = PDFWidgetUtils::scaleDPI_x(widget, 24);
+    layout.handleSize = PDFWidgetUtils::scaleDPI_x(widget, m_isDesignSelectionLook ? 7 : 8);
+    layout.rotationHandleRadius = PDFWidgetUtils::scaleDPI_x(widget, m_isDesignSelectionLook ? 6 : 5);
+    const qreal rotationHandleDistance = PDFWidgetUtils::scaleDPI_x(widget, m_isDesignSelectionLook ? 22 : 24);
 
     layout.isValid = true;
     layout.frame = frame;
@@ -1895,7 +1977,7 @@ void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event
             return;
         }
 
-        if (event->matches(QKeySequence::SelectAll) && hasSelectableAnnotation())
+        if (event->matches(QKeySequence::SelectAll) && hasSelectableAnnotation() && (!isTextToolActive() || hasSelection()))
         {
             selectAllAnnotations();
             event->accept();
@@ -1904,6 +1986,14 @@ void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event
 
         // Properties of the selected annotation
         const bool isEditKey = event->key() == Qt::Key_F2 || event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter;
+        if (isEditKey && m_selection.size() == 1 && m_isUserInterfaceDelegated)
+        {
+            // The properties are shown also in the read only mode (read only)
+            event->accept();
+            Q_EMIT propertiesRequested(m_selection.front().annotation);
+            return;
+        }
+
         if (isEditKey && m_selection.size() == 1 && isModificationAllowed())
         {
             const SelectedAnnotation& item = m_selection.front();
@@ -1938,7 +2028,7 @@ void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event
             }
 
             event->accept();
-            showSelectionMenu(pdfWidget->mapToGlobal(menuPosition), std::nullopt, PointMenuContext());
+            requestSelectionMenu(pdfWidget->mapToGlobal(menuPosition), std::nullopt, PointMenuContext());
             return;
         }
     }
@@ -2188,8 +2278,15 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
             }
         }
 
-        // 3) Selectable annotation under the cursor
-        if (const PageAnnotation* pageAnnotation = findSelectableAnnotation(event->pos(), &pageIndex))
+        // 3) Selectable annotation under the cursor (a plain press on a link, which
+        //    is not selected, follows the link - setLinksSelectable)
+        const PageAnnotation* pressedAnnotation = findSelectableAnnotation(event->pos(), &pageIndex);
+        if (pressedAnnotation && !isSelectionModifier && isFollowedLink(*pressedAnnotation, event->pos()))
+        {
+            pressedAnnotation = nullptr;
+        }
+
+        if (const PageAnnotation* pageAnnotation = pressedAnnotation)
         {
             const PDFObjectReference annotation = pageAnnotation->annotation->getSelfReference();
 
@@ -2273,6 +2370,21 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         // to another annotation, which overlaps the point.
         PointMenuContext pointContext = getPointMenuContext(event->pos());
 
+        if (m_isUserInterfaceDelegated && !pointContext.annotation.isValid())
+        {
+            // Overlapping annotations - the application lets the user choose one,
+            // the selection is not changed (the condition of createMenuRequest, the
+            // whole request is built only for the overlap)
+            const std::vector<PDFObjectReference> annotationsUnderCursor = getSelectableAnnotationsAt(event->pos());
+            if (annotationsUnderCursor.size() >= 2 && !isAnnotationSelected(annotationsUnderCursor.front()))
+            {
+                PDFAnnotationMenuRequest request = createMenuRequest(m_proxy->getWidget()->mapToGlobal(event->pos()), event->pos(), pointContext);
+                event->accept();
+                Q_EMIT menuRequested(request);
+                return;
+            }
+        }
+
         PDFInteger pageIndex = -1;
         const PageAnnotation* pageAnnotation = pointContext.annotation.isValid() ? nullptr : findSelectableAnnotation(event->pos(), &pageIndex);
         if (pageAnnotation)
@@ -2289,9 +2401,31 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         if (hasSelection() || canPasteAnnotations() || hasSelectableAnnotation())
         {
             event->accept();
-            showSelectionMenu(pdfWidget->mapToGlobal(event->pos()), event->pos(), pointContext);
+            requestSelectionMenu(pdfWidget->mapToGlobal(event->pos()), event->pos(), pointContext);
         }
     }
+}
+
+void PDFWidgetAnnotationManager::requestSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext)
+{
+    if (m_isUserInterfaceDelegated)
+    {
+        PDFAnnotationMenuRequest request = createMenuRequest(globalPosition, widgetPosition, pointContext);
+        if (request.kind == PDFAnnotationMenuRequest::Kind::Overlap)
+        {
+            // The selection has been made already (the request of the keyboard, or
+            // after the selection of the annotation under the cursor)
+            request.kind = PDFAnnotationMenuRequest::Kind::Selection;
+        }
+
+        if (request.kind != PDFAnnotationMenuRequest::Kind::None)
+        {
+            Q_EMIT menuRequested(request);
+        }
+        return;
+    }
+
+    showSelectionMenu(globalPosition, widgetPosition, pointContext);
 }
 
 void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotationReference,
@@ -2317,6 +2451,27 @@ void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotatio
 
     if (!isAnnotationSelectable(*pageAnnotation))
     {
+        if (m_isUserInterfaceDelegated)
+        {
+            QPointer<PDFWidgetAnnotationManager> self(this);
+            clearSelection();
+            if (!self)
+            {
+                return;
+            }
+
+            PDFAnnotationMenuRequest request;
+            request.kind = PDFAnnotationMenuRequest::Kind::Unselectable;
+            request.globalPosition = globalMenuPosition;
+            request.annotation = annotationReference;
+            request.pageReference = pageReference;
+            request.pageIndex = PDFInteger(pageIndex);
+            request.canPaste = canPasteAnnotations();
+            request.isModificationAllowed = isModificationAllowed();
+            Q_EMIT menuRequested(request);
+            return;
+        }
+
         // Jakub Melka: hidden annotations and replies are listed by the sidebar, but
         // they cannot be selected on the page. The user must still be able to manage
         // them - otherwise a hidden annotation could never be made visible again.
@@ -2324,11 +2479,17 @@ void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotatio
         return;
     }
 
+    QPointer<PDFWidgetAnnotationManager> self(this);
     m_selection = { SelectedAnnotation{ annotationReference, PDFInteger(pageIndex) } };
+    m_activePoint = -1;
     Q_EMIT selectionChanged();
+    if (!self)
+    {
+        return;
+    }
     requestRepaint();
 
-    showSelectionMenu(globalMenuPosition, std::nullopt, PointMenuContext());
+    requestSelectionMenu(globalMenuPosition, std::nullopt, PointMenuContext());
 }
 
 void PDFWidgetAnnotationManager::showUnselectableAnnotationMenu(const PageAnnotation& annotation, PDFObjectReference pageReference, QPoint globalPosition)
@@ -2482,7 +2643,7 @@ void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::o
 
     if (singleAnnotation)
     {
-        const QString hint = getCapabilitiesHint(getAnnotationCapabilities(*singleAnnotation));
+        const QString hint = getCapabilitiesHint(*singleAnnotation);
         if (!hint.isEmpty())
         {
             QAction* hintAction = menu.addAction(hint);
@@ -2764,6 +2925,26 @@ void PDFWidgetAnnotationManager::mouseDoubleClickEvent(QWidget* widget, QMouseEv
             if (!markupAnnotation)
             {
                 continue;
+            }
+
+            if (m_isUserInterfaceDelegated)
+            {
+                // The position of the popup window, as the popup dialog of the old applications has it
+                QPoint popupPoint = event->globalPosition().toPoint();
+                if (const PageAnnotation* popupAnnotation = pageAnnotations.getPopupAnnotation(pageAnnotation))
+                {
+                    popupPoint = pdfWidget->mapToGlobal(snapshotItem.pageToDeviceMatrix.map(popupAnnotation->annotation->getRectangle().bottomLeft()).toPoint());
+                }
+                else if (markupAnnotation->getRectangle().isValid())
+                {
+                    popupPoint = pdfWidget->mapToGlobal(snapshotItem.pageToDeviceMatrix.map(markupAnnotation->getRectangle().bottomRight()).toPoint());
+                }
+
+                const PDFObjectReference annotationReference = pageAnnotation.annotation->getSelfReference();
+                const PDFObjectReference pageReference = getPageReference(snapshotItem.pageIndex, pageAnnotation);
+                event->accept();
+                Q_EMIT popupRequested(annotationReference, pageReference, popupPoint);
+                return;
             }
 
             QDialog* dialog = createDialogForMarkupAnnotations(pdfWidget, pageAnnotation, pageAnnotations);
@@ -3460,8 +3641,16 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
         if (m_hoveredHandle == Handle::None && m_hoveredPoint == -1)
         {
+            // A link, which a click follows, is not outlined as a selectable annotation
             PDFInteger pageIndex = -1;
-            if (const PageAnnotation* pageAnnotation = findSelectableAnnotation(event->pos(), &pageIndex))
+            const PageAnnotation* hoveredAnnotation = findSelectableAnnotation(event->pos(), &pageIndex);
+            const bool isSelectionModifier = event->modifiers().testFlag(Qt::ControlModifier) || event->modifiers().testFlag(Qt::ShiftModifier);
+            if (hoveredAnnotation && !isSelectionModifier && isFollowedLink(*hoveredAnnotation, event->pos()))
+            {
+                hoveredAnnotation = nullptr;
+            }
+
+            if (const PageAnnotation* pageAnnotation = hoveredAnnotation)
             {
                 m_hoveredAnnotation.pageIndex = pageIndex;
                 m_hoveredAnnotation.annotation = pageAnnotation->annotation->getSelfReference();
@@ -3479,7 +3668,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                         m_tooltip += QString("<p><i>%1</i></p>").arg(tr("Drag the text box to move it, the callout line stays at its target. Drag the callout line (or hold Alt) to move the whole annotation."));
                     }
 
-                    const QString hint = getCapabilitiesHint(getAnnotationCapabilities(*pageAnnotation));
+                    const QString hint = getCapabilitiesHint(*pageAnnotation);
                     if (!hint.isEmpty())
                     {
                         m_tooltip += QString("<p><i>%1</i></p>").arg(hint);
@@ -5244,7 +5433,7 @@ void PDFWidgetAnnotationManager::drawPostRendering(QPainter* painter, QRect rect
         if (m_dropFeedback.isSnapped)
         {
             const qreal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
-            painter->setPen(QPen(convertor.convert(QColor(0, 160, 0), false, true), 2.0));
+            painter->setPen(QPen(getMarkerColor(m_proxy->getViewColors().snapMarker, convertor, true), 2.0));
             painter->setBrush(Qt::NoBrush);
             painter->drawEllipse(m_dropFeedback.snappedDevicePoint, radius + 5.0, radius + 5.0);
         }
@@ -5268,6 +5457,32 @@ void PDFWidgetAnnotationManager::drawPostRendering(QPainter* painter, QRect rect
 void PDFWidgetAnnotationManager::drawInfoText(QPainter* painter, const QString& text, const PDFColorConvertor& convertor) const
 {
     const QPointF textPosition = QPointF(m_interaction.currentDevicePosition) + QPointF(16.0, 16.0);
+
+    const PDFViewColors viewColors = m_proxy->getViewColors();
+    if (m_isDesignSelectionLook && viewColors.infoBackground.isValid() && viewColors.infoText.isValid())
+    {
+        // drag-tooltip 1017:18217: Regular 11 in text/secondary, padding 8 / 5, radius 6,
+        // bg/surface with the outline border/default; the parts separated by a middle dot
+        PDFPainterStateGuard guard(painter);
+        QFont font = painter->font();
+        font.setPixelSize(PDFWidgetUtils::scaleDPI_y(m_proxy->getWidget(), 11));
+        painter->setFont(font);
+        const QString shownText = QString(text).replace(QStringLiteral(" | "), QStringLiteral(" ") + QChar(0x00B7) + QStringLiteral(" "));
+        const QFontMetricsF metrics(font);
+        const QRectF textBox(textPosition, QSizeF(metrics.horizontalAdvance(shownText), metrics.height()));
+        const QRectF box = textBox.adjusted(-8.0, -5.0, 8.0, 5.0);
+
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QPen borderPen(getMarkerColor(viewColors.infoBorder.isValid() ? viewColors.infoBorder : viewColors.infoText, convertor, true), 1.0);
+        borderPen.setCosmetic(true);
+        painter->setPen(borderPen);
+        painter->setBrush(getMarkerColor(viewColors.infoBackground, convertor, false));
+        painter->drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+        painter->setPen(getMarkerColor(viewColors.infoText, convertor, true));
+        painter->drawText(textBox, Qt::AlignLeft | Qt::AlignVCenter, shownText);
+        return;
+    }
+
     const QRectF textRectangle = painter->fontMetrics().boundingRect(text).adjusted(-4.0, -2.0, 4.0, 2.0).translated(textPosition.x() + 4.0, textPosition.y());
 
     painter->setPen(Qt::NoPen);
@@ -5324,17 +5539,27 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
     const bool hasRubberBand = m_interaction.type == Interaction::RubberBand && m_interaction.pageIndex == pageIndex;
     const bool hasHandlePreview = m_interaction.type == Interaction::Handle && m_interaction.pageIndex == pageIndex && m_interaction.previewTransform.type() != QTransform::TxNone;
     const bool isHoveredOnPage = m_hoveredAnnotation.pageIndex == pageIndex && m_hoveredAnnotation.annotation.isValid() && !isAnnotationSelected(m_hoveredAnnotation.annotation);
+    const PageAnnotation* highlightedAnnotation = m_highlightedAnnotation.isValid() && !isAnnotationSelected(m_highlightedAnnotation) ? findPageAnnotation(pageIndex, m_highlightedAnnotation) : nullptr;
 
-    if (selectedAnnotations.empty() && !hasRubberBand && !isHoveredOnPage)
+    if (selectedAnnotations.empty() && !hasRubberBand && !isHoveredOnPage && !highlightedAnnotation)
     {
         return;
     }
 
     // Jakub Melka: these are UI markers, so the colors are adjusted for the dark
-    // mode always (the same way as the markers of the other tools).
-    const QColor selectionColor = convertor.convert(QColor(0, 120, 215), false, true);
+    // mode always (the same way as the markers of the other tools). Colors of the
+    // theme of the application (PDFDrawWidgetProxy::setViewColors) are not adjusted.
+    const PDFViewColors viewColors = m_proxy->getViewColors();
+    const QColor selectionColor = getMarkerColor(viewColors.annotationSelection, convertor, true);
+    const QColor snapColor = getMarkerColor(viewColors.snapMarker, convertor, true);
+    const QColor rubberBandColor = getMarkerColor(viewColors.rubberBand, convertor, true);
+    // The design of the new application (setDesignSelectionLook): the frame 1.5 px with
+    // 6 % fill, the rubber band 8 %, thin solid outlines of the members and the candidates
+    const bool isDesign = m_isDesignSelectionLook;
     QColor fillColor = selectionColor;
-    fillColor.setAlphaF(0.12f);
+    fillColor.setAlphaF(isDesign ? 0.06f : 0.12f);
+    QColor rubberBandFillColor = rubberBandColor;
+    rubberBandFillColor.setAlphaF(isDesign ? 0.08f : 0.12f);
 
     QPen solidPen(selectionColor, 1.0);
     solidPen.setCosmetic(true);
@@ -5342,6 +5567,25 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
     QPen dashedPen(selectionColor, 1.0);
     dashedPen.setCosmetic(true);
     dashedPen.setStyle(Qt::DashLine);
+
+    QPen framePen(selectionColor, isDesign ? 1.5 : 1.0);
+    framePen.setCosmetic(true);
+    framePen.setStyle(isDesign ? Qt::SolidLine : Qt::DashLine);
+
+    QPen handlePen(selectionColor, isDesign ? 1.5 : 1.0);
+    handlePen.setCosmetic(true);
+
+    // Members of a multiple selection have thin outlines and the selection frame holds the
+    // fill; a single annotation is the frame itself (the old look fills every member)
+    const bool isMultipleDesign = isDesign && selectedAnnotations.size() > 1;
+    const QPen memberPen = (isDesign && !isMultipleDesign) ? framePen : solidPen;
+    const QBrush memberBrush = isMultipleDesign ? QBrush(Qt::NoBrush) : QBrush(fillColor);
+
+    // 1026:21990: a locked annotation has a dashed gray frame (the color of the outline of the lock badge)
+    const QColor lockedFrameColor = getMarkerColor(viewColors.lockBadgeBorder.isValid() ? viewColors.lockBadgeBorder : viewColors.lockBadge, convertor, true);
+    QPen lockedFramePen(lockedFrameColor, 1.5);
+    lockedFramePen.setCosmetic(true);
+    lockedFramePen.setDashPattern({ 3.0, 2.0 });
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -5352,15 +5596,27 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
         if (const PageAnnotation* pageAnnotation = findPageAnnotation(pageIndex, m_hoveredAnnotation.annotation))
         {
             const QTransform matrix = getAnnotationToDeviceMatrix(*pageAnnotation, pageIndex, pagePointToDevicePointMatrix);
-            painter->setPen(dashedPen);
+            painter->setPen(isDesign ? solidPen : dashedPen);
             painter->setBrush(Qt::NoBrush);
             painter->drawPolygon(matrix.map(QPolygonF(pageAnnotation->annotation->getRectangle().normalized())));
         }
     }
 
+    // Annotation outlined by the application (a row of the chooser of overlapping
+    // annotations, Figma 1019:20672 - a solid line of 1.5 px)
+    if (highlightedAnnotation)
+    {
+        QPen highlightPen(selectionColor, 1.5);
+        highlightPen.setCosmetic(true);
+        const QTransform matrix = getAnnotationToDeviceMatrix(*highlightedAnnotation, pageIndex, pagePointToDevicePointMatrix);
+        painter->setPen(highlightPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPolygon(matrix.map(QPolygonF(highlightedAnnotation->annotation->getRectangle().normalized())));
+    }
+
     // Selected annotations
-    painter->setPen(solidPen);
-    painter->setBrush(QBrush(fillColor));
+    painter->setPen(memberPen);
+    painter->setBrush(memberBrush);
     for (const PageAnnotation* pageAnnotation : selectedAnnotations)
     {
         const QRectF rectangle = pageAnnotation->annotation->getRectangle().normalized();
@@ -5376,8 +5632,8 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             // Only the text box is resized (the preview shows the new layout of the text and the new callout line)
             drawInteractionPreview(painter, pageAnnotation->annotation->getSelfReference(), pageIndex, matrix);
 
-            painter->setPen(solidPen);
-            painter->setBrush(QBrush(fillColor));
+            painter->setPen(memberPen);
+            painter->setBrush(memberBrush);
             painter->drawPolygon(matrix.map(m_interaction.previewTransform.map(QPolygonF(m_interaction.textRectangle))));
         }
         else if (hasHandlePreview && canTransformAnnotation(*pageAnnotation))
@@ -5393,9 +5649,16 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
                 drawAnnotationPreview(painter, *pageAnnotation, pageIndex, effectiveTransform * pagePointToDevicePointMatrix);
             }
 
-            painter->setPen(solidPen);
-            painter->setBrush(QBrush(fillColor));
+            painter->setPen(memberPen);
+            painter->setBrush(memberBrush);
             painter->drawPolygon(matrix.map(PDFAnnotationManipulator::getTransformedOutline(type, rectangle, m_interaction.previewTransform)));
+        }
+        else if (isDesign && lockedFrameColor.isValid() &&
+                 (pageAnnotation->annotation->getEffectiveFlags().testFlag(PDFAnnotation::Locked) || pageAnnotation->annotation->getEffectiveFlags().testFlag(PDFAnnotation::ReadOnly)))
+        {
+            PDFPainterStateGuard guard(painter);
+            painter->setPen(lockedFramePen);
+            painter->drawPolygon(matrix.map(QPolygonF(rectangle)));
         }
         else
         {
@@ -5416,10 +5679,11 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
 
             if (m_interaction.isSnapped)
             {
-                // Target of the snapping
+                // Target of the snapping (the design: a circle of 16 px, 1.5 px)
                 const qreal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
-                painter->setPen(QPen(convertor.convert(QColor(0, 160, 0), false, true), 2.0));
-                painter->drawEllipse(m_interaction.snappedDevicePoint, radius + 5.0, radius + 5.0);
+                const qreal snapRadius = isDesign ? PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) : radius + 5.0;
+                painter->setPen(QPen(snapColor, isDesign ? 1.5 : 2.0));
+                painter->drawEllipse(m_interaction.snappedDevicePoint, snapRadius, snapRadius);
             }
 
             // Numeric feedback - the angle of the rotation, or the new size (in the page units),
@@ -5445,8 +5709,8 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             const HandleLayout layout = computeHandleLayout(pageIndex, pagePointToDevicePointMatrix);
             if (layout.isValid)
             {
-                painter->setPen(dashedPen);
-                painter->setBrush(Qt::NoBrush);
+                painter->setPen(framePen);
+                painter->setBrush(isMultipleDesign ? QBrush(fillColor) : QBrush(Qt::NoBrush));
                 painter->drawRect(layout.frame);
 
                 if (layout.hasRotationHandle)
@@ -5454,8 +5718,8 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
                     painter->drawLine(layout.rotationHandleBase, layout.rotationHandle);
                 }
 
-                painter->setPen(solidPen);
-                painter->setBrush(convertor.convert(QColor(Qt::white), false, false));
+                painter->setPen(handlePen);
+                painter->setBrush(getMarkerColor(viewColors.annotationHandle, convertor, false));
 
                 if (layout.hasResizeHandles)
                 {
@@ -5492,7 +5756,7 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
 
         // Jakub Melka: handles of the points are red, so they can be distinguished
         // at first sight from the blue handles of the selection frame
-        const QColor pointColor = convertor.convert(QColor(220, 0, 0), false, true);
+        const QColor pointColor = getMarkerColor(viewColors.annotationPoint, convertor, true);
 
         if (hasPointPreview)
         {
@@ -5533,8 +5797,10 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             }
         }
 
-        const QColor handleColor = convertor.convert(QColor(Qt::white), false, false);
-        const qreal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
+        const QColor handleColor = getMarkerColor(viewColors.annotationHandle, convertor, false);
+        const QColor activeHandleColor = getMarkerColor(viewColors.annotationPointActive, convertor, false);
+        // The design: points of 9 px (an outline of 1.5 px)
+        const qreal radius = isDesign ? PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 9) * 0.5 : PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
         const int activePoint = hasPointPreview ? m_interaction.pointIndex : m_hoveredPoint;
         // Jakub Melka: a text markup of a long text has a lot of marked lines. All their handles
         // would cover the annotation, so only the handles near to the cursor are displayed.
@@ -5550,8 +5816,18 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
                 continue;
             }
 
-            painter->setPen(isActive ? QPen(pointColor, 2.0) : QPen(handleColor, 1.0));
-            painter->setBrush(isActive ? handleColor : pointColor);
+            if (isDesign)
+            {
+                // A point is filled by the handle color with the outline of the point color,
+                // the dragged / hovered point is filled by the point color (1017:18213)
+                painter->setPen(QPen(isActive ? handleColor : pointColor, 1.5));
+                painter->setBrush(isActive ? pointColor : handleColor);
+            }
+            else
+            {
+                painter->setPen(isActive ? QPen(pointColor, 2.0) : QPen(handleColor, 1.0));
+                painter->setBrush(isActive ? activeHandleColor : pointColor);
+            }
             painter->drawEllipse(devicePoints[i], radius, radius);
 
             if (int(i) == m_activePoint && !hasPointPreview)
@@ -5569,10 +5845,11 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
 
             if (m_interaction.isSnapped)
             {
-                // Target of the snapping
-                painter->setPen(QPen(convertor.convert(QColor(0, 160, 0), false, true), 2.0));
+                // Target of the snapping (the design: a circle of 16 px, 1.5 px - 1017:18214)
+                const qreal snapRadius = isDesign ? PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) : radius + 5.0;
+                painter->setPen(QPen(snapColor, isDesign ? 1.5 : 2.0));
                 painter->setBrush(Qt::NoBrush);
-                painter->drawEllipse(devicePoints[qsizetype(pointIndex)], radius + 5.0, radius + 5.0);
+                painter->drawEllipse(devicePoints[qsizetype(pointIndex)], snapRadius, snapRadius);
             }
 
             // Numeric feedback - position of the point and the length of the segment, which ends at it
@@ -5591,7 +5868,7 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
     // New part of the annotation, which is being drawn
     if (m_interaction.type == Interaction::Part && m_interaction.pageIndex == pageIndex)
     {
-        QPen partPen(convertor.convert(QColor(220, 0, 0), false, true), 1.5);
+        QPen partPen(getMarkerColor(viewColors.annotationPoint, convertor, true), 1.5);
         partPen.setCosmetic(true);
         painter->setPen(partPen);
 
@@ -5622,13 +5899,540 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
         const QRectF rubberBand = getRubberBandRectangle();
         if (rubberBand.isValid())
         {
-            painter->setPen(dashedPen);
-            painter->setBrush(QBrush(fillColor));
+            QPen rubberBandPen(rubberBandColor, 1.0);
+            rubberBandPen.setCosmetic(true);
+            if (isDesign)
+            {
+                // 1018:18580: dashes 4 / 3
+                rubberBandPen.setDashPattern({ 4.0, 3.0 });
+            }
+            else
+            {
+                rubberBandPen.setStyle(Qt::DashLine);
+            }
+            painter->setPen(rubberBandPen);
+            painter->setBrush(QBrush(rubberBandFillColor));
             painter->drawRect(pagePointToDevicePointMatrix.mapRect(rubberBand));
         }
     }
 
+    // Lock badges of the selected and of the hovered locked annotations (the colors
+    // of the theme are drawn as they are, an invalid color draws no badge)
+    if (viewColors.lockBadge.isValid() && m_interaction.type == Interaction::None && !m_dragState.isDragging)
+    {
+        std::vector<const PageAnnotation*> badgeAnnotations = selectedAnnotations;
+        if (isHoveredOnPage)
+        {
+            if (const PageAnnotation* hoveredAnnotation = findPageAnnotation(pageIndex, m_hoveredAnnotation.annotation))
+            {
+                badgeAnnotations.push_back(hoveredAnnotation);
+            }
+        }
+
+        const QColor badgeColor = getMarkerColor(viewColors.lockBadge, convertor, true);
+        const QColor glyphColor = getMarkerColor(viewColors.annotationHandle, convertor, false);
+        for (const PageAnnotation* pageAnnotation : badgeAnnotations)
+        {
+            const PDFAnnotation::Flags flags = pageAnnotation->annotation->getEffectiveFlags();
+            const QRectF rectangle = pageAnnotation->annotation->getRectangle().normalized();
+            if ((flags.testFlag(PDFAnnotation::Locked) || flags.testFlag(PDFAnnotation::ReadOnly)) && rectangle.isValid())
+            {
+                const QTransform matrix = getAnnotationToDeviceMatrix(*pageAnnotation, pageIndex, pagePointToDevicePointMatrix);
+                drawLockBadge(painter, matrix.mapRect(rectangle).normalized(), badgeColor, glyphColor);
+            }
+        }
+    }
+
     painter->restore();
+}
+
+QColor PDFWidgetAnnotationManager::getMarkerColor(const QColor& color, const PDFColorConvertor& convertor, bool isForeground) const
+{
+    // Colors of the theme of the application are already the colors of the screen
+    if (m_proxy->hasViewColors())
+    {
+        return color;
+    }
+
+    return convertor.convert(color, false, isForeground);
+}
+
+void PDFWidgetAnnotationManager::drawLockBadge(QPainter* painter, const QRectF& deviceRectangle, const QColor& badgeColor, const QColor& glyphColor) const
+{
+    PDFPainterStateGuard guard(painter);
+
+    if (m_isDesignSelectionLook)
+    {
+        // 1026:21991: a circle of 20 px filled by the handle color with an outline of 1 px
+        // on the top right corner of the annotation, the padlock 12 px (icon/lock, stroke 2)
+        // in the color of the badge
+        const PDFViewColors viewColors = m_proxy->getViewColors();
+        const QColor borderColor = viewColors.lockBadgeBorder.isValid() ? viewColors.lockBadgeBorder : badgeColor;
+        const qreal size = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 20);
+        const QRectF badge(deviceRectangle.right() - size * 0.5, deviceRectangle.top() - size * 0.5, size, size);
+
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QPen borderPen(borderColor, 1.0);
+        borderPen.setCosmetic(true);
+        painter->setPen(borderPen);
+        painter->setBrush(glyphColor);
+        painter->drawEllipse(badge.adjusted(0.5, 0.5, -0.5, -0.5));
+
+        // The path of icon/lock in its box of 12 x 12
+        const qreal unit = size / 20.0;
+        const QPointF origin = badge.center() - QPointF(6.0 * unit, 6.0 * unit);
+        QPainterPath lockPath;
+        lockPath.moveTo(origin + QPointF(3.5, 5.5) * unit);
+        lockPath.lineTo(origin + QPointF(3.5, 3.5) * unit);
+        lockPath.arcTo(QRectF(origin + QPointF(3.5, 1.0) * unit, QSizeF(5.0, 5.0) * unit), 180.0, -180.0);
+        lockPath.lineTo(origin + QPointF(8.5, 5.5) * unit);
+        lockPath.addRoundedRect(QRectF(origin + QPointF(1.5, 5.5) * unit, QSizeF(9.0, 5.5) * unit), unit, unit);
+
+        QPen lockPen(badgeColor, 2.0 * unit);
+        lockPen.setCapStyle(Qt::RoundCap);
+        lockPen.setJoinStyle(Qt::RoundJoin);
+        painter->setPen(lockPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(lockPath);
+        return;
+    }
+
+    // The badge sits on the top right corner of the annotation
+    const qreal size = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 16);
+    const QRectF badge(deviceRectangle.right() - size * 0.5, deviceRectangle.top() - size * 0.5, size, size);
+
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(badgeColor);
+    painter->drawRoundedRect(badge, size * 0.25, size * 0.25);
+
+    // Padlock: the body and the shackle
+    const qreal unit = size / 16.0;
+    const QRectF body(badge.left() + 4.0 * unit, badge.top() + 7.5 * unit, 8.0 * unit, 5.5 * unit);
+    const QRectF shackle(badge.left() + 5.5 * unit, badge.top() + 3.0 * unit, 5.0 * unit, 7.0 * unit);
+
+    painter->setBrush(glyphColor);
+    painter->drawRoundedRect(body, unit, unit);
+
+    QPen shacklePen(glyphColor, 1.5 * unit);
+    shacklePen.setCapStyle(Qt::FlatCap);
+    painter->setPen(shacklePen);
+    painter->setBrush(Qt::NoBrush);
+    QPainterPath shacklePath;
+    shacklePath.moveTo(shackle.left(), body.top());
+    shacklePath.lineTo(shackle.left(), shackle.center().y());
+    shacklePath.arcTo(QRectF(shackle.left(), shackle.top(), shackle.width(), shackle.width()), 180.0, -180.0);
+    shacklePath.lineTo(shackle.right(), body.top());
+    painter->drawPath(shacklePath);
+}
+
+void PDFWidgetAnnotationManager::setReadOnly(bool readOnly)
+{
+    if (m_isReadOnly == readOnly)
+    {
+        return;
+    }
+
+    m_isReadOnly = readOnly;
+
+    if (m_isReadOnly)
+    {
+        // A running change cannot be finished
+        m_interaction = InteractionState();
+        m_partEdit = PartEdit::None;
+        m_dragState = DragState();
+        m_dropFeedback = DropFeedback();
+        m_activePoint = -1;
+        m_hoveredHandle = Handle::None;
+        m_hoveredPoint = -1;
+        m_cursor = std::nullopt;
+    }
+
+    requestRepaint();
+}
+
+void PDFWidgetAnnotationManager::setSelectedAnnotationsFillColor(const QColor& color)
+{
+    modifySelectedAnnotations([&color](PDFDocumentBuilder* builder, const PageAnnotation& pageAnnotation)
+    {
+        // Only the annotations, which have the interior color
+        switch (pageAnnotation.annotation->getType())
+        {
+            case AnnotationType::Line:
+            case AnnotationType::Square:
+            case AnnotationType::Circle:
+            case AnnotationType::Polygon:
+            case AnnotationType::Polyline:
+                break;
+
+            default:
+                return false;
+        }
+
+        const PDFObjectReference annotation = pageAnnotation.annotation->getSelfReference();
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("IC");
+        if (color.isValid())
+        {
+            factory << WrapAnnotationColor(color);
+        }
+        else
+        {
+            // A null object removes the entry (no fill)
+            factory << PDFObject();
+        }
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder->mergeTo(annotation, factory.takeObject());
+        builder->updateAnnotationAppearanceStreams(annotation);
+        return true;
+    });
+}
+
+bool PDFWidgetAnnotationManager::setAnnotationsHidden(const std::vector<PDFObjectReference>& annotations, bool hidden)
+{
+    if (!m_document || annotations.empty() || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.markAnnotationsChanged();
+
+    bool isModified = false;
+    std::set<PDFObjectReference> processed;
+    for (const PDFObjectReference& annotation : annotations)
+    {
+        if (!processed.insert(annotation).second)
+        {
+            continue;
+        }
+
+        const PDFInteger pageIndex = findAnnotationPageInDocument(annotation);
+        const PageAnnotation* pageAnnotation = pageIndex != -1 ? findPageAnnotation(pageIndex, annotation) : nullptr;
+        if (!pageAnnotation || !canModifyAnnotation(*pageAnnotation))
+        {
+            continue;
+        }
+
+        const PDFAnnotation::Flags flags = pageAnnotation->annotation->getFlags();
+        if (flags.testFlag(PDFAnnotation::Hidden) == hidden)
+        {
+            continue;
+        }
+
+        PDFAnnotation::Flags newFlags = flags;
+        newFlags.setFlag(PDFAnnotation::Hidden, hidden);
+
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("F");
+        factory << PDFInteger(newFlags.toInt());
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        modifier.getBuilder()->mergeTo(annotation, factory.takeObject());
+        isModified = true;
+    }
+
+    if (isModified && modifier.finalize())
+    {
+        Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        return true;
+    }
+
+    return false;
+}
+
+bool PDFWidgetAnnotationManager::deleteAnnotations(const std::vector<PDFObjectReference>& annotations)
+{
+    if (!m_document || annotations.empty() || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.markAnnotationsChanged();
+
+    bool isModified = false;
+    std::set<PDFObjectReference> processed;
+    for (const PDFObjectReference& annotation : annotations)
+    {
+        if (!processed.insert(annotation).second)
+        {
+            continue;
+        }
+
+        const PDFInteger pageIndex = findAnnotationPageInDocument(annotation);
+        const PageAnnotation* pageAnnotation = pageIndex != -1 ? findPageAnnotation(pageIndex, annotation) : nullptr;
+        if (!pageAnnotation || !canModifyAnnotation(*pageAnnotation))
+        {
+            continue;
+        }
+
+        modifier.getBuilder()->removeAnnotation(getPageReference(pageIndex, *pageAnnotation), annotation);
+        isModified = true;
+    }
+
+    if (isModified && modifier.finalize())
+    {
+        Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        return true;
+    }
+
+    return false;
+}
+
+PDFInteger PDFWidgetAnnotationManager::findAnnotationPageInDocument(PDFObjectReference annotation) const
+{
+    const PDFInteger pageIndex = findAnnotationPage(annotation);
+    if (pageIndex != -1 || !m_document || !annotation.isValid())
+    {
+        return pageIndex;
+    }
+
+    // Jakub Melka: the entry P is optional and the annotation is not on a displayed page
+    // (a list of all annotations - the Notes). The arrays Annots of the pages are searched,
+    // the annotations of only the found page are parsed.
+    const size_t pageCount = m_document->getCatalog()->getPageCount();
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const PDFPage* page = m_document->getCatalog()->getPage(i);
+        if (!page)
+        {
+            continue;
+        }
+
+        const std::vector<PDFObjectReference>& pageAnnotations = page->getAnnotations();
+        if (std::find(pageAnnotations.cbegin(), pageAnnotations.cend(), annotation) != pageAnnotations.cend() &&
+            findPageAnnotation(PDFInteger(i), annotation))
+        {
+            return PDFInteger(i);
+        }
+    }
+
+    return -1;
+}
+
+std::vector<PDFObjectReference> PDFWidgetAnnotationManager::getSelectableAnnotationsAt(QPoint widgetPos) const
+{
+    std::vector<PDFObjectReference> result;
+    for (const PageAnnotation* pageAnnotation : findSelectableAnnotations(widgetPos, nullptr))
+    {
+        result.push_back(pageAnnotation->annotation->getSelfReference());
+    }
+    return result;
+}
+
+bool PDFWidgetAnnotationManager::isInteractionAt(QPoint widgetPos, Qt::KeyboardModifiers modifiers) const
+{
+    if (!m_document)
+    {
+        return false;
+    }
+
+    // A running interaction and a part edit, which waits for the mouse, take every press
+    if (m_interaction.type != Interaction::None || m_partEdit != PartEdit::None || m_dragState.isActive)
+    {
+        return true;
+    }
+
+    const PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+
+    // Points of the selected annotation
+    const PointEditInfo pointInfo = getPointEditInfo();
+    if (pointInfo.isValid())
+    {
+        if (const PDFWidgetSnapshot::SnapshotItem* snapshotItem = snapshot.getPageSnapshot(pointInfo.pageIndex))
+        {
+            const QTransform pageToDevice = getSelectionToDeviceMatrix(pointInfo.pageIndex, snapshotItem->pageToDeviceMatrix);
+            if (hitTestPoint(pointInfo, pageToDevice, QPointF(widgetPos)) != -1)
+            {
+                return true;
+            }
+        }
+    }
+
+    // Handles of the selection frame
+    if (hasSelection())
+    {
+        for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+        {
+            if (hitTestHandle(computeHandleLayout(snapshotItem.pageIndex, snapshotItem.pageToDeviceMatrix), QPointF(widgetPos)) != Handle::None)
+            {
+                return true;
+            }
+        }
+    }
+
+    // Selectable annotation (also a cycling by Alt). A plain press on a link, which is
+    // followed (setLinksSelectable), is no interaction of the selection - the tool
+    // decides about the links (PDFSelectTextTool::setLinksClickable)
+    const std::vector<const PageAnnotation*> selectableAnnotations = findSelectableAnnotations(widgetPos, nullptr);
+    if (!selectableAnnotations.empty())
+    {
+        const bool isPlainPress = !modifiers.testFlag(Qt::ControlModifier) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier);
+        if (!isPlainPress || !isFollowedLink(*selectableAnnotations.front(), widgetPos))
+        {
+            return true;
+        }
+    }
+
+    // Rubber band
+    const bool isSelectionModifier = modifiers.testFlag(Qt::ControlModifier) || modifiers.testFlag(Qt::ShiftModifier);
+    return isSelectionModifier && m_proxy->getPageUnderPoint(widgetPos, nullptr) != -1;
+}
+
+PDFAnnotationMenuRequest PDFWidgetAnnotationManager::getMenuRequest(QPoint widgetPosition) const
+{
+    return createMenuRequest(m_proxy->getWidget()->mapToGlobal(widgetPosition), widgetPosition, getPointMenuContext(widgetPosition));
+}
+
+PDFAnnotationMenuRequest PDFWidgetAnnotationManager::createMenuRequest(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext) const
+{
+    PDFAnnotationMenuRequest request;
+    request.globalPosition = globalPosition;
+    request.widgetPosition = widgetPosition;
+
+    if (!m_document)
+    {
+        return request;
+    }
+
+    request.selection = getSelectedAnnotations();
+    request.canPaste = canPasteAnnotations();
+    request.isModificationAllowed = isModificationAllowed();
+
+    if (widgetPosition)
+    {
+        request.pageIndex = m_proxy->getPageUnderPoint(*widgetPosition, &request.pagePosition);
+        request.annotationsUnderCursor = getSelectableAnnotationsAt(*widgetPosition);
+    }
+
+    // Point or segment of the selected annotation
+    if (pointContext.annotation.isValid())
+    {
+        request.pointAnnotation = pointContext.annotation;
+        request.removablePoint = pointContext.removedPoint;
+        request.insertSegment = pointContext.insertSegment;
+        request.insertPosition = pointContext.insertPosition;
+    }
+
+    // Overlapping annotations, the topmost one is not selected - the application offers a choice
+    if (!pointContext.annotation.isValid() && request.annotationsUnderCursor.size() >= 2 && !isAnnotationSelected(request.annotationsUnderCursor.front()))
+    {
+        request.kind = PDFAnnotationMenuRequest::Kind::Overlap;
+        request.annotation = request.annotationsUnderCursor.front();
+        const PDFInteger annotationPageIndex = findAnnotationPage(request.annotation);
+        if (const PageAnnotation* pageAnnotation = annotationPageIndex != -1 ? findPageAnnotation(annotationPageIndex, request.annotation) : nullptr)
+        {
+            request.pageReference = getPageReference(annotationPageIndex, *pageAnnotation);
+        }
+        return request;
+    }
+
+    if (hasSelection() || request.canPaste || hasSelectableAnnotation())
+    {
+        request.kind = PDFAnnotationMenuRequest::Kind::Selection;
+    }
+
+    // Single selected annotation - its parts and its callout line
+    const PageAnnotation* singleAnnotation = m_selection.size() == 1 ? findPageAnnotation(m_selection.front().pageIndex, m_selection.front().annotation) : nullptr;
+    if (!singleAnnotation)
+    {
+        return request;
+    }
+
+    const PDFObjectReference annotation = m_selection.front().annotation;
+    const PDFInteger annotationPageIndex = m_selection.front().pageIndex;
+    request.annotation = annotation;
+    request.pageReference = getPageReference(annotationPageIndex, *singleAnnotation);
+
+    if (!canTransformAnnotation(*singleAnnotation))
+    {
+        return request;
+    }
+
+    if (widgetPosition)
+    {
+        PDFObjectReference partAnnotation;
+        const int partIndex = hitTestPart(*widgetPosition, &partAnnotation);
+        if (partIndex != -1)
+        {
+            request.partAnnotation = partAnnotation;
+            request.partIndex = partIndex;
+        }
+    }
+
+    const PDFAnnotationManipulator::Parts parts = PDFAnnotationManipulator::getParts(&m_document->getStorage(), annotation);
+    if (parts.isSupported && !parts.isFilled)
+    {
+        request.canAddStroke = true;
+
+        QPointF pagePoint;
+        if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex)
+        {
+            // The same eraser as the eraser of the menu of the manager
+            const QTransform annotationToDevice = getSelectionToDeviceMatrix(annotationPageIndex, getPageToDeviceMatrix(annotationPageIndex));
+            const PDFReal scale = std::sqrt(std::abs(annotationToDevice.determinant()));
+            bool invertible = false;
+            const QTransform deviceToAnnotation = annotationToDevice.inverted(&invertible);
+            if (invertible && scale > 0.0)
+            {
+                const QPointF center = deviceToAnnotation.map(QPointF(*widgetPosition));
+                const PDFReal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 8) / scale;
+
+                PDFDocumentBuilder testBuilder(m_document);
+                if (PDFAnnotationManipulator::eraseInk(&testBuilder, annotation, center, radius))
+                {
+                    request.canEraseInk = true;
+                    request.eraseCenter = center;
+                    request.eraseRadius = radius;
+                }
+            }
+        }
+    }
+    else if (parts.isSupported)
+    {
+        request.canAddMarkedAreas = true;
+    }
+
+    if (singleAnnotation->annotation->getType() == AnnotationType::FreeText)
+    {
+        if (getTextBoxInfo().isValid())
+        {
+            request.canRemoveCalloutLine = true;
+        }
+        else
+        {
+            // The same tip as the tip of the menu of the manager
+            const QRectF textRectangle = PDFAnnotationManipulator::getFreeTextRectangle(&m_document->getStorage(), annotation);
+            const PDFPage* page = m_document->getCatalog()->getPage(annotationPageIndex);
+            const QRectF mediaBox = page ? page->getMediaBox().normalized() : QRectF();
+            QPointF tip = textRectangle.topLeft() + QPointF(-40.0, -40.0);
+            for (const QPointF& candidate : { textRectangle.topLeft() + QPointF(-40.0, -40.0), textRectangle.topRight() + QPointF(40.0, -40.0),
+                                              textRectangle.bottomLeft() + QPointF(-40.0, 40.0), textRectangle.bottomRight() + QPointF(40.0, 40.0) })
+            {
+                if (mediaBox.contains(candidate))
+                {
+                    tip = candidate;
+                    break;
+                }
+            }
+
+            QPointF pagePoint;
+            if (widgetPosition && m_proxy->getPageUnderPoint(*widgetPosition, &pagePoint) == annotationPageIndex && !textRectangle.contains(pagePoint))
+            {
+                tip = pagePoint;
+            }
+
+            request.canAddCalloutLine = textRectangle.isValid();
+            request.calloutTip = tip;
+        }
+    }
+
+    return request;
 }
 
 }   // namespace pdf

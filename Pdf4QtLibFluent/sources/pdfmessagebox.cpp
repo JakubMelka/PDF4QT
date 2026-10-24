@@ -333,6 +333,25 @@ QString PDFMessageBox::getBadgeIconName() const
     return badge ? badge->getIconName() : QString();
 }
 
+void PDFMessageBox::setTitle(const QString& title)
+{
+    if (m_titleLabel)
+    {
+        m_titleLabel->setText(title);
+    }
+    setAccessibleName(title);
+}
+
+void PDFMessageBox::setText(const QString& text)
+{
+    if (m_textLabel)
+    {
+        m_textLabel->setText(text);
+        m_textLabel->setVisible(!text.isEmpty());
+    }
+    setAccessibleDescription(text);
+}
+
 void PDFMessageBox::setBadgeIconName(const QString& iconName)
 {
     if (PDFMessageBoxBadge* badge = dynamic_cast<PDFMessageBoxBadge*>(m_badgeWidget.data()))

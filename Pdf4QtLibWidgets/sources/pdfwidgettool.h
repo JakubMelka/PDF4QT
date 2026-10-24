@@ -27,15 +27,55 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdftextlayout.h"
 #include "pdfsnapper.h"
+#include "pdfannotation.h"
 
 #include <QDialog>
 #include <QCursor>
+#include <QPointer>
 
 class QCheckBox;
 class QLineEdit;
 
 namespace pdf
 {
+class PDFAnnotationStyleManager;
+
+/// Request of a tool to create an annotation, whose content the user gives
+/// (PDFToolManager::setUserInterfaceDelegated): the tool has picked the place
+/// on the page and the application asks the user for the rest (the text of a
+/// sticky note, the text of a free text, the address of a hyperlink) and creates
+/// the annotation itself.
+struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationCreationRequest
+{
+    enum class Kind
+    {
+        StickyNote,     ///< Point, icon
+        FreeText,       ///< Rectangle, free text style, automatic resize
+        Hyperlink       ///< Rectangle, highlight mode
+    };
+
+    Kind kind = Kind::StickyNote;
+
+    /// Page of the annotation (index, reference)
+    PDFInteger pageIndex = -1;
+    PDFObjectReference pageReference;
+
+    /// Point of a sticky note (page coordinates)
+    QPointF point;
+
+    /// Rectangle of a free text or of a hyperlink (page coordinates, normalized)
+    QRectF rectangle;
+
+    /// Icon of a sticky note
+    TextAnnotationIcon icon = TextAnnotationIcon::Comment;
+
+    /// Style of a free text and its automatic resize to the text
+    PDFFreeTextStyle freeTextStyle;
+    bool autoResizeToContents = true;
+
+    /// Highlight mode of a hyperlink
+    LinkHighlightMode highlightMode = LinkHighlightMode::Outline;
+};
 
 /// Base class for various widget tools (for example, searching, text selection,
 /// screenshots, zoom tool etc.). Each tool can have subtools (for example,
@@ -112,6 +152,11 @@ public:
     /// in this case, optional will be set to nullopt.
     const std::optional<QCursor>& getCursor() const;
 
+    /// Returns the manager of the style of the created annotations (stroke, fill,
+    /// width), nullptr for a tool without a style. The application shows the style
+    /// in its own tool bar and changes it by PDFAnnotationStyleManager::setStyle.
+    virtual PDFAnnotationStyleManager* getStyleManager() const { return nullptr; }
+
 signals:
     /// Informs about tool activity changed (if tool is enabled or disabled)
     /// \param active Is tool active?
@@ -148,6 +193,10 @@ protected:
     ///        widget, when no size is given
     static void drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize);
 
+    /// Draws the cross by a color of the application (its theme, PDFViewColors::pickCross),
+    /// an invalid color draws the cross of the old applications (difference composition)
+    static void drawCross(QPainter* painter, QRect rect, QPoint point, std::optional<int> markSize, const QColor& color);
+
     void addTool(PDFWidgetTool* tool);
     void removeTool();
 
@@ -156,6 +205,7 @@ private:
     const PDFDocument* m_document;
     QAction* m_action;
     PDFDrawWidgetProxy* m_proxy;
+    QPointer<PDFDrawWidgetProxy> m_proxyGuard;  ///< Proxy of a tool destroyed while active (the proxy can be gone already)
     std::vector<PDFWidgetTool*> m_toolStack;
     std::optional<QCursor> m_cursor;
 };
@@ -182,6 +232,7 @@ private:
 
 /// Simple tool for find text in PDF document. It is much simpler than advanced
 /// search and can't search using regular expressions.
+// TODO(remove-old-apps): the tool and its dialog (PDFFindTextToolDialog) go - the new application searches by its search panel (PDFDocumentTextSearch)
 class PDFFindTextTool : public PDFWidgetTool
 {
     Q_OBJECT
@@ -314,8 +365,31 @@ public:
     /// not taken by the tool, the annotation manager gets it and follows the link
     /// at the release; a selection starts elsewhere. Off by default (the tools take
     /// every press before the annotations, as the old applications expect).
+    // TODO(remove-old-apps): links are always clickable - the switch and the old behavior (the tool takes every press) go
     bool isLinksClickable() const { return m_isLinksClickable; }
     void setLinksClickable(bool linksClickable) { m_isLinksClickable = linksClickable; }
+
+    /// Annotations stay selectable and editable while the tool is active: a press of
+    /// the left button over a selectable annotation, a handle or a point of the
+    /// selection, or with Ctrl / Shift on a page (rubber band) -
+    /// PDFWidgetAnnotationManager::isInteractionAt - is not taken by the tool, the
+    /// annotation manager gets it (the text selection is cleared); the cursor of the
+    /// manager is shown there. Escape clears the text selection instead of turning the
+    /// tool off (without a text selection it goes on to the annotation manager), and
+    /// the annotation manager handles its keys while this tool is active
+    /// (PDFWidgetAnnotationManager::isToolActive). A press on a field of a form
+    /// (PDFWidgetFormManager::isEditorAt) goes to the form manager in this mode too.
+    /// Off by default (the old applications select annotations only without an
+    /// active tool).
+    // TODO(remove-old-apps): annotations are always selectable with the text tool - the switch goes
+    bool isAnnotationsSelectable() const { return m_isAnnotationsSelectable; }
+    void setAnnotationsSelectable(bool annotationsSelectable);
+
+    /// Returns the current text selection (empty, if nothing is selected). The
+    /// application creates text markup annotations from it (one per page).
+    const PDFTextSelection& getTextSelection() const { return m_textSelection; }
+
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
 signals:
     /// The selection has changed (hasSelection, getSelectedText)
@@ -345,6 +419,11 @@ private:
     SelectionInfo m_selectionInfo;
     bool m_isCursorOverText;
     bool m_isLinksClickable = false;
+    bool m_isAnnotationsSelectable = false;
+    bool m_isCursorOverAnnotation = false;
+
+    /// Returns true, if a press at the position belongs to the annotation manager (setAnnotationsSelectable)
+    bool isAnnotationInteractionAt(QPoint position, Qt::KeyboardModifiers modifiers) const;
 };
 
 /// Tool to magnify specific area in the drawing widget
@@ -628,6 +707,7 @@ public:
     /// \param actions Actions
     /// \param parent Parent object
     /// \param parentDialog Paret dialog for tool dialog
+    // TODO(remove-old-apps): the constructor with the actions, PDFToolManager::Actions and the find dialog (PDFFindTextTool) go - the new application drives the tools by its commands
     explicit PDFToolManager(PDFDrawWidgetProxy* proxy, Actions actions, QObject* parent, QWidget* parentDialog);
 
     /// Constructs the tool manager without actions and without the find dialog
@@ -736,7 +816,42 @@ public:
     virtual QString getTooltip() const override { return QString(); }
     virtual int getInputPriority() const override { return ToolPriority; }
 
+    /// The tools ask the application for the content of a created annotation instead
+    /// of showing their own dialogs: the sticky note, free text and hyperlink tools
+    /// emit annotationCreationRequested with the picked place (the tool is deactivated
+    /// then, as after a creation by its dialog, unless setCreationToolsPersistent) and the application creates the
+    /// annotation. Off by default (the tools show QInputDialog / QDialog).
+    // TODO(remove-old-apps): the delegation becomes the only behavior - the switch and the dialogs of the tools go
+    void setUserInterfaceDelegated(bool delegated) { m_isUserInterfaceDelegated = delegated; }
+    bool isUserInterfaceDelegated() const { return m_isUserInterfaceDelegated; }
+
+    /// The creation tools (sticky note, free text, hyperlink, link to a page, line,
+    /// polyline, polygon, rectangle, ellipse, freehand curve, stamp) stay active after
+    /// they have created an annotation (or asked the application for it -
+    /// setUserInterfaceDelegated): the user creates further annotations until he turns
+    /// the tool off (Escape, another tool). The link to a page is active again after
+    /// its target has been picked. Off by default - the tool is turned off after one
+    /// annotation, as in the old applications.
+    // TODO(remove-old-apps): the creation tools always stay active until Escape (tools.md 9.8) - the switch and the deactivation after one annotation go
+    void setCreationToolsPersistent(bool persistent) { m_isCreationToolsPersistent = persistent; }
+    bool isCreationToolsPersistent() const { return m_isCreationToolsPersistent; }
+
+    /// The shape tools create the annotations, which the specification intends: the
+    /// rectangle tool a Square annotation (instead of a closed Polygon) and the
+    /// freehand curve tool an Ink annotation (instead of a PolyLine). Off by default -
+    /// Polygon and PolyLine, as in the old applications.
+    // TODO(remove-old-apps): Square and Ink become the only annotations of the tools - the switch and the Polygon / PolyLine path go
+    void setSpecificationShapeTypes(bool specificationShapeTypes) { m_isSpecificationShapeTypes = specificationShapeTypes; }
+    bool isSpecificationShapeTypes() const { return m_isSpecificationShapeTypes; }
+
 signals:
+    /// A tool asks the application to create an annotation (setUserInterfaceDelegated).
+    /// It is emitted from the handling of a mouse event of the tool; the receiver must
+    /// not open a modal dialog synchronously and must not delete the tool or the
+    /// manager synchronously (queue it, deleteLater).
+    /// \param request Request
+    void annotationCreationRequested(const pdf::PDFAnnotationCreationRequest& request);
+
     /// This is signal is set, when we want to display information message
     /// to the user, with timeout in miliseconds, after which message
     /// dissappears.
@@ -762,7 +877,16 @@ private:
     void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
     void onPagePicked(PDFInteger pageIndex);
 
+    /// Ends the picking of a rectangle / page (the pick tool is turned off)
+    void finishPicking(PredefinedTools pickTool);
+
+    /// A tool of the application has been destroyed (deleteLater from the slot of
+    /// its request) - only its pointer is forgotten. Deactivate a tool, before it
+    /// is destroyed.
+    void onToolDestroyed(QObject* object);
+
     std::set<PDFWidgetTool*> m_tools;
+    std::map<QObject*, PDFWidgetTool*> m_toolObjects;
     std::array<PDFWidgetTool*, ToolEnd> m_predefinedTools;
     std::map<QAction*, PDFWidgetTool*> m_actionsToTools;
     std::function<void(PDFInteger, QRectF)> m_pickRectangleCallback;
@@ -772,8 +896,13 @@ private:
     /// emitted by the outermost one) and the tool of the last emission
     int m_activityChangeNesting = 0;
     PDFWidgetTool* m_notifiedActiveTool = nullptr;
+    bool m_isUserInterfaceDelegated = false;
+    bool m_isCreationToolsPersistent = false;
+    bool m_isSpecificationShapeTypes = false;
 };
 
 }   // namespace pdf
+
+Q_DECLARE_METATYPE(pdf::PDFAnnotationCreationRequest)
 
 #endif // PDFWIDGETTOOL_H

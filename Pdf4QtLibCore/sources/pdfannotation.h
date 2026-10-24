@@ -833,10 +833,14 @@ public:
 
     static QIcon createIcon(QString key, QSize size);
 
+    /// Returns the text (a symbol), which draws the icon of a text annotation without
+    /// an appearance stream (Comment, Help, Insert, Key, NewParagraph, Note, Paragraph;
+    /// "?" for an unknown icon)
+    /// \param key Name of the icon
+    static QString getTextForIcon(const QString& key);
+
 private:
     friend PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);
-
-    static QString getTextForIcon(const QString& key);
 
     bool m_open = false;
     QByteArray m_iconName;

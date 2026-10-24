@@ -37,6 +37,10 @@
 #include <QClipboard>
 #include <QStyleOption>
 
+#include <limits>
+#include <map>
+#include <tuple>
+
 namespace pdf
 {
 
@@ -741,6 +745,12 @@ PDFWidgetFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWi
 {
     MouseEventInfo result;
 
+    // The widgets of a read only form do not react to the user (no focus, no editor)
+    if (isReadOnlyForm())
+    {
+        return result;
+    }
+
     if (isMouseGrabbed())
     {
         result = m_mouseGrabInfo.info;
@@ -839,11 +849,202 @@ QString PDFWidgetFormManager::getTooltip() const
     return QString();
 }
 
+/// Helper of the tab order of the pages (PDFWidgetFormManager::setPageTabOrder)
+class PDFWidgetFormManagerTabOrderHelper
+{
+public:
+    PDFWidgetFormManagerTabOrderHelper() = delete;
+
+    /// Editor on a page with the top left corner of its widget, as the page is displayed
+    /// (y grows downwards, the rotation of the page applied)
+    struct Item
+    {
+        PDFFormFieldWidgetEditor* editor = nullptr;
+        qreal x = 0.0;
+        qreal y = 0.0;
+    };
+
+    /// Returns the displayed top left corner of the rectangle of the page
+    static QPointF getDisplayedTopLeft(const QRectF& rectangle, PageRotation rotation)
+    {
+        // Page space (y up) -> display (y down, the page turned clockwise)
+        qreal x = std::numeric_limits<qreal>::max();
+        qreal y = std::numeric_limits<qreal>::max();
+        for (const QPointF& corner : { rectangle.topLeft(), rectangle.topRight(), rectangle.bottomLeft(), rectangle.bottomRight() })
+        {
+            const qreal u = corner.x();
+            const qreal v = -corner.y();
+            QPointF displayed(u, v);
+            switch (rotation)
+            {
+                case PageRotation::Rotate90:
+                    displayed = QPointF(-v, u);
+                    break;
+                case PageRotation::Rotate180:
+                    displayed = QPointF(-u, -v);
+                    break;
+                case PageRotation::Rotate270:
+                    displayed = QPointF(v, -u);
+                    break;
+                default:
+                    break;
+            }
+            x = qMin(x, displayed.x());
+            y = qMin(y, displayed.y());
+        }
+        return QPointF(x, y);
+    }
+
+    /// Row order: from the top down, in a row from the left
+    static bool isBeforeInRow(const Item& left, const Item& right)
+    {
+        return std::tie(left.y, left.x) < std::tie(right.y, right.x);
+    }
+
+    /// Column order: from the left, in a column from the top down
+    static bool isBeforeInColumn(const Item& left, const Item& right)
+    {
+        return std::tie(left.x, left.y) < std::tie(right.x, right.y);
+    }
+
+    /// Returns true, if the widget annotation is hidden (flags Hidden, NoView)
+    static bool isWidgetHidden(const PDFDocument* document, PDFObjectReference widget)
+    {
+        const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(widget));
+        if (!dictionary)
+        {
+            return true;
+        }
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        const PDFAnnotation::Flags flags = PDFAnnotation::Flags(int(loader.readIntegerFromDictionary(dictionary, "F", 0)));
+        return flags.testFlag(PDFAnnotation::Hidden) || flags.testFlag(PDFAnnotation::NoView);
+    }
+};
+
+std::vector<PDFFormFieldWidgetEditor*> PDFWidgetFormManager::getTabOrderEditors() const
+{
+    const PDFDocument* document = getDocument();
+    if (!m_isPageTabOrder || !document)
+    {
+        return m_widgetEditors;
+    }
+
+    using H = PDFWidgetFormManagerTabOrderHelper;
+
+    // Editors of the fields, which the user can fill, by their widget annotations
+    std::map<PDFObjectReference, PDFFormFieldWidgetEditor*> editors;
+    for (PDFFormFieldWidgetEditor* editor : m_widgetEditors)
+    {
+        const PDFFormField* formField = editor->getFormWidget()->getParent();
+        if (formField && !isReadOnly(formField) && !H::isWidgetHidden(document, editor->getWidgetAnnotation()))
+        {
+            editors.emplace(editor->getWidgetAnnotation(), editor);
+        }
+    }
+
+    std::vector<PDFFormFieldWidgetEditor*> result;
+    result.reserve(editors.size());
+
+    // Page by page, a widget is taken once (the arrays Annots are untrusted input)
+    const PDFCatalog* catalog = document->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    for (size_t pageIndex = 0; pageIndex < pageCount && !editors.empty(); ++pageIndex)
+    {
+        const PDFPage* page = catalog->getPage(pageIndex);
+        if (!page)
+        {
+            continue;
+        }
+
+        std::vector<H::Item> items;
+        for (const PDFObjectReference& annotation : page->getAnnotations())
+        {
+            auto it = editors.find(annotation);
+            if (it == editors.end())
+            {
+                continue;
+            }
+
+            const QPointF topLeft = H::getDisplayedTopLeft(getWidgetRectangle(*it->second->getFormWidget()).normalized(), page->getPageRotation());
+            items.push_back(H::Item{ it->second, topLeft.x(), topLeft.y() });
+            editors.erase(it);
+        }
+
+        switch (page->getTabOrder())
+        {
+            case PageTabOrder::Row:
+                std::stable_sort(items.begin(), items.end(), &H::isBeforeInRow);
+                break;
+
+            case PageTabOrder::Column:
+                std::stable_sort(items.begin(), items.end(), &H::isBeforeInColumn);
+                break;
+
+            default:
+                // S (the structure), A, W and no entry: the order of the annotations
+                break;
+        }
+
+        for (const H::Item& item : items)
+        {
+            result.push_back(item.editor);
+        }
+    }
+
+    // Widgets, which are on no page, at the end in the order of the field tree
+    for (PDFFormFieldWidgetEditor* editor : m_widgetEditors)
+    {
+        if (editors.count(editor->getWidgetAnnotation()) && editors.at(editor->getWidgetAnnotation()) == editor)
+        {
+            result.push_back(editor);
+        }
+    }
+
+    return result;
+}
+
+std::vector<PDFObjectReference> PDFWidgetFormManager::getTabOrder() const
+{
+    std::vector<PDFObjectReference> result;
+    for (const PDFFormFieldWidgetEditor* editor : getTabOrderEditors())
+    {
+        result.push_back(editor->getWidgetAnnotation());
+    }
+    return result;
+}
+
 bool PDFWidgetFormManager::focusNextPrevFormField(bool next)
 {
-    if (m_widgetEditors.empty())
+    if (m_widgetEditors.empty() || isReadOnlyForm())
     {
         return false;
+    }
+
+    if (m_isPageTabOrder)
+    {
+        // The order of the pages, the focus cycles through the fields
+        const std::vector<PDFFormFieldWidgetEditor*> order = getTabOrderEditors();
+        if (order.empty())
+        {
+            setFocusToEditor(nullptr);
+            return false;
+        }
+
+        auto it = m_focusedEditor ? std::find(order.cbegin(), order.cend(), m_focusedEditor) : order.cend();
+        size_t index = 0;
+        if (it == order.cend())
+        {
+            index = next ? 0 : order.size() - 1;
+        }
+        else
+        {
+            const size_t current = size_t(std::distance(order.cbegin(), it));
+            index = next ? (current + 1) % order.size() : (current + order.size() - 1) % order.size();
+        }
+
+        setFocusToEditor(order[index]);
+        return true;
     }
 
     std::vector<PDFFormFieldWidgetEditor*>::const_iterator newFocusIterator = m_widgetEditors.cend();
@@ -899,6 +1100,9 @@ void PDFWidgetFormManager::updateFormWidgetEditors()
 {
     setFocusToEditor(nullptr);
     clearEditors();
+
+    // The grab holds an editor, which has been deleted
+    m_mouseGrabInfo = MouseGrabInfo();
 
     for (const PDFFormWidget& widget : getWidgets())
     {
@@ -1002,6 +1206,16 @@ bool PDFWidgetFormManager::isFocused(PDFObjectReference widget) const
     }
 
     return false;
+}
+
+PDFObjectReference PDFWidgetFormManager::getFocusedWidget() const
+{
+    return m_focusedEditor ? m_focusedEditor->getWidgetAnnotation() : PDFObjectReference();
+}
+
+bool PDFWidgetFormManager::isEditorAt(QWidget* widget, QPoint point)
+{
+    return widget && hasForm() && getDocument() && getMouseEventInfo(widget, point).isValid();
 }
 
 PDFWidgetFormManager::~PDFWidgetFormManager()
@@ -1579,10 +1793,13 @@ void PDFFormFieldComboBoxEditor::setFocusImpl(bool focused)
     }
     else if (!m_formManager->isCommitDisabled())
     {
-        // If text has been changed, then commit it
-        PDFObject object = PDFObjectFactory::createTextString(m_textEdit.getText());
+        // If text has been changed, then commit it (an empty text of a field
+        // without a value is no change - the field has only been visited)
+        const QString text = m_textEdit.getText();
+        PDFObject object = PDFObjectFactory::createTextString(text);
+        const PDFObject& value = m_formWidget.getParent()->getValue();
 
-        if (object != m_formWidget.getParent()->getValue())
+        if (object != value && !(text.isEmpty() && value.isNull()))
         {
             PDFFormField::SetValueParameters parameters;
             parameters.formManager = m_formManager;
@@ -1658,10 +1875,12 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
             text = *committedText;
         }
 
-        // If text has been changed, then commit it
+        // If text has been changed, then commit it (an empty text of a field
+        // without a value is no change - the field has only been visited)
         PDFObject object = PDFObjectFactory::createTextString(text);
+        const PDFObject& value = m_formWidget.getParent()->getValue();
 
-        if (object != m_formWidget.getParent()->getValue())
+        if (object != value && !(text.isEmpty() && value.isNull()))
         {
             PDFFormField::SetValueParameters parameters;
             parameters.formManager = m_formManager;

@@ -273,7 +273,16 @@ PDFAppScrollArea::PDFAppScrollArea(QWidget* content, QWidget* parent) :
     setContent(content);
 }
 
-PDFAppScrollArea::~PDFAppScrollArea() = default;
+PDFAppScrollArea::~PDFAppScrollArea()
+{
+    // ~QWidget deletes the children after this destructor; a focused child calls
+    // QWidget::clearFocus then, and its focusChanged must not reach the slot of an
+    // area, whose derived part is gone (UBSan: downcast to PDFAppScrollArea)
+    if (QApplication* application = qobject_cast<QApplication*>(QCoreApplication::instance()))
+    {
+        disconnect(application, &QApplication::focusChanged, this, &PDFAppScrollArea::onFocusChanged);
+    }
+}
 
 void PDFAppScrollArea::onFocusChanged(QWidget* old, QWidget* now)
 {

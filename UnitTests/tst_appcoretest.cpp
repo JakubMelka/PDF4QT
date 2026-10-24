@@ -24,6 +24,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
+#include "pdfutils.h"
 #include "pdfappdocumentcommands.h"
 #include "pdfappinstance.h"
 #include "pdfapplocale.h"
@@ -300,6 +301,9 @@ private Q_SLOTS:
     void logSizeLimit();
     void logPortable();
     void contextColorScheme();
+    void authorSettingApplied();
+    void reviewAuthorNameSanitizing();
+    void reviewShortcutScopes();
     void uiLocale();
     void executableSmoke();
     void executablePortable();
@@ -532,6 +536,16 @@ void AppCoreTest::commandRegistry()
     QCOMPARE(registry.findCommand("file.open")->iconName, QStringLiteral("folder-open"));
     QVERIFY(!registry.findCommand("no.command"));
 
+    // Icons of the zoom commands of Figma 1188:1537 - 1188:1556 (menus, search, shortcuts;
+    // the buttons beside the zoom field of the toolbar keep plus / minus)
+    QCOMPARE(registry.findCommand(pdf::PDFAppCommands::zoomOut())->iconName, QStringLiteral("zoom-out"));
+    QCOMPARE(registry.findCommand(pdf::PDFAppCommands::actualSize())->iconName, QStringLiteral("actual-size"));
+    QCOMPARE(registry.findCommand(pdf::PDFAppCommands::magnifier())->iconName, QStringLiteral("magnifier"));
+    for (const pdf::PDFAppCommand* command : registry.getCommands())
+    {
+        QVERIFY2(command->iconName.isEmpty() || pdf::PDFThemeIcons::hasIcon(command->iconName), qPrintable(command->id + QStringLiteral(" ") + command->iconName));
+    }
+
     // The built-in shortcuts do not conflict
     QVERIFY(registry.findConflicts({}).empty());
 
@@ -612,10 +626,10 @@ void AppCoreTest::shortcutConflicts()
     QCOMPARE(conflicts.size(), size_t(1));
     QCOMPARE(conflicts[0].commandIds, QStringList({ "window.quit", "navigation.search" }));
 
-    // Three commands with one shortcut = one conflict
-    user["window.quit"] = QStringLiteral("F2");
-    user["window.closeTab"] = QStringLiteral("F2");
-    user["navigation.back"] = QStringLiteral("F2");
+    // Three commands with one shortcut = one conflict (F12 has no command)
+    user["window.quit"] = QStringLiteral("F12");
+    user["window.closeTab"] = QStringLiteral("F12");
+    user["navigation.back"] = QStringLiteral("F12");
     conflicts = registry.findConflicts(user);
     QCOMPARE(conflicts.size(), size_t(1));
     QCOMPARE(conflicts[0].commandIds.size(), 3);
@@ -2101,6 +2115,144 @@ void AppCoreTest::uiLocale()
     std::thread worker([&threadText]() { threadText = pdf::PDFAppLocale::formatNumber(5678); });
     worker.join();
     QCOMPARE(threadText, QStringLiteral("5.678"));
+}
+
+void AppCoreTest::authorSettingApplied()
+{
+    const pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable" }, QString());
+    pdf::PDFAppContext context(commandLine);
+    pdf::PDFDatabaseOptions options;
+    options.memoryName = QStringLiteral("/pdf4qt-core-author-%1").arg(QCoreApplication::applicationPid());
+    context.open(options);
+    QVERIFY(context.getDatabase());
+
+    // Q1: Anonymous by default (the name is stored in the documents)
+    QCOMPARE(context.getSettings().getString(pdf::PDFSettingKeys::annotationsAuthorMode()), pdf::PDFSettingValues::authorModeAnonymous());
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorNameMode(), pdf::PDFAuthorSettings::AuthorNameMode::Anonymous);
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorName(), pdf::PDFAuthorSettings::getAnonymousAuthorName());
+    QVERIFY(context.getSettings().getBool(pdf::PDFSettingKeys::annotationsShowMarkupBar()));
+
+    // A custom name is applied at every change (notification of the database)
+    QVERIFY(!context.getSettings().setValue(pdf::PDFSettingKeys::annotationsCustomAuthorName(), QStringLiteral("Jane Doe")).isError());
+    QVERIFY(!context.getSettings().setValue(pdf::PDFSettingKeys::annotationsAuthorMode(), pdf::PDFSettingValues::authorModeCustomName()).isError());
+    QTRY_COMPARE(pdf::PDFAuthorSettings::getAuthorName(), QStringLiteral("Jane Doe"));
+    QCOMPARE(pdf::PDFAuthorSettings::getAuthorNameMode(), pdf::PDFAuthorSettings::AuthorNameMode::CustomName);
+
+    // Control characters and bidirectional overrides never get into a document
+    QVERIFY(!context.getSettings().setValue(pdf::PDFSettingKeys::annotationsCustomAuthorName(), QString::fromUtf8("Ja\nne\x01 \xE2\x80\xAE""Doe")).isError());
+    QTRY_COMPARE(pdf::PDFAuthorSettings::getAuthorName(), QStringLiteral("Jane Doe"));
+    QCOMPARE(pdf::PDFAppContext::sanitizeAuthorName(QString(1000, QLatin1Char('x'))).size(), 256);
+    QCOMPARE(pdf::PDFAppContext::sanitizeAuthorName(QStringLiteral("  Name  ")), QStringLiteral("Name"));
+    QString surrogates;
+    for (int i = 0; i < 200; ++i)
+    {
+        surrogates += QString::fromUtf8("\xF0\x9F\x98\x80");
+    }
+    const QString cut = pdf::PDFAppContext::sanitizeAuthorName(QLatin1Char('a') + surrogates);
+    QVERIFY(cut.size() <= 256);
+    QVERIFY(!cut.back().isHighSurrogate());
+
+    // A text longer than the limit of the setting is refused by the repository
+    QVERIFY(context.getSettings().setValue(pdf::PDFSettingKeys::annotationsCustomAuthorName(), QString(300, QLatin1Char('y'))).isError());
+
+    // System user name
+    QVERIFY(!context.getSettings().setValue(pdf::PDFSettingKeys::annotationsAuthorMode(), pdf::PDFSettingValues::authorModeSystemUserName()).isError());
+    QTRY_COMPARE(pdf::PDFAuthorSettings::getAuthorNameMode(), pdf::PDFAuthorSettings::AuthorNameMode::SystemUserName);
+
+    // Restore defaults of the section Editing: Anonymous again
+    QVERIFY(!context.getSettings().restoreDefaults(pdf::PDFSettingDefinitions::sectionEditing()).isError());
+    QTRY_COMPARE(pdf::PDFAuthorSettings::getAuthorNameMode(), pdf::PDFAuthorSettings::AuthorNameMode::Anonymous);
+}
+
+void AppCoreTest::reviewAuthorNameSanitizing()
+{
+    using C = pdf::PDFAppContext;
+
+    // Joiners of names in Persian and Indic scripts and emoji sequences are kept
+    const QString persian = QString::fromUtf8("\xD9\x85\xDB\x8C\xE2\x80\x8C\xD8\xB1\xD9\x88\xD9\x85");
+    QCOMPARE(C::sanitizeAuthorName(persian), persian);
+    const QString family = QString::fromUtf8("\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB");
+    QCOMPARE(C::sanitizeAuthorName(family), family);
+
+    // Bidirectional controls, isolates, line / paragraph separators, a BOM and the
+    // format characters of the supplementary planes (tags) are removed
+    QCOMPARE(C::sanitizeAuthorName(QString::fromUtf8("a\xE2\x80\xAE" "b\xE2\x81\xA6" "c\xE2\x80\xA8" "d\xE2\x80\xA9" "e\xEF\xBB\xBF" "f\xF3\xA0\x80\x81" "g")), QStringLiteral("abcdefg"));
+
+    // Lone surrogates (invalid UTF-16) never get into a document, wherever they are
+    QString lone = QStringLiteral("x");
+    lone += QChar(0xDC00);
+    lone += QStringLiteral("y");
+    lone += QChar(0xD800);
+    lone += QStringLiteral("z");
+    lone += QChar(0xD800);
+    QCOMPARE(C::sanitizeAuthorName(lone), QStringLiteral("xyz"));
+
+    // The limit never cuts a surrogate pair
+    QString emoji;
+    for (int i = 0; i < 200; ++i)
+    {
+        emoji += QString::fromUtf8("\xF0\x9F\x98\x80");
+    }
+    const QString cut = C::sanitizeAuthorName(QLatin1Char('a') + emoji);
+    QCOMPARE(cut.size(), 255);
+    QVERIFY(!cut.back().isHighSurrogate());
+    QVERIFY(cut.isValidUtf16());
+    QCOMPARE(C::sanitizeAuthorName(QString(300, QLatin1Char('n'))).size(), 256);
+    QVERIFY(C::sanitizeAuthorName(QString()).isEmpty());
+}
+
+void AppCoreTest::reviewShortcutScopes()
+{
+    pdf::PDFAppCommandRegistry registry;
+    pdf::PDFAppCommands::registerBuiltinCommands(&registry);
+
+    // F2 opens the properties of an annotation on the canvas (Figma 1019:18817),
+    // Alt+Return is its second key; F2 renames an outline item in the panel
+    const pdf::PDFAppCommand* properties = registry.findCommand(pdf::PDFAppCommands::annotationProperties());
+    const pdf::PDFAppCommand* rename = registry.findCommand(pdf::PDFAppCommands::outlineRename());
+    QVERIFY(properties);
+    QVERIFY(rename);
+    QCOMPARE(properties->scope, pdf::PDFAppCommandScope::Canvas);
+    QCOMPARE(rename->scope, pdf::PDFAppCommandScope::Panel);
+    QCOMPARE(properties->defaultShortcut, QKeySequence(Qt::Key_F2));
+    QCOMPARE(rename->defaultShortcut, QKeySequence(Qt::Key_F2));
+    QCOMPARE(registry.getShortcuts(properties->id, {}), QList<QKeySequence>({ QKeySequence(Qt::Key_F2), QKeySequence(Qt::ALT | Qt::Key_Return) }));
+    QVERIFY(registry.findConflicts({}).empty());
+
+    // The canvas and a panel never conflict, every other pair of scopes does
+    using S = pdf::PDFAppCommandScope;
+    QVERIFY(!pdf::PDFAppCommandRegistry::isScopeConflict(S::Canvas, S::Panel));
+    QVERIFY(!pdf::PDFAppCommandRegistry::isScopeConflict(S::Panel, S::Canvas));
+    QVERIFY(pdf::PDFAppCommandRegistry::isScopeConflict(S::Canvas, S::Canvas));
+    QVERIFY(pdf::PDFAppCommandRegistry::isScopeConflict(S::Panel, S::Panel));
+    QVERIFY(pdf::PDFAppCommandRegistry::isScopeConflict(S::Document, S::Canvas));
+    QVERIFY(pdf::PDFAppCommandRegistry::isScopeConflict(S::Window, S::Panel));
+
+    // F2 for a command of the document tab conflicts with both of them
+    QStringList conflicting = registry.getConflictingCommands(pdf::PDFAppCommands::newTab(), QKeySequence(Qt::Key_F2), {});
+    conflicting.sort();
+    QCOMPARE(conflicting, QStringList({ pdf::PDFAppCommands::annotationProperties(), pdf::PDFAppCommands::outlineRename() }));
+    QCOMPARE(registry.getConflictingCommands(pdf::PDFAppCommands::outlineRename(), QKeySequence(Qt::Key_F2), {}), QStringList());
+
+    // The second key is a key of the command: a conflict with it is reported
+    QCOMPARE(registry.getConflictingCommands(pdf::PDFAppCommands::cut(), QKeySequence(Qt::ALT | Qt::Key_Return), {}), QStringList({ pdf::PDFAppCommands::annotationProperties() }));
+    pdf::PDFAppCommandRegistry::UserShortcuts user;
+    user[pdf::PDFAppCommands::cut()] = QStringLiteral("Alt+Return");
+    std::vector<pdf::PDFAppShortcutConflict> conflicts = registry.findConflicts(user);
+    QCOMPARE(conflicts.size(), size_t(1));
+    QCOMPARE(conflicts.front().commandIds.size(), 2);
+
+    // A shortcut of the user replaces all keys of the command (also an empty one)
+    user.clear();
+    user[pdf::PDFAppCommands::annotationProperties()] = QStringLiteral("Ctrl+F2");
+    QCOMPARE(registry.getShortcuts(properties->id, user), QList<QKeySequence>({ QKeySequence(Qt::CTRL | Qt::Key_F2) }));
+    user[pdf::PDFAppCommands::annotationProperties()] = QString();
+    QVERIFY(registry.getShortcuts(properties->id, user).isEmpty());
+
+    // An invalid stored text keeps the defaults
+    user[pdf::PDFAppCommands::annotationProperties()] = QStringLiteral("Ctrl+Shift+Alt+Meta+Nonsense+Key");
+    QCOMPARE(registry.getShortcuts(properties->id, user).size(), 2);
+    QVERIFY(registry.getShortcuts(QStringLiteral("no.command"), {}).isEmpty());
 }
 
 void AppCoreTest::contextColorScheme()

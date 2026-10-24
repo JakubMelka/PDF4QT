@@ -20,6 +20,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifndef PDFWIDGETSNAPSHOT_H
+#define PDFWIDGETSNAPSHOT_H
+
 #include "pdfglobal.h"
 
 #include <QRectF>
@@ -48,3 +51,5 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFWidgetSnapshot
 };
 
 }   // namespace pdf
+
+#endif // PDFWIDGETSNAPSHOT_H

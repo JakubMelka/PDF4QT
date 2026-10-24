@@ -46,6 +46,8 @@
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 
+#include "pdfannotationmanipulator.h"
+
 #include <QAction>
 #include <QApplication>
 #include <QCloseEvent>
@@ -59,7 +61,9 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QMimeData>
 #include <QScreen>
+#include <QStyle>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -599,8 +603,9 @@ void PDFAppMainWindow::updateShortcuts()
         const PDFAppCommand* command = registry->findCommand(item.first);
         if (item.second && command)
         {
-            const bool isCanvas = command->scope == PDFAppCommandScope::Canvas;
-            item.second->setShortcut(isCanvas ? QKeySequence() : registry->getShortcut(item.first, userShortcuts));
+            // Canvas and Panel keys are actions of the canvas / of the panel
+            const bool isLocal = command->scope == PDFAppCommandScope::Canvas || command->scope == PDFAppCommandScope::Panel;
+            item.second->setShortcuts(isLocal ? QList<QKeySequence>() : registry->getShortcuts(item.first, userShortcuts));
         }
     }
 }
@@ -1311,8 +1316,20 @@ void PDFAppMainWindow::onDocumentLoadFailed(const QString& filePath, const QStri
 
 void PDFAppMainWindow::onEditCopyRequested()
 {
-    PDFAppDocumentTab* tab = qobject_cast<PDFAppDocumentTab*>(sender());
-    if (tab)
+    QPointer<PDFAppDocumentTab> tab = qobject_cast<PDFAppDocumentTab*>(sender());
+    if (!tab)
+    {
+        return;
+    }
+
+    // An open editor of a form field belongs to the copy too (step 4, package D);
+    // a slot of the commit may delete the tab or the window
+    QPointer<PDFAppMainWindow> guard(this);
+    if (PDFAppDocument* document = tab->getDocument())
+    {
+        document->commitPendingEdits();
+    }
+    if (guard && tab)
     {
         openDocumentCopy(tab->getDocument());
     }
@@ -1531,6 +1548,26 @@ bool PDFAppMainWindow::confirmClose()
         return false;
     }
 
+    // Open editors of form fields are changes too (step 4, package D); a slot
+    // may delete a tab or the window
+    QPointer<PDFAppMainWindow> pendingGuard(this);
+    std::vector<QPointer<PDFAppDocument>> pendingDocuments;
+    for (PDFAppDocumentTab* tab : getDocumentTabs())
+    {
+        pendingDocuments.emplace_back(tab->getDocument());
+    }
+    for (const QPointer<PDFAppDocument>& document : pendingDocuments)
+    {
+        if (document)
+        {
+            document->commitPendingEdits();
+            if (!pendingGuard)
+            {
+                return false;
+            }
+        }
+    }
+
     // The documents with unsaved changes: pdf4qt-quit-unsaved 955:145378
     std::vector<const PDFAppDocument*> documents;
     std::vector<QPointer<PDFAppDocumentTab>> tabs;
@@ -1737,6 +1774,14 @@ void PDFAppMainWindow::dragEnterEvent(QDragEnterEvent* event)
         setFileDragActive(true);
         return;
     }
+
+    // Annotations of a canvas: the window follows the drag over the tab bar (the
+    // drop itself belongs to a canvas, never to the window)
+    if (updateDragTabSwitch(event->mimeData(), event->position().toPoint()))
+    {
+        event->accept();
+        return;
+    }
     event->ignore();
     setFileDragActive(false);
 }
@@ -1745,7 +1790,62 @@ void PDFAppMainWindow::dragLeaveEvent(QDragLeaveEvent* event)
 {
     // The pointer has left the window, or the drag was canceled (Esc)
     setFileDragActive(false);
+    stopDragTabSwitch();
     BaseClass::dragLeaveEvent(event);
+}
+
+bool PDFAppMainWindow::updateDragTabSwitch(const QMimeData* mimeData, const QPoint& windowPosition)
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    const bool isAnnotationDrag = mimeData && mimeData->hasFormat(QString::fromLatin1(PDFAnnotationManipulator::getMimeType()));
+    if (!isAnnotationDrag || !tabBar)
+    {
+        stopDragTabSwitch();
+        return false;
+    }
+
+    // The tab under the pointer becomes current after the delay of the style; a
+    // move over the same tab does not start the delay again
+    const int index = tabBar->isVisible() ? tabBar->tabAt(tabBar->mapFrom(this, windowPosition)) : -1;
+    if (index < 0 || index == tabBar->currentIndex() || !tabBar->isTabEnabled(index))
+    {
+        stopDragTabSwitch();
+        return true;
+    }
+
+    if (!m_dragTabTimer)
+    {
+        m_dragTabTimer = new QTimer(this);
+        m_dragTabTimer->setSingleShot(true);
+        connect(m_dragTabTimer.data(), &QTimer::timeout, this, &PDFAppMainWindow::onDragTabSwitchTimeout);
+    }
+    if (index != m_dragTabIndex || !m_dragTabTimer->isActive())
+    {
+        m_dragTabIndex = index;
+        m_dragTabTimer->start(qMax(0, tabBar->style()->styleHint(QStyle::SH_TabBar_ChangeCurrentDelay, nullptr, tabBar)));
+    }
+    return true;
+}
+
+void PDFAppMainWindow::stopDragTabSwitch()
+{
+    m_dragTabIndex = -1;
+    if (m_dragTabTimer)
+    {
+        m_dragTabTimer->stop();
+    }
+}
+
+void PDFAppMainWindow::onDragTabSwitchTimeout()
+{
+    // The tabs may have changed meanwhile (a closed tab)
+    PDFDocumentTabBar* tabBar = getTabBar();
+    const int index = m_dragTabIndex;
+    m_dragTabIndex = -1;
+    if (tabBar && index >= 0 && index < tabBar->count() && tabBar->isTabEnabled(index))
+    {
+        tabBar->setCurrentIndex(index);
+    }
 }
 
 void PDFAppMainWindow::setFileDragActive(bool isActive)
@@ -1771,12 +1871,23 @@ void PDFAppMainWindow::dragMoveEvent(QDragMoveEvent* event)
         event->accept();
         return;
     }
+
+    // Annotations over the tab bar: no drop here, the tab under the pointer becomes current
+    updateDragTabSwitch(event->mimeData(), event->position().toPoint());
     event->ignore();
 }
 
 void PDFAppMainWindow::dropEvent(QDropEvent* event)
 {
     setFileDragActive(false);
+    stopDragTabSwitch();
+    if (!PDFAppFileDrop::hasLocalFiles(event->mimeData()) && event->mimeData() &&
+        event->mimeData()->hasFormat(QString::fromLatin1(PDFAnnotationManipulator::getMimeType())))
+    {
+        // Annotations dropped outside of a canvas: nothing happens
+        event->ignore();
+        return;
+    }
     const PDFAppFileDrop::Result result = PDFAppFileDrop::getFiles(event->mimeData());
     event->setDropAction(Qt::CopyAction);
     event->accept();

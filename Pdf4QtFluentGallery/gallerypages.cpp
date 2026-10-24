@@ -1318,8 +1318,8 @@ GalleryPages::Page GalleryPages::createComboBoxesPage(QWidget* parent)
 
     pdf::PDFComboBox* iconCombo = builder.live(QStringLiteral("Items with icons"), new pdf::PDFComboBox(builder.page()));
     iconCombo->addItem(GalleryHelper::icon("fit-width"), QStringLiteral("Fit width"));
-    iconCombo->addItem(GalleryHelper::icon("fit-height"), QStringLiteral("Fit page"));
-    iconCombo->addItem(GalleryHelper::icon("zoom-in"), QStringLiteral("Actual size"));
+    iconCombo->addItem(GalleryHelper::icon("maximize"), QStringLiteral("Fit page"));
+    iconCombo->addItem(GalleryHelper::icon("actual-size"), QStringLiteral("Actual size"));
     iconCombo->setFixedWidth(220);
 
     pdf::PDFComboBox* editableCombo = builder.live(QStringLiteral("Editable"), new pdf::PDFComboBox(builder.page()));

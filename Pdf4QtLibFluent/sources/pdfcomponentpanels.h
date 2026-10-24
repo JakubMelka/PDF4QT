@@ -37,6 +37,7 @@
 #include <vector>
 
 class QCheckBox;
+class QToolButton;
 
 namespace pdf
 {
@@ -1146,7 +1147,200 @@ private:
     QString m_accessibleDescription;
 };
 
+/// Row of the annotation colors (Color row of the Annotate panel 877:10157, the
+/// bars of the annotation tools 198:4978 / 207:6770, the menu Mark as
+/// annotations 737:9221): round Color swatches of the \c annotation/* tokens
+/// (yellow, orange, red, pink, purple, blue, green, black), optionally the
+/// swatch "No color" before them and white after them, and the button More
+/// (the look of a Sidebar tab 190:619, 32 x 32 with the icon more-horizontal 18),
+/// which opens the palette of the colors (\p PDFColorPalette popover) below it.
+/// The swatches are 28 x 28 with gaps of 2, centered in the height 32 of the
+/// More button (Figma: 8 swatches + More = 272 x 32, none + 9 swatches + More =
+/// 332 x 32).
+///
+/// The swatches show the tokens of the current theme (repainted, when the theme
+/// changes), but the row always reports and matches the canonical value of the
+/// token in the built-in light theme: the color written into a document never
+/// depends on the theme. The palette shows the canonical values (the colors,
+/// which are written).
+///
+/// The swatches are an exclusive QButtonGroup of the row and one stop of Tab (the
+/// selected swatch, the focused one, or the first one); the arrows (mirrored in
+/// the right-to-left layout), Home and End move the focus among the visible
+/// swatches, Space or Enter selects the focused one. The More button is the next
+/// stop of Tab. The accessible names of the swatches are the names of the colors.
+///
+/// Lifetime: the row may be deleted from a slot of its own signals, with the
+/// palette open; a nested widget (a swatch, the More button, the palette) deleted
+/// by the application is forgotten.
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFColorSwatchRow : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    enum class Option
+    {
+        NoColor = 0x01,     ///< The swatch "No color" (SwatchKind::None) before the colors
+        White = 0x02,       ///< The swatch annotation/white after black
+        More = 0x04         ///< The button opening the palette of the colors
+    };
+    Q_DECLARE_FLAGS(Options, Option)
+    Q_FLAG(Options)
+
+    /// Color of a swatch: the token shown in the current theme, its canonical
+    /// value (the token in the built-in light theme) and its name for the user.
+    /// The swatch "No color" has the token PDFThemeColors::ColorCount and an
+    /// invalid canonical color.
+    struct Entry
+    {
+        PDFThemeColors::Color token = PDFThemeColors::ColorCount;
+        QColor canonicalColor;
+        QString name;
+    };
+
+    /// Gap between two swatches and between the last swatch and the More button
+    static constexpr int SWATCH_GAP = 2;
+
+    /// Size of the More button
+    static constexpr int MORE_EXTENT = 32;
+
+    /// Creates the row with the option More and the 8 annotation colors
+    explicit PDFColorSwatchRow(QWidget* parent = nullptr);
+    virtual ~PDFColorSwatchRow() override;
+
+    Options getOptions() const { return m_options; }
+
+    /// Sets the options: the swatches are created again for the new list of the
+    /// colors (the selection is kept, when the new list has the color)
+    void setOptions(Options options);
+
+    /// Returns the swatches of the options in their order
+    static std::vector<Entry> getAnnotationColors(Options options);
+
+    /// Returns the canonical value of the selection: the canonical light-theme
+    /// value of the selected swatch, the color set by \p setColor or picked in
+    /// the palette, which no swatch has (a custom color), or an invalid color,
+    /// when "No color" or nothing is selected
+    QColor getColor() const;
+
+    /// Returns true, if the swatch "No color" is selected
+    bool isNoColorSelected() const;
+
+    /// Selects the swatch, whose canonical value equals the color (the rgb
+    /// values are compared); an invalid color selects "No color", when the row
+    /// has it (otherwise nothing is selected); another color is a custom color,
+    /// no swatch is selected. It never emits \p colorSelected.
+    void setColor(const QColor& color);
+
+    /// Count of the swatches (also the hidden ones over the visible limit)
+    int getSwatchCount() const { return static_cast<int>(m_entries.size()); }
+
+    /// Returns the swatch (nullptr for an index out of the range or a deleted swatch)
+    PDFColorSwatch* getSwatch(int index) const;
+
+    /// Returns the entry of the swatch (an empty entry for an index out of the range)
+    Entry getEntry(int index) const;
+
+    /// Returns the More button (nullptr without Option::More)
+    QAbstractButton* getMoreButton() const;
+
+    /// Returns the palette of the colors (a popover window created at the first call)
+    PDFColorPalette* getPalette();
+
+    /// Opens the palette below the More button; false, if the row has no visible
+    /// More button or it is disabled
+    bool showPalette();
+
+    /// Closes the palette
+    void hidePalette();
+
+    /// Returns true, if the palette is shown
+    bool isPaletteVisible() const;
+
+    /// Narrow windows: the swatches over the limit are hidden and their colors
+    /// are reached through the palette of the More button (-1 = all swatches).
+    /// Use it with Option::More, without it the hidden colors cannot be chosen.
+    int getVisibleSwatchLimit() const { return m_visibleSwatchLimit; }
+    void setVisibleSwatchLimit(int limit);
+
+    /// Returns the count of the visible swatches
+    int getVisibleSwatchCount() const;
+
+    /// Returns the size of a row of the visible swatches and of the More button
+    static QSize getRowSize(int visibleSwatches, bool hasMore);
+
+    virtual QSize sizeHint() const override;
+    virtual QSize minimumSizeHint() const override;
+
+Q_SIGNALS:
+    /// A color has been selected by the user (a click, Space or Enter on a swatch,
+    /// a color of the palette): the canonical light-theme value, a custom color of
+    /// the palette as it has been chosen, an invalid color for "No color"
+    void colorSelected(const QColor& color);
+
+    /// "More colors…" of the palette has been activated (the application opens a full color picker)
+    void moreColorsRequested();
+
+protected:
+    virtual bool event(QEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    enum class Selection
+    {
+        Nothing,
+        NoColor,
+        Color
+    };
+
+    /// Creates or updates the swatches of the entries (the swatches are reused,
+    /// a swatch is never deleted, while its signal is handled)
+    /// \returns False, if the row has been deleted meanwhile (a slot of toggled of a swatch)
+    bool rebuild();
+    void layoutChildren();
+    void updateSwatchColors();
+    void updateMoreButton();
+    /// \returns False, if the row has been deleted meanwhile
+    bool updatePaletteColors();
+    /// Checks the swatch of the selection
+    /// \returns False, if the row has been deleted meanwhile
+    bool updateSelection();
+    void updateTabStops(PDFColorSwatch* focused);
+    bool moveFocus(PDFColorSwatch* swatch, int key);
+    QList<PDFColorSwatch*> getVisibleSwatches() const;
+    bool isSwatchShown(int index) const;
+    /// Sets the selection by the color (custom colors, no color)
+    /// \returns False, if the row has been deleted meanwhile
+    bool selectColor(const QColor& color);
+    void retranslate();
+    void onThemeChanged();
+    void onSwatchClicked();
+    void onMoreClicked();
+    void onPaletteColorSelected(const QColor& color);
+    void onPaletteClosed();
+    void onPaletteDestroyed();
+
+    Options m_options;
+    std::vector<Entry> m_entries;
+    QList<QPointer<PDFColorSwatch>> m_swatches;
+    QPointer<QToolButton> m_moreButton;
+    QPointer<PDFColorPalette> m_palette;
+    /// A member, not a child: the application cannot reach it by children() and delete it
+    QButtonGroup m_group;
+    Selection m_selection = Selection::Nothing;
+    QColor m_color;
+    int m_visibleSwatchLimit = -1;
+    bool m_isDestroying = false;
+    QString m_accessibleName;
+};
+
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFPageSelection::Filters)
+Q_DECLARE_OPERATORS_FOR_FLAGS(PDFColorSwatchRow::Options)
 
 }   // namespace pdf
 

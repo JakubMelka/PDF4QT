@@ -108,7 +108,9 @@ public:
     {
         File,
         View,
-        GoTo
+        GoTo,
+        Annotate,   ///< Step 4, package A (877:10157)
+        Insert      ///< Step 4, package A (196:3160)
     };
 
     explicit PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* parent = nullptr);
@@ -168,6 +170,7 @@ private:
     void onDatabaseChanged(const QString& topic, const QString& key);
     void updateCollapse();
     void applyCollapse(int level);
+    void invalidateGroupSizes();
     void updatePageField();
     void updateZoomField();
     void updateSelectButton();

@@ -3,7 +3,7 @@ title: Search everything
 category: getting-started
 order: 30
 summary: One search field for tools, commands, settings, documents and the user manual.
-keywords: search, find, ctrl+k, ctrl+f, f3, command, results, quick search, search in document, find in document, regular expression, regex, wildcards, whole words, match case
+keywords: search, find, ctrl+k, ctrl+enter, ctrl+f, f3, command, results, quick search, search in document, find in document, regular expression, regex, wildcards, whole words, match case
 related: /help/keyboard-shortcuts, /help/settings
 ---
 The pages of the Home tab have a search field *Search tools, documents, or help…* at the top right. One search looks through everything PDF4QT knows.
@@ -22,7 +22,7 @@ The pages of the Home tab have a search field *Search tools, documents, or help�
 
 1. Press **Ctrl+K**, or click the search field.
 2. Type a few words. The results appear while you type.
-3. Choose a result, or press **Enter** to see all results on their own page, where you can show only one group.
+3. Choose a result with the mouse, or move to it with **Up** and **Down** and press **Enter**. **Ctrl+Enter** or the link *Show all … results* at the bottom of the list opens all results on their own page, where you can show only one group.
 
 > [!TIP] Settings by their names
 > You do not need to know, in which section a setting is. Type its name, for example *color scheme*, and the result opens the right section of Settings.

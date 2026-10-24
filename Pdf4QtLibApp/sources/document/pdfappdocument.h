@@ -71,7 +71,8 @@ enum class PDFAppDocumentOperationKind
     Index,      ///< Text index for the search
     Signatures, ///< Verification of the signatures
     Fonts,      ///< Scan of the fonts (properties)
-    Mcp         ///< A change requested by an assistant
+    Mcp,        ///< A change requested by an assistant
+    Edit        ///< A change made by a worker of the window (step 4: Mark as annotations of many results)
 };
 
 /// Snapshot of a document for a worker thread: the immutable document of one
@@ -238,6 +239,17 @@ public:
     bool isLocked() const { return m_isLocked; }
     void setLocked(bool locked);
 
+    /// The user interface has edits, which are not committed yet (step 4, package
+    /// D: an open editor of a text field or of a list of choices). Save and Undo
+    /// are enabled by them; the owner of the edits sets the state.
+    bool hasPendingEdits() const { return m_hasPendingEdits; }
+    void setPendingEdits(bool hasPendingEdits) { m_hasPendingEdits = hasPendingEdits; }
+
+    /// Asks the user interface to commit its pending edits (pendingEditsCommitRequested):
+    /// called before undo, redo, save, lock and closing, so an open editor of a form
+    /// field becomes an undo step first. A slot may delete the document.
+    void commitPendingEdits();
+
     /// The file is protected by a password (the tab shows the password icon)
     bool isPasswordProtected() const { return m_isPasswordProtected; }
 
@@ -261,6 +273,19 @@ public:
     /// version. The limits of the undo stack are read at each commit (the setting
     /// editing.undoLimit, the memory limit of the stack).
     bool commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source);
+
+    /// Commits a change of a merge session (step 4, owner decision O20 - a live
+    /// change of the color or of the width of the selected annotations): when
+    /// \p mergeKey is not empty, equals the key of the top undo step and nothing
+    /// has happened since that step (no other commit, undo, redo, save), the change
+    /// replaces the current document (the version is incremented) and the top step
+    /// keeps the document before the first change of the session. Otherwise it is
+    /// a new undo step with the key. Refused as \p commit.
+    bool commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey);
+
+    /// Ends the merge session of the top undo step (a selection or a tool has
+    /// changed, a dialog has been closed): the next commit is a new undo step
+    void closeUndoMerge();
 
     /// Sets the document of an undo / redo step (PDFAppUndoStack): the version is
     /// incremented, no undo step is recorded; back at the saved position of the
@@ -368,6 +393,9 @@ Q_SIGNALS:
     /// The progress of the reading has changed (getLoadingProgress)
     void loadingProgressChanged();
 
+    /// The pending edits of the user interface are to be committed now (commitPendingEdits)
+    void pendingEditsCommitRequested();
+
 private:
     void setDocument(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isSaved);
     void setState(PDFAppDocumentState state);
@@ -387,6 +415,7 @@ private:
     QByteArray m_originalData;
     QPointer<PDFOptionalContentActivity> m_optionalContentActivity;
     bool m_isLocked = false;
+    bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;
     bool m_isPasswordWrong = false;
     int m_loadingProgress = -1;

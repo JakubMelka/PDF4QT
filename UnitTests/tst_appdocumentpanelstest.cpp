@@ -2662,7 +2662,9 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
     pdftest::AppDocumentFixture fixture;
     QPointer<pdf::PDFAppMainWindow> window = fixture.window;
     const bool isLarge = signal == QStringLiteral("thumbnailsScrolled");
-    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(isLarge ? pdftest::AppDocumentSamples::large(fixture.folder(), 2000) : pdftest::AppDocumentSamples::outline(fixture.folder()));
+    // 400 pages are enough for a list scrolled far from its start; 2000 pages took
+    // almost the whole time limit of QtTest under valgrind (the sample and its opening)
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(isLarge ? pdftest::AppDocumentSamples::large(fixture.folder(), 400) : pdftest::AppDocumentSamples::outline(fixture.folder()));
     QVERIFY(tab);
     QObject receiver;
     bool isDeleted = false;
@@ -2698,9 +2700,9 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
     {
         // Pages of the middle of the document are compiled for the visible rows
         pdf::PDFAppThumbnailListView* list = thumbnails->getListView();
-        list->scrollTo(thumbnails->getModel()->index(1000, 0));
+        list->scrollTo(thumbnails->getModel()->index(200, 0));
         QTest::qWait(20);
-        list->scrollTo(thumbnails->getModel()->index(1500, 0));
+        list->scrollTo(thumbnails->getModel()->index(300, 0));
         deleteNow();
     }
     else if (signal == QStringLiteral("rotateFromMenu") || signal == QStringLiteral("toolFromMenu"))
@@ -2733,7 +2735,9 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
 
     QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 30000);
     fixture.settle();
-    QThreadPool::globalInstance()->waitForDone(30000);
+    // The compilations of the deleted tab end (valgrind runs the threads one after
+    // another, so they may take long): nothing of them may be left running
+    QVERIFY(QThreadPool::globalInstance()->waitForDone(600000));
     QTest::qWait(50);
     fixture.settle();
     QVERIFY(deleteWindow ? !window : !tab);

@@ -458,6 +458,8 @@ QString PDFThemeIcons::getReplacementName(const QIcon& icon)
         { QStringLiteral("list-remove"), QStringLiteral("minus") },
         { QStringLiteral("view-refresh"), QStringLiteral("refresh-cw") },
         { QStringLiteral("zoom-in"), QStringLiteral("zoom-in") },
+        { QStringLiteral("zoom-out"), QStringLiteral("zoom-out") },
+        { QStringLiteral("zoom-original"), QStringLiteral("actual-size") },
         { QStringLiteral("window-close"), QStringLiteral("x") },
         { QStringLiteral("dialog-information"), QStringLiteral("info") },
         { QStringLiteral("dialog-warning"), QStringLiteral("alert-triangle") },

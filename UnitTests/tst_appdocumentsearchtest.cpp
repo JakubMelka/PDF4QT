@@ -1593,6 +1593,22 @@ void AppDocumentSearchTest::unsignedDocument()
     QVERIFY(form);
     QTRY_VERIFY_WITH_TIMEOUT(handler(form)->getSignatureVerifier()->getVerification() != nullptr, 30000);
     QVERIFY(!handler(form)->getSignatureVerifier()->hasSignatures());
+
+    // An empty signature field (no signature dictionary V) is not a signature: it is
+    // neither counted nor reported as invalid, the canvas draws the field itself (no
+    // "Signature Invalid" with a red cross - the proxy has no result for it)
+    pdf::PDFAppDocumentTab* fullForm = openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(fullForm);
+    pdf::PDFAppDocumentSignatureVerifier* fullFormVerifier = handler(fullForm)->getSignatureVerifier();
+    QTRY_VERIFY_WITH_TIMEOUT(fullFormVerifier->getVerification() && !fullFormVerifier->isVerifying(), 30000);
+    QCOMPARE(fullFormVerifier->getVerification()->signatureFieldCount, 0);
+    QVERIFY(fullFormVerifier->getVerification()->results.empty());
+    QVERIFY(!fullFormVerifier->hasSignatures());
+    QVERIFY(fullForm->getDocument()->getSignatureResults().empty());
+    QVERIFY(fullForm->getView()->getProxy()->getSignatureVerificationResult().empty());
+    pdf::PDFAppSignatureStatusItem* fullFormItem = fullForm->getView()->findChild<pdf::PDFAppSignatureStatusItem*>();
+    QVERIFY(fullFormItem);
+    QVERIFY(fullFormItem->isHidden());
 }
 
 void AppDocumentSearchTest::trustedRepository()

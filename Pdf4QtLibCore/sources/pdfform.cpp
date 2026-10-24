@@ -832,6 +832,12 @@ bool PDFFormManager::hasUnlockedCalculatedFields() const
 
 bool PDFFormManager::isReadOnly(const PDFFormField* formField) const
 {
+    // A locked document - every field is read only, the flag EditReadOnlyFields does not apply
+    if (isReadOnlyForm())
+    {
+        return true;
+    }
+
     if (!formField->getFlags().testFlag(PDFFormField::ReadOnly))
     {
         return false;
@@ -1094,6 +1100,12 @@ void PDFFormManager::performResetAction(const PDFActionResetForm* action)
 {
     Q_ASSERT(action);
     Q_ASSERT(m_document);
+
+    // The values of a read only form are not changed
+    if (isReadOnlyForm())
+    {
+        return;
+    }
 
     PDFDocumentModifier modifier(m_document);
     modifier.getBuilder()->setFormManager(this);

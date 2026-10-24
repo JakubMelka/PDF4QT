@@ -45,6 +45,75 @@ namespace pdf
 struct PDFWidgetSnapshot;
 class PDFDrawWidgetProxy;
 
+/// Request of the annotation manager to show a context menu
+/// (PDFWidgetAnnotationManager::setUserInterfaceDelegated): the application builds
+/// the menu from the request and performs its items by the public functions of the
+/// manager. The request describes the place, where the menu was asked for.
+struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationMenuRequest
+{
+    enum class Kind
+    {
+        None,           ///< No menu (nothing selected, nothing to paste, nothing selectable)
+        Selection,      ///< Menu of the current selection (single or several annotations)
+        Unselectable,   ///< Menu of an annotation, which cannot be selected on the page (hidden annotation, reply)
+        Overlap         ///< Several selectable annotations overlap at the position and the topmost one is not selected - the application offers a choice
+    };
+
+    Kind kind = Kind::None;
+
+    /// Position of the menu (global coordinates)
+    QPoint globalPosition;
+
+    /// Position in the widget, nullopt for a menu of the keyboard or of a list
+    std::optional<QPoint> widgetPosition;
+
+    /// Page under the widget position (-1 = none) and the position on it (page coordinates)
+    PDFInteger pageIndex = -1;
+    QPointF pagePosition;
+
+    /// Selectable annotations under the widget position, the topmost (the one a click selects) first
+    std::vector<PDFObjectReference> annotationsUnderCursor;
+
+    /// Selected annotations, when the request was made
+    std::vector<PDFObjectReference> selection;
+
+    /// Annotation of the menu: the annotation of Unselectable, the single selected annotation
+    /// of Selection (invalid for several), the topmost annotation of Overlap; and its page
+    PDFObjectReference annotation;
+    PDFObjectReference pageReference;
+
+    /// Point or segment of the selected annotation under the position (Insert Point, Delete Point)
+    PDFObjectReference pointAnnotation;
+    int removablePoint = -1;    ///< Point, which can be removed (removeAnnotationPoint)
+    int insertSegment = -1;     ///< Segment, into which a point can be inserted (insertAnnotationPoint)
+    QPointF insertPosition;     ///< Position of the inserted point (page coordinates)
+
+    /// Removable part of the selected annotation under the position (a marked area, a stroke - removeAnnotationPart)
+    PDFObjectReference partAnnotation;
+    int partIndex = -1;
+
+    /// Parts can be added by the mouse (beginPartEdit): strokes of an ink, marked areas of a text markup
+    bool canAddStroke = false;
+    bool canAddMarkedAreas = false;
+
+    /// Stroke of an ink, which can be erased at the position (eraseAnnotationInk; center in the coordinates of the annotation)
+    bool canEraseInk = false;
+    QPointF eraseCenter;
+    PDFReal eraseRadius = 0.0;
+
+    /// Callout line of the selected free text: it can be removed (removeAnnotationCalloutLine), or added
+    /// (addAnnotationCalloutLine with calloutTip)
+    bool canRemoveCalloutLine = false;
+    bool canAddCalloutLine = false;
+    QPointF calloutTip;
+
+    /// Clipboard contains annotations, which can be pasted (pasteAnnotations)
+    bool canPaste = false;
+
+    /// The document allows changes (and the manager is not read only)
+    bool isModificationAllowed = false;
+};
+
 /// Annotation manager for GUI rendering, it also manages annotations widgets
 /// for parent widget. The manager also implements the selection of annotations
 /// and the interactive editing of the selected annotations:
@@ -176,8 +245,8 @@ public:
     bool canDeleteAnnotation(const PageAnnotation& annotation) const;
 
     /// Returns true, if the annotation can be selected by the user - it must be
-    /// of an editable type (links, widgets and popups are excluded), it must not
-    /// be a reply to another annotation and it must be visible.
+    /// of an editable type (links - unless setLinksSelectable -, widgets and popups
+    /// are excluded), it must not be a reply to another annotation and it must be visible.
     bool isAnnotationSelectable(const PageAnnotation& annotation) const;
 
     /// Returns true, if the annotation can be moved, resized, rotated or mirrored
@@ -414,10 +483,110 @@ public:
     /// last mouse move.
     const PDFAction* getLinkActionAt(QPoint widgetPos) const { return getLinkActionAtPosition(widgetPos); }
 
+    /// Sets the fill (interior) color of the selected annotations, which have a fill
+    /// (square, circle, polygon, polyline, line). An invalid color removes the fill.
+    /// One modification of the document.
+    void setSelectedAnnotationsFillColor(const QColor& color);
+
+    /// Hides the annotations (flag Hidden) or shows them again. Annotations, which the user
+    /// cannot modify, are skipped. One modification of the document (none, if nothing changes).
+    /// \param annotations Annotations (also hidden ones and replies)
+    /// \param hidden Hide (true) or show (false)
+    /// \returns true, if the document has been modified
+    bool setAnnotationsHidden(const std::vector<PDFObjectReference>& annotations, bool hidden);
+
+    /// Deletes the annotations (with their popup windows). Annotations, which the user cannot
+    /// modify, are skipped. One modification of the document (none, if nothing is deleted).
+    /// \param annotations Annotations (also hidden ones and replies)
+    /// \returns true, if the document has been modified
+    bool deleteAnnotations(const std::vector<PDFObjectReference>& annotations);
+
+    /// Returns the selectable annotations under the widget position, the topmost (the one a
+    /// click selects) first - shapes under the position before the annotations hit just by
+    /// their rectangle
+    std::vector<PDFObjectReference> getSelectableAnnotationsAt(QPoint widgetPos) const;
+
+    /// Returns true, if a press of the left button with the modifiers at the widget position
+    /// belongs to the manager: a running interaction, a part edit waiting for the mouse, a point
+    /// or a handle of the selection, a selectable annotation, or Ctrl / Shift on a page (rubber band)
+    bool isInteractionAt(QPoint widgetPos, Qt::KeyboardModifiers modifiers) const;
+
+    /// Read only mode (a locked document): the selection, the copy, the popup windows and the menus
+    /// work, every change is refused (isModificationAllowed returns false), the handles are not shown.
+    /// Turning it on cancels a running interaction. Off by default.
+    void setReadOnly(bool readOnly);
+    bool isReadOnly() const { return m_isReadOnly; }
+
+    /// The manager hands its menus and dialogs to the application: instead of the QMenu and the
+    /// Qt dialogs it emits menuRequested, popupRequested, propertiesRequested, geometryRequested
+    /// and copyToPagesRequested. Off by default.
+    // TODO(remove-old-apps): the delegation becomes the only behavior - showSelectionMenu, showUnselectableAnnotationMenu, the popup dialog of the markup annotations, PDFEditObjectDialog, PDFAnnotationGeometryDialog, PDFSelectPagesDialog and the Qt dialogs of the menus go
+    void setUserInterfaceDelegated(bool delegated) { m_isUserInterfaceDelegated = delegated; }
+    bool isUserInterfaceDelegated() const { return m_isUserInterfaceDelegated; }
+
+    /// Link annotations can be selected (their properties, copy, delete, the menus):
+    /// a press with Ctrl / Shift or Alt, the right button, the rubber band and the
+    /// keyboard select a link; a plain press of the left button on a link, which is
+    /// not selected, still follows the link (at the release), and the cursor over it
+    /// is not outlined as a selectable annotation. Off by default (the old applications
+    /// never select links).
+    // TODO(remove-old-apps): links are always selectable - the switch goes
+    void setLinksSelectable(bool linksSelectable);
+    bool isLinksSelectable() const { return m_isLinksSelectable; }
+
+    /// Outlines the annotation (bg/accent of the view colors, a solid line), even when
+    /// it is neither selected nor under the cursor - the application shows, which of
+    /// the overlapping annotations a row of its chooser menu means. An invalid reference
+    /// removes the outline; an annotation, which is selected or is not on a displayed
+    /// page, is not outlined.
+    void setHighlightedAnnotation(PDFObjectReference annotation);
+    PDFObjectReference getHighlightedAnnotation() const { return m_highlightedAnnotation; }
+
+    /// The selection is drawn as in the design of the new application (Figma 1015:17319, 1017:17699,
+    /// 1018:18079, 1018:18584): a solid selection frame of 1.5 px filled by 6 % of the selection color,
+    /// thin outlines of the members of a multiple selection, square handles of 7 px and the round
+    /// rotation handle of 12 px on a stem of 16 px (outlines 1.5 px), points of 9 px filled by the
+    /// handle color with an outline of the point color (a dragged point the other way round), the
+    /// rubber band filled by 8 % with an outline dashed 4 / 3 and the snap marker of 16 px.
+    /// Off by default (the look of the old applications).
+    // TODO(remove-old-apps): the look of the design becomes the only one
+    void setDesignSelectionLook(bool designLook) { m_isDesignSelectionLook = designLook; }
+    bool isDesignSelectionLook() const { return m_isDesignSelectionLook; }
+
+    /// Returns the request of the context menu for the widget position and the current selection
+    /// (the selection is not changed). Kind None, if no menu would be shown.
+    /// \param widgetPosition Position in the widget
+    PDFAnnotationMenuRequest getMenuRequest(QPoint widgetPosition) const;
+
 signals:
     void actionTriggered(const PDFAction* action);
     void documentModified(PDFModifiedDocument document);
     void selectionChanged();
+
+    /// The application shows the context menu (setUserInterfaceDelegated). Emitted from the handling
+    /// of a mouse or key event: the receiver must not open the menu synchronously and must not delete
+    /// the manager synchronously (queue it). The same holds for the other requests below.
+    void menuRequested(const pdf::PDFAnnotationMenuRequest& request);
+
+    /// The application shows the popup window (comment thread) of the markup annotation
+    /// (setUserInterfaceDelegated) - a double click, Show Popup Window
+    /// \param annotation Annotation
+    /// \param page Page of the annotation
+    /// \param globalPosition Suggested position of the popup window (global coordinates)
+    void popupRequested(pdf::PDFObjectReference annotation, pdf::PDFObjectReference page, QPoint globalPosition);
+
+    /// The application shows the properties of the annotation (setUserInterfaceDelegated) - F2 / Enter
+    void propertiesRequested(pdf::PDFObjectReference annotation);
+
+    /// The application shows the geometry of the annotation (setUserInterfaceDelegated).
+    /// Reserved: the engine has no trigger of its own in the delegated mode (the dialogs are
+    /// opened from the menus of the application), so it is not emitted yet - the same holds
+    /// for copyToPagesRequested
+    void geometryRequested(pdf::PDFObjectReference annotation);
+
+    /// The application asks for the pages, onto which the selection is copied
+    /// (copySelectedAnnotationsToPages; setUserInterfaceDelegated)
+    void copyToPagesRequested();
 
 private:
     /// Selected annotation
@@ -663,8 +832,40 @@ private:
     /// Returns the correction of the position (page coordinates).
     QPointF snapMovedRectangle(PDFInteger pageIndex, const QRectF& rectangle, bool* isSnapped, QPointF* snappedDevicePoint);
 
-    /// Returns the explanation of the limited capabilities of the annotation for the user
-    QString getCapabilitiesHint(PDFAnnotationManipulator::Capabilities capabilities) const;
+    /// Returns the explanation of the limited capabilities of the annotation for the user. An
+    /// annotation, which cannot be modified, is either locked (its flags), or the document does
+    /// not allow changes (permissions, read only mode) - two different texts (owner decision O8).
+    QString getCapabilitiesHint(const PageAnnotation& annotation) const;
+
+    /// Creates the request of the context menu
+    /// \param globalPosition Position of the menu
+    /// \param widgetPosition Position in the widget (nullopt for the keyboard)
+    /// \param pointContext Point or segment of the selected annotation under the position
+    PDFAnnotationMenuRequest createMenuRequest(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext) const;
+
+    /// Asks for the context menu of the selection: emits menuRequested (setUserInterfaceDelegated),
+    /// or shows the menu of the manager
+    void requestSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext);
+
+    /// Returns true, if the text selection tool, which lets the annotations be selected
+    /// (PDFSelectTextTool::setAnnotationsSelectable), is the active tool
+    bool isTextToolActive() const;
+
+    /// Returns true, if a plain press of the left button at the position follows the
+    /// link instead of selecting it: a selectable link (setLinksSelectable), which is
+    /// not selected and has an action at the position
+    bool isFollowedLink(const PageAnnotation& annotation, QPoint widgetPos) const;
+
+    /// Returns the color of a marker: a color of the theme (PDFDrawWidgetProxy::setViewColors)
+    /// as it is, a default color adjusted by the color convertor of the pages
+    QColor getMarkerColor(const QColor& color, const PDFColorConvertor& convertor, bool isForeground) const;
+
+    /// Draws a lock badge at the corner of the rectangle (device coordinates)
+    void drawLockBadge(QPainter* painter, const QRectF& deviceRectangle, const QColor& badgeColor, const QColor& glyphColor) const;
+
+    /// Returns the page of the annotation (findAnnotationPage), or searches the arrays Annots of
+    /// all pages for an annotation without the entry P, which is not on a displayed page; -1 if none
+    PDFInteger findAnnotationPageInDocument(PDFObjectReference annotation) const;
 
     /// Returns the page annotation of the annotation on the given page, or nullptr
     const PageAnnotation* findPageAnnotation(PDFInteger pageIndex, PDFObjectReference annotation) const;
@@ -773,8 +974,10 @@ private:
     void transformSelectedAnnotations(const std::function<QTransform(const QRectF&, PDFInteger)>& transformFactory);
 
     /// Shows the context menu for an annotation, which cannot be selected
+    // TODO(remove-old-apps): the QMenu goes - the application builds the menus (menuRequested)
     void showUnselectableAnnotationMenu(const PageAnnotation& annotation, PDFObjectReference pageReference, QPoint globalPosition);
 
+    // TODO(remove-old-apps): the QMenu and the QColorDialog / QInputDialog / QFileDialog / QMessageBox of its items go - the application builds the menus (menuRequested)
     /// Shows the context menu for the current selection
     /// \param globalPosition Position of the menu
     /// \param widgetPosition Position of the mouse in the widget (for pasting)
@@ -791,12 +994,14 @@ private:
     /// Requests repaint of the widget
     void requestRepaint();
 
+    // TODO(remove-old-apps): the handlers of the old menus with their Qt dialogs (popup dialog, PDFSelectPagesDialog, PDFEditObjectDialog, PDFAnnotationGeometryDialog) go - the application has its own dialogs
     void onShowPopupAnnotation();
     void onCopyAnnotation();
     void onEditAnnotation();
     void onEditGeometry();
     void onDeleteAnnotation();
 
+    // TODO(remove-old-apps): the popup dialog of the markup annotations (with its widgets) goes - the application shows its comment popup (popupRequested)
     /// Creates dialog for markup annotations. This function is used only for markup annotations,
     /// do not use them for other annotations (function can crash).
     /// \param widget Dialog's parent widget
@@ -842,8 +1047,16 @@ private:
     /// can distinguish, if the annotations are dragged inside the document
     /// (then they are moved), or from another document (then they are copied).
     QUuid m_dragSourceId;
+
+    bool m_isReadOnly = false;
+    bool m_isUserInterfaceDelegated = false;
+    bool m_isDesignSelectionLook = false;
+    bool m_isLinksSelectable = false;
+    PDFObjectReference m_highlightedAnnotation;
 };
 
 }   // namespace pdf
+
+Q_DECLARE_METATYPE(pdf::PDFAnnotationMenuRequest)
 
 #endif // PDFWIDGETANNOTATION_H

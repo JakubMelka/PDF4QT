@@ -21,13 +21,16 @@
 // SOFTWARE.
 
 #include "pdfappcontext.h"
+#include "pdfappannotationstylestorage.h"
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfsettingdefinitions.h"
 
+#include "pdfannotationstyle.h"
 #include "pdfthememanager.h"
+#include "pdfutils.h"
 
 #include <QGuiApplication>
 #include <QLoggingCategory>
@@ -93,11 +96,36 @@ void PDFAppContext::open(PDFDatabaseOptions options)
     m_thumbnailer = new PDFAppThumbnailer(m_database, this);
     m_folderInfo = new PDFAppFolderInfoService(this);
 
+    // The engine reads and writes the styles of the annotation tools in the
+    // database (step 4, E1) and writes the author chosen in the settings
+    m_annotationStyleStorage = std::make_unique<PDFAppAnnotationStyleStorage>(m_database);
+    PDFAnnotationStyleSettings::setStorage(m_annotationStyleStorage.get());
+    PDFAnnotationStyleManager::setStyleWindowEnabled(false);
+    applyAuthorSettings();
+
     applyColorScheme();
 }
 
 void PDFAppContext::close()
 {
+    // The storage of the annotation styles is removed before the database closes
+    // (the engine falls back to its default storage)
+    if (m_annotationStyleStorage)
+    {
+        // Only the context, whose storage the engine uses, gives the engine its
+        // defaults back (another context of the process keeps its own)
+        if (PDFAnnotationStyleSettings::getStorage() == m_annotationStyleStorage.get())
+        {
+            PDFAnnotationStyleSettings::setStorage(nullptr);
+            PDFAnnotationStyleManager::setStyleWindowEnabled(true);
+
+            // The author of the closed database is not written into documents
+            // of the process any more
+            PDFAuthorSettings::setAuthorName(PDFAuthorSettings::AuthorNameMode::Anonymous, QString());
+        }
+        m_annotationStyleStorage.reset();
+    }
+
     // The worker threads use the database: they stop before it is closed
     if (m_thumbnailer)
     {
@@ -224,16 +252,83 @@ void PDFAppContext::applyColorScheme()
     }
 }
 
+void PDFAppContext::applyAuthorSettings()
+{
+    const PDFSettingsRepository settings = getSettings();
+    const QString mode = settings.getString(PDFSettingKeys::annotationsAuthorMode());
+    const QString customName = sanitizeAuthorName(settings.getString(PDFSettingKeys::annotationsCustomAuthorName()));
+
+    PDFAuthorSettings::AuthorNameMode authorMode = PDFAuthorSettings::AuthorNameMode::Anonymous;
+    if (mode == PDFSettingValues::authorModeSystemUserName())
+    {
+        authorMode = PDFAuthorSettings::AuthorNameMode::SystemUserName;
+    }
+    else if (mode == PDFSettingValues::authorModeCustomName())
+    {
+        authorMode = PDFAuthorSettings::AuthorNameMode::CustomName;
+    }
+    PDFAuthorSettings::setAuthorName(authorMode, customName);
+}
+
+QString PDFAppContext::sanitizeAuthorName(const QString& name)
+{
+    constexpr qsizetype MAXIMUM_LENGTH = 256;
+
+    QString result;
+    result.reserve(qMin(name.size(), MAXIMUM_LENGTH));
+    for (qsizetype i = 0; i < name.size(); ++i)
+    {
+        // Whole code points: a surrogate pair is one character, a lone surrogate
+        // (invalid UTF-16) is dropped
+        char32_t codePoint = name.at(i).unicode();
+        qsizetype length = 1;
+        if (QChar::isHighSurrogate(codePoint) && i + 1 < name.size() && name.at(i + 1).isLowSurrogate())
+        {
+            codePoint = QChar::surrogateToUcs4(name.at(i), name.at(i + 1));
+            length = 2;
+        }
+        else if (QChar::isSurrogate(codePoint))
+        {
+            continue;
+        }
+
+        // Control characters, line and paragraph separators, bidirectional
+        // controls and other format characters never get into the documents; the
+        // joiners (ZWNJ, ZWJ) are a part of names written in some scripts
+        const QChar::Category category = QChar::category(codePoint);
+        const bool isJoiner = codePoint == 0x200C || codePoint == 0x200D;
+        const bool isRemoved = category == QChar::Other_Control || category == QChar::Other_NotAssigned ||
+                               category == QChar::Separator_Line || category == QChar::Separator_Paragraph ||
+                               (category == QChar::Other_Format && !isJoiner);
+        if (!isRemoved)
+        {
+            if (result.size() + length > MAXIMUM_LENGTH)
+            {
+                break;
+            }
+            result.append(name.mid(i, length));
+        }
+        i += length - 1;
+    }
+
+    return result.trimmed();
+}
+
 void PDFAppContext::onSettingChanged(const QString& topic, const QString& key)
 {
     if (topic == PDFSettingsRepository::getTopic() && key == PDFSettingKeys::colorScheme())
     {
         applyColorScheme();
     }
+    else if (topic == PDFSettingsRepository::getTopic() && (key == PDFSettingKeys::annotationsAuthorMode() || key == PDFSettingKeys::annotationsCustomAuthorName()))
+    {
+        applyAuthorSettings();
+    }
 }
 
 void PDFAppContext::onEverythingChanged()
 {
+    applyAuthorSettings();
     applyColorScheme();
 }
 

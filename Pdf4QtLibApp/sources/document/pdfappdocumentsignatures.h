@@ -74,7 +74,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppSignatureVerification
 {
 public:
     std::vector<PDFSignatureVerificationResult> results;
-    int signatureFieldCount = 0;        ///< Signature fields of the form (also without verification)
+    int signatureFieldCount = 0;        ///< Signed signature fields of the form (also without verification; an empty signature field is not counted)
     bool isVerified = false;            ///< The verification was turned on
     bool isStrict = false;              ///< Warnings are errors
 };

@@ -24,6 +24,7 @@
 #include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppagenotfound.h"
 #include "pdfapptab.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfrecentrepository.h"
@@ -69,10 +70,15 @@ public:
         QString text;
     };
 
-    static std::array<Hint, 3> getHints()
+    static constexpr size_t HINT_COUNT = 4;
+
+    /// Hints of the footer (285:2519): navigate, open, show all (Ctrl+Enter), close;
+    /// a narrow popup drops them from the end
+    static std::array<Hint, HINT_COUNT> getHints()
     {
         return { Hint{ { QString(QChar(0x2191)), QString(QChar(0x2193)) }, translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "navigate")) },
                  Hint{ { PDFAppSearchPainter::getEnterKeyText() }, translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "open")) },
+                 Hint{ PDFAppSearchPainter::getShowAllKeys(), translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "show all")) },
                  Hint{ { translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Esc")) }, translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "close")) } };
     }
 
@@ -84,7 +90,7 @@ public:
         {
             width += PDFAppSearchPainter::getKeyCapSize(key).width() + PDFAppSearchPainter::KEY_GAP;
         }
-        return width + PDFStylePainter::textWidth(hint.text, PDFAppSearchPainter::getFooterFont());
+        return width + qCeil(PDFStylePainter::textWidth(hint.text, PDFAppSearchPainter::getFooterFont()));
     }
 
     static PDFComponentPainter::TextKind getTitleKind(const PDFAppSearchResult& result)
@@ -164,6 +170,18 @@ QString PDFAppSearchPainter::getOpenText()
 QString PDFAppSearchPainter::getEnterKeyText()
 {
     return PDFAppSearchWidgetsHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchPainter", "Enter"));
+}
+
+QStringList PDFAppSearchPainter::getShowAllKeys()
+{
+    // The modifier as the key caps of the shortcuts (Ctrl, Command on macOS) and Enter
+    QStringList keys = PDFAppKeyCap::getKeyNames(QKeySequence(QKeyCombination(Qt::ControlModifier, Qt::Key_Return)));
+    if (!keys.isEmpty())
+    {
+        keys.removeLast();
+    }
+    keys << getEnterKeyText();
+    return keys;
 }
 
 QString PDFAppSearchPainter::getCountText(int shown, int total)
@@ -838,6 +856,35 @@ QRect PDFAppSearchPopup::getShowAllRect() const
     return QStyle::visualRect(layoutDirection(), rect(), logical);
 }
 
+QString PDFAppSearchPopup::getHintText(int index) const
+{
+    if (index < 0 || index >= m_visibleHints || size_t(index) >= PDFAppSearchWidgetsHelper::HINT_COUNT)
+    {
+        return QString();
+    }
+
+    const PDFAppSearchWidgetsHelper::Hint hint = PDFAppSearchWidgetsHelper::getHints()[size_t(index)];
+    return hint.keys.join(QLatin1Char(' ')) + QLatin1Char(' ') + hint.text;
+}
+
+QRect PDFAppSearchPopup::getHintRect(int index) const
+{
+    if (index < 0 || index >= m_visibleHints || size_t(index) >= PDFAppSearchWidgetsHelper::HINT_COUNT)
+    {
+        return QRect();
+    }
+
+    // The hints from the leading edge of the footer, the gaps 12 between them
+    const std::array<PDFAppSearchWidgetsHelper::Hint, PDFAppSearchWidgetsHelper::HINT_COUNT> hints = PDFAppSearchWidgetsHelper::getHints();
+    qreal x = 1 + PDFAppSearchPainter::FOOTER_PADDING;
+    for (int i = 0; i < index; ++i)
+    {
+        x += PDFAppSearchWidgetsHelper::getHintWidth(hints[size_t(i)]) + PDFAppSearchPainter::FOOTER_GAP;
+    }
+    const QRectF logical(x, height() - 1 - PDFAppSearchPainter::FOOTER_HEIGHT, PDFAppSearchWidgetsHelper::getHintWidth(hints[size_t(index)]), PDFAppSearchPainter::FOOTER_HEIGHT);
+    return QStyle::visualRect(layoutDirection(), rect(), logical.toAlignedRect());
+}
+
 void PDFAppSearchPopup::activateCurrent()
 {
     const PDFAppSearchResult* result = getCurrentResult();
@@ -928,7 +975,7 @@ void PDFAppSearchPopup::paintEvent(QPaintEvent* event)
         const PDFComponentPainter::State state(enabled, direction);
         PDFComponentPainter::DirectionGuard directionGuard(&painter, state);
         const QRectF footerContent(1 + PDFAppSearchPainter::FOOTER_PADDING, footer.top(), width() - 2 - 2 * PDFAppSearchPainter::FOOTER_PADDING, PDFAppSearchPainter::FOOTER_HEIGHT);
-        const std::array<PDFAppSearchWidgetsHelper::Hint, 3> hints = PDFAppSearchWidgetsHelper::getHints();
+        const std::array<PDFAppSearchWidgetsHelper::Hint, PDFAppSearchWidgetsHelper::HINT_COUNT> hints = PDFAppSearchWidgetsHelper::getHints();
         qreal x = footerContent.left();
         for (int i = 0; i < m_visibleHints && i < int(hints.size()); ++i)
         {
@@ -1465,8 +1512,25 @@ void PDFAppSearchController::onPopupDestroyed()
     watch(false);
 }
 
+bool PDFAppSearchController::isShowAllKey(const QKeyEvent* event)
+{
+    // Ctrl+Enter (Cmd+Enter on macOS, also the Enter of the keypad)
+    return event && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) &&
+           (event->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier;
+}
+
 bool PDFAppSearchController::handleFieldKey(QKeyEvent* event)
 {
+    if (isShowAllKey(event))
+    {
+        // The page of all results of the typed text (the same as the link Show all
+        // n results; the route takes the text of the field, so a pending search is
+        // not needed). An empty field does nothing, the key is consumed, so the
+        // field never asks for the page of all results either.
+        onShowAllRequested();
+        return true;
+    }
+
     if ((event->modifiers() & ~Qt::KeypadModifier) != Qt::NoModifier)
     {
         return false;
@@ -1552,9 +1616,10 @@ bool PDFAppSearchController::eventFilter(QObject* watched, QEvent* event)
 
             case QEvent::ShortcutOverride:
             {
-                // Esc and the arrows of the field are not shortcuts of the window
+                // Esc and the arrows of the field are not shortcuts of the window,
+                // neither is Ctrl+Enter (show all results) of the field
                 const QKeyEvent* keyEvent = static_cast<const QKeyEvent*>(event);
-                if (keyEvent->modifiers() == Qt::NoModifier && (keyEvent->key() == Qt::Key_Escape || keyEvent->key() == Qt::Key_Up || keyEvent->key() == Qt::Key_Down) &&
+                if (((keyEvent->modifiers() == Qt::NoModifier && (keyEvent->key() == Qt::Key_Escape || keyEvent->key() == Qt::Key_Up || keyEvent->key() == Qt::Key_Down)) || isShowAllKey(keyEvent)) &&
                     (isPopupOpen() || (m_field && !m_field->text().isEmpty())))
                 {
                     event->accept();

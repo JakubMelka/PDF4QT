@@ -26,6 +26,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpanels.h"
+#include "pdfreferencepointpicker.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
 #include "pdfcomponentwindow.h"
@@ -1068,6 +1069,46 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     }
     pdf::PDFColorSwatch* hoveredSwatch = builder.live(QStringLiteral("Live, hover"), new pdf::PDFColorSwatch(pdf::PDFStylePainter::color(Color::AnnotationGreen), QStringLiteral("Green"), builder.page()));
     Helper::setState(hoveredSwatch, GalleryPages::Hover);
+
+    // Row of the annotation colors: the Color row of the Annotate panel, the fill
+    // of a shape tool (none and white) and a narrow bar (the rest through More)
+    builder.block(QStringLiteral("Color swatch row (PDFColorSwatchRow) - 8 annotation colors + More, fill with none and white, visible limit"), QStringLiteral("877:10188"));
+    pdf::PDFColorSwatchRow* annotationRow = new pdf::PDFColorSwatchRow(builder.page());
+    annotationRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationYellow));
+    builder.live(QStringLiteral("Live, Annotate panel (877:10188)"), annotationRow, QStringLiteral("877:10188"));
+    builder.row();
+    pdf::PDFColorSwatchRow* fillRow = new pdf::PDFColorSwatchRow(builder.page());
+    fillRow->setOptions(pdf::PDFColorSwatchRow::Option::NoColor | pdf::PDFColorSwatchRow::Option::White | pdf::PDFColorSwatchRow::Option::More);
+    fillRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationYellow));
+    builder.live(QStringLiteral("Live, fill of a shape (207:7199)"), fillRow, QStringLiteral("207:7199"));
+    builder.row();
+    pdf::PDFColorSwatchRow* narrowRow = new pdf::PDFColorSwatchRow(builder.page());
+    narrowRow->setVisibleSwatchLimit(4);
+    narrowRow->setColor(QColor());
+    builder.live(QStringLiteral("Live, narrow (4 visible, the rest through More)"), narrowRow);
+    pdf::PDFColorSwatchRow* rightToLeftRow = new pdf::PDFColorSwatchRow(builder.page());
+    rightToLeftRow->setLayoutDirection(Qt::RightToLeft);
+    rightToLeftRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationBlue));
+    builder.live(QStringLiteral("Live right-to-left"), rightToLeftRow);
+    pdf::PDFColorSwatchRow* disabledRow = new pdf::PDFColorSwatchRow(builder.page());
+    disabledRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationRed));
+    disabledRow->setEnabled(false);
+    builder.live(QStringLiteral("Live disabled"), disabledRow);
+    builder.note(QStringLiteral("The swatches show the tokens of the current theme, the row reports the canonical light-theme values (the color written into a document never depends on the theme). More opens the Color palette popover with the same colors and the recently used ones."));
+
+    // Reference point of the geometry dialog of an annotation (step 4, package B)
+    builder.block(QStringLiteral("Reference point (PDFReferencePointPicker) - 3 x 3 points, click / arrows"), QStringLiteral("1024:21781"));
+    pdf::PDFReferencePointPicker* referencePoint = new pdf::PDFReferencePointPicker(builder.page());
+    referencePoint->setAccessibleName(QStringLiteral("Reference point"));
+    builder.live(QStringLiteral("Live, top left (1024:21781)"), referencePoint, QStringLiteral("1024:21781"));
+    pdf::PDFReferencePointPicker* referenceCenter = new pdf::PDFReferencePointPicker(builder.page());
+    referenceCenter->setAlignment(Qt::AlignCenter);
+    builder.live(QStringLiteral("Live, center"), referenceCenter);
+    pdf::PDFReferencePointPicker* referenceDisabled = new pdf::PDFReferencePointPicker(builder.page());
+    referenceDisabled->setCurrentIndex(8);
+    referenceDisabled->setEnabled(false);
+    builder.live(QStringLiteral("Live disabled"), referenceDisabled);
+    builder.note(QStringLiteral("The grid is a picture of the corners of the annotation: it is not mirrored for right-to-left. The arrows move the chosen point, the focus ring is inside of the frame."));
 
     // Property row: Editable x State (7 variants of the design)
     builder.block(QStringLiteral("Property row (PDFPropertyRow) - Editable False / True, State Default / Hover / Copied / Editing"), QStringLiteral("206:873"));

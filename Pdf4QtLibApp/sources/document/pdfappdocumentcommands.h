@@ -30,6 +30,8 @@
 #include <QSet>
 #include <QStringList>
 
+#include <array>
+
 namespace pdf
 {
 
@@ -37,7 +39,7 @@ class PDFAppDocument;
 class PDFAppDocumentTab;
 class PDFAppDocumentView;
 
-/// Package of step 3, which implements a command of the document tab (step 3 plan,
+/// Package of step 3 (and of step 4), which implements a command of the document tab (step 3 plan,
 /// chapter 2): one command handler per package, created by the document tab
 enum class PDFAppDocumentPackage
 {
@@ -46,7 +48,10 @@ enum class PDFAppDocumentPackage
     Panels,         ///< C - sidebar and the navigation panels (thumbnails, bookmarks, ...)
     Search,         ///< D - search, text index, signatures, speech
     File,           ///< E - save, print, e-mail, automatic refresh
-    Properties      ///< F - properties, links and actions, rendering issues, developer view
+    Properties,     ///< F - properties, links and actions, rendering issues, developer view
+    Annotate,       ///< Step 4 A - Annotate and Insert panels, creation tools, Mark as annotations
+    AnnotationEdit, ///< Step 4 B - editing of the annotations on the page (clipboard, properties, align, ...)
+    NotesOutline    ///< Step 4 C - editing of the outline (and of the notes)
 };
 
 /// Table "command id -> package" of the commands of the document tab. The ids are
@@ -70,10 +75,13 @@ public:
     /// window asks it for every command at every change of the state)
     static bool isCommandOf(PDFAppDocumentPackage package, const QString& commandId);
 
-private:
     /// Number of the packages (PDFAppDocumentPackage)
-    static constexpr size_t PACKAGE_COUNT = 6;
+    static constexpr size_t PACKAGE_COUNT = 9;
 
+    /// All packages in their order
+    static std::array<PDFAppDocumentPackage, PACKAGE_COUNT> getPackages();
+
+private:
     static QSet<QString> createSet(PDFAppDocumentPackage package);
 };
 

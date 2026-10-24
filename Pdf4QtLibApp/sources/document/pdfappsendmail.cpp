@@ -347,6 +347,20 @@ void PDFAppSendMail::send()
         return;
     }
 
+    // An open editor of a form field is a change, which is sent too (step 4,
+    // package D): it is committed first, so the document asks to be saved
+    QPointer<PDFAppSendMail> guard(this);
+    document->commitPendingEdits();
+    if (!guard)
+    {
+        return;
+    }
+    document = m_document.data();
+    if (!document || !document->isReady())
+    {
+        return;
+    }
+
     if (document->isModified() || document->getFilePath().isEmpty())
     {
         showSaveFirstDialog();

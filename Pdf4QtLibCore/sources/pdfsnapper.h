@@ -25,6 +25,7 @@
 
 #include "pdfglobal.h"
 
+#include <QColor>
 #include <QImage>
 #include <QPainterPath>
 
@@ -154,6 +155,14 @@ public:
     /// so \p m_snapPoints must be valid before this function is called.
     /// \param painter Painter
     void drawSnapPoints(QPainter* painter) const;
+
+    /// Draws snapping points by the colors of the application (its theme): every snap
+    /// point by \p pointColor, the snapped point by \p snappedColor. An invalid color
+    /// is the color of the old applications (a color per type of the point, yellow).
+    /// \param painter Painter
+    /// \param pointColor Color of the snap points
+    /// \param snappedColor Color of the snapped point
+    void drawSnapPoints(QPainter* painter, const QColor& pointColor, const QColor& snappedColor) const;
 
     /// Returns true, if snapping is allowed at current page
     /// \param pageIndex Page index to be tested for allowing snapping

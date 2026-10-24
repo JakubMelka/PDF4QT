@@ -47,7 +47,10 @@ class PDF4QTLIBFLUENTSHARED_EXPORT PDFThemeColors
     Q_GADGET
 
 public:
-    enum Color
+    // The fixed underlying type makes every int a valid value: a value outside of
+    // the table (an invalid token of the data of the application) is refused by the
+    // checks of the components; without it, such a value would be undefined (UBSan)
+    enum Color : int
     {
         BgCanvas,
         BgSidebar,
