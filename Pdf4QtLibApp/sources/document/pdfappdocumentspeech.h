@@ -214,6 +214,10 @@ public:
     /// Page (from 0) and the block being read, the length of its part said so far
     PDFInteger getCurrentPage() const { return m_currentPage; }
     const QString& getCurrentText() const { return m_currentText; }
+
+    /// Label of the page being read (the label of the document, else its number;
+    /// empty when nothing is read)
+    QString getCurrentPageLabel() const;
     qsizetype getSpokenLength() const { return m_spokenLength; }
 
     /// Writes a setting speech.* and applies it to the engine

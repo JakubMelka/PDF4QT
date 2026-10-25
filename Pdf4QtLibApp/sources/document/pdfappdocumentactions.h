@@ -194,6 +194,13 @@ public:
     /// A device path of Windows (\\.\..., \\?\... except UNC), never opened by a link
     static bool isDevicePath(const QString& filePath);
 
+    /// Name of the modifier of Ctrl+click, which selects a link for editing, in the
+    /// notation of the platform: "Ctrl" on Windows and Linux, "U+2318" on macOS
+    static QString getEditClickModifierName();
+
+    /// The name from the native text of Ctrl+A of a platform ("Ctrl+A", "U+2318A")
+    static QString getEditClickModifierName(const QString& nativeControlA);
+
     /// Launcher of the tests (nullptr = the system). It returns false, when the
     /// launch has failed.
     using LaunchHandler = std::function<bool(const PDFAppExternalLaunch&)>;

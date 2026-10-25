@@ -29,6 +29,7 @@
 
 #include "appdocumentfixture.h"
 
+#include "pdfappannotationcontroller.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentinfobar.h"
@@ -39,6 +40,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
+#include "pdfappsearchengine.h"
 #include "pdfappsendmail.h"
 #include "pdfapptopbar.h"
 #include "pdfappviewstate.h"
@@ -63,11 +65,13 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QPainter>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QLabel>
 #include <QSplitter>
 #include <QTimer>
 #include <QToolButton>
@@ -174,6 +178,96 @@ public:
     }
 };
 
+/// Helpers of the switch of the panels of the toolbar (menu bar behavior)
+class PanelSwitchHelper
+{
+public:
+    PanelSwitchHelper() = delete;
+
+    using Panel = pdf::PDFAppDocumentToolbar::Panel;
+
+    /// Moves the pointer over \p widget (its center) through the window system:
+    /// an open panel grabs the mouse, the window of the toolbar gives it the move
+    static void hover(QWidget* widget)
+    {
+        QWidget* window = widget->window();
+        QTest::mouseMove(window->windowHandle(), window->mapFromGlobal(widget->mapToGlobal(widget->rect().center())));
+    }
+
+    /// Clicks \p widget through the window system (an open panel takes the press)
+    static void click(QWidget* widget)
+    {
+        QWidget* window = widget->window();
+        QTest::mouseClick(window->windowHandle(), Qt::LeftButton, Qt::NoModifier, window->mapFromGlobal(widget->mapToGlobal(widget->rect().center())));
+    }
+
+    /// Opens the panel of \p button (the Select menu by the switch from File, so
+    /// that QToolButton::showMenu does not block)
+    static bool open(pdf::PDFAppDocumentToolbar* toolbar, QToolButton* button)
+    {
+        if (button == toolbar->getSelectButton())
+        {
+            return toolbar->openPanel(Panel::File) && toolbar->switchPanel(button, false);
+        }
+
+        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+        {
+            if (toolbar->getMenuButton(panel) == button)
+            {
+                return toolbar->openPanel(panel) != nullptr;
+            }
+        }
+        return false;
+    }
+
+    /// Window of the open panel (the Select menu or a panel)
+    static QWidget* openWindow(pdf::PDFAppDocumentToolbar* toolbar)
+    {
+        if (toolbar->getSelectMenu() && toolbar->getSelectMenu()->isVisible())
+        {
+            return toolbar->getSelectMenu();
+        }
+        return toolbar->getOpenPanel();
+    }
+
+    /// Number of the open panels and menus of the toolbar
+    static int countOpen(pdf::PDFAppDocumentToolbar* toolbar)
+    {
+        int count = toolbar->getSelectMenu() && toolbar->getSelectMenu()->isVisible() ? 1 : 0;
+        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+        {
+            if (toolbar->findPanel(panel) && toolbar->findPanel(panel)->isVisible())
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    static void closeAll(pdf::PDFAppDocumentToolbar* toolbar)
+    {
+        if (toolbar->getSelectMenu() && toolbar->getSelectMenu()->isVisible())
+        {
+            toolbar->getSelectMenu()->hide();
+        }
+        if (pdf::PDFAppDocumentPanelPopup* panel = toolbar->getOpenPanel())
+        {
+            panel->close();
+        }
+    }
+
+    /// Focuses \p widget of an open panel (as the keyboard does)
+    static bool focus(QWidget* widget)
+    {
+        if (!widget)
+        {
+            return false;
+        }
+        widget->setFocus(Qt::TabFocusReason);
+        return widget->hasFocus();
+    }
+};
+
 /// Package B of step 3 (view, toolbar, panels, status bar, info bars)
 class AppDocumentViewTest : public QObject
 {
@@ -190,10 +284,13 @@ private slots:
     void navigationCommands();
     void canvasShortcuts();
     void canvasShortcutScope();
+    void fitShortcuts();
     void toolManager();
     void textSelectionCommands();
     void textSelectionThemeColor();
     void selectMenuTools();
+    void handMode();
+    void cursorFollowsState();
     void magnifier();
     void layoutCommands();
     void zoomCommands();
@@ -220,6 +317,12 @@ private slots:
     void closedPanelsNotRefreshed();
     void panelKeyboard();
     void panelDeletion();
+    void panelHoverSwitch();
+    void panelHoverSwitchSelectMenuExec();
+    void panelArrowSwitch_data();
+    void panelArrowSwitch();
+    void panelSwitchDisabled();
+    void panelSwitchDeletion();
     void requestedCommandAfterClose();
     void narrowToolbar();
     void rightToLeft();
@@ -265,8 +368,8 @@ void AppDocumentViewTest::parts()
     QCOMPARE(searchField->height(), 36);
     QCOMPARE(searchField->placeholderText(), QStringLiteral("Search in document…"));
 
-    // Select text is the tool of a new document; the status bar says Ready
-    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+    // Hand is the mode of a new document (no tool, owner 2026-10-25); the status bar says Ready
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
     QCOMPARE(view->getStatusBar()->getMessage(), QStringLiteral("Ready"));
     QVERIFY(view->getStatusBar()->getPageText().isEmpty());
     QVERIFY(!view->getStatusBar()->getPageItem()->isVisible());
@@ -646,6 +749,140 @@ void AppDocumentViewTest::canvasShortcutScope()
     QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
 }
 
+void AppDocumentViewTest::fitShortcuts()
+{
+    // P / W / H fit the page / its width / its height (W and H of the old applications)
+    // on the focused canvas; a letter typed into a field stays a letter
+    using C = pdf::PDFAppCommands;
+    using ZoomHint = pdf::PDFDrawWidgetProxy::ZoomHint;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFDrawWidgetProxy* proxy = view->getProxy();
+    QWidget* canvas = view->getPdfWidget()->getDrawWidget()->getWidget();
+
+    // Keys of the canvas, not of the window (Canvas scope), no conflict
+    QCOMPARE(view->getCanvasAction(C::fitPage())->shortcut(), QKeySequence(Qt::Key_P));
+    QCOMPARE(view->getCanvasAction(C::fitWidth())->shortcut(), QKeySequence(Qt::Key_W));
+    QCOMPARE(view->getCanvasAction(C::fitHeight())->shortcut(), QKeySequence(Qt::Key_H));
+    QVERIFY(fixture.window->getCommandAction(C::fitWidth())->shortcut().isEmpty());
+    QVERIFY(fixture.context->getCommandRegistry()->findConflicts({}).empty());
+
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    QTest::keyClick(canvas, Qt::Key_P);
+    fixture.settle();
+    QCOMPARE(proxy->getZoomFitHint(), std::make_optional(ZoomHint::Fit));
+    QTest::keyClick(canvas, Qt::Key_H);
+    fixture.settle();
+    QCOMPARE(proxy->getZoomFitHint(), std::make_optional(ZoomHint::FitHeight));
+    QTest::keyClick(canvas, Qt::Key_W);
+    fixture.settle();
+    QCOMPARE(proxy->getZoomFitHint(), std::make_optional(ZoomHint::FitWidth));
+
+    // Nothing in a field: the zoom stays as it is
+    ViewTestHelper::trigger(fixture, C::actualSize());
+    const std::optional<ZoomHint> hint = proxy->getZoomFitHint();
+    const pdf::PDFReal zoom = view->getZoom();
+    auto zoomUnchanged = [&]() { return proxy->getZoomFitHint() == hint && qFuzzyCompare(view->getZoom(), zoom); };
+
+    pdf::PDFLineEdit* searchField = view->getToolbar()->getSearchField();
+    searchField->setFocus();
+    QTRY_VERIFY(searchField->hasFocus());
+    searchField->clear();
+    QTest::keyClicks(searchField, QStringLiteral("WHP"));
+    fixture.settle();
+    QCOMPARE(searchField->text(), QStringLiteral("WHP"));
+    QVERIFY(zoomUnchanged());
+    searchField->clear();
+
+    pdf::PDFToolBarField* pageField = view->getToolbar()->getPageField();
+    pageField->setFocus();
+    QTRY_VERIFY(pageField->hasFocus());
+    QTest::keyClicks(pageField, QStringLiteral("WHPwhp"));
+    fixture.settle();
+    QVERIFY(zoomUnchanged());
+    QTest::keyClick(pageField, Qt::Key_Escape);
+
+    // A text field of the form on the canvas (the editor of the form manager takes
+    // the printable keys by ShortcutOverride)
+    pdf::PDFWidgetFormManager* formManager = view->getFormManager();
+    QVERIFY(formManager);
+    const pdf::PDFFormField* nameField = nullptr;
+    formManager->getForm()->apply([&nameField](const pdf::PDFFormField* formField)
+    {
+        if (!nameField && formField->getName(pdf::PDFFormField::Partial) == QStringLiteral("name"))
+        {
+            nameField = formField;
+        }
+    });
+    QVERIFY(nameField);
+    QVERIFY(!nameField->getWidgets().empty());
+    const QPointF center = formManager->getWidgetRectangle(nameField->getWidgets().front()).center();
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, center));
+    fixture.settle();
+    QVERIFY(formManager->getFocusedWidget().isValid());
+    QTest::keyClick(canvas, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(canvas, QStringLiteral("WHP"));
+    fixture.settle();
+    QVERIFY(zoomUnchanged());
+    QTest::keyClick(canvas, Qt::Key_Return);
+    fixture.settle();
+    QVERIFY(zoomUnchanged());
+    const pdf::PDFDocument* document = formManager->getDocument();
+    QVERIFY(document);
+    pdf::PDFDocumentDataLoaderDecorator loader(document);
+    QCOMPARE(loader.readTextString(document->getObject(nameField->getValue()), QString()), QStringLiteral("WHP"));
+
+    // Without a focused field the canvas has the keys again; the user can change them
+    QVERIFY(!formManager->getFocusedWidget().isValid());
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(C::fitWidth(), QStringLiteral("Q")).isError());
+    QTRY_COMPARE(view->getCanvasAction(C::fitWidth())->shortcut(), QKeySequence(Qt::Key_Q));
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    QTest::keyClick(canvas, Qt::Key_W);
+    fixture.settle();
+    QVERIFY(zoomUnchanged());
+    QTest::keyClick(canvas, Qt::Key_Q);
+    fixture.settle();
+    QCOMPARE(proxy->getZoomFitHint(), std::make_optional(ZoomHint::FitWidth));
+
+    // The tiles of the View panel show the keys of the user in their tooltips
+    pdf::PDFAppDocumentPanelPopup* panel = view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::View);
+    QVERIFY(panel);
+    QCOMPARE(panel->getCommandButton(C::fitPage())->toolTip(), QStringLiteral("Fit page (P)"));
+    QCOMPARE(panel->getCommandButton(C::fitWidth())->toolTip(), QStringLiteral("Fit width (Q)"));
+    QCOMPARE(panel->getCommandButton(C::fitHeight())->toolTip(), QStringLiteral("Fit height (H)"));
+    panel->hide();
+    fixture.settle();
+
+    // The tooltips are built from the shortcuts of the user, which the view keeps (read
+    // again only by a notification of the database), not read at every opening; the
+    // toolbar shows the same keys (the time of the openings is printed)
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < 100; ++i)
+    {
+        pdf::PDFAppDocumentPanelPopup* opened = view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::View);
+        QVERIFY(opened);
+        opened->hide();
+    }
+    qInfo("100 openings of the View panel: %lld ms", timer.elapsed());
+    fixture.settle();
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(C::fitPage(), QStringLiteral("Shift+P")).isError());
+    QTRY_COMPARE(view->getCanvasAction(C::fitPage())->shortcut(), QKeySequence(Qt::SHIFT | Qt::Key_P));
+    panel = view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::View);
+    QVERIFY(panel);
+    QCOMPARE(panel->getCommandButton(C::fitPage())->toolTip(), QStringLiteral("Fit page (Shift+P)"));
+    panel->hide();
+    fixture.settle();
+    QVERIFY(!fixture.context->getShortcuts().setShortcut(C::zoomIn(), QStringLiteral("Ctrl+Shift+I")).isError());
+    QTRY_COMPARE(view->getToolbar()->getCommandButton(C::zoomIn())->toolTip(), QStringLiteral("Zoom in (Ctrl+Shift+I)"));
+}
+
 void AppDocumentViewTest::toolManager()
 {
     pdftest::AppDocumentFixture fixture;
@@ -792,14 +1029,23 @@ void AppDocumentViewTest::selectMenuTools()
     pdf::PDFAppDocumentSelectMenu* menu = view->getToolbar()->getSelectMenu();
     QVERIFY(menu);
 
-    // Select menu 198:5517: four items, Select text checked
-    QCOMPARE(menu->actions().size(), 4);
+    // Select menu 198:5517: Hand first and checked - the default mode of a new tab, as in
+    // the old applications (owner 2026-10-25; the row without an icon until "hand" exists
+    // in the library)
+    QCOMPARE(menu->actions().size(), 5);
+    QCOMPARE(menu->actions().first(), menu->getCommandAction(pdf::PDFAppCommands::handTool()));
+    QCOMPARE(menu->actions().first()->text(), QStringLiteral("Hand"));
+    QCOMPARE(menu->actions().first()->icon().isNull(), pdf::PDFAppCommands::getHandIconName().isEmpty());
+    QCOMPARE(menu->actions().at(1), menu->getCommandAction(pdf::PDFAppCommands::selectText()));
     menu->updateState();
-    QVERIFY(menu->getCommandAction(pdf::PDFAppCommands::selectText())->isChecked());
+    QVERIFY(view->isHandMode());
+    QVERIFY(!view->getActiveTool());
+    QVERIFY(menu->getCommandAction(pdf::PDFAppCommands::handTool())->isChecked());
+    QVERIFY(!menu->getCommandAction(pdf::PDFAppCommands::selectText())->isChecked());
     QVERIFY(!menu->getCommandAction(pdf::PDFAppCommands::selectTable())->isChecked());
     QVERIFY(!menu->getCommandAction(pdf::PDFAppCommands::selectAll()));
 
-    // Each item activates its tool; the active tool again returns to Select text
+    // Each item activates its tool; the active tool again returns to the mode (Hand)
     menu->getCommandAction(pdf::PDFAppCommands::selectTable())->trigger();
     fixture.settle();
     QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTableTool));
@@ -816,12 +1062,31 @@ void AppDocumentViewTest::selectMenuTools()
     QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ExtractImageTool));
     menu->getCommandAction(pdf::PDFAppCommands::extractImage())->trigger();
     fixture.settle();
-    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
 
-    // Select text stays the tool, when it is chosen again
+    // Select text is a mode: it stays the tool, when it is chosen again
     menu->getCommandAction(pdf::PDFAppCommands::selectText())->trigger();
     fixture.settle();
     QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+    QVERIFY(!view->isHandMode());
+    menu->getCommandAction(pdf::PDFAppCommands::selectText())->trigger();
+    fixture.settle();
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+
+    // Esc of a tool of the menu returns to the chosen mode (Select text here; it left
+    // no tool active before)
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    for (const QString& commandId : { pdf::PDFAppCommands::screenshot(), pdf::PDFAppCommands::selectTable(), pdf::PDFAppCommands::extractImage() })
+    {
+        menu->getCommandAction(commandId)->trigger();
+        fixture.settle();
+        QVERIFY2(!view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool), qPrintable(commandId));
+        QTest::keyClick(canvas, Qt::Key_Escape);
+        fixture.settle();
+        QVERIFY2(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool), qPrintable(commandId));
+    }
 
     // The menu opens by the Select button: menu-select 198:5517 is 232 px wide and its
     // panel lies 4 px below the toolbar (y 94 of 198:5380) as the panels of the toolbar
@@ -841,6 +1106,295 @@ void AppDocumentViewTest::selectMenuTools()
     QCOMPARE(panel.top(), toolbar->mapToGlobal(QPoint(0, toolbar->height())).y() + pdf::PDFAppDocumentToolbar::PANEL_GAP);
 }
 
+void AppDocumentViewTest::handMode()
+{
+    // Hand (owner 2026-10-25, no functionality of the old applications is lost): no
+    // tool - a left drag pans the pages, links, fields and annotations take their clicks
+    using C = pdf::PDFAppCommands;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentSelectMenu* menu = view->getToolbar()->getSelectMenu();
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    auto send = [canvas](QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons)
+    {
+        QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(canvas, &event);
+    };
+    auto widgetPoint = [view](const QPointF& pagePoint)
+    {
+        bool ok = false;
+        const QPoint point = pdftest::AppDocumentFixture::pageToWidget(view, 0, pagePoint, &ok);
+        return ok ? point : QPoint(-1, -1);
+    };
+
+    // The command: Ctrl+H (macOS: Control+H - Qt::META, Command+H hides the application)
+    // without a conflict on every platform, checkable, found by the search of the commands
+    const pdf::PDFAppCommand* command = fixture.context->getCommandRegistry()->findCommand(C::handTool());
+    QVERIFY(command);
+    QCOMPARE(C::getHandShortcut(false), QKeySequence(Qt::CTRL | Qt::Key_H));
+    QCOMPARE(C::getHandShortcut(true), QKeySequence(Qt::META | Qt::Key_H));
+#if defined(Q_OS_MACOS)
+    QVERIFY(C::isMacOS());
+#else
+    QVERIFY(!C::isMacOS());
+#endif
+    QCOMPARE(command->defaultShortcut, C::getHandShortcut(C::isMacOS()));
+    QVERIFY(command->isCheckable);
+    QCOMPARE(command->iconName, C::getHandIconName());
+    QVERIFY(fixture.context->getCommandRegistry()->findConflicts({}).empty());
+    for (const bool isMacOS : { false, true })
+    {
+        const pdf::PDFAppCommandRegistry::UserShortcuts platformShortcuts = { { C::handTool(), C::getHandShortcut(isMacOS).toString(QKeySequence::PortableText) } };
+        QVERIFY2(fixture.context->getCommandRegistry()->findConflicts(platformShortcuts).empty(), isMacOS ? "macOS" : "Windows / Linux");
+        QCOMPARE(fixture.context->getCommandRegistry()->getShortcut(C::handTool(), platformShortcuts), C::getHandShortcut(isMacOS));
+    }
+    const pdf::PDFAppSearchData data = pdf::PDFAppSearchData::load(fixture.context.get());
+    const pdf::PDFAppSearchEngine engine;
+    QVERIFY(engine.search(QStringLiteral("hand"), data).findResult(pdf::PDFAppSearchGroup::Commands, C::handTool()));
+    QVERIFY(engine.search(QStringLiteral("pan"), data).findResult(pdf::PDFAppSearchGroup::Commands, C::handTool()));
+
+    // Hand is the mode of a new tab (owner 2026-10-25); chosen again from the menu it
+    // stays: no tool, checked, the Select button shows its icon, the open hand without
+    // a move of the mouse
+    QVERIFY(view->isHandMode());
+    QVERIFY(!view->getActiveTool());
+    menu->getCommandAction(C::handTool())->trigger();
+    fixture.settle();
+    QVERIFY(view->isHandMode());
+    QVERIFY(!view->getActiveTool());
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
+    QVERIFY(fixture.window->getCommandAction(C::handTool())->isChecked());
+    QVERIFY(!fixture.window->getCommandAction(C::selectText())->isChecked());
+    menu->updateState();
+    QVERIFY(menu->getCommandAction(C::handTool())->isChecked());
+    const QString handIcon = C::getHandIconName().isEmpty() ? QStringLiteral("cursor") : C::getHandIconName();
+    QCOMPARE(pdf::PDFThemeIcons::getIconName(view->getToolbar()->getSelectButton()->icon()), handIcon);
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+
+    // A left drag pans the page with the closed hand; no text is selected
+    const QPoint start = widgetPoint(QPointF(250, 380));
+    const QPoint before = widgetPoint(QPointF(150, 200));
+    QVERIFY(canvas->rect().contains(start));
+    send(QEvent::MouseMove, start, Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    send(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ClosedHandCursor);
+    send(QEvent::MouseMove, start + QPoint(0, -30), Qt::NoButton, Qt::LeftButton);
+    send(QEvent::MouseMove, start + QPoint(0, -60), Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ClosedHandCursor);
+    send(QEvent::MouseButtonRelease, start + QPoint(0, -60), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    fixture.settle();
+    QCOMPARE(widgetPoint(QPointF(150, 200)).y() - before.y(), -60);
+    QVERIFY(!view->hasTextSelection());
+    QVERIFY(view->isHandMode());
+
+    // Annotations are selected and moved as in Select text (the manager takes the press
+    // over an annotation before the pan)
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    send(QEvent::MouseMove, widgetPoint(QPointF(42, 122)), Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(42, 122)));
+    fixture.settle();
+    QVERIFY(controller->hasAnnotationSelection());
+    // A drag of the selected annotation is its drag (drag and drop of the engine, which
+    // offscreen drops nowhere), not a pan of the page
+    const QPoint squareBefore = widgetPoint(QPointF(42, 122));
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(42, 122), QPointF(42, 160)));
+    fixture.settle();
+    QCOMPARE(widgetPoint(QPointF(42, 122)), squareBefore);
+    QVERIFY(controller->hasAnnotationSelection());
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(250, 380)));
+    fixture.settle();
+    QVERIFY(!controller->hasAnnotationSelection());
+    QVERIFY(view->isHandMode());
+    QVERIFY(!view->getActiveTool());
+
+    // Esc of a tool of the menu and of a creation tool, the active tool chosen again:
+    // back to Hand
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    for (const QString& commandId : { C::screenshot(), C::selectTable(), C::extractImage(), C::insertRectangle() })
+    {
+        ViewTestHelper::trigger(fixture, commandId);
+        QVERIFY2(view->getActiveTool(), qPrintable(commandId));
+        QTest::keyClick(canvas, Qt::Key_Escape);
+        fixture.settle();
+        QVERIFY2(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd), qPrintable(commandId));
+    }
+    ViewTestHelper::trigger(fixture, C::selectTable());
+    ViewTestHelper::trigger(fixture, C::selectTable());
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+
+    // A locked annotation (a locked document) shows the arrow - a press selects it
+    ViewTestHelper::trigger(fixture, C::lockDocument());
+    QVERIFY(tab->getDocument()->isLocked());
+    send(QEvent::MouseMove, widgetPoint(QPointF(42, 122)), Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+    send(QEvent::MouseMove, widgetPoint(QPointF(250, 380)), Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    ViewTestHelper::trigger(fixture, C::lockDocument());
+
+    // Select text again (the menu, Ctrl+H toggles back to Hand); Select all of the text
+    // chooses Select text
+    ViewTestHelper::trigger(fixture, C::selectText());
+    QVERIFY(!view->isHandMode());
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+    QCOMPARE(fixture.window->getCommandAction(C::handTool())->shortcut(), C::getHandShortcut(C::isMacOS()));
+    QTest::keyClick(canvas, Qt::Key_H, C::isMacOS() ? Qt::MetaModifier : Qt::ControlModifier);
+    QTRY_VERIFY(view->isHandMode());
+    QVERIFY(view->executeCommand(C::selectAll()));
+    QVERIFY(!view->isHandMode());
+    QTRY_VERIFY(view->hasTextSelection());
+
+    // A link and a field take their click in Hand; a new tab starts in Hand also after
+    // Select text was chosen in another tab (the mode belongs to its tab)
+    pdf::PDFAppDocumentTab* linksTab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::links(fixture.folder()));
+    QVERIFY(linksTab);
+    pdf::PDFAppDocumentView* linksView = linksTab->getView();
+    QVERIFY(!view->isHandMode());
+    QVERIFY(linksView->isHandMode());
+    QVERIFY(linksView->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
+    QCOMPARE(linksView->getCurrentPageIndex(), pdf::PDFInteger(0));
+
+    // A drag, which starts on a link, pans the page with the closed hand (owner
+    // 2026-10-25) and follows nothing; a click follows it
+    {
+        QWidget* linksCanvas = pdftest::AppDocumentFixture::canvasWidget(linksView);
+        auto sendLinks = [linksCanvas](QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons)
+        {
+            QMouseEvent event(type, position, linksCanvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+            QCoreApplication::sendEvent(linksCanvas, &event);
+        };
+        bool ok = false;
+        const QPoint onLink = pdftest::AppDocumentFixture::pageToWidget(linksView, 0, QPointF(130, 108), &ok);
+        QVERIFY(ok);
+        sendLinks(QEvent::MouseMove, onLink, Qt::NoButton, Qt::NoButton);
+        QVERIFY(linksCanvas->cursor().shape() != Qt::OpenHandCursor);
+        sendLinks(QEvent::MouseButtonPress, onLink, Qt::LeftButton, Qt::LeftButton);
+        sendLinks(QEvent::MouseMove, onLink + QPoint(0, -40), Qt::NoButton, Qt::LeftButton);
+        QCOMPARE(linksCanvas->cursor().shape(), Qt::ClosedHandCursor);
+        sendLinks(QEvent::MouseMove, onLink + QPoint(0, -60), Qt::NoButton, Qt::LeftButton);
+        sendLinks(QEvent::MouseButtonRelease, onLink + QPoint(0, -60), Qt::LeftButton, Qt::NoButton);
+        fixture.settle();
+        QCOMPARE(pdftest::AppDocumentFixture::pageToWidget(linksView, 0, QPointF(130, 108), &ok), onLink + QPoint(0, -60));
+        QCOMPARE(linksView->getCurrentPageIndex(), pdf::PDFInteger(0));
+        QVERIFY(linksCanvas->cursor().shape() != Qt::ClosedHandCursor);
+        QVERIFY(linksView->isHandMode());
+    }
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(linksView, 0, QPointF(130, 108)));
+    fixture.settle();
+    QTRY_COMPARE(linksView->getCurrentPageIndex(), pdf::PDFInteger(2));
+
+    pdf::PDFAppDocumentTab* formTab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::form(fixture.folder()));
+    QVERIFY(formTab);
+    pdf::PDFAppDocumentView* formView = formTab->getView();
+    QVERIFY(formView->isHandMode());
+    QVERIFY(!formView->getFormManager()->getFocusedWidget().isValid());
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(formView, 0, QPointF(130, 262)));
+    fixture.settle();
+    QVERIFY(formView->getFormManager()->getFocusedWidget().isValid());
+    QVERIFY(formView->isHandMode());
+}
+
+void AppDocumentViewTest::cursorFollowsState()
+{
+    // The cursor follows the real state (owner 2026-10-25): the automatic scrolling of
+    // the middle button shows its own cursor over the always active Select text, its end
+    // (the middle button, Esc, a lost release) gives the cursor of the tool back at once;
+    // each tool of the Select menu shows its cursor without a move of the mouse
+    using C = pdf::PDFAppCommands;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Cursor.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    auto send = [canvas](QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons)
+    {
+        QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(canvas, &event);
+    };
+    auto middleClick = [&send](QPoint position)
+    {
+        send(QEvent::MouseButtonPress, position, Qt::MiddleButton, Qt::MiddleButton);
+        send(QEvent::MouseButtonRelease, position, Qt::MiddleButton, Qt::NoButton);
+    };
+    bool ok = false;
+    const QPoint empty = pdftest::AppDocumentFixture::pageToWidget(view, 0, QPointF(290, 10), &ok);
+    QVERIFY(ok);
+    canvas->setFocus();
+    QTRY_VERIFY(canvas->hasFocus());
+    ViewTestHelper::trigger(fixture, C::selectText());
+
+    // Select text, nothing under the pointer: the arrow; the automatic scrolling: its cursor
+    send(QEvent::MouseMove, empty, Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    send(QEvent::MouseMove, empty + QPoint(1, 0), Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+
+    // Esc ends it (not full screen, Select text stays)
+    middleClick(empty);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+
+    // A left press ends it and selects no text
+    middleClick(empty);
+    send(QEvent::MouseButtonPress, empty, Qt::LeftButton, Qt::LeftButton);
+    send(QEvent::MouseButtonRelease, empty, Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+    QVERIFY(!view->hasTextSelection());
+
+    // The focus taken by a popup or another window ends it (its release never comes)
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    QFocusEvent focusOut(QEvent::FocusOut, Qt::PopupFocusReason);
+    QCoreApplication::sendEvent(canvas, &focusOut);
+    QCOMPARE(canvas->cursor().shape(), Qt::ArrowCursor);
+
+    // Each tool shows its cursor at once, the automatic scrolling works also in the pick
+    // tools of Screenshot / Select table
+    ViewTestHelper::trigger(fixture, C::screenshot());
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::BlankCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::BlankCursor);
+    ViewTestHelper::trigger(fixture, C::selectTable());
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTableTool));
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::BlankCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    middleClick(empty);
+    ViewTestHelper::trigger(fixture, C::extractImage());
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::CrossCursor);
+    ViewTestHelper::trigger(fixture, C::magnifier());
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::BlankCursor);
+    ViewTestHelper::trigger(fixture, C::magnifier());
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+
+    // Hand: the open hand, the closed hand while dragging, a lost release (a move
+    // without the button) gives the open hand back
+    ViewTestHelper::trigger(fixture, C::handTool());
+    QTRY_COMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    send(QEvent::MouseButtonPress, empty, Qt::LeftButton, Qt::LeftButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::ClosedHandCursor);
+    send(QEvent::MouseMove, empty, Qt::NoButton, Qt::NoButton);
+    QCOMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    middleClick(empty);
+    QCOMPARE(canvas->cursor().shape(), Qt::SizeAllCursor);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    QCOMPARE(canvas->cursor().shape(), Qt::OpenHandCursor);
+    QVERIFY(view->isHandMode());
+}
+
 void AppDocumentViewTest::magnifier()
 {
     pdftest::AppDocumentFixture fixture;
@@ -848,11 +1402,15 @@ void AppDocumentViewTest::magnifier()
     QVERIFY(tab);
     pdf::PDFAppDocumentView* view = tab->getView();
 
-    // Settings › Viewing › Magnifier: size 100 px, zoom 2.0
+    // Settings › Viewing › Magnifier: size 100 px (the diameter of the circle of
+    // 1234:164735 - the tool takes the radius), zoom 2.0
     pdf::PDFMagnifierTool* magnifier = view->getToolManager()->getMagnifierTool();
     QVERIFY(magnifier);
-    QCOMPARE(magnifier->getMagnifierSize(), 100);
+    QCOMPARE(magnifier->getMagnifierSize(), 50);
     QCOMPARE(magnifier->getMagnifierZoom(), 2.0);
+    QCOMPARE(pdf::PDFAppDocumentView::getMagnifierRadius(101), 50);
+    QCOMPARE(pdf::PDFAppDocumentView::getMagnifierRadius(0), 1);
+    QCOMPARE(pdf::PDFAppDocumentView::getMagnifierRadius(-20), 1);
 
     ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::magnifier());
     QVERIFY(magnifier->isActive());
@@ -861,18 +1419,39 @@ void AppDocumentViewTest::magnifier()
     // The settings apply also to an active magnifier
     QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::magnifierSize(), 180).isError());
     QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::magnifierZoom(), 3.5).isError());
-    QTRY_COMPARE(magnifier->getMagnifierSize(), 180);
+    QTRY_COMPARE(magnifier->getMagnifierSize(), 90);
     QCOMPARE(magnifier->getMagnifierZoom(), 3.5);
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::magnifierSize(), 100).isError());
+    QTRY_COMPARE(magnifier->getMagnifierSize(), 50);
 
-    // The pointer over the canvas draws the magnifier (no crash, the canvas repaints)
+    // The pointer over the canvas draws the magnifier: a circle of the diameter 100
+    // with the outline border/strong of 1 px inside of it (never the white line in the
+    // difference mode of the old applications) and the shadow of effect/shadow
+    const pdf::PDFViewColors colors = view->getProxy()->getViewColors();
+    QCOMPARE(colors.magnifierBorder, pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::BorderStrong));
+    QCOMPARE(colors.magnifierShadow, pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::EffectShadow));
     QWidget* canvas = view->getPdfWidget()->getDrawWidget()->getWidget();
-    QTest::mouseMove(canvas, canvas->rect().center());
+    const QPoint center = canvas->rect().center();
+    QTest::mouseMove(canvas, center);
     fixture.settle();
-    QVERIFY(!ViewTestHelper::render(canvas).isNull());
+    const QImage image = ViewTestHelper::render(canvas);
+    QVERIFY(!image.isNull());
+    const QColor border = colors.magnifierBorder;
+    const auto isBorder = [&border](QColor color)
+    {
+        return qAbs(color.red() - border.red()) <= 24 && qAbs(color.green() - border.green()) <= 24 && qAbs(color.blue() - border.blue()) <= 24;
+    };
+    for (const QPoint offset : { QPoint(49, 0), QPoint(-50, 0), QPoint(0, 49), QPoint(0, -50) })
+    {
+        QVERIFY2(isBorder(image.pixelColor(center + offset)), qPrintable(image.pixelColor(center + offset).name()));
+    }
+    QVERIFY(!isBorder(image.pixelColor(center + QPoint(30, 0))));
+    QVERIFY(!isBorder(image.pixelColor(center + QPoint(56, 0))));
+    QVERIFY(!isBorder(image.pixelColor(center + QPoint(99, 0))));
 
     ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::magnifier());
     QVERIFY(!magnifier->isActive());
-    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
 }
 
 void AppDocumentViewTest::layoutCommands()
@@ -1031,6 +1610,28 @@ void AppDocumentViewTest::pageFieldAndLabels()
     // The status bar has the page item of a document with labels
     QCOMPARE(view->getStatusBar()->getPageText(), QStringLiteral("Page 1 (i) of 10"));
     QVERIFY(view->getStatusBar()->getPageItem()->isVisible());
+
+    // status-page 1234:165228: the first trailing item, left of the signatures and of
+    // the rendering issues, the message at the leading edge
+    {
+        pdf::PDFAppDocumentStatusBar* statusBar = view->getStatusBar();
+        QWidget* pageItem = statusBar->getPageItem();
+        fixture.settle();
+        QVERIFY(pageItem->geometry().left() > statusBar->width() / 2);
+        for (QWidget* item : statusBar->getItems())
+        {
+            QVERIFY2(!item->isVisible() || item->geometry().left() >= pageItem->geometry().right(), qPrintable(item->objectName()));
+        }
+        QVERIFY(statusBar->width() - 8 - pageItem->geometry().right() <= 12 + [statusBar]()
+        {
+            int width = 0;
+            for (QWidget* item : statusBar->getItems())
+            {
+                width += item->isVisible() ? item->width() + 12 : 0;
+            }
+            return width;
+        }());
+    }
 
     // A label goes first, a number of a page otherwise
     QCOMPARE(view->findPageIndex(QStringLiteral("A-1")), std::make_optional(pdf::PDFInteger(8)));
@@ -1281,6 +1882,33 @@ void AppDocumentViewTest::fullScreen()
     QVERIFY(view->getSidebar()->isHidden());
     QVERIFY(view->isSidebarVisible());
     QVERIFY(fixture.window->getCommandAction(pdf::PDFAppCommands::fullScreen())->isChecked());
+
+    // pdf4qt-document-full-screen 1234:29322: only the canvas - it covers the whole
+    // window (no top bar, toolbar, sidebar, splitter or status bar), the first page
+    // centered 24 px below the top, no hint of Esc
+    fixture.settle();
+    {
+        QWidget* pdfWidget = view->getPdfWidget();
+        const QRect canvasRect(pdfWidget->mapTo(fixture.window, QPoint(0, 0)), pdfWidget->size());
+        QCOMPARE(canvasRect, fixture.window->rect());
+        view->goToPage(0);
+        fixture.settle();
+        const pdf::PDFWidgetSnapshot snapshot = view->getProxy()->getSnapshot();
+        QVERIFY(!snapshot.items.empty());
+        const QRect page = snapshot.items.front().rect.toRect();
+        QCOMPARE(snapshot.items.front().pageIndex, pdf::PDFInteger(0));
+        QCOMPARE(page.top(), 24);
+        QWidget* drawWidget = view->getPdfWidget()->getDrawWidget()->getWidget();
+        QVERIFY(qAbs(page.center().x() - drawWidget->width() / 2) <= 1);
+        for (QSplitterHandle* handle : view->findChildren<QSplitterHandle*>())
+        {
+            QVERIFY(!handle->isVisible());
+        }
+        for (QLabel* label : fixture.window->findChildren<QLabel*>())
+        {
+            QVERIFY(!label->isVisible() || !label->text().contains(QStringLiteral("Esc")));
+        }
+    }
 
     // Ctrl+G does not open a panel of the hidden toolbar
     view->openGoToPage();
@@ -2106,6 +2734,495 @@ void AppDocumentViewTest::panelDeletion()
     }
 }
 
+void AppDocumentViewTest::panelHoverSwitch()
+{
+    // Menu bar: with a panel open, the pointer over another panel button opens its
+    // panel at once (no click) - every pair of the panel buttons, the Select menu too
+    using H = PanelSwitchHelper;
+    pdftest::AppDocumentFixture fixture(QSize(780, 560));
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HoverSwitch.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    const std::vector<QToolButton*> buttons = toolbar->getPanelButtons();
+    QCOMPARE(buttons.size(), size_t(6));
+    QCOMPARE(buttons.back(), toolbar->getSelectButton());
+    QVERIFY(std::find(buttons.cbegin(), buttons.cend(), toolbar->getToolsButton()) == buttons.cend());
+    for (QToolButton* button : buttons)
+    {
+        QVERIFY2(button->isVisible() && button->isEnabled(), qPrintable(button->objectName()));
+    }
+    const int panelTop = toolbar->mapToGlobal(QPoint(0, toolbar->height())).y() + pdf::PDFAppDocumentToolbar::PANEL_GAP;
+
+    // Without an open panel the pointer opens nothing
+    H::hover(buttons.front());
+    fixture.settle();
+    QVERIFY(!toolbar->getOpenPanelButton());
+    QVERIFY(!toolbar->switchPanel(buttons.at(1), false));
+
+    for (QToolButton* from : buttons)
+    {
+        for (QToolButton* to : buttons)
+        {
+            if (from == to)
+            {
+                continue;
+            }
+
+            const QByteArray pair = (from->objectName() + QStringLiteral(" -> ") + to->objectName()).toUtf8();
+            QVERIFY2(H::open(toolbar, from), pair.constData());
+            fixture.settle();
+            QVERIFY2(toolbar->getOpenPanelButton() == from, pair.constData());
+
+            // The switch is done in the move itself: one panel, one marked button
+            H::hover(to);
+            QVERIFY2(toolbar->getOpenPanelButton() == to, pair.constData());
+            QCOMPARE(H::countOpen(toolbar), 1);
+            QVERIFY2(!from->isChecked() && !from->isDown(), pair.constData());
+            QVERIFY2(to == toolbar->getSelectButton() ? to->isDown() : to->isChecked(), pair.constData());
+
+            // The new panel lies 4 px below the toolbar at its button and has the keyboard
+            QWidget* window = H::openWindow(toolbar);
+            QVERIFY(window && window->isVisible());
+            const QRect panel = window->geometry().marginsRemoved(pdf::PDFWidgetStyle::getPopoverMargins(window));
+            QCOMPARE(panel.top(), panelTop);
+            const QRect screen = to->screen()->availableGeometry();
+            if (to != toolbar->getSelectButton() && to->mapToGlobal(QPoint(0, 0)).x() + panel.width() <= screen.right() + 1)
+            {
+                // A panel, which fits into the screen of the offscreen platform (800 px)
+                QCOMPARE(panel.left(), to->mapToGlobal(QPoint(0, 0)).x());
+            }
+            QCOMPARE(QApplication::activePopupWidget(), window);
+            if (to != toolbar->getSelectButton())
+            {
+                QVERIFY2(window->focusWidget() && window->isAncestorOf(window->focusWidget()), pair.constData());
+            }
+
+            // The queued closing of the old panel changes nothing
+            fixture.settle();
+            QVERIFY2(toolbar->getOpenPanelButton() == to, pair.constData());
+            QVERIFY2(!from->isChecked() && !from->isDown(), pair.constData());
+            H::closeAll(toolbar);
+            fixture.settle();
+            QVERIFY(!toolbar->getOpenPanelButton());
+            QVERIFY(!to->isChecked() && !to->isDown());
+        }
+    }
+
+    // The pointer over the open panel, its own button and buttons of no panel (zoom,
+    // page navigation, Tools, the search field, sidebar) keeps the panel
+    QToolButton* fileButton = toolbar->getMenuButton(H::Panel::File);
+    QVERIFY(H::open(toolbar, fileButton));
+    fixture.settle();
+    QPointer<pdf::PDFAppDocumentPanelPopup> filePanel = toolbar->getOpenPanel();
+    H::hover(filePanel);
+    H::hover(fileButton);
+    for (QWidget* widget : std::initializer_list<QWidget*>{ toolbar->getCommandButton(pdf::PDFAppCommands::zoomIn()), toolbar->getCommandButton(pdf::PDFAppCommands::zoomOut()),
+                                                           toolbar->getCommandButton(pdf::PDFAppCommands::nextPage()), toolbar->getPageField(), toolbar->getZoomField(),
+                                                           toolbar->getToolsButton(), toolbar->getSearchField(), toolbar->getCommandButton(pdf::PDFAppCommands::toggleSidebar()),
+                                                           toolbar->getCommandButton(pdf::PDFAppCommands::undo()) })
+    {
+        if (widget && widget->isVisible())
+        {
+            H::hover(widget);
+            QVERIFY2(toolbar->getOpenPanelButton() == fileButton, qPrintable(widget->objectName()));
+            QCOMPARE(H::countOpen(toolbar), 1);
+        }
+    }
+    fixture.settle();
+    QCOMPARE(toolbar->getOpenPanel(), filePanel.data());
+
+    // A click on the button of the open panel closes it (the press is not replayed)
+    H::click(fileButton);
+    fixture.settle();
+    QVERIFY(!toolbar->getOpenPanelButton());
+    QVERIFY(!fileButton->isChecked());
+
+    // A panel reached by the pointer closes by a click on its button too
+    QToolButton* viewButton = toolbar->getMenuButton(H::Panel::View);
+    QVERIFY(H::open(toolbar, fileButton));
+    fixture.settle();
+    H::hover(viewButton);
+    QCOMPARE(toolbar->getOpenPanelButton(), viewButton);
+    H::click(viewButton);
+    fixture.settle();
+    QVERIFY(!toolbar->getOpenPanelButton());
+    QVERIFY(!viewButton->isChecked());
+
+    // A click on another panel button switches (the press reaches the button)
+    QVERIFY(H::open(toolbar, fileButton));
+    fixture.settle();
+    QTest::mouseClick(toolbar->getMenuButton(H::Panel::GoTo), Qt::LeftButton);
+    fixture.settle();
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::GoTo));
+    QCOMPARE(H::countOpen(toolbar), 1);
+
+    // The Select menu reached by the pointer closes by a click on the Select button
+    H::hover(toolbar->getSelectButton());
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getSelectButton());
+    H::click(toolbar->getSelectButton());
+    fixture.settle();
+    QVERIFY(!toolbar->getOpenPanelButton());
+    QVERIFY(!toolbar->getSelectButton()->isDown());
+}
+
+void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
+{
+    // The Select menu opened by its button runs QMenu::exec: the pointer over
+    // another panel button opens the panel and the nested event loop ends
+    using H = PanelSwitchHelper;
+    pdftest::AppDocumentFixture fixture(QSize(780, 560));
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HoverSwitchExec.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QToolButton* selectButton = toolbar->getSelectButton();
+    QToolButton* viewButton = toolbar->getMenuButton(H::Panel::View);
+
+    bool wasOpen = false;
+    QTimer::singleShot(0, toolbar, [&]()
+    {
+        wasOpen = toolbar->getOpenPanelButton() == selectButton;
+        H::hover(viewButton);
+    });
+    selectButton->showMenu();
+    QVERIFY(wasOpen);
+    QCOMPARE(toolbar->getOpenPanelButton(), viewButton);
+    QVERIFY(!selectButton->isDown());
+    fixture.settle();
+    QCOMPARE(toolbar->getOpenPanelButton(), viewButton);
+
+    // The keyboard from the menu of the button: Right opens the next panel (File
+    // around the end), Left the previous one (Go to)
+    H::closeAll(toolbar);
+    fixture.settle();
+    QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Right); });
+    selectButton->showMenu();
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::File));
+    H::closeAll(toolbar);
+    fixture.settle();
+    QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Left); });
+    selectButton->showMenu();
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::GoTo));
+
+    // The tab deleted while the menu of the button runs, after the switch
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    H::closeAll(toolbar);
+    fixture.settle();
+    QTimer::singleShot(0, toolbar, [&]()
+    {
+        H::hover(viewButton);
+        delete tabGuard.data();
+    });
+    selectButton->showMenu();
+    fixture.settle();
+    QVERIFY(!tabGuard);
+}
+
+void AppDocumentViewTest::panelArrowSwitch_data()
+{
+    QTest::addColumn<bool>("rightToLeft");
+    QTest::newRow("ltr") << false;
+    QTest::newRow("rtl") << true;
+}
+
+void AppDocumentViewTest::panelArrowSwitch()
+{
+    // Menu bar: Left / Right outside of a control, which uses the arrows, open the
+    // neighboring panel (mirrored for right-to-left), around the ends
+    using H = PanelSwitchHelper;
+    using C = pdf::PDFAppCommands;
+    QFETCH(bool, rightToLeft);
+
+    struct DirectionGuard
+    {
+        ~DirectionGuard() { QApplication::setLayoutDirection(Qt::LeftToRight); }
+    } directionGuard;
+    QApplication::setLayoutDirection(rightToLeft ? Qt::RightToLeft : Qt::LeftToRight);
+    const Qt::Key nextKey = rightToLeft ? Qt::Key_Left : Qt::Key_Right;
+    const Qt::Key previousKey = rightToLeft ? Qt::Key_Right : Qt::Key_Left;
+
+    pdftest::AppDocumentFixture fixture(QSize(780, 560));
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ArrowSwitch.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QCOMPARE(toolbar->layoutDirection(), rightToLeft ? Qt::RightToLeft : Qt::LeftToRight);
+
+    // File: a row asks for the next panel (View), whose first control gets the focus
+    pdf::PDFAppDocumentPanelPopup* filePanel = toolbar->openPanel(H::Panel::File);
+    QVERIFY(filePanel);
+    fixture.settle();
+    QVERIFY(H::focus(filePanel->getCommandButton(C::properties())));
+    QTest::keyClick(filePanel->getCommandButton(C::properties()), nextKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::View));
+    pdf::PDFAppDocumentViewPanel* viewPanel = qobject_cast<pdf::PDFAppDocumentViewPanel*>(toolbar->getOpenPanel());
+    QVERIFY(viewPanel);
+    QVERIFY(viewPanel->focusWidget() && viewPanel->isAncestorOf(viewPanel->focusWidget()));
+    QVERIFY(!filePanel->isVisible());
+    QVERIFY(!toolbar->getMenuButton(H::Panel::File)->isChecked());
+
+    // View: the cards are a group of choices, the arrows stay in the panel
+    QVERIFY(H::focus(viewPanel->getCard(C::layoutSinglePage())));
+    QTest::keyClick(viewPanel->getCard(C::layoutSinglePage()), nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+
+    // A row of buttons: the arrow moves to the neighbor, at the edge to the next panel
+    QVERIFY(H::focus(viewPanel->getShowAnnotationsCheckBox()));
+    QTest::keyClick(viewPanel->getShowAnnotationsCheckBox(), nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+    QVERIFY(viewPanel->getFirstPageRightCheckBox()->hasFocus());
+    QTest::keyClick(viewPanel->getFirstPageRightCheckBox(), nextKey);
+    QVERIFY(viewPanel->getRenderingSettingsLink()->hasFocus());
+    QTest::keyClick(viewPanel->getRenderingSettingsLink(), previousKey);
+    QVERIFY(viewPanel->getFirstPageRightCheckBox()->hasFocus());
+    QTest::keyClick(viewPanel->getFirstPageRightCheckBox(), nextKey);
+    QTest::keyClick(viewPanel->getRenderingSettingsLink(), nextKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Annotate));
+
+    // Annotate: the swatches use the arrows; the row Show all comments switches
+    pdf::PDFAppDocumentPanelPopup* annotatePanel = toolbar->getOpenPanel();
+    QVERIFY(annotatePanel);
+    pdf::PDFColorSwatchRow* colorRow = annotatePanel->findChild<pdf::PDFColorSwatchRow*>(QStringLiteral("annotateColors"));
+    QVERIFY(colorRow && colorRow->getSwatch(1));
+    QVERIFY(H::focus(colorRow->getSwatch(1)));
+    QTest::keyClick(colorRow->getSwatch(1), nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), annotatePanel);
+    QWidget* showComments = annotatePanel->findChild<QWidget*>(QStringLiteral("item:showAllComments"));
+    QVERIFY(H::focus(showComments));
+    QTest::keyClick(showComments, nextKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Insert));
+
+    // Insert: the first control (the leading tile) goes back to Annotate
+    pdf::PDFAppDocumentPanelPopup* insertPanel = toolbar->getOpenPanel();
+    QWidget* first = insertPanel->focusWidget();
+    QVERIFY(first);
+    QTest::keyClick(first, previousKey);
+    QCOMPARE(toolbar->getOpenPanel(), annotatePanel);
+    QVERIFY(H::focus(showComments));
+    QTest::keyClick(annotatePanel, nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), insertPanel);
+    QTest::keyClick(insertPanel->focusWidget(), Qt::Key_Down);
+    QCOMPARE(toolbar->getOpenPanel(), insertPanel);
+    H::closeAll(toolbar);
+    fixture.settle();
+
+    // Go to: the field uses the arrows; the button Go at the trailing edge opens the
+    // Select menu (its current tool is the current item)
+    pdf::PDFAppDocumentGoToPanel* goToPanel = qobject_cast<pdf::PDFAppDocumentGoToPanel*>(toolbar->openPanel(H::Panel::GoTo));
+    QVERIFY(goToPanel);
+    fixture.settle();
+    goToPanel->focusPageField();
+    QTest::keyClick(goToPanel->getPageField(), nextKey);
+    QTest::keyClick(goToPanel->getPageField(), previousKey);
+    QCOMPARE(toolbar->getOpenPanel(), goToPanel);
+    QVERIFY(H::focus(goToPanel->getGoButton()));
+    QTest::keyClick(goToPanel->getGoButton(), previousKey);
+    QVERIFY(goToPanel->getPageField()->hasFocus());
+    QVERIFY(H::focus(goToPanel->getGoButton()));
+    QTest::keyClick(goToPanel->getGoButton(), nextKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getSelectButton());
+    pdf::PDFAppDocumentSelectMenu* menu = toolbar->getSelectMenu();
+    QVERIFY(menu->activeAction());
+    QVERIFY(menu->activeAction()->isChecked());
+
+    // Select menu: around the end to File, back to Select and to Go to
+    QTest::keyClick(menu, nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), filePanel);
+    QTest::keyClick(filePanel->focusWidget(), Qt::Key_Down);
+    QCOMPARE(toolbar->getOpenPanel(), filePanel);
+
+    // A row of tiles: Save as -> Print in the panel; Save (not modified) is disabled,
+    // so Save as is at the leading edge of the row
+    QVERIFY(!filePanel->getCommandButton(C::save())->isEnabled());
+    QVERIFY(H::focus(filePanel->getCommandButton(C::saveAs())));
+    QTest::keyClick(filePanel->getCommandButton(C::saveAs()), nextKey);
+    QVERIFY(filePanel->getCommandButton(C::print())->hasFocus());
+    QTest::keyClick(filePanel->getCommandButton(C::print()), previousKey);
+    QVERIFY(filePanel->getCommandButton(C::saveAs())->hasFocus());
+    QTest::keyClick(filePanel->getCommandButton(C::saveAs()), previousKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getSelectButton());
+    QTest::keyClick(menu, previousKey);
+    QCOMPARE(toolbar->getOpenPanel(), goToPanel);
+
+    // The key sent to the panel itself (the focus at a row) switches too
+    QVERIFY(H::focus(goToPanel->getCommandButton(C::exportBookmarks())));
+    QTest::keyClick(goToPanel, previousKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Insert));
+
+    // The pointer switches in this direction too: the panel at the leading edge of
+    // its button (Go to, 340 px - it fits into the screen of the offscreen platform)
+    H::hover(toolbar->getMenuButton(H::Panel::View));
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+    QToolButton* goToButton = toolbar->getMenuButton(H::Panel::GoTo);
+    H::hover(goToButton);
+    QCOMPARE(toolbar->getOpenPanel(), goToPanel);
+    const QRect panelRect(goToPanel->mapToGlobal(goToPanel->getPanelRect().topLeft()), goToPanel->getPanelRect().size());
+    if (rightToLeft)
+    {
+        QCOMPARE(panelRect.right(), goToButton->mapToGlobal(QPoint(goToButton->width() - 1, 0)).x());
+    }
+    else
+    {
+        QCOMPARE(panelRect.left(), goToButton->mapToGlobal(QPoint(0, 0)).x());
+    }
+    fixture.settle();
+    QCOMPARE(H::countOpen(toolbar), 1);
+}
+
+void AppDocumentViewTest::panelSwitchDisabled()
+{
+    // A locked document disables Annotate and Insert: the pointer and the arrows pass them
+    using H = PanelSwitchHelper;
+    using C = pdf::PDFAppCommands;
+    pdftest::AppDocumentFixture fixture(QSize(780, 560));
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SwitchDisabled.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    ViewTestHelper::trigger(fixture, C::lockDocument());
+    QToolButton* annotateButton = toolbar->getMenuButton(H::Panel::Annotate);
+    QToolButton* insertButton = toolbar->getMenuButton(H::Panel::Insert);
+    QVERIFY(annotateButton->isVisible() && !annotateButton->isEnabled());
+    QVERIFY(insertButton->isVisible() && !insertButton->isEnabled());
+
+    pdf::PDFAppDocumentPanelPopup* viewPanel = toolbar->openPanel(H::Panel::View);
+    QVERIFY(viewPanel);
+    fixture.settle();
+    H::hover(annotateButton);
+    H::hover(insertButton);
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+    QVERIFY(!toolbar->switchPanel(annotateButton, false));
+    QVERIFY(!toolbar->openPanel(H::Panel::Annotate));
+    fixture.settle();
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+    QVERIFY(!toolbar->findPanel(H::Panel::Annotate));
+
+    QVERIFY(H::focus(qobject_cast<pdf::PDFAppDocumentViewPanel*>(viewPanel)->getRenderingSettingsLink()));
+    QTest::keyClick(viewPanel->focusWidget(), Qt::Key_Right);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::GoTo));
+    pdf::PDFAppDocumentGoToPanel* goToPanel = qobject_cast<pdf::PDFAppDocumentGoToPanel*>(toolbar->getOpenPanel());
+    QVERIFY(H::focus(goToPanel->getCommandButton(C::exportBookmarks())));
+    QTest::keyClick(goToPanel->focusWidget(), Qt::Key_Left);
+    QCOMPARE(toolbar->getOpenPanel(), viewPanel);
+    QVERIFY(!toolbar->findPanel(H::Panel::Annotate));
+    QVERIFY(!toolbar->findPanel(H::Panel::Insert));
+}
+
+void AppDocumentViewTest::panelSwitchDeletion()
+{
+    using H = PanelSwitchHelper;
+    using C = pdf::PDFAppCommands;
+
+    // The tab (with the toolbar and the panels) deleted inside of the switch by a slot
+    // of a button: the new button checked (pointer), the old one unchecked (pointer
+    // to the Select menu, keyboard - the panel, which has asked, is deleted too)
+    for (int scenario = 0; scenario < 3; ++scenario)
+    {
+        pdftest::AppDocumentFixture fixture(QSize(780, 560));
+        QPointer<pdf::PDFAppDocumentTab> tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SwitchDeletion%1.pdf").arg(scenario), 2));
+        QVERIFY(tab);
+        QPointer<pdf::PDFAppDocumentToolbar> toolbar = tab->getView()->getToolbar();
+        QPointer<pdf::PDFAppDocumentPanelPopup> filePanel = toolbar->openPanel(H::Panel::File);
+        QVERIFY(filePanel);
+        fixture.settle();
+        QToolButton* viewButton = toolbar->getMenuButton(H::Panel::View);
+        QToolButton* fileButton = toolbar->getMenuButton(H::Panel::File);
+        switch (scenario)
+        {
+            case 0:
+                connect(viewButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (checked) { delete tab.data(); } });
+                H::hover(viewButton);
+                break;
+            case 1:
+                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { delete tab.data(); } });
+                H::hover(toolbar->getSelectButton());
+                break;
+            default:
+                connect(fileButton, &QToolButton::toggled, fixture.window, [&tab](bool checked) { if (!checked) { delete tab.data(); } });
+                QVERIFY(H::focus(filePanel->getCommandButton(C::properties())));
+                QTest::keyClick(filePanel->getCommandButton(C::properties()), Qt::Key_Right);
+                break;
+        }
+        QVERIFY2(!tab, qPrintable(QString::number(scenario)));
+        QVERIFY(!toolbar);
+        QVERIFY(!filePanel);
+        fixture.settle();
+        QVERIFY(fixture.window);
+    }
+
+    // The window deleted from the closing of the old panel (after the switch)
+    {
+        pdftest::AppDocumentFixture fixture(QSize(780, 560));
+        pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SwitchDeletion3.pdf"), 2));
+        QVERIFY(tab);
+        QPointer<pdf::PDFAppDocumentToolbar> toolbar = tab->getView()->getToolbar();
+        pdf::PDFAppDocumentPanelPopup* filePanel = toolbar->openPanel(H::Panel::File);
+        QVERIFY(filePanel);
+        fixture.settle();
+        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+        connect(filePanel, &pdf::PDFAppDocumentPanelPopup::closed, filePanel, [window]() { delete window.data(); });
+        H::hover(toolbar->getMenuButton(H::Panel::Insert));
+        fixture.settle();
+        QVERIFY(!window);
+        QVERIFY(!toolbar);
+    }
+
+    // The panel deleted from its own signal neighborRequested and from its closing;
+    // the toolbar creates the panel again
+    {
+        pdftest::AppDocumentFixture fixture(QSize(780, 560));
+        pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SwitchDeletion4.pdf"), 2));
+        QVERIFY(tab);
+        pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+        QPointer<pdf::PDFAppDocumentPanelPopup> filePanel = toolbar->openPanel(H::Panel::File);
+        QVERIFY(filePanel);
+        fixture.settle();
+        connect(filePanel.data(), &pdf::PDFAppDocumentPanelPopup::neighborRequested, toolbar, [filePanel]() { delete filePanel.data(); });
+        QVERIFY(H::focus(filePanel->getCommandButton(C::properties())));
+        QTest::keyClick(filePanel->getCommandButton(C::properties()), Qt::Key_Right);
+        QVERIFY(!filePanel);
+        QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::View));
+        fixture.settle();
+        QVERIFY(!toolbar->findPanel(H::Panel::File));
+
+        QPointer<pdf::PDFAppDocumentPanelPopup> viewPanel = toolbar->getOpenPanel();
+        connect(viewPanel.data(), &pdf::PDFAppDocumentPanelPopup::closed, toolbar, [viewPanel]() { delete viewPanel.data(); });
+        H::hover(toolbar->getMenuButton(H::Panel::File));
+        QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::File));
+        fixture.settle();
+        QVERIFY(!viewPanel);
+        H::hover(toolbar->getMenuButton(H::Panel::View));
+        QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::View));
+        QVERIFY(toolbar->findPanel(H::Panel::View));
+        H::closeAll(toolbar);
+        fixture.settle();
+    }
+
+    // A modal dialog (opened from a panel) blocks the switch
+    {
+        pdftest::AppDocumentFixture fixture(QSize(780, 560));
+        pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SwitchDeletion5.pdf"), 2));
+        QVERIFY(tab);
+        pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+        pdf::PDFAppDocumentPanelPopup* filePanel = toolbar->openPanel(H::Panel::File);
+        QVERIFY(filePanel);
+        fixture.settle();
+
+        QPointer<QDialog> dialog = new QDialog(fixture.window);
+        dialog->setModal(true);
+        dialog->show();
+        QVERIFY(QApplication::activeModalWidget() == dialog);
+        QVERIFY(!toolbar->switchPanel(toolbar->getMenuButton(H::Panel::View), false));
+        H::hover(toolbar->getMenuButton(H::Panel::View));
+        QVERIFY(!toolbar->findPanel(H::Panel::View) || !toolbar->findPanel(H::Panel::View)->isVisible());
+        if (filePanel->isVisible())
+        {
+            QVERIFY(H::focus(filePanel->getCommandButton(C::properties())));
+            QTest::keyClick(filePanel->getCommandButton(C::properties()), Qt::Key_Right);
+            QVERIFY(!toolbar->findPanel(H::Panel::View) || !toolbar->findPanel(H::Panel::View)->isVisible());
+        }
+        delete dialog.data();
+        fixture.settle();
+    }
+}
+
 void AppDocumentViewTest::requestedCommandAfterClose()
 {
     pdftest::AppDocumentFixture fixture;
@@ -2324,7 +3441,8 @@ void AppDocumentViewTest::largeDocument()
     timer.start();
     ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::lastPage());
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1999));
-    QCOMPARE(view->getToolbar()->getPageField()->getSuffix(), QStringLiteral("/ %1").arg(QLocale().toString(2000)));
+    // page-field 193:847 / 1234:164802: the numbers of the field without the group separator
+    QCOMPARE(view->getToolbar()->getPageField()->getSuffix(), QStringLiteral("/ 2000"));
     QCOMPARE(view->findPageIndex(QStringLiteral("1500")), std::make_optional(pdf::PDFInteger(1499)));
     view->goToPage(999);
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(999));

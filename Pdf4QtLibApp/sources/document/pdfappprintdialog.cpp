@@ -490,8 +490,8 @@ QWidget* PDFAppPrintDialog::createSettingsColumn()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(Helper::ROW_GAP);
 
-    // Printer: the combo box, Printer properties… of the driver (Windows; not in
-    // Figma yet) and the state of the printer
+    // Printer: printer-line 1232:28722 - the combo box and Printer properties… of the
+    // driver (Windows), gap 8 - and the state of the printer
     {
         QWidget* control = new QWidget(column);
         QVBoxLayout* controlLayout = new QVBoxLayout(control);
@@ -907,7 +907,11 @@ void PDFAppPrintDialog::updateControls()
     }
     if (m_propertiesButton)
     {
-        m_propertiesButton->setVisible(hasPrinter && PDFAppPrinters::hasPrinterProperties(m_printers[size_t(index)]));
+        // printer-line 1232:28722 / 1232:28729: the button keeps its place, disabled
+        // without a printer (stable button order); a platform without the settings of
+        // a driver has none (note 1237:166095)
+        m_propertiesButton->setVisible(PDFAppPrinters::isPrinterPropertiesSupported());
+        m_propertiesButton->setEnabled(hasPrinter && PDFAppPrinters::hasPrinterProperties(m_printers[size_t(index)]));
     }
     if (m_noPrinterNote)
     {

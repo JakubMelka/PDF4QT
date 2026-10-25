@@ -722,7 +722,7 @@ void PDFCreatePCElementFreehandCurveTool::mousePressEvent(QWidget* widget, QMous
     {
         // Try to perform pick point
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 &&    // We have picked some point on page
                 (m_element->getPageIndex() == -1 || m_element->getPageIndex() == pageIndex)) // We are under current page
         {
@@ -747,7 +747,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMo
     {
         // Try to perform pick point
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 &&    // We have picked some point on page
                 (m_element->getPageIndex() == pageIndex)) // We are under current page
         {
@@ -792,7 +792,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouse
     {
         // Try to add point to the path
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_mousePosition, &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex == m_element->getPageIndex())
         {
             m_element->addPoint(pagePoint);
@@ -994,7 +994,7 @@ void PDFCreatePCElementTextTool::finishEditing()
 std::optional<QPointF> PDFCreatePCElementTextTool::getPagePointUnderMouse(QMouseEvent* event) const
 {
     QPointF pagePoint;
-    PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
     if (pageIndex == m_element->getPageIndex() &&
         m_element->getRectangle().contains(pagePoint))
     {

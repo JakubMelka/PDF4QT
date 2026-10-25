@@ -346,9 +346,33 @@ PDFAppPageLinkTool::PDFAppPageLinkTool(PDFDrawWidgetProxy* proxy, QObject* paren
 
 PDFAppPageLinkTool::~PDFAppPageLinkTool() = default;
 
+bool PDFAppPageLinkTool::isTarget(DestinationType type, bool targetOnly)
+{
+    if (PDFAppAnnotationTools::isPageLinkTarget(type))
+    {
+        return true;
+    }
+    return targetOnly && (type == DestinationType::FitB || type == DestinationType::FitBH || type == DestinationType::FitBV);
+}
+
+void PDFAppPageLinkTool::setTargetOnly(bool targetOnly)
+{
+    if (m_isTargetOnly == targetOnly)
+    {
+        return;
+    }
+
+    m_isTargetOnly = targetOnly;
+    if (!targetOnly && !PDFAppAnnotationTools::isPageLinkTarget(m_destinationType))
+    {
+        m_destinationType = DestinationType::Fit;
+    }
+    goBack();
+}
+
 void PDFAppPageLinkTool::setDestinationType(DestinationType type)
 {
-    if (!PDFAppAnnotationTools::isPageLinkTarget(type) || type == m_destinationType)
+    if (!isTarget(type, m_isTargetOnly) || type == m_destinationType)
     {
         return;
     }
@@ -385,9 +409,10 @@ void PDFAppPageLinkTool::pickTarget(PDFInteger pageIndex, const QPointF& point, 
 
 void PDFAppPageLinkTool::goBack()
 {
+    // The target-only mode has no link area: it stays in the step 2
     m_linkPageIndex = -1;
     m_linkRectangle = QRectF();
-    setStep(Step::LinkArea);
+    setStep(m_isTargetOnly ? Step::Target : Step::LinkArea);
 }
 
 PDFDestination PDFAppPageLinkTool::createDestination(PDFInteger pageIndex, const QPointF& point, const QRectF& rectangle) const
@@ -427,6 +452,18 @@ PDFDestination PDFAppPageLinkTool::createDestination(PDFInteger pageIndex, const
             destination = PDFDestination::createFitR(reference, normalized.left(), normalized.bottom(), normalized.right(), normalized.top());
             break;
         }
+
+        case DestinationType::FitB:
+            destination = PDFDestination::createFitB(reference);
+            break;
+
+        case DestinationType::FitBH:
+            destination = PDFDestination::createFitBH(reference, point.y());
+            break;
+
+        case DestinationType::FitBV:
+            destination = PDFDestination::createFitBV(reference, point.x());
+            break;
 
         case DestinationType::XYZ:
         {
@@ -496,6 +533,7 @@ void PDFAppPageLinkTool::drawPage(QPainter* painter,
     switch (m_destinationType)
     {
         case DestinationType::Fit:
+        case DestinationType::FitB:
         {
             // The target page 1170:27667: the fill and the outline 2 outside of the page
             const QRectF devicePage = pagePointToDevicePointMatrix.mapRect(pageRectangle);
@@ -505,10 +543,12 @@ void PDFAppPageLinkTool::drawPage(QPainter* painter,
         }
 
         case DestinationType::FitH:
+        case DestinationType::FitBH:
             painter->drawLine(pagePointToDevicePointMatrix.map(QLineF(pageRectangle.left(), m_hoverPagePoint.y(), pageRectangle.right(), m_hoverPagePoint.y())));
             break;
 
         case DestinationType::FitV:
+        case DestinationType::FitBV:
             painter->drawLine(pagePointToDevicePointMatrix.map(QLineF(m_hoverPagePoint.x(), pageRectangle.top(), m_hoverPagePoint.x(), pageRectangle.bottom())));
             break;
 
@@ -587,7 +627,7 @@ void PDFAppPageLinkTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
     QPointF pagePoint;
     m_hoverWidgetPoint = event->position().toPoint();
-    m_hoverPageIndex = proxy->getPageUnderPoint(m_hoverWidgetPoint, &pagePoint);
+    m_hoverPageIndex = proxy->getPageUnderPoint(event->position(), &pagePoint);
     m_hoverPagePoint = pagePoint;
     Q_EMIT proxy->repaintNeeded();
 }
@@ -637,6 +677,11 @@ void PDFAppPageLinkTool::onTargetPointPicked(PDFInteger pageIndex, QPointF pageP
     {
         return;
     }
+    if (m_isTargetOnly)
+    {
+        Q_EMIT targetPicked(destination);
+        return;
+    }
 
     const PDFInteger linkPageIndex = m_linkPageIndex;
     const QRectF linkRectangle = m_linkRectangle;
@@ -660,6 +705,11 @@ void PDFAppPageLinkTool::onTargetRectanglePicked(PDFInteger pageIndex, QRectF pa
     if (!destination.isValid())
     {
         // An empty area is no target - the user draws it again
+        return;
+    }
+    if (m_isTargetOnly)
+    {
+        Q_EMIT targetPicked(destination);
         return;
     }
 

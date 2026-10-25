@@ -1726,20 +1726,20 @@ static const EncodingTable ZAPF_DINGBATS_ENCODING_CONVERSION_TABLE = {
     QChar(0x275d),  // Hex No. 7D (Dec 125) Character '❝' Symbol
     QChar(0x275e),  // Hex No. 7E (Dec 126) Character '❞' Symbol
     QChar(0xfffd),  // Hex No. 7F (Dec 127) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 80 (Dec 128) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 81 (Dec 129) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 82 (Dec 130) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 83 (Dec 131) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 84 (Dec 132) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 85 (Dec 133) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 86 (Dec 134) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 87 (Dec 135) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 88 (Dec 136) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 89 (Dec 137) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 8A (Dec 138) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 8B (Dec 139) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 8C (Dec 140) REPLACEMENT CHARACTER 0xFFFD - not present in character set
-    QChar(0xfffd),  // Hex No. 8D (Dec 141) REPLACEMENT CHARACTER 0xFFFD - not present in character set
+    QChar(0x2768),  // Hex No. 80 (Dec 128) Character '❨' Punctuation (a89)
+    QChar(0x2769),  // Hex No. 81 (Dec 129) Character '❩' Punctuation (a90)
+    QChar(0x276a),  // Hex No. 82 (Dec 130) Character '❪' Punctuation (a93)
+    QChar(0x276b),  // Hex No. 83 (Dec 131) Character '❫' Punctuation (a94)
+    QChar(0x276c),  // Hex No. 84 (Dec 132) Character '❬' Punctuation (a91)
+    QChar(0x276d),  // Hex No. 85 (Dec 133) Character '❭' Punctuation (a92)
+    QChar(0x276e),  // Hex No. 86 (Dec 134) Character '❮' Punctuation (a205)
+    QChar(0x276f),  // Hex No. 87 (Dec 135) Character '❯' Punctuation (a85)
+    QChar(0x2770),  // Hex No. 88 (Dec 136) Character '❰' Punctuation (a206)
+    QChar(0x2771),  // Hex No. 89 (Dec 137) Character '❱' Punctuation (a86)
+    QChar(0x2772),  // Hex No. 8A (Dec 138) Character '❲' Punctuation (a87)
+    QChar(0x2773),  // Hex No. 8B (Dec 139) Character '❳' Punctuation (a88)
+    QChar(0x2774),  // Hex No. 8C (Dec 140) Character '❴' Punctuation (a95)
+    QChar(0x2775),  // Hex No. 8D (Dec 141) Character '❵' Punctuation (a96)
     QChar(0xfffd),  // Hex No. 8E (Dec 142) REPLACEMENT CHARACTER 0xFFFD - not present in character set
     QChar(0xfffd),  // Hex No. 8F (Dec 143) REPLACEMENT CHARACTER 0xFFFD - not present in character set
     QChar(0xfffd),  // Hex No. 90 (Dec 144) REPLACEMENT CHARACTER 0xFFFD - not present in character set

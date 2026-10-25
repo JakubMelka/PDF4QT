@@ -28,6 +28,8 @@
 #include "pdfannotation.h"
 #include "pdfannotationstyle.h"
 
+#include <QPainterPath>
+
 class QActionGroup;
 
 namespace pdf
@@ -335,10 +337,35 @@ private:
     void resetTool();
     void onStyleChanged();
 
+    /// Returns the points of the stroke: for the Ink of the new application the
+    /// positions of the mouse without the noise of the whole pixels
+    /// (PDFGeometryUtils::simplifyHandDrawnPolyline), otherwise the positions.
+    std::vector<QPointF> getStrokePoints() const;
+
+    /// Returns the points of the stroke for the given size of a pixel (getStrokePoints)
+    std::vector<QPointF> getStrokePoints(PDFReal pixelSize) const;
+
+    /// Returns the size of a pixel of the widget in the units of the page of the stroke
+    PDFReal getPixelSize() const;
+
+    /// Returns the size of a pixel of the device of the matrix in the units of the page
+    static PDFReal getPixelSize(const QTransform& pagePointToDevicePointMatrix);
+
+    /// The stroke of the Ink (the new application) is a click, which creates nothing:
+    /// less than two points, or all of them within the drag distance of the first one
+    bool isClickStroke(const std::vector<QPointF>& strokePoints, PDFReal pixelSize) const;
+
     PDFToolManager* m_toolManager;
     PDFAnnotationStyleManager* m_styleManager;
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
+
+    /// The smooth curve of the preview (drawPage, the GUI thread only), computed
+    /// again only for a new position of the mouse or another zoom, not at every
+    /// repaint of the widget
+    mutable QPainterPath m_previewPath;
+    mutable size_t m_previewPointCount = 0;
+    mutable PDFReal m_previewPixelSize = 0.0;
 };
 
 /// Tool that creates 'stamp' annotations. Multiple types of stamps

@@ -922,9 +922,14 @@ private:
     /// (PDFSelectTextTool::setAnnotationsSelectable), is the active tool
     bool isTextToolActive() const;
 
+    /// Returns true, if a plain click of the left button at the position follows the
+    /// link: a selectable link (setLinksSelectable) with an action at the position,
+    /// selected or not (Ctrl / Shift + click selects it)
+    bool isClickableLink(const PageAnnotation& annotation, QPoint widgetPos) const;
+
     /// Returns true, if a plain press of the left button at the position follows the
-    /// link instead of selecting it: a selectable link (setLinksSelectable), which is
-    /// not selected and has an action at the position
+    /// link instead of selecting it: a clickable link (isClickableLink), which is not
+    /// selected (a plain press on a selected link can also start its drag)
     bool isFollowedLink(const PageAnnotation& annotation, QPoint widgetPos) const;
 
     /// Returns the color of a marker: a color of the theme (PDFDrawWidgetProxy::setViewColors)
@@ -1099,6 +1104,8 @@ private:
     PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
     bool m_suppressLinkActivationOnRelease = false;
     bool m_isLinkPressed = false;               ///< The mouse button was pressed over a link (so its release can activate it)
+    QPoint m_linkPressPosition;                 ///< Position of the press over a link (a release past the drag distance is no click - setLinksSelectable)
+    bool m_isLinkPressPannable = false;         ///< The press over a link, which is not selected, without a tool (Hand) - its drag pans the page (setLinksSelectable)
     PDFObjectReference m_pendingDeselection;    ///< Selected annotation clicked with a modifier, it is deselected on release (if it is not dragged)
 
     std::vector<SelectedAnnotation> m_selection;

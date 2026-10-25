@@ -133,7 +133,7 @@ public:
         const bool isReady = QTest::qWaitFor([&guard]()
         {
             return guard && guard->getDocument() && guard->getDocument()->isReady() && guard->getView() && guard->getView()->getPageCount() > 0;
-        }, 20000);
+        }, 20000 * pdftest::AppDocumentFixture::getTimeoutFactor());
         fixture.window->activateTab(guard.data());
         pdftest::AppDocumentFixture::settle();
         return isReady ? guard.data() : nullptr;
@@ -273,7 +273,7 @@ public:
             return false;
         }
         tab->getView()->selectAllText();
-        const bool isSelected = QTest::qWaitFor([annotationCreator]() { return annotationCreator->hasTextSelection(); }, 10000);
+        const bool isSelected = QTest::qWaitFor([annotationCreator]() { return annotationCreator->hasTextSelection(); }, 10000 * pdftest::AppDocumentFixture::getTimeoutFactor());
         pdftest::AppDocumentFixture::settle();
         return isSelected;
     }
@@ -356,7 +356,7 @@ public:
             return false;
         }
         controller->search(text);
-        const bool isFinished = QTest::qWaitFor([controller]() { return controller->getState() == pdf::PDFAppDocumentSearchController::State::Finished; }, 60000);
+        const bool isFinished = QTest::qWaitFor([controller]() { return controller->getState() == pdf::PDFAppDocumentSearchController::State::Finished; }, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
         pdftest::AppDocumentFixture::settle();
         return isFinished;
     }
@@ -808,7 +808,7 @@ void AppAnnotateTest::toolActivationEachTile()
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(creator->getActiveKind(), Kind::None);
     QVERIFY(!creator->getToolBar()->isVisible());
-    QCOMPARE(tab->getView()->getActiveTool(), static_cast<pdf::PDFWidgetTool*>(tab->getView()->getToolManager()->getSelectTextTool()));
+    QVERIFY(tab->getView()->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
 
     // Page numbers opens the route of its tool, Outline item asks the outline editor
     pdf::PDFAppInsertPanel* insert = qobject_cast<pdf::PDFAppInsertPanel*>(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::Insert));
@@ -909,16 +909,19 @@ void AppAnnotateTest::toolEndsByEscAndClose()
     pdf::PDFWidgetTool* selectTextTool = view->getToolManager()->getSelectTextTool();
     QSignalSpy kindSpy(creator, &pdf::PDFAppAnnotationCreator::activeKindChanged);
 
-    // Esc on the canvas ends an engine tool, the text selection is active again
+    // Esc on the canvas ends an engine tool, the mode of the view (Hand of a new tab,
+    // owner 2026-10-25) is active again
     QVERIFY(creator->startTool(Kind::Ellipse));
     H::key(view, Qt::Key_Escape);
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(creator->getActiveKind(), Kind::None);
-    QCOMPARE(view->getActiveTool(), selectTextTool);
+    QVERIFY(view->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
     QVERIFY(!creator->getToolBar()->isVisible());
     QCOMPARE(view->getStatusBar()->getMessage(), QStringLiteral("Ready"));
 
-    // Esc ends a markup tool (the annotations are selectable again)
+    // Esc ends a markup tool (the annotations are selectable again); the mode Select
+    // text keeps the text selection
+    view->setCanvasTool(pdf::PDFToolManager::SelectTextTool);
     QVERIFY(creator->startTool(Kind::Squiggly));
     QVERIFY(!view->getToolManager()->getSelectTextTool()->isAnnotationsSelectable());
     H::key(view, Qt::Key_Escape);
@@ -1165,7 +1168,8 @@ void AppAnnotateTest::createEachKindOneStep()
         const pdf::PDFAnnotationPtr parsed = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), ink);
         const pdf::PDFInkAnnotation* inkAnnotation = dynamic_cast<const pdf::PDFInkAnnotation*>(parsed.data());
         QVERIFY(inkAnnotation);
-        QVERIFY(inkAnnotation->getInkPath().elementCount() >= 3);
+        // A straight drag is a line (PDFGeometryUtils::simplifyHandDrawnPolyline)
+        QVERIFY(inkAnnotation->getInkPath().elementCount() >= 2);
         QVERIFY(pdf::PDFAnnotationManipulator::getCapabilities(parsed.data()).testFlag(pdf::PDFAnnotationManipulator::Move));
         QVERIFY(document->getDocument()->getDictionaryFromObject(document->getDocument()->getObjectByReference(ink))->hasKey("AP"));
     }

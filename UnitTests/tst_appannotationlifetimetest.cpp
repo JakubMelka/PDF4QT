@@ -57,6 +57,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfappmarkresults.h"
 #include "pdfappoutlineeditor.h"
+#include "pdfappoutlinetarget.h"
 
 #include "pdfannotation.h"
 #include "pdfdocument.h"
@@ -65,14 +66,15 @@
 
 #include "pdffluentwidgets.h"
 #include "pdfcomponentpanels.h"
+#include "pdfmessagebox.h"
 
+#include <QDialogButtonBox>
 #include <QHash>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMetaMethod>
 #include <QPushButton>
 #include <QSet>
-#include <QThread>
 #include <QtTest>
 
 #include <algorithm>
@@ -80,7 +82,6 @@
 #include <tuple>
 #include <vector>
 
-#include <QtCore/private/qobject_p.h>
 
 class AnnotationLifetimeRecorder;
 
@@ -124,86 +125,36 @@ public:
     {
         qApp->installEventFilter(this);
         s_current = this;
-        s_callbacks.signal_begin_callback = &AnnotationLifetimeRecorder::onSignalBegin;
-        s_callbacks.slot_begin_callback = nullptr;
-        s_callbacks.signal_end_callback = &AnnotationLifetimeRecorder::onSignalEnd;
-        s_callbacks.slot_end_callback = nullptr;
-        qt_register_signal_spy_callbacks(&s_callbacks);
     }
 
     virtual ~AnnotationLifetimeRecorder() override
     {
-        qt_register_signal_spy_callbacks(nullptr);
         qApp->removeEventFilter(this);
         s_current = nullptr;
     }
 
-    /// Emissions of the GUI thread on the stack (signal spy callbacks of QtCore):
-    /// true for an emission of a foreign object - the engine (pdf:: classes of
-    /// Pdf4QtLibWidgets / Pdf4QtLibCore shared with the old applications) or Qt
-    /// (item models, selection models, text documents, ...) - which does not
-    /// survive the deletion of the objects it works with inside of its own signal.
-    /// Buttons, actions, shortcuts and timers survive it (Qt guards them).
-    static void onSignalBegin(QObject* caller, int signalIndex, void** arguments)
+    /// Sites, where the victim is deleted by deleteLater instead of synchronously
+    /// (each with the reason, why the code on the stack cannot be made safe
+    /// simply). Every other site deletes the tab or the window synchronously - also
+    /// inside of an input event of the engine (the tools, the annotation and form
+    /// managers) and of a signal of Qt - so the code after each emission and
+    /// callback must survive it. Empty: every site is safe.
+    static bool isDeferredSite(const Site& site)
     {
-        Q_UNUSED(signalIndex);
-        Q_UNUSED(arguments);
-        if (s_current && QThread::currentThread() == qApp->thread())
+        static const QStringList deferredSites = {
+        };
+        for (const QString& deferred : deferredSites)
         {
-            s_current->m_emissions.push_back(isForeignEmitter(caller));
-        }
-    }
-
-    static void onSignalEnd(QObject* caller, int signalIndex)
-    {
-        Q_UNUSED(caller);
-        Q_UNUSED(signalIndex);
-        if (s_current && QThread::currentThread() == qApp->thread() && !s_current->m_emissions.empty())
-        {
-            s_current->m_emissions.pop_back();
-        }
-    }
-
-    static bool isForeignEmitter(const QObject* caller)
-    {
-        if (!caller)
-        {
-            return false;
-        }
-        const QMetaObject* metaObject = caller->metaObject();
-        if (isApplicationClass(metaObject))
-        {
-            return false;
-        }
-        for (const char* guarded : { "QAbstractButton", "QAction", "QShortcut", "QTimer", "QButtonGroup", "QActionGroup" })
-        {
-            if (caller->inherits(guarded))
+            if (site.key.endsWith(deferred))
             {
-                return false;
+                return true;
             }
         }
-        return true;
-    }
-
-    bool hasForeignEmission() const
-    {
-        return std::find(m_emissions.cbegin(), m_emissions.cend(), true) != m_emissions.cend();
+        return false;
     }
 
     /// The recorder of the running scenario (nullptr without one)
     static AnnotationLifetimeRecorder* getCurrent() { return s_current; }
-
-    /// The test delivers an input event to the canvas: the engine (the tools, the
-    /// annotation and form managers of Pdf4QtLibWidgets, which the old applications
-    /// share) is on the stack. The engine does not survive the deletion of its
-    /// widget inside of its own input handler or signal, nor does Qt inside of the
-    /// signals of its models and text documents, and the application never deletes
-    /// a tab synchronously (PDFAppMainWindow::closeTab - deleteLater): a victim of
-    /// such a site is deleted by deleteLater (the deferred work after the foreign
-    /// code returns is checked); every other site deletes it synchronously, so the
-    /// code of the application after each of its own Q_EMIT must survive it.
-    void beginEngineInput() { ++m_engineInputDepth; }
-    void endEngineInput() { --m_engineInputDepth; }
 
     void setTarget(const Site& site, std::function<bool(bool)> action)
     {
@@ -319,7 +270,7 @@ public:
             // The deletion emits further signals (also of the target site): no
             // second deletion of the victim from inside of its own destruction
             m_isInAction = true;
-            m_isFired = m_action(m_engineInputDepth > 0 || hasForeignEmission());
+            m_isFired = m_action(isDeferredSite(m_target));
             m_isInAction = false;
         }
     }
@@ -371,10 +322,7 @@ private:
     bool m_isStopped = false;
     Site m_target;
     std::function<bool(bool)> m_action;
-    int m_engineInputDepth = 0;
-    std::vector<bool> m_emissions;
     static inline AnnotationLifetimeRecorder* s_current = nullptr;
-    static inline QSignalSpyCallbackSet s_callbacks = { nullptr, nullptr, nullptr, nullptr };
     std::vector<Site> m_sites;
     QSet<QString> m_seen;
     QHash<QObject*, QPointer<QObject>> m_hooked;
@@ -402,30 +350,6 @@ int AnnotationLifetimeHook::qt_metacall(QMetaObject::Call call, int id, void** a
     }
     return id - 1;
 }
-
-/// Input of the test delivered to the engine (see beginEngineInput)
-class AnnotationLifetimeEngineInput
-{
-public:
-    AnnotationLifetimeEngineInput()
-    {
-        if (AnnotationLifetimeRecorder* recorder = AnnotationLifetimeRecorder::getCurrent())
-        {
-            recorder->beginEngineInput();
-        }
-    }
-
-    ~AnnotationLifetimeEngineInput()
-    {
-        if (AnnotationLifetimeRecorder* recorder = AnnotationLifetimeRecorder::getCurrent())
-        {
-            recorder->endEngineInput();
-        }
-    }
-
-    AnnotationLifetimeEngineInput(const AnnotationLifetimeEngineInput&) = delete;
-    AnnotationLifetimeEngineInput& operator=(const AnnotationLifetimeEngineInput&) = delete;
-};
 
 /// State of one run of a scenario
 struct AnnotationLifetimeRun
@@ -519,7 +443,6 @@ public:
             return false;
         }
         {
-            AnnotationLifetimeEngineInput input;
             for (const QPoint& point : { position + QPoint(1, 1), position })
             {
                 if (!target)
@@ -541,7 +464,6 @@ public:
     static void key(AnnotationLifetimeRun& run, int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
     {
         QPointer<QWidget> target = run.tab ? pdftest::AppDocumentFixture::canvasWidget(run.tab->getView()) : nullptr;
-        AnnotationLifetimeEngineInput input;
         if (target)
         {
             QKeyEvent press(QEvent::KeyPress, key, modifiers);
@@ -563,7 +485,7 @@ public:
             return false;
         }
         run.tab->getView()->selectAllText();
-        std::ignore = QTest::qWaitFor([&annotationCreator]() { return !annotationCreator || annotationCreator->hasTextSelection(); }, 10000);
+        std::ignore = QTest::qWaitFor([&annotationCreator]() { return !annotationCreator || annotationCreator->hasTextSelection(); }, 10000 * pdftest::AppDocumentFixture::getTimeoutFactor());
         pdftest::AppDocumentFixture::settle();
         return !annotationCreator || annotationCreator->hasTextSelection();
     }
@@ -622,7 +544,6 @@ public:
             return false;
         }
         {
-            AnnotationLifetimeEngineInput input;
             pdftest::AppDocumentFixture::clickPage(run.tab->getView(), 0, center);
         }
         pdftest::AppDocumentFixture::settle();
@@ -638,7 +559,6 @@ public:
             {
                 return;
             }
-            AnnotationLifetimeEngineInput input;
             QTest::keyClick(target, character.toLatin1());
         }
         pdftest::AppDocumentFixture::settle();
@@ -751,7 +671,7 @@ std::vector<AnnotationLifetimeStep> AnnotationLifetimeTestHelper::scenario(const
                 return false;
             }
             searchController->search(QStringLiteral("alpha"));
-            std::ignore = QTest::qWaitFor([&searchController]() { return !searchController || searchController->getState() == pdf::PDFAppDocumentSearchController::State::Finished; }, 60000);
+            std::ignore = QTest::qWaitFor([&searchController]() { return !searchController || searchController->getState() == pdf::PDFAppDocumentSearchController::State::Finished; }, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
             pdftest::AppDocumentFixture::settle();
             return true;
         });
@@ -886,6 +806,47 @@ std::vector<AnnotationLifetimeStep> AnnotationLifetimeTestHelper::scenario(const
         steps.push_back([settled](AnnotationLifetimeRun& run) { const bool result = run.tab->getView()->getOutlineEditor()->createItemAtCurrentView(); return settled() && (result || !run.tab); });
         steps.push_back([settled](AnnotationLifetimeRun& run) { run.tab->getView()->getOutlineEditor()->cancelCreation(); return settled(); });
     }
+    else if (name == QStringLiteral("outlineTarget"))
+    {
+        // Set Target of the outline (Named Destination…, Position… picked on the page,
+        // the zoom of the reader with its confirmation, Area… canceled by Esc) and the
+        // modes Select text / Hand of the canvas
+        *sample = pdftest::AppDocumentSamples::links(folder);
+        steps.push_back([settled](AnnotationLifetimeRun& run) { const bool result = run.tab->getView()->getOutlineEditor()->createItemAtCurrentView(); return settled() && (result || !run.tab); });
+        steps.push_back([settled](AnnotationLifetimeRun& run) { const bool result = run.tab->getView()->getOutlineEditor()->finishCreation(QStringLiteral("Lifetime")); return settled() && (result || !run.tab); });
+        steps.push_back([settled](AnnotationLifetimeRun& run) { run.tab->getView()->getOutlineEditor()->setCurrentItem({ 0 }); return settled(); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::outlineSetTargetNamed()) && (!run.tab || run.tab->getView()->getOutlineEditor()->getNamedDestinationDialog()); });
+        steps.push_back([settled](AnnotationLifetimeRun& run)
+        {
+            QPointer<pdf::PDFAppNamedDestinationDialog> dialog = run.tab ? run.tab->getView()->getOutlineEditor()->getNamedDestinationDialog() : nullptr;
+            if (!dialog || !dialog->selectName(QByteArrayLiteral("chapter2")))
+            {
+                return false;
+            }
+            dialog->getSetButton()->click();
+            return settled();
+        });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::outlineSetTargetPosition()); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::pick(run, 0, QPointF(60, 200)); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::outlineKeepZoomAll()) && (!run.tab || run.tab->getView()->getOutlineEditor()->getKeepZoomConfirmation()); });
+        steps.push_back([settled](AnnotationLifetimeRun& run)
+        {
+            QPointer<pdf::PDFMessageBox> confirmation = run.tab ? run.tab->getView()->getOutlineEditor()->getKeepZoomConfirmation() : nullptr;
+            QAbstractButton* button = confirmation ? confirmation->getButtonBox()->button(QDialogButtonBox::Ok) : nullptr;
+            if (!button)
+            {
+                return false;
+            }
+            button->click();
+            return settled();
+        });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::outlineKeepZoom()); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::selectText()); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::outlineSetTargetArea()); });
+        steps.push_back([](AnnotationLifetimeRun& run) { LH::key(run, Qt::Key_Escape); return true; });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::handTool()); });
+        steps.push_back([](AnnotationLifetimeRun& run) { return LH::command(run, pdf::PDFAppCommands::undo()); });
+    }
     else if (name == QStringLiteral("notes"))
     {
         *sample = pdftest::AppDocumentSamples::annotations(folder);
@@ -962,7 +923,7 @@ void AppAnnotationLifetimeTest::deleteFromEverySignal_data()
     QTest::addColumn<int>("part");
 
     for (const char* name : { "markup", "highlightComment", "stickyNote", "textBox", "webLink", "pageLink", "shape", "markResults",
-                              "properties", "geometry", "copyToPages", "comment", "bar", "menu", "outline", "notes", "forms" })
+                              "properties", "geometry", "copyToPages", "comment", "bar", "menu", "outline", "outlineTarget", "notes", "forms" })
     {
         // The sites of a scenario are divided into parts (every PART_COUNT-th site),
         // so a row ends within the time limit of QtTest also under valgrind
@@ -988,7 +949,7 @@ void AppAnnotationLifetimeTest::runScenario(const QString& name, AnnotationLifet
     run.window = fixture.window;
     run.tab = fixture.open(sample);
     QVERIFY(run.tab);
-    std::ignore = QTest::qWaitFor([&run]() { return !run.tab || (run.tab->getDocument() && run.tab->getDocument()->isReady() && run.tab->getView()->getPageCount() > 0); }, 20000);
+    std::ignore = QTest::qWaitFor([&run]() { return !run.tab || (run.tab->getDocument() && run.tab->getDocument()->isReady() && run.tab->getView()->getPageCount() > 0); }, 20000 * pdftest::AppDocumentFixture::getTimeoutFactor());
     QVERIFY(run.tab);
     fixture.window->activateTab(run.tab.data());
     pdftest::AppDocumentFixture::settle();
@@ -999,13 +960,13 @@ void AppAnnotationLifetimeTest::runScenario(const QString& name, AnnotationLifet
     pdf::PDFAppDocumentSearchCommandHandler* searchHandler = pdf::PDFAppDocumentSearchCommandHandler::findHandler(run.tab->getView());
     QPointer<pdf::PDFAppDocumentSignatureVerifier> verifier = searchHandler ? searchHandler->getSignatureVerifier() : nullptr;
     QVERIFY(verifier);
-    QVERIFY(QTest::qWaitFor([&verifier]() { return !verifier || !verifier->isVerifying(); }, 30000));
+    QVERIFY(QTest::qWaitFor([&verifier]() { return !verifier || !verifier->isVerifying(); }, 30000 * pdftest::AppDocumentFixture::getTimeoutFactor()));
     pdftest::AppDocumentFixture::settle();
 
     AnnotationLifetimeRecorder recorder(mode);
     if (mode == AnnotationLifetimeRecorder::Mode::Replay)
     {
-        recorder.setTarget(target, [&run, deleteWindow](bool isEngineInput)
+        recorder.setTarget(target, [&run, deleteWindow](bool isDeferred)
         {
             // A victim being destroyed already (a signal of its destructor) is not
             // deleted again: qobject_cast fails once the derived destructor has run
@@ -1015,7 +976,7 @@ void AppAnnotationLifetimeTest::runScenario(const QString& name, AnnotationLifet
                 {
                     return false;
                 }
-                if (isEngineInput)
+                if (isDeferred)
                 {
                     run.window->deleteLater();
                     return true;
@@ -1028,7 +989,7 @@ void AppAnnotationLifetimeTest::runScenario(const QString& name, AnnotationLifet
                 {
                     return false;
                 }
-                if (isEngineInput)
+                if (isDeferred)
                 {
                     run.tab->deleteLater();
                     return true;

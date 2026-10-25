@@ -523,6 +523,7 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentView::onDocumentChanged);
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentView::onDocumentStateChanged);
         connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentView::onSignatureResultsChanged);
+        connect(document, &PDFAppDocument::aboutToBeDestroyed, this, &PDFAppDocumentView::onDocumentAboutToBeDestroyed);
         connect(document, &QObject::destroyed, this, &PDFAppDocumentView::onDocumentDestroyed);
     }
 
@@ -641,6 +642,16 @@ void PDFAppDocumentView::onSignatureResultsChanged()
     }
 }
 
+void PDFAppDocumentView::onDocumentAboutToBeDestroyed()
+{
+    // The document is still whole: the page compilers stop reading its PDF document
+    if (m_document)
+    {
+        m_document->disconnect(this);
+    }
+    onDocumentDestroyed();
+}
+
 void PDFAppDocumentView::onDocumentDestroyed()
 {
     // The document is not whole any more: only the view is cleared
@@ -681,11 +692,8 @@ void PDFAppDocumentView::applyDefaultView()
         }
     }
 
-    // Select text is the tool of the canvas (Select menu 198:5517)
-    if (m_toolManager)
-    {
-        m_toolManager->setActiveTool(PDFToolManager::SelectTextTool);
-    }
+    // The chosen mode of the canvas - Hand in a new tab (Select menu 198:5517)
+    activateDefaultCanvasTool();
 }
 
 void PDFAppDocumentView::applyPageLayout()
@@ -745,6 +753,11 @@ QString PDFAppDocumentView::getPageLabel(PDFInteger pageIndex) const
     // the page fields ("1,500" would not be found by findPageIndex)
     const QString label = document->getCatalog()->getPageLabel(pageIndex);
     return label.isEmpty() ? QString::number(pageIndex + 1) : label;
+}
+
+int PDFAppDocumentView::getMagnifierRadius(int diameter)
+{
+    return qMax(diameter / 2, 1);
 }
 
 bool PDFAppDocumentView::hasPageLabels() const
@@ -844,7 +857,9 @@ void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages)
 
 bool PDFAppDocumentView::showPanel(const QString& panelId)
 {
-    if (!m_sidebar || !m_sidebar->showPanel(panelId))
+    // A slot of the change of the panel of the sidebar may delete the view (the tab)
+    QPointer<PDFAppDocumentView> self(this);
+    if (!m_sidebar || !m_sidebar->showPanel(panelId) || !self)
     {
         return false;
     }
@@ -1019,6 +1034,9 @@ void PDFAppDocumentView::updateViewColors()
     colors.canvas = manager->getColor(PDFThemeColors::BgTrack);
     colors.selection = manager->getColor(PDFThemeColors::BgAccentSubtle);
     colors.selectionText = manager->getColor(PDFThemeColors::TextAccent);
+    // magnifier 1234:164735: 1 px border/strong with the shadow 0 / 4 / 16 of effect/shadow
+    colors.magnifierBorder = manager->getColor(PDFThemeColors::BorderStrong);
+    colors.magnifierShadow = manager->getColor(PDFThemeColors::EffectShadow);
     PDFAppAnnotationController::applyThemeColors(colors);
     proxy->setViewColors(colors);
 
@@ -1195,7 +1213,8 @@ void PDFAppDocumentView::updateCanvasShortcuts()
         return;
     }
 
-    // The shortcuts of the user (an unreadable database leaves the defaults)
+    // The shortcuts of the user (an unreadable database leaves the defaults); the
+    // view keeps them for the tooltips of the toolbar and of its panels
     PDFAppCommandRegistry::UserShortcuts userShortcuts;
     if (m_context->getDatabase())
     {
@@ -1206,14 +1225,38 @@ void PDFAppDocumentView::updateCanvasShortcuts()
             userShortcuts.clear();
         }
     }
+    m_userShortcuts = std::move(userShortcuts);
 
     for (const auto& item : m_canvasActions)
     {
         if (item.second)
         {
-            item.second->setShortcuts(registry->getShortcuts(item.first, userShortcuts));
+            item.second->setShortcuts(registry->getShortcuts(item.first, m_userShortcuts));
         }
     }
+
+    if (m_toolbar)
+    {
+        m_toolbar->updateCommandToolTips();
+    }
+}
+
+QString PDFAppDocumentView::getCommandToolTip(const QString& commandId, bool isEmptyWithoutShortcut) const
+{
+    const PDFAppCommandRegistry* registry = m_context ? m_context->getCommandRegistry() : nullptr;
+    const PDFAppCommand* command = registry ? registry->findCommand(commandId) : nullptr;
+    if (!command)
+    {
+        return QString();
+    }
+
+    const QString title = command->getTitle();
+    const QKeySequence shortcut = registry->getShortcut(commandId, m_userShortcuts);
+    if (shortcut.isEmpty())
+    {
+        return isEmptyWithoutShortcut ? QString() : title;
+    }
+    return tr("%1 (%2)").arg(title, shortcut.toString(QKeySequence::NativeText));
 }
 
 void PDFAppDocumentView::onCanvasActionTriggered()
@@ -1259,8 +1302,7 @@ void PDFAppDocumentView::setViewLayout(PDFAppViewLayout layout)
     {
         m_layout = layout;
         applyPageLayout();
-        Q_EMIT viewChanged();
-        Q_EMIT viewStateChanged();
+        emitViewStateChanged();
     }
 }
 
@@ -1270,8 +1312,7 @@ void PDFAppDocumentView::setFirstPageRight(bool isFirstPageRight)
     {
         m_isFirstPageRight = isFirstPageRight;
         applyPageLayout();
-        Q_EMIT viewChanged();
-        Q_EMIT viewStateChanged();
+        emitViewStateChanged();
     }
 }
 
@@ -1310,8 +1351,7 @@ void PDFAppDocumentView::setSidebarVisible(bool isVisible)
     {
         m_isSidebarVisible = isVisible;
         updateSidebarVisibility();
-        Q_EMIT viewChanged();
-        Q_EMIT viewStateChanged();
+        emitViewStateChanged();
     }
 }
 
@@ -1391,8 +1431,7 @@ void PDFAppDocumentView::setFullScreen(bool isFullScreen)
     }
 
     layoutInfoBars();
-    Q_EMIT viewChanged();
-    Q_EMIT viewStateChanged();
+    emitViewStateChanged();
 }
 
 void PDFAppDocumentView::leaveFullScreen()
@@ -1413,15 +1452,21 @@ void PDFAppDocumentView::setCanvasTool(int tool)
     }
 
     const PDFToolManager::PredefinedTools predefinedTool = static_cast<PDFToolManager::PredefinedTools>(tool);
-    if (predefinedTool != PDFToolManager::ToolEnd && predefinedTool != PDFToolManager::SelectTextTool && isCanvasToolActive(tool))
+    const bool isMode = predefinedTool == PDFToolManager::ToolEnd || predefinedTool == PDFToolManager::SelectTextTool;
+    if (!isMode && isCanvasToolActive(tool))
     {
-        // The active tool is turned off: Select text is the tool of the canvas
-        m_toolManager->setActiveTool(PDFToolManager::SelectTextTool);
+        // The active tool is turned off: the chosen mode (Select text or Hand) comes back
+        activateDefaultCanvasTool();
         return;
     }
 
     if (predefinedTool == PDFToolManager::ToolEnd || m_toolManager->getPredefinedTool(predefinedTool))
     {
+        if (isMode)
+        {
+            m_isHandMode = predefinedTool == PDFToolManager::ToolEnd;
+        }
+
         m_isSelectAllPending = false;
         m_toolManager->setActiveTool(predefinedTool);
     }
@@ -1429,13 +1474,26 @@ void PDFAppDocumentView::setCanvasTool(int tool)
 
 bool PDFAppDocumentView::isCanvasToolActive(int tool) const
 {
-    if (!m_toolManager || tool < 0 || tool >= PDFToolManager::ToolEnd)
+    if (!m_toolManager || tool < 0 || tool > PDFToolManager::ToolEnd)
     {
         return false;
     }
 
+    if (tool == PDFToolManager::ToolEnd)
+    {
+        return m_isHandMode && !m_toolManager->getActiveTool();
+    }
+
     const PDFWidgetTool* predefinedTool = m_toolManager->getPredefinedTool(static_cast<PDFToolManager::PredefinedTools>(tool));
     return predefinedTool && predefinedTool->isActive();
+}
+
+void PDFAppDocumentView::activateDefaultCanvasTool()
+{
+    if (m_toolManager)
+    {
+        m_toolManager->setActiveTool(m_isHandMode ? PDFToolManager::ToolEnd : PDFToolManager::SelectTextTool);
+    }
 }
 
 bool PDFAppDocumentView::hasTextSelection() const
@@ -1461,10 +1519,24 @@ void PDFAppDocumentView::selectAllText()
         return;
     }
 
-    // The tool makes the text layout of the pages in a worker thread, when it is activated
+    // The tool makes the text layout of the pages in a worker thread, when it is
+    // activated; Select all of the text chooses the mode Select text (also from Hand)
     if (!selectTextTool->isActive())
     {
+        // A slot of the change of the active tool may delete the view (the tab)
+        QPointer<PDFAppDocumentView> self(this);
+        QPointer<PDFSelectTextTool> selectTextToolGuard(selectTextTool);
+        m_isHandMode = false;
         m_toolManager->setActiveTool(PDFToolManager::SelectTextTool);
+        if (!self || !selectTextToolGuard || !m_toolManager || !selectTextTool->isActive())
+        {
+            return;
+        }
+        proxy = getProxy();
+        if (!proxy)
+        {
+            return;
+        }
     }
 
     if (proxy->getTextLayoutCompiler()->isTextLayoutReady())
@@ -1503,10 +1575,37 @@ void PDFAppDocumentView::setViewSetting(const QString& key, const QVariant& valu
     applySettings();
 }
 
-void PDFAppDocumentView::onActiveToolChanged()
+void PDFAppDocumentView::onActiveToolChanged(PDFWidgetTool* tool)
 {
+    // Esc of a tool of the Select menu turns it off without another tool, a change of
+    // the whole document turns Select text off: the chosen mode comes back (from the
+    // event loop - the engine is in its key handler or in the change of the document)
+    if (!tool && !m_isHandMode)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppDocumentView::onDefaultCanvasToolQueued, Qt::QueuedConnection);
+    }
+    emitViewStateChanged();
+}
+
+void PDFAppDocumentView::onDefaultCanvasToolQueued()
+{
+    // A pick of a target (the tool manager activates its pick tool right after
+    // turning the active tool off) or the Hand mode chosen meanwhile needs nothing
+    if (m_toolManager && !m_toolManager->getActiveTool() && !m_isHandMode && getPageCount() > 0)
+    {
+        activateDefaultCanvasTool();
+    }
+}
+
+void PDFAppDocumentView::emitViewStateChanged()
+{
+    // A slot of the first signal may delete the view (the tab)
+    QPointer<PDFAppDocumentView> self(this);
     Q_EMIT viewChanged();
-    Q_EMIT viewStateChanged();
+    if (self)
+    {
+        Q_EMIT viewStateChanged();
+    }
 }
 
 void PDFAppDocumentView::onToolMessage(const QString& text, int timeout)
@@ -1669,8 +1768,7 @@ void PDFAppDocumentView::applyViewState(const PDFAppViewState& state)
         }
     }
 
-    Q_EMIT viewChanged();
-    Q_EMIT viewStateChanged();
+    emitViewStateChanged();
 }
 
 // ------------------------------------------------------------------ settings
@@ -1798,7 +1896,11 @@ void PDFAppDocumentView::applySettings()
     // Magnifier (Settings › Viewing › Magnifier)
     if (PDFMagnifierTool* magnifier = m_toolManager->getMagnifierTool())
     {
-        magnifier->setMagnifierSize(int(settings.getInteger(K::magnifierSize())));
+        // The setting is the diameter of the circle (magnifier 1234:164735 - 100 px),
+        // the tool takes its radius
+        // TODO(remove-old-apps): the tool takes the diameter, when the old Editor (its
+        // own setting is the radius) is gone
+        magnifier->setMagnifierSize(getMagnifierRadius(int(settings.getInteger(K::magnifierSize()))));
         magnifier->setMagnifierZoom(settings.getReal(K::magnifierZoom()));
     }
 
@@ -1810,8 +1912,7 @@ void PDFAppDocumentView::applySettings()
     }
 
     m_isApplyingSettings = false;
-    Q_EMIT viewChanged();
-    Q_EMIT viewStateChanged();
+    emitViewStateChanged();
 }
 
 // -------------------------------------------------------------------- events

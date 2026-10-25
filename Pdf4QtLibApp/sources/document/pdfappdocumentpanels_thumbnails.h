@@ -281,7 +281,11 @@ private:
     void onCurrentPageChanged(PDFInteger pageIndex);
     void onViewClicked(const QModelIndex& index);
     void onViewActivated(const QModelIndex& index);
+    void scheduleGoToPage(PDFInteger pageIndex);
+    void onGoToPageQueued();
     void onSelectionChanged();
+    void onSelectionChangeQueued();
+    bool processSelectionChange();
     void onContextMenuRequested(const QPoint& globalPosition);
     void onSizeSliderChanged(int value);
     void onSyncToggled(bool checked);
@@ -308,6 +312,9 @@ private:
     QPointer<PDFAppDocumentView> m_connectedView;
     bool m_isSyncEnabled = true;
     bool m_isSyncing = false;
+    bool m_isSelectionChangePending = false;
+    bool m_isUserSelectionPending = false;
+    PDFInteger m_pendingPageIndex = -1;
     int m_slotWidth = DEFAULT_SLOT_WIDTH;
 };
 

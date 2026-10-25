@@ -10,7 +10,7 @@ Annotations are notes, marks and links, which lie over the pages of a document. 
 
 ## Mark text
 
-1. Select a text with the mouse. A small bar appears above the selection.
+1. Choose **Select text** in the **Select** menu of the toolbar and select a text with the mouse. A small bar appears above the selection.
 2. Click **Highlight**, **Underline**, **Strikeout** or **Squiggly** in the bar. The text is marked at once.
 
 The same marks are in the panel **Annotate** of the toolbar and they have shortcuts: **Ctrl+Shift+H** highlights, **Ctrl+Shift+L** underlines, **Ctrl+Shift+K** strikes out and **Ctrl+Shift+Q** draws a squiggly line. When no text is selected, the mark becomes a tool: drag over the text, which you want to mark, and press **Esc** when you are done.

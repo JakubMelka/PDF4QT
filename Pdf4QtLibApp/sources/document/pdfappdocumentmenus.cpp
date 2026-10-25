@@ -29,6 +29,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfappsendmail.h"
 #include "pdfsettingdefinitions.h"
+#include "pdfshortcutrepository.h"
 
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
@@ -73,6 +74,69 @@ public:
     static QString translate(const char* sourceText)
     {
         return QCoreApplication::translate(CONTEXT, sourceText);
+    }
+
+    /// The control \p widget of the panel \p popup uses Left / Right itself: a
+    /// field, a slider, a list (every focusable widget, which is not a button), a
+    /// button of a group of choices and a button inside of a composite control
+    /// (a row of color swatches)
+    static bool usesHorizontalArrows(const QWidget* popup, const QWidget* widget)
+    {
+        const QAbstractButton* button = qobject_cast<const QAbstractButton*>(widget);
+        if (!button)
+        {
+            return true;
+        }
+        if (button->group() || button->autoExclusive())
+        {
+            return true;
+        }
+
+        // A button of the panel lies in the panel or in a plain container (a row, a section)
+        const QWidget* parent = button->parentWidget();
+        return parent && parent != popup && parent->metaObject() != &QWidget::staticMetaObject;
+    }
+
+    /// The nearest focusable control in the row of \p focus at the side given by
+    /// \p isRightward (the geometry, not the order), nullptr at the edge of the row
+    static QWidget* findRowNeighbor(QWidget* popup, QWidget* focus, bool isRightward)
+    {
+        const QRect focusRect(focus->mapTo(popup, QPoint(0, 0)), focus->size());
+        QWidget* neighbor = nullptr;
+        int neighborDistance = 0;
+
+        const QList<QWidget*> widgets = popup->findChildren<QWidget*>();
+        for (QWidget* widget : widgets)
+        {
+            if (widget == focus || !(widget->focusPolicy() & Qt::TabFocus) || !widget->isEnabled() || !widget->isVisibleTo(popup) || widget->focusProxy())
+            {
+                continue;
+            }
+
+            // A part of a composite control is reached through the control
+            const QWidget* parent = widget->parentWidget();
+            if (parent && parent != popup && parent->metaObject() != &QWidget::staticMetaObject)
+            {
+                continue;
+            }
+
+            const QRect rect(widget->mapTo(popup, QPoint(0, 0)), widget->size());
+            const bool isSameRow = (rect.center().y() >= focusRect.top() && rect.center().y() <= focusRect.bottom()) ||
+                                   (focusRect.center().y() >= rect.top() && focusRect.center().y() <= rect.bottom());
+            const int distance = isRightward ? rect.center().x() - focusRect.center().x() : focusRect.center().x() - rect.center().x();
+            if (!isSameRow || distance <= 0)
+            {
+                continue;
+            }
+
+            if (!neighbor || distance < neighborDistance)
+            {
+                neighbor = widget;
+                neighborDistance = distance;
+            }
+        }
+
+        return neighbor;
     }
 };
 
@@ -258,6 +322,7 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     setAttribute(Qt::WA_NoMouseReplay, false);
     ensurePolished();
     updateState();
+    updateTileToolTips();
 
     // The content lies inside of the border and of the padding; the window has
     // the margins of the shadow around the panel
@@ -293,6 +358,15 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
 
     setFixedSize(panel.size().grownBy(margins));
     move(panel.topLeft() - QPoint(margins.left(), margins.top()));
+
+    // Left / Right reach the panel before its controls (a tool button moves the
+    // focus by them itself); a filter installed again moves to the front, also the
+    // controls created since the last opening get it
+    const QList<QWidget*> controls = findChildren<QWidget*>();
+    for (QWidget* control : controls)
+    {
+        control->installEventFilter(this);
+    }
 
     QPointer<PDFAppDocumentPanelPopup> guard(this);
     show();
@@ -465,6 +539,26 @@ void PDFAppDocumentPanelPopup::updateTexts()
     }
 }
 
+void PDFAppDocumentPanelPopup::updateTileToolTips()
+{
+    // A tile shows its title, its tooltip the shortcut of the user (also of a
+    // Canvas command - the action of the window has none), kept by the view
+    const PDFAppDocumentView* view = m_view.data();
+    if (!view)
+    {
+        return;
+    }
+
+    for (const auto& item : m_commandButtons)
+    {
+        QAbstractButton* button = item.second.data();
+        if (button && button->objectName().startsWith(QLatin1String("tile:")))
+        {
+            button->setToolTip(view->getCommandToolTip(item.first, true));
+        }
+    }
+}
+
 void PDFAppDocumentPanelPopup::retranslate()
 {
     updateTexts();
@@ -541,8 +635,15 @@ void PDFAppDocumentPanelPopup::keyPressEvent(QKeyEvent* event)
 
         case Qt::Key_Right:
         case Qt::Key_Left:
+            if ((event->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier && handleHorizontalArrow(focusWidget(), event->key()))
+            {
+                // The panel may be deleted by a slot of neighborRequested
+                event->accept();
+                return;
+            }
             if (!isLineEdit)
             {
+                // A group of choices at its edge passes the arrow on
                 const bool isForward = (event->key() == Qt::Key_Right) != isRightToLeft;
                 focusNextPrevChild(isForward);
                 event->accept();
@@ -620,8 +721,47 @@ bool PDFAppDocumentPanelPopup::eventFilter(QObject* watched, QEvent* event)
                 break;
         }
     }
+    else if (event->type() == QEvent::KeyPress && watched != this && watched->isWidgetType() && isVisible())
+    {
+        // Left / Right of the focused control (not the event passed on to its parents)
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        QWidget* widget = static_cast<QWidget*>(watched);
+        const bool isHorizontalArrow = keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right;
+        if (isHorizontalArrow && (keyEvent->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier && widget->hasFocus() && isAncestorOf(widget) &&
+            handleHorizontalArrow(widget, keyEvent->key()))
+        {
+            // The panel may be deleted by a slot of neighborRequested
+            keyEvent->accept();
+            return true;
+        }
+    }
 
     return BaseClass::eventFilter(watched, event);
+}
+
+bool PDFAppDocumentPanelPopup::handleHorizontalArrow(QWidget* focus, int key)
+{
+    using H = PDFAppDocumentMenusHelper;
+
+    if (focus && focus != this && (!isAncestorOf(focus) || H::usesHorizontalArrows(this, focus)))
+    {
+        return false;
+    }
+
+    // A row of buttons (tiles, chips, check boxes): the arrow moves to the neighbor
+    if (focus && focus != this)
+    {
+        if (QWidget* neighbor = H::findRowNeighbor(this, focus, key == Qt::Key_Right))
+        {
+            neighbor->setFocus(Qt::TabFocusReason);
+            return true;
+        }
+    }
+
+    // The edge of a row, a list of rows: the neighboring panel (menu bar)
+    const bool isNext = (key == Qt::Key_Right) != (layoutDirection() == Qt::RightToLeft);
+    Q_EMIT neighborRequested(isNext);
+    return true;
 }
 
 void PDFAppDocumentPanelPopup::onAnchorDestroyed()
@@ -1161,8 +1301,11 @@ PDFAppDocumentSelectMenu::PDFAppDocumentSelectMenu(PDFAppDocumentView* view, QWi
     setObjectName(QStringLiteral("selectMenu"));
     using C = PDFAppCommands;
 
+    // Hand is the first row (owner 2026-10-25: the pan of the pages by a left drag of
+    // the old applications); its row has no icon until "hand" exists in the library
     const std::pair<QString, QString> items[] =
     {
+        { C::handTool(), PDFAppCommands::getHandIconName() },
         { C::selectText(), QStringLiteral("text-cursor") },
         { C::selectTable(), QStringLiteral("table") },
         { C::screenshot(), QStringLiteral("camera") },
@@ -1211,6 +1354,7 @@ void PDFAppDocumentSelectMenu::retranslate()
     using C = PDFAppCommands;
     const std::pair<QString, const char*> texts[] =
     {
+        { C::handTool(), QT_TR_NOOP("Hand") },
         { C::selectText(), QT_TR_NOOP("Select text") },
         { C::selectTable(), QT_TR_NOOP("Select table") },
         { C::screenshot(), QT_TR_NOOP("Screenshot") },

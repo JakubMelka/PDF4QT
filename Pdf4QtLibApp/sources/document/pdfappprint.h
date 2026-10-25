@@ -104,6 +104,12 @@ public:
     /// a printer of the system or a test handler)
     static bool hasPrinterProperties(const PDFAppPrinterInfo& info);
 
+    /// The platform has the native settings of a driver (Windows, or a test handler):
+    /// the print dialog keeps Printer properties… in its place, disabled for a printer
+    /// without them and without a printer (stable button order, note 1237:166095);
+    /// elsewhere the button is hidden
+    static bool isPrinterPropertiesSupported();
+
     /// Shows the native settings of the driver of the printer (DocumentPropertiesW)
     /// and applies them to \p printer. \returns true, when the user has accepted them.
     static bool showPrinterProperties(QWidget* parent, QPrinter* printer, const PDFAppPrinterInfo& info);

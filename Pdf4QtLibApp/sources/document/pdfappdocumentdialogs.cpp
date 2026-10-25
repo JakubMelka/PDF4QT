@@ -239,24 +239,30 @@ void PDFAppDocumentStateScreen::createPasswordCard(QWidget* parent)
 
 void PDFAppDocumentStateScreen::createLoadingPanel(QWidget* parent)
 {
-    // The reading of a large file (not in Figma): a card of the password screen
-    // with the name of the file and a progress bar
+    // loading-card 1232:164057 (the reading of a large file): the card of the
+    // password screen - 440 wide, paddings 36 / 40 / 32 (inside the border of 1 px),
+    // gap 24 - with the title Semi Bold 20 and the progress bar of the full width
     m_loadingPanel = new QFrame(parent);
     m_loadingPanel->setObjectName(QStringLiteral("loadingPanel"));
     static_cast<QFrame*>(m_loadingPanel.data())->setFrameShape(QFrame::StyledPanel);
     PDFWidgetStyleProperties::set(m_loadingPanel, PDFWidgetStyleProperties::OVERLAY);
     m_loadingPanel->setFixedWidth(CARD_WIDTH);
-    QVBoxLayout* panelLayout = PDFAppDocumentDialogsHelper::createLayout<QVBoxLayout>(m_loadingPanel, QMargins(32, 28, 32, 32), 16);
+    QVBoxLayout* panelLayout = PDFAppDocumentDialogsHelper::createLayout<QVBoxLayout>(m_loadingPanel, QMargins(40, 36, 40, 32), 24);
 
-    m_loadingTitle = PDFAppPageWidgets::createLabel(QString(), PDFThemeFonts::Role::DialogTitle, PDFThemeColors::TextPrimary, m_loadingPanel);
+    // A long name of the file wraps (the card has a fixed width)
+    m_loadingTitle = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 20, PDFThemeColors::TextPrimary, m_loadingPanel);
     m_loadingTitle->setObjectName(QStringLiteral("loadingTitle"));
     m_loadingTitle->setAlignment(Qt::AlignHCenter);
+    m_loadingTitle->setWordWrap(true);
     panelLayout->addWidget(m_loadingTitle);
 
     QProgressBar* progressBar = new QProgressBar(m_loadingPanel);
     progressBar->setObjectName(QStringLiteral("loadingProgress"));
     progressBar->setTextVisible(false);
     progressBar->setRange(0, 0);
+    // loading-progress 1232:164120 is the bar of 4 px itself (the style keeps an
+    // explicit height of the application)
+    progressBar->setFixedHeight(4);
     m_loadingBar = progressBar;
     panelLayout->addWidget(progressBar);
     m_loadingPanel->hide();

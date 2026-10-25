@@ -286,6 +286,36 @@ public:
     /// Sets the style of the title of the item (bits 1 and 2 of /F)
     static PDFAppAnnotationResult setOutlineItemStyle(const PDFDocumentPointer& document, const OutlinePath& item, bool bold, bool italic);
 
+    /// Removes the items with their children as one change (an item inside of
+    /// another removed item goes with it; duplicates are ignored)
+    static PDFAppAnnotationResult removeOutlineItems(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items);
+
+    /// Moves the items with their children to be the children \p index, \p index + 1, ...
+    /// of the item \p newParent in the order of the document (paths of the outline
+    /// before the move; an item inside of another moved item goes with it). Refused
+    /// for a parent inside of a moved item. \p newPaths (may be nullptr) gets the
+    /// paths of the moved items after the move.
+    static PDFAppAnnotationResult moveOutlineItems(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items, const OutlinePath& newParent, size_t index, std::vector<OutlinePath>* newPaths);
+
+    /// The target of the item is a position (a GoTo action or /Dest of the type
+    /// XYZ of a page, not a named destination), which sets its own zoom (not null
+    /// and not 0 - ISO 32000-2 12.3.2.2)
+    static bool hasOutlineItemZoom(const PDFOutlineItem* item);
+
+    /// The target of the item is a position (XYZ of a page), which keeps the zoom
+    /// of the reader (the zoom is null or 0)
+    static bool isOutlineItemKeepingZoom(const PDFOutlineItem* item);
+
+    /// Items of the outline, whose target sets its own zoom (hasOutlineItemZoom),
+    /// in the order of the document; empty when the outline cannot be edited
+    static std::vector<OutlinePath> getOutlineItemsWithZoom(const PDFDocument* document);
+
+    /// The positions (XYZ) of the targets of the items keep the zoom of the reader
+    /// (the zoom becomes null) as one change; the other entries of the item and of
+    /// its GoTo action are kept. Items without such a target are skipped; nullopt,
+    /// when no item has been changed.
+    static PDFAppAnnotationResult setOutlineItemsKeepZoom(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items);
+
     /// References of the outline items in the order of the document (pre-order,
     /// the order of PDFAppOutlinePanel), empty when the outline cannot be edited.
     /// The references stay the same over the operations (a moved item keeps it).

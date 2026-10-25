@@ -21,12 +21,35 @@
 // SOFTWARE.
 
 #include "pdfappcommand.h"
+#include "pdfthemeiconengine.h"
 
 #include <QCoreApplication>
 #include <QRegularExpression>
 
 namespace pdf
 {
+
+QKeySequence PDFAppCommands::getHandShortcut(bool isMacOS)
+{
+    return isMacOS ? QKeySequence(Qt::META | Qt::Key_H) : QKeySequence(Qt::CTRL | Qt::Key_H);
+}
+
+bool PDFAppCommands::isMacOS()
+{
+#if defined(Q_OS_MACOS)
+    return true;
+#else
+    return false;
+#endif
+}
+
+QString PDFAppCommands::getHandIconName()
+{
+    // TODO: the icon "hand" is being added to Figma Components / Icons (owner); the
+    // name is used, as soon as its SVG is in the library
+    const QString name = QStringLiteral("hand");
+    return PDFThemeIcons::hasIcon(name) ? name : QString();
+}
 
 QString PDFAppCommand::getTitle() const
 {
@@ -379,6 +402,8 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
         QKeySequence(Qt::CTRL | Qt::Key_A), { QStringLiteral("text"), QStringLiteral("selection") }, canvas);
     add(registry, deselect(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Deselect"), editGroup, QStringLiteral("select-none"),
         QKeySequence(), { QStringLiteral("clear selection"), QStringLiteral("text") }, canvas);
+    add(registry, handTool(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Hand"), editGroup, getHandIconName(),
+        getHandShortcut(isMacOS()), { QStringLiteral("pan"), QStringLiteral("scroll"), QStringLiteral("drag"), QStringLiteral("grab"), QStringLiteral("move page") }, document, true);
     add(registry, selectText(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Select text"), editGroup, QStringLiteral("text-cursor"),
         QKeySequence(), { QStringLiteral("selection"), QStringLiteral("text tool") }, document, true);
     add(registry, selectTable(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Select table"), editGroup, QStringLiteral("table"),
@@ -395,12 +420,14 @@ void PDFAppCommands::registerDocumentCommands(PDFAppCommandRegistry* registry)
         QKeySequence(Qt::CTRL | Qt::Key_Minus), { QStringLiteral("smaller") }, document);
     add(registry, actualSize(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Actual size"), viewGroup, QStringLiteral("actual-size"),
         QKeySequence(Qt::CTRL | Qt::Key_0), { QStringLiteral("zoom"), QStringLiteral("100 %") }, document);
+    // The single keys W / H of the old applications (and P): only on the canvas, so
+    // a letter typed into a field (also a form field on the canvas) stays a letter
     add(registry, fitPage(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Fit page"), viewGroup, QStringLiteral("maximize"),
-        QKeySequence(), { QStringLiteral("zoom"), QStringLiteral("whole page") }, document);
+        QKeySequence(Qt::Key_P), { QStringLiteral("zoom"), QStringLiteral("whole page") }, canvas);
     add(registry, fitWidth(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Fit width"), viewGroup, QStringLiteral("fit-width"),
-        QKeySequence(), { QStringLiteral("zoom") }, document);
+        QKeySequence(Qt::Key_W), { QStringLiteral("zoom") }, canvas);
     add(registry, fitHeight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Fit height"), viewGroup, QStringLiteral("fit-height"),
-        QKeySequence(), { QStringLiteral("zoom") }, document);
+        QKeySequence(Qt::Key_H), { QStringLiteral("zoom") }, canvas);
     add(registry, rotateViewLeft(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rotate view left"), viewGroup, QStringLiteral("rotate-ccw"),
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Minus), { QStringLiteral("rotation"), QStringLiteral("counterclockwise") }, document);
     add(registry, rotateViewRight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Rotate view right"), viewGroup, QStringLiteral("rotate-cw"),
@@ -618,5 +645,30 @@ void PDFAppCommands::registerAnnotationCommands(PDFAppCommandRegistry* registry)
         QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("style"), QStringLiteral("font") }, document, true);
     add(registry, outlineItalic(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Italic outline item"), outlineGroup, QStringLiteral("text-label"),
         QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("style"), QStringLiteral("font") }, document, true);
+
+    // Set Target of the outline (parity with the old Editor): the targets picked
+    // on a page, a named destination and the zoom of the reader
+    add(registry, outlineSetTargetWholePage(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to a whole page"), outlineGroup, QStringLiteral("maximize"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit page") }, document);
+    add(registry, outlineSetTargetPageWidth(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to a page width"), outlineGroup, QStringLiteral("fit-width"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit horizontally") }, document);
+    add(registry, outlineSetTargetPageHeight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to a page height"), outlineGroup, QStringLiteral("fit-height"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit vertically") }, document);
+    add(registry, outlineSetTargetArea(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to an area"), outlineGroup, QStringLiteral("select-rect"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit rectangle") }, document);
+    add(registry, outlineSetTargetPosition(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to a position"), outlineGroup, QStringLiteral("crosshair"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("xyz") }, document);
+    add(registry, outlineSetTargetContent(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to the visible content"), outlineGroup, QStringLiteral("margins"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit bounding box") }, document);
+    add(registry, outlineSetTargetContentWidth(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to the visible content width"), outlineGroup, QStringLiteral("measure-h"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit bounding box horizontally") }, document);
+    add(registry, outlineSetTargetContentHeight(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to the visible content height"), outlineGroup, QStringLiteral("measure-v"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("fit bounding box vertically") }, document);
+    add(registry, outlineSetTargetNamed(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Set outline target to a named destination"), outlineGroup, QStringLiteral("signpost"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("destination"), QStringLiteral("name") }, document);
+    add(registry, outlineKeepZoom(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Keep the reader's zoom of the outline item"), outlineGroup, QStringLiteral("zoom-level"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("inherit zoom"), QStringLiteral("magnification") }, document, true);
+    add(registry, outlineKeepZoomAll(), QT_TRANSLATE_NOOP("pdf::PDFAppCommands", "Keep the reader's zoom for all outline items"), outlineGroup, QStringLiteral("zoom-level"),
+        QKeySequence(), { QStringLiteral("bookmarks"), QStringLiteral("inherit zoom"), QStringLiteral("chapters") }, document);
 }
 }   // namespace pdf

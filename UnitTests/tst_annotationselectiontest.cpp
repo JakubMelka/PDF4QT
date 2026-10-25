@@ -125,6 +125,7 @@ private slots:
     void geometryDialogFromMenu();
     void propertiesDialogRectangle();
     void propertiesModelAttributes();
+    void propertiesDialogDocumentReplaced();
     void selectionIsDrawn();
 
 private:
@@ -2324,6 +2325,73 @@ void AnnotationSelectionTest::propertiesModelAttributes()
     baseModel.setStorage(nullptr);
     QVERIFY(baseModel.getStorage());
     QVERIFY(baseModel.getValue(borderWidth, true).isNull());
+}
+
+void AnnotationSelectionTest::propertiesDialogDocumentReplaced()
+{
+    // The properties dialog of the old applications (Enter on the selected annotation) runs its
+    // own event loop, in which the document can be replaced and destroyed (the automatic reload
+    // of the file): the model of the dialog must not resolve the references of the annotation by
+    // the storage of the destroyed document (a use after free)
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference freeText = builder.createAnnotationFreeText(page, QRectF(150, 100, 100, 50), "Title", "Subject", "Contents", Qt::AlignLeft);
+    PDFObjectFactory borderStyleFactory;
+    borderStyleFactory.beginDictionary();
+    borderStyleFactory.beginDictionaryItem("W");
+    borderStyleFactory << 7.0;
+    borderStyleFactory.endDictionaryItem();
+    borderStyleFactory.endDictionary();
+    SelectionFixture::setEntry(builder, freeText, "BS", PDFObject::createReference(builder.addObject(borderStyleFactory.takeObject())));
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ freeText });
+    QVERIFY(!fixture.annotations.isUserInterfaceDelegated());
+
+    const PDFObjectStorage* oldStorage = &fixture.document->getStorage();
+    bool isDialogHandled = false;
+    bool hasModel = false;
+    bool isOldStorageUsed = true;
+    PDFReal borderWidthValue = 0.0;
+    QTimer timer;
+    QObject::connect(&timer, &QTimer::timeout, [&]()
+    {
+        QDialog* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        if (!dialog || isDialogHandled)
+        {
+            return;
+        }
+        isDialogHandled = true;
+
+        // Another document replaces the edited one, which is destroyed
+        PDFDocumentBuilder otherBuilder;
+        otherBuilder.appendPage(QRectF(0, 0, 200, 200));
+        fixture.document.reset(new PDFDocument(otherBuilder.build()));
+        fixture.apply(PDFModifiedDocument(fixture.document, nullptr));
+
+        // The model still resolves the indirect border style of the edited annotation
+        if (PDFObjectEditorAbstractModel* model = dialog->findChild<PDFObjectEditorAbstractModel*>())
+        {
+            hasModel = true;
+            isOldStorageUsed = model->getStorage() == oldStorage;
+            for (size_t i = 0; !isOldStorageUsed && i < model->getAttributeCount(); ++i)
+            {
+                if (model->getAttributeSubcategory(i) == "Border Style" && model->getAttributeName(i) == "Width")
+                {
+                    PDFDocumentDataLoaderDecorator loader(model->getStorage());
+                    borderWidthValue = loader.readNumber(model->getValue(i, true), 0.0);
+                }
+            }
+        }
+        dialog->reject();
+    });
+    timer.start(10);
+    QVERIFY(fixture.key(Qt::Key_Return));
+    timer.stop();
+    QVERIFY(isDialogHandled);
+    QVERIFY(hasModel);
+    QVERIFY(!isOldStorageUsed);
+    QCOMPARE(borderWidthValue, 7.0);
+    QCOMPARE(fixture.modificationCount, 0);
 }
 
 void AnnotationSelectionTest::partsAreDrawnByMouse()

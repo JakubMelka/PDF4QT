@@ -1326,7 +1326,7 @@ std::vector<PDFInteger> PDFDrawWidgetProxy::getActivePages() const
     return activePages;
 }
 
-PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoint) const
+PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPointF point, QPointF* pagePoint) const
 {
     // Iterate trough pages, place them and test, if they intersects with rectangle
     for (const LayoutItem& item : m_layout.items)
@@ -1334,9 +1334,16 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoin
         // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
         // topleft point of the block. But block maybe doesn't start at (0, 0),
         // so we must also use translation from the block beginning.
-        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
-        placedRect.adjust(0, 0, 1, 1);
-        if (placedRect.contains(point))
+        const QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+
+        // Jakub Melka: the page contains the pixels of its right and bottom edges too
+        // (a closed rectangle, as the integer rectangle extended by one pixel was). The
+        // point is mapped exactly by the matrix, by which the page is drawn (getSnapshot) -
+        // QTransform::map(QPoint) would round the page point to whole points of the page,
+        // a step of 4 pixels at the zoom 300 %.
+        const QRectF placedRectF(placedRect);
+        if (point.x() >= placedRectF.left() && point.x() <= placedRectF.right() &&
+            point.y() >= placedRectF.top() && point.y() <= placedRectF.bottom())
         {
             if (pagePoint)
             {

@@ -112,7 +112,14 @@ bool PDFWidget::event(QEvent* event)
 
 bool PDFWidget::focusNextPrevChild(bool next)
 {
+    // The move of the focus commits the edited form field: the application may
+    // delete this widget from the change of the document
+    QPointer<PDFWidget> self(this);
     if (m_formManager && m_formManager->focusNextPrevFormField(next))
+    {
+        return true;
+    }
+    if (!self)
     {
         return true;
     }
@@ -267,6 +274,22 @@ void PDFWidget::setToolManager(PDFToolManager* toolManager)
     removeInputInterface(m_toolManager);
     m_toolManager = toolManager;
     addInputInterface(m_toolManager);
+
+    // The cursor follows a tool switched by the keyboard or a menu without a move of the mouse
+    if (m_toolManager)
+    {
+        connect(m_toolManager, &PDFToolManager::activeToolChanged, this, &PDFWidget::onActiveToolChanged, Qt::UniqueConnection);
+    }
+}
+
+void PDFWidget::onActiveToolChanged()
+{
+    // From the event loop: the tool is switched inside of a dispatch of the input,
+    // or while the owner of the managers is changing them
+    if (PDFDrawWidget* drawWidget = static_cast<PDFDrawWidget*>(m_drawWidget))
+    {
+        QMetaObject::invokeMethod(drawWidget, &PDFDrawWidget::updateCursor, Qt::QueuedConnection);
+    }
 }
 
 void PDFWidget::setAnnotationManager(PDFWidgetAnnotationManager* annotationManager)
@@ -284,6 +307,9 @@ PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
     this->setFocusPolicy(Qt::StrongFocus);
     this->setMouseTracking(true);
     this->setAcceptDrops(true);
+
+    // No tool yet: a drag pans the page (the cursor before the first move of the mouse)
+    this->setCursor(QCursor(Qt::OpenHandCursor));
 
     QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onAutoScrollTimeout);
     QObject::connect(&m_wheelScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onWheelScrollTimeout);
@@ -319,10 +345,59 @@ bool PDFDrawWidget::event(QEvent* event)
 {
     if (event->type() == QEvent::ShortcutOverride)
     {
-        return processEvent<QKeyEvent, &IDrawWidgetInputInterface::shortcutOverrideEvent>(static_cast<QKeyEvent*>(event));
+        // Esc ends the own operation of the widget (the automatic scrolling) before
+        // a shortcut of the window or a tool gets it
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (isMouseOperationActive() && keyEvent->key() == Qt::Key_Escape && keyEvent->modifiers() == Qt::NoModifier)
+        {
+            keyEvent->accept();
+            return true;
+        }
+
+        return processEvent<QKeyEvent, &IDrawWidgetInputInterface::shortcutOverrideEvent>(keyEvent);
     }
 
     return BaseClass::event(event);
+}
+
+void PDFDrawWidget::focusOutEvent(QFocusEvent* event)
+{
+    // A popup, a dialog or another window takes the input - the release of the
+    // button (the end of the automatic scrolling) would never come
+    endMouseOperation();
+    BaseClass::focusOutEvent(event);
+}
+
+void PDFDrawWidget::hideEvent(QHideEvent* event)
+{
+    endMouseOperation();
+    BaseClass::hideEvent(event);
+}
+
+void PDFDrawWidget::endMouseOperation()
+{
+    if (m_mouseOperation == MouseOperation::None)
+    {
+        return;
+    }
+
+    m_mouseOperation = MouseOperation::None;
+    m_autoScrollTimer.stop();
+    m_autoScrollOffset = QPointF(0.0, 0.0);
+    updateCursor();
+}
+
+void PDFDrawWidget::beginPageDrag(QPoint pressPosition)
+{
+    if (m_mouseOperation != MouseOperation::None)
+    {
+        return;
+    }
+
+    // The move, which has started the drag, scrolls the page from the press on
+    // (mouseMoveEvent performs the operation, the content follows the pointer)
+    m_mouseOperation = MouseOperation::Translate;
+    m_lastMousePosition = pressPosition;
 }
 
 void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
@@ -392,6 +467,14 @@ void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
 {
     event->ignore();
 
+    // Esc ends the own operation of the widget first (the tools get the next Esc)
+    if (isMouseOperationActive() && event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier)
+    {
+        endMouseOperation();
+        event->accept();
+        return;
+    }
+
     if (processEvent<QKeyEvent, &IDrawWidgetInputInterface::keyPressEvent>(event))
     {
         return;
@@ -439,6 +522,21 @@ void PDFDrawWidget::keyReleaseEvent(QKeyEvent* event)
 void PDFDrawWidget::mousePressEvent(QMouseEvent* event)
 {
     event->ignore();
+
+    // A press of any button ends the automatic scrolling (the press is not
+    // a click of a tool, a link or an annotation)
+    if (m_mouseOperation == MouseOperation::AutoScroll)
+    {
+        endMouseOperation();
+        event->accept();
+        return;
+    }
+
+    // The release of the drag of the page was lost (a popup, another window)
+    if (m_mouseOperation == MouseOperation::Translate && event->button() == Qt::LeftButton)
+    {
+        m_mouseOperation = MouseOperation::None;
+    }
 
     if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mousePressEvent>(event))
     {
@@ -490,6 +588,14 @@ void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     event->ignore();
 
+    // The drag of the page ends by the release of its button, even when an input
+    // interface accepts the release (its cursor comes back at once)
+    if (m_mouseOperation == MouseOperation::Translate && event->button() == Qt::LeftButton)
+    {
+        performMouseOperation(event->pos());
+        m_mouseOperation = MouseOperation::None;
+    }
+
     if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseReleaseEvent>(event))
     {
         return;
@@ -531,12 +637,29 @@ void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
     // one hover of the manager in the dispatch of the move
     PDFWidgetAnnotationManager::MouseMoveScope annotationScope(m_widget->getAnnotationManager());
 
+    // The release of the drag of the page was lost (a popup, another window)
+    if (m_mouseOperation == MouseOperation::Translate && !event->buttons().testFlag(Qt::LeftButton))
+    {
+        m_mouseOperation = MouseOperation::None;
+    }
+
+    // The own operation of the widget follows every move; the input interfaces still
+    // get the move (their hover and cursor are current, when the operation ends)
+    const bool isOwnOperation = isMouseOperationActive();
+    if (isOwnOperation)
+    {
+        performMouseOperation(event->pos());
+    }
+
     if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseMoveEvent>(event))
     {
         return;
     }
 
-    performMouseOperation(event->pos());
+    if (!isOwnOperation)
+    {
+        performMouseOperation(event->pos());
+    }
     updateCursor();
     event->accept();
 }
@@ -600,37 +723,45 @@ void PDFDrawWidget::updateCursor()
 {
     std::optional<QCursor> cursor;
 
-    for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
+    // The own operation of the widget wins: an input interface (the text selection
+    // tool, the annotation manager) keeps the cursor of its last hover, which does
+    // not say, what the mouse does now
+    switch (m_mouseOperation)
     {
-        cursor = inputInterface->getCursor();
-
-        if (cursor)
-        {
-            // We have found cursor
+        case MouseOperation::None:
             break;
+
+        case MouseOperation::Translate:
+            cursor = QCursor(Qt::ClosedHandCursor);
+            break;
+
+        case MouseOperation::AutoScroll:
+            cursor = QCursor(Qt::SizeAllCursor);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    if (!cursor)
+    {
+        for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
+        {
+            cursor = inputInterface->getCursor();
+
+            if (cursor)
+            {
+                // We have found cursor
+                break;
+            }
         }
     }
 
     if (!cursor)
     {
-        switch (m_mouseOperation)
-        {
-            case MouseOperation::None:
-                cursor = QCursor(Qt::OpenHandCursor);
-                break;
-
-            case MouseOperation::Translate:
-                cursor = QCursor(Qt::ClosedHandCursor);
-                break;
-
-            case MouseOperation::AutoScroll:
-                cursor = QCursor(Qt::SizeAllCursor);
-                break;
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
+        // No tool and nothing under the cursor: a drag pans the page
+        cursor = QCursor(Qt::OpenHandCursor);
     }
 
     if (cursor)

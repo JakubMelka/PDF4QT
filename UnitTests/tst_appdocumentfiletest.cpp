@@ -1231,7 +1231,11 @@ void AppDocumentFileTest::printDialogDefaults()
     QCOMPARE(dialog->getPrinterStatusText(), QStringLiteral("Ready · Office"));
     QVERIFY(dialog->getPrinter());
     QVERIFY(!dialog->getNoPrinterNote()->isVisibleTo(dialog));
-    QVERIFY(!dialog->getPropertiesButton()->isVisibleTo(dialog));
+
+    // printer-line 1232:28722: Printer properties… right of the printer (Windows), here
+    // disabled - a test printer writes a file, it has no driver
+    QCOMPARE(dialog->getPropertiesButton()->isVisibleTo(dialog), pdf::PDFAppPrinters::isPrinterPropertiesSupported());
+    QVERIFY(!dialog->getPropertiesButton()->isEnabled());
 
     // All pages, one copy, Auto, fit to page, color
     QCOMPARE(dialog->getPageSelection()->getMode(), pdf::PDFPageSelection::Mode::All);
@@ -1374,6 +1378,8 @@ void AppDocumentFileTest::printCopiesAndCollate()
     QVERIFY(dialog->getCollateCheckBox()->isEnabled());
     dialog->getCollateCheckBox()->setChecked(false);
     QVERIFY(dialog->getSummaryText().contains(QStringLiteral("2 copies")));
+    // Phase 1 has no two-sided printing (O14): the summary never speaks of sides
+    QVERIFY(!dialog->getSummaryText().contains(QStringLiteral("side")));
     pdf::PDFAppPrintController* controller = FileTestHelper::handler(tab)->getPrintController();
     QSignalSpy finishedSpy(controller, &pdf::PDFAppPrintController::printFinished);
     dialog->getPrintButton()->click();
@@ -1469,6 +1475,24 @@ void AppDocumentFileTest::printNoPrinter()
     QVERIFY(dialog->getOrientationControl()->isEnabled());
     QVERIFY(dialog->getPaperCombo()->count() > 0);
 
+    // printer-line 1232:28729: Printer properties… keeps its place disabled (stable
+    // button order), a platform without the settings of a driver has none (1237:166095)
+    QCOMPARE(dialog->getPropertiesButton()->isVisibleTo(dialog), pdf::PDFAppPrinters::isPrinterPropertiesSupported());
+    QVERIFY(!dialog->getPropertiesButton()->isEnabled());
+    pdf::PDFAppPrinters::setPropertiesHandler([](QWidget*, QPrinter*, const pdf::PDFAppPrinterInfo&) { return false; });
+    QVERIFY(pdf::PDFAppPrinters::isPrinterPropertiesSupported());
+    dialog->getRefreshButton()->click();
+    QVERIFY(dialog->getPropertiesButton()->isVisibleTo(dialog));
+    QVERIFY(!dialog->getPropertiesButton()->isEnabled());
+    fixture.settle();
+    {
+        QWidget* combo = dialog->getPrinterCombo();
+        QWidget* button = dialog->getPropertiesButton();
+        QCOMPARE(button->parentWidget(), combo->parentWidget());
+        QCOMPARE(button->geometry().left(), combo->geometry().right() + 1 + 8);
+        QCOMPARE(button->geometry().center().y(), combo->geometry().center().y());
+    }
+
     // A printer added in the system: Refresh keeps the settings
     dialog->getColorControl()->setCurrentIndex(1);
     hasPrinter = true;
@@ -1479,7 +1503,10 @@ void AppDocumentFileTest::printNoPrinter()
     QVERIFY(dialog->getSettings().isGrayscale);
     QCOMPARE(dialog->getPaperCombo()->count(), 1);
     QVERIFY(dialog->getPrinterStatusText().startsWith(QStringLiteral("Not responding")));
+    QVERIFY(dialog->getPropertiesButton()->isVisibleTo(dialog));
+    QVERIFY(dialog->getPropertiesButton()->isEnabled());
     dialog->reject();
+    pdf::PDFAppPrinters::setPropertiesHandler(pdf::PDFAppPrinters::PropertiesHandler());
 }
 
 void AppDocumentFileTest::printStop()

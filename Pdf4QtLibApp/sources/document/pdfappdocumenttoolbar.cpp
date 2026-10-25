@@ -39,13 +39,18 @@
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
+#include "pdfwidgetstyle.h"
 
+#include <QApplication>
 #include <QFocusEvent>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLocale>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cmath>
 
 namespace pdf
@@ -98,6 +103,12 @@ public:
         if (view && view->isCommandChecked(PDFAppCommands::extractImage()))
         {
             return QStringLiteral("image");
+        }
+        if (view && view->isCommandChecked(PDFAppCommands::handTool()))
+        {
+            // The pointer of the library stands for the hand, until "hand" exists in it
+            const QString handIcon = PDFAppCommands::getHandIconName();
+            return handIcon.isEmpty() ? QStringLiteral("cursor") : handIcon;
         }
         return QStringLiteral("text-cursor");
     }
@@ -250,6 +261,11 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     m_selectMenu = new PDFAppDocumentSelectMenu(view, m_selectButton);
     m_selectButton->setMenu(m_selectMenu);
     m_selectButton->setPopupMode(QToolButton::InstantPopup);
+
+    // The Select menu is a panel of the menu bar: the pointer over another panel
+    // button and Left / Right switch to its panel (eventFilter)
+    m_selectMenu->installEventFilter(this);
+    connect(m_selectMenu.data(), &QMenu::aboutToHide, this, &PDFAppDocumentToolbar::onSelectMenuAboutToHide);
     rightLayout->addWidget(m_selectButton);
 
     // The search of package D: the field only, D connects its behavior
@@ -268,13 +284,8 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
         connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentToolbar::onViewChanged);
         connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
 
-        // The tooltips show the shortcuts of the user
-        PDFAppContext* context = view->getContext();
-        if (context && context->getNotifier())
-        {
-            connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppDocumentToolbar::onDatabaseChanged);
-            connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppDocumentToolbar::updateCommandToolTips);
-        }
+        // The tooltips show the shortcuts of the user: the view keeps them and it
+        // updates the tooltips after a notification of the database
     }
 
     retranslate();
@@ -372,21 +383,10 @@ void PDFAppDocumentToolbar::retranslate()
 
 void PDFAppDocumentToolbar::updateCommandToolTips()
 {
-    // Icon buttons: the title of the command and the shortcut of the user (an
-    // unreadable database leaves the defaults)
-    PDFAppContext* context = m_view ? m_view->getContext() : nullptr;
+    // Icon buttons: the title of the command and the shortcut of the user
+    const PDFAppDocumentView* view = m_view.data();
+    PDFAppContext* context = view ? view->getContext() : nullptr;
     const PDFAppCommandRegistry* registry = context ? context->getCommandRegistry() : nullptr;
-    PDFAppCommandRegistry::UserShortcuts userShortcuts;
-    if (context && context->getDatabase())
-    {
-        PDFDatabaseError error;
-        userShortcuts = context->getShortcuts().getShortcuts(&error);
-        if (error.isError())
-        {
-            userShortcuts.clear();
-        }
-    }
-
     for (const auto& item : m_commandButtons)
     {
         QToolButton* button = item.second.data();
@@ -396,21 +396,8 @@ void PDFAppDocumentToolbar::updateCommandToolTips()
             continue;
         }
 
-        const QString title = command->getTitle();
-        const QKeySequence shortcut = registry->getShortcut(item.first, userShortcuts);
-        button->setAccessibleName(title);
-        button->setToolTip(shortcut.isEmpty() ? title : tr("%1 (%2)").arg(title, shortcut.toString(QKeySequence::NativeText)));
-    }
-}
-
-void PDFAppDocumentToolbar::onDatabaseChanged(const QString& topic, const QString& key)
-{
-    Q_UNUSED(key);
-
-    // The shortcuts of the user changed (also by another instance)
-    if (topic.isEmpty() || topic == PDFShortcutRepository::getTopic())
-    {
-        updateCommandToolTips();
+        button->setAccessibleName(command->getTitle());
+        button->setToolTip(view->getCommandToolTip(item.first, false));
     }
 }
 
@@ -509,10 +496,24 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
         return nullptr;
     }
 
-    // One panel at a time
+    // One panel at a time; the button of the closed panel is not checked at once
+    // (its signal closed comes from the event loop, the switch of the menu bar
+    // shows one checked button)
+    // A slot of a button (toggled) can delete the tab with the toolbar
+    QPointer<PDFAppDocumentToolbar> toolbarGuard(this);
+    QPointer<QToolButton> buttonGuard(button);
     if (PDFAppDocumentPanelPopup* openPanel = getOpenPanel())
     {
+        QPointer<QToolButton> openButton = qobject_cast<QToolButton*>(openPanel->getAnchor());
         openPanel->close();
+        if (openButton && openButton != button)
+        {
+            openButton->setChecked(false);
+        }
+        if (!toolbarGuard || !buttonGuard)
+        {
+            return nullptr;
+        }
     }
 
     QPointer<PDFAppDocumentPanelPopup>& popup = m_panels[panel];
@@ -537,13 +538,22 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
                 break;
         }
         connect(popup.data(), &PDFAppDocumentPanelPopup::closed, this, &PDFAppDocumentToolbar::onPanelClosed);
+        connect(popup.data(), &PDFAppDocumentPanelPopup::neighborRequested, this, &PDFAppDocumentToolbar::onPanelNeighborRequested);
+
+        // The panel grabs the mouse: the pointer over another panel button is seen
+        // by the moves of the panel (eventFilter)
+        popup->setMouseTracking(true);
+        popup->installEventFilter(this);
     }
 
     // The panel opens 4 px below the toolbar (y 94 of the frames)
     QPointer<PDFAppDocumentPanelPopup> guard(popup.data());
-    QPointer<QToolButton> buttonGuard(button);
     button->setChecked(true);
-    popup->popup(button, mapToGlobal(QPoint(0, height())).y() + PANEL_GAP);
+    if (!toolbarGuard || !guard || !buttonGuard)
+    {
+        return nullptr;
+    }
+    guard->popup(button, mapToGlobal(QPoint(0, height())).y() + PANEL_GAP);
     if ((!guard || !guard->isVisible()) && buttonGuard)
     {
         buttonGuard->setChecked(false);
@@ -593,6 +603,226 @@ void PDFAppDocumentToolbar::onPanelClosed()
             button->setChecked(popup && popup->isVisible());
         }
     }
+}
+
+std::vector<QToolButton*> PDFAppDocumentToolbar::getPanelButtons() const
+{
+    // The order of the layout (Tools opens no panel, it navigates)
+    std::vector<QToolButton*> buttons;
+    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_annotateButton.data(), m_insertButton.data(), m_goToButton.data(), m_selectButton.data() })
+    {
+        if (button)
+        {
+            buttons.push_back(button);
+        }
+    }
+    return buttons;
+}
+
+QToolButton* PDFAppDocumentToolbar::getOpenPanelButton() const
+{
+    if (m_selectMenu && m_selectMenu->isVisible())
+    {
+        return m_selectButton.data();
+    }
+
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    {
+        const PDFAppDocumentPanelPopup* popup = findPanel(panel);
+        if (popup && popup->isVisible())
+        {
+            return getMenuButton(panel);
+        }
+    }
+    return nullptr;
+}
+
+bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
+{
+    QToolButton* openButton = getOpenPanelButton();
+    if (!button || !openButton || button == openButton || !isVisible() || !button->isVisible() || !button->isEnabled())
+    {
+        return false;
+    }
+
+    // A modal window (a dialog opened from a panel) blocks the toolbar
+    const QWidget* modalWidget = QApplication::activeModalWidget();
+    if (modalWidget && modalWidget != window() && !modalWidget->isAncestorOf(this))
+    {
+        return false;
+    }
+
+    const std::vector<QToolButton*> buttons = getPanelButtons();
+    if (std::find(buttons.cbegin(), buttons.cend(), button) == buttons.cend())
+    {
+        return false;
+    }
+
+    // The open panel hides and the new one shows in one step, no window is
+    // animated (the style turns the effects of the popups off): nothing flickers
+    QPointer<PDFAppDocumentToolbar> guard(this);
+    QPointer<QToolButton> buttonGuard(button);
+    if (button == m_selectButton)
+    {
+        QPointer<QToolButton> openButtonGuard(openButton);
+        if (PDFAppDocumentPanelPopup* openPanel = getOpenPanel())
+        {
+            openPanel->close();
+        }
+        if (guard && openButtonGuard)
+        {
+            // The button of the closed panel is not checked at once (one marked button)
+            openButtonGuard->setChecked(false);
+        }
+        if (!guard || !buttonGuard)
+        {
+            // A slot of a button has deleted the toolbar
+            return false;
+        }
+        openSelectMenu(byKeyboard);
+        return guard && m_selectMenu && m_selectMenu->isVisible();
+    }
+
+    if (m_selectMenu && m_selectMenu->isVisible())
+    {
+        m_selectMenu->hide();
+        if (!guard || !buttonGuard)
+        {
+            return false;
+        }
+    }
+
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    {
+        if (getMenuButton(panel) == button)
+        {
+            // openPanel closes the open panel itself
+            return openPanel(panel) != nullptr;
+        }
+    }
+    return false;
+}
+
+void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard)
+{
+    QToolButton* button = m_selectButton.data();
+    QPointer<PDFAppDocumentSelectMenu> menu = m_selectMenu.data();
+    if (!button || !menu || !button->isVisible() || !button->isEnabled())
+    {
+        return;
+    }
+
+    // The menu opens as by its button (below it, the leading edges aligned; the
+    // menu moves itself 4 px below the toolbar), but without the nested event loop
+    // of QToolButton::showMenu: the switch runs inside of an event of the closed
+    // panel. A click on the button closes the menu and does not open it again.
+    const QMargins margins = PDFWidgetStyle::getPopoverMargins(menu);
+    const int menuWidth = qMax(menu->sizeHint().width(), PDFAppDocumentSelectMenu::PANEL_WIDTH + margins.left() + margins.right());
+    QPoint position = button->mapToGlobal(QPoint(0, button->height()));
+    if (button->isRightToLeft())
+    {
+        position.rx() += button->width() - menuWidth;
+    }
+
+    menu->setNoReplayFor(button);
+    button->setDown(true);
+    menu->popup(position);
+    if (!menu || !menu->isVisible())
+    {
+        return;
+    }
+
+    if (byKeyboard)
+    {
+        // The keyboard starts at the current tool (else the first enabled item)
+        QAction* current = nullptr;
+        const QList<QAction*> actions = menu->actions();
+        for (QAction* action : actions)
+        {
+            if (!action->isEnabled() || action->isSeparator())
+            {
+                continue;
+            }
+            if (!current || (action->isChecked() && !current->isChecked()))
+            {
+                current = action;
+            }
+        }
+        if (current)
+        {
+            menu->setActiveAction(current);
+        }
+    }
+}
+
+void PDFAppDocumentToolbar::onSelectMenuAboutToHide()
+{
+    // The button opened the menu down (also when the menu was opened by switchPanel)
+    if (m_selectButton && m_selectButton->isDown())
+    {
+        m_selectButton->setDown(false);
+    }
+}
+
+void PDFAppDocumentToolbar::onPanelNeighborRequested(bool isNext)
+{
+    switchToNeighbor(isNext);
+}
+
+void PDFAppDocumentToolbar::switchToNeighbor(bool isNext)
+{
+    // The neighboring visible and enabled panel button, around the ends (menu bar)
+    const std::vector<QToolButton*> buttons = getPanelButtons();
+    const auto it = std::find(buttons.cbegin(), buttons.cend(), getOpenPanelButton());
+    if (it == buttons.cend())
+    {
+        return;
+    }
+
+    const int count = int(buttons.size());
+    const int index = int(std::distance(buttons.cbegin(), it));
+    for (int step = 1; step < count; ++step)
+    {
+        QToolButton* button = buttons[(index + (isNext ? step : count - step)) % count];
+        if (button->isVisible() && button->isEnabled())
+        {
+            switchPanel(button, true);
+            return;
+        }
+    }
+}
+
+QToolButton* PDFAppDocumentToolbar::findPanelButtonAt(const QPoint& globalPosition) const
+{
+    for (QToolButton* button : getPanelButtons())
+    {
+        if (button->isVisible() && QRect(button->mapToGlobal(QPoint(0, 0)), button->size()).contains(globalPosition))
+        {
+            return button;
+        }
+    }
+    return nullptr;
+}
+
+bool PDFAppDocumentToolbar::isPanelWindow(const QObject* object) const
+{
+    if (!object)
+    {
+        return false;
+    }
+    if (object == m_selectMenu)
+    {
+        return true;
+    }
+
+    for (const auto& item : m_panels)
+    {
+        if (item.second == object)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void PDFAppDocumentToolbar::onCommandButtonClicked()
@@ -709,8 +939,11 @@ void PDFAppDocumentToolbar::updatePageField()
     }
 
     // page-field 193:847: "308" with the suffix "/ 1592"; a document with page
-    // labels shows the label and the number of the page in the suffix
-    const QLocale locale = PDFAppLocale::getUiLocale();
+    // labels shows the label and the number of the page in the suffix ("296 (308 /
+    // 1592)" of 1234:164802). The numbers of the field are written without the group
+    // separator as the typed numbers (the status item has "1,592")
+    QLocale locale = PDFAppLocale::getUiLocale();
+    locale.setNumberOptions(locale.numberOptions() | QLocale::OmitGroupSeparator);
     m_pageField->setText(view->getPageLabel(pageIndex));
     if (view->hasPageLabels())
     {
@@ -854,6 +1087,41 @@ bool PDFAppDocumentToolbar::eventFilter(QObject* watched, QEvent* event)
         else if (watched == m_zoomField)
         {
             QMetaObject::invokeMethod(this, &PDFAppDocumentToolbar::updateZoomField, Qt::QueuedConnection);
+        }
+    }
+
+    // Menu bar: an open panel (or the Select menu) grabs the mouse, so the pointer
+    // over another panel button is a move of the panel outside of its panel (the
+    // margin of its shadow is not a part of it); the panel of that button opens
+    if (event->type() == QEvent::MouseMove && isPanelWindow(watched))
+    {
+        QWidget* popup = static_cast<QWidget*>(watched);
+        const QPoint globalPosition = static_cast<const QMouseEvent*>(event)->globalPosition().toPoint();
+        const QRect panelRect = popup->rect().marginsRemoved(PDFWidgetStyle::getPopoverMargins(popup));
+        if (popup->isVisible() && !panelRect.contains(popup->mapFromGlobal(globalPosition)))
+        {
+            QToolButton* button = findPanelButtonAt(globalPosition);
+            if (button && button != getOpenPanelButton())
+            {
+                // The closed panel does not handle the move (the toolbar can be gone)
+                QPointer<PDFAppDocumentToolbar> guard(this);
+                if (switchPanel(button, false) || !guard)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Left / Right of the Select menu (a list of tools without submenus): the
+    // neighboring panel; the panels ask for it by their signal neighborRequested
+    if (event->type() == QEvent::KeyPress && watched == m_selectMenu && m_selectMenu->isVisible())
+    {
+        const QKeyEvent* keyEvent = static_cast<const QKeyEvent*>(event);
+        if ((keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right) && (keyEvent->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier)
+        {
+            switchToNeighbor((keyEvent->key() == Qt::Key_Right) != (layoutDirection() == Qt::RightToLeft));
+            return true;
         }
     }
 

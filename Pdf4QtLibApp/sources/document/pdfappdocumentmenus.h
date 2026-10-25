@@ -91,7 +91,9 @@ private:
 /// holds action tiles (Action tile 190:740), rows (PDFAppPanelMenuItem) and other
 /// controls; a tile and a row close the panel and run their command from the event
 /// loop (the command may delete the tab), cards and check boxes change the view
-/// and keep the panel open. Esc closes it, the arrows move the focus. The panel
+/// and keep the panel open. Esc closes it, Up / Down move the focus, Left / Right
+/// move it in a row of buttons and at the edge of the row (or in a list of rows)
+/// they ask for the neighboring panel of the toolbar (neighborRequested). The panel
 /// reads the states of its commands, when it opens and when they change.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentPanelPopup : public QWidget
 {
@@ -137,6 +139,13 @@ public:
 Q_SIGNALS:
     /// The panel has been closed (sent from the event loop, the slot may delete it)
     void closed();
+
+    /// Left / Right outside of a control, which uses the arrows (a field, a group of
+    /// choices, a composite control), and at the edge of a row of buttons: the
+    /// neighboring panel of the toolbar opens instead of this one (menu bar).
+    /// \param isNext The next button in the order of the toolbar (Right in the
+    ///        left-to-right direction, Left in the right-to-left direction)
+    void neighborRequested(bool isNext);
 
 protected:
     /// Layout of the content (inside of the padding)
@@ -189,6 +198,15 @@ private:
     void onAnchorDestroyed();
     void watchAnchor(bool watch);
     void updateTexts();
+
+    /// Left / Right (\p key) with the focus at \p focus: the neighbor in a row of
+    /// buttons gets the focus, or the neighboring panel is requested. \returns false,
+    /// when the focused control uses the arrows itself. The panel can be deleted by
+    /// a slot of neighborRequested.
+    bool handleHorizontalArrow(QWidget* focus, int key);
+
+    /// Tooltips of the tiles with the shortcuts of the user (read, when the panel opens)
+    void updateTileToolTips();
 
     QPointer<PDFAppDocumentView> m_view;
     QPointer<QVBoxLayout> m_contentLayout;

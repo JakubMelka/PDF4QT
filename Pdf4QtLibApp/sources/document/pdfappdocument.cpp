@@ -137,6 +137,10 @@ PDFAppDocument::PDFAppDocument(PDFAppContext* context, QObject* parent) :
 
 PDFAppDocument::~PDFAppDocument()
 {
+    // The watchers stop using the PDF document while it is still alive (QObject's
+    // destroyed comes after the members are gone)
+    Q_EMIT aboutToBeDestroyed();
+
     // The operations are children of the document: nothing is announced from here
     for (const QPointer<PDFAppDocumentOperation>& operation : m_operations)
     {

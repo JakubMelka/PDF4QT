@@ -45,6 +45,7 @@
 
 class QFocusFrame;
 class QApplication;
+class QMenu;
 class QMouseEvent;
 class QTabBar;
 class QToolBar;
@@ -152,6 +153,14 @@ public:
 
     /// Returns true, if the last input of the user was the keyboard
     bool isKeyboardModality() const { return m_keyboardModality; }
+
+    /// Returns the width of the column of the shortcuts of the menu (QMenu adds it
+    /// to its widest row), which was stored for it, or -1. QMenu asks the size of
+    /// every row in a layout, so the column is measured once per layout: the value
+    /// is kept for one menu, until its actions, its font or the style change (the
+    /// event filter of the application). Without the filter nothing is kept.
+    int getCachedMenuShortcutColumnWidth(const QMenu* menu) const;
+    void setCachedMenuShortcutColumnWidth(const QMenu* menu, int width);
 
     /// Returns true, if a style of this class is the style of the application
     /// (also below a style sheet or a proxy style)
@@ -370,6 +379,11 @@ private:
     bool m_applicationPolished = false;
     bool m_paletteGuard = false;
     const QEvent* m_forwardedMouseEvent = nullptr;
+
+    /// Column of the shortcuts of the last measured menu (getCachedMenuShortcutColumnWidth)
+    QPointer<const QMenu> m_menuShortcutColumnMenu;
+    int m_menuShortcutColumnWidth = -1;
+    qsizetype m_menuShortcutColumnActions = -1;
 
     /// Style, which has prepared the application
     static QPointer<PDFWidgetStyleImpl> s_applicationImpl;

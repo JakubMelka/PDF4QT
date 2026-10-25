@@ -601,7 +601,7 @@ void WidgetStyleTest::icons()
 
         for (const char* name : { "bookmark-next", "bookmark-prev", "copy-to-pages", "distribute-h", "distribute-v", "image-mode", "link-page",
                                   "note-help", "note-insert", "note-key", "note-new-paragraph", "note-note", "note-paragraph", "stroke",
-                                  "zoom-out", "zoom-level", "magnifier", "actual-size" })
+                                  "zoom-out", "zoom-level", "magnifier", "actual-size", "hand" })
         {
             const QString iconName = QString::fromLatin1(name);
             QVERIFY2(names.contains(iconName), name);
@@ -925,6 +925,44 @@ void WidgetStyleTest::sizesFromContents()
         QMenu noShortcut;
         noShortcut.addAction(label);
         QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+
+        // The column of the shortcuts is computed once per layout of a menu and again
+        // after a change of its actions or of its font: a longer shortcut, a removed
+        // action, a new action, a new font keep the width of the widest row
+        QAction* cut = twoRows.actions().back();
+        cut->setText(QStringLiteral("Cut\tCtrl+Shift+Alt+Meta+V"));
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+        twoRows.removeAction(cut);
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+        twoRows.addAction(QStringLiteral("Copy\tCtrl+C"));
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+        QAction* shortcutAction = twoRows.addAction(QStringLiteral("Paste"));
+        shortcutAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_F12));
+        shortcutAction->setShortcutVisibleInContextMenu(true);
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+        QFont font = twoRows.font();
+        font.setPixelSize(font.pixelSize() > 0 ? font.pixelSize() + 6 : 20);
+        twoRows.setFont(font);
+        noShortcut.setFont(font);
+        QCOMPARE(twoRows.sizeHint().width(), noShortcut.sizeHint().width());
+    }
+
+    // A menu of many rows with shortcuts lays out in linear time (the time is printed)
+    {
+        QMenu menu;
+        for (int i = 0; i < 400; ++i)
+        {
+            menu.addAction(QStringLiteral("Command number %1\tCtrl+Shift+%2").arg(i).arg(i % 10));
+        }
+        QElapsedTimer timer;
+        timer.start();
+        int width = 0;
+        for (int i = 0; i < 20; ++i)
+        {
+            menu.actions().front()->setText(QStringLiteral("Command number %1\tCtrl+Shift+0").arg(i));
+            width = qMax(width, menu.sizeHint().width());
+        }
+        qInfo("20 layouts of a menu of 400 rows with shortcuts: %lld ms (width %d)", timer.elapsed(), width);
     }
 
     // Tabs: chip 32 with the margin of the focus ring, row of the navigation 240 x 38 with the gap 2

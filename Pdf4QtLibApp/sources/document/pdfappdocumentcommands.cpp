@@ -40,7 +40,7 @@ QStringList PDFAppDocumentCommandTable::getCommands(PDFAppDocumentPackage packag
             return { C::undo(), C::redo(), C::lockDocument(), C::editCopy() };
 
         case PDFAppDocumentPackage::View:
-            return { C::copy(), C::selectAll(), C::deselect(), C::selectText(), C::selectTable(), C::screenshot(), C::extractImage(),
+            return { C::copy(), C::selectAll(), C::deselect(), C::handTool(), C::selectText(), C::selectTable(), C::screenshot(), C::extractImage(),
                      C::zoomIn(), C::zoomOut(), C::actualSize(), C::fitPage(), C::fitWidth(), C::fitHeight(),
                      C::rotateViewLeft(), C::rotateViewRight(),
                      C::layoutSinglePage(), C::layoutContinuous(), C::layoutTwoPages(), C::layoutTwoColumns(), C::firstPageRight(),
@@ -81,7 +81,10 @@ QStringList PDFAppDocumentCommandTable::getCommands(PDFAppDocumentPackage packag
 
         case PDFAppDocumentPackage::NotesOutline:
             return { C::outlineNewItem(), C::outlineRename(), C::outlineDelete(), C::outlineMoveUp(), C::outlineMoveDown(),
-                     C::outlineIndent(), C::outlineOutdent(), C::outlineSetTarget(), C::outlineBold(), C::outlineItalic() };
+                     C::outlineIndent(), C::outlineOutdent(), C::outlineSetTarget(), C::outlineBold(), C::outlineItalic(),
+                     C::outlineSetTargetWholePage(), C::outlineSetTargetPageWidth(), C::outlineSetTargetPageHeight(), C::outlineSetTargetArea(),
+                     C::outlineSetTargetPosition(), C::outlineSetTargetContent(), C::outlineSetTargetContentWidth(), C::outlineSetTargetContentHeight(),
+                     C::outlineSetTargetNamed(), C::outlineKeepZoom(), C::outlineKeepZoomAll() };
     }
 
     return QStringList();

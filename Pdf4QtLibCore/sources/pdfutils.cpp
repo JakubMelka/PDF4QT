@@ -27,6 +27,12 @@
 #include <QtGlobal>
 #include <QtMath>
 #include <QMutex>
+#include <QLineF>
+#include <QPainterPath>
+
+#include <algorithm>
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 #include <jpeglib.h>
@@ -743,6 +749,251 @@ QRect PDFGeometryUtils::getPixelRect(const QRectF& rect, QSize size)
     const int right = qBound(0, int(std::ceil(rect.right())), size.width());
     const int bottom = qBound(0, int(std::ceil(rect.bottom())), size.height());
     return QRect(QPoint(left, top), QPoint(right - 1, bottom - 1));
+}
+
+std::vector<QPointF> PDFGeometryUtils::simplifyHandDrawnPolyline(const std::vector<QPointF>& points, double pixelSize)
+{
+    // Repeated (closer than a half of a pixel) and non finite points are removed,
+    // the last point is the last position of the hand
+    const bool simplify = std::isfinite(pixelSize) && pixelSize > 0.0;
+    const double repeatedDistance = simplify ? pixelSize * 0.5 : 0.0;
+    std::vector<QPointF> result;
+    result.reserve(points.size());
+    for (const QPointF& point : points)
+    {
+        if (!std::isfinite(point.x()) || !std::isfinite(point.y()))
+        {
+            continue;
+        }
+
+        if (!result.empty() && QLineF(result.back(), point).length() <= repeatedDistance)
+        {
+            continue;
+        }
+
+        result.push_back(point);
+    }
+
+    // The stroke ends at the last position (a skipped close point replaces the last one)
+    for (auto it = points.crbegin(); it != points.crend(); ++it)
+    {
+        if (std::isfinite(it->x()) && std::isfinite(it->y()))
+        {
+            if (result.size() > 1 && result.back() != *it)
+            {
+                result.back() = *it;
+            }
+            break;
+        }
+    }
+
+    if (!simplify || result.size() < 3)
+    {
+        return result;
+    }
+
+    // Low-pass filter along the stroke: each inner point is the weighted average of
+    // the polyline within 5 pixels of its length at both sides (the window is
+    // symmetric, so it shrinks towards the ends, which stay), moved at most by one
+    // pixel - a staircase of whole pixels, the jitter and the directions of short
+    // segments of a fast movement are smoothed, a sharp turn of the hand stays
+    const size_t count = result.size();
+    std::vector<double> lengths(count, 0.0);
+    for (size_t i = 1; i < count; ++i)
+    {
+        lengths[i] = lengths[i - 1] + QLineF(result[i - 1], result[i]).length();
+    }
+
+    std::vector<QPointF> smoothed = result;
+    const double window = pixelSize * 5.0;
+    const double maximumShift = pixelSize;
+    constexpr int SAMPLES = 16;
+    for (size_t i = 1; i + 1 < count; ++i)
+    {
+        const double radius = (std::min)({ window, lengths[i], lengths[count - 1] - lengths[i] });
+        if (!(radius > 0.0))
+        {
+            continue;
+        }
+
+        // Samples of the polyline at the same distances along the stroke
+        const double step = radius / SAMPLES;
+        QPointF sum(0.0, 0.0);
+        double weights = 0.0;
+        size_t segment = i - 1;
+        for (int k = -SAMPLES; k <= SAMPLES; ++k)
+        {
+            const double length = lengths[i] + k * step;
+            while (segment > 0 && lengths[segment] > length)
+            {
+                --segment;
+            }
+            while (segment + 2 < count && lengths[segment + 1] < length)
+            {
+                ++segment;
+            }
+
+            const double segmentLength = lengths[segment + 1] - lengths[segment];
+            const double t = segmentLength > 0.0 ? std::clamp((length - lengths[segment]) / segmentLength, 0.0, 1.0) : 0.0;
+            const double weight = 1.0 - std::abs(k) / double(SAMPLES + 1);
+            sum += (result[segment] + (result[segment + 1] - result[segment]) * t) * weight;
+            weights += weight;
+        }
+
+        QPointF shift = sum / weights - result[i];
+        const double shiftLength = std::hypot(shift.x(), shift.y());
+        if (shiftLength > maximumShift)
+        {
+            shift *= maximumShift / shiftLength;
+        }
+        smoothed[i] = result[i] + shift;
+    }
+
+    // Ramer-Douglas-Peucker without recursion (a long stroke is not a deep recursion)
+    const double tolerance = pixelSize * 0.75;
+    std::vector<bool> keep(smoothed.size(), false);
+    keep.front() = true;
+    keep.back() = true;
+    std::vector<std::pair<size_t, size_t>> ranges;
+    ranges.emplace_back(0, smoothed.size() - 1);
+    while (!ranges.empty())
+    {
+        const auto [first, last] = ranges.back();
+        ranges.pop_back();
+        if (last <= first + 1)
+        {
+            continue;
+        }
+
+        const QPointF a = smoothed[first];
+        const QPointF ab = smoothed[last] - a;
+        const double lengthSquared = QPointF::dotProduct(ab, ab);
+        double farthestDistance = -1.0;
+        size_t farthest = first;
+        for (size_t i = first + 1; i < last; ++i)
+        {
+            const QPointF ap = smoothed[i] - a;
+            double distance = 0.0;
+            if (lengthSquared > 0.0)
+            {
+                const double t = std::clamp(QPointF::dotProduct(ap, ab) / lengthSquared, 0.0, 1.0);
+                const QPointF difference = ap - ab * t;
+                distance = std::hypot(difference.x(), difference.y());
+            }
+            else
+            {
+                // A closed part (a loop back to its start)
+                distance = std::hypot(ap.x(), ap.y());
+            }
+
+            if (distance > farthestDistance)
+            {
+                farthestDistance = distance;
+                farthest = i;
+            }
+        }
+
+        if (farthestDistance > tolerance)
+        {
+            keep[farthest] = true;
+            ranges.emplace_back(first, farthest);
+            ranges.emplace_back(farthest, last);
+        }
+    }
+
+    std::vector<QPointF> simplified;
+    for (size_t i = 0; i < smoothed.size(); ++i)
+    {
+        if (keep[i])
+        {
+            simplified.push_back(smoothed[i]);
+        }
+    }
+    return simplified;
+}
+
+QPainterPath PDFGeometryUtils::createSmoothCurve(const std::vector<QPointF>& points)
+{
+    std::vector<QPointF> curvePoints;
+    curvePoints.reserve(points.size());
+    for (const QPointF& point : points)
+    {
+        if (std::isfinite(point.x()) && std::isfinite(point.y()) && (curvePoints.empty() || curvePoints.back() != point))
+        {
+            curvePoints.push_back(point);
+        }
+    }
+
+    QPainterPath path;
+    if (curvePoints.empty())
+    {
+        return path;
+    }
+
+    path.moveTo(curvePoints.front());
+    if (curvePoints.size() == 1)
+    {
+        // A line of a zero length is skipped by QPainterPath - the dot is a tiny line
+        path.lineTo(curvePoints.front() + QPointF(1.0e-4, 0.0));
+        return path;
+    }
+
+    // Lengths of the segments (their square roots are the differences of the knots)
+    const size_t count = curvePoints.size();
+    std::vector<double> lengths(count - 1, 0.0);
+    for (size_t i = 0; i + 1 < count; ++i)
+    {
+        lengths[i] = QLineF(curvePoints[i], curvePoints[i + 1]).length();
+    }
+
+    // A point, where the direction turns by more than 75 degrees, is a corner: a
+    // spline through it would bulge out of the turn (a nose beyond the point)
+    std::vector<bool> corners(count, false);
+    const double cornerCosine = std::cos(qDegreesToRadians(75.0));
+    for (size_t i = 1; i + 1 < count; ++i)
+    {
+        const QPointF incoming = curvePoints[i] - curvePoints[i - 1];
+        const QPointF outgoing = curvePoints[i + 1] - curvePoints[i];
+        corners[i] = QPointF::dotProduct(incoming, outgoing) < cornerCosine * lengths[i - 1] * lengths[i];
+    }
+
+    for (size_t i = 0; i + 1 < count; ++i)
+    {
+        const QPointF& p1 = curvePoints[i];
+        const QPointF& p2 = curvePoints[i + 1];
+        const double d2 = lengths[i];
+        const double s2 = std::sqrt(d2);
+
+        // Control points of the Bezier segment of the centripetal spline (an end of
+        // the curve and a corner have the tangent of their segment)
+        QPointF c1 = p1 + (p2 - p1) / 3.0;
+        QPointF c2 = p2 - (p2 - p1) / 3.0;
+        if (i > 0 && !corners[i])
+        {
+            const QPointF& p0 = curvePoints[i - 1];
+            const double d1 = lengths[i - 1];
+            const double s1 = std::sqrt(d1);
+            const double denominator = 3.0 * s1 * (s1 + s2);
+            if (denominator > 0.0)
+            {
+                c1 = (p2 * d1 - p0 * d2 + p1 * (2.0 * d1 + 3.0 * s1 * s2 + d2)) / denominator;
+            }
+        }
+        if (i + 2 < count && !corners[i + 1])
+        {
+            const QPointF& p3 = curvePoints[i + 2];
+            const double d3 = lengths[i + 1];
+            const double s3 = std::sqrt(d3);
+            const double denominator = 3.0 * s3 * (s3 + s2);
+            if (denominator > 0.0)
+            {
+                c2 = (p1 * d3 - p3 * d2 + p2 * (2.0 * d3 + 3.0 * s3 * s2 + d2)) / denominator;
+            }
+        }
+        path.cubicTo(c1, c2, p2);
+    }
+
+    return path;
 }
 
 }   // namespace pdf

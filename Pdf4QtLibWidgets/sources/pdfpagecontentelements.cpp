@@ -603,7 +603,7 @@ void PDFPageContentScene::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
             if (m_manipulator.isManipulationInProgress())
             {
                 QPointF pagePoint;
-                const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+                const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->position(), &pagePoint);
                 m_mouseGrabInfo.info.widgetMouseCurrentPos = event->pos();
                 bool isCopyCreated = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
                 m_manipulator.finishManipulation(pageIndex, m_mouseGrabInfo.info.pagePos, pagePoint, isCopyCreated);
@@ -629,7 +629,7 @@ void PDFPageContentScene::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     const PDFReal threshold = getSnapPointDistanceThreshold();
 
     QPointF pagePoint;
-    const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    const PDFInteger pageIndex = m_widget->getDrawWidgetProxy()->getPageUnderPoint(event->position(), &pagePoint);
     if (m_mouseGrabInfo.info.isValid() &&
         event->buttons().testFlag(Qt::LeftButton) &&
         m_mouseGrabInfo.info.pageIndex == pageIndex &&

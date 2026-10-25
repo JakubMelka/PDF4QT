@@ -699,13 +699,20 @@ bool PDFAppAnnotationController::activateTool(PDFWidgetTool* tool)
         return false;
     }
 
+    // A slot of the change of the active tool may delete the view (the tab)
+    QPointer<PDFAppAnnotationController> self(this);
     m_toolManager->setActiveTool(tool);
-    return m_toolManager && m_toolManager->getActiveTool() == tool;
+    return self && m_toolManager && m_toolManager->getActiveTool() == tool;
 }
 
 void PDFAppAnnotationController::endActiveTool()
 {
-    if (m_toolManager)
+    // The chosen mode of the canvas (Select text or Hand) comes back
+    if (m_view && m_view->getToolManager() == m_toolManager.data())
+    {
+        m_view->activateDefaultCanvasTool();
+    }
+    else if (m_toolManager)
     {
         m_toolManager->setActiveTool(PDFToolManager::SelectTextTool);
     }

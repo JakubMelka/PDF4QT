@@ -66,6 +66,8 @@
 #include <QSemaphore>
 #include <QThreadPool>
 #include <QMimeData>
+#include <QLabel>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QtTest>
 
@@ -257,6 +259,7 @@ private slots:
     void deletionFromOwnSignals();
     void hostileInput();
     void stateScreenGeometry();
+    void loadingCardGeometry();
     void themesAndDirection();
     void homePageSurvivesOpening();
     void largeDocument();
@@ -409,8 +412,10 @@ void AppDocumentTest::openAsynchronous()
     QCOMPARE(tab->getTabTitle(), QStringLiteral("Async.pdf"));
     if (document->getState() == pdf::PDFAppDocumentState::Loading)
     {
-        // The state screen (no toolbar) and the progress of the tab
+        // The state screen (no toolbar) and the progress of the tab, the status
+        // "Opening…" (1232:164049)
         QVERIFY(tab->isStateScreenShown());
+        QCOMPARE(tab->getStateScreen()->getStatusBar()->getMessage(), QStringLiteral("Opening…"));
         QVERIFY(!tab->isViewShown());
         QVERIFY(tab->getTabProgress() >= 0.0);
         QVERIFY(tab->getLoader()->isRunning());
@@ -2009,6 +2014,42 @@ void AppDocumentTest::stateScreenGeometry()
     fixture.settle();
     QVERIFY(screen->getStatusBar()->isVisible());
     QCOMPARE(screen->getStatusBar()->mapTo(screen, QPoint(0, 0)).y(), screen->height() - 28);
+}
+
+void AppDocumentTest::loadingCardGeometry()
+{
+    // loading-card 1232:164057 of pdf4qt-document-loading 1232:164049: the card of the
+    // password screen - 440 wide, paddings 36 / 40 / 32 inside of the border, gap 24 -
+    // with the title Semi Bold 20 and the progress bar of the full width (4 px)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::userPassword(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentStateScreen* screen = tab->getStateScreen();
+    fixture.settle();
+
+    QWidget* card = screen->getLoadingPanel();
+    QVERIFY(card);
+    QLabel* title = card->findChild<QLabel*>(QStringLiteral("loadingTitle"));
+    QProgressBar* progress = card->findChild<QProgressBar*>(QStringLiteral("loadingProgress"));
+    QVERIFY(title && progress);
+    QCOMPARE(title->text(), QStringLiteral("Opening user-password.pdf…"));
+    QCOMPARE(title->font().pixelSize(), 20);
+    QCOMPARE(title->font().weight(), QFont::DemiBold);
+    QVERIFY(title->wordWrap());
+
+    screen->getPasswordCard()->hide();
+    card->show();
+    fixture.settle();
+    QCOMPARE(card->width(), 440);
+    QCOMPARE(card->layout()->spacing(), 24);
+    const int border = card->width() - card->contentsRect().width() > 0 ? (card->width() - card->contentsRect().width()) / 2 : 0;
+    QCOMPARE(title->geometry().top(), border + 36);
+    QCOMPARE(progress->geometry().top(), title->geometry().bottom() + 1 + 24);
+    QCOMPARE(card->height() - progress->geometry().bottom() - 1, border + 32);
+    QCOMPARE(progress->geometry().left(), border + 40);
+    QCOMPARE(progress->width(), card->width() - 2 * border - 80);
+    QCOMPARE(progress->height(), 4);
+    QCOMPARE(progress->width(), screen->getPasswordField()->width());
 }
 
 void AppDocumentTest::themesAndDirection()

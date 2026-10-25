@@ -235,6 +235,10 @@ public:
     /// The document has page labels, which differ from the numbers of the pages
     bool hasPageLabels() const;
 
+    /// Radius of the circle of the magnifier (PDFMagnifierTool) of the setting
+    /// magnifier.size, which is its diameter (1234:164735); at least 1
+    static int getMagnifierRadius(int diameter);
+
     /// Page index of a text typed by the user: a page label of the document, or a
     /// number of the page from 1. std::nullopt for an unknown label or a number out of range.
     std::optional<PDFInteger> findPageIndex(const QString& text) const;
@@ -290,6 +294,13 @@ public:
     /// Action of a Canvas command on the canvas (nullptr for another command)
     QAction* getCanvasAction(const QString& commandId) const;
 
+    /// Tooltip of a button of a command: its title and the shortcut of the user
+    /// ("Fit page (P)"); without a shortcut the title, or nothing when
+    /// \p isEmptyWithoutShortcut (a tile shows its title itself). The shortcuts of
+    /// the user are kept by the view (read again at a notification of the database,
+    /// an unreadable database leaves the defaults) - shared by the toolbar and its panels.
+    QString getCommandToolTip(const QString& commandId, bool isEmptyWithoutShortcut) const;
+
     // ------------------------------------------------------------- view
 
     /// Page layout of the view
@@ -321,12 +332,23 @@ public:
     PDFWidgetTool* getActiveTool() const;
 
     /// Activates the predefined tool (PDFToolManager::PredefinedTools) of the canvas.
-    /// The tool, which is active already, gives the place back to Select text (the
-    /// default tool); ToolEnd = no tool.
+    /// Select text and Hand (ToolEnd = no tool: a left drag pans the pages, links,
+    /// fields and annotations still take their clicks) are the modes of the canvas, the
+    /// other tools work above the chosen mode: the tool, which is active already, and
+    /// Esc of the tool give the place back to the mode (Select menu 198:5517).
     void setCanvasTool(int tool);
 
-    /// The predefined tool (PDFToolManager::PredefinedTools) is the active tool
+    /// The predefined tool (PDFToolManager::PredefinedTools) is the active tool;
+    /// ToolEnd = the Hand mode without another tool above it
     bool isCanvasToolActive(int tool) const;
+
+    /// The Hand mode is the chosen mode of the canvas (the default mode of a new tab,
+    /// as in the old applications - owner 2026-10-25; the mode is not stored)
+    bool isHandMode() const { return m_isHandMode; }
+
+    /// Activates the chosen mode of the canvas (Select text or Hand) - the end of
+    /// a tool of the Select menu, of a creation tool, of a pick of a target
+    void activateDefaultCanvasTool();
 
     /// Selection of the text (Select text): the selection exists, copy it to the
     /// clipboard, select the whole text (it waits for the text layout of the pages,
@@ -411,6 +433,7 @@ private:
 
     void onDocumentChanged(const pdf::PDFModifiedDocument& modified);
     void onDocumentStateChanged();
+    void onDocumentAboutToBeDestroyed();
     void onDocumentDestroyed();
     void onSignatureResultsChanged();
     void onThemeChanged();
@@ -422,7 +445,11 @@ private:
     void onInfoBarAction(const QString& infoBarId, const QString& actionId);
     void onInfoBarClosed(const QString& infoBarId);
     void onToolMessage(const QString& text, int timeout);
-    void onActiveToolChanged();
+    void onActiveToolChanged(PDFWidgetTool* tool);
+    void onDefaultCanvasToolQueued();
+    /// Emits viewChanged and viewStateChanged (the second one only, when a slot of
+    /// the first one has not deleted the view)
+    void emitViewStateChanged();
     void onTextLayoutChanged();
     void onExecuteQueued(const QString& commandId);
     void onOpenSettingsQueued(const QString& section);
@@ -458,6 +485,7 @@ private:
     PDFAppOutlineEditor* m_outlineEditor = nullptr;
     QPointer<PDFAppCommentPopup> m_commentPopup;
     std::map<QString, QPointer<QAction>> m_canvasActions;
+    std::map<QString, QString> m_userShortcuts;   ///< Shortcuts of the user (PDFAppCommandRegistry::UserShortcuts, updateCanvasShortcuts)
     std::vector<PDFAppInfoBarRequest> m_infoBars;
     std::vector<QPointer<PDFAppInfoBar>> m_infoBarWidgets;
     std::vector<PDFInteger> m_selectedPages;
@@ -466,6 +494,7 @@ private:
     bool m_isFirstPageRight = false;
     bool m_isFullScreen = false;
     bool m_isDefaultViewApplied = false;
+    bool m_isHandMode = true;
     bool m_isSelectAllPending = false;
     bool m_isApplyingSettings = false;
     bool m_isSidebarVisible = true;

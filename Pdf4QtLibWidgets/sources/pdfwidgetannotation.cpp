@@ -284,6 +284,7 @@ void PDFWidgetAnnotationManager::setDocument(const PDFModifiedDocument& document
         m_interaction = InteractionState();
         m_dragState = DragState();
         m_isLinkPressed = false;
+        m_isLinkPressPannable = false;
         m_pendingDeselection = PDFObjectReference();
         m_snapper.clear();
 
@@ -341,12 +342,18 @@ void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEven
     }
 }
 
+bool PDFWidgetAnnotationManager::isClickableLink(const PageAnnotation& annotation, QPoint widgetPos) const
+{
+    // A selectable link is always followed by a plain click (a link without an action
+    // is selected by it - there is nothing to follow), Ctrl / Shift + click selects it
+    return m_isLinksSelectable && annotation.annotation && annotation.annotation->getType() == AnnotationType::Link &&
+           getLinkActionAtPosition(widgetPos);
+}
+
 bool PDFWidgetAnnotationManager::isFollowedLink(const PageAnnotation& annotation, QPoint widgetPos) const
 {
-    // A selectable link, which is not selected, is followed by a plain click (a link
-    // without an action is selected by it - there is nothing to follow)
-    return m_isLinksSelectable && annotation.annotation && annotation.annotation->getType() == AnnotationType::Link &&
-           !isAnnotationSelected(annotation.annotation->getSelfReference()) && getLinkActionAtPosition(widgetPos);
+    // A plain press on a selected link may also start its drag (mousePressEvent)
+    return isClickableLink(annotation, widgetPos) && !isAnnotationSelected(annotation.annotation->getSelfReference());
 }
 
 void PDFWidgetAnnotationManager::setLinksSelectable(bool linksSelectable)
@@ -2407,6 +2414,7 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
 
         // The press starts a new gesture, the release finishes just this gesture
         m_isLinkPressed = false;
+        m_isLinkPressPannable = false;
         m_pendingDeselection = PDFObjectReference();
 
         // 0) The user was asked to draw a new part of the selected annotation
@@ -2444,8 +2452,10 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
             }
         }
 
-        // 3) Selectable annotation under the cursor (a plain press on a link, which
-        //    is not selected, follows the link - setLinksSelectable)
+        // 3) Selectable annotation under the cursor (a plain click on a link always follows
+        //    the link, Ctrl / Shift + click selects it - setLinksSelectable; a plain press
+        //    on a selected link can also start its drag, its release without the drag
+        //    follows the link)
         const PageAnnotation* pressedAnnotation = findSelectableAnnotation(event->pos(), &pageIndex);
         if (pressedAnnotation && !isSelectionModifier && isFollowedLink(*pressedAnnotation, event->pos()))
         {
@@ -2474,14 +2484,27 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
                 beginAnnotationDrag(event, pageIndex);
             }
 
+            // A plain click on a selected link follows the link (the release does it,
+            // unless the press has become a drag - startAnnotationDrag suppresses it)
+            if (!isSelectionModifier && isClickableLink(*pageAnnotation, event->pos()))
+            {
+                m_isLinkPressed = true;
+                m_linkPressPosition = event->pos();
+            }
+
             event->accept();
             return;
         }
 
-        // 4) Links
+        // 4) Links. Without a tool (Hand), a press on a link, which is not selected, is
+        //    still a pan of the page, when it moves past the drag distance (owner
+        //    2026-10-25, setLinksSelectable) - mouseMoveEvent gives it to the draw widget
         if (getLinkActionAtPosition(event->pos()))
         {
+            const PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
             m_isLinkPressed = true;
+            m_isLinkPressPannable = m_isLinksSelectable && (!toolManager || !toolManager->getActiveTool());
+            m_linkPressPosition = event->pos();
             event->accept();
             return;
         }
@@ -2489,7 +2512,7 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         // 5) Empty area of the page - rubber band selection, or clearing of the selection.
         //    Plain click is not accepted, so the widget can scroll the document by mouse drag.
         QPointF pagePoint;
-        pageIndex = m_proxy->getPageUnderPoint(event->pos(), &pagePoint);
+        pageIndex = m_proxy->getPageUnderPoint(event->position(), &pagePoint);
         if (isSelectionModifier && pageIndex != -1)
         {
             const PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
@@ -3507,9 +3530,14 @@ void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent*
             return;
         }
 
+        // A press, which has moved past the drag distance, is no click on a selectable
+        // link - it may be a drag of the text tool, of the pan or of the link itself.
+        // TODO(remove-old-apps): the old applications follow the link at any release over it
+        const bool isClick = !m_isLinksSelectable || (event->pos() - m_linkPressPosition).manhattanLength() < QApplication::startDragDistance();
         if (isLinkPressed)
         {
-            if (const PDFAction* linkAction = getLinkActionAtPosition(event->pos()))
+            const PDFAction* linkAction = isClick ? getLinkActionAtPosition(event->pos()) : nullptr;
+            if (linkAction)
             {
                 Q_EMIT actionTriggered(linkAction);
             }
@@ -3588,6 +3616,21 @@ void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
         if (m_dragState.isDragging)
         {
             m_cursor = QCursor(m_dragState.isCopy ? Qt::DragCopyCursor : Qt::ClosedHandCursor);
+        }
+    }
+
+    // Hand: a press on a link, which has moved past the drag distance, pans the page as
+    // a drag elsewhere (the draw widget takes the move, which is not accepted here);
+    // its release follows nothing
+    if (m_isLinkPressed && m_isLinkPressPannable && event->buttons().testFlag(Qt::LeftButton) &&
+        (event->pos() - m_linkPressPosition).manhattanLength() >= QApplication::startDragDistance())
+    {
+        m_isLinkPressed = false;
+        m_isLinkPressPannable = false;
+
+        if (PDFDrawWidget* drawWidget = qobject_cast<PDFDrawWidget*>(widget))
+        {
+            drawWidget->beginPageDrag(m_linkPressPosition);
         }
     }
 }
@@ -3802,6 +3845,14 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                 if (canTransformAnnotation(*pageAnnotation) && !m_cursor)
                 {
                     m_cursor = QCursor(Qt::SizeAllCursor);
+                }
+                else if (m_isUserInterfaceDelegated && !m_cursor)
+                {
+                    // A press selects the annotation, which cannot be moved (a locked
+                    // annotation or document) - the open hand of the draw widget would
+                    // promise a drag of the page, the I-beam of the text tool a selection
+                    // of the text. TODO(remove-old-apps): always the arrow
+                    m_cursor = QCursor(Qt::ArrowCursor);
                 }
 
                 // Explain, why the selected annotation has no handles (or just some of them)
@@ -5311,8 +5362,11 @@ void PDFWidgetAnnotationManager::copySelectedAnnotationsToPages(const std::vecto
 
 void PDFWidgetAnnotationManager::onEditAnnotation()
 {
+    // The dialog runs its own event loop, in which the document can be replaced (and
+    // destroyed) - its model resolves the references by a copy of the storage
+    const PDFObjectStorage storage = m_document->getStorage();
     PDFEditObjectDialog dialog(EditObjectType::Annotation, m_proxy->getWidget());
-    dialog.setStorage(&m_document->getStorage());
+    dialog.setStorage(&storage);
 
     PDFObject originalObject = m_document->getObjectByReference(m_editableAnnotation);
     dialog.setObject(originalObject);

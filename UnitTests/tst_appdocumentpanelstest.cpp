@@ -889,9 +889,14 @@ void AppDocumentPanelsTest::thumbnailsSelectionAndSync()
     fixture.settle();
     QVERIFY(thumbnails->getSelectedPages() == std::vector<pdf::PDFInteger>({ 2, 3, 4 }));
 
-    // One selected page goes to the canvas (a click, the keyboard)
+    // One selected page goes to the canvas (a click, the keyboard); the panel
+    // reacts to the signal of the selection model of Qt from the event loop
+    QSignalSpy titleSpy(thumbnails, &pdf::PDFAppDocumentPanel::titleChanged);
     thumbnails->getListView()->selectionModel()->setCurrentIndex(thumbnails->getModel()->index(1), QItemSelectionModel::ClearAndSelect);
+    QCOMPARE(titleSpy.count(), 0);
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(9));
     fixture.settle();
+    QVERIFY(titleSpy.count() >= 1);
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(1));
     QVERIFY(view->getSelectedPages() == std::vector<pdf::PDFInteger>({ 1 }));
 
@@ -2639,10 +2644,10 @@ void AppDocumentPanelsTest::deletionFromOwnSignals_data()
 {
     QTest::addColumn<QString>("signal");
     QTest::addColumn<bool>("deleteWindow");
-    // A thumbnail clicked by the mouse is not a row: the view moves from the slot of
-    // the selection model inside of QAbstractItemView::mousePressEvent, which Qt
-    // itself does not survive, when a slot deletes the view there
-    for (const char* name : { "panelChanged", "thumbnailsScrolled", "rotateFromMenu", "toolFromMenu" })
+    // A thumbnail clicked by the mouse: the panel reacts to the signals of the
+    // selection model and of the list view of Qt from the event loop, so the view
+    // moves (and the title changes) outside of QAbstractItemView::mousePressEvent
+    for (const char* name : { "panelChanged", "thumbnailsScrolled", "rotateFromMenu", "toolFromMenu", "thumbnailClicked", "thumbnailSelected" })
     {
         QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
         QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
@@ -2731,6 +2736,22 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
             connect(fixture.window->getNavigator(), &pdf::PDFAppNavigator::navigated, &receiver, deleteNow);
         }
         found->trigger();
+    }
+    else if (signal == QStringLiteral("thumbnailClicked") || signal == QStringLiteral("thumbnailSelected"))
+    {
+        pdf::PDFAppThumbnailListView* list = thumbnails->getListView();
+        const QModelIndex index = thumbnails->getModel()->index(2, 0);
+        list->scrollTo(index);
+        fixture.settle();
+        if (signal == QStringLiteral("thumbnailClicked"))
+        {
+            connect(tab->getView(), &pdf::PDFAppDocumentView::currentPageChanged, &receiver, deleteNow);
+        }
+        else
+        {
+            connect(thumbnails, &pdf::PDFAppDocumentPanel::titleChanged, &receiver, deleteNow);
+        }
+        QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, list->visualRect(index).center());
     }
 
     QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 30000);

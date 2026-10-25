@@ -369,6 +369,11 @@ public:
     bool setCopyOf(const PDFAppDocument* source);
 
 Q_SIGNALS:
+    /// The document is being destroyed (emitted first by its destructor, while the
+    /// PDF document is still alive): a view stops using the PDF document (its page
+    /// compilers read it in worker threads). A slot must not delete the document.
+    void aboutToBeDestroyed();
+
     /// The state has changed (getState)
     void stateChanged();
 

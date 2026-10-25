@@ -1498,9 +1498,33 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
     const PDFAnnotationStyle& style = m_styleManager->getStyle();
     QPen pen = annotationConvertor.convert(QPen(style.strokeColor), false, false);
     pen.setWidthF(style.penWidth);
-    painter->setPen(qMove(pen));
     painter->setRenderHint(QPainter::Antialiasing);
 
+    if (m_toolManager && m_toolManager->isSpecificationShapeTypes())
+    {
+        // The preview is the Ink, which is created: the same points, the same smooth
+        // stroke with round ends and joins (PDFInkAnnotation::draw)
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
+        painter->setPen(qMove(pen));
+        painter->setBrush(Qt::NoBrush);
+
+        // The repaints of the widget without a new position of the mouse (other pages,
+        // scrolling, the cursor) reuse the stroke; the size of a pixel comes from the
+        // matrix of the page (the same as of its snapshot - the result is the same)
+        const PDFReal pixelSize = getPixelSize(pagePointToDevicePointMatrix);
+        if (m_previewPointCount != m_pickedPoints.size() || m_previewPixelSize != pixelSize)
+        {
+            m_previewPath = PDFGeometryUtils::createSmoothCurve(getStrokePoints(pixelSize));
+            m_previewPointCount = m_pickedPoints.size();
+            m_previewPixelSize = pixelSize;
+        }
+        painter->drawPath(m_previewPath);
+        return;
+    }
+
+    // TODO(remove-old-apps): the preview of the PolyLine of the old applications
+    painter->setPen(qMove(pen));
     for (size_t i = 1; i < m_pickedPoints.size(); ++i)
     {
         painter->drawLine(m_pickedPoints[i - 1], m_pickedPoints[i]);
@@ -1516,7 +1540,7 @@ void PDFCreateFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* e
     {
         // Try to perform pick point
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 &&    // We have picked some point on page
                 (m_pageIndex == -1 || m_pageIndex == pageIndex)) // We are under current page
         {
@@ -1541,19 +1565,26 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
     {
         // Try to perform pick point
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 &&    // We have picked some point on page
                 (m_pageIndex == pageIndex)) // We are under current page
         {
             m_pageIndex = pageIndex;
             m_pickedPoints.push_back(pagePoint);
 
-            if (m_pickedPoints.size() >= 3)
+            // The Ink of the new application needs a stroke of two points at least,
+            // which leaves the drag distance - a click (also with the jitter of the
+            // hand) creates nothing (owner 2026-10-25)
+            const bool isSpecificationShape = m_toolManager && m_toolManager->isSpecificationShapeTypes();
+            const PDFReal pixelSize = getPixelSize();
+            // TODO(remove-old-apps): the PolyLine of the old applications needs three positions
+            const std::vector<QPointF> strokePoints = getStrokePoints(pixelSize);
+            if (isSpecificationShape ? !isClickStroke(strokePoints, pixelSize) : m_pickedPoints.size() >= 3)
             {
                 PDFDocumentModifier modifier(getDocument());
 
                 QPolygonF polygon;
-                for (const QPointF& point : m_pickedPoints)
+                for (const QPointF& point : strokePoints)
                 {
                     polygon << point;
                 }
@@ -1606,7 +1637,7 @@ void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
     {
         // Try to add point to the path
         QPointF pagePoint;
-        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex == m_pageIndex)
         {
             m_pickedPoints.push_back(pagePoint);
@@ -1644,6 +1675,67 @@ void PDFCreateFreehandCurveTool::resetTool()
 {
     m_pageIndex = -1;
     m_pickedPoints.clear();
+    m_previewPath = QPainterPath();
+    m_previewPointCount = 0;
+    m_previewPixelSize = 0.0;
+}
+
+std::vector<QPointF> PDFCreateFreehandCurveTool::getStrokePoints() const
+{
+    return getStrokePoints(getPixelSize());
+}
+
+std::vector<QPointF> PDFCreateFreehandCurveTool::getStrokePoints(PDFReal pixelSize) const
+{
+    if (m_toolManager && m_toolManager->isSpecificationShapeTypes())
+    {
+        // The mouse gives whole pixels: a smooth curve through every position has a
+        // small arc at every step of a slow movement
+        return PDFGeometryUtils::simplifyHandDrawnPolyline(m_pickedPoints, pixelSize);
+    }
+
+    // TODO(remove-old-apps): the PolyLine of the old applications has every position
+    return m_pickedPoints;
+}
+
+bool PDFCreateFreehandCurveTool::isClickStroke(const std::vector<QPointF>& strokePoints, PDFReal pixelSize) const
+{
+    if (strokePoints.size() < 2)
+    {
+        return true;
+    }
+
+    // Without the size of a pixel (no snapshot of the page) only the count decides
+    if (!(pixelSize > 0.0) || !std::isfinite(pixelSize))
+    {
+        return false;
+    }
+
+    const PDFReal dragDistance = QApplication::startDragDistance() * pixelSize;
+    for (const QPointF& point : strokePoints)
+    {
+        if (QLineF(strokePoints.front(), point).length() >= dragDistance)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+PDFReal PDFCreateFreehandCurveTool::getPixelSize() const
+{
+    const PDFWidgetSnapshot snapshot = getProxy()->getSnapshot();
+    if (const PDFWidgetSnapshot::SnapshotItem* item = snapshot.getPageSnapshot(m_pageIndex))
+    {
+        return getPixelSize(item->pageToDeviceMatrix);
+    }
+    return 0.0;
+}
+
+PDFReal PDFCreateFreehandCurveTool::getPixelSize(const QTransform& pagePointToDevicePointMatrix)
+{
+    const PDFReal scale = std::sqrt(std::abs(pagePointToDevicePointMatrix.determinant()));
+    return (std::isfinite(scale) && scale > 0.0) ? 1.0 / scale : 0.0;
 }
 
 PDFCreateStampTool::PDFCreateStampTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
@@ -1709,7 +1801,7 @@ void PDFCreateStampTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
     // Try to add point to the path
     QPointF pagePoint;
-    m_pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    m_pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
     if (m_pageIndex != -1)
     {
         m_stampAnnotation.setRectangle(QRectF(pagePoint, QSizeF(0, 0)));
@@ -1830,7 +1922,7 @@ void PDFCreateHighlightTextTool::mousePressEvent(QWidget* widget, QMouseEvent* e
     if (event->button() == Qt::LeftButton)
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1)
         {
             m_selectionInfo.pageIndex = pageIndex;
@@ -1856,7 +1948,7 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
         if (m_selectionInfo.pageIndex != -1)
         {
             QPointF pagePoint;
-            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
             if (m_selectionInfo.pageIndex == pageIndex)
             {
@@ -1923,7 +2015,7 @@ void PDFCreateHighlightTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
     Q_UNUSED(widget);
 
     QPointF pagePoint;
-    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
     PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
     m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
 
@@ -2390,7 +2482,7 @@ void PDFDeleteAnnotationTool::mousePressEvent(QWidget* widget, QMouseEvent* even
     if (event->button() == Qt::LeftButton)
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
         if (pageIndex != -1)
         {
@@ -2416,7 +2508,7 @@ void PDFDeleteAnnotationTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
     if (event->button() == Qt::LeftButton && m_selectionPageIndex != -1)
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
         if (pageIndex == m_selectionPageIndex)
         {
@@ -2436,7 +2528,7 @@ void PDFDeleteAnnotationTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event
     Q_UNUSED(widget);
 
     QPointF pagePoint;
-    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
     m_currentPageIndex = pageIndex;
     m_currentPagePoint = pagePoint;
@@ -2670,7 +2762,7 @@ void PDFCreateRedactTextTool::mousePressEvent(QWidget* widget, QMouseEvent* even
     if (event->button() == Qt::LeftButton)
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1)
         {
             m_selectionInfo.pageIndex = pageIndex;
@@ -2696,7 +2788,7 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
         if (m_selectionInfo.pageIndex != -1)
         {
             QPointF pagePoint;
-            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
             if (m_selectionInfo.pageIndex == pageIndex)
             {
@@ -2740,7 +2832,7 @@ void PDFCreateRedactTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event
     Q_UNUSED(widget);
 
     QPointF pagePoint;
-    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
     PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
     m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
 

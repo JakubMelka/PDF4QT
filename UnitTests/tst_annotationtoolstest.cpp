@@ -31,11 +31,13 @@
 #include "pdfdrawwidget.h"
 #include "pdfprogress.h"
 #include "pdfsnapper.h"
+#include "pdfutils.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgettool.h"
 
 #include <QtTest>
 #include <QActionGroup>
+#include <QApplication>
 #include <QClipboard>
 #include <QDialog>
 #include <QElapsedTimer>
@@ -45,11 +47,14 @@
 #include <QTemporaryDir>
 #include <QTimer>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <functional>
 #include <limits>
 #include <map>
+#include <thread>
 
 using namespace pdf;
 
@@ -90,6 +95,7 @@ private slots:
     void noteIconIsMemo();
     void reviewLinksSelectable();
     void reviewLinksMovable();
+    void reviewLinkDragPans();
     void reviewOwnerDeletedFromEmissions();
     void reviewHighlightedAnnotation();
     void reviewPickTargetToolDeleted();
@@ -97,6 +103,11 @@ private slots:
     void reviewPickToolViewColors();
     void reviewInteractionHitTestCost();
     void reviewInkStrokeSmooth();
+    void inkPathDrawnByThreads();
+    void reviewInkMouseStrokes();
+    void reviewFreehandClickAndPreview();
+    void reviewCursorFollowsState();
+    void exactPagePoints();
 
 private:
     QTemporaryDir m_settingsDirectory;
@@ -2128,13 +2139,31 @@ void AnnotationToolsTest::reviewLinksSelectable()
     fixture.moveTo(onLink, Qt::ControlModifier);
     QVERIFY(ToolsFixture::countDrawn(fixture.drawMarkers()) > 0);
 
-    // Ctrl + click selects the link; a click on the selected link keeps it (no follow)
+    // Ctrl + click selects the link (no follow); a plain click on the selected link
+    // follows it too and keeps it selected (owner 2026-10-25: a plain click always
+    // follows a link, Ctrl + click edits it)
     fixture.click(onLink, Qt::ControlModifier);
     QCOMPARE(annotations.getSelectedAnnotations(), std::vector<PDFObjectReference>({ link }));
+    QCOMPARE(followed.count(), 1);
     fixture.click(onLink);
     QVERIFY(annotations.isAnnotationSelected(link));
-    QCOMPARE(followed.count(), 1);
+    QCOMPARE(followed.count(), 2);
     QCOMPARE(fixture.modificationCount, 0);
+
+    // A press, which has moved past the drag distance, is no click - nothing is followed
+    // (a link, which is not selected, is not moved by it either)
+    annotations.clearSelection();
+    const QPoint movedOnLink = onLink + QPoint(QApplication::startDragDistance() + 2, 0);
+    QCOMPARE(annotations.getSelectableAnnotationsAt(movedOnLink), std::vector<PDFObjectReference>({ link }));
+    fixture.moveTo(onLink);
+    fixture.mouse(QEvent::MouseButtonPress, onLink, Qt::LeftButton, Qt::LeftButton);
+    fixture.mouse(QEvent::MouseMove, movedOnLink, Qt::NoButton, Qt::LeftButton);
+    fixture.mouse(QEvent::MouseButtonRelease, movedOnLink, Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(followed.count(), 2);
+    QVERIFY(!annotations.hasSelection());
+    QCOMPARE(fixture.modificationCount, 0);
+    fixture.click(onLink, Qt::ControlModifier);
+    QVERIFY(annotations.isAnnotationSelected(link));
 
     // Its properties by the keyboard (the link properties of the application)
     QVERIFY(fixture.annotationKey(Qt::Key_Return));
@@ -2149,12 +2178,13 @@ void AnnotationToolsTest::reviewLinksSelectable()
     const PDFAnnotationMenuRequest request = menus.last().at(0).value<PDFAnnotationMenuRequest>();
     QCOMPARE(request.kind, PDFAnnotationMenuRequest::Kind::Selection);
     QCOMPARE(request.annotation, link);
-    QCOMPARE(followed.count(), 1);
+    QCOMPARE(followed.count(), 2);
 
     // Alt + click and the rubber band take links too; the link is deleted as one change
     annotations.clearSelection();
     fixture.click(onLink, Qt::AltModifier);
     QVERIFY(annotations.isAnnotationSelected(link));
+    QCOMPARE(followed.count(), 2);
     QVERIFY(annotations.deleteAnnotations({ link }));
     QCOMPARE(fixture.modificationCount, 1);
     const std::vector<PDFObjectReference> remaining = fixture.pageAnnotations();
@@ -2174,6 +2204,100 @@ void AnnotationToolsTest::reviewLinksSelectable()
     QCOMPARE(secondFixture.annotations.getSelectedAnnotations(), std::vector<PDFObjectReference>({ secondSquare }));
     QCOMPARE(selectionChanges.count(), 1);
     Q_UNUSED(square);
+}
+
+void AnnotationToolsTest::reviewLinkDragPans()
+{
+    // Hand (owner 2026-10-25): without a tool, a drag, which starts on a link, which is
+    // not selected, pans the page as a drag elsewhere - past the drag distance, from the
+    // press on, with the closed hand - and follows nothing; a click (also with a jitter
+    // below the distance) follows the link; a drag of a selected link is its drag, not
+    // a pan; the old applications (links not selectable) and Select text do not pan
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    builder.appendPage(QRectF(0, 0, 300, 300));
+    builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference link = builder.createAnnotationLink(page, QRectF(50, 50, 60, 40), QStringLiteral("https://example.com/"), LinkHighlightMode::Invert);
+    ToolsFixture fixture(builder.build());
+    PDFWidgetAnnotationManager& annotations = fixture.annotations;
+    annotations.setUserInterfaceDelegated(true);
+    QVERIFY(!fixture.tools.getActiveTool());
+    QSignalSpy followed(&annotations, &PDFWidgetAnnotationManager::actionTriggered);
+    QWidget* canvas = fixture.target();
+    const QPointF linkPoint(80, 70);
+    const int distance = QApplication::startDragDistance();
+    const QPoint offset(0, -(distance + 30));
+
+    auto drag = [&fixture](QPoint from, QPoint to)
+    {
+        fixture.moveTo(from);
+        fixture.mouse(QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        fixture.mouse(QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+        fixture.mouse(QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    };
+
+    // Old applications: the press over a link stays a press of the link, no pan
+    QPoint onLink = fixture.device(linkPoint);
+    drag(onLink, onLink + offset);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+    QCOMPARE(followed.count(), 0);
+
+    annotations.setLinksSelectable(true);
+
+    // Within the drag distance nothing moves, past it the page follows the pointer from
+    // the press on with the closed hand; the release follows nothing
+    fixture.moveTo(onLink);
+    fixture.mouse(QEvent::MouseButtonPress, onLink, Qt::LeftButton, Qt::LeftButton);
+    fixture.mouse(QEvent::MouseMove, onLink + QPoint(0, -1), Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+    QVERIFY(canvas->cursor().shape() != Qt::ClosedHandCursor);
+    fixture.mouse(QEvent::MouseMove, onLink + offset, Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(fixture.device(linkPoint), onLink + offset);
+    QCOMPARE(canvas->cursor().shape(), Qt::ClosedHandCursor);
+    fixture.mouse(QEvent::MouseMove, onLink + offset + QPoint(0, -10), Qt::NoButton, Qt::LeftButton);
+    QCOMPARE(fixture.device(linkPoint), onLink + offset + QPoint(0, -10));
+    fixture.mouse(QEvent::MouseButtonRelease, onLink + offset + QPoint(0, -10), Qt::LeftButton, Qt::NoButton);
+    QVERIFY(canvas->cursor().shape() != Qt::ClosedHandCursor);
+    QCOMPARE(followed.count(), 0);
+    QVERIFY(!annotations.hasSelection());
+    QCOMPARE(fixture.modificationCount, 0);
+
+    // A click follows the link, also with a jitter below the drag distance
+    onLink = fixture.device(linkPoint);
+    fixture.click(onLink);
+    QCOMPARE(followed.count(), 1);
+    drag(onLink, onLink + QPoint(1, 0));
+    QCOMPARE(followed.count(), 2);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+
+    // A selected link is dragged as an annotation (the drag and drop of the engine,
+    // which offscreen drops nowhere), not panned, not followed
+    fixture.click(onLink, Qt::ControlModifier);
+    QVERIFY(annotations.isAnnotationSelected(link));
+    drag(onLink, onLink + offset);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+    QCOMPARE(followed.count(), 2);
+    annotations.clearSelection();
+
+    // A lost release: a move without the button pans nothing
+    fixture.moveTo(onLink);
+    fixture.mouse(QEvent::MouseButtonPress, onLink, Qt::LeftButton, Qt::LeftButton);
+    fixture.mouse(QEvent::MouseMove, onLink + offset, Qt::NoButton, Qt::NoButton);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+    fixture.mouse(QEvent::MouseButtonRelease, onLink + offset, Qt::LeftButton, Qt::NoButton);
+
+    // Select text (the links are clickable): a drag from a link neither pans nor selects
+    PDFSelectTextTool* textTool = fixture.tools.getSelectTextTool();
+    QVERIFY(textTool);
+    textTool->setLinksClickable(true);
+    textTool->setAnnotationsSelectable(true);
+    fixture.tools.setActiveTool(PDFToolManager::SelectTextTool);
+    drag(onLink, onLink + offset);
+    QCOMPARE(fixture.device(linkPoint), onLink);
+    QCOMPARE(followed.count(), 2);
+    QVERIFY(!annotations.hasSelection());
+    fixture.click(onLink);
+    QCOMPARE(followed.count(), 3);
 }
 
 void AnnotationToolsTest::reviewLinksMovable()
@@ -2284,12 +2408,25 @@ void AnnotationToolsTest::reviewLinksMovable()
     std::unique_ptr<QMimeData> lockedData(annotations.createAnnotationDragData());
     QVERIFY(!lockedData || !annotations.handleAnnotationDrop(lockedData.get(), onLocked + QPoint(40, 20), Qt::MoveAction, false));
     fixture.mouse(QEvent::MouseButtonRelease, onLocked, Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(followed.count(), 1); // a plain click always follows a link, also a selected one
     drag(onLocked, onLocked + QPoint(40, 20));
     const QPoint lockedCorner = fixture.pageToDevice().mapRect(lockedRectangle).normalized().bottomRight().toPoint();
     drag(lockedCorner, lockedCorner + QPoint(30, 20));
     QCOMPARE(fixture.modificationCount, 2);
     QCOMPARE(readRectangle(locked), lockedRectangle);
-    QCOMPARE(followed.count(), 0);
+    QCOMPARE(followed.count(), 1); // a drag is no click
+
+    // A plain click on the selected (movable) link follows it, the link stays in its place
+    const QRectF linkRectangle = readRectangle(link);
+    const QPoint onMovedLink = fixture.device(linkRectangle.center());
+    annotations.clearSelection();
+    fixture.click(onMovedLink, Qt::ControlModifier);
+    QVERIFY(annotations.isAnnotationSelected(link));
+    QCOMPARE(followed.count(), 1);
+    fixture.click(onMovedLink);
+    QCOMPARE(followed.count(), 2);
+    QCOMPARE(readRectangle(link), linkRectangle);
+    QCOMPARE(fixture.modificationCount, 2);
 }
 
 /// A view, which owns the widget and its managers on the heap (as the document view of the
@@ -2560,7 +2697,8 @@ void AnnotationToolsTest::reviewSpecificationShapeTypes()
             // The Ink is one stroke through the points, moved and resized by its points
             const PDFInkAnnotation* ink = dynamic_cast<const PDFInkAnnotation*>(curve.data());
             QVERIFY(ink);
-            QVERIFY(ink->getInkPath().elementCount() >= 3);
+            // A straight drag is a line (PDFGeometryUtils::simplifyHandDrawnPolyline)
+            QVERIFY(ink->getInkPath().elementCount() >= 2);
             QVERIFY(PDFAnnotationManipulator::getCapabilities(curve.data()).testFlag(PDFAnnotationManipulator::Move));
         }
     }
@@ -2644,6 +2782,570 @@ void AnnotationToolsTest::reviewInkStrokeSmooth()
     {
         QVERIFY2(isDark(zigzagImage, int(point.x() * SCALE), int((300.0 - point.y()) * SCALE)), qPrintable(QString("%1 %2").arg(point.x()).arg(point.y())));
     }
+}
+
+void AnnotationToolsTest::inkPathDrawnByThreads()
+{
+    // An ink with the entry Path of PDF 2.0 (curves) is drawn as its path. The parsed
+    // annotation is shared by the threads, which compile the pages; QPainter writes caches
+    // into the data of a drawn QPainterPath (QPainterPathPrivate::vectorPath), so the
+    // member path must never be drawn itself - the threads start at once on a fresh
+    // annotation in every round (a race is a leak or a double free under ASan / valgrind)
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference ink = builder.createAnnotationInk(page, Polygons{ QPolygonF({ QPointF(20, 20), QPointF(280, 280) }) }, 2.0, Qt::black, QString(), QString(), QString());
+    {
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Path");
+        factory.beginArray();
+        factory << std::vector<PDFReal>{ 20, 150 };
+        factory << std::vector<PDFReal>{ 80, 280, 220, 20, 280, 150 };
+        factory << std::vector<PDFReal>{ 150, 280 };
+        factory.endArray();
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(ink, factory.takeObject());
+    }
+    const PDFDocument document = builder.build();
+
+    constexpr int THREAD_COUNT = 8;
+    constexpr int ROUND_COUNT = 50;
+    std::atomic<int> paintedThreads{ 0 };
+    for (int round = 0; round < ROUND_COUNT; ++round)
+    {
+        const PDFAnnotationPtr annotation = PDFAnnotation::parse(&document.getStorage(), ink);
+        QVERIFY(annotation && annotation->getType() == AnnotationType::Ink);
+
+        std::atomic<int> waiting{ THREAD_COUNT };
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREAD_COUNT; ++i)
+        {
+            threads.emplace_back([&annotation, &waiting, &paintedThreads]()
+            {
+                QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+                image.fill(Qt::white);
+                QPainter painter(&image);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setWorldTransform(QTransform(1, 0, 0, -1, 0, 300));
+                AnnotationDrawParameters parameters;
+                parameters.painter = &painter;
+                parameters.annotation = annotation.data();
+
+                --waiting;
+                while (waiting.load() > 0)
+                {
+                    std::this_thread::yield();
+                }
+                annotation->draw(parameters);
+                painter.end();
+
+                // The curve passes the middle of the page
+                if (qGray(image.pixel(150, 150)) < 128 || qGray(image.pixel(150, 151)) < 128 || qGray(image.pixel(150, 149)) < 128)
+                {
+                    ++paintedThreads;
+                }
+            });
+        }
+        for (std::thread& thread : threads)
+        {
+            thread.join();
+        }
+    }
+    QCOMPARE(paintedThreads.load(), THREAD_COUNT * ROUND_COUNT);
+}
+
+void AnnotationToolsTest::reviewInkMouseStrokes()
+{
+    // Strokes of the freehand tool (an Ink of the new application) drawn by the mouse the
+    // way a hand moves: integer pixels of the widget, slow staircases with duplicate points
+    // and jitter, a fast stroke of long and short segments, a sharp turn and a small loop,
+    // at the zoom 100 % and 300 %. The uniform Catmull-Rom spline overshot between a short
+    // and a long segment and made a loop at a duplicate point (little arcs beside the hand
+    // movement). Every painted pixel of the preview while drawing, of the created annotation
+    // drawn through its appearance stream and of the annotation drawn without it lies within
+    // a half of the pen width + 1.5 px of the polyline of the mouse positions, the stroke
+    // covers the polyline, nothing is filled and the preview equals the result.
+    // The helpers with hostile input: nothing, non finite points, no size of a pixel,
+    // a slow movement in steps below a half of a pixel is not lost
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    QVERIFY(PDFGeometryUtils::simplifyHandDrawnPolyline({}, 1.0).empty());
+    QVERIFY(PDFGeometryUtils::createSmoothCurve({}).isEmpty());
+    QCOMPARE(PDFGeometryUtils::simplifyHandDrawnPolyline({ QPointF(nan, 0), QPointF(1, 1), QPointF(2, nan), QPointF(1, 1), QPointF(3, 1) }, nan),
+             std::vector<QPointF>({ QPointF(1, 1), QPointF(3, 1) }));
+    QCOMPARE(PDFGeometryUtils::createSmoothCurve({ QPointF(2, 2), QPointF(nan, 1) }).elementCount(), 2);
+    std::vector<QPointF> drift;
+    for (int i = 0; i <= 100; ++i)
+    {
+        drift.emplace_back(i * 0.3, 0.0);
+    }
+    const std::vector<QPointF> driftResult = PDFGeometryUtils::simplifyHandDrawnPolyline(drift, 1.0);
+    QCOMPARE(driftResult.front(), QPointF(0, 0));
+    QCOMPARE(driftResult.back(), QPointF(30, 0));
+
+    // Each stroke is an ideal movement of the hand (dense points) and the positions of
+    // the mouse sampled from it (whole pixels)
+    using Stroke = std::vector<QPoint>;
+    struct MouseStroke
+    {
+        QString name;
+        std::vector<QPointF> ideal;
+        Stroke mouse;
+    };
+    std::vector<MouseStroke> mouseStrokes;
+    quint32 seed = 12345;
+    auto jitter = [&seed]()
+    {
+        seed = seed * 1664525u + 1013904223u;
+        return int((seed >> 16) % 3) - 1;
+    };
+    auto addLine = [](std::vector<QPointF>& points, QPointF from, QPointF to, qreal step)
+    {
+        const int count = std::max(1, qRound(QLineF(from, to).length() / step));
+        for (int i = (points.empty() ? 0 : 1); i <= count; ++i)
+        {
+            points.push_back(from + (to - from) * (qreal(i) / count));
+        }
+    };
+    auto rounded = [](const std::vector<QPointF>& points)
+    {
+        Stroke stroke;
+        for (const QPointF& point : points)
+        {
+            stroke.push_back(point.toPoint());
+        }
+        return stroke;
+    };
+
+    // Slow shallow line - a staircase of single pixels, every third point twice
+    {
+        MouseStroke stroke{ QStringLiteral("slow line"), {}, {} };
+        addLine(stroke.ideal, QPointF(10, 15), QPointF(210, 45), 0.25);
+        for (int x = 10; x <= 210; ++x)
+        {
+            const QPoint point(x, qRound(15 + 0.15 * (x - 10)));
+            stroke.mouse.push_back(point);
+            if (x % 3 == 0)
+            {
+                stroke.mouse.push_back(point);
+            }
+        }
+        mouseStrokes.push_back(stroke);
+    }
+
+    // Slow arc with the jitter of the hand
+    {
+        MouseStroke stroke{ QStringLiteral("slow arc"), {}, {} };
+        auto arcPoint = [](qreal angle) { return QPointF(110.0 + 70.0 * std::cos(qDegreesToRadians(angle)), 120.0 + 70.0 * std::sin(qDegreesToRadians(angle))); };
+        for (qreal angle = 200.0; angle <= 340.0 + 0.01; angle += 0.2)
+        {
+            stroke.ideal.push_back(arcPoint(angle));
+        }
+        int index = 0;
+        for (qreal angle = 200.0; angle <= 340.0 + 0.01; angle += 1.2, ++index)
+        {
+            QPoint point = arcPoint(angle).toPoint();
+            if (index % 4 == 0)
+            {
+                point += QPoint(jitter(), jitter());
+            }
+            stroke.mouse.push_back(point);
+        }
+        mouseStrokes.push_back(stroke);
+    }
+
+    // Fast wave - long and short segments mixed
+    {
+        MouseStroke stroke{ QStringLiteral("fast wave"), {}, {} };
+        auto wavePoint = [](qreal x) { return QPointF(x, 130.0 + 14.0 * std::sin(x / 22.0)); };
+        for (qreal x = 10.0; x <= 210.0; x += 0.25)
+        {
+            stroke.ideal.push_back(wavePoint(x));
+        }
+        int index = 0;
+        for (qreal x = 10.0; x <= 210.0; x += (index++ % 2) ? 2.0 : 17.0)
+        {
+            stroke.mouse.push_back(wavePoint(x).toPoint());
+        }
+        mouseStrokes.push_back(stroke);
+    }
+
+    // Sharp turn
+    {
+        MouseStroke stroke{ QStringLiteral("sharp turn"), {}, {} };
+        stroke.ideal = { QPointF(15, 165), QPointF(115, 175), QPointF(30, 205) };
+        std::vector<QPointF> samples;
+        addLine(samples, QPointF(15, 165), QPointF(115, 175), 3.0);
+        addLine(samples, QPointF(115, 175), QPointF(30, 205), 3.0);
+        stroke.mouse = rounded(samples);
+        mouseStrokes.push_back(stroke);
+    }
+
+    // A small loop between two lines (radius 7 pixels)
+    {
+        MouseStroke stroke{ QStringLiteral("small loop"), {}, {} };
+        auto loopPath = [&addLine](qreal step, qreal angleStep)
+        {
+            std::vector<QPointF> points;
+            addLine(points, QPointF(135, 195), QPointF(175, 195), step);
+            for (qreal angle = 90.0 - angleStep; angle >= 90.0 - 400.0; angle -= angleStep)
+            {
+                points.emplace_back(175.0 + 7.0 * std::cos(qDegreesToRadians(angle)), 188.0 + 7.0 * std::sin(qDegreesToRadians(angle)));
+            }
+            addLine(points, points.back(), QPointF(215, 195), step);
+            return points;
+        };
+        stroke.ideal = loopPath(0.25, 0.5);
+        stroke.mouse = rounded(loopPath(2.0, 8.0));
+        mouseStrokes.push_back(stroke);
+    }
+
+    // Total turning of a polyline (degrees) - every small arc beside the movement of
+    // the hand turns the stroke there and back
+    auto turning = [](const std::vector<QPointF>& points)
+    {
+        qreal total = 0.0;
+        qreal previousAngle = 0.0;
+        bool hasPrevious = false;
+        for (size_t i = 0; i + 1 < points.size(); ++i)
+        {
+            const QPointF direction = points[i + 1] - points[i];
+            if (QPointF::dotProduct(direction, direction) < 1.0e-12)
+            {
+                continue;
+            }
+            const qreal angle = std::atan2(direction.y(), direction.x());
+            if (hasPrevious)
+            {
+                qreal difference = angle - previousAngle;
+                while (difference > M_PI)
+                {
+                    difference -= 2.0 * M_PI;
+                }
+                while (difference < -M_PI)
+                {
+                    difference += 2.0 * M_PI;
+                }
+                total += std::abs(difference);
+            }
+            previousAngle = angle;
+            hasPrevious = true;
+        }
+        return qRadiansToDegrees(total);
+    };
+    auto flatten = [](const QPainterPath& path)
+    {
+        std::vector<QPointF> points;
+        for (const QPolygonF& polygon : path.toSubpathPolygons())
+        {
+            points.insert(points.end(), polygon.begin(), polygon.end());
+        }
+        return points;
+    };
+    // The drawing of HEAD before the fix: a uniform Catmull-Rom spline through every position
+    auto uniformCatmullRom = [](const std::vector<QPointF>& points)
+    {
+        QPainterPath path;
+        path.moveTo(points.front());
+        for (size_t i = 0; i + 1 < points.size(); ++i)
+        {
+            const QPointF& previous = points[i > 0 ? i - 1 : i];
+            const QPointF& next = points[i + 2 < points.size() ? i + 2 : i + 1];
+            path.cubicTo(points[i] + (points[i + 1] - previous) / 6.0, points[i + 1] - (next - points[i]) / 6.0, points[i + 1]);
+        }
+        return path;
+    };
+
+    std::vector<std::pair<QString, Stroke>> strokes;
+    for (const MouseStroke& stroke : mouseStrokes)
+    {
+        strokes.emplace_back(stroke.name, stroke.mouse);
+    }
+
+    constexpr qreal WIDTH = 1.5;
+    const QString screenshots = qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS");
+    auto isPainted = [](const QImage& image, int x, int y, int threshold)
+    {
+        return x >= 0 && y >= 0 && x < image.width() && y < image.height() && qGray(image.pixel(x, y)) < threshold;
+    };
+    auto distanceToPolyline = [](const QPointF& point, const Stroke& stroke, QPoint offset)
+    {
+        qreal distance = std::numeric_limits<qreal>::max();
+        for (size_t i = 0; i < stroke.size(); ++i)
+        {
+            const QPointF a = stroke[i] + offset;
+            const QPointF b = stroke[i + 1 < stroke.size() ? i + 1 : i] + offset;
+            const QPointF ab = b - a;
+            const qreal lengthSquared = QPointF::dotProduct(ab, ab);
+            const qreal t = lengthSquared > 0.0 ? std::clamp(QPointF::dotProduct(point - a, ab) / lengthSquared, 0.0, 1.0) : 0.0;
+            distance = std::min(distance, QLineF(point, a + ab * t).length());
+        }
+        return distance;
+    };
+    auto hasPaintedNear = [&isPainted](const QImage& image, QPointF point, qreal radius, int threshold)
+    {
+        const int r = int(std::ceil(radius));
+        for (int y = int(point.y()) - r; y <= int(point.y()) + r; ++y)
+        {
+            for (int x = int(point.x()) - r; x <= int(point.x()) + r; ++x)
+            {
+                if (QLineF(point, QPointF(x + 0.5, y + 0.5)).length() <= radius && isPainted(image, x, y, threshold))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // The failures are collected, so the pictures are written also for a failure
+    QStringList failures;
+    auto check = [&failures](bool condition, const QString& message)
+    {
+        if (!condition && failures.size() < 20)
+        {
+            failures << message;
+        }
+    };
+    for (const qreal zoom : { 1.0, 3.0 })
+    {
+        PDFDocumentBuilder builder;
+        builder.appendPage(QRectF(0, 0, 300, 300));
+        ToolsFixture fixture(builder.build());
+        PDFToolManager* tools = &fixture.tools;
+        tools->setSpecificationShapeTypes(true);
+        tools->setCreationToolsPersistent(true);
+        fixture.proxy()->zoom(zoom);
+        PDFCreateFreehandCurveTool* freehand = fixture.addTool(new PDFCreateFreehandCurveTool(fixture.proxy(), tools, nullptr, tools));
+        freehand->setPenWidth(WIDTH);
+        freehand->setStrokeColor(Qt::black);
+        tools->setActiveTool(freehand);
+
+        const QTransform pageToDevice = fixture.pageToDevice();
+        const qreal scale = std::sqrt(std::abs(pageToDevice.determinant()));
+        const qreal halfPen = WIDTH * scale / 2.0;
+        const QRect visible = pageToDevice.mapRect(QRectF(0, 0, 300, 300)).toAlignedRect().intersected(fixture.target()->rect());
+        QVERIFY2(visible.width() >= 240 && visible.height() >= 230, qPrintable(QString("%1 x %2").arg(visible.width()).arg(visible.height())));
+        const QPoint origin = visible.topLeft() + QPoint(10, 10);
+
+        auto newImage = [&fixture]()
+        {
+            QImage image(fixture.target()->size(), QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::white);
+            return image;
+        };
+        auto renderPreview = [&]()
+        {
+            QImage image = newImage();
+            QPainter painter(&image);
+            painter.setRenderHint(QPainter::Antialiasing);
+            PDFTextLayoutGetter getter(nullptr, 0);
+            QList<PDFRenderError> errors;
+            freehand->drawPage(&painter, 0, nullptr, getter, pageToDevice, PDFColorConvertor(), errors);
+            painter.end();
+            return image;
+        };
+        auto renderAppearance = [&]()
+        {
+            QImage image = newImage();
+            QPainter painter(&image);
+            painter.setRenderHint(QPainter::Antialiasing);
+            PDFTextLayoutGetter getter(nullptr, 0);
+            QList<PDFRenderError> errors;
+            fixture.annotations.drawPage(&painter, 0, nullptr, getter, pageToDevice, PDFColorConvertor(), errors);
+            painter.end();
+            return image;
+        };
+        auto renderDirect = [&](PDFObjectReference reference)
+        {
+            QImage image = newImage();
+            const PDFAnnotationPtr annotation = PDFAnnotation::parse(&fixture.document->getStorage(), reference);
+            if (annotation)
+            {
+                QPainter painter(&image);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setWorldTransform(pageToDevice);
+                AnnotationDrawParameters parameters;
+                parameters.painter = &painter;
+                parameters.annotation = annotation.data();
+                annotation->draw(parameters);
+            }
+            return image;
+        };
+
+        QImage previews = newImage();
+        QImage previousAppearance = renderAppearance();
+        QImage directs = newImage();
+        for (const auto& [name, stroke] : strokes)
+        {
+            fixture.moveTo(stroke.front() + origin);
+            fixture.mouse(QEvent::MouseButtonPress, stroke.front() + origin, Qt::LeftButton, Qt::LeftButton);
+            for (size_t i = 1; i < stroke.size(); ++i)
+            {
+                fixture.mouse(QEvent::MouseMove, stroke[i] + origin, Qt::NoButton, Qt::LeftButton);
+            }
+            const QImage preview = renderPreview();
+            fixture.mouse(QEvent::MouseButtonRelease, stroke.back() + origin, Qt::LeftButton, Qt::NoButton);
+            const std::vector<PDFObjectReference> annotations = fixture.pageAnnotations();
+            QVERIFY(!annotations.empty());
+            QVERIFY(fixture.entry(annotations.back(), "AP").isDictionary());
+
+            // The new stroke of the appearance (the strokes do not overlap)
+            const QImage allAppearance = renderAppearance();
+            QImage appearance = newImage();
+            for (int y = 0; y < appearance.height(); ++y)
+            {
+                for (int x = 0; x < appearance.width(); ++x)
+                {
+                    if (allAppearance.pixel(x, y) != previousAppearance.pixel(x, y))
+                    {
+                        appearance.setPixel(x, y, allAppearance.pixel(x, y));
+                    }
+                }
+            }
+            previousAppearance = allAppearance;
+            const QImage direct = renderDirect(annotations.back());
+
+            // No arcs beside the movement of the hand: the stroke turns as the hand
+            {
+                const auto mouseStroke = std::find_if(mouseStrokes.cbegin(), mouseStrokes.cend(), [&name](const MouseStroke& item) { return item.name == name; });
+                QVERIFY(mouseStroke != mouseStrokes.cend());
+                const PDFAnnotationPtr annotation = PDFAnnotation::parse(&fixture.document->getStorage(), annotations.back());
+                const PDFInkAnnotation* ink = dynamic_cast<const PDFInkAnnotation*>(annotation.data());
+                QVERIFY(ink);
+                std::vector<QPointF> inkPoints;
+                const QPainterPath& inkPath = ink->getInkPath();
+                for (int i = 0; i < inkPath.elementCount(); ++i)
+                {
+                    inkPoints.emplace_back(inkPath.elementAt(i).x, inkPath.elementAt(i).y);
+                }
+                std::vector<QPointF> mousePoints;
+                const QTransform deviceToPage = pageToDevice.inverted();
+                for (const QPoint& point : stroke)
+                {
+                    mousePoints.push_back(deviceToPage.map(QPointF(point + origin)));
+                }
+                const qreal ideal = turning(mouseStroke->ideal);
+                const qreal drawn = turning(flatten(PDFGeometryUtils::createSmoothCurve(inkPoints)));
+                const qreal before = turning(flatten(uniformCatmullRom(mousePoints)));
+                qInfo("%s at %d %%: the hand turns by %.0f degrees, the stroke by %.0f (%d points of %d positions), the uniform spline through the positions by %.0f",
+                      qPrintable(name), int(zoom * 100), ideal, drawn, int(inkPoints.size()), int(stroke.size()), before);
+                check(drawn <= ideal + 30.0, QString("%1 at %2 %: the stroke turns by %3 degrees, the hand by %4").arg(name).arg(zoom * 100.0).arg(drawn).arg(ideal));
+                if (name.startsWith(QStringLiteral("slow")))
+                {
+                    // The measure finds the arcs of the drawing before the fix
+                    check(before > ideal + 90.0, QString("%1 at %2 %: the uniform spline turns by %3 degrees only").arg(name).arg(zoom * 100.0).arg(before));
+                }
+            }
+
+            QRect bounds;
+            for (const QPoint& point : stroke)
+            {
+                bounds |= QRect(point + origin, QSize(1, 1));
+            }
+            bounds.adjust(-30, -30, 30, 30);
+            const std::array<std::pair<const char*, const QImage*>, 3> images = { { { "preview", &preview }, { "appearance", &appearance }, { "direct", &direct } } };
+            for (const auto& [kind, image] : images)
+            {
+                const QString what = QString("%1 %2 at %3 %").arg(name, QString::fromLatin1(kind)).arg(zoom * 100.0);
+                int painted = 0;
+                for (int y = bounds.top(); y <= bounds.bottom(); ++y)
+                {
+                    for (int x = bounds.left(); x <= bounds.right(); ++x)
+                    {
+                        if (isPainted(*image, x, y, 200))
+                        {
+                            ++painted;
+                            const qreal distance = distanceToPolyline(QPointF(x + 0.5, y + 0.5), stroke, origin);
+                            check(distance <= halfPen + 1.5, (QString("%1: pixel %2 %3 is %4 px from the mouse path").arg(what).arg(x).arg(y).arg(distance)));
+                        }
+                    }
+                }
+                check(painted > 0, what + QStringLiteral(": nothing painted"));
+
+                // The stroke covers the path of the mouse - no gap, no shortcut
+                for (size_t i = 0; i + 1 < stroke.size(); ++i)
+                {
+                    const QPointF a = stroke[i] + origin;
+                    const QPointF b = stroke[i + 1] + origin;
+                    const int samples = std::max(1, int(QLineF(a, b).length()));
+                    for (int j = 0; j <= samples; ++j)
+                    {
+                        const QPointF point = a + (b - a) * (qreal(j) / samples) + QPointF(0.5, 0.5);
+                        check(hasPaintedNear(*image, point, halfPen + 1.5, 160), (QString("%1: nothing at %2 %3").arg(what).arg(point.x()).arg(point.y())));
+                    }
+                }
+            }
+
+            // The preview is the result
+            for (int y = bounds.top(); y <= bounds.bottom(); ++y)
+            {
+                for (int x = bounds.left(); x <= bounds.right(); ++x)
+                {
+                    const QPointF center(x + 0.5, y + 0.5);
+                    if (isPainted(preview, x, y, 128))
+                    {
+                        check(hasPaintedNear(appearance, center, 1.5, 200), (QString("%1 at %2 %: preview %3 %4 not in the result").arg(name).arg(zoom * 100.0).arg(x).arg(y)));
+                    }
+                    if (isPainted(appearance, x, y, 128))
+                    {
+                        check(hasPaintedNear(preview, center, 1.5, 200), (QString("%1 at %2 %: result %3 %4 not in the preview").arg(name).arg(zoom * 100.0).arg(x).arg(y)));
+                    }
+                }
+            }
+
+            QPainter previewPainter(&previews);
+            previewPainter.setCompositionMode(QPainter::CompositionMode_Darken);
+            previewPainter.drawImage(0, 0, preview);
+            previewPainter.end();
+            QPainter directPainter(&directs);
+            directPainter.setCompositionMode(QPainter::CompositionMode_Darken);
+            directPainter.drawImage(0, 0, direct);
+            directPainter.end();
+        }
+
+        if (!screenshots.isEmpty())
+        {
+            // The strokes magnified 4 times with the path of the mouse in red
+            const QRect area(origin - QPoint(10, 10), QSize(235, 225));
+            auto save = [&](const QImage& image, const QString& kind)
+            {
+                QImage magnified = image.copy(area).scaled(area.size() * 4, Qt::IgnoreAspectRatio, Qt::FastTransformation).convertToFormat(QImage::Format_ARGB32);
+                QPainter painter(&magnified);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setPen(QPen(QColor(255, 0, 0, 160), 1.0));
+                for (const auto& [name, stroke] : strokes)
+                {
+                    QPolygonF polygon;
+                    for (const QPoint& point : stroke)
+                    {
+                        polygon << (QPointF(point + origin - area.topLeft()) + QPointF(0.5, 0.5)) * 4.0;
+                    }
+                    painter.drawPolyline(polygon);
+                }
+                painter.end();
+                image.copy(area).save(QString("%1/ink-%2-%3.png").arg(screenshots, kind).arg(int(zoom * 100)));
+                magnified.save(QString("%1/ink-%2-%3-x4.png").arg(screenshots, kind).arg(int(zoom * 100)));
+            };
+            save(previews, QStringLiteral("preview"));
+            save(previousAppearance, QStringLiteral("appearance"));
+            save(directs, QStringLiteral("direct"));
+
+            // The strokes drawn at this zoom viewed 3 times closer (appearance streams)
+            QImage closer(area.size() * 3, QImage::Format_ARGB32);
+            closer.fill(Qt::white);
+            QPainter closerPainter(&closer);
+            closerPainter.setRenderHint(QPainter::Antialiasing);
+            PDFTextLayoutGetter getter(nullptr, 0);
+            QList<PDFRenderError> errors;
+            const QTransform closerMatrix = pageToDevice * QTransform::fromTranslate(-area.left(), -area.top()) * QTransform::fromScale(3.0, 3.0);
+            fixture.annotations.drawPage(&closerPainter, 0, nullptr, getter, closerMatrix, PDFColorConvertor(), errors);
+            closerPainter.end();
+            closer.save(QString("%1/ink-appearance-%2-viewed-closer.png").arg(screenshots).arg(int(zoom * 100)));
+        }
+        tools->setActiveTool(nullptr);
+    }
+    QVERIFY2(failures.isEmpty(), qPrintable(failures.join(QStringLiteral("; "))));
 }
 
 void AnnotationToolsTest::reviewInteractionHitTestCost()
@@ -2801,6 +3503,298 @@ void AnnotationToolsTest::reviewPickToolViewColors()
     const QImage themePoints = drawPoints(point, snapped);
     QVERIFY(ToolsFixture::countColor(themePoints, point, 40) > 0);
     QCOMPARE(ToolsFixture::countColor(themePoints, QColor(Qt::blue), 40), 0);
+}
+
+void AnnotationToolsTest::reviewFreehandClickAndPreview()
+{
+    // Freehand of the new application (owner 2026-10-25): an Ink needs at least two
+    // points of its stroke and a stroke past the drag distance - a click, also with a
+    // jitter of the hand, creates nothing and no change of the document. The preview
+    // keeps the simplified stroke: repaints without a new position of the mouse compute
+    // nothing again (the times are printed)
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 300));
+    ToolsFixture fixture(builder.build());
+    PDFToolManager* tools = &fixture.tools;
+    tools->setSpecificationShapeTypes(true);
+    tools->setCreationToolsPersistent(true);
+    PDFCreateFreehandCurveTool* freehand = fixture.addTool(new PDFCreateFreehandCurveTool(fixture.proxy(), tools, nullptr, tools));
+    freehand->setPenWidth(1.5);
+    freehand->setStrokeColor(Qt::black);
+    tools->setActiveTool(freehand);
+    const QPoint start = fixture.device(QPointF(50, 50));
+    const int distance = QApplication::startDragDistance();
+
+    // The preview of a long stroke: a repaint per new position (the stroke is computed
+    // for it) and repaints without a new position
+    const QTransform pageToDevice = fixture.pageToDevice();
+    QImage image(fixture.target()->size(), QImage::Format_ARGB32_Premultiplied);
+    auto renderPreview = [&]()
+    {
+        QPainter painter(&image);
+        PDFTextLayoutGetter getter(nullptr, 0);
+        QList<PDFRenderError> errors;
+        freehand->drawPage(&painter, 0, nullptr, getter, pageToDevice, PDFColorConvertor(), errors);
+    };
+    const QPoint origin = fixture.device(QPointF(20, 150));
+    QElapsedTimer timer;
+    timer.start();
+    fixture.mouse(QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    constexpr int POSITIONS = 3000;
+    for (int i = 1; i < POSITIONS; ++i)
+    {
+        const QPoint position = origin + QPoint((i / 4) % 300, qRound(40.0 * std::sin(i / 50.0)));
+        fixture.mouse(QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+        if (i % 10 == 0)
+        {
+            renderPreview();
+        }
+    }
+    const qint64 drawing = timer.restart();
+    for (int i = 0; i < 200; ++i)
+    {
+        renderPreview();
+    }
+    const qint64 repaints = timer.elapsed();
+    qInfo("Freehand preview of %d positions: drawing with a repaint per 10 positions %lld ms, 200 repaints without a new position %lld ms", POSITIONS, drawing, repaints);
+    fixture.mouse(QEvent::MouseButtonRelease, origin + QPoint(10, 0), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(fixture.pageAnnotations().size(), size_t(1));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    // Clicks: without a move, with a jitter of one pixel and back, with a jitter below
+    // the drag distance
+    const std::vector<std::vector<QPoint>> clicks = { { start, start }, { start, start + QPoint(1, 0), start + QPoint(1, 0) },
+                                                      { start, start + QPoint(1, 1), start, start + QPoint(0, 1) },
+                                                      { start, start + QPoint(distance - 1, 0), start + QPoint(distance - 1, 0) } };
+    for (const std::vector<QPoint>& click : clicks)
+    {
+        fixture.moveTo(click.front());
+        fixture.mouse(QEvent::MouseButtonPress, click.front(), Qt::LeftButton, Qt::LeftButton);
+        for (size_t i = 1; i + 1 < click.size(); ++i)
+        {
+            fixture.mouse(QEvent::MouseMove, click[i], Qt::NoButton, Qt::LeftButton);
+        }
+        fixture.mouse(QEvent::MouseButtonRelease, click.back(), Qt::LeftButton, Qt::NoButton);
+        QCOMPARE(fixture.pageAnnotations().size(), size_t(1));
+        QCOMPARE(fixture.modificationCount, 1);
+        QVERIFY(freehand->isActive());
+    }
+
+    // A short stroke of two points past the drag distance is an Ink
+    fixture.mouse(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    fixture.mouse(QEvent::MouseButtonRelease, start + QPoint(distance + 4, 0), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(fixture.pageAnnotations().size(), size_t(2));
+    QCOMPARE(fixture.modificationCount, 2);
+}
+
+void AnnotationToolsTest::reviewCursorFollowsState()
+{
+    // The cursor of the draw widget follows the real state (owner 2026-10-25): its own
+    // operation (the automatic scrolling of the middle button, the drag of the page)
+    // wins over the cursor of the tools and of the annotation manager, the cursor of
+    // the tool comes back at once after it, also when its release is lost
+    TwoSquares squares;
+    ToolsFixture fixture(squares.document);
+    QWidget* target = fixture.target();
+    const QPoint empty = fixture.device(QPointF(250, 60));
+    const QPoint onSquare = fixture.device(QPointF(80, 70));
+    QVERIFY(target->rect().contains(empty));
+    QVERIFY(target->rect().contains(onSquare));
+    auto shape = [target]() { return target->cursor().shape(); };
+    auto press = [&fixture](QPoint position, Qt::MouseButton button) { fixture.mouse(QEvent::MouseButtonPress, position, button, button); };
+    auto release = [&fixture](QPoint position, Qt::MouseButton button) { fixture.mouse(QEvent::MouseButtonRelease, position, button, Qt::NoButton); };
+    auto drag = [&fixture](QPoint position) { fixture.mouse(QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton); };
+
+    // No tool: the open hand, the movable annotation its own cursor
+    fixture.moveTo(empty);
+    QCOMPARE(shape(), Qt::OpenHandCursor);
+    fixture.moveTo(onSquare);
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+
+    // The drag of the page: the closed hand also over an annotation, the open hand after
+    // the release; a lost release (a move without the button) ends the drag
+    fixture.moveTo(empty);
+    press(empty, Qt::LeftButton);
+    QCOMPARE(shape(), Qt::ClosedHandCursor);
+    drag(onSquare);
+    QCOMPARE(shape(), Qt::ClosedHandCursor);
+    release(onSquare, Qt::LeftButton);
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+    fixture.moveTo(empty);
+    press(empty, Qt::LeftButton);
+    QCOMPARE(shape(), Qt::ClosedHandCursor);
+    fixture.moveTo(empty);
+    QCOMPARE(shape(), Qt::OpenHandCursor);
+    QVERIFY(!fixture.annotations.hasSelection());
+
+    // Select text (the tool of the old applications): its cursor, the automatic
+    // scrolling shows its own cursor over the text tool
+    fixture.tools.setActiveTool(PDFToolManager::SelectTextTool);
+    PDFSelectTextTool* textTool = fixture.tools.getSelectTextTool();
+    fixture.moveTo(empty);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+    fixture.moveTo(empty + QPoint(0, 1));
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+
+    // The middle button again ends it - the cursor of the tool at once
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+
+    // Esc ends it before the tools (the text tool stays active, its shortcut override
+    // keeps Esc from the shortcuts of the window)
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    QKeyEvent overrideEvent(QEvent::ShortcutOverride, Qt::Key_Escape, Qt::NoModifier);
+    overrideEvent.ignore();
+    QCoreApplication::sendEvent(target, &overrideEvent);
+    QVERIFY(overrideEvent.isAccepted());
+    fixture.key(Qt::Key_Escape);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    QCOMPARE(fixture.tools.getActiveTool(), textTool);
+
+    // A left press ends it and is no press of the tool (no text selection starts)
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    press(empty, Qt::LeftButton);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    drag(empty + QPoint(0, 20));
+    release(empty + QPoint(0, 20), Qt::LeftButton);
+    QVERIFY(!textTool->hasSelection());
+    QCOMPARE(shape(), Qt::ArrowCursor);
+
+    // The loss of the focus (a popup, a dialog) and a hidden widget end it
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    QFocusEvent focusOut(QEvent::FocusOut, Qt::PopupFocusReason);
+    QCoreApplication::sendEvent(target, &focusOut);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    press(empty, Qt::MiddleButton);
+    release(empty, Qt::MiddleButton);
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+    QHideEvent hideEvent;
+    QCoreApplication::sendEvent(target, &hideEvent);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+
+    // A tool switched without a move of the mouse (a menu, a shortcut) shows its cursor
+    fixture.tools.setActiveTool(PDFToolManager::ScreenshotTool);
+    QTRY_COMPARE(shape(), Qt::BlankCursor);
+    press(empty, Qt::MiddleButton);
+    QCOMPARE(shape(), Qt::SizeAllCursor);
+    press(empty, Qt::MiddleButton);
+    QCOMPARE(shape(), Qt::BlankCursor);
+    fixture.tools.setActiveTool(nullptr);
+    QTRY_COMPARE(shape(), Qt::OpenHandCursor);
+
+    // A selectable annotation, which cannot be moved (read only - a locked document of
+    // the new application), shows the arrow: a press selects it, it does not pan the page
+    fixture.annotations.setUserInterfaceDelegated(true);
+    fixture.annotations.setReadOnly(true);
+    fixture.moveTo(onSquare);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    fixture.moveTo(empty);
+    QCOMPARE(shape(), Qt::OpenHandCursor);
+    fixture.tools.setActiveTool(PDFToolManager::SelectTextTool);
+    textTool->setAnnotationsSelectable(true);
+    fixture.moveTo(onSquare);
+    QCOMPARE(shape(), Qt::ArrowCursor);
+    textTool->setAnnotationsSelectable(false);
+    fixture.annotations.setReadOnly(false);
+    fixture.annotations.setUserInterfaceDelegated(false);
+}
+
+void AnnotationToolsTest::exactPagePoints()
+{
+    // Owner 2026-10-25: the page point of a mouse position is exact in every engine tool
+    // (PDFDrawWidgetProxy::getPageUnderPoint maps a QPointF - QTransform::map(QPoint) rounded
+    // it to whole points of the page, a staircase of 4 pixels at the zoom 300 %): the
+    // points of a pick tool, of a created annotation and the offset of a drag
+    StyleWindowGuard windowGuard(false);
+    for (const PDFReal zoom : { 1.0, 3.0 })
+    {
+        PDFDocumentBuilder builder;
+        const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+        const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(150, 150, 40, 40), 1.0, Qt::yellow, Qt::black, "Square", "Subject", "Contents");
+        ToolsFixture fixture(builder.build());
+        PDFDrawWidgetProxy* proxy = fixture.proxy();
+        proxy->zoom(zoom);
+        QCOMPARE(proxy->getZoom(), zoom);
+
+        const QTransform deviceToPage = fixture.pageToDevice().inverted();
+        const QRect viewport = fixture.target()->rect();
+        auto exact = [&deviceToPage](QPoint pixel) { return deviceToPage.map(QPointF(pixel)); };
+        auto isWhole = [](const QPointF& point) { return std::abs(point.x() - std::round(point.x())) < 0.01 && std::abs(point.y() - std::round(point.y())) < 0.01; };
+        auto isSame = [](const QPointF& left, const QPointF& right) { return std::abs(left.x() - right.x()) < 1e-6 && std::abs(left.y() - right.y()) < 1e-6; };
+
+        // The proxy: every pixel has its own page point, a pixel is a part of a point
+        const QPoint first = fixture.device(QPointF(60.3, 260.2));
+        const QPoint second = fixture.device(QPointF(110.6, 220.4));
+        QVERIFY(viewport.contains(first) && viewport.contains(second));
+        QVERIFY(!isWhole(exact(first)) && !isWhole(exact(second)));
+        QPointF pagePoint;
+        QCOMPARE(proxy->getPageUnderPoint(first, &pagePoint), PDFInteger(0));
+        QVERIFY2(isSame(pagePoint, exact(first)), qPrintable(QString("%1 %2").arg(pagePoint.x()).arg(pagePoint.y())));
+        QCOMPARE(proxy->getPageUnderPoint(QPointF(first) + QPointF(0.25, 0.5), &pagePoint), PDFInteger(0));
+        QVERIFY(isSame(pagePoint, deviceToPage.map(QPointF(first) + QPointF(0.25, 0.5))));
+        QPointF nextPagePoint;
+        proxy->getPageUnderPoint(first + QPoint(1, 0), &nextPagePoint);
+        QVERIFY(nextPagePoint.x() - exact(first).x() > 0.1 && nextPagePoint.x() - exact(first).x() < 1.0);
+
+        // A pick tool (a rectangle - the callout, the link area, the redaction, ...)
+        std::optional<QRectF> pickedRectangle;
+        fixture.tools.pickRectangle([&pickedRectangle](PDFInteger, QRectF rectangle) { pickedRectangle = rectangle; });
+        fixture.click(first);
+        fixture.click(second);
+        QVERIFY(pickedRectangle.has_value());
+        const QRectF expectedRectangle = QRectF(exact(first), exact(second)).normalized();
+        QVERIFY2(isSame(pickedRectangle->topLeft(), expectedRectangle.topLeft()) && isSame(pickedRectangle->bottomRight(), expectedRectangle.bottomRight()),
+                 qPrintable(QString("%1 %2 %3 %4").arg(pickedRectangle->left()).arg(pickedRectangle->top()).arg(pickedRectangle->right()).arg(pickedRectangle->bottom())));
+        fixture.tools.setActiveTool(nullptr);
+
+        // A created annotation (a polygon by the rectangle tool of the old applications)
+        PDFCreateLineTypeTool* rectangleTool = fixture.addTool(new PDFCreateLineTypeTool(proxy, &fixture.tools, PDFCreateLineTypeTool::Type::Rectangle, nullptr, &fixture.tools));
+        fixture.tools.setActiveTool(rectangleTool);
+        fixture.click(first);
+        fixture.click(second);
+        fixture.tools.setActiveTool(nullptr);
+        QCOMPARE(fixture.modificationCount, 1);
+        const std::vector<PDFObjectReference> created = fixture.pageAnnotations();
+        QCOMPARE(created.size(), size_t(2));
+        const PDFAnnotationPtr polygon = PDFAnnotation::parse(&fixture.document->getStorage(), created.back());
+        const PDFPolygonalGeometryAnnotation* polygonal = dynamic_cast<const PDFPolygonalGeometryAnnotation*>(polygon.data());
+        QVERIFY(polygonal);
+        const std::vector<QPointF>& vertices = polygonal->getVertices();
+        QVERIFY(!vertices.empty());
+        QPolygonF polygonPoints;
+        for (const QPointF& vertex : vertices)
+        {
+            polygonPoints << vertex;
+        }
+        const QRectF polygonBox = polygonPoints.boundingRect();
+        QVERIFY2(isSame(polygonBox.topLeft(), expectedRectangle.topLeft()) && isSame(polygonBox.bottomRight(), expectedRectangle.bottomRight()),
+                 qPrintable(QString("%1 %2 %3 %4").arg(polygonBox.left()).arg(polygonBox.top()).arg(polygonBox.right()).arg(polygonBox.bottom())));
+
+        // The drag of an annotation: moved exactly by the offset of the mouse (no snapping)
+        const QPoint onSquare = fixture.device(QPointF(170.3, 170.6));
+        fixture.annotations.setSelectedAnnotations({ square });
+        fixture.moveTo(onSquare);
+        fixture.mouse(QEvent::MouseButtonPress, onSquare, Qt::LeftButton, Qt::LeftButton);
+        std::unique_ptr<QMimeData> dragData(fixture.annotations.createAnnotationDragData());
+        QVERIFY(dragData);
+        const QPoint target = onSquare + QPoint(7, -5);
+        QVERIFY(fixture.annotations.handleAnnotationDrop(dragData.get(), target, Qt::MoveAction, false));
+        fixture.mouse(QEvent::MouseButtonRelease, target, Qt::LeftButton, Qt::NoButton);
+        QCOMPARE(fixture.modificationCount, 2);
+        const PDFAnnotationPtr moved = PDFAnnotation::parse(&fixture.document->getStorage(), square);
+        QVERIFY(moved);
+        const QPointF offset = moved->getRectangle().normalized().topLeft() - QPointF(150, 150);
+        const QPointF expectedOffset = exact(target) - exact(onSquare);
+        QVERIFY(!isWhole(expectedOffset));
+        QVERIFY2(isSame(offset, expectedOffset), qPrintable(QString("%1 %2 / %3 %4").arg(offset.x()).arg(offset.y()).arg(expectedOffset.x()).arg(expectedOffset.y())));
+    }
 }
 
 QTEST_MAIN(AnnotationToolsTest)

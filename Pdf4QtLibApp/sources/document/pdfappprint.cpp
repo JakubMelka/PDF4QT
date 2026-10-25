@@ -198,6 +198,20 @@ bool PDFAppPrinters::hasPrinterProperties(const PDFAppPrinterInfo& info)
 #endif
 }
 
+bool PDFAppPrinters::isPrinterPropertiesSupported()
+{
+    if (getPropertiesHandler())
+    {
+        return true;
+    }
+
+#if defined(Q_OS_WIN) && defined(PDF4QT_APP_PRINTER_PROPERTIES)
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool PDFAppPrinters::showPrinterProperties(QWidget* parent, QPrinter* printer, const PDFAppPrinterInfo& info)
 {
     if (!printer)

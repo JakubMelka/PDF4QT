@@ -4317,6 +4317,200 @@ static constexpr const std::array<std::pair<QChar, const char*>, 4285>  glyphNam
     std::pair<QChar, const char*>{ QChar(0x30BA), "zukatakana" }                    // Character 'ズ' Letter
 };
 
+// Glyph names of all characters of the Symbol encoding (ISO 32000-2, Annex D.5, glyph names
+// of the font Symbol); for some of them the Adobe Glyph List has other names first (forall,
+// approximatelyequal, Ohm, ...)
+static constexpr const std::array<std::pair<QChar, const char*>, 188> glyphNameSymbolToUnicode = {
+    std::pair<QChar, const char*>{ QChar(0x0391), "Alpha" },                        // Character 'Α' Letter
+    std::pair<QChar, const char*>{ QChar(0x0392), "Beta" },                         // Character 'Β' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A7), "Chi" },                          // Character 'Χ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2206), "Delta" },                        // Character '∆' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0395), "Epsilon" },                      // Character 'Ε' Letter
+    std::pair<QChar, const char*>{ QChar(0x0397), "Eta" },                          // Character 'Η' Letter
+    std::pair<QChar, const char*>{ QChar(0x0393), "Gamma" },                        // Character 'Γ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2111), "Ifraktur" },                     // Character 'ℑ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0399), "Iota" },                         // Character 'Ι' Letter
+    std::pair<QChar, const char*>{ QChar(0x039A), "Kappa" },                        // Character 'Κ' Letter
+    std::pair<QChar, const char*>{ QChar(0x039B), "Lambda" },                       // Character 'Λ' Letter
+    std::pair<QChar, const char*>{ QChar(0x039C), "Mu" },                           // Character 'Μ' Letter
+    std::pair<QChar, const char*>{ QChar(0x039D), "Nu" },                           // Character 'Ν' Letter
+    std::pair<QChar, const char*>{ QChar(0x2126), "Omega" },                        // Character 'Ω' Letter
+    std::pair<QChar, const char*>{ QChar(0x039F), "Omicron" },                      // Character 'Ο' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A6), "Phi" },                          // Character 'Φ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A0), "Pi" },                           // Character 'Π' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A8), "Psi" },                          // Character 'Ψ' Letter
+    std::pair<QChar, const char*>{ QChar(0x211C), "Rfraktur" },                     // Character 'ℜ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A1), "Rho" },                          // Character 'Ρ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A3), "Sigma" },                        // Character 'Σ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A4), "Tau" },                          // Character 'Τ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0398), "Theta" },                        // Character 'Θ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03A5), "Upsilon" },                      // Character 'Υ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03D2), "Upsilon1" },                     // Character 'ϒ' Letter
+    std::pair<QChar, const char*>{ QChar(0x039E), "Xi" },                           // Character 'Ξ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0396), "Zeta" },                         // Character 'Ζ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2135), "aleph" },                        // Character 'ℵ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03B1), "alpha" },                        // Character 'α' Letter
+    std::pair<QChar, const char*>{ QChar(0x0026), "ampersand" },                    // Character '&' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x2220), "angle" },                        // Character '∠' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2329), "angleleft" },                    // Character '〈' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x232A), "angleright" },                   // Character '〉' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x2248), "approxequal" },                  // Character '≈' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2194), "arrowboth" },                    // Character '↔' Symbol
+    std::pair<QChar, const char*>{ QChar(0x21D4), "arrowdblboth" },                 // Character '⇔' Symbol
+    std::pair<QChar, const char*>{ QChar(0x21D3), "arrowdbldown" },                 // Character '⇓' Symbol
+    std::pair<QChar, const char*>{ QChar(0x21D0), "arrowdblleft" },                 // Character '⇐' Symbol
+    std::pair<QChar, const char*>{ QChar(0x21D2), "arrowdblright" },                // Character '⇒' Symbol
+    std::pair<QChar, const char*>{ QChar(0x21D1), "arrowdblup" },                   // Character '⇑' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2193), "arrowdown" },                    // Character '↓' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8E7), "arrowhorizex" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0x2190), "arrowleft" },                    // Character '←' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2192), "arrowright" },                   // Character '→' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2191), "arrowup" },                      // Character '↑' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8E6), "arrowvertex" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0x2217), "asteriskmath" },                 // Character '∗' Symbol
+    std::pair<QChar, const char*>{ QChar(0x007C), "bar" },                          // Character '|' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B2), "beta" },                         // Character 'β' Letter
+    std::pair<QChar, const char*>{ QChar(0xF8F4), "braceex" },                      // Private use
+    std::pair<QChar, const char*>{ QChar(0x007B), "braceleft" },                    // Character '{' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8F3), "braceleftbt" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8F2), "braceleftmid" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8F1), "bracelefttp" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0x007D), "braceright" },                   // Character '}' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8FE), "bracerightbt" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8FD), "bracerightmid" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8FC), "bracerighttp" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0x005B), "bracketleft" },                  // Character '[' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8F0), "bracketleftbt" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8EF), "bracketleftex" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8EE), "bracketlefttp" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0x005D), "bracketright" },                 // Character ']' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8FB), "bracketrightbt" },               // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8FA), "bracketrightex" },               // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8F9), "bracketrighttp" },               // Private use
+    std::pair<QChar, const char*>{ QChar(0x2022), "bullet" },                       // Character '•' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x21B5), "carriagereturn" },               // Character '↵' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03C7), "chi" },                          // Character 'χ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2297), "circlemultiply" },               // Character '⊗' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2295), "circleplus" },                   // Character '⊕' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2663), "club" },                         // Character '♣' Symbol
+    std::pair<QChar, const char*>{ QChar(0x003A), "colon" },                        // Character ':' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x002C), "comma" },                        // Character ',' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x2245), "congruent" },                    // Character '≅' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8E9), "copyrightsans" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0xF6D9), "copyrightserif" },               // Private use
+    std::pair<QChar, const char*>{ QChar(0x00B0), "degree" },                       // Character '°' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B4), "delta" },                        // Character 'δ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2666), "diamond" },                      // Character '♦' Symbol
+    std::pair<QChar, const char*>{ QChar(0x00F7), "divide" },                       // Character '÷' Symbol
+    std::pair<QChar, const char*>{ QChar(0x22C5), "dotmath" },                      // Character '⋅' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0038), "eight" },                        // Character '8' Digit
+    std::pair<QChar, const char*>{ QChar(0x2208), "element" },                      // Character '∈' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2026), "ellipsis" },                     // Character '…' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x2205), "emptyset" },                     // Character '∅' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B5), "epsilon" },                      // Character 'ε' Letter
+    std::pair<QChar, const char*>{ QChar(0x003D), "equal" },                        // Character '=' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2261), "equivalence" },                  // Character '≡' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B7), "eta" },                          // Character 'η' Letter
+    std::pair<QChar, const char*>{ QChar(0x0021), "exclam" },                       // Character '!' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x2203), "existential" },                  // Character '∃' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0035), "five" },                         // Character '5' Digit
+    std::pair<QChar, const char*>{ QChar(0x0192), "florin" },                       // Character 'ƒ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0034), "four" },                         // Character '4' Digit
+    std::pair<QChar, const char*>{ QChar(0x2044), "fraction" },                     // Character '⁄' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B3), "gamma" },                        // Character 'γ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2207), "gradient" },                     // Character '∇' Symbol
+    std::pair<QChar, const char*>{ QChar(0x003E), "greater" },                      // Character '>' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2265), "greaterequal" },                 // Character '≥' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2665), "heart" },                        // Character '♥' Symbol
+    std::pair<QChar, const char*>{ QChar(0x221E), "infinity" },                     // Character '∞' Symbol
+    std::pair<QChar, const char*>{ QChar(0x222B), "integral" },                     // Character '∫' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2321), "integralbt" },                   // Character '⌡' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8F5), "integralex" },                   // Private use
+    std::pair<QChar, const char*>{ QChar(0x2320), "integraltp" },                   // Character '⌠' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2229), "intersection" },                 // Character '∩' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B9), "iota" },                         // Character 'ι' Letter
+    std::pair<QChar, const char*>{ QChar(0x03BA), "kappa" },                        // Character 'κ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03BB), "lambda" },                       // Character 'λ' Letter
+    std::pair<QChar, const char*>{ QChar(0x003C), "less" },                         // Character '<' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2264), "lessequal" },                    // Character '≤' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2227), "logicaland" },                   // Character '∧' Symbol
+    std::pair<QChar, const char*>{ QChar(0x00AC), "logicalnot" },                   // Character '¬' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2228), "logicalor" },                    // Character '∨' Symbol
+    std::pair<QChar, const char*>{ QChar(0x25CA), "lozenge" },                      // Character '◊' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2212), "minus" },                        // Character '−' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2032), "minute" },                       // Character '′' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x00B5), "mu" },                           // Character 'µ' Letter
+    std::pair<QChar, const char*>{ QChar(0x00D7), "multiply" },                     // Character '×' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0039), "nine" },                         // Character '9' Digit
+    std::pair<QChar, const char*>{ QChar(0x2209), "notelement" },                   // Character '∉' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2260), "notequal" },                     // Character '≠' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2284), "notsubset" },                    // Character '⊄' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03BD), "nu" },                           // Character 'ν' Letter
+    std::pair<QChar, const char*>{ QChar(0x0023), "numbersign" },                   // Character '#' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x03C9), "omega" },                        // Character 'ω' Letter
+    std::pair<QChar, const char*>{ QChar(0x03D6), "omega1" },                       // Character 'ϖ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03BF), "omicron" },                      // Character 'ο' Letter
+    std::pair<QChar, const char*>{ QChar(0x0031), "one" },                          // Character '1' Digit
+    std::pair<QChar, const char*>{ QChar(0x0028), "parenleft" },                    // Character '(' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8ED), "parenleftbt" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8EC), "parenleftex" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8EB), "parenlefttp" },                  // Private use
+    std::pair<QChar, const char*>{ QChar(0x0029), "parenright" },                   // Character ')' Punctuation
+    std::pair<QChar, const char*>{ QChar(0xF8F8), "parenrightbt" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8F7), "parenrightex" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0xF8F6), "parenrighttp" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0x2202), "partialdiff" },                  // Character '∂' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0025), "percent" },                      // Character '%' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x002E), "period" },                       // Character '.' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x22A5), "perpendicular" },                // Character '⊥' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03C6), "phi" },                          // Character 'φ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03D5), "phi1" },                         // Character 'ϕ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03C0), "pi" },                           // Character 'π' Letter
+    std::pair<QChar, const char*>{ QChar(0x002B), "plus" },                         // Character '+' Symbol
+    std::pair<QChar, const char*>{ QChar(0x00B1), "plusminus" },                    // Character '±' Symbol
+    std::pair<QChar, const char*>{ QChar(0x220F), "product" },                      // Character '∏' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2282), "propersubset" },                 // Character '⊂' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2283), "propersuperset" },               // Character '⊃' Symbol
+    std::pair<QChar, const char*>{ QChar(0x221D), "proportional" },                 // Character '∝' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03C8), "psi" },                          // Character 'ψ' Letter
+    std::pair<QChar, const char*>{ QChar(0x003F), "question" },                     // Character '?' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x221A), "radical" },                      // Character '√' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8E5), "radicalex" },                    // Private use
+    std::pair<QChar, const char*>{ QChar(0x2286), "reflexsubset" },                 // Character '⊆' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2287), "reflexsuperset" },               // Character '⊇' Symbol
+    std::pair<QChar, const char*>{ QChar(0xF8E8), "registersans" },                 // Private use
+    std::pair<QChar, const char*>{ QChar(0xF6DA), "registerserif" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0x03C1), "rho" },                          // Character 'ρ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2033), "second" },                       // Character '″' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x003B), "semicolon" },                    // Character ';' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x0037), "seven" },                        // Character '7' Digit
+    std::pair<QChar, const char*>{ QChar(0x03C3), "sigma" },                        // Character 'σ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03C2), "sigma1" },                       // Character 'ς' Letter
+    std::pair<QChar, const char*>{ QChar(0x223C), "similar" },                      // Character '∼' Symbol
+    std::pair<QChar, const char*>{ QChar(0x0036), "six" },                          // Character '6' Digit
+    std::pair<QChar, const char*>{ QChar(0x002F), "slash" },                        // Character '/' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x0020), "space" },                        // Character ' ' Whitespace
+    std::pair<QChar, const char*>{ QChar(0x2660), "spade" },                        // Character '♠' Symbol
+    std::pair<QChar, const char*>{ QChar(0x220B), "suchthat" },                     // Character '∋' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2211), "summation" },                    // Character '∑' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03C4), "tau" },                          // Character 'τ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2234), "therefore" },                    // Character '∴' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03B8), "theta" },                        // Character 'θ' Letter
+    std::pair<QChar, const char*>{ QChar(0x03D1), "theta1" },                       // Character 'ϑ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0033), "three" },                        // Character '3' Digit
+    std::pair<QChar, const char*>{ QChar(0xF8EA), "trademarksans" },                // Private use
+    std::pair<QChar, const char*>{ QChar(0xF6DB), "trademarkserif" },               // Private use
+    std::pair<QChar, const char*>{ QChar(0x0032), "two" },                          // Character '2' Digit
+    std::pair<QChar, const char*>{ QChar(0x005F), "underscore" },                   // Character '_' Punctuation
+    std::pair<QChar, const char*>{ QChar(0x222A), "union" },                        // Character '∪' Symbol
+    std::pair<QChar, const char*>{ QChar(0x2200), "universal" },                    // Character '∀' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03C5), "upsilon" },                      // Character 'υ' Letter
+    std::pair<QChar, const char*>{ QChar(0x2118), "weierstrass" },                  // Character '℘' Symbol
+    std::pair<QChar, const char*>{ QChar(0x03BE), "xi" },                           // Character 'ξ' Letter
+    std::pair<QChar, const char*>{ QChar(0x0030), "zero" },                         // Character '0' Digit
+    std::pair<QChar, const char*>{ QChar(0x03B6), "zeta" },                         // Character 'ζ' Letter
+};
+
 static constexpr const std::array<std::pair<QChar, const char*>, 201> glyphNameZapfDingbatsToUnicode = {
     std::pair<QChar, const char*>{ QChar(0x2701), "a1" },                           // Character '✁' Symbol
     std::pair<QChar, const char*>{ QChar(0x2721), "a10" },                          // Character '✡' Symbol
@@ -4574,6 +4768,21 @@ QByteArray PDFNameToUnicode::getNameForUnicodeZapfDingbats(QChar character)
     });
 
     if (it != glyphNameZapfDingbatsToUnicode.cend())
+    {
+        return QByteArray(it->second);
+    }
+
+    return QByteArray();
+}
+
+QByteArray PDFNameToUnicode::getNameForUnicodeSymbol(QChar character)
+{
+    auto it = std::find_if(glyphNameSymbolToUnicode.cbegin(), glyphNameSymbolToUnicode.cend(), [character](const std::pair<QChar, const char*>& item)
+    {
+        return item.first == character;
+    });
+
+    if (it != glyphNameSymbolToUnicode.cend())
     {
         return QByteArray(it->second);
     }

@@ -27,6 +27,7 @@
 
 #include <QRect>
 #include <QRectF>
+#include <QPointF>
 #include <QColor>
 #include <QString>
 #include <QByteArray>
@@ -37,6 +38,8 @@
 #include <iterator>
 #include <functional>
 #include <type_traits>
+
+class QPainterPath;
 
 namespace pdf
 {
@@ -925,6 +928,30 @@ public:
     /// \param rect Rectangle in pixels
     /// \param size Size of the image
     static QRect getPixelRect(const QRectF& rect, QSize size);
+
+    /// Returns the points of a polyline drawn by the hand (positions of a mouse)
+    /// without the noise of the input device: the positions are whole pixels, so a
+    /// slow movement is a staircase with repeated points, and a smooth curve through
+    /// every position has a small arc at every step. Repeated and non finite points
+    /// are removed, each inner point is replaced by a weighted average of the
+    /// polyline within 5 pixels of the length of the stroke (moved at most by one
+    /// pixel) and points closer than 0.75 pixel to the line of the remaining points
+    /// are removed (Ramer-Douglas-Peucker). The first and the
+    /// last point are kept. A non positive size of the pixel removes only the
+    /// repeated and non finite points.
+    /// \param points Points of the polyline
+    /// \param pixelSize Size of a pixel of the input device in the units of the points
+    static std::vector<QPointF> simplifyHandDrawnPolyline(const std::vector<QPointF>& points, double pixelSize);
+
+    /// Returns a smooth curve through the points: a centripetal Catmull-Rom spline
+    /// (cubic Bezier segments, the parametrization by the square root of the length
+    /// of the segments), which has no loops, cusps and overshoots between short and
+    /// long segments, unlike the uniform one. A point, where the direction turns by
+    /// more than 75 degrees, is a corner. Repeated and non finite points are
+    /// skipped. A single point is a path of a zero length (a dot of the round cap of
+    /// the pen), two points are a line.
+    /// \param points Points of the curve
+    static QPainterPath createSmoothCurve(const std::vector<QPointF>& points);
 };
 
 /// Conversion of the values of an enumeration to names and back by a table of names

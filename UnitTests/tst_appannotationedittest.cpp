@@ -923,7 +923,9 @@ void AppAnnotationEditTest::selectionWithTextTool()
     pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
     const pdf::PDFObjectReference square = H::find(tab->getDocument(), 0, QStringLiteral("square"));
 
-    // The text tool is active; a click on an annotation selects it (E7 pass-through)
+    // The text tool is active (the mode Select text - a new tab is in Hand); a click on
+    // an annotation selects it (E7 pass-through)
+    view->setCanvasTool(pdf::PDFToolManager::SelectTextTool);
     QCOMPARE(controller->getActiveTool(), controller->getToolManager()->getSelectTextTool());
     QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(40, 122)));
     fixture.settle();
@@ -1950,8 +1952,8 @@ void AppAnnotationEditTest::linksMoveAndResize()
     fixture.settle();
     QCOMPARE(controller->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ link }));
 
-    // Moved by the drag and drop of the canvas (a press on the selected link is not a
-    // click on the link, nothing is opened)
+    // Moved by the drag and drop of the canvas (a press on the selected link, which
+    // becomes a drag, is not a click on the link, nothing is opened)
     bool ok = false;
     const QPoint from = pdftest::AppDocumentFixture::pageToWidget(view, 0, original.center(), &ok);
     QVERIFY(ok);
@@ -1998,7 +2000,9 @@ void AppAnnotationEditTest::linksMoveAndResize()
     QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, from);
     std::unique_ptr<QMimeData> lockedData(manager->createAnnotationDragData());
     QVERIFY(!lockedData || !manager->handleAnnotationDrop(lockedData.get(), to, Qt::MoveAction, false));
-    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, from);
+    // Released past the drag distance - no click, which would follow the link (a plain
+    // click follows a link also while it is selected, owner 2026-10-25)
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, to);
     fixture.settle();
     QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(original.right(), original.top()), QPointF(original.right() + 30, original.top() - 10)));
     fixture.settle();

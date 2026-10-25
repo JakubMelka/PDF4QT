@@ -53,10 +53,13 @@ These shortcuts work in the tab of a document.
 | Find next | F3 |
 | Find previous | Shift+F3 |
 | Go to page… | Ctrl+G |
+| Hand | Ctrl+H |
 | Add bookmark | Ctrl+M |
 | Next bookmark | Ctrl+. |
 | Previous bookmark | Ctrl+, |
 | Rendering issues | Ctrl+E |
+
+On macOS the shortcuts with Ctrl use the Command key (⌘); the shortcut of **Hand** is Control+H there, because Command+H hides the application.
 
 ## Annotations
 
@@ -107,6 +110,9 @@ These keys work, when the page has the keyboard focus (click the page first).
 | Previous page | PgUp |
 | Next line | Down |
 | Previous line | Up |
+| Fit page | P |
+| Fit width | W |
+| Fit height | H |
 
 ## Outline
 

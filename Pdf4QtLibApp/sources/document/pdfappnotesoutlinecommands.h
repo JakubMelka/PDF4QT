@@ -26,6 +26,10 @@
 #include "pdfappglobal.h"
 #include "pdfappdocumentcommands.h"
 
+#include "pdfaction.h"
+
+#include <vector>
+
 namespace pdf
 {
 
@@ -51,6 +55,17 @@ public:
     virtual void execute(const QString& commandId) override;
     virtual bool isEnabled(const QString& commandId) const override;
     virtual bool isChecked(const QString& commandId) const override;
+
+    /// Targets of Set Target in the order of the submenu: Whole Page, Page Width,
+    /// Page Height (the current view), Area…, Position… (picked on a page), Visible
+    /// Content, its width and height (the current view)
+    static std::vector<DestinationType> getTargets();
+
+    /// Command of a target (empty for another type)
+    static QString getTargetCommandId(DestinationType type);
+
+    /// Target of a command of Set Target (Invalid for another command)
+    static DestinationType getTargetType(const QString& commandId);
 
 private:
     PDFAppOutlineEditor* getEditor() const;

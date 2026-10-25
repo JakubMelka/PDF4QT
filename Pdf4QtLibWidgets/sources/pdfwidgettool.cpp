@@ -44,8 +44,10 @@
 #include <QStylePainter>
 #include <QStyleOptionTitleBar>
 #include <QVector2D>
+#include <QRadialGradient>
 
 #include <algorithm>
+#include <cmath>
 
 #include "pdfdbgheap.h"
 
@@ -884,7 +886,7 @@ void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
         }
 
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1)
         {
             m_selectionInfo.pageIndex = pageIndex;
@@ -910,7 +912,7 @@ void PDFSelectTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
         if (m_selectionInfo.pageIndex != -1)
         {
             QPointF pagePoint;
-            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+            const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
 
             if (m_selectionInfo.pageIndex == pageIndex)
             {
@@ -940,7 +942,7 @@ void PDFSelectTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     getProxy()->getTextLayoutCompiler()->makeTextLayout();
 
     QPointF pagePoint;
-    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+    const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
     PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
     m_isCursorOverText = textLayout.isHoveringOverTextBlock(pagePoint);
 
@@ -1615,6 +1617,19 @@ void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
     QPainterPath path;
     path.addEllipse(mousePos, m_magnifierSize, m_magnifierSize);
 
+    // The colors of the theme of the application (PDFDrawWidgetProxy::setViewColors):
+    // the shadow below the circle and its outline (magnifier 1234:164735); the old
+    // applications draw a white line in the difference composition mode
+    // TODO(remove-old-apps): only the look of the design
+    const bool hasViewColors = getProxy()->hasViewColors();
+    const PDFViewColors viewColors = hasViewColors ? getProxy()->getViewColors() : PDFViewColors();
+    if (viewColors.magnifierShadow.isValid())
+    {
+        const QWidget* widget = getProxy()->getWidget();
+        const QPointF shadowCenter = QPointF(mousePos) + QPointF(0.0, widget ? PDFWidgetUtils::scaleDPI_y(widget, 4) : 4);
+        drawCircleShadow(painter, shadowCenter, m_magnifierSize, viewColors.magnifierShadow, widget ? PDFWidgetUtils::scaleDPI_x(widget, 16) : 16);
+    }
+
     painter->save();
 
     // Clip the painter path for magnifier
@@ -1635,10 +1650,64 @@ void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
     getProxy()->drawPages(painter, rect, getProxy()->getFeatures());
     painter->restore();
 
+    if (viewColors.magnifierBorder.isValid())
+    {
+        // 1 px border/strong inside of the circle
+        PDFPainterStateGuard stateGuard(painter);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(viewColors.magnifierBorder, 1.0);
+        pen.setCosmetic(true);
+        painter->setPen(pen);
+        painter->setBrush(Qt::NoBrush);
+        const PDFReal radius = qMax(PDFReal(m_magnifierSize) - 0.5, 0.0);
+        painter->drawEllipse(QPointF(mousePos), radius, radius);
+        return;
+    }
+
     painter->setCompositionMode(QPainter::CompositionMode_Difference);
     painter->setPen(Qt::white);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(path);
+}
+
+void PDFMagnifierTool::drawCircleShadow(QPainter* painter, QPointF center, PDFReal radius, const QColor& color, PDFReal blur)
+{
+    if (!painter || !color.isValid() || color.alpha() == 0 || !qIsFinite(radius) || radius <= 0.0 || !qIsFinite(blur))
+    {
+        return;
+    }
+
+    // A drop shadow of Figma: the circle blurred by the Gaussian of the standard
+    // deviation blur / 2 - its profile across the edge is the error function, drawn
+    // by the stops of a radial gradient from radius - blur to radius + blur
+    const PDFReal boundedBlur = qBound(0.0, blur, 64.0);
+    const PDFReal outerRadius = radius + boundedBlur;
+    if (outerRadius <= 0.0)
+    {
+        return;
+    }
+
+    QRadialGradient gradient(center, outerRadius);
+    const PDFReal sigma = qMax(boundedBlur * 0.5, 0.5);
+    constexpr int STOP_COUNT = 16;
+    for (int i = 0; i <= STOP_COUNT; ++i)
+    {
+        const PDFReal distance = qMax(radius - boundedBlur, 0.0) + (outerRadius - qMax(radius - boundedBlur, 0.0)) * i / STOP_COUNT;
+        const PDFReal coverage = 0.5 * std::erfc((distance - radius) / (sigma * std::sqrt(2.0)));
+        QColor stopColor = color;
+        stopColor.setAlphaF(float(color.alphaF() * qBound(0.0, coverage, 1.0)));
+        gradient.setColorAt(qBound(0.0, distance / outerRadius, 1.0), stopColor);
+    }
+    if (radius - boundedBlur > 0.0)
+    {
+        gradient.setColorAt(0.0, color);
+    }
+
+    PDFPainterStateGuard stateGuard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(gradient);
+    painter->drawEllipse(center, outerRadius, outerRadius);
 }
 
 void PDFMagnifierTool::setActiveImpl(bool active)
@@ -1793,6 +1862,13 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
 void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
+
+    // The middle button scrolls the pages automatically (the draw widget) in every tool
+    if (event->button() == Qt::MiddleButton)
+    {
+        return;
+    }
+
     event->accept();
 
     if (event->button() == Qt::LeftButton)
@@ -1804,7 +1880,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
             case Mode::Pages:
             {
                 QPointF pagePoint;
-                PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
+                PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint(), &pagePoint);
                 if (pageIndex != -1)
                 {
                     // A slot may delete the tool (its tab) synchronously - nothing is used after it
@@ -1819,7 +1895,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
             {
                 // Try to perform pick point
                 QPointF pagePoint;
-                PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
+                PDFInteger pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint(), &pagePoint);
                 if (pageIndex != -1 &&    // We have picked some point on page
                     (m_pageIndex == -1 || m_pageIndex == pageIndex)) // We are under current page
                 {
@@ -1897,7 +1973,8 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
     event->accept();
-    QPoint mousePos = event->pos();
+    // The exact position - the picked point of the page is not rounded
+    const QPointF mousePos = event->position();
     if (m_mousePosition != mousePos)
     {
         m_mousePosition = mousePos;
@@ -1907,7 +1984,7 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
         if (m_mode == Mode::Pages)
         {
             QPointF pagePoint;
-            m_pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint().toPoint(), &pagePoint);
+            m_pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint(), &pagePoint);
         }
 
         Q_EMIT getProxy()->repaintNeeded();
@@ -2212,7 +2289,7 @@ void PDFSelectTableTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
     if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
         {
             const PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
@@ -2277,7 +2354,7 @@ void PDFSelectTableTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     if (!event->isAccepted() && isTablePicked())
     {
         QPointF pagePoint;
-        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->pos(), &pagePoint);
+        const PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
         if (pageIndex != -1 && pageIndex == m_pageIndex && m_pickedRectangle.contains(pagePoint))
         {
             setCursor(Qt::CrossCursor);

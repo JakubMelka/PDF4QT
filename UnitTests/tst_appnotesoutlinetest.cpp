@@ -35,7 +35,12 @@
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
+#include "pdfappnotesoutlinecommands.h"
+#include "pdfappannotationcreatetools.h"
+#include "pdfappannotationcreator.h"
+#include "pdfappfloatingbar.h"
 #include "pdfappoutlineeditor.h"
+#include "pdfappoutlinetarget.h"
 #include "pdfappundostack.h"
 
 #include "pdfcatalog.h"
@@ -43,13 +48,19 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
 #include "pdfencoding.h"
+#include "pdfcomponentbuttons.h"
 #include "pdffluentwidgets.h"
+#include "pdfmessagebox.h"
+#include "pdfwidgettool.h"
 #include "pdfthemecolors.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 #include "pdfwidgetannotation.h"
 
 #include <QAction>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QPushButton>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -58,6 +69,7 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QSignalSpy>
+#include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QToolButton>
 #include <QtTest>
@@ -280,6 +292,25 @@ public:
         return panel<pdf::PDFAppNotesPanel>(tab, pdf::PDFAppDocumentPanelIds::notes());
     }
 
+    /// Leftmost x of the ink of a text (dark pixels of the light theme) in the
+    /// middle band of the rectangle of the image (-1 if none)
+    static int leftmostInk(const QImage& image, const QRect& rect)
+    {
+        const int top = qMax(0, rect.center().y() - 4);
+        const int bottom = qMin(image.height() - 1, rect.center().y() + 4);
+        for (int x = qMax(0, rect.left()); x <= qMin(image.width() - 1, rect.right()); ++x)
+        {
+            for (int y = top; y <= bottom; ++y)
+            {
+                if (qGray(image.pixel(x, y)) < 150)
+                {
+                    return x;
+                }
+            }
+        }
+        return -1;
+    }
+
     /// Inline editor of the outline tree (nullptr if none)
     static QLineEdit* inlineEditor(pdf::PDFAppOutlinePanel* panel)
     {
@@ -489,6 +520,75 @@ public:
         return write(builder, folder, QStringLiteral("hostile-%1.pdf").arg(kind));
     }
 
+    /// Outline of the targets (Set Target): "Zoomed" (XYZ 10 300 zoom 2, page 1),
+    /// "Kept" (XYZ with a null zoom, page 2), "Action" (/A GoTo XYZ 5 100 zoom 1.5 of
+    /// page 3 with /Next of a URI action) with the child "Child" (XYZ zoom 3, page
+    /// 4), "Plain" (Fit of page 4), "Zero" (XYZ zoom 0, page 1); the named
+    /// destinations "alpha" (page 2), "beta" (page 3), a name with control
+    /// characters, a name of 5000 bytes and a name, which is not UTF-8
+    static QString targetOutline(const QString& folder)
+    {
+        pdf::PDFDocumentBuilder builder;
+        std::vector<pdf::PDFObjectReference> pages;
+        for (int i = 0; i < 4; ++i)
+        {
+            pages.push_back(builder.appendPage(QRectF(0, 0, 300, 400)));
+        }
+        const pdf::PDFObject null;
+        const pdf::PDFObjectReference root = builder.addObject(pdf::PDFObject());
+        std::vector<pdf::PDFObjectReference> items;
+        for (int i = 0; i < 6; ++i)
+        {
+            items.push_back(builder.addObject(pdf::PDFObject()));
+        }
+        const pdf::PDFObjectReference zoomed = items[0], kept = items[1], action = items[2], child = items[3], plain = items[4], zero = items[5];
+        builder.setObject(root, dictionary({ { "Type", name("Outlines") }, { "First", reference(zoomed) }, { "Last", reference(zero) }, { "Count", integer(6) } }));
+        builder.setObject(zoomed, dictionary({ { "Title", text(QStringLiteral("Zoomed")) }, { "Parent", reference(root) }, { "Next", reference(kept) },
+                                               { "Dest", array({ reference(pages[0]), name("XYZ"), integer(10), integer(300), integer(2) }) } }));
+        builder.setObject(kept, dictionary({ { "Title", text(QStringLiteral("Kept")) }, { "Parent", reference(root) }, { "Prev", reference(zoomed) }, { "Next", reference(action) },
+                                             { "Dest", array({ reference(pages[1]), name("XYZ"), integer(0), integer(200), null }) } }));
+        builder.setObject(action, dictionary({ { "Title", text(QStringLiteral("Action")) }, { "Parent", reference(root) }, { "Prev", reference(kept) }, { "Next", reference(plain) },
+                                               { "First", reference(child) }, { "Last", reference(child) }, { "Count", integer(1) },
+                                               { "A", dictionary({ { "S", name("GoTo") }, { "D", array({ reference(pages[2]), name("XYZ"), integer(5), integer(100), pdf::PDFObject::createReal(1.5) }) },
+                                                                   { "Next", dictionary({ { "S", name("URI") }, { "URI", pdf::PDFObject::createString(QByteArray("https://example.com/")) } }) } }) } }));
+        builder.setObject(child, dictionary({ { "Title", text(QStringLiteral("Child")) }, { "Parent", reference(action) },
+                                              { "Dest", array({ reference(pages[3]), name("XYZ"), integer(0), integer(0), integer(3) }) } }));
+        builder.setObject(plain, dictionary({ { "Title", text(QStringLiteral("Plain")) }, { "Parent", reference(root) }, { "Prev", reference(action) }, { "Next", reference(zero) },
+                                              { "Dest", fit(pages[3]) } }));
+        builder.setObject(zero, dictionary({ { "Title", text(QStringLiteral("Zero")) }, { "Parent", reference(root) }, { "Prev", reference(plain) },
+                                             { "Dest", array({ reference(pages[0]), name("XYZ"), integer(0), integer(0), integer(0) }) } }));
+        builder.mergeTo(builder.getCatalogReference(), dictionary({ { "Outlines", reference(root) } }));
+
+        // The named destinations in the /Dests name tree (sorted by their bytes)
+        const pdf::PDFObject dests = dictionary({ { "Names", array({ pdf::PDFObject::createString(QByteArray("alpha")), fit(pages[1]),
+                                                                    pdf::PDFObject::createString(QByteArray("beta")), fit(pages[2]),
+                                                                    pdf::PDFObject::createString(QByteArray("ctl\x01\nname")), fit(pages[0]),
+                                                                    pdf::PDFObject::createString(QByteArray(5000, 'x')), fit(pages[0]),
+                                                                    pdf::PDFObject::createString(QByteArray("\xff\xfe" "abc")), fit(pages[3]) }) } });
+        builder.setCatalogNames(builder.addObject(dictionary({ { "Dests", dests } })));
+        return write(builder, folder, QStringLiteral("target-outline.pdf"));
+    }
+
+    /// Moves the pointer to the point of the page and clicks there (the pick tools
+    /// take the point of the last move)
+    static bool pick(pdf::PDFAppDocumentView* view, int pageIndex, const QPointF& pagePoint)
+    {
+        bool ok = false;
+        const QPoint position = pdftest::AppDocumentFixture::pageToWidget(view, pageIndex, pagePoint, &ok);
+        QPointer<QWidget> target = pdftest::AppDocumentFixture::canvasWidget(view);
+        if (!ok || !target)
+        {
+            return false;
+        }
+
+        const QPoint nearby = position + QPoint(1, 1);
+        QMouseEvent moveNearby(QEvent::MouseMove, nearby, target->mapToGlobal(nearby), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &moveNearby);
+        QMouseEvent move(QEvent::MouseMove, position, target->mapToGlobal(position), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &move);
+        return target && pdftest::AppDocumentFixture::clickPage(view, pageIndex, pagePoint);
+    }
+
     /// Selects the item of the path in the outline panel
     static void selectItem(pdf::PDFAppOutlinePanel* panel, const Path& path)
     {
@@ -522,6 +622,7 @@ private slots:
     void outlineNewItemWithoutOutline();
     void outlineInsertTile();
     void outlineRename();
+    void outlineEditorGeometry();
     void outlineDelete();
     void outlineMove();
     void outlineDragDrop();
@@ -529,6 +630,16 @@ private slots:
     void outlineBoldItalic();
     void outlineUndoKeepsExpansion();
     void outlineLocked();
+    void outlineTargetOperations();
+    void outlineSetTargetMenu();
+    void outlineSetTargetPicked_data();
+    void outlineSetTargetPicked();
+    void outlineSetTargetCanceled();
+    void outlineNamedDestination();
+    void outlineKeepZoom();
+    void outlineTargetLifetime();
+    void outlineParity();
+    void reviewOutlineMultiSelection();
     void notesSelectionSync();
     void notesReplies();
     void notesContextMenu();
@@ -1069,6 +1180,32 @@ void AppNotesOutlineTest::outlineHostile()
     data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), QByteArray("DOC:3\n1,0"));
     QCOMPARE(*pdf::PDFAppOutlineItemModel::getDraggedPath(&data, key), H::Path({ 1, 0 }));
     QVERIFY(!pdf::PDFAppOutlineItemModel::getDraggedPath(&data, QString()));
+    data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), QByteArray("DOC:3\n 2 ,0;1"));
+    QCOMPARE(pdf::PDFAppOutlineItemModel::getDraggedPaths(&data, key), std::vector<H::Path>({ { 2, 0 }, { 1 } }));
+    data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), QByteArray("DOC:33\n0"));
+    QVERIFY(!pdf::PDFAppOutlineItemModel::getDraggedPath(&data, key));
+    data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), QByteArray("DOC:3\n0\xC3"));
+    QVERIFY(!pdf::PDFAppOutlineItemModel::getDraggedPath(&data, key));
+
+    // Each move of a drag checks its data: the data of another document (the largest
+    // allowed) are refused by their key, before anything is decoded (the time is printed)
+    QByteArray large = "DOC:4\n";
+    large += QByteArray(int(pdf::PDFAppOutlineItemModel::MAXIMUM_DRAG_DATA_SIZE) - large.size(), '1');
+    data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), large);
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < 100; ++i)
+    {
+        QVERIFY(!pdf::PDFAppOutlineItemModel::getDraggedPath(&data, key));
+    }
+    const qint64 foreignTime = timer.restart();
+    large[4] = '3';
+    data.setData(pdf::PDFAppOutlineItemModel::getMimeType(), large);
+    for (int i = 0; i < 100; ++i)
+    {
+        QVERIFY(!pdf::PDFAppOutlineItemModel::getDraggedPath(&data, key));
+    }
+    qInfo("100 checks of 4 MB of dragged data: another document %lld ms, this document %lld ms", foreignTime, timer.elapsed());
 }
 
 void AppNotesOutlineTest::outlineNewItem()
@@ -1352,6 +1489,60 @@ void AppNotesOutlineTest::outlineRename()
     QVERIFY(!panel->editItem({ 9 }));
 }
 
+void AppNotesOutlineTest::outlineEditorGeometry()
+{
+    using H = NotesOutlineTestHelper;
+
+    // The inline editor (rename, new item) shows its text where the row draws
+    // the title: outline-row 195:1503 - padding 6, chevron slot 16, gap 4, the
+    // title at 26 (Inter 13), padding 8 at the end; the levels by the indentation
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    QTreeView* tree = panel->getTreeView();
+    tree->expandAll();
+    fixture.settle();
+
+    for (const H::Path& path : { H::Path({ 2 }), H::Path({ 1, 0 }) })
+    {
+        // The drawn title of the row (not current, no focus ring, no selection)
+        H::selectItem(panel, { 0 });
+        tree->clearFocus();
+        fixture.settle();
+        const QModelIndex index = panel->getItemIndex(path);
+        QVERIFY(index.isValid());
+        const QRect row = tree->visualRect(index);
+        // (the window is grabbed - the viewport alone has no background)
+        QWidget* window = tree->window();
+        const QPoint origin = tree->viewport()->mapTo(window, QPoint(0, 0));
+        const QRect band(origin.x(), origin.y() + row.top(), tree->viewport()->width(), row.height());
+        const int titleX = H::leftmostInk(window->grab().toImage(), band) - origin.x();
+        QVERIFY(titleX > 0);
+
+        // The same text in the inline editor
+        H::selectItem(panel, path);
+        panel->getRenameAction()->trigger();
+        fixture.settle();
+        QLineEdit* edit = H::inlineEditor(panel);
+        QVERIFY(edit);
+        edit->deselect();
+        edit->setCursorPosition(edit->text().size());
+        fixture.settle();
+        // (the ink inside of the editor - the ring of the edited cell excluded)
+        const int editorX = H::leftmostInk(window->grab().toImage(), band.adjusted(edit->x() + 3, 0, 0, 0)) - origin.x();
+        qInfo("path depth %d: row %d,%d %dx%d, title ink %d, editor %d,%d %dx%d, editor ink %d", int(path.size()), row.x(), row.y(), row.width(), row.height(),
+              titleX, edit->x(), edit->y(), edit->width(), edit->height(), editorX);
+        QVERIFY2(qAbs(editorX - titleX) <= 1, qPrintable(QStringLiteral("title at %1, the text of the editor at %2").arg(titleX).arg(editorX)));
+
+        // The editor covers the shape of the row (the field drawn below it)
+        QCOMPARE(edit->geometry().right(), row.right());
+        QTest::keyClick(edit, Qt::Key_Escape);
+        fixture.settle();
+    }
+}
+
 void AppNotesOutlineTest::outlineDelete()
 {
     using H = NotesOutlineTestHelper;
@@ -1456,7 +1647,7 @@ void AppNotesOutlineTest::outlineMove()
     // The context menu has the same commands with their states
     QMenu* menu = panel->createContextMenu(panel->getItemIndex({ 0 }));
     QVERIFY(menu);
-    QCOMPARE(H::actionNames(menu), QStringList({ "outlineGoTo", "outlineMenu:outline.newItem", "outlineMenu:outline.rename", "outlineMenu:outline.setTarget",
+    QCOMPARE(H::actionNames(menu), QStringList({ "outlineGoTo", "outlineMenu:outline.newItem", "outlineMenu:outline.rename", "outlineSetTargetMenu",
                                                  "outlineMenu:outline.bold", "outlineMenu:outline.italic", "outlineMenu:outline.moveUp", "outlineMenu:outline.moveDown",
                                                  "outlineMenu:outline.indent", "outlineMenu:outline.outdent", "outlineMenu:outline.delete" }));
     QVERIFY(!H::findAction(menu, QStringLiteral("outlineMenu:outline.moveUp"))->isEnabled());
@@ -3064,6 +3255,848 @@ void AppNotesOutlineTest::screenshots()
         }
     }
     QApplication::setLayoutDirection(Qt::LeftToRight);
+}
+
+void AppNotesOutlineTest::outlineTargetOperations()
+{
+    using Operations = pdf::PDFAppAnnotationOperations;
+    using H = NotesOutlineTestHelper;
+
+    QTemporaryDir folder;
+    const pdf::PDFDocumentPointer document = H::read(H::targetOutline(folder.path()));
+    QVERIFY(document);
+    QCOMPARE(H::titles(document.data()), QStringList({ "Zoomed", "Kept", "Action", ">Child", "Plain", "Zero" }));
+
+    // The items with their own zoom (not null, not 0): Zoomed, Action (/A GoTo), Child
+    const std::vector<H::Path> withZoom = Operations::getOutlineItemsWithZoom(document.data());
+    QCOMPARE(withZoom, std::vector<H::Path>({ { 0 }, { 2 }, { 2, 0 } }));
+    const pdf::PDFOutlineItem* root = document->getCatalog()->getOutlineRootPtr().data();
+    QVERIFY(Operations::hasOutlineItemZoom(root->getChild(0)));
+    QVERIFY(Operations::isOutlineItemKeepingZoom(root->getChild(1)));
+    QVERIFY(!Operations::isOutlineItemKeepingZoom(root->getChild(3)));   // Fit is no position
+    QVERIFY(Operations::isOutlineItemKeepingZoom(root->getChild(4)));    // zoom 0 = the zoom of the reader
+
+    // Keep the zoom of all: one change, the positions kept, /A keeps its /Next
+    pdf::PDFAppAnnotationResult result = Operations::setOutlineItemsKeepZoom(document, withZoom);
+    QVERIFY(result);
+    QCOMPARE(result->getFlags(), pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Outline));
+    pdf::PDFDocumentPointer changed = H::apply(result);
+    QCOMPARE(H::checkStructure(changed.data()), QString());
+    QVERIFY(Operations::getOutlineItemsWithZoom(changed.data()).empty());
+    const pdf::PDFOutlineItem* changedRoot = changed->getCatalog()->getOutlineRootPtr().data();
+    const pdf::PDFActionGoTo* zoomed = dynamic_cast<const pdf::PDFActionGoTo*>(changedRoot->getChild(0)->getAction());
+    QVERIFY(zoomed);
+    QCOMPARE(zoomed->getDestination().getLeft(), 10.0);
+    QCOMPARE(zoomed->getDestination().getTop(), 300.0);
+    QVERIFY(std::isnan(zoomed->getDestination().getZoom()));
+    const pdf::PDFAction* action = changedRoot->getChild(2)->getAction();
+    QVERIFY(action && action->getType() == pdf::ActionType::GoTo);
+    QCOMPARE(static_cast<const pdf::PDFActionGoTo*>(action)->getDestination().getTop(), 100.0);
+    QVERIFY(std::isnan(static_cast<const pdf::PDFActionGoTo*>(action)->getDestination().getZoom()));
+    // The other entries of the action (/Next of the URI) stay
+    const pdf::PDFObjectReference actionItem = Operations::getOutlineItemReferences(changed.data())[2];
+    const pdf::PDFDictionary* actionItemDictionary = changed->getStorage().getDictionaryFromObject(changed->getStorage().getObjectByReference(actionItem));
+    QVERIFY(actionItemDictionary);
+    const pdf::PDFDictionary* actionDictionary = changed->getStorage().getDictionaryFromObject(actionItemDictionary->get("A"));
+    QVERIFY(actionDictionary && actionDictionary->hasKey("Next") && !actionItemDictionary->hasKey("Dest"));
+
+    // Nothing to change: nullopt (no undo step); hostile paths are skipped
+    QVERIFY(!Operations::setOutlineItemsKeepZoom(changed, Operations::getOutlineItemsWithZoom(changed.data())));
+    QVERIFY(!Operations::setOutlineItemsKeepZoom(document, { { 1 }, { 3 }, { 99 }, {}, { 2, 7, 1 } }));
+    QVERIFY(!Operations::setOutlineItemsKeepZoom(document, {}));
+    QVERIFY(!Operations::setOutlineItemsKeepZoom(pdf::PDFDocumentPointer(), withZoom));
+    QVERIFY(Operations::getOutlineItemsWithZoom(nullptr).empty());
+
+    // Remove more items: the child of a removed item and duplicates go with it
+    result = Operations::removeOutlineItems(document, { { 2, 0 }, { 0 }, { 2 }, { 0 } });
+    QVERIFY(result);
+    changed = H::apply(result);
+    QCOMPARE(H::titles(changed.data()), QStringList({ "Kept", "Plain", "Zero" }));
+    QCOMPARE(H::checkStructure(changed.data()), QString());
+    QVERIFY(!Operations::removeOutlineItems(document, { { 0 }, { 42 } }));
+    QVERIFY(!Operations::removeOutlineItems(document, {}));
+    QVERIFY(!Operations::removeOutlineItems(document, { {} }));
+
+    // Move more items in the order of the document into another item
+    std::vector<H::Path> newPaths;
+    result = Operations::moveOutlineItems(document, { { 4 }, { 0 } }, { 1 }, 0, &newPaths);
+    QVERIFY(result);
+    changed = H::apply(result);
+    QCOMPARE(H::titles(changed.data()), QStringList({ "Kept", ">Zoomed", ">Zero", "Action", ">Child", "Plain" }));
+    QCOMPARE(newPaths, std::vector<H::Path>({ { 0, 0 }, { 0, 1 } }));
+    QCOMPARE(H::checkStructure(changed.data()), QString());
+
+    // Within the parent: the index is of the children before the move
+    result = Operations::moveOutlineItems(document, { { 0 }, { 1 } }, {}, 5, &newPaths);
+    QVERIFY(result);
+    QCOMPARE(H::titles(H::apply(result).data()), QStringList({ "Action", ">Child", "Plain", "Zero", "Zoomed", "Kept" }));
+    QCOMPARE(newPaths, std::vector<H::Path>({ { 3 }, { 4 } }));
+
+    // Into a moved item, items staying at their place, invalid paths: refused
+    QVERIFY(!Operations::moveOutlineItems(document, { { 2 }, { 4 } }, { 2, 0 }, 0, nullptr));
+    QVERIFY(!Operations::moveOutlineItems(document, { { 0 }, { 1 } }, {}, 0, nullptr));
+    QVERIFY(!Operations::moveOutlineItems(document, { { 0 }, { 1 } }, {}, 2, nullptr));
+    QVERIFY(!Operations::moveOutlineItems(document, { { 0 }, { 77 } }, {}, 3, nullptr));
+    QVERIFY(!Operations::moveOutlineItems(document, { { 0 } }, { 77 }, 0, nullptr));
+    QVERIFY(!Operations::moveOutlineItems(document, {}, {}, 0, nullptr));
+}
+
+void AppNotesOutlineTest::outlineSetTargetMenu()
+{
+    using H = NotesOutlineTestHelper;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+
+    // The submenu Set Target: Current View, the targets picked on a page, Named
+    // Destination…, the zoom of the reader
+    std::unique_ptr<QMenu> menu(panel->createContextMenu(panel->getItemIndex({ 0 })));
+    QVERIFY(menu);
+    QCOMPARE(H::actionNames(menu.get()), QStringList({ "outlineGoTo", "outlineMenu:outline.newItem", "outlineMenu:outline.rename", "outlineSetTargetMenu",
+                                                       "outlineMenu:outline.bold", "outlineMenu:outline.italic", "outlineMenu:outline.moveUp", "outlineMenu:outline.moveDown",
+                                                       "outlineMenu:outline.indent", "outlineMenu:outline.outdent", "outlineMenu:outline.delete" }));
+    QMenu* submenu = H::findAction(menu.get(), QStringLiteral("outlineSetTargetMenu"))->menu();
+    QVERIFY(submenu);
+    QCOMPARE(H::actionNames(submenu), QStringList({ "outlineMenu:outline.setTarget", "outlineMenu:outline.setTargetWholePage", "outlineMenu:outline.setTargetPageWidth",
+                                                    "outlineMenu:outline.setTargetPageHeight", "outlineMenu:outline.setTargetArea", "outlineMenu:outline.setTargetPosition",
+                                                    "outlineMenu:outline.setTargetContent", "outlineMenu:outline.setTargetContentWidth", "outlineMenu:outline.setTargetContentHeight",
+                                                    "outlineMenu:outline.setTargetNamed", "outlineMenu:outline.keepZoom", "outlineMenu:outline.keepZoomAll" }));
+    QStringList texts;
+    for (QAction* action : submenu->actions())
+    {
+        if (!action->isSeparator())
+        {
+            texts << action->text();
+        }
+    }
+    QCOMPARE(texts, QStringList({ "Current View", "Whole Page", "Page Width", "Page Height", "Area…", "Position…", "Visible Content", "Visible Content Width",
+                                  "Visible Content Height", "Named Destination…", "Keep the Reader's Zoom", "Keep the Reader's Zoom for All Items…" }));
+
+    // The groups of 1236:165602 (separators) and no icons
+    QStringList groups;
+    for (QAction* action : submenu->actions())
+    {
+        groups << (action->isSeparator() ? QStringLiteral("|") : QStringLiteral("a"));
+        QVERIFY(action->icon().isNull());
+    }
+    QCOMPARE(groups.join(QString()), QStringLiteral("a|aaaaaaaa|a|aa"));
+    QVERIFY(H::findAction(menu.get(), QStringLiteral("outlineSetTargetMenu"))->icon().isNull());
+    QCOMPARE(H::findAction(menu.get(), QStringLiteral("outlineMenu:outline.delete"))->shortcut(), QKeySequence(Qt::Key_Delete));
+
+    // Keep the Reader's Zoom: checkable, enabled for a position, checked without its zoom
+    QAction* keepZoom = H::findAction(submenu, QStringLiteral("outlineMenu:outline.keepZoom"));
+    QVERIFY(keepZoom->isCheckable() && keepZoom->isEnabled() && !keepZoom->isChecked());
+    QVERIFY(H::findAction(submenu, QStringLiteral("outlineMenu:outline.keepZoomAll"))->isEnabled());
+    QVERIFY(tab->isCommandEnabled(pdf::PDFAppCommands::outlineKeepZoom()));
+    QVERIFY(!tab->isCommandChecked(pdf::PDFAppCommands::outlineKeepZoom()));
+    menu.reset(panel->createContextMenu(panel->getItemIndex({ 1 })));
+    keepZoom = H::findAction(H::findAction(menu.get(), QStringLiteral("outlineSetTargetMenu"))->menu(), QStringLiteral("outlineMenu:outline.keepZoom"));
+    QVERIFY(keepZoom->isEnabled() && keepZoom->isChecked());
+    QTRY_VERIFY(tab->isCommandChecked(pdf::PDFAppCommands::outlineKeepZoom()));
+    menu.reset(panel->createContextMenu(panel->getItemIndex({ 3 })));
+    keepZoom = H::findAction(H::findAction(menu.get(), QStringLiteral("outlineSetTargetMenu"))->menu(), QStringLiteral("outlineMenu:outline.keepZoom"));
+    QVERIFY(!keepZoom->isEnabled());
+    QTRY_VERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineKeepZoom()));
+    QCOMPARE(editor->getItemsWithZoomCount(), 3);
+
+    // Every command of the submenu is registered, has its icon and works by the
+    // command (keyboard, the global search)
+    const pdf::PDFAppCommandRegistry* registry = fixture.context->getCommandRegistry();
+    for (pdf::DestinationType type : pdf::PDFAppNotesOutlineCommandHandler::getTargets())
+    {
+        const QString commandId = pdf::PDFAppNotesOutlineCommandHandler::getTargetCommandId(type);
+        QVERIFY2(registry->findCommand(commandId), qPrintable(commandId));
+        QVERIFY(!registry->findCommand(commandId)->iconName.isEmpty());
+        QCOMPARE(pdf::PDFAppNotesOutlineCommandHandler::getTargetType(commandId), type);
+        QVERIFY(tab->isCommandEnabled(commandId));
+    }
+    QCOMPARE(pdf::PDFAppNotesOutlineCommandHandler::getTargetType(pdf::PDFAppCommands::outlineDelete()), pdf::DestinationType::Invalid);
+    QVERIFY(registry->findCommand(pdf::PDFAppCommands::outlineKeepZoom())->isCheckable);
+
+    // The item of the menu starts its command
+    menu.reset(panel->createContextMenu(panel->getItemIndex({ 4 })));
+    H::findAction(H::findAction(menu.get(), QStringLiteral("outlineSetTargetMenu"))->menu(), QStringLiteral("outlineMenu:outline.setTargetArea"))->trigger();
+    fixture.settle();
+    QVERIFY(editor->isPickingTarget());
+    QCOMPARE(editor->getTargetPicker()->getType(), pdf::DestinationType::FitR);
+    editor->cancelTargetPicking();
+    QVERIFY(!editor->isPickingTarget());
+}
+
+void AppNotesOutlineTest::outlineSetTargetPicked_data()
+{
+    QTest::addColumn<QString>("commandId");
+    QTest::addColumn<int>("type");
+    QTest::addColumn<bool>("isArea");
+    QTest::addColumn<bool>("isPicked");
+
+    // Area… and Position… are picked on a page, the others take the current view
+    QTest::newRow("Fit") << pdf::PDFAppCommands::outlineSetTargetWholePage() << int(pdf::DestinationType::Fit) << false << false;
+    QTest::newRow("FitH") << pdf::PDFAppCommands::outlineSetTargetPageWidth() << int(pdf::DestinationType::FitH) << false << false;
+    QTest::newRow("FitV") << pdf::PDFAppCommands::outlineSetTargetPageHeight() << int(pdf::DestinationType::FitV) << false << false;
+    QTest::newRow("FitR") << pdf::PDFAppCommands::outlineSetTargetArea() << int(pdf::DestinationType::FitR) << true << true;
+    QTest::newRow("XYZ") << pdf::PDFAppCommands::outlineSetTargetPosition() << int(pdf::DestinationType::XYZ) << false << true;
+    QTest::newRow("FitB") << pdf::PDFAppCommands::outlineSetTargetContent() << int(pdf::DestinationType::FitB) << false << false;
+    QTest::newRow("FitBH") << pdf::PDFAppCommands::outlineSetTargetContentWidth() << int(pdf::DestinationType::FitBH) << false << false;
+    QTest::newRow("FitBV") << pdf::PDFAppCommands::outlineSetTargetContentHeight() << int(pdf::DestinationType::FitBV) << false << false;
+    // The picker supports the other types too (the target-only mode of PDFAppPageLinkTool)
+    QTest::newRow("FitPicked") << QString() << int(pdf::DestinationType::Fit) << false << true;
+    QTest::newRow("FitBHPicked") << QString() << int(pdf::DestinationType::FitBH) << false << true;
+}
+
+void AppNotesOutlineTest::outlineSetTargetPicked()
+{
+    using H = NotesOutlineTestHelper;
+
+    QFETCH(QString, commandId);
+    QFETCH(int, type);
+    QFETCH(bool, isArea);
+    QFETCH(bool, isPicked);
+    const pdf::DestinationType destinationType = static_cast<pdf::DestinationType>(type);
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppOutlineEditor* editor = view->getOutlineEditor();
+
+    // "Plain" (Fit of page 4) gets a target on page 2
+    H::selectItem(panel, { 3 });
+    if (!isPicked)
+    {
+        // The current view of page 2: one undo step at once
+        // (the navigation selects the item of the page - the item is selected after it)
+        view->goToPage(1);
+        fixture.settle();
+        H::selectItem(panel, { 3 });
+        const int undoCountBefore = pdftest::AppDocumentFixture::undoCount(document);
+        QVERIFY(tab->executeCommand(commandId));
+        fixture.settle();
+        QVERIFY(!editor->isPickingTarget());
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCountBefore + 1);
+        QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Set outline item target"));
+        const pdf::PDFActionGoTo* viewGoTo = dynamic_cast<const pdf::PDFActionGoTo*>(document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(3)->getAction());
+        QVERIFY(viewGoTo);
+        QCOMPARE(viewGoTo->getDestination().getDestinationType(), destinationType);
+        QCOMPARE(pdf::PDFAppPanelWidgets::getActionPage(document->getDocument()->getCatalog(), viewGoTo), pdf::PDFInteger(1));
+        const std::optional<pdf::PDFDestination> expected = editor->getCurrentViewDestination(destinationType);
+        QVERIFY(expected);
+        QCOMPARE(viewGoTo->getDestination().getTop(), expected->getTop());
+        QCOMPARE(viewGoTo->getDestination().getLeft(), expected->getLeft());
+        if (destinationType == pdf::DestinationType::FitH || destinationType == pdf::DestinationType::FitBH)
+        {
+            QVERIFY(qIsFinite(viewGoTo->getDestination().getTop()));
+        }
+        if (destinationType == pdf::DestinationType::FitV || destinationType == pdf::DestinationType::FitBV)
+        {
+            QVERIFY(qIsFinite(viewGoTo->getDestination().getLeft()));
+        }
+        QVERIFY(!editor->getCurrentViewDestination(pdf::DestinationType::Named));
+        return;
+    }
+
+    if (commandId.isEmpty())
+    {
+        QVERIFY(editor->pickCurrentItemTarget(destinationType));
+    }
+    else
+    {
+        QVERIFY(tab->executeCommand(commandId));
+    }
+    fixture.settle();
+    pdf::PDFAppOutlineTargetPicker* picker = editor->getTargetPicker();
+    QVERIFY(picker && picker->isActive());
+    QCOMPARE(picker->getType(), destinationType);
+    QVERIFY(picker->getTool()->isTargetOnly());
+    QCOMPARE(picker->getTool()->getDestinationType(), destinationType);
+    QCOMPARE(view->getToolManager()->getActiveTool(), static_cast<pdf::PDFWidgetTool*>(picker->getTool()));
+    QVERIFY(picker->getBar() && picker->getBar()->isVisible());
+    QCOMPARE(picker->getInstructionLabel()->text(), pdf::PDFAppAnnotationTools::getPageLinkInstruction(destinationType));
+    QCOMPARE(view->getStatusBar()->getMessage(), pdf::PDFAppAnnotationTools::getPageLinkInstruction(destinationType));
+    QCOMPARE(picker->getBar()->getCardGeometry().top(), pdf::PDFAppFloatingBar::TOP_GAP);
+
+    // The user navigates meanwhile: the picking stays
+    view->goToPage(1);
+    fixture.settle();
+    QVERIFY(picker->isActive());
+    const int undoCount = pdftest::AppDocumentFixture::undoCount(document);
+
+    // The target picked on the page by the mouse (a click, a drawn area)
+    const bool isTargetPicked = isArea ? (H::pick(view, 1, QPointF(40, 300)) && H::pick(view, 1, QPointF(140, 220)))
+                                 : H::pick(view, 1, QPointF(60, 250));
+    QVERIFY(isTargetPicked);
+    fixture.settle();
+    QTRY_VERIFY(!picker->isActive());
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount + 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Set outline item target"));
+    QVERIFY(!picker->getBar()->isVisible());
+    QVERIFY(view->getToolManager()->getActiveTool() != picker->getTool());
+
+    const pdf::PDFOutlineItem* item = document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(3);
+    const pdf::PDFActionGoTo* goTo = dynamic_cast<const pdf::PDFActionGoTo*>(item->getAction());
+    QVERIFY(goTo);
+    const pdf::PDFDestination& destination = goTo->getDestination();
+    QCOMPARE(destination.getDestinationType(), destinationType);
+    QCOMPARE(pdf::PDFAppPanelWidgets::getActionPage(document->getDocument()->getCatalog(), goTo), pdf::PDFInteger(1));
+    switch (destinationType)
+    {
+        case pdf::DestinationType::FitH:
+        case pdf::DestinationType::FitBH:
+            QVERIFY(qAbs(destination.getTop() - 250.0) < 2.0);
+            break;
+        case pdf::DestinationType::FitV:
+        case pdf::DestinationType::FitBV:
+            QVERIFY(qAbs(destination.getLeft() - 60.0) < 2.0);
+            break;
+        case pdf::DestinationType::XYZ:
+            QVERIFY(qAbs(destination.getLeft() - 60.0) < 2.0);
+            QVERIFY(qAbs(destination.getTop() - 250.0) < 2.0);
+            QVERIFY(!std::isnan(destination.getZoom()));   // "Plain" did not keep the zoom of the reader
+            break;
+        case pdf::DestinationType::FitR:
+            QVERIFY(qAbs(destination.getLeft() - 40.0) < 2.0);
+            QVERIFY(qAbs(destination.getRight() - 140.0) < 2.0);
+            QVERIFY(qAbs(destination.getTop() - 300.0) < 2.0);
+            QVERIFY(qAbs(destination.getBottom() - 220.0) < 2.0);
+            break;
+        default:
+            break;
+    }
+
+    // Undo gives the old target back
+    tab->executeCommand(pdf::PDFAppCommands::undo());
+    fixture.settle();
+    goTo = dynamic_cast<const pdf::PDFActionGoTo*>(document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(3)->getAction());
+    QCOMPARE(goTo->getDestination().getDestinationType(), pdf::DestinationType::Fit);
+
+    // Position of an item, which keeps the zoom of the reader, keeps it
+    if (destinationType == pdf::DestinationType::XYZ)
+    {
+        H::selectItem(panel, { 1 });
+        QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::XYZ));
+        QVERIFY(picker->getTool()->isKeepZoom());
+        picker->pickTarget(2, QPointF(30, 200), QRectF());
+        fixture.settle();
+        goTo = dynamic_cast<const pdf::PDFActionGoTo*>(document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(1)->getAction());
+        QCOMPARE(pdf::PDFAppPanelWidgets::getActionPage(document->getDocument()->getCatalog(), goTo), pdf::PDFInteger(2));
+        QVERIFY(std::isnan(goTo->getDestination().getZoom()));
+    }
+}
+
+void AppNotesOutlineTest::outlineSetTargetCanceled()
+{
+    using H = NotesOutlineTestHelper;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppOutlineEditor* editor = view->getOutlineEditor();
+    const int undoCount = pdftest::AppDocumentFixture::undoCount(document);
+    H::selectItem(panel, { 0 });
+
+    // Esc of the canvas, the close button of the bar, Esc of the bar, another tool
+    for (int way = 0; way < 4; ++way)
+    {
+        QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
+        pdf::PDFAppOutlineTargetPicker* picker = editor->getTargetPicker();
+        QSignalSpy canceled(picker, &pdf::PDFAppOutlineTargetPicker::canceled);
+        switch (way)
+        {
+            case 0:
+                QTest::keyClick(pdftest::AppDocumentFixture::canvasWidget(view), Qt::Key_Escape);
+                break;
+            case 1:
+                picker->getCloseButton()->click();
+                break;
+            case 2:
+                QTest::keyClick(picker->getBar(), Qt::Key_Escape);
+                break;
+            default:
+                view->getAnnotationController()->endActiveTool();
+                break;
+        }
+        fixture.settle();
+        QVERIFY2(!picker->isActive(), qPrintable(QString::number(way)));
+        QCOMPARE(canceled.count(), 1);
+        QVERIFY(!picker->getBar()->isVisible());
+        QVERIFY(view->getToolManager()->getActiveTool() != picker->getTool());
+        QVERIFY(view->getStatusBar()->getMessage() != pdf::PDFAppAnnotationTools::getPageLinkInstruction(pdf::DestinationType::Fit));
+
+        // A click after the end creates nothing
+        pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(50, 50));
+        fixture.settle();
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount);
+    }
+
+    // A change of the outline meanwhile (another item renamed, undo) ends the picking:
+    // the path of the item may address another item now
+    QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
+    QVERIFY(editor->renameItem({ 4 }, QStringLiteral("Renamed")));
+    fixture.settle();
+    QVERIFY(!editor->isPickingTarget());
+    editor->getTargetPicker()->pickTarget(0, QPointF(10, 10), QRectF());
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount + 1);
+
+    // A change of an annotation keeps it (the outline is the same)
+    H::selectItem(panel, { 0 });
+    QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::FitH));
+    const pdf::PDFDocumentPointer pdfDocument = document->getDocument();
+    pdf::PDFDocumentBuilder builder(pdfDocument.data());
+    builder.createAnnotationSquare(pdfDocument->getCatalog()->getPage(0)->getPageReference(), QRectF(10, 10, 20, 20), 1.0, Qt::red, Qt::red, QString(), QString(), QString());
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(builder.build())), nullptr, pdf::PDFModifiedDocument::Annotation),
+                             QStringLiteral("Square"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    fixture.settle();
+    QVERIFY(editor->isPickingTarget());
+
+    // The lock ends it (O20) and the commands are disabled
+    document->setLocked(true);
+    fixture.settle();
+    QVERIFY(!editor->isPickingTarget());
+    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineSetTargetWholePage()));
+    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineSetTargetNamed()));
+    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineKeepZoom()));
+    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineKeepZoomAll()));
+    QVERIFY(!editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
+    QVERIFY(!editor->chooseCurrentItemNamedDestination());
+    QVERIFY(!editor->keepZoomForAllItems());
+    QVERIFY(!editor->setCurrentItemKeepZoom(true));
+
+    // Invalid types are refused
+    document->setLocked(false);
+    fixture.settle();
+    H::selectItem(panel, { 0 });
+    QVERIFY(!editor->pickCurrentItemTarget(pdf::DestinationType::Named));
+    QVERIFY(!editor->pickCurrentItemTarget(pdf::DestinationType::Invalid));
+    QVERIFY(!editor->pickCurrentItemTarget(static_cast<pdf::DestinationType>(1000)));
+}
+
+void AppNotesOutlineTest::outlineNamedDestination()
+{
+    using H = NotesOutlineTestHelper;
+
+    // The names of the document: sorted, the hostile ones bounded or left out
+    QTemporaryDir folder;
+    const pdf::PDFDocumentPointer pdfDocument = H::read(H::targetOutline(folder.path()));
+    QVERIFY(pdfDocument);
+    const QList<QByteArray> names = pdf::PDFAppNamedDestinationDialog::getNames(pdfDocument.data());
+    QCOMPARE(names.size(), 4);
+    QCOMPARE(names.front(), QByteArray("alpha"));
+    QVERIFY(!names.contains(QByteArray(5000, 'x')));
+    QCOMPARE(pdf::PDFAppNamedDestinationDialog::getDisplayName(QByteArray("ctl\x01\nname")), QStringLiteral("ctl  name"));
+    QCOMPARE(pdf::PDFAppNamedDestinationDialog::getDisplayName(QByteArray("\xff\xfe" "abc")), QString::fromLatin1("\xff\xfe" "abc"));
+    QCOMPARE(pdf::PDFAppNamedDestinationDialog::getDisplayName(QByteArray(1000, 'y')).size(), qsizetype(pdf::PDFAppNamedDestinationDialog::MAXIMUM_SHOWN_LENGTH));
+    QVERIFY(pdf::PDFAppNamedDestinationDialog::getNames(nullptr).isEmpty());
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+    const int undoCount = pdftest::AppDocumentFixture::undoCount(document);
+
+    // Cancel: nothing
+    H::selectItem(panel, { 3 });
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::outlineSetTargetNamed()));
+    fixture.settle();
+    QPointer<pdf::PDFAppNamedDestinationDialog> dialog = editor->getNamedDestinationDialog();
+    QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(dialog->getNameCount(), 4);
+    QVERIFY(!dialog->getEmptyLabel()->isVisibleTo(dialog));
+    QCOMPARE(dialog->getSelectedName(), QByteArray("alpha"));
+    dialog->getCancelButton()->click();
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount);
+
+    // Search, Set Target: one undo step with the named destination
+    QVERIFY(editor->chooseCurrentItemNamedDestination());
+    dialog = editor->getNamedDestinationDialog();
+    QTest::keyClicks(dialog->getSearchField(), QStringLiteral("BET"));
+    QCOMPARE(dialog->getList()->model()->rowCount(), 1);
+    QCOMPARE(dialog->getSelectedName(), QByteArray("beta"));
+    QTest::keyClicks(dialog->getSearchField(), QStringLiteral("zz"));
+    QCOMPARE(dialog->getList()->model()->rowCount(), 0);
+    QVERIFY(!dialog->getSetButton()->isEnabled());
+    dialog->getSearchField()->clear();
+    QVERIFY(dialog->selectName(QByteArray("beta")));
+    QVERIFY(!dialog->selectName(QByteArray("missing")));
+    dialog->getSetButton()->click();
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount + 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Set outline item target"));
+    const pdf::PDFActionGoTo* goTo = dynamic_cast<const pdf::PDFActionGoTo*>(document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(3)->getAction());
+    QVERIFY(goTo && goTo->getDestination().isNamedDestination());
+    QCOMPARE(goTo->getDestination().getName(), QByteArray("beta"));
+    QCOMPARE(panel->getItemIndex({ 3 }).data(pdf::PDFAppOutlinePanel::PageRole).toLongLong(), 2);
+
+    // The current name of the item is preselected; Enter of the search field sets it
+    QVERIFY(editor->chooseCurrentItemNamedDestination());
+    dialog = editor->getNamedDestinationDialog();
+    QCOMPARE(dialog->getSelectedName(), QByteArray("beta"));
+    QTest::keyClick(dialog->getSearchField(), Qt::Key_Return);
+    fixture.settle();
+    QVERIFY(!dialog);
+
+    // The outline changed while the dialog is open: closed without a change
+    QVERIFY(editor->chooseCurrentItemNamedDestination());
+    dialog = editor->getNamedDestinationDialog();
+    QVERIFY(editor->renameItem({ 0 }, QStringLiteral("Other")));
+    fixture.settle();
+    QVERIFY(!dialog);
+
+    // A document without named destinations: the empty state
+    pdftest::AppDocumentFixture emptyFixture;
+    pdf::PDFAppDocumentTab* emptyTab = emptyFixture.open(pdftest::AppDocumentSamples::outline(emptyFixture.folder()));
+    pdf::PDFAppOutlinePanel* emptyPanel = H::outline(emptyTab);
+    emptyFixture.settle();
+    H::selectItem(emptyPanel, { 0 });
+    QVERIFY(emptyTab->getView()->getOutlineEditor()->chooseCurrentItemNamedDestination());
+    dialog = emptyTab->getView()->getOutlineEditor()->getNamedDestinationDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getNameCount(), 0);
+    QVERIFY(dialog->getEmptyLabel()->isVisibleTo(dialog));
+    QVERIFY(!dialog->getList()->isVisibleTo(dialog));
+    QVERIFY(!dialog->getSetButton()->isEnabled());
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    emptyFixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(emptyTab->getDocument()), 0);
+}
+
+void AppNotesOutlineTest::outlineKeepZoom()
+{
+    using H = NotesOutlineTestHelper;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+
+    // One item: on removes the zoom, off stores the zoom of the view (one step each)
+    H::selectItem(panel, { 0 });
+    fixture.settle();
+    QVERIFY(!editor->isCurrentItemKeepingZoom());
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::outlineKeepZoom()));
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Keep the reader's zoom"));
+    QVERIFY(editor->isCurrentItemKeepingZoom());
+    QCOMPARE(editor->getItemsWithZoomCount(), 2);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::outlineKeepZoom()));
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    QVERIFY(!editor->isCurrentItemKeepingZoom());
+    const pdf::PDFActionGoTo* goTo = dynamic_cast<const pdf::PDFActionGoTo*>(document->getDocument()->getCatalog()->getOutlineRootPtr()->getChild(0)->getAction());
+    QVERIFY(qFuzzyCompare(goTo->getDestination().getZoom(), tab->getView()->getProxy()->getZoom()));
+    tab->executeCommand(pdf::PDFAppCommands::undo());
+    tab->executeCommand(pdf::PDFAppCommands::undo());
+    fixture.settle();
+    QCOMPARE(editor->getItemsWithZoomCount(), 3);
+
+    // All items: the confirmation names the count; Cancel changes nothing
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::outlineKeepZoomAll()));
+    fixture.settle();
+    QPointer<pdf::PDFMessageBox> confirmation = editor->getKeepZoomConfirmation();
+    QVERIFY(confirmation && confirmation->isVisible());
+    QVERIFY(confirmation->findChild<QLabel*>() != nullptr);
+    bool hasCount = false;
+    for (QLabel* label : confirmation->findChildren<QLabel*>())
+    {
+        hasCount = hasCount || label->text().contains(QStringLiteral("3 outline items"));
+    }
+    QVERIFY(hasCount);
+    confirmation->getButtonBox()->button(QDialogButtonBox::Cancel)->click();
+    fixture.settle();
+    QVERIFY(!confirmation);
+    QCOMPARE(editor->getItemsWithZoomCount(), 3);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+
+    // OK: one undo step for all of them, undone at once
+    QVERIFY(editor->keepZoomForAllItems());
+    confirmation = editor->getKeepZoomConfirmation();
+    confirmation->getButtonBox()->button(QDialogButtonBox::Ok)->click();
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Keep the reader's zoom for all items"));
+    QCOMPARE(editor->getItemsWithZoomCount(), 0);
+    QCOMPARE(H::checkStructure(document->getDocument().data()), QString());
+    QTRY_VERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::outlineKeepZoomAll()));
+    QVERIFY(!editor->keepZoomForAllItems());
+    tab->executeCommand(pdf::PDFAppCommands::undo());
+    fixture.settle();
+    QCOMPARE(editor->getItemsWithZoomCount(), 3);
+
+    // The outline changed while the confirmation is open: nothing is changed
+    QVERIFY(editor->keepZoomForAllItems());
+    confirmation = editor->getKeepZoomConfirmation();
+    QVERIFY(editor->renameItem({ 4 }, QStringLiteral("Changed")));
+    fixture.settle();
+    QVERIFY(!confirmation);
+    QCOMPARE(editor->getItemsWithZoomCount(), 3);
+}
+
+void AppNotesOutlineTest::outlineTargetLifetime()
+{
+    using H = NotesOutlineTestHelper;
+
+    // The tab, the window or the view deleted while the target is picked, while
+    // the dialog of the named destinations or the confirmation of the zoom is open
+    for (int scenario = 0; scenario < 3; ++scenario)
+    {
+        for (int target = 0; target < 2; ++target)
+        {
+            pdftest::AppDocumentFixture fixture;
+            QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(H::targetOutline(fixture.folder()));
+            QVERIFY(tab);
+            pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+            fixture.settle();
+            H::selectItem(panel, { 0 });
+            QPointer<pdf::PDFAppOutlineEditor> editor = tab->getView()->getOutlineEditor();
+            QPointer<QWidget> dialog;
+            QPointer<QWidget> bar;
+            switch (scenario)
+            {
+                case 0:
+                    QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::FitR));
+                    bar = editor->getTargetPicker()->getBar();
+                    // A picked target waits for the event loop, when the tab goes
+                    editor->getTargetPicker()->pickTarget(0, QPointF(), QRectF(10, 10, 50, 50));
+                    break;
+                case 1:
+                    QVERIFY(editor->chooseCurrentItemNamedDestination());
+                    dialog = editor->getNamedDestinationDialog();
+                    break;
+                default:
+                    QVERIFY(editor->keepZoomForAllItems());
+                    dialog = editor->getKeepZoomConfirmation();
+                    break;
+            }
+            QVERIFY(dialog || bar);
+
+            if (target == 0)
+            {
+                fixture.window->closeTab(tab);
+            }
+            else
+            {
+                delete fixture.window.data();
+            }
+            fixture.settle();
+            QVERIFY(!tab);
+            QVERIFY(!editor);
+            QVERIFY(!dialog);
+            QVERIFY(!bar);
+        }
+    }
+
+    // The picker deleted while the target waits for the event loop
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::targetOutline(fixture.folder()));
+    fixture.settle();
+    H::selectItem(H::outline(tab), { 0 });
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+    QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
+    editor->getTargetPicker()->pickTarget(0, QPointF(10, 10), QRectF());
+    delete editor->getTargetPicker();
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 0);
+    // The chosen mode of the view comes back - Hand of a new tab, not Select text
+    QVERIFY(tab->getView()->isHandMode());
+    QVERIFY(tab->getView()->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
+    QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
+    editor->cancelTargetPicking();
+}
+
+void AppNotesOutlineTest::outlineParity()
+{
+    using H = NotesOutlineTestHelper;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppOutlineEditor* editor = tab->getView()->getOutlineEditor();
+
+    // The wildcard filter of the old Editor: * and ? (else a part of the title)
+    panel->setFilterText(QStringLiteral("ch*1"));
+    QCOMPARE(H::titles(panel->getViewModel()), QStringList({ "Chapter 1" }));
+    panel->setFilterText(QStringLiteral("section ?.?"));
+    QCOMPARE(H::titles(panel->getViewModel()), QStringList({ "Chapter 1", ">Section 1.1" }));
+    panel->setFilterText(QStringLiteral("*DIX"));
+    QCOMPARE(H::titles(panel->getViewModel()), QStringList({ "Appendix" }));
+    panel->setFilterText(QStringLiteral("ch*1"));
+    panel->setFilterText(QStringLiteral("ter 1"));
+    QCOMPARE(H::titles(panel->getViewModel()), QStringList({ "Chapter 1" }));
+    panel->setFilterText(QStringLiteral("[(*"));
+    QCOMPARE(H::titles(panel->getViewModel()), QStringList());
+    panel->setFilterText(QString(5000, QLatin1Char('*')));
+    QCOMPARE(H::titles(panel->getViewModel()).size(), 4);
+    panel->setFilterText(QString());
+    QCOMPARE(H::titles(panel->getViewModel()).size(), 4);
+
+    // More items selected (Ctrl / Shift, the old ExtendedSelection)
+    QTreeView* tree = panel->getTreeView();
+    QCOMPARE(tree->selectionMode(), QAbstractItemView::ExtendedSelection);
+    tree->selectionModel()->setCurrentIndex(panel->getItemIndex({ 0 }), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    tree->selectionModel()->select(panel->getItemIndex({ 2 }), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    fixture.settle();
+    QCOMPARE(editor->getSelectedItems().size(), size_t(2));
+    QCOMPARE(editor->getItemsToDelete(), std::vector<H::Path>({ { 0 }, { 2 } }));
+
+    // A drag of both items moves them together (one undo step)
+    std::unique_ptr<QMimeData> data(panel->getViewModel()->mimeData(tree->selectionModel()->selectedRows()));
+    QVERIFY(data);
+    QCOMPARE(pdf::PDFAppOutlineItemModel::getDraggedPaths(data.get(), panel->getSourceModel()->getDocumentKey()).size(), size_t(2));
+    const QRect target = tree->visualRect(panel->getItemIndex({ 1, 0 }));
+    QDragEnterEvent enter(target.center(), Qt::MoveAction, data.get(), Qt::LeftButton, Qt::NoModifier);
+    enter.setDropAction(Qt::MoveAction);
+    QApplication::sendEvent(tree->viewport(), &enter);
+    QVERIFY(enter.isAccepted());
+    QDropEvent drop(QPointF(target.left() + 10, target.bottom() - 1), Qt::MoveAction, data.get(), Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(tree->viewport(), &drop);
+    QVERIFY(drop.isAccepted());
+    fixture.settle();
+    QCOMPARE(H::titles(document->getDocument().data()), QStringList({ "Chapter 1", ">Section 1.1", ">Introduction", ">Appendix" }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Move outline items"));
+
+    // Delete removes all selected items as one step; with one selected only it
+    tree->selectionModel()->setCurrentIndex(panel->getItemIndex({ 0, 1 }), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    tree->selectionModel()->select(panel->getItemIndex({ 0, 2 }), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    fixture.settle();
+    QTest::keyClick(tree, Qt::Key_Delete);
+    fixture.settle();
+    QCOMPARE(H::titles(document->getDocument().data()), QStringList({ "Chapter 1", ">Section 1.1" }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Delete outline items"));
+    tab->executeCommand(pdf::PDFAppCommands::undo());
+    fixture.settle();
+    QCOMPARE(H::titles(document->getDocument().data()), QStringList({ "Chapter 1", ">Section 1.1", ">Introduction", ">Appendix" }));
+
+    // Hostile dragged data: too many paths, too long, damaged rows
+    const QString key = panel->getSourceModel()->getDocumentKey();
+    QMimeData hostile;
+    hostile.setData(pdf::PDFAppOutlineItemModel::getMimeType(), (key + QStringLiteral("\n0;1;x")).toUtf8());
+    QVERIFY(pdf::PDFAppOutlineItemModel::getDraggedPaths(&hostile, key).empty());
+    hostile.setData(pdf::PDFAppOutlineItemModel::getMimeType(), (key + QStringLiteral("\n0;;1")).toUtf8());
+    QVERIFY(pdf::PDFAppOutlineItemModel::getDraggedPaths(&hostile, key).empty());
+    hostile.setData(pdf::PDFAppOutlineItemModel::getMimeType(), QByteArray(int(pdf::PDFAppOutlineItemModel::MAXIMUM_DRAG_DATA_SIZE + 1), '0'));
+    QVERIFY(pdf::PDFAppOutlineItemModel::getDraggedPaths(&hostile, key).empty());
+    hostile.setData(pdf::PDFAppOutlineItemModel::getMimeType(), (QStringLiteral("other\n0;1")).toUtf8());
+    QVERIFY(pdf::PDFAppOutlineItemModel::getDraggedPaths(&hostile, key).empty());
+
+    // The title of a new item is the text selected on its page (old Editor)
+    tab->getView()->goToPage(0);
+    fixture.settle();
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::selectAll()));
+    QTRY_VERIFY(tab->getView()->getToolManager()->getSelectTextTool()->hasSelection());
+    QVERIFY(editor->createItemAtCurrentView());
+    fixture.settle();
+    const QString expected = pdf::PDFAppAnnotationOperations::sanitizeOutlineTitle(pdftest::AppDocumentSamples::getPageText(0));
+    QVERIFY2(editor->getPendingTitle().startsWith(expected.left(10)), qPrintable(editor->getPendingTitle()));
+    QVERIFY(editor->getPendingTitle().size() <= pdf::PDFAppOutlineEditor::MAXIMUM_SELECTED_TITLE_LENGTH + 1);
+    QCOMPARE(panel->getPendingItem()->text(), editor->getPendingTitle());
+    editor->cancelCreation();
+}
+
+void AppNotesOutlineTest::reviewOutlineMultiSelection()
+{
+    using H = NotesOutlineTestHelper;
+
+    // Introduction (page 1), Chapter 1 (page 2) > Section 1.1 (page 3), Appendix (page 5)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.settle();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppOutlineEditor* editor = view->getOutlineEditor();
+    QTreeView* tree = panel->getTreeView();
+    tree->expandAll();
+    fixture.settle();
+    const auto click = [&](const H::Path& path, Qt::KeyboardModifiers modifiers)
+    {
+        QTest::mouseClick(tree->viewport(), Qt::LeftButton, modifiers, tree->visualRect(panel->getItemIndex(path)).center());
+        fixture.settle();
+    };
+
+    // Ctrl + click on an item of another page adds it to the selection: the view
+    // stays (the page of the item would select one item of the page again)
+    click({ 0 }, Qt::NoModifier);
+    QCOMPARE(view->getCurrentPageIndex(), 0);
+    click({ 2 }, Qt::ControlModifier);
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 2);
+    QCOMPARE(view->getCurrentPageIndex(), 0);
+    QCOMPARE(editor->getItemsToDelete(), std::vector<H::Path>({ { 0 }, { 2 } }));
+
+    // The menu of one of the selected items keeps both (its Delete removes both)
+    QMenu* menu = panel->createContextMenu(panel->getItemIndex({ 2 }));
+    QVERIFY(menu);
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 2);
+    QCOMPARE(editor->getCurrentItem(), H::Path({ 2 }));
+    QCOMPARE(editor->getItemsToDelete(), std::vector<H::Path>({ { 0 }, { 2 } }));
+    delete menu;
+    fixture.settle();
+
+    // Ctrl + click deselects the current item: Delete removes the highlighted item
+    // only, never the deselected one
+    click({ 2 }, Qt::ControlModifier);
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 1);
+    QCOMPARE(editor->getCurrentItem(), H::Path({ 2 }));
+    QCOMPARE(editor->getItemsToDelete(), std::vector<H::Path>({ { 0 } }));
+    QTest::keyClick(tree, Qt::Key_Delete);
+    fixture.settle();
+    QCOMPARE(H::titles(tab->getDocument()->getDocument().data()), QStringList({ "Chapter 1", ">Section 1.1", "Appendix" }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 1);
+
+    // A selection of an older outline is not used (undo): the current item only
+    tree->selectionModel()->setCurrentIndex(panel->getItemIndex({ 0 }), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    tree->selectionModel()->select(panel->getItemIndex({ 1 }), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    fixture.settle();
+    QCOMPARE(editor->getItemsToDelete(), std::vector<H::Path>({ { 0 }, { 1 } }));
+    {
+        // The panel has not reported the selection of the new outline yet
+        const QSignalBlocker blocker(tree->selectionModel());
+        tab->executeCommand(pdf::PDFAppCommands::undo());
+        fixture.settle();
+        QCOMPARE(editor->getItemsToDelete().size(), size_t(1));
+    }
+    tree->selectionModel()->clearSelection();
+    fixture.settle();
+
+    // A plain click goes to the page of the item
+    click({ 2 }, Qt::NoModifier);
+    QCOMPARE(view->getCurrentPageIndex(), 4);
+
+    // A title is no path: * and ? match also / and \ in the filter
+    panel->setFilterText(QStringLiteral("part*end"));
+    const QSortFilterProxyModel* filter = qobject_cast<const QSortFilterProxyModel*>(panel->getViewModel());
+    QVERIFY(filter);
+    QVERIFY(filter->filterRegularExpression().match(QStringLiteral("Part 1/2 - the end")).hasMatch());
+    QVERIFY(filter->filterRegularExpression().match(QStringLiteral("Part 1\\2 end")).hasMatch());
+    panel->setFilterText(QStringLiteral("a?b"));
+    QVERIFY(filter->filterRegularExpression().match(QStringLiteral("a/b")).hasMatch());
+    panel->setFilterText(QString());
 }
 
 QTEST_MAIN(AppNotesOutlineTest)

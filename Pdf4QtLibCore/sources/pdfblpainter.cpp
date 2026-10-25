@@ -579,6 +579,22 @@ decltype(auto) thread_count(T& obj)
     }
 }
 
+// The focal radius of a radial gradient (two-point conical gradient) exists since
+// blend2d 0.20, older versions have the focal point only (focal radius 0).
+template <typename T>
+void set_focal_radius(T& values, double focalRadius)
+{
+    if constexpr (requires { values.r1; })
+    {
+        values.r1 = focalRadius;
+    }
+    else
+    {
+        Q_UNUSED(values);
+        Q_UNUSED(focalRadius);
+    }
+}
+
 }   // namespace blcompat
 
 namespace pdf
@@ -639,7 +655,8 @@ private:
     /// dashes (QPainterPathStroker) is filled by the color of the pen. A cosmetic pen
     /// (width 0, or QPen::setCosmetic) has its width and its dashes in device pixels at
     /// every zoom, as QPainter draws it: the outline is made of the path mapped to the
-    /// device and it is filled without the transform.
+    /// device and it is filled without the transform. A solid cosmetic pen is stroked
+    /// natively in the device space (no outline).
     void strokeDashedPath(const QPainterPath& path);
 
     /// Largest number of dashes of one dashed stroke (a stroke of more dashes is solid)
@@ -1553,7 +1570,8 @@ void PDFBLPaintEngine::strokeDashedPath(const QPainterPath& path)
     // is stroked solid (the dashes are too dense to be seen anyway).
     const bool isCosmetic = m_currentPen.isCosmetic();
     const QPainterPath strokedPath = isCosmetic ? m_currentTransform.map(path) : path;
-    const QList<qreal> pattern = isStrokeDashed() ? m_currentPen.dashPattern() : QList<qreal>();
+    const bool isDashed = isStrokeDashed();
+    const QList<qreal> pattern = isDashed ? m_currentPen.dashPattern() : QList<qreal>();
     const qsizetype patternSize = qMin<qsizetype>(pattern.size(), 32);
     const qreal width = m_currentPen.widthF() > 0.0 ? m_currentPen.widthF() : 1.0;
     qreal patternLength = 0.0;
@@ -1561,8 +1579,11 @@ void PDFBLPaintEngine::strokeDashedPath(const QPainterPath& path)
     {
         patternLength += qMax(pattern[i], qreal(0.0)) * width;
     }
-    const qreal dashCount = patternLength > 0.0 ? strokedPath.length() / patternLength * qreal(patternSize / 2) : 0.0;
-    if (!qIsFinite(dashCount) || dashCount > MAXIMUM_DASH_COUNT)
+
+    // A solid cosmetic pen (the hairlines of CAD drawings) is stroked natively in the
+    // device space - its outline by QPainterPathStroker would cost much more
+    const qreal dashCount = isDashed && patternLength > 0.0 ? strokedPath.length() / patternLength * qreal(patternSize / 2) : 0.0;
+    if (!isDashed || !qIsFinite(dashCount) || dashCount > MAXIMUM_DASH_COUNT)
     {
         if (isCosmetic)
         {
@@ -1631,7 +1652,7 @@ void PDFBLPaintEngine::setBLBrush(BLContext& context, const QBrush& brush)
             if (gradient && gradient->type() == QGradient::LinearGradient)
             {
                 const QLinearGradient* linearGradient = static_cast<const QLinearGradient*>(gradient);
-                BLLinearGradientValues blLinearGradient;
+                BLLinearGradientValues blLinearGradient{};
                 blLinearGradient.x0 = linearGradient->start().x();
                 blLinearGradient.y0 = linearGradient->start().y();
                 blLinearGradient.x1 = linearGradient->finalStop().x();
@@ -1648,12 +1669,17 @@ void PDFBLPaintEngine::setBLBrush(BLContext& context, const QBrush& brush)
             if (gradient && gradient->type() == QGradient::RadialGradient)
             {
                 const QRadialGradient* radialGradient = static_cast<const QRadialGradient*>(gradient);
-                BLRadialGradientValues blRadialGradientValues;
+                // Value-initialized, so a field of a newer blend2d is never left
+                // uninitialized. Blend2D and Qt agree: t = 0 at the focal circle
+                // (x1, y1, r1 = focal point, focal radius), t = 1 at the center circle
+                // (x0, y0, r0 = center, radius).
+                BLRadialGradientValues blRadialGradientValues{};
                 blRadialGradientValues.x0 = radialGradient->center().x();
                 blRadialGradientValues.y0 = radialGradient->center().y();
                 blRadialGradientValues.x1 = radialGradient->focalPoint().x();
                 blRadialGradientValues.y1 = radialGradient->focalPoint().y();
                 blRadialGradientValues.r0 = radialGradient->radius();
+                blcompat::set_focal_radius(blRadialGradientValues, radialGradient->focalRadius());
                 BLGradient blGradient(blRadialGradientValues);
                 setGradientStops(blGradient, *gradient);
                 blcompat::set_fill_style(context, blGradient);

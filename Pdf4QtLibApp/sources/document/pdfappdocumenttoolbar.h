@@ -147,6 +147,24 @@ public:
     /// Panel, which is open (nullptr, if none)
     PDFAppDocumentPanelPopup* getOpenPanel() const;
 
+    /// Buttons of the panels in the order of the toolbar: File, View, Annotate,
+    /// Insert, Go to and the Select button (its menu is a panel too); the buttons,
+    /// which do not exist, are left out
+    std::vector<QToolButton*> getPanelButtons() const;
+
+    /// Button of the open panel or of the open Select menu (nullptr, if none is open)
+    QToolButton* getOpenPanelButton() const;
+
+    /// Menu bar: with a panel (or the Select menu) open, the panel of \p button
+    /// opens instead of it at once (no click; the pointer moved over the button or
+    /// Left / Right). Nothing happens without an open panel, for the button of the
+    /// open panel, a hidden or disabled button, a button of no panel, or while a
+    /// modal window blocks the toolbar. The keyboard focus goes into the new panel
+    /// as at a click; \p byKeyboard makes the first item of the Select menu current.
+    /// \returns true, when the panel of the button is open. The toolbar can be
+    /// deleted meanwhile (an application filter of the shown panel).
+    bool switchPanel(QToolButton* button, bool byKeyboard);
+
     /// Reads the states of the commands, the page and the zoom again
     void updateState();
 
@@ -154,6 +172,10 @@ public:
     int getCollapseLevel() const { return m_collapseLevel; }
 
     virtual QSize minimumSizeHint() const override;
+
+    /// Tooltips of the icon buttons (PDFAppDocumentView::getCommandToolTip); the view
+    /// calls it, when the shortcuts of the user change
+    void updateCommandToolTips();
 
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
@@ -166,8 +188,6 @@ private:
     QToolButton* createCommandButton(const QString& commandId, const QString& iconName);
     QToolButton* createMenuButton(const QString& objectName, const QString& iconName);
     void retranslate();
-    void updateCommandToolTips();
-    void onDatabaseChanged(const QString& topic, const QString& key);
     void updateCollapse();
     void applyCollapse(int level);
     void invalidateGroupSizes();
@@ -177,6 +197,12 @@ private:
     void onCommandButtonClicked();
     void onMenuButtonClicked();
     void onPanelClosed();
+    void onPanelNeighborRequested(bool isNext);
+    void onSelectMenuAboutToHide();
+    void switchToNeighbor(bool isNext);
+    void openSelectMenu(bool byKeyboard);
+    QToolButton* findPanelButtonAt(const QPoint& globalPosition) const;
+    bool isPanelWindow(const QObject* object) const;
     void onPageFieldEdited();
     void onZoomFieldEdited();
     void onToolsClicked();

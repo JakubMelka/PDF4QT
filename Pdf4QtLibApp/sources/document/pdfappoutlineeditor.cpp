@@ -28,12 +28,21 @@
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmainwindow.h"
+#include "pdfappoutlinetarget.h"
 
 #include "pdfcatalog.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdfsecurityhandler.h"
+#include "pdfwidgettool.h"
 
+#include "pdffluentwidgets.h"
+#include "pdfmessagebox.h"
+
+#include <QPushButton>
+
+#include <algorithm>
 #include <limits>
 
 namespace pdf
@@ -82,6 +91,18 @@ PDFAppOutlineEditor::~PDFAppOutlineEditor()
     {
         setPendingProperty(false);
     }
+
+    // The dialogs of Set Target are children of the window: they go with the editor
+    if (m_namedDestinationDialog)
+    {
+        m_namedDestinationDialog->disconnect(this);
+        delete m_namedDestinationDialog.data();
+    }
+    if (m_keepZoomConfirmation)
+    {
+        m_keepZoomConfirmation->disconnect(this);
+        delete m_keepZoomConfirmation.data();
+    }
     if (m_document)
     {
         m_document->disconnect(this);
@@ -113,6 +134,7 @@ void PDFAppOutlineEditor::setDocument(PDFAppDocument* document)
     {
         cancelCreation();
     }
+    closeTargetUserInterface();
     if (m_document)
     {
         m_document->disconnect(this);
@@ -120,12 +142,14 @@ void PDFAppOutlineEditor::setDocument(PDFAppDocument* document)
 
     m_document = document;
     m_currentItem.clear();
+    m_selectedItems.clear();
     m_editableDocument = nullptr;
     if (document)
     {
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppOutlineEditor::onDocumentChanged);
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::stateChanged);
+        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::onLockChanged);
         connect(document, &PDFAppDocument::operationsChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &QObject::destroyed, this, &PDFAppOutlineEditor::onDocumentDestroyed);
     }
@@ -145,7 +169,29 @@ void PDFAppOutlineEditor::onDocumentChanged()
             return;
         }
     }
+
+    // A picked target, a named destination or the confirmation of the zoom
+    // address the items of an older outline (undo, redo, another change of the
+    // outline): they end without a change
+    const PDFAppDocument* document = getDocument();
+    if (!document || document->getOutlineVersion() != m_targetOutlineVersion || !isEditingAllowed())
+    {
+        closeTargetUserInterface();
+        if (!guard)
+        {
+            return;
+        }
+    }
     Q_EMIT stateChanged();
+}
+
+void PDFAppOutlineEditor::onLockChanged()
+{
+    // A locked document ends the picking and closes the dialogs (O20)
+    if (!isEditingAllowed())
+    {
+        closeTargetUserInterface();
+    }
 }
 
 void PDFAppOutlineEditor::onDocumentDestroyed()
@@ -154,7 +200,9 @@ void PDFAppOutlineEditor::onDocumentDestroyed()
     m_document = nullptr;
     m_isCreationPending = false;
     m_currentItem.clear();
+    m_selectedItems.clear();
     m_editableDocument = nullptr;
+    m_zoomCountDocument = nullptr;
 }
 
 bool PDFAppOutlineEditor::isEditingAllowed() const
@@ -250,6 +298,78 @@ std::optional<PDFReal> PDFAppOutlineEditor::getViewTop(const PDFAppDocumentView*
         return pagePoint.y();
     }
     return std::nullopt;
+}
+
+std::optional<PDFReal> PDFAppOutlineEditor::getViewLeft(const PDFAppDocumentView* view, PDFInteger pageIndex)
+{
+    PDFDrawWidgetProxy* proxy = view ? view->getProxy() : nullptr;
+    PDFWidget* pdfWidget = view ? view->getPdfWidget() : nullptr;
+    QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
+    if (!proxy || !drawWidget || pageIndex < 0)
+    {
+        return std::nullopt;
+    }
+
+    QPointF pagePoint;
+    if (proxy->getPageUnderPoint(QPoint(0, drawWidget->height() / 2), &pagePoint) == pageIndex && qIsFinite(pagePoint.x()))
+    {
+        return pagePoint.x();
+    }
+    return std::nullopt;
+}
+
+bool PDFAppOutlineEditor::isPickedOnPage(DestinationType type)
+{
+    return type == DestinationType::FitR || type == DestinationType::XYZ;
+}
+
+std::optional<PDFDestination> PDFAppOutlineEditor::getCurrentViewDestination(DestinationType type) const
+{
+    const std::optional<PDFDestination> view = getCurrentViewDestination();
+    const PDFAppDocument* document = getDocument();
+    if (!view || !document)
+    {
+        return std::nullopt;
+    }
+
+    const PDFInteger pageIndex = view->getPageIndex();
+    const PDFPage* page = document->getDocument()->getCatalog()->getPage(size_t(pageIndex));
+    if (!page)
+    {
+        return std::nullopt;
+    }
+
+    // The top as the current view (the top of the page above it), the left side of
+    // the view (the left side of the page, when the page lies inside of the view)
+    const PDFObjectReference reference = page->getPageReference();
+    const PDFReal top = view->getTop();
+    const PDFReal left = getViewLeft(m_view, pageIndex).value_or(page->getCropBox().left());
+    PDFDestination destination;
+    switch (type)
+    {
+        case DestinationType::Fit:
+            destination = PDFDestination::createFit(reference);
+            break;
+        case DestinationType::FitH:
+            destination = PDFDestination::createFitH(reference, top);
+            break;
+        case DestinationType::FitV:
+            destination = PDFDestination::createFitV(reference, left);
+            break;
+        case DestinationType::FitB:
+            destination = PDFDestination::createFitB(reference);
+            break;
+        case DestinationType::FitBH:
+            destination = PDFDestination::createFitBH(reference, top);
+            break;
+        case DestinationType::FitBV:
+            destination = PDFDestination::createFitBV(reference, left);
+            break;
+        default:
+            return std::nullopt;
+    }
+    destination.setPageIndex(pageIndex);
+    return destination;
 }
 
 QString PDFAppOutlineEditor::getDefaultTitle()
@@ -360,6 +480,22 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
     else if (const PDFOutlineItem* root = findItem({}))
     {
         index = root->getChildCount();
+    }
+
+    // The text selected on the page is usually the heading itself (as the old
+    // Editor): one line, bounded
+    m_pendingTitle = getDefaultTitle();
+    if (PDFSelectTextTool* selectTextTool = m_view->getToolManager() ? m_view->getToolManager()->getSelectTextTool() : nullptr)
+    {
+        QString text = PDFAppAnnotationOperations::sanitizeOutlineTitle(selectTextTool->getSelectedText({ destination->getPageIndex() }).left(MAXIMUM_SELECTED_TITLE_LENGTH * 8));
+        if (text.size() > MAXIMUM_SELECTED_TITLE_LENGTH)
+        {
+            text = text.left(MAXIMUM_SELECTED_TITLE_LENGTH).trimmed() + QChar(0x2026);
+        }
+        if (!text.isEmpty())
+        {
+            m_pendingTitle = text;
+        }
     }
 
     QPointer<PDFAppDocumentView> view = m_view;
@@ -572,7 +708,17 @@ bool PDFAppOutlineEditor::renameCurrentItem()
 
 bool PDFAppOutlineEditor::deleteCurrentItem()
 {
-    return hasCurrentItem() && deleteItem(m_currentItem);
+    if (!hasCurrentItem())
+    {
+        return false;
+    }
+
+    const std::vector<OutlinePath> items = getItemsToDelete();
+    if (items.empty())
+    {
+        return false;
+    }
+    return items.size() > 1 ? deleteItems(items) : deleteItem(items.front());
 }
 
 bool PDFAppOutlineEditor::moveCurrentItemUp()
@@ -711,6 +857,465 @@ bool PDFAppOutlineEditor::setItemTargetToCurrentView(const OutlinePath& item)
         return false;
     }
     return commit(PDFAppAnnotationOperations::setOutlineItemDestination(document->getDocument(), item, *destination), tr("Set outline item target"), item);
+}
+
+bool PDFAppOutlineEditor::deleteItems(const std::vector<OutlinePath>& items)
+{
+    PDFAppDocument* document = getDocument();
+    if (!document || !isEditingAllowed() || items.empty())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    // The item before the first removed one (or its parent) becomes current
+    OutlinePath selected = *std::min_element(items.begin(), items.end());
+    if (!selected.empty() && selected.back() > 0)
+    {
+        selected.back() -= 1;
+    }
+    else if (!selected.empty())
+    {
+        selected.pop_back();
+    }
+    return commit(PDFAppAnnotationOperations::removeOutlineItems(document->getDocument(), items), tr("Delete outline items"), selected);
+}
+
+bool PDFAppOutlineEditor::moveItems(const std::vector<OutlinePath>& items, const OutlinePath& newParent, size_t index)
+{
+    if (items.size() == 1)
+    {
+        return moveItem(items.front(), newParent, index);
+    }
+
+    PDFAppDocument* document = getDocument();
+    if (!document || !isEditingAllowed() || items.empty())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    std::vector<OutlinePath> newPaths;
+    const PDFAppAnnotationResult result = PDFAppAnnotationOperations::moveOutlineItems(document->getDocument(), items, newParent, index, &newPaths);
+    return commit(result, tr("Move outline items"), newPaths.empty() ? OutlinePath() : newPaths.front());
+}
+
+void PDFAppOutlineEditor::setSelectedItems(const std::vector<OutlinePath>& items)
+{
+    // Bounded: the panel shows at most MAXIMUM_ITEMS items
+    m_selectedItems = items;
+    if (m_selectedItems.size() > PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS)
+    {
+        m_selectedItems.resize(PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS);
+    }
+    const PDFAppDocument* document = getDocument();
+    m_selectedOutlineVersion = document ? document->getOutlineVersion() : 0;
+}
+
+std::vector<PDFAppOutlineEditor::OutlinePath> PDFAppOutlineEditor::getItemsToDelete() const
+{
+    if (m_currentItem.empty())
+    {
+        return {};
+    }
+
+    // The paths of the selection address the items of the outline, which the panel
+    // has shown (a newer version - undo, a change of another view - has not been
+    // reported yet: only the current item)
+    const PDFAppDocument* document = getDocument();
+    const bool isSelectionValid = document && document->getOutlineVersion() == m_selectedOutlineVersion;
+    std::vector<OutlinePath> items;
+    for (const OutlinePath& item : m_selectedItems)
+    {
+        if (isSelectionValid && !item.empty() && findItem(item))
+        {
+            items.push_back(item);
+        }
+    }
+
+    // The highlighted items go - also, when Ctrl + click has deselected the current
+    // item (it is not deleted, the user has just excluded it)
+    if (items.empty())
+    {
+        return { m_currentItem };
+    }
+    return items;
+}
+
+QWidget* PDFAppOutlineEditor::getDialogParent() const
+{
+    return m_view ? m_view->window() : nullptr;
+}
+
+PDFAppOutlineTargetPicker* PDFAppOutlineEditor::getTargetPicker() const
+{
+    return m_targetPicker.data();
+}
+
+bool PDFAppOutlineEditor::isPickingTarget() const
+{
+    return m_targetPicker && m_targetPicker->isActive();
+}
+
+void PDFAppOutlineEditor::cancelTargetPicking()
+{
+    if (m_targetPicker)
+    {
+        m_targetPicker->cancel();
+    }
+}
+
+PDFAppNamedDestinationDialog* PDFAppOutlineEditor::getNamedDestinationDialog() const
+{
+    return m_namedDestinationDialog.data();
+}
+
+PDFMessageBox* PDFAppOutlineEditor::getKeepZoomConfirmation() const
+{
+    return m_keepZoomConfirmation.data();
+}
+
+void PDFAppOutlineEditor::closeTargetUserInterface()
+{
+    // Nothing is changed: the picking ends, the dialogs are rejected (they delete
+    // themselves - their finished slots find no item)
+    QPointer<PDFAppOutlineEditor> guard(this);
+    m_targetItem.clear();
+    m_keepZoomItems.clear();
+    m_dialogResult = DialogResult();
+    if (m_targetPicker && m_targetPicker->isActive())
+    {
+        m_targetPicker->cancel();
+        if (!guard)
+        {
+            return;
+        }
+    }
+    if (QPointer<PDFAppNamedDestinationDialog> dialog = m_namedDestinationDialog)
+    {
+        m_namedDestinationDialog = nullptr;
+        dialog->disconnect(this);
+        dialog->reject();
+        if (!guard)
+        {
+            return;
+        }
+    }
+    if (QPointer<PDFMessageBox> confirmation = m_keepZoomConfirmation)
+    {
+        m_keepZoomConfirmation = nullptr;
+        confirmation->disconnect(this);
+        confirmation->reject();
+    }
+}
+
+bool PDFAppOutlineEditor::setCurrentItemTarget(DestinationType type)
+{
+    if (isPickedOnPage(type))
+    {
+        return pickCurrentItemTarget(type);
+    }
+
+    const std::optional<PDFDestination> destination = getCurrentViewDestination(type);
+    if (!hasCurrentItem() || !destination || !isEditingAllowed())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+    return setItemDestination(m_currentItem, *destination, tr("Set outline item target"));
+}
+
+bool PDFAppOutlineEditor::pickCurrentItemTarget(DestinationType type)
+{
+    const PDFOutlineItem* item = hasCurrentItem() ? findItem(m_currentItem) : nullptr;
+    PDFAppDocument* document = getDocument();
+    if (!m_view || !document || !item || !isEditingAllowed() || !PDFAppOutlineTargetPicker::isPickedType(type))
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    QPointer<PDFAppOutlineEditor> guard(this);
+    closeTargetUserInterface();
+    if (!guard || !m_view)
+    {
+        return false;
+    }
+
+    if (!m_targetPicker)
+    {
+        m_targetPicker = new PDFAppOutlineTargetPicker(m_view, this);
+        connect(m_targetPicker.data(), &PDFAppOutlineTargetPicker::targetPicked, this, &PDFAppOutlineEditor::onTargetPicked);
+    }
+
+    // A position keeps the zoom of the reader, when the item kept it so far
+    const bool keepZoom = PDFAppAnnotationOperations::isOutlineItemKeepingZoom(item);
+    const QString title = item->getTitle();
+    const OutlinePath targetItem = m_currentItem;
+    const quint64 outlineVersion = document->getOutlineVersion();
+    const bool isStarted = m_targetPicker->start(type, keepZoom, title);
+    if (!guard)
+    {
+        return false;
+    }
+    if (isStarted)
+    {
+        m_targetItem = targetItem;
+        m_targetOutlineVersion = outlineVersion;
+    }
+    return isStarted;
+}
+
+void PDFAppOutlineEditor::onTargetPicked(PDFDestination destination)
+{
+    const OutlinePath item = m_targetItem;
+    m_targetItem.clear();
+    const PDFAppDocument* document = getDocument();
+    if (item.empty() || !document || document->getOutlineVersion() != m_targetOutlineVersion)
+    {
+        return;
+    }
+    setItemDestination(item, destination, tr("Set outline item target"));
+}
+
+bool PDFAppOutlineEditor::chooseCurrentItemNamedDestination()
+{
+    const PDFOutlineItem* item = hasCurrentItem() ? findItem(m_currentItem) : nullptr;
+    PDFAppDocument* document = getDocument();
+    QWidget* parent = getDialogParent();
+    if (!m_view || !document || !item || !parent || !isEditingAllowed())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    QPointer<PDFAppOutlineEditor> guard(this);
+    closeTargetUserInterface();
+    if (!guard || !m_view)
+    {
+        return false;
+    }
+
+    // Not exec(): the tab or the window may be closed meanwhile
+    PDFAppNamedDestinationDialog* dialog = new PDFAppNamedDestinationDialog(document->getDocument().data(), item->getTitle(), parent);
+    PDFAppMainWindow::prepareDialog(dialog, m_view);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // The current named destination of the item is preselected
+    if (const PDFActionGoTo* goTo = dynamic_cast<const PDFActionGoTo*>(item->getAction()))
+    {
+        if (goTo->getDestination().isNamedDestination())
+        {
+            dialog->selectName(goTo->getDestination().getName());
+        }
+    }
+
+    m_targetItem = m_currentItem;
+    m_targetOutlineVersion = document->getOutlineVersion();
+    m_namedDestinationDialog = dialog;
+    connect(dialog, &QDialog::finished, this, &PDFAppOutlineEditor::onNamedDestinationFinished);
+    dialog->open();
+    if (dialog->getSearchField() && dialog->getSearchField()->isVisibleTo(dialog))
+    {
+        dialog->getSearchField()->setFocus(Qt::OtherFocusReason);
+    }
+    return true;
+}
+
+void PDFAppOutlineEditor::onNamedDestinationFinished(int result)
+{
+    const QByteArray name = (result == QDialog::Accepted && m_namedDestinationDialog) ? m_namedDestinationDialog->getSelectedName() : QByteArray();
+    m_namedDestinationDialog = nullptr;
+    const OutlinePath item = m_targetItem;
+    m_targetItem.clear();
+
+    const PDFAppDocument* document = getDocument();
+    if (name.isEmpty() || item.empty() || !document || document->getOutlineVersion() != m_targetOutlineVersion)
+    {
+        return;
+    }
+
+    // QDialog::done emits accepted after finished: the commit (its receivers may
+    // delete the tab with the dialog) goes from the event loop
+    m_dialogResult = DialogResult();
+    m_dialogResult.isPending = true;
+    m_dialogResult.outlineVersion = m_targetOutlineVersion;
+    m_dialogResult.namedItem = item;
+    m_dialogResult.name = name;
+    QMetaObject::invokeMethod(this, &PDFAppOutlineEditor::onDialogResultQueued, Qt::QueuedConnection);
+}
+
+void PDFAppOutlineEditor::onDialogResultQueued()
+{
+    const DialogResult result = std::move(m_dialogResult);
+    m_dialogResult = DialogResult();
+
+    // The outline must be the one of the dialog (undo, another change meanwhile)
+    PDFAppDocument* document = getDocument();
+    if (!result.isPending || !document || !document->getDocument() || document->getOutlineVersion() != result.outlineVersion || !isEditingAllowed())
+    {
+        return;
+    }
+
+    if (!result.namedItem.empty())
+    {
+        // The name is one of the document (the dialog lists only them); the
+        // operations check it again
+        if (!document->getDocument()->getCatalog()->getNamedDestination(result.name))
+        {
+            return;
+        }
+        setItemDestination(result.namedItem, PDFDestination::createNamed(result.name), tr("Set outline item target"));
+    }
+    else if (!result.keepZoomItems.empty())
+    {
+        commit(PDFAppAnnotationOperations::setOutlineItemsKeepZoom(document->getDocument(), result.keepZoomItems), tr("Keep the reader's zoom for all items"), m_currentItem);
+    }
+}
+
+const PDFOutlineItem* PDFAppOutlineEditor::findCurrentPositionItem() const
+{
+    const PDFOutlineItem* item = hasCurrentItem() ? findItem(m_currentItem) : nullptr;
+    const PDFActionGoTo* goTo = item ? dynamic_cast<const PDFActionGoTo*>(item->getAction()) : nullptr;
+    return goTo && goTo->getDestination().getDestinationType() == DestinationType::XYZ ? item : nullptr;
+}
+
+bool PDFAppOutlineEditor::isCurrentItemTargetPosition() const
+{
+    return findCurrentPositionItem() != nullptr;
+}
+
+bool PDFAppOutlineEditor::isCurrentItemKeepingZoom() const
+{
+    const PDFOutlineItem* item = findCurrentPositionItem();
+    return item && PDFAppAnnotationOperations::isOutlineItemKeepingZoom(item);
+}
+
+bool PDFAppOutlineEditor::setCurrentItemKeepZoom(bool keepZoom)
+{
+    const PDFOutlineItem* item = findCurrentPositionItem();
+    PDFAppDocument* document = getDocument();
+    if (!document || !item || !isEditingAllowed())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    if (keepZoom)
+    {
+        return commit(PDFAppAnnotationOperations::setOutlineItemsKeepZoom(document->getDocument(), { m_currentItem }), tr("Keep the reader's zoom"), m_currentItem);
+    }
+
+    // The zoom of the view is stored with the position
+    PDFDrawWidgetProxy* proxy = m_view ? m_view->getProxy() : nullptr;
+    const PDFActionGoTo* goTo = static_cast<const PDFActionGoTo*>(item->getAction());
+    if (!proxy || !PDFAppAnnotationOperations::isOutlineItemKeepingZoom(item))
+    {
+        return false;
+    }
+    PDFDestination destination = goTo->getDestination();
+    destination.setZoom(proxy->getZoom());
+    return setItemDestination(m_currentItem, destination, tr("Store the zoom of the view"));
+}
+
+int PDFAppOutlineEditor::getItemsWithZoomCount() const
+{
+    const PDFAppDocument* document = getDocument();
+    if (!document || !document->isReady())
+    {
+        return 0;
+    }
+
+    if (m_zoomCountDocument != document || m_zoomCountVersion != document->getOutlineVersion())
+    {
+        m_zoomCountDocument = document;
+        m_zoomCountVersion = document->getOutlineVersion();
+        m_zoomCount = int(PDFAppAnnotationOperations::getOutlineItemsWithZoom(document->getDocument().data()).size());
+    }
+    return m_zoomCount;
+}
+
+bool PDFAppOutlineEditor::keepZoomForAllItems()
+{
+    PDFAppDocument* document = getDocument();
+    QWidget* parent = getDialogParent();
+    if (!m_view || !document || !parent || !isEditingAllowed())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+
+    std::vector<OutlinePath> items = PDFAppAnnotationOperations::getOutlineItemsWithZoom(document->getDocument().data());
+    if (items.empty())
+    {
+        showStatusMessage(tr("Every item of the outline already keeps the zoom of the reader."));
+        return false;
+    }
+
+    QPointer<PDFAppOutlineEditor> guard(this);
+    closeTargetUserInterface();
+    if (!guard || !m_view)
+    {
+        return false;
+    }
+
+    // The confirmation names the number of the changed items (old Editor: Inherit
+    // Zoom for All Chapters)
+    const int count = int(items.size());
+    PDFMessageBox* confirmation = new PDFMessageBox(PDFThemeIcons::Badge::Question,
+                                                    tr("Keep the reader's zoom for all items?"),
+                                                    count == 1 ? tr("%Ln outline item will open its page at the zoom of the reader instead of its own zoom.", nullptr, count)
+                                                               : tr("%Ln outline items will open their page at the zoom of the reader instead of their own zoom.", nullptr, count),
+                                                    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, parent);
+    confirmation->setObjectName(QStringLiteral("keepZoomConfirmation"));
+    confirmation->setAttribute(Qt::WA_DeleteOnClose);
+    PDFAppMainWindow::prepareDialog(confirmation, m_view);
+    if (QAbstractButton* button = confirmation->getButtonBox()->button(QDialogButtonBox::Ok))
+    {
+        button->setText(tr("Keep Zoom"));
+    }
+    confirmation->setDefaultButton(QDialogButtonBox::Ok);
+
+    m_keepZoomItems = std::move(items);
+    m_targetOutlineVersion = document->getOutlineVersion();
+    m_keepZoomConfirmation = confirmation;
+    connect(confirmation, &QDialog::finished, this, &PDFAppOutlineEditor::onKeepZoomConfirmationFinished);
+    confirmation->open();
+    return true;
+}
+
+void PDFAppOutlineEditor::onKeepZoomConfirmationFinished(int result)
+{
+    Q_UNUSED(result);
+
+    const bool isAccepted = m_keepZoomConfirmation && m_keepZoomConfirmation->getClickedStandardButton() == QDialogButtonBox::Ok;
+    m_keepZoomConfirmation = nullptr;
+    const std::vector<OutlinePath> items = std::move(m_keepZoomItems);
+    m_keepZoomItems.clear();
+
+    PDFAppDocument* document = getDocument();
+    if (!isAccepted || items.empty() || !document || document->getOutlineVersion() != m_targetOutlineVersion || !isEditingAllowed())
+    {
+        return;
+    }
+
+    // The message box is still in QDialog::done: the commit goes from the event loop
+    m_dialogResult = DialogResult();
+    m_dialogResult.isPending = true;
+    m_dialogResult.outlineVersion = m_targetOutlineVersion;
+    m_dialogResult.keepZoomItems = items;
+    QMetaObject::invokeMethod(this, &PDFAppOutlineEditor::onDialogResultQueued, Qt::QueuedConnection);
+}
+
+bool PDFAppOutlineEditor::setItemDestination(const OutlinePath& item, const PDFDestination& destination, const QString& description)
+{
+    PDFAppDocument* document = getDocument();
+    if (!document || !isEditingAllowed())
+    {
+        showStatusMessage(getEditingRefusalReason());
+        return false;
+    }
+    return commit(PDFAppAnnotationOperations::setOutlineItemDestination(document->getDocument(), item, destination), description, item);
 }
 
 bool PDFAppOutlineEditor::setItemStyle(const OutlinePath& item, bool bold, bool italic)

@@ -205,6 +205,7 @@ public:
     static QString copy() { return QStringLiteral("edit.copy"); }
     static QString selectAll() { return QStringLiteral("edit.selectAll"); }
     static QString deselect() { return QStringLiteral("edit.deselect"); }
+    static QString handTool() { return QStringLiteral("select.hand"); }
     static QString selectText() { return QStringLiteral("select.text"); }
     static QString selectTable() { return QStringLiteral("select.table"); }
     static QString screenshot() { return QStringLiteral("select.screenshot"); }
@@ -319,9 +320,33 @@ public:
     static QString outlineSetTarget() { return QStringLiteral("outline.setTarget"); }
     static QString outlineBold() { return QStringLiteral("outline.bold"); }
     static QString outlineItalic() { return QStringLiteral("outline.italic"); }
+    static QString outlineSetTargetWholePage() { return QStringLiteral("outline.setTargetWholePage"); }
+    static QString outlineSetTargetPageWidth() { return QStringLiteral("outline.setTargetPageWidth"); }
+    static QString outlineSetTargetPageHeight() { return QStringLiteral("outline.setTargetPageHeight"); }
+    static QString outlineSetTargetArea() { return QStringLiteral("outline.setTargetArea"); }
+    static QString outlineSetTargetPosition() { return QStringLiteral("outline.setTargetPosition"); }
+    static QString outlineSetTargetContent() { return QStringLiteral("outline.setTargetContent"); }
+    static QString outlineSetTargetContentWidth() { return QStringLiteral("outline.setTargetContentWidth"); }
+    static QString outlineSetTargetContentHeight() { return QStringLiteral("outline.setTargetContentHeight"); }
+    static QString outlineSetTargetNamed() { return QStringLiteral("outline.setTargetNamed"); }
+    static QString outlineKeepZoom() { return QStringLiteral("outline.keepZoom"); }
+    static QString outlineKeepZoomAll() { return QStringLiteral("outline.keepZoomAll"); }
 
     /// Registers all built-in commands
     static void registerBuiltinCommands(PDFAppCommandRegistry* registry);
+
+    /// Icon of the Hand mode: "hand" of Figma Components / Icons, empty until the
+    /// icon exists in the library (the command and the row of the Select menu have
+    /// no icon then)
+    static QString getHandIconName();
+
+    /// Default shortcut of Hand (owner 2026-10-25): Ctrl+H on Windows and Linux,
+    /// Control+H on macOS - Qt::META, because Qt maps Qt::CTRL to the Command key
+    /// there and Command+H hides the application
+    static QKeySequence getHandShortcut(bool isMacOS);
+
+    /// The application runs on macOS (the platform of the default shortcuts)
+    static bool isMacOS();
 
 private:
     static void registerWindowCommands(PDFAppCommandRegistry* registry);

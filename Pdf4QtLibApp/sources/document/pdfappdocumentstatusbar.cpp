@@ -51,7 +51,8 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     m_message->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     m_layout->addWidget(m_message);
 
-    // The page item (Status bar item 190:658, 22 px high, icon 14) - the first leading item
+    // The page item (Status bar item 190:658, 22 px high, icon 14) - the first trailing
+    // item, left of the signatures and of the rendering issues (status-page 1234:165228)
     m_pageItem = new QToolButton(this);
     m_pageItem->setObjectName(QStringLiteral("statusPage"));
     m_pageItem->setIcon(PDFThemeIcons::getIcon(QStringLiteral("pages")));
@@ -61,8 +62,8 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     PDFWidgetStyleProperties::set(m_pageItem, PDFWidgetStyleProperties::STATUS_ITEM);
     m_pageItem->hide();
     connect(m_pageItem.data(), &QToolButton::clicked, this, &PDFAppDocumentStatusBar::pageItemClicked);
-    m_layout->addWidget(m_pageItem);
     m_layout->addStretch(1);
+    m_layout->addWidget(m_pageItem);
 
     m_messageTimer = new QTimer(this);
     m_messageTimer->setSingleShot(true);

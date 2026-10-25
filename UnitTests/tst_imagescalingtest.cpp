@@ -1472,6 +1472,65 @@ void ImageScalingTest::testBlend2DCosmeticPen()
             }
         }
     }
+
+    // A CAD drawing: a solid hairline path of 100 000 segments (zigzag rows) is stroked
+    // natively in the device space - no outline of QPainterPathStroker -, the painted
+    // pixels match QPainter; the time is printed
+    for (const qreal zoom : { 1.0, 3.0 })
+    {
+        QPainterPath path;
+        path.moveTo(QPointF(10.0, 5.0) / zoom);
+        for (int i = 1; i <= 100000; ++i)
+        {
+            const qreal x = 10.0 + (i % 2000) * 0.11;
+            const qreal y = 5.0 + (i / 2000) * 1.4 + ((i % 2) ? 0.6 : 0.0);
+            path.lineTo(QPointF(x, y) / zoom);
+        }
+        const QPen pen(QColor(0, 0, 0), 0.0, Qt::SolidLine, Qt::FlatCap, Qt::BevelJoin);
+        QVERIFY(pen.isCosmetic());
+
+        auto countPainted = [](const QImage& image, bool isAlpha)
+        {
+            int count = 0;
+            for (int y = 0; y < image.height(); ++y)
+            {
+                for (int x = 0; x < image.width(); ++x)
+                {
+                    const QRgb pixel = image.pixel(x, y);
+                    count += (isAlpha ? qAlpha(pixel) >= 96 : qGray(pixel) < 160) ? 1 : 0;
+                }
+            }
+            return count;
+        };
+
+        QImage reference(240, 80, QImage::Format_ARGB32_Premultiplied);
+        reference.fill(Qt::white);
+        {
+            QPainter painter(&reference);
+            painter.scale(zoom, zoom);
+            painter.setPen(pen);
+            painter.drawPath(path);
+        }
+
+        QImage image(240, 80, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        QElapsedTimer timer;
+        timer.start();
+        {
+            pdf::PDFBLPaintDevice paintDevice(image, false);
+            QPainter painter;
+            QVERIFY(painter.begin(&paintDevice));
+            painter.scale(zoom, zoom);
+            painter.setPen(pen);
+            painter.drawPath(path);
+            painter.end();
+        }
+        const qint64 elapsed = timer.elapsed();
+        const int expected = countPainted(reference, false);
+        const int measured = countPainted(image, true);
+        qInfo("Blend2D cosmetic hairline of 100000 segments at zoom %g: %lld ms, %d painted pixels (QPainter %d)", zoom, elapsed, measured, expected);
+        QVERIFY2(expected > 1000 && std::abs(measured - expected) <= expected / 5, qPrintable(QString("%1 %2").arg(measured).arg(expected)));
+    }
 }
 
 QTEST_MAIN(ImageScalingTest)

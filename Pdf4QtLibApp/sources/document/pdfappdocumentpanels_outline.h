@@ -48,6 +48,7 @@ class QStandardItem;
 namespace pdf
 {
 
+class PDFAppCommandRegistry;
 class PDFAppOutlineEditor;
 class PDFLineEdit;
 class PDFTreeView;
@@ -90,8 +91,16 @@ public:
     /// Path of the item (the rows from the root)
     static PDFAppAnnotationOperations::OutlinePath getPath(const QModelIndex& index);
 
-    /// Path of a dragged item of the data, when its key is \p documentKey
+    /// Path of a dragged item of the data, when its key is \p documentKey (the
+    /// first one of more dragged items)
     static std::optional<PDFAppAnnotationOperations::OutlinePath> getDraggedPath(const QMimeData* data, const QString& documentKey);
+
+    /// Paths of all dragged items of the data (more selected items), when its key
+    /// is \p documentKey; empty for foreign or damaged data
+    static std::vector<PDFAppAnnotationOperations::OutlinePath> getDraggedPaths(const QMimeData* data, const QString& documentKey);
+
+    /// Largest dragged data read (bytes)
+    static constexpr qsizetype MAXIMUM_DRAG_DATA_SIZE = 4 * 1024 * 1024;
 
     virtual QStringList mimeTypes() const override;
     virtual QMimeData* mimeData(const QModelIndexList& indexes) const override;
@@ -262,6 +271,7 @@ private:
     void onSearchTextChanged(const QString& text);
     void onItemClicked(const QModelIndex& index);
     void onCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
+    void onSelectionChanged();
     void onEditorClosed(QWidget* editor, QAbstractItemDelegate::EndEditHint hint);
     void onEditFinishedQueued();
     void openPendingEditor();
@@ -269,6 +279,7 @@ private:
     void onEditingStateChanged();
     void onContextMenuRequested(const QPoint& position);
     void onMenuActionTriggered();
+    void addSetTargetMenu(QMenu* menu, const PDFAppCommandRegistry* registry);
     void onNewItemClicked();
     void onRenameTriggered();
     void onDatabaseChanged(const QString& topic, const QString& key);
@@ -322,6 +333,7 @@ private:
     {
         bool isValid = false;
         OutlinePath item;
+        std::vector<OutlinePath> items;   ///< All dragged items (more selected items)
         OutlinePath parent;
         size_t index = 0;
     };

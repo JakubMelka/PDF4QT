@@ -65,7 +65,7 @@ private:
 
     /// Width, which QMenu adds to its widest item for the shortcuts: the widest shortcut
     /// measured by the font of the menu (QMenuPrivate::updateActionRects)
-    static int getMenuShortcutColumnWidth(const QMenu* menu);
+    int getMenuShortcutColumnWidth(const QMenu* menu) const;
 
     void drawMenuItem(const QStyleOptionMenuItem* option, QPainter* painter, const QWidget* widget) const;
     void drawMenuBarItem(const QStyleOptionMenuItem* option, QPainter* painter, const QWidget* widget) const;
@@ -96,11 +96,19 @@ bool PDFWidgetStyleMenus::isDestructive(const QStyleOptionMenuItem* option, cons
     return action && PDFWidgetStyleProperties::isSet(action, PDFWidgetStyleProperties::DESTRUCTIVE);
 }
 
-int PDFWidgetStyleMenus::getMenuShortcutColumnWidth(const QMenu* menu)
+int PDFWidgetStyleMenus::getMenuShortcutColumnWidth(const QMenu* menu) const
 {
     if (!menu)
     {
         return 0;
+    }
+
+    // QMenu asks the size of every row in a layout: the column is measured once
+    // (a measurement per row made a layout quadratic in the number of the rows)
+    const int cachedWidth = m_impl->getCachedMenuShortcutColumnWidth(menu);
+    if (cachedWidth >= 0)
+    {
+        return cachedWidth;
     }
 
     // The same texts as QMenuPrivate::updateActionRects: the text after a tabulator,
@@ -133,6 +141,7 @@ int PDFWidgetStyleMenus::getMenuShortcutColumnWidth(const QMenu* menu)
         }
     }
 
+    m_impl->setCachedMenuShortcutColumnWidth(menu, width);
     return width;
 }
 

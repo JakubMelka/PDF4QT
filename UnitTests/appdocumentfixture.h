@@ -172,6 +172,10 @@ public:
     /// Processes the events (deferred deletions too)
     static void settle();
 
+    /// Multiplier of the time limits: PDF4QT_TEST_TIMEOUT_FACTOR (at most 1000), or 20
+    /// under valgrind
+    static int getTimeoutFactor();
+
     /// Closes the message boxes of the window. \returns the number of closed boxes.
     int closeMessageBoxes();
 

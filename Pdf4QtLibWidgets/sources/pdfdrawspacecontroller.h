@@ -259,6 +259,13 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFViewColors
     /// drag-tooltip 1017:18217); an invalid color (the default) draws no shadow
     QColor infoShadow;
 
+    /// Outline and shadow (0 / 4 / 16) of the circle of the magnifier (PDFMagnifierTool) in
+    /// the look of the design (magnifier 1234:164735); an invalid outline (the default) draws
+    /// the white line in the difference composition mode of the old applications, an invalid
+    /// shadow draws no shadow
+    QColor magnifierBorder;
+    QColor magnifierShadow;
+
     bool operator==(const PDFViewColors&) const = default;
 
     /// Colors of the old applications (canvas gray of the dark / light theme,
@@ -437,10 +444,12 @@ public:
 
     /// Returns page, under which is point. If no page is under the point,
     /// then -1 is returned. Point is in widget coordinates. If \p pagePoint
-    /// is not nullptr, then point in page coordinate space is set here.
+    /// is not nullptr, then point in page coordinate space is set here. The point
+    /// is mapped exactly - pass the exact position of a mouse event (QMouseEvent::position),
+    /// the page point is never rounded to whole points of the page.
     /// \param point Point
     /// \param pagePoint Point in page coordinate system
-    PDFInteger getPageUnderPoint(QPoint point, QPointF* pagePoint) const;
+    PDFInteger getPageUnderPoint(QPointF point, QPointF* pagePoint) const;
 
     /// Returns bounding box of pages, which are intersecting rectangle (even partially)
     /// \param rect Rectangle to test

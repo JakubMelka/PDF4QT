@@ -778,6 +778,7 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     m_animationTimer.stop();
     m_animatedWidgets.clear();
     m_seenAlt.clear();
+    setCachedMenuShortcutColumnWidth(nullptr, -1);
 
     // Work scheduled by the event filter belongs to the style of the application
     m_splitterHoverTimer.stop();
@@ -819,8 +820,49 @@ void PDFWidgetStyleImpl::unpolish(QApplication* application)
     m_installedItemEditorFactory = nullptr;
 }
 
+int PDFWidgetStyleImpl::getCachedMenuShortcutColumnWidth(const QMenu* menu) const
+{
+    if (!menu || !m_applicationPolished || m_menuShortcutColumnMenu.data() != menu || m_menuShortcutColumnActions != menu->actions().size())
+    {
+        return -1;
+    }
+
+    return m_menuShortcutColumnWidth;
+}
+
+void PDFWidgetStyleImpl::setCachedMenuShortcutColumnWidth(const QMenu* menu, int width)
+{
+    // Only the event filter of the application tells, when the value is old
+    const bool isKept = menu && m_applicationPolished && width >= 0;
+    m_menuShortcutColumnMenu = isKept ? menu : nullptr;
+    m_menuShortcutColumnWidth = isKept ? width : -1;
+    m_menuShortcutColumnActions = isKept ? menu->actions().size() : -1;
+}
+
 bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
 {
+    // The column of the shortcuts of a menu is measured again after a change of its
+    // actions (texts, shortcuts, visibility), of its font or of its style
+    if (watched && watched == m_menuShortcutColumnMenu.data())
+    {
+        switch (event->type())
+        {
+            case QEvent::ActionAdded:
+            case QEvent::ActionChanged:
+            case QEvent::ActionRemoved:
+            case QEvent::FontChange:
+            case QEvent::ApplicationFontChange:
+            case QEvent::StyleChange:
+            case QEvent::LanguageChange:
+            case QEvent::Polish:
+                setCachedMenuShortcutColumnWidth(nullptr, -1);
+                break;
+
+            default:
+                break;
+        }
+    }
+
     switch (event->type())
     {
         case QEvent::KeyPress:

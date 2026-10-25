@@ -452,6 +452,14 @@ public:
     PDFReal getMagnifierZoom() const;
     void setMagnifierZoom(const PDFReal& magnifierZoom);
 
+    /// Draws the shadow of a circle (a drop shadow of Figma without a spread)
+    /// \param painter Painter
+    /// \param center Center of the circle, the offset of the shadow applied [pixels of the widget]
+    /// \param radius Radius of the circle
+    /// \param color Color of the shadow, an invalid or a transparent color draws nothing
+    /// \param blur Blur of the shadow (twice the standard deviation, as in Figma)
+    static void drawCircleShadow(QPainter* painter, QPointF center, PDFReal radius, const QColor& color, PDFReal blur);
+
 protected:
     virtual void setActiveImpl(bool active) override;
 
@@ -567,7 +575,7 @@ private:
 
     Mode m_mode;
     PDFSnapper m_snapper;
-    QPoint m_mousePosition;
+    QPointF m_mousePosition;
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
     Qt::KeyboardModifiers m_lastPickModifiers;

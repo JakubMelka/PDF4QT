@@ -289,7 +289,7 @@ public:
             return nullptr;
         }
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
-        if (!QTest::qWaitFor([&guard]() { return !guard || (guard->getDocument() && guard->getDocument()->isReady() && guard->getView()->getProxy()->getDocument()); }, 20000))
+        if (!QTest::qWaitFor([&guard]() { return !guard || (guard->getDocument() && guard->getDocument()->isReady() && guard->getView()->getProxy()->getDocument()); }, 20000 * pdftest::AppDocumentFixture::getTimeoutFactor()))
         {
             return nullptr;
         }

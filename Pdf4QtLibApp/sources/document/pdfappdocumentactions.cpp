@@ -59,6 +59,7 @@
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QHelpEvent>
+#include <QKeySequence>
 #include <QMouseEvent>
 #include <QProcess>
 #include <QPushButton>
@@ -475,6 +476,27 @@ bool PDFAppDocumentActionHandler::launch(const PDFAppExternalLaunch& request)
     }
 
     return false;
+}
+
+QString PDFAppDocumentActionHandler::getEditClickModifierName()
+{
+    return getEditClickModifierName(QKeySequence(Qt::CTRL | Qt::Key_A).toString(QKeySequence::NativeText));
+}
+
+QString PDFAppDocumentActionHandler::getEditClickModifierName(const QString& nativeControlA)
+{
+    // The native text of Qt::CTRL alone is not defined: the key A and the separator
+    // are removed from the text of Ctrl+A ("Ctrl+A" - "Ctrl", "U+2318A" - "U+2318")
+    QString name = nativeControlA;
+    if (name.endsWith(QLatin1Char('A')))
+    {
+        name.chop(1);
+    }
+    if (name.endsWith(QLatin1Char('+')))
+    {
+        name.chop(1);
+    }
+    return name.isEmpty() ? QStringLiteral("Ctrl") : name;
 }
 
 QUrl PDFAppDocumentActionHandler::resolveUri(const QByteArray& baseUri, const QByteArray& uri)
@@ -1424,6 +1446,12 @@ void PDFAppDocumentActionHandler::updateHover(const QPoint& position)
     QString description;
     QString status;
     describe(action, &title, &description, &status);
+    if (!status.isEmpty() && annotationManager->isLinksSelectable() && annotationManager->isModificationAllowed())
+    {
+        // A plain click follows the link, Ctrl + click (Command + click on macOS)
+        // selects it for editing (O20)
+        status = tr("%1 · %2+click to edit").arg(status, getEditClickModifierName());
+    }
     if (title == m_hoverTitle && status == m_hoverStatus)
     {
         return;

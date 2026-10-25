@@ -48,6 +48,10 @@ public:
     /// Returns ZapfDingbats glyph name for unicode character. If character is not found, then empty byte array is returned.
     static QByteArray getNameForUnicodeZapfDingbats(QChar character);
 
+    /// Returns glyph name of the Symbol encoding (glyph name of the font Symbol) for unicode
+    /// character. If character is not found, then empty byte array is returned.
+    static QByteArray getNameForUnicodeSymbol(QChar character);
+
     /// Tries to resolve unicode name
     static QChar getUnicodeUsingResolvedName(const QByteArray& name);
 

@@ -592,6 +592,14 @@ QString PDFAppAnnotationTools::getPageLinkTargetName(DestinationType type)
             return tr("Area");
         case DestinationType::XYZ:
             return tr("Position");
+        // The targets of the visible content of an outline item (target-only mode
+        // of PDFAppPageLinkTool, the names of the link properties 1171:28262)
+        case DestinationType::FitB:
+            return tr("Visible content");
+        case DestinationType::FitBH:
+            return tr("Visible content width");
+        case DestinationType::FitBV:
+            return tr("Visible content height");
         default:
             break;
     }
@@ -610,6 +618,12 @@ QString PDFAppAnnotationTools::getPageLinkTargetDescription(DestinationType type
             return tr("Draw a rectangle – exactly that area is shown");
         case DestinationType::XYZ:
             return tr("Click a place – it is shown at the top-left corner");
+        case DestinationType::FitB:
+            return tr("Click the target page – its content without the margins is shown");
+        case DestinationType::FitBH:
+            return tr("Click a place – the width of the content is shown from that height");
+        case DestinationType::FitBV:
+            return tr("Click a place – the height of the content is shown from that edge");
         default:
             break;
     }
@@ -628,6 +642,12 @@ QString PDFAppAnnotationTools::getPageLinkTargetIconName(DestinationType type)
             return QStringLiteral("select-rect");
         case DestinationType::XYZ:
             return QStringLiteral("crosshair");
+        case DestinationType::FitB:
+            return QStringLiteral("margins");
+        case DestinationType::FitBH:
+            return QStringLiteral("measure-h");
+        case DestinationType::FitBV:
+            return QStringLiteral("measure-v");
         default:
             break;
     }
@@ -1158,11 +1178,12 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
     m_isStarting = true;
     if (PDFAppAnnotationTools::isMarkup(kind))
     {
-        // The markups use the text selection; annotations are not selectable meanwhile
-        // (a drag over a marked text marks it again instead of moving the markup)
-        if (m_controller)
+        // The markups use the text selection (also from the Hand mode - its end gives the
+        // mode back); annotations are not selectable meanwhile (a drag over a marked
+        // text marks it again instead of moving the markup)
+        if (m_controller && selectTextTool)
         {
-            m_controller->endActiveTool();
+            m_controller->activateTool(selectTextTool);
         }
         if (guard && selectTextTool && m_toolManager && m_toolManager->getActiveTool() == selectTextTool)
         {
@@ -1276,9 +1297,17 @@ void PDFAppAnnotationCreator::endTool()
         }
     }
 
+    const bool isMarkup = PDFAppAnnotationTools::isMarkup(m_activeKind);
     if (m_activeKind != PDFAppAnnotationToolKind::None)
     {
         finishTool();
+    }
+
+    // The text selection of a markup gives the place back to the chosen mode of the
+    // view (Hand); the mode Select text keeps it
+    if (isMarkup && guard && m_controller)
+    {
+        m_controller->endActiveTool();
     }
 }
 

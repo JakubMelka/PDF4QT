@@ -112,6 +112,7 @@ int PDFAppDocumentViewCommandHandler::getCanvasTool(const QString& commandId)
 {
     using C = PDFAppCommands;
 
+    if (commandId == C::handTool()) { return PDFToolManager::ToolEnd; }
     if (commandId == C::selectText()) { return PDFToolManager::SelectTextTool; }
     if (commandId == C::selectTable()) { return PDFToolManager::SelectTableTool; }
     if (commandId == C::screenshot()) { return PDFToolManager::ScreenshotTool; }

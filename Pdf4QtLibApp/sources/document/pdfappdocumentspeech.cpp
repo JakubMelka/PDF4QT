@@ -456,6 +456,17 @@ bool PDFAppDocumentSpeechController::isAvailable() const
     return m_engine && m_engine->getState() != PDFAppSpeechEngine::State::Error;
 }
 
+QString PDFAppDocumentSpeechController::getCurrentPageLabel() const
+{
+    if (!isReading() || m_currentPage < 0)
+    {
+        return QString();
+    }
+
+    const QString label = m_view ? m_view->getPageLabel(m_currentPage) : QString();
+    return label.isEmpty() ? QString::number(m_currentPage + 1) : label;
+}
+
 QString PDFAppDocumentSpeechController::getErrorString() const
 {
     if (!m_engine)
@@ -1204,7 +1215,8 @@ void PDFAppDocumentSpeechPanel::updateText()
         return;
     }
 
-    m_nowReadingLabel->setText(tr("Now reading · page %1").arg(m_controller->getCurrentPage() + 1));
+    // The page by its label as the rest of the application (1232:164124)
+    m_nowReadingLabel->setText(tr("Now reading · page %1").arg(m_controller->getCurrentPageLabel()));
 
     // The spoken part text/primary, the rest text/muted (the text is data of the
     // document: escaped); the lines are 18 px apart (now-reading text of 195:2499)

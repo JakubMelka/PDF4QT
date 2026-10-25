@@ -690,8 +690,14 @@ void PDFAppThumbnailsPanel::applyDocument()
     {
         m_scheduler->reset();
     }
+
+    // The synchronized selection is reported at once: a slot may delete the panel
+    QPointer<PDFAppThumbnailsPanel> self(this);
     syncToCurrentPage(true);
-    Q_EMIT titleChanged();
+    if (self)
+    {
+        Q_EMIT titleChanged();
+    }
 }
 
 void PDFAppThumbnailsPanel::onDocumentChanged(const PDFModifiedDocument& modified)
@@ -767,7 +773,12 @@ void PDFAppThumbnailsPanel::selectPages(const std::vector<PDFInteger>& pages)
         m_view->selectionModel()->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
     }
     m_isSyncing = wasSyncing;
-    Q_EMIT titleChanged();
+
+    // The change of the selection reported at once (outside of the signal of Qt)
+    if (!processSelectionChange())
+    {
+        Q_EMIT titleChanged();
+    }
 }
 
 void PDFAppThumbnailsPanel::setSyncEnabled(bool enabled)
@@ -840,7 +851,14 @@ void PDFAppThumbnailsPanel::onSyncToggled(bool checked)
 void PDFAppThumbnailsPanel::onCurrentPageChanged(PDFInteger pageIndex)
 {
     Q_UNUSED(pageIndex);
+
+    // The synchronized selection is reported at once: a slot may delete the panel
+    QPointer<PDFAppThumbnailsPanel> self(this);
     syncToCurrentPage(false);
+    if (!self)
+    {
+        return;
+    }
     updateViewSelection();
 }
 
@@ -867,6 +885,13 @@ void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
         m_isSyncing = true;
         m_view->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
         m_isSyncing = wasSyncing;
+
+        QPointer<PDFAppThumbnailsPanel> self(this);
+        processSelectionChange();
+        if (!self || !m_view)
+        {
+            return;
+        }
     }
 
     if (m_isSyncEnabled)
@@ -878,19 +903,40 @@ void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
 void PDFAppThumbnailsPanel::onViewClicked(const QModelIndex& index)
 {
     // A click without a modifier goes to the page also, when it is selected already
-    PDFAppDocumentView* view = getView();
-    if (view && index.isValid() && getSelectedPages().size() == 1)
+    if (index.isValid() && getSelectedPages().size() == 1)
     {
-        view->goToPage(index.row());
+        scheduleGoToPage(index.row());
     }
 }
 
 void PDFAppThumbnailsPanel::onViewActivated(const QModelIndex& index)
 {
-    PDFAppDocumentView* view = getView();
-    if (view && index.isValid())
+    if (index.isValid())
     {
-        view->goToPage(index.row());
+        scheduleGoToPage(index.row());
+    }
+}
+
+void PDFAppThumbnailsPanel::scheduleGoToPage(PDFInteger pageIndex)
+{
+    // The signals of QAbstractItemView: the view of the document moves from the
+    // event loop (Qt uses the list view after its signals)
+    const bool isQueued = m_pendingPageIndex >= 0;
+    m_pendingPageIndex = pageIndex;
+    if (!isQueued)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppThumbnailsPanel::onGoToPageQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppThumbnailsPanel::onGoToPageQueued()
+{
+    const PDFInteger pageIndex = m_pendingPageIndex;
+    m_pendingPageIndex = -1;
+    PDFAppDocumentView* view = getView();
+    if (view && pageIndex >= 0)
+    {
+        view->goToPage(pageIndex);
     }
 }
 
@@ -914,12 +960,46 @@ void PDFAppThumbnailsPanel::updateViewSelection()
 
 void PDFAppThumbnailsPanel::onSelectionChanged()
 {
-    Q_EMIT titleChanged();
-    updateViewSelection();
-
-    if (m_isSyncing)
+    // The signal of the selection model of Qt: the application reacts from the
+    // event loop (its signals and the view may delete the tab - Qt does not
+    // survive the deletion of its view inside of its own signal)
+    if (!m_isSyncing)
     {
-        return;
+        m_isUserSelectionPending = true;
+    }
+    if (!m_isSelectionChangePending)
+    {
+        m_isSelectionChangePending = true;
+        QMetaObject::invokeMethod(this, &PDFAppThumbnailsPanel::onSelectionChangeQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppThumbnailsPanel::onSelectionChangeQueued()
+{
+    processSelectionChange();
+}
+
+bool PDFAppThumbnailsPanel::processSelectionChange()
+{
+    if (!m_isSelectionChangePending)
+    {
+        return false;
+    }
+
+    const bool isUserSelection = m_isUserSelectionPending;
+    m_isSelectionChangePending = false;
+    m_isUserSelectionPending = false;
+
+    QPointer<PDFAppThumbnailsPanel> self(this);
+    Q_EMIT titleChanged();
+    if (!self)
+    {
+        return true;
+    }
+    updateViewSelection();
+    if (!self || !isUserSelection)
+    {
+        return true;
     }
 
     // One selected page (a click, the keyboard) is shown in the canvas
@@ -929,6 +1009,7 @@ void PDFAppThumbnailsPanel::onSelectionChanged()
     {
         view->goToPage(pages.front());
     }
+    return true;
 }
 
 QMenu* PDFAppThumbnailsPanel::createContextMenu()

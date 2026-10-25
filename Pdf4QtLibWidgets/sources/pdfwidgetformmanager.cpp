@@ -593,18 +593,28 @@ void PDFWidgetFormManager::mousePressEvent(QWidget* widget, QMouseEvent* event)
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
 
-        // We try to set focus on editor
+        // We try to set focus on editor (the loss of the focus of the previous
+        // editor commits its value: the application may delete this manager)
+        QPointer<PDFWidgetFormManager> self(this);
         if (event->button() == Qt::LeftButton)
         {
             setFocusToEditor(info.editor);
+            if (!self)
+            {
+                return;
+            }
         }
 
         info.editor->mousePressEvent(widget, event, info.mousePosition);
+        if (!self)
+        {
+            return;
+        }
         grabMouse(info, event);
     }
     else if (!isMouseGrabbed())
@@ -621,11 +631,16 @@ void PDFWidgetFormManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* e
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
+        QPointer<PDFWidgetFormManager> self(this);
         info.editor->mouseDoubleClickEvent(widget, event, info.mousePosition);
+        if (!self)
+        {
+            return;
+        }
 
         // If mouse is grabbed, then event is accepted always (because
         // we get Press event, when we grabbed the mouse, then we will
@@ -645,11 +660,19 @@ void PDFWidgetFormManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
+
+        // A click commits the value (a check box, a button): the application may
+        // delete this manager from the change of the document
+        QPointer<PDFWidgetFormManager> self(this);
         info.editor->mouseReleaseEvent(widget, event, info.mousePosition);
+        if (!self)
+        {
+            return;
+        }
         ungrabMouse(info, event);
     }
 }
@@ -661,7 +684,7 @@ void PDFWidgetFormManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->pos());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
@@ -698,7 +721,7 @@ void PDFWidgetFormManager::wheelEvent(QWidget* widget, QWheelEvent* event)
         return;
     }
 
-    MouseEventInfo info = getMouseEventInfo(widget, event->position().toPoint());
+    MouseEventInfo info = getMouseEventInfo(widget, event->position());
     if (info.isValid())
     {
         Q_ASSERT(info.editor);
@@ -741,7 +764,7 @@ void PDFWidgetFormManager::grabMouse(const MouseEventInfo& info, QMouseEvent* ev
     }
 }
 
-PDFWidgetFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWidget* widget, QPoint point)
+PDFWidgetFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWidget* widget, QPointF point)
 {
     MouseEventInfo result;
 
@@ -1188,7 +1211,14 @@ void PDFWidgetFormManager::setFocusToEditor(PDFFormFieldWidgetEditor* editor)
     {
         if (m_focusedEditor)
         {
+            // The loss of the focus commits the edited value: the application may
+            // delete the widget (and this manager) from the change of the document
+            QPointer<PDFWidgetFormManager> self(this);
             m_focusedEditor->setFocus(false);
+            if (!self)
+            {
+                return;
+            }
         }
 
         m_focusedEditor = editor;

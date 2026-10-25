@@ -27,6 +27,7 @@
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
+#include "pdfappnotesoutlinecommands.h"
 #include "pdfappoutlineeditor.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfshortcutrepository.h"
@@ -40,6 +41,7 @@
 #include "pdfwidgetstyleproperties.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QDropEvent>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -48,7 +50,9 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMimeData>
+#include <QRegularExpression>
 #include <QStandardItemModel>
+#include <QStyledItemDelegate>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -56,6 +60,41 @@
 
 namespace pdf
 {
+
+/// Delegate of the outline tree: the inline editor (rename, new item) covers the
+/// whole shape of the row, the field drawn by the style below it, so its text
+/// (the frameless editor keeps the padding of a field) starts where the row draws
+/// the title - outline-row 195:1503: the title at 26, padding 8 at the end
+class PDFAppOutlineItemDelegate : public QStyledItemDelegate
+{
+public:
+    explicit PDFAppOutlineItemDelegate(QObject* parent) :
+        QStyledItemDelegate(parent)
+    {
+    }
+
+    virtual void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        if (!editor)
+        {
+            return;
+        }
+
+        QStyleOptionViewItem viewOption(option);
+        initStyleOption(&viewOption, index);
+        const QWidget* widget = option.widget;
+        const QStyle* style = widget ? widget->style() : QApplication::style();
+        const QRect shape = style->subElementRect(QStyle::SE_ItemViewItemFocusRect, &viewOption, widget);
+        if (shape.isValid())
+        {
+            editor->setGeometry(shape);
+        }
+        else
+        {
+            QStyledItemDelegate::updateEditorGeometry(editor, option, index);
+        }
+    }
+};
 
 /// Helpers of the outline panel
 class PDFAppOutlinePanelHelper
@@ -68,6 +107,35 @@ public:
 
     /// Property of the actions of the context menu: the id of the command
     static constexpr const char* COMMAND_PROPERTY = "pdf4qtCommand";
+
+    /// Item of a target in the submenu Set Target (1236:165602; the names of the
+    /// Target menu of Link to page 1170:27714 and of the link properties 1171:28262
+    /// in the title case of the menu; Area… and Position… are picked on a page)
+    static QString getTargetMenuText(DestinationType type)
+    {
+        switch (type)
+        {
+            case DestinationType::Fit:
+                return PDFAppOutlinePanel::tr("Whole Page");
+            case DestinationType::FitH:
+                return PDFAppOutlinePanel::tr("Page Width");
+            case DestinationType::FitV:
+                return PDFAppOutlinePanel::tr("Page Height");
+            case DestinationType::FitR:
+                return PDFAppOutlinePanel::tr("Area…");
+            case DestinationType::XYZ:
+                return PDFAppOutlinePanel::tr("Position…");
+            case DestinationType::FitB:
+                return PDFAppOutlinePanel::tr("Visible Content");
+            case DestinationType::FitBH:
+                return PDFAppOutlinePanel::tr("Visible Content Width");
+            case DestinationType::FitBV:
+                return PDFAppOutlinePanel::tr("Visible Content Height");
+            default:
+                break;
+        }
+        return QString();
+    }
 
     /// Title of an item: control characters replaced by spaces, shortened
     static QString sanitizeTitle(const QString& title)
@@ -164,57 +232,96 @@ QMimeData* PDFAppOutlineItemModel::mimeData(const QModelIndexList& indexes) cons
         return nullptr;
     }
 
-    // "key" LF "row,row,row" (the first dragged item; the selection has one item)
-    QStringList rows;
-    for (size_t row : getPath(indexes.front()))
+    // "key" LF "row,row,row;row,row" (the paths of all dragged items - more items
+    // of the extended selection)
+    QStringList paths;
+    for (const QModelIndex& index : indexes)
     {
-        rows << QString::number(row);
+        if (!index.isValid() || index.column() != 0)
+        {
+            continue;
+        }
+
+        QStringList rows;
+        for (size_t row : getPath(index))
+        {
+            rows << QString::number(row);
+        }
+        paths << rows.join(QLatin1Char(','));
+    }
+    if (paths.isEmpty())
+    {
+        return nullptr;
     }
 
     QMimeData* data = new QMimeData();
-    data->setData(getMimeType(), (m_documentKey + QLatin1Char('\n') + rows.join(QLatin1Char(','))).toUtf8());
+    data->setData(getMimeType(), (m_documentKey + QLatin1Char('\n') + paths.join(QLatin1Char(';'))).toUtf8());
     return data;
+}
+
+std::vector<PDFAppAnnotationOperations::OutlinePath> PDFAppOutlineItemModel::getDraggedPaths(const QMimeData* data, const QString& documentKey)
+{
+    // The data may come from another process: bounded and checked
+    std::vector<PDFAppAnnotationOperations::OutlinePath> paths;
+    if (!data || documentKey.isEmpty() || !data->hasFormat(getMimeType()))
+    {
+        return paths;
+    }
+
+    const QByteArray bytes = data->data(getMimeType());
+    if (bytes.size() > MAXIMUM_DRAG_DATA_SIZE)
+    {
+        return paths;
+    }
+
+    // Every move of a drag asks: the key of the document is compared first, and the
+    // rows are read from the bytes - nothing of the data (up to 4 MB) is decoded
+    const QByteArray prefix = documentKey.toUtf8() + '\n';
+    if (!bytes.startsWith(prefix))
+    {
+        return paths;
+    }
+
+    const QByteArray text = bytes.sliced(prefix.size());
+    if (size_t(text.count(';')) >= PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS)
+    {
+        return paths;
+    }
+
+    const QList<QByteArray> items = text.split(';');
+    for (const QByteArray& item : items)
+    {
+        const QList<QByteArray> rows = item.split(',');
+        if (rows.isEmpty() || size_t(rows.size()) > PDFAppAnnotationOperations::MAXIMUM_OUTLINE_DEPTH)
+        {
+            return {};
+        }
+
+        PDFAppAnnotationOperations::OutlinePath path;
+        for (const QByteArray& row : rows)
+        {
+            bool ok = false;
+            const uint value = row.trimmed().toUInt(&ok);
+            if (!ok || value >= PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS)
+            {
+                return {};
+            }
+            path.push_back(size_t(value));
+        }
+        paths.push_back(std::move(path));
+    }
+    return paths;
 }
 
 std::optional<PDFAppAnnotationOperations::OutlinePath> PDFAppOutlineItemModel::getDraggedPath(const QMimeData* data, const QString& documentKey)
 {
-    // The data may come from another process: bounded and checked
-    if (!data || documentKey.isEmpty() || !data->hasFormat(getMimeType()))
+    // More dragged items: the first one
+    std::vector<PDFAppAnnotationOperations::OutlinePath> paths = getDraggedPaths(data, documentKey);
+    if (paths.empty())
     {
         return std::nullopt;
     }
-
-    const QByteArray bytes = data->data(getMimeType());
-    if (bytes.size() > 16 * 1024)
-    {
-        return std::nullopt;
-    }
-
-    const QString text = QString::fromUtf8(bytes);
-    const qsizetype separator = text.indexOf(QLatin1Char('\n'));
-    if (separator < 0 || text.left(separator) != documentKey)
-    {
-        return std::nullopt;
-    }
-
-    const QStringList rows = text.mid(separator + 1).split(QLatin1Char(','));
-    if (rows.isEmpty() || size_t(rows.size()) > PDFAppAnnotationOperations::MAXIMUM_OUTLINE_DEPTH)
-    {
-        return std::nullopt;
-    }
-
-    PDFAppAnnotationOperations::OutlinePath path;
-    for (const QString& row : rows)
-    {
-        bool ok = false;
-        const uint value = row.toUInt(&ok);
-        if (!ok || value >= PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS)
-        {
-            return std::nullopt;
-        }
-        path.push_back(size_t(value));
-    }
-    return path;
+    return paths.front();
 }
 
 Qt::DropActions PDFAppOutlineItemModel::supportedDragActions() const
@@ -322,7 +429,10 @@ PDFAppOutlinePanel::PDFAppOutlinePanel(QWidget* parent) :
     m_tree->setHeaderHidden(true);
     m_tree->setRootIsDecorated(true);
     m_tree->setUniformRowHeights(true);
-    m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    // More items are selected by Ctrl / Shift (as the old Editor): Delete removes
+    // and a drag moves all of them, the other commands act on the current item
+    m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tree->setExpandsOnDoubleClick(true);
     m_tree->setAccessibleName(tr("Outline"));
 
@@ -333,6 +443,7 @@ PDFAppOutlinePanel::PDFAppOutlinePanel(QWidget* parent) :
     m_tree->setDropIndicatorShown(true);
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
     PDFAppPanelWidgets::prepareView(m_tree);
+    m_tree->setItemDelegate(new PDFAppOutlineItemDelegate(m_tree));
     layout->addWidget(m_tree, 1);
 
     m_model = new PDFAppOutlineItemModel(this);
@@ -345,6 +456,7 @@ PDFAppOutlinePanel::PDFAppOutlinePanel(QWidget* parent) :
     connect(m_tree, &QAbstractItemView::activated, this, &PDFAppOutlinePanel::onItemClicked);
     connect(m_tree, &QWidget::customContextMenuRequested, this, &PDFAppOutlinePanel::onContextMenuRequested);
     connect(m_tree->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFAppOutlinePanel::onCurrentIndexChanged);
+    connect(m_tree->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFAppOutlinePanel::onSelectionChanged);
     if (QAbstractItemDelegate* delegate = m_tree->itemDelegate())
     {
         connect(delegate, &QAbstractItemDelegate::closeEditor, this, &PDFAppOutlinePanel::onEditorClosed);
@@ -750,8 +862,21 @@ void PDFAppOutlinePanel::setFilterText(const QString& text)
         return;
     }
 
-    m_filterModel->setFilterFixedString(text.trimmed());
-    if (!text.trimmed().isEmpty())
+    // A text with * or ? is a wildcard pattern (as the old Editor), else a part
+    // of a title; the pattern is bounded (the wildcard conversion is linear)
+    const QString filter = text.trimmed().left(PDFAppAnnotationOperations::MAXIMUM_OUTLINE_TITLE_LENGTH);
+    if (filter.contains(QLatin1Char('*')) || filter.contains(QLatin1Char('?')))
+    {
+        // A title is no path: * and ? match also / and \ (the default wildcard
+        // conversion of Qt stops at the separators of the paths)
+        m_filterModel->setFilterRegularExpression(QRegularExpression::fromWildcard(filter, Qt::CaseInsensitive,
+                                                                                   QRegularExpression::UnanchoredWildcardConversion | QRegularExpression::NonPathWildcardConversion));
+    }
+    else
+    {
+        m_filterModel->setFilterFixedString(filter);
+    }
+    if (!filter.isEmpty())
     {
         // The found items are shown with their parents
         m_tree->expandAll();
@@ -874,7 +999,10 @@ QAbstractItemModel* PDFAppOutlinePanel::getViewModel() const
 
 void PDFAppOutlinePanel::onItemClicked(const QModelIndex& index)
 {
-    if (!m_isSelecting)
+    // Ctrl / Shift + click changes the selection of more items: the view stays (the
+    // page of the item would select one item of the page again - selectCurrentItem)
+    const Qt::KeyboardModifiers selectionModifiers = QApplication::keyboardModifiers() & (Qt::ControlModifier | Qt::ShiftModifier);
+    if (!m_isSelecting && selectionModifiers == Qt::NoModifier)
     {
         activateItem(index);
     }
@@ -969,6 +1097,27 @@ void PDFAppOutlinePanel::onCurrentIndexChanged(const QModelIndex& current, const
     editor->setCurrentItem(PDFAppOutlineItemModel::getPath(sourceIndex));
 }
 
+void PDFAppOutlinePanel::onSelectionChanged()
+{
+    PDFAppOutlineEditor* editor = getEditor();
+    if (!editor || !m_tree || !m_filterModel || !m_model)
+    {
+        return;
+    }
+
+    // The temporary item of a creation is not an item of the document
+    std::vector<OutlinePath> items;
+    for (const QModelIndex& index : m_tree->selectionModel()->selectedRows())
+    {
+        const QModelIndex sourceIndex = m_filterModel->mapToSource(index);
+        if (sourceIndex.isValid() && !(m_pendingItem && m_model->itemFromIndex(sourceIndex) == m_pendingItem))
+        {
+            items.push_back(PDFAppOutlineItemModel::getPath(sourceIndex));
+        }
+    }
+    editor->setSelectedItems(items);
+}
+
 void PDFAppOutlinePanel::beginPendingItem()
 {
     PDFAppOutlineEditor* editor = getEditor();
@@ -1000,7 +1149,7 @@ void PDFAppOutlinePanel::beginPendingItem()
         return;
     }
 
-    m_pendingItem = new QStandardItem(PDFAppOutlineEditor::getDefaultTitle());
+    m_pendingItem = new QStandardItem(editor->getPendingTitle().isEmpty() ? PDFAppOutlineEditor::getDefaultTitle() : editor->getPendingTitle());
     m_pendingItem->setEditable(true);
     m_pendingItem->setDragEnabled(false);
     m_pendingItem->setDropEnabled(false);
@@ -1282,7 +1431,14 @@ void PDFAppOutlinePanel::onDropQueued()
     PDFAppOutlineEditor* editor = getEditor();
     if (request.isValid && editor)
     {
-        editor->moveItem(request.item, request.parent, request.index);
+        if (request.items.size() > 1)
+        {
+            editor->moveItems(request.items, request.parent, request.index);
+        }
+        else
+        {
+            editor->moveItem(request.item, request.parent, request.index);
+        }
     }
 }
 
@@ -1316,8 +1472,18 @@ QMenu* PDFAppOutlinePanel::createContextMenu(const QModelIndex& index)
         return nullptr;
     }
 
-    // The commands act on the current item: the item of the menu becomes current
-    if (index.isValid())
+    // The commands act on the current item: the item of the menu becomes current.
+    // An item of more selected items keeps them (Delete of the menu removes all of
+    // them, as the key Delete)
+    QItemSelectionModel* selectionModel = m_tree->selectionModel();
+    if (index.isValid() && selectionModel && selectionModel->isSelected(index) && selectionModel->selectedRows().size() > 1)
+    {
+        const bool wasSelecting = m_isSelecting;
+        m_isSelecting = true;
+        selectionModel->setCurrentIndex(index, QItemSelectionModel::NoUpdate);
+        m_isSelecting = wasSelecting;
+    }
+    else if (index.isValid())
     {
         selectItem(index);
     }
@@ -1355,7 +1521,7 @@ QMenu* PDFAppOutlinePanel::createContextMenu(const QModelIndex& index)
         {
             { PDFAppCommands::outlineNewItem(), tr("New Item"), true, false, false, hasItem, false },
             { PDFAppCommands::outlineRename(), tr("Rename"), hasItem, false, false, false, false },
-            { PDFAppCommands::outlineSetTarget(), tr("Set Target to Current View"), hasItem, false, false, false, false },
+            { PDFAppCommands::outlineSetTarget(), tr("Set Target"), hasItem, false, false, false, false },
             { PDFAppCommands::outlineBold(), tr("Bold"), hasItem, true, hasItem && editor->isCurrentItemBold(), true, false },
             { PDFAppCommands::outlineItalic(), tr("Italic"), hasItem, true, hasItem && editor->isCurrentItemItalic(), false, false },
             { PDFAppCommands::outlineMoveUp(), tr("Move Up"), hasItem && editor->canMoveUp(), false, false, true, false },
@@ -1374,6 +1540,12 @@ QMenu* PDFAppOutlinePanel::createContextMenu(const QModelIndex& index)
             if (command.isSeparatorBefore)
             {
                 menu->addSeparator();
+            }
+
+            if (command.commandId == PDFAppCommands::outlineSetTarget())
+            {
+                addSetTargetMenu(menu, registry);
+                continue;
             }
 
             const PDFAppCommand* registered = registry ? registry->findCommand(command.commandId) : nullptr;
@@ -1397,6 +1569,13 @@ QMenu* PDFAppOutlinePanel::createContextMenu(const QModelIndex& index)
                 action->setShortcutContext(Qt::WidgetShortcut);
                 action->setShortcutVisibleInContextMenu(true);
             }
+            if (command.commandId == PDFAppCommands::outlineDelete())
+            {
+                // The key of the panel (1236:30150: "Del")
+                action->setShortcut(QKeySequence(Qt::Key_Delete));
+                action->setShortcutContext(Qt::WidgetShortcut);
+                action->setShortcutVisibleInContextMenu(true);
+            }
             connect(action, &QAction::triggered, this, &PDFAppOutlinePanel::onMenuActionTriggered);
         }
     }
@@ -1407,6 +1586,67 @@ QMenu* PDFAppOutlinePanel::createContextMenu(const QModelIndex& index)
         return nullptr;
     }
     return menu;
+}
+
+void PDFAppOutlinePanel::addSetTargetMenu(QMenu* menu, const PDFAppCommandRegistry* registry)
+{
+    PDFAppOutlineEditor* editor = getEditor();
+    if (!menu || !editor)
+    {
+        return;
+    }
+
+    // Set Target (pdf4qt-document-outline-menu-target 1236:165602; the old Editor:
+    // Named Destination, Fit Page, ..., XYZ, Inherit Zoom, Inherit Zoom for All
+    // Chapters): the current view, the views of the current page, Area… and
+    // Position… picked on a page as in the step 2 of Link to page, a named
+    // destination of the document and the zoom of the reader; no icons
+    QMenu* submenu = menu->addMenu(tr("Set Target"));
+    submenu->setObjectName(QStringLiteral("outlineSetTargetMenu"));
+    submenu->menuAction()->setObjectName(QStringLiteral("outlineSetTargetMenu"));
+
+    struct TargetCommand
+    {
+        QString commandId;
+        QString text;
+        bool isEnabled = true;
+        bool isCheckable = false;
+        bool isChecked = false;
+        bool isSeparatorBefore = false;
+    };
+
+    std::vector<TargetCommand> commands;
+    commands.push_back({ PDFAppCommands::outlineSetTarget(), tr("Current View"), true, false, false, false });
+    bool isFirstPicked = true;
+    for (DestinationType type : PDFAppNotesOutlineCommandHandler::getTargets())
+    {
+        commands.push_back({ PDFAppNotesOutlineCommandHandler::getTargetCommandId(type), PDFAppOutlinePanelHelper::getTargetMenuText(type), true, false, false, isFirstPicked });
+        isFirstPicked = false;
+    }
+    commands.push_back({ PDFAppCommands::outlineSetTargetNamed(), tr("Named Destination…"), true, false, false, true });
+    commands.push_back({ PDFAppCommands::outlineKeepZoom(), tr("Keep the Reader's Zoom"), editor->isCurrentItemTargetPosition(), true, editor->isCurrentItemKeepingZoom(), true });
+    commands.push_back({ PDFAppCommands::outlineKeepZoomAll(), tr("Keep the Reader's Zoom for All Items…"), editor->getItemsWithZoomCount() > 0, false, false, false });
+
+    for (const TargetCommand& command : commands)
+    {
+        if (command.isSeparatorBefore)
+        {
+            submenu->addSeparator();
+        }
+
+        const PDFAppCommand* registered = registry ? registry->findCommand(command.commandId) : nullptr;
+        QAction* action = submenu->addAction(command.text);
+        action->setObjectName(QStringLiteral("outlineMenu:") + command.commandId);
+        if (registered)
+        {
+            action->setToolTip(registered->getTitle());
+        }
+        action->setEnabled(command.isEnabled);
+        action->setCheckable(command.isCheckable);
+        action->setChecked(command.isChecked);
+        action->setProperty(PDFAppOutlinePanelHelper::COMMAND_PROPERTY, command.commandId);
+        connect(action, &QAction::triggered, this, &PDFAppOutlinePanel::onMenuActionTriggered);
+    }
 }
 
 void PDFAppOutlinePanel::onMenuActionTriggered()
@@ -1507,6 +1747,7 @@ bool PDFAppOutlinePanel::eventFilter(QObject* watched, QEvent* event)
                 const DropPosition place = target.isValid() ? getDropPosition(m_tree->visualRect(target), position) : DropPosition::OnViewport;
 
                 m_dropRequest = getDropRequest(*item, target, place);
+                m_dropRequest.items = PDFAppOutlineItemModel::getDraggedPaths(dropEvent->mimeData(), getDocumentKey());
 
                 // The view does not remove the dragged rows (no action for it - the
                 // items are owned by the model of the panel, which is built again from

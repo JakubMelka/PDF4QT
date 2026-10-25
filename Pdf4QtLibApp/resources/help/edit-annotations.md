@@ -25,7 +25,7 @@ Trying several colors or widths one after another is one step - one **Undo** ret
 
 Drag an annotation to move it, the square handles change its size (**Shift** keeps the proportions) and the round handle above it rotates it. The arrow keys move the selection. The menu **Rotate and Flip** turns the selection by 90 degrees or mirrors it.
 
-A link is followed by a click, so select it first by **Ctrl+click**, **Alt+click** or a right click - then drag it to move it, and its handles change the size of its clickable area. A link cannot be rotated.
+A click always follows a link, also a selected one. To edit a link, select it by **Ctrl+click** (**Shift+click** adds it to the selection), **Alt+click** or a right click - then drag it to move it, and its handles change the size of its clickable area. A link, which is not selected, is not moved by a drag. A link cannot be rotated.
 
 **Geometry…** of the menu sets the exact position, size and rotation in points, millimeters or inches. The reference point chooses the corner (or the center), which stays in place. The points of a line, a polyline or a polygon can be typed too.
 

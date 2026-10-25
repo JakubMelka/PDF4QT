@@ -141,6 +141,7 @@ private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void onSceneActiveStateChanged(bool);
+    void onActiveToolChanged();
 
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
@@ -185,8 +186,25 @@ public:
     virtual QWidget* getWidget() override { return this; }
     virtual bool doEvent(QEvent* event) override { return this->event(event); }
 
+    /// Shows the cursor of the current state: the cursor of an own operation of the
+    /// widget (dragging of the page - closed hand, automatic scrolling) wins, otherwise
+    /// the cursor of the first input interface, which has one, otherwise the open hand
+    /// (a drag pans the page)
+    void updateCursor();
+
+    /// The widget performs its own operation of the mouse (a drag of the page or the
+    /// automatic scrolling of the middle button)
+    bool isMouseOperationActive() const { return m_mouseOperation != MouseOperation::None; }
+
+    /// Starts the drag of the page by the left button, which was pressed at the given
+    /// position (an input interface gives its press over to the pan - Hand, a drag,
+    /// which has started on a link). Nothing happens during another own operation.
+    void beginPageDrag(QPoint pressPosition);
+
 protected:
     virtual bool event(QEvent* event) override;
+    virtual void focusOutEvent(QFocusEvent* event) override;
+    virtual void hideEvent(QHideEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
     virtual void keyReleaseEvent(QKeyEvent* event) override;
     virtual void mousePressEvent(QMouseEvent* event) override;
@@ -204,7 +222,10 @@ protected:
     PDFWidget* getPDFWidget() const { return m_widget; }
 
 private:
-    void updateCursor();
+    /// Ends the own operation of the mouse (the release was lost - focus out, a popup,
+    /// a hidden widget, Esc) and shows the cursor of the state
+    void endMouseOperation();
+
     void onAutoScrollTimeout();
     void onWheelScrollTimeout();
 

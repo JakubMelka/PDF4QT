@@ -3804,9 +3804,22 @@ void AppContentTest::helpLinks()
     {
         if (!command->defaultShortcut.isEmpty())
         {
-            const QString text = command->defaultShortcut.toString(QKeySequence::PortableText);
+            // The tables show the keys of Windows and Linux (Hand has its own key on macOS)
+            const QKeySequence shortcut = command->id == pdf::PDFAppCommands::handTool() ? pdf::PDFAppCommands::getHandShortcut(false) : command->defaultShortcut;
+            const QString text = shortcut.toString(QKeySequence::PortableText);
             QVERIFY2(shortcuts->markdown.contains(QStringLiteral("| ") + text + QStringLiteral(" |")), qPrintable(text));
         }
+    }
+    QVERIFY(shortcuts->markdown.contains(QStringLiteral("**Hand** is Control+H")));
+
+    // The single keys of the page are rows of their commands (the check above finds
+    // a single letter anywhere in a table)
+    for (const QString& commandId : { pdf::PDFAppCommands::fitPage(), pdf::PDFAppCommands::fitWidth(), pdf::PDFAppCommands::fitHeight() })
+    {
+        const pdf::PDFAppCommand* command = fixture.context->getCommandRegistry()->findCommand(commandId);
+        QVERIFY(command);
+        const QString row = QStringLiteral("| ") + command->getTitle() + QStringLiteral(" | ") + command->defaultShortcut.toString(QKeySequence::PortableText) + QStringLiteral(" |");
+        QVERIFY2(shortcuts->markdown.contains(row), qPrintable(row));
     }
 }
 

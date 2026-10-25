@@ -2185,6 +2185,26 @@ void PDFRealizedFontImpl::initializeLookupTables()
     {
         m_simpleFontGlyphIndices = *simpleFont->getGlyphIndices();
 
+        const StandardFontType standardFontType = simpleFont->getStandardFontType();
+        const bool isSymbolicStandardFont = standardFontType == StandardFontType::ZapfDingbats || standardFontType == StandardFontType::Symbol;
+        if (!m_isEmbedded && isSymbolicStandardFont && FT_Has_PS_Glyph_Names(m_face))
+        {
+            // Substitutes of the fonts ZapfDingbats and Symbol with the glyph names of the
+            // original fonts (their URW clones D050000L and StandardSymbolsPS) are symbolic
+            // fonts: their unicode charmap maps the character codes of the font, not the
+            // unicode characters of the glyphs. The glyphs are found by the names of the
+            // encoding (a1 ... a191 of ZapfDingbats, alpha, universal, ... of Symbol) first.
+            const GlyphNames* glyphNames = simpleFont->getGlyphNames();
+            for (size_t i = 0; i < m_simpleFontGlyphIndices.size(); ++i)
+            {
+                const QByteArray& glyphName = (*glyphNames)[i];
+                if (!m_simpleFontGlyphIndices[i] && !glyphName.isEmpty())
+                {
+                    m_simpleFontGlyphIndices[i] = FT_Get_Name_Index(m_face, glyphName.constData());
+                }
+            }
+        }
+
         if (hasUnicodeCharmap)
         {
             for (size_t i = 0; i < m_simpleFontGlyphIndices.size(); ++i)
@@ -2695,13 +2715,31 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
 
             if (encoding != PDFEncoding::Encoding::Invalid)
             {
+                // Glyphs of the encoding ZapfDingbats have the names a1 ... a191 (ISO 32000-2,
+                // Annex D.6) - the font ZapfDingbats and its clones have no glyphs named
+                // by the Adobe Glyph List (blackcircle, blackstar, ...), so these names come first.
+                // Likewise the glyph names of the font Symbol come first for the encoding Symbol
+                // (universal, congruent, ... instead of forall, approximatelyequal, ...).
+                const bool isZapfDingbatsEncoding = encoding == PDFEncoding::Encoding::ZapfDingbats;
+                const bool isSymbolEncoding = encoding == PDFEncoding::Encoding::Symbol;
                 simpleFontEncodingTable = *PDFEncoding::getTableForEncoding(encoding);
                 for (size_t i = 0; i < simpleFontEncodingTable.size(); ++i)
                 {
                     QChar character = simpleFontEncodingTable[i];
                     if (!character.isNull() && character != QChar(QChar::SpecialCharacter::ReplacementCharacter))
                     {
-                        glyphNameArray[i] = PDFNameToUnicode::getNameForUnicode(character);
+                        if (isZapfDingbatsEncoding)
+                        {
+                            glyphNameArray[i] = PDFNameToUnicode::getNameForUnicodeZapfDingbats(character);
+                        }
+                        else if (isSymbolEncoding)
+                        {
+                            glyphNameArray[i] = PDFNameToUnicode::getNameForUnicodeSymbol(character);
+                        }
+                        if (glyphNameArray[i].isEmpty())
+                        {
+                            glyphNameArray[i] = PDFNameToUnicode::getNameForUnicode(character);
+                        }
                         if (glyphNameArray[i].isEmpty())
                         {
                             glyphNameArray[i] = PDFNameToUnicode::getNameForUnicodeZapfDingbats(character);

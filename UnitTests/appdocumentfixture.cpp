@@ -794,7 +794,8 @@ pdf::PDFAppDocumentTab* AppDocumentFixture::open(const QString& filePath, int pa
     const QString canonicalPath = QFileInfo(filePath).canonicalFilePath();
     QElapsedTimer timer;
     timer.start();
-    while (window && timer.elapsed() < 30000)
+    const qint64 timeLimit = 30000 * qint64(getTimeoutFactor());
+    while (window && timer.elapsed() < timeLimit)
     {
         pdf::PDFAppDocumentTab* found = nullptr;
         for (pdf::PDFAppDocumentTab* tab : window->getDocumentTabs())
@@ -831,6 +832,22 @@ void AppDocumentFixture::settle()
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         QCoreApplication::processEvents();
     }
+}
+
+int AppDocumentFixture::getTimeoutFactor()
+{
+    bool ok = false;
+    const int factor = qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR", &ok);
+    if (ok && factor > 0)
+    {
+        // Bounded, so the limits of milliseconds multiplied by it fit into an int
+        return qMin(factor, 1000);
+    }
+    if (qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")))
+    {
+        return 20;
+    }
+    return 1;
 }
 
 int AppDocumentFixture::closeMessageBoxes()

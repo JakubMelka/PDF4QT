@@ -29,4 +29,6 @@ list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
     sources/document/pdfappoutlineeditor.cpp
     sources/document/pdfappoutlineeditor.h
     sources/document/pdfappoutlineoperations.cpp
+    sources/document/pdfappoutlinetarget.cpp
+    sources/document/pdfappoutlinetarget.h
 )

@@ -2219,6 +2219,23 @@ void AppCoreTest::reviewShortcutScopes()
     QCOMPARE(registry.getShortcuts(properties->id, {}), QList<QKeySequence>({ QKeySequence(Qt::Key_F2), QKeySequence(Qt::ALT | Qt::Key_Return) }));
     QVERIFY(registry.findConflicts({}).empty());
 
+    // P / W / H fit the page / width / height on the canvas only (the single keys of
+    // the old applications; a field keeps its letters); Ctrl+P, Ctrl+W and Ctrl+H
+    // of the window are other keys
+    const std::pair<QString, QKeySequence> fitKeys[] = { { pdf::PDFAppCommands::fitPage(), QKeySequence(Qt::Key_P) },
+                                                         { pdf::PDFAppCommands::fitWidth(), QKeySequence(Qt::Key_W) },
+                                                         { pdf::PDFAppCommands::fitHeight(), QKeySequence(Qt::Key_H) } };
+    for (const auto& fitKey : fitKeys)
+    {
+        const pdf::PDFAppCommand* fit = registry.findCommand(fitKey.first);
+        QVERIFY(fit);
+        QCOMPARE(fit->scope, pdf::PDFAppCommandScope::Canvas);
+        QCOMPARE(fit->defaultShortcut, fitKey.second);
+        QCOMPARE(registry.getConflictingCommands(fitKey.first, fitKey.second, {}), QStringList());
+        QCOMPARE(registry.getConflictingCommands(pdf::PDFAppCommands::newTab(), fitKey.second, {}), QStringList({ fitKey.first }));
+        QCOMPARE(registry.getConflictingCommands(pdf::PDFAppCommands::newTab(), QKeySequence(Qt::CTRL | fitKey.second[0].key()), {}).contains(fitKey.first), false);
+    }
+
     // The canvas and a panel never conflict, every other pair of scopes does
     using S = pdf::PDFAppCommandScope;
     QVERIFY(!pdf::PDFAppCommandRegistry::isScopeConflict(S::Canvas, S::Panel));

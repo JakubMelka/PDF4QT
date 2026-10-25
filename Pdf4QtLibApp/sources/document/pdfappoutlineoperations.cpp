@@ -28,6 +28,7 @@
 #include "pdfexception.h"
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <set>
 
@@ -693,6 +694,114 @@ public:
         }
         return false;
     }
+
+    /// Nodes of the paths in the order of the document without duplicates and
+    /// without the nodes inside of another node of the paths; false for an
+    /// invalid path or an empty list
+    static bool getTopNodes(PDFAppOutlineTree& tree, const std::vector<OutlinePath>& items, std::vector<Node*>* result)
+    {
+        if (items.empty() || items.size() > PDFAppAnnotationOperations::MAXIMUM_OUTLINE_ITEMS)
+        {
+            return false;
+        }
+
+        std::set<Node*> selected;
+        for (const OutlinePath& item : items)
+        {
+            Node* node = item.empty() ? nullptr : find(tree, item);
+            if (!node)
+            {
+                return false;
+            }
+            selected.insert(node);
+        }
+
+        // The pre-order gives the order of the document; a node, whose ancestor is
+        // selected, goes with the ancestor
+        for (Node* node : getNodes(tree))
+        {
+            if (!selected.count(node))
+            {
+                continue;
+            }
+
+            bool hasSelectedAncestor = false;
+            for (Node* current = node->parent; current; current = current->parent)
+            {
+                if (selected.count(current))
+                {
+                    hasSelectedAncestor = true;
+                    break;
+                }
+            }
+            if (!hasSelectedAncestor)
+            {
+                result->push_back(node);
+            }
+        }
+        return !result->empty();
+    }
+
+    /// Item of the parsed outline of the catalog at the path (nullptr if none)
+    static const PDFOutlineItem* findParsedItem(const PDFDocument* document, const OutlinePath& path)
+    {
+        const PDFOutlineItem* item = document ? document->getCatalog()->getOutlineRootPtr().data() : nullptr;
+        for (size_t index : path)
+        {
+            if (!item || index >= item->getChildCount())
+            {
+                return nullptr;
+            }
+            item = item->getChild(index);
+        }
+        return item;
+    }
+
+    /// Destination of the GoTo action of an item (nullptr for another action)
+    static const PDFDestination* getGoToDestination(const PDFOutlineItem* item)
+    {
+        const PDFAction* action = item ? item->getAction() : nullptr;
+        if (!action || action->getType() != ActionType::GoTo)
+        {
+            return nullptr;
+        }
+        return &static_cast<const PDFActionGoTo*>(action)->getDestination();
+    }
+
+    /// Writes the destination of the item into the entry, from which the parser
+    /// has read it: /D of its GoTo action /A (the other entries of the action are
+    /// kept), else /Dest
+    static bool replaceDestination(const PDFObjectStorage& storage, Node* node, const PDFDestination& destination)
+    {
+        const PDFDictionary* entries = node->dictionary.isDictionary() ? node->dictionary.getDictionary() : nullptr;
+        if (!entries)
+        {
+            return false;
+        }
+
+        const PDFObject& action = storage.getObject(entries->get("A"));
+        if (action.isDictionary())
+        {
+            const PDFDictionary* actionEntries = action.getDictionary();
+            const PDFObject& type = storage.getObject(actionEntries->get("S"));
+            if (!type.isName() || type.getString() != "GoTo")
+            {
+                return false;
+            }
+
+            PDFDictionaryBuilder newAction(*actionEntries);
+            newAction.setEntry(PDFInplaceOrMemoryString("D"), createDestination(destination));
+            setEntry(&node->dictionary, "A", PDFObject::createDictionary(std::move(newAction)));
+            return true;
+        }
+
+        if (!entries->hasKey("Dest"))
+        {
+            return false;
+        }
+        setEntry(&node->dictionary, "Dest", createDestination(destination));
+        return true;
+    }
 };
 
 QString PDFAppAnnotationOperations::sanitizeOutlineTitle(const QString& title)
@@ -1016,6 +1125,236 @@ PDFAppAnnotationResult PDFAppAnnotationOperations::setOutlineItemStyle(const PDF
     }
 
     Helper::setEntry(&node->dictionary, "F", flags ? PDFObject::createInteger(flags) : PDFObject());
+    return Helper::write(document.data(), *tree);
+}
+
+PDFAppAnnotationResult PDFAppAnnotationOperations::removeOutlineItems(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items)
+{
+    using Helper = PDFAppOutlineOperationsHelper;
+
+    if (!document)
+    {
+        return std::nullopt;
+    }
+
+    std::unique_ptr<PDFAppOutlineTree> tree = Helper::read(document.data());
+    std::vector<PDFAppOutlineTree::Node*> nodes;
+    if (!tree || !Helper::getTopNodes(*tree, items, &nodes))
+    {
+        return std::nullopt;
+    }
+
+    // The nodes are not inside of each other: each one is erased from its parent
+    for (PDFAppOutlineTree::Node* node : nodes)
+    {
+        PDFAppOutlineTree::Node* parent = node->parent;
+        parent->children.erase(parent->children.begin() + std::ptrdiff_t(Helper::getIndex(node)));
+    }
+    return Helper::write(document.data(), *tree);
+}
+
+PDFAppAnnotationResult PDFAppAnnotationOperations::moveOutlineItems(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items, const OutlinePath& newParent, size_t index, std::vector<OutlinePath>* newPaths)
+{
+    using Helper = PDFAppOutlineOperationsHelper;
+    using Node = PDFAppOutlineTree::Node;
+
+    if (!document)
+    {
+        return std::nullopt;
+    }
+
+    std::unique_ptr<PDFAppOutlineTree> tree = Helper::read(document.data());
+    std::vector<Node*> nodes;
+    Node* parent = tree ? Helper::find(*tree, newParent) : nullptr;
+    if (!parent || !Helper::getTopNodes(*tree, items, &nodes))
+    {
+        return std::nullopt;
+    }
+
+    // The parent must not lie inside of a moved item; the moved subtrees must fit
+    // into the depth limit under the parent
+    size_t subtreeDepth = 1;
+    for (const Node* node : nodes)
+    {
+        if (Helper::isAncestor(node, parent))
+        {
+            return std::nullopt;
+        }
+
+        std::vector<std::pair<const Node*, size_t>> stack = { { node, 1 } };
+        while (!stack.empty())
+        {
+            const auto [current, depth] = stack.back();
+            stack.pop_back();
+            subtreeDepth = qMax(subtreeDepth, depth);
+            for (const std::unique_ptr<Node>& child : current->children)
+            {
+                stack.emplace_back(child.get(), depth + 1);
+            }
+        }
+    }
+    if (newParent.size() + subtreeDepth > MAXIMUM_OUTLINE_DEPTH)
+    {
+        return std::nullopt;
+    }
+
+    // The places before the move (nothing changes, when the items stay)
+    std::vector<std::pair<const Node*, size_t>> oldPlaces;
+    for (const Node* node : nodes)
+    {
+        oldPlaces.emplace_back(node->parent, Helper::getIndex(node));
+    }
+
+    // The index is of the children before the move: the moved children of the
+    // parent before it are not counted
+    const size_t requestedIndex = qMin(index, parent->children.size());
+    size_t position = requestedIndex;
+    for (const Node* node : nodes)
+    {
+        if (node->parent == parent && Helper::getIndex(node) < requestedIndex)
+        {
+            --position;
+        }
+    }
+
+    std::vector<std::unique_ptr<Node>> moved;
+    for (Node* node : nodes)
+    {
+        Node* oldParent = node->parent;
+        const size_t oldIndex = Helper::getIndex(node);
+        moved.push_back(std::move(oldParent->children[oldIndex]));
+        oldParent->children.erase(oldParent->children.begin() + std::ptrdiff_t(oldIndex));
+    }
+
+    position = qMin(position, parent->children.size());
+    for (std::unique_ptr<Node>& node : moved)
+    {
+        node->parent = parent;
+        parent->children.insert(parent->children.begin() + std::ptrdiff_t(position++), std::move(node));
+    }
+    parent->isOpen = true;
+
+    bool isChanged = false;
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        if (nodes[i]->parent != oldPlaces[i].first || Helper::getIndex(nodes[i]) != oldPlaces[i].second)
+        {
+            isChanged = true;
+            break;
+        }
+    }
+    if (!isChanged)
+    {
+        return std::nullopt;
+    }
+
+    if (newPaths)
+    {
+        newPaths->clear();
+        for (const Node* node : nodes)
+        {
+            newPaths->push_back(Helper::getPath(*tree, node));
+        }
+    }
+    return Helper::write(document.data(), *tree);
+}
+
+bool PDFAppAnnotationOperations::hasOutlineItemZoom(const PDFOutlineItem* item)
+{
+    const PDFDestination* destination = PDFAppOutlineOperationsHelper::getGoToDestination(item);
+    if (!destination || destination->getDestinationType() != DestinationType::XYZ)
+    {
+        return false;
+    }
+    const PDFReal zoom = destination->getZoom();
+    return !std::isnan(zoom) && zoom != 0.0;
+}
+
+bool PDFAppAnnotationOperations::isOutlineItemKeepingZoom(const PDFOutlineItem* item)
+{
+    const PDFDestination* destination = PDFAppOutlineOperationsHelper::getGoToDestination(item);
+    return destination && destination->getDestinationType() == DestinationType::XYZ && !hasOutlineItemZoom(item);
+}
+
+std::vector<PDFAppAnnotationOperations::OutlinePath> PDFAppAnnotationOperations::getOutlineItemsWithZoom(const PDFDocument* document)
+{
+    std::vector<OutlinePath> result;
+    const QSharedPointer<PDFOutlineItem> root = document && isOutlineEditable(document) ? document->getCatalog()->getOutlineRootPtr() : QSharedPointer<PDFOutlineItem>();
+    if (!root)
+    {
+        return result;
+    }
+
+    // Pre-order without recursion (the outline is bounded by isOutlineEditable)
+    std::vector<std::pair<const PDFOutlineItem*, OutlinePath>> stack;
+    for (size_t i = root->getChildCount(); i > 0; --i)
+    {
+        stack.emplace_back(root->getChild(i - 1), OutlinePath{ i - 1 });
+    }
+    while (!stack.empty())
+    {
+        std::pair<const PDFOutlineItem*, OutlinePath> entry = std::move(stack.back());
+        stack.pop_back();
+        const PDFOutlineItem* item = entry.first;
+        if (!item)
+        {
+            continue;
+        }
+        if (hasOutlineItemZoom(item))
+        {
+            result.push_back(entry.second);
+        }
+        for (size_t i = item->getChildCount(); i > 0; --i)
+        {
+            OutlinePath childPath = entry.second;
+            childPath.push_back(i - 1);
+            stack.emplace_back(item->getChild(i - 1), std::move(childPath));
+        }
+    }
+    return result;
+}
+
+PDFAppAnnotationResult PDFAppAnnotationOperations::setOutlineItemsKeepZoom(const PDFDocumentPointer& document, const std::vector<OutlinePath>& items)
+{
+    using Helper = PDFAppOutlineOperationsHelper;
+
+    if (!document || items.empty() || items.size() > MAXIMUM_OUTLINE_ITEMS)
+    {
+        return std::nullopt;
+    }
+
+    std::unique_ptr<PDFAppOutlineTree> tree = Helper::read(document.data());
+    if (!tree)
+    {
+        return std::nullopt;
+    }
+
+    bool isChanged = false;
+    std::set<OutlinePath> done;
+    for (const OutlinePath& item : items)
+    {
+        // The tree is the parsed outline (read checks it): the paths address both
+        PDFAppOutlineTree::Node* node = (item.empty() || done.count(item)) ? nullptr : Helper::find(*tree, item);
+        const PDFOutlineItem* parsedItem = node ? Helper::findParsedItem(document.data(), item) : nullptr;
+        if (!parsedItem || !hasOutlineItemZoom(parsedItem))
+        {
+            continue;
+        }
+        done.insert(item);
+
+        PDFDestination destination = *Helper::getGoToDestination(parsedItem);
+        destination.setZoom(std::numeric_limits<PDFReal>::quiet_NaN());
+        const std::optional<PDFDestination> checkedDestination = Helper::checkDestination(document.data(), destination);
+        if (checkedDestination && Helper::replaceDestination(document->getStorage(), node, *checkedDestination))
+        {
+            isChanged = true;
+        }
+    }
+
+    if (!isChanged)
+    {
+        return std::nullopt;
+    }
     return Helper::write(document.data(), *tree);
 }
 

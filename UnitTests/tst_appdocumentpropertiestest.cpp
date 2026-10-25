@@ -23,11 +23,13 @@
 #include "appdocumentfixture.h"
 #include "applocaleguard.h"
 
+#include "pdfappannotationcontroller.h"
 #include "pdfappcommand.h"
 #include "pdfappdeveloperoverlay.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentactions.h"
 #include "pdfappdocumentcommands.h"
+#include "pdfappdocumentinfobar.h"
 #include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentproperties.h"
 #include "pdfappdocumentpropertiesdata.h"
@@ -301,7 +303,12 @@ public:
 
     static void sendMouse(QWidget* widget, QEvent::Type type, const QPoint& position, Qt::MouseButton button, Qt::MouseButtons buttons)
     {
-        QMouseEvent event(type, QPointF(position), widget->mapToGlobal(QPointF(position)), button, buttons, Qt::NoModifier);
+        sendMouse(widget, type, position, button, buttons, Qt::NoModifier);
+    }
+
+    static void sendMouse(QWidget* widget, QEvent::Type type, const QPoint& position, Qt::MouseButton button, Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers)
+    {
+        QMouseEvent event(type, QPointF(position), widget->mapToGlobal(QPointF(position)), button, buttons, modifiers);
         QApplication::sendEvent(widget, &event);
     }
 };
@@ -1693,6 +1700,29 @@ void AppDocumentPropertiesTest::linkHover()
     QCOMPARE(handler->getHoverDescription(), QStringLiteral("Web link · opens in your web browser"));
     QVERIFY(view->getStatusBar()->getMessage().startsWith(QStringLiteral("Web link: https://example.com/")));
 
+    // A plain click follows the link, Ctrl + click edits it (owner 2026-10-25) - not in a
+    // locked document, where the link cannot be edited
+    // The modifier in the notation of the platform (Command on macOS)
+    QCOMPARE(pdf::PDFAppDocumentActionHandler::getEditClickModifierName(QStringLiteral("Ctrl+A")), QStringLiteral("Ctrl"));
+    QCOMPARE(pdf::PDFAppDocumentActionHandler::getEditClickModifierName(QString(QChar(0x2318)) + QStringLiteral("A")), QString(QChar(0x2318)));
+    QCOMPARE(pdf::PDFAppDocumentActionHandler::getEditClickModifierName(QString()), QStringLiteral("Ctrl"));
+#if defined(Q_OS_MACOS)
+    QCOMPARE(pdf::PDFAppDocumentActionHandler::getEditClickModifierName(), QString(QChar(0x2318)));
+#else
+    QCOMPARE(pdf::PDFAppDocumentActionHandler::getEditClickModifierName(), QStringLiteral("Ctrl"));
+#endif
+    QVERIFY(view->getStatusBar()->getMessage().endsWith(QStringLiteral(" · ") + pdf::PDFAppDocumentActionHandler::getEditClickModifierName() + QStringLiteral("+click to edit")));
+    pdf::PDFWidgetAnnotationManager* annotationManager = view->getAnnotationManager();
+    QVERIFY(annotationManager && annotationManager->isLinksSelectable());
+    annotationManager->setReadOnly(true);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, PropertiesTestHelper::pagePoint(view, QPointF(100, 108)), Qt::NoButton, Qt::NoButton);
+    QTRY_COMPARE(handler->getHoverTitle(), QStringLiteral("Page 3"));
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, webLink, Qt::NoButton, Qt::NoButton);
+    QTRY_COMPARE(handler->getHoverTitle(), QStringLiteral("https://example.com/"));
+    QVERIFY(view->getStatusBar()->getMessage().startsWith(QStringLiteral("Web link: https://example.com/")));
+    QVERIFY(!view->getStatusBar()->getMessage().contains(QStringLiteral("+click to edit")));
+    annotationManager->setReadOnly(false);
+
     // The tooltip of the design
     QHelpEvent help(QEvent::ToolTip, webLink, drawWidget->mapToGlobal(webLink));
     QApplication::sendEvent(drawWidget, &help);
@@ -1869,6 +1899,28 @@ void AppDocumentPropertiesTest::networkTargets()
     QVERIFY(bar->text.contains(QStringLiteral("pdf4qt-test.invalid")));
     QCOMPARE(fixture.window->getTabs().size(), tabCount);
 
+    // network-notification 1232:163669 of pdf4qt-document-link-network 1232:163596: the
+    // amber tile with alert-triangle, the title, the path in the second line, the
+    // Secondary Open Anyway (36 high), the close button; the status stays Ready
+    QCOMPARE(bar->tone, pdf::PDFAppInfoBarTone::Warning);
+    QCOMPARE(pdf::PDFAppInfoBar::getToneIconName(bar->tone), QStringLiteral("alert-triangle"));
+    QCOMPARE(bar->title, QStringLiteral("The linked document is on another computer – it was not opened"));
+    QCOMPARE(bar->text, QString::fromLatin1(remotePath));
+    {
+        fixture.settle();
+        pdf::PDFAppInfoBar* barWidget = view->findInfoBarWidget(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
+        QVERIFY(barWidget && barWidget->isVisible());
+        QCOMPARE(barWidget->getCardRect().height(), 48);
+        const std::vector<QPushButton*> buttons = barWidget->getActionButtons();
+        QCOMPARE(buttons.size(), size_t(1));
+        QCOMPARE(buttons.front()->text(), QStringLiteral("Open Anyway"));
+        QVERIFY(!buttons.front()->isDefault());
+        QVERIFY(!buttons.front()->property("primary").toBool());
+        QCOMPARE(buttons.front()->height(), 36);
+        QVERIFY(barWidget->getCloseButton());
+        QCOMPARE(view->getStatusBar()->getMessage(), QStringLiteral("Ready"));
+    }
+
     // Close of the bar forgets the document; another bar id does nothing
     Q_EMIT view->infoBarActionTriggered(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId(), QString());
     Q_EMIT view->infoBarActionTriggered(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId(), pdf::PDFAppDocumentActionHandler::getOpenAnywayActionId());
@@ -2012,6 +2064,32 @@ void AppDocumentPropertiesTest::linkClickDeferred()
     QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
     QVERIFY(!selectTextTool->hasSelection());
     QVERIFY(selectTextTool->isActive());
+
+    // Owner 2026-10-25: Ctrl + click selects the link for editing and follows nothing,
+    // a plain click follows the link also while it is selected (the link stays selected),
+    // the status message of the link says it
+    view->goToPage(0);
+    fixture.settle();
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
+    const QPoint goToNow = PropertiesTestHelper::pagePoint(view, QPointF(100, 108));
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, goToNow, Qt::NoButton, Qt::NoButton, Qt::ControlModifier);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonPress, goToNow, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonRelease, goToNow, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+    QVERIFY(!handler->hasPendingAction());
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations().size(), size_t(1));
+    const pdf::PDFObjectReference selectedLink = controller->getSelectedAnnotations().front();
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(0));
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseMove, goToNow, Qt::NoButton, Qt::NoButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonPress, goToNow, Qt::LeftButton, Qt::LeftButton);
+    PropertiesTestHelper::sendMouse(drawWidget, QEvent::MouseButtonRelease, goToNow, Qt::LeftButton, Qt::NoButton);
+    QVERIFY(handler->hasPendingAction());
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+    QCOMPARE(controller->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ selectedLink }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 0);
+    controller->selectAnnotations({});
+    fixture.settle();
 
     // A web link: its confirmation is shown after the mouse event has been delivered;
     // the tab deleted from the dialog leaves no mouse handler of the canvas with

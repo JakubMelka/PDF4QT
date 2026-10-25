@@ -124,9 +124,20 @@ public:
 
     Step getStep() const { return m_step; }
 
-    /// Target of the link (Fit, FitH, FitV, FitR, XYZ; other types are ignored)
+    /// Target of the link (Fit, FitH, FitV, FitR, XYZ; other types are ignored -
+    /// in the target-only mode also FitB, FitBH and FitBV)
     DestinationType getDestinationType() const { return m_destinationType; }
     void setDestinationType(DestinationType type);
+
+    /// Target-only mode (the target of an outline item, PDFAppOutlineTargetPicker):
+    /// the tool is always in the step 2 without a link area, a picked target emits
+    /// targetPicked instead of linkRequested
+    bool isTargetOnly() const { return m_isTargetOnly; }
+    void setTargetOnly(bool targetOnly);
+
+    /// The type is a target of the tool in the mode (\p targetOnly: also the
+    /// targets of the visible content FitB, FitBH, FitBV)
+    static bool isTarget(DestinationType type, bool targetOnly);
 
     /// Position (XYZ) keeps the zoom of the reader (the zoom is left out)
     bool isKeepZoom() const { return m_keepZoom; }
@@ -172,6 +183,9 @@ Q_SIGNALS:
     /// The target has been picked: the link area of the step 1 and the destination
     void linkRequested(pdf::PDFInteger pageIndex, QRectF rectangle, pdf::PDFDestination destination);
 
+    /// The target has been picked in the target-only mode
+    void targetPicked(pdf::PDFDestination destination);
+
 protected:
     virtual void setActiveImpl(bool active) override;
 
@@ -189,6 +203,7 @@ private:
     Step m_step = Step::LinkArea;
     DestinationType m_destinationType = DestinationType::Fit;
     bool m_keepZoom = false;
+    bool m_isTargetOnly = false;
     PDFInteger m_linkPageIndex = -1;
     QRectF m_linkRectangle;
     PDFInteger m_hoverPageIndex = -1;

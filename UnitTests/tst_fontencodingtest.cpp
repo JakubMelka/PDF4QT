@@ -28,6 +28,7 @@
 #include <QThread>
 
 #include <barrier>
+#include <map>
 #include <tuple>
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
@@ -54,6 +55,8 @@ private slots:
     void test_type0_cjk_collection_coverage();
     void test_simple_font_encode();
     void test_standard_font_zapf_dingbats();
+    void test_standard_font_symbolic_clone_data();
+    void test_standard_font_symbolic_clone();
     void test_type3_font_encode();
     void test_fallback_font_generator();
     void test_nested_stream_extraction();
@@ -773,10 +776,6 @@ void FontEncodingTest::test_standard_font_zapf_dingbats()
     {
         hasDingbatsFont = hasDingbatsFont || QFontDatabase::families().contains(candidate);
     }
-    if (!hasDingbatsFont)
-    {
-        QSKIP("No font with the dingbats is installed.");
-    }
 
     pdf::PDFDocumentBuilder builder;
     builder.appendPage(QRectF(0, 0, 100, 100));
@@ -797,7 +796,24 @@ void FontEncodingTest::test_standard_font_zapf_dingbats()
 
     const pdf::PDFFontPointer font = pdf::PDFFont::createFont(factory.takeObject(), "ZaDb", &document);
     pdf::PDFRenderErrorReporterDummy reporter;
-    const pdf::PDFRealizedFontPointer realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    pdf::PDFRealizedFontPointer realized;
+    try
+    {
+        realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        QVERIFY2(!hasDingbatsFont, qPrintable(exception.getMessage()));
+        QSKIP(qPrintable(QStringLiteral("Font ZapfDingbats cannot be substituted: %1").arg(exception.getMessage())));
+    }
+
+    // The font database of Qt need not list the fonts (offscreen), so the substituted font is checked, too
+    const QStringList dingbatsFonts = { QStringLiteral("ZapfDingbats"), QStringLiteral("ZapfDingbatsITC"), QStringLiteral("D050000L"),
+                                        QStringLiteral("Dingbats"), QStringLiteral("SegoeUISymbol"), QStringLiteral("DejaVuSans") };
+    if (!hasDingbatsFont && !dingbatsFonts.contains(realized->getPostScriptName()))
+    {
+        QSKIP(qPrintable(QStringLiteral("No font with the dingbats is installed, font ZapfDingbats is substituted by %1.").arg(realized->getPostScriptName())));
+    }
 
     // Check mark, cross, circle, square, diamond and star - the marks of the check boxes and radio buttons
     pdf::TextSequence sequence;
@@ -810,6 +826,157 @@ void FontEncodingTest::test_standard_font_zapf_dingbats()
         QVERIFY2(item.glyph && !item.glyph->isEmpty(),
                  qPrintable(QStringLiteral("Substituted font %1 has no glyph of the character U+%2").arg(realized->getPostScriptName()).arg(int(item.character.unicode()), 4, 16, QChar('0'))));
     }
+
+    // Ornaments a89 ... a96, a205, a206 of the codes 0x80 ... 0x8D (ISO 32000-2, Annex D.6)
+    pdf::TextSequence ornaments;
+    realized->fillTextSequence("\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D", ornaments, &reporter);
+    QCOMPARE(ornaments.items.size(), size_t(14));
+    for (size_t i = 0; i < ornaments.items.size(); ++i)
+    {
+        const pdf::TextSequenceItem& item = ornaments.items[i];
+        QCOMPARE(item.character, QChar(char16_t(0x2768 + i)));
+        QVERIFY2(item.glyph && !item.glyph->isEmpty(),
+                 qPrintable(QStringLiteral("Substituted font %1 has no glyph of the character U+%2").arg(realized->getPostScriptName()).arg(int(item.character.unicode()), 4, 16, QChar('0'))));
+    }
+}
+
+void FontEncodingTest::test_standard_font_symbolic_clone_data()
+{
+    QTest::addColumn<QByteArray>("baseFont");
+    QTest::addColumn<QString>("postScriptName");
+    QTest::addColumn<int>("encoding");
+    QTest::addColumn<int>("minimalCharacterCount");
+    QTest::addColumn<QByteArrayList>("differences");
+    QTest::addColumn<QByteArray>("codesOfDifferences");
+    QTest::addColumn<QString>("charactersOfDifferences");
+
+    // Check mark and cross
+    QTest::newRow("ZapfDingbats") << QByteArray("ZapfDingbats") << QStringLiteral("D050000L") << int(pdf::PDFEncoding::Encoding::ZapfDingbats)
+                                  << 201 << QByteArrayList{ "a20", "a24" } << QByteArray("48") << (QString(QChar(0x2714)) + QChar(0x2718));
+
+    // Names of the font Symbol, which are not the first names of the Adobe Glyph List (forall, approximatelyequal)
+    QTest::newRow("Symbol") << QByteArray("Symbol") << QStringLiteral("StandardSymbolsPS") << int(pdf::PDFEncoding::Encoding::Symbol)
+                            << 187 << QByteArrayList{ "universal", "congruent" } << QByteArray("\x22\x40") << (QString(QChar(0x2200)) + QChar(0x2245));
+}
+
+void FontEncodingTest::test_standard_font_symbolic_clone()
+{
+    // D050000L and StandardSymbolsPS of URW (package fonts-urw-base35 on Linux, also in
+    // Ghostscript) are clones of ZapfDingbats and Symbol with the glyph names of the original
+    // fonts (a1 ... a191, alpha, universal, ...). Their unicode charmaps map the character codes
+    // (U+0021 ... U+00FE), not the unicode characters of the glyphs, so their glyphs must be
+    // found by the glyph names of the encoding. The font database of Qt need not list the font
+    // (offscreen), so the substituted font itself decides, whether the test runs.
+    QFETCH(QByteArray, baseFont);
+    QFETCH(QString, postScriptName);
+    QFETCH(int, encoding);
+    QFETCH(int, minimalCharacterCount);
+    QFETCH(QByteArrayList, differences);
+    QFETCH(QByteArray, codesOfDifferences);
+    QFETCH(QString, charactersOfDifferences);
+
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFDocument document = builder.build();
+    pdf::PDFRenderErrorReporterDummy reporter;
+
+    auto createRealizedFont = [&document, &reporter, &baseFont, &differences](bool withDifferences)
+    {
+        pdf::PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Type");
+        factory << pdf::WrapName("Font");
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("Subtype");
+        factory << pdf::WrapName("Type1");
+        factory.endDictionaryItem();
+        factory.beginDictionaryItem("BaseFont");
+        factory << pdf::WrapName(baseFont);
+        factory.endDictionaryItem();
+        if (withDifferences)
+        {
+            // Codes 'A', 'B', ... changed by their glyph names
+            factory.beginDictionaryItem("Encoding");
+            factory.beginDictionary();
+            factory.beginDictionaryItem("Differences");
+            factory.beginArray();
+            factory << pdf::PDFInteger('A');
+            for (const QByteArray& glyphName : differences)
+            {
+                factory << pdf::WrapName(glyphName);
+            }
+            factory.endArray();
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            factory.endDictionaryItem();
+        }
+        factory.endDictionary();
+
+        const pdf::PDFFontPointer font = pdf::PDFFont::createFont(factory.takeObject(), "F1", &document);
+        return pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    };
+
+    pdf::PDFRealizedFontPointer realized;
+    try
+    {
+        realized = createRealizedFont(false);
+    }
+    catch (const pdf::PDFException& exception)
+    {
+        QSKIP(qPrintable(QStringLiteral("Font %1 cannot be substituted: %2").arg(QString::fromLatin1(baseFont), exception.getMessage())));
+    }
+    if (realized->getPostScriptName() != postScriptName)
+    {
+        QSKIP(qPrintable(QStringLiteral("Font %1 is not installed, font %2 is substituted by %3.").arg(postScriptName, QString::fromLatin1(baseFont), realized->getPostScriptName())));
+    }
+
+    // Every character of the encoding has its own glyph in the clone
+    const pdf::encoding::EncodingTable* encodingTable = pdf::PDFEncoding::getTableForEncoding(static_cast<pdf::PDFEncoding::Encoding>(encoding));
+    QVERIFY(encodingTable);
+    std::map<quint64, int> glyphs;
+    int characterCount = 0;
+    for (int code = 0x21; code < 256; ++code)
+    {
+        const QChar character = (*encodingTable)[code];
+        if (character.isNull() || character == QChar(QChar::SpecialCharacter::ReplacementCharacter))
+        {
+            continue;
+        }
+
+        ++characterCount;
+        pdf::TextSequence sequence;
+        realized->fillTextSequence(QByteArray(1, char(code)), sequence, &reporter);
+        const QString description = QStringLiteral("Code 0x%1 (U+%2)").arg(code, 2, 16, QChar('0')).arg(int(character.unicode()), 4, 16, QChar('0'));
+        QVERIFY2(sequence.items.size() == 1, qPrintable(description));
+        QVERIFY2(sequence.items.front().character == character, qPrintable(description));
+        QVERIFY2(sequence.items.front().glyph && !sequence.items.front().glyph->isEmpty(), qPrintable(description));
+
+        const auto [it, inserted] = glyphs.emplace(sequence.items.front().glyph->getId(), code);
+        QVERIFY2(inserted, qPrintable(QStringLiteral("%1 has the glyph of the code 0x%2").arg(description).arg(it->second, 2, 16, QChar('0'))));
+    }
+    QVERIFY2(characterCount >= minimalCharacterCount, qPrintable(QString::number(characterCount)));
+
+    // Glyph names of the Differences are found in the clone, too
+    const pdf::PDFRealizedFontPointer realizedWithDifferences = createRealizedFont(true);
+    pdf::TextSequence expected;
+    pdf::TextSequence sequence;
+    QByteArray codes;
+    for (qsizetype i = 0; i < differences.size(); ++i)
+    {
+        codes.append(char('A' + i));
+    }
+    realized->fillTextSequence(codesOfDifferences, expected, &reporter);
+    realizedWithDifferences->fillTextSequence(codes, sequence, &reporter);
+    QCOMPARE(sequence.items.size(), size_t(differences.size()));
+    QCOMPARE(expected.items.size(), size_t(differences.size()));
+    for (size_t i = 0; i < sequence.items.size(); ++i)
+    {
+        QCOMPARE(sequence.items[i].character, charactersOfDifferences.at(qsizetype(i)));
+        QCOMPARE(expected.items[i].character, charactersOfDifferences.at(qsizetype(i)));
+        QVERIFY(sequence.items[i].glyph && !sequence.items[i].glyph->isEmpty());
+        QCOMPARE(sequence.items[i].glyph->getBoundingRect(), expected.items[i].glyph->getBoundingRect());
+    }
+    QVERIFY(expected.items[0].glyph->getBoundingRect() != expected.items[1].glyph->getBoundingRect());
 }
 
 void FontEncodingTest::test_type3_font_encode()

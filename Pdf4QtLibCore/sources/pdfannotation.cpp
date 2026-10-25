@@ -29,6 +29,7 @@
 #include "pdfparser.h"
 #include "pdfform.h"
 #include "pdfpainterutils.h"
+#include "pdfutils.h"
 
 #include <QtMath>
 #include <QIcon>
@@ -3061,47 +3062,6 @@ void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.fillPath(path, QBrush(parameters.colorConvertor.convert(getStrokeColor(), false, false), Qt::SolidPattern));
 }
 
-/// Helper of the drawing of the ink annotation
-class PDFInkAnnotationHelper
-{
-public:
-    PDFInkAnnotationHelper() = delete;
-
-    /// Returns a smooth stroke through the points of one path of the ink list: a
-    /// Catmull-Rom spline (cubic Bezier segments, the tangent at a point is parallel to
-    /// the line of its neighbours), so the stroke goes through every point and its
-    /// segments join without a corner. Jakub Melka: every segment was a quadratic curve
-    /// bulging to the same side by an eighth of its length, so a freehand stroke made of
-    /// many short segments was scalloped at their joins.
-    static QPainterPath createSmoothStroke(const std::vector<QPointF>& points)
-    {
-        QPainterPath path;
-        if (points.empty())
-        {
-            return path;
-        }
-
-        path.moveTo(points.front());
-        if (points.size() == 1)
-        {
-            // A single point is a dot (the round cap of the pen)
-            path.lineTo(points.front());
-            return path;
-        }
-
-        for (size_t i = 0; i + 1 < points.size(); ++i)
-        {
-            const QPointF& previous = points[i > 0 ? i - 1 : i];
-            const QPointF& start = points[i];
-            const QPointF& end = points[i + 1];
-            const QPointF& next = points[i + 2 < points.size() ? i + 2 : i + 1];
-            path.cubicTo(start + (end - previous) / 6.0, end - (next - start) / 6.0, end);
-        }
-
-        return path;
-    }
-};
-
 void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     QPainter& painter = *parameters.painter;
@@ -3115,7 +3075,8 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
         pen.setJoinStyle(Qt::RoundJoin);
     }
     painter.setPen(pen);
-    painter.setBrush(getBrush(parameters.colorConvertor));
+    // An ink is a stroke, never a filled area (a fill of a curved open path is an arc)
+    painter.setBrush(Qt::NoBrush);
     painter.setCompositionMode(getCompositionMode());
 
     QPainterPath boundingPath;
@@ -3143,23 +3104,31 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     if (hasSpline)
     {
-        drawStroke(path);
+        // The path of the annotation is shared by the threads, which draw the page (and
+        // the hit test of the user interface); QPainter writes caches into the data of
+        // a drawn path, so a private copy of its elements is drawn (addPath only reads)
+        QPainterPath splinePath;
+        splinePath.addPath(path);
+        drawStroke(splinePath);
     }
     else
     {
-        // Each path of the ink list is drawn as a smooth stroke through its points
+        // Each path of the ink list is drawn as a smooth stroke through its points - a
+        // centripetal Catmull-Rom spline. Jakub Melka: every segment was a quadratic curve
+        // bulging to the same side (scallops), then a uniform Catmull-Rom spline, which
+        // overshoots between a short and a long segment and loops at a repeated point.
         std::vector<QPointF> points;
         for (int i = 0; i < elementCount; ++i)
         {
             const QPainterPath::Element element = path.elementAt(i);
             if (element.type == QPainterPath::MoveToElement)
             {
-                drawStroke(PDFInkAnnotationHelper::createSmoothStroke(points));
+                drawStroke(PDFGeometryUtils::createSmoothCurve(points));
                 points.clear();
             }
             points.emplace_back(element.x, element.y);
         }
-        drawStroke(PDFInkAnnotationHelper::createSmoothStroke(points));
+        drawStroke(PDFGeometryUtils::createSmoothCurve(points));
     }
 
     const qreal penWidth = painter.pen().widthF();

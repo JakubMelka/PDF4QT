@@ -191,7 +191,7 @@ private:
     /// Releases all form widget editors
     void clearEditors();
 
-    MouseEventInfo getMouseEventInfo(QWidget* widget, QPoint point);
+    MouseEventInfo getMouseEventInfo(QWidget* widget, QPointF point);
 
     struct MouseGrabInfo
     {

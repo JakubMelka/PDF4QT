@@ -218,6 +218,7 @@ private slots:
 
     void speechPanel();
     void speechReading();
+    void speechReadingPageLabel();
     void speechSettings();
     void speechCommand();
     void speechError();
@@ -1782,6 +1783,45 @@ void AppDocumentSearchTest::speechPanel()
     QCOMPARE(panel->getRateSlider()->value(), 0);
     QCOMPARE(panel->getVolumeSlider()->value(), 100);
     QCOMPARE(pdf::PDFAppDocumentSpeechController::getLocaleText(QLocale(QLocale::German, QLocale::Germany)), QStringLiteral("Deutsch (Deutschland) – German (Germany)"));
+}
+
+void AppDocumentSearchTest::speechReadingPageLabel()
+{
+    // pdf4qt-document-speech-reading 1232:164124: "Now reading · page 308" is the
+    // label of the page (as every page text of the application), Play disabled,
+    // Pause and Stop enabled, Follow the reading on
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::pageLabels(fixture.folder()));
+    QVERIFY(tab);
+    tab->getView()->goToPage(4);
+    QVERIFY(tab->getView()->showPanel(pdf::PDFAppDocumentPanelIds::speech()));
+    pdf::PDFAppDocumentSpeechPanel* panel = qobject_cast<pdf::PDFAppDocumentSpeechPanel*>(tab->getView()->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::speech()));
+    pdf::PDFAppDocumentSpeechController* speech = handler(tab)->getSpeechController(false);
+    QVERIFY(panel && speech);
+    FakeSpeechEngine* engine = FakeSpeechEngine::s_last;
+    QVERIFY(engine);
+    QCOMPARE(speech->getCurrentPageLabel(), QString());
+
+    panel->getPlayButton()->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!engine->said.isEmpty(), 30000);
+    QCOMPARE(speech->getCurrentPage(), pdf::PDFInteger(4));
+    QCOMPARE(speech->getCurrentPageLabel(), QStringLiteral("2"));
+    QCOMPARE(panel->getNowReadingLabel()->text(), QStringLiteral("Now reading · page 2"));
+    QVERIFY(!panel->getPlayButton()->isEnabled());
+    QVERIFY(panel->getPauseButton()->isEnabled());
+    QVERIFY(panel->getStopButton()->isEnabled());
+    QVERIFY(panel->getFollowButton()->isChecked());
+
+    // The pages of the appendix "A-1", "A-2"
+    int guard = 0;
+    while (speech->getCurrentPage() < 8 && speech->isReading() && guard++ < 200)
+    {
+        engine->finish();
+    }
+    QCOMPARE(speech->getCurrentPage(), pdf::PDFInteger(8));
+    QCOMPARE(panel->getNowReadingLabel()->text(), QStringLiteral("Now reading · page A-1"));
+    panel->getStopButton()->click();
+    QCOMPARE(speech->getCurrentPageLabel(), QString());
 }
 
 void AppDocumentSearchTest::speechReading()
