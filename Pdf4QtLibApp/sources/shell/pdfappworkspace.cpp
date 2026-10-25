@@ -411,6 +411,20 @@ QSize PDFAppParagraph::sizeHint() const
     if (minimumWidth() != width)
     {
         width = qCeil(PDFStylePainter::textWidth(text(), font())) + margins.left() + margins.right();
+
+        // QTextLayout breaks a line, whose last glyph overhangs its advance, at the
+        // width of the advance (the right bearing of "x" in "Clip to crop box"):
+        // the hint takes the width the line needs (a text of more lines - a line
+        // break - is wrapped anyway)
+        const QString& paragraph = text();
+        if (!paragraph.isEmpty() && !paragraph.contains(QLatin1Char('\n')) && !paragraph.contains(QChar::LineSeparator))
+        {
+            const int limit = width + MAXIMUM_OVERHANG;
+            while (width < limit && getLines(width).size() > 1)
+            {
+                ++width;
+            }
+        }
     }
     return QSize(width, qMax(heightForWidth(width), m_lineHeight));
 }

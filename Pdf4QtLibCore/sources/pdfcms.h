@@ -413,6 +413,19 @@ public:
     /// \param system System
     static QString getSystemName(PDFCMSSettings::System system);
 
+    /// Enables the cache of the external profiles of the process (opt-in, off by
+    /// default). Every change of the settings clears the lists of a manager and the
+    /// next list asks the system for its installed profiles and reads the profile
+    /// directory again (more than 100 ms on Windows). With the cache, the external
+    /// profiles of a profile directory are listed once per process and shared by
+    /// every manager, until clearExternalProfilesCache is called. Thread-safe.
+    static void setExternalProfilesCacheEnabled(bool enabled);
+    static bool isExternalProfilesCacheEnabled();
+
+    /// Forgets the cached external profiles (the next list asks the system again).
+    /// Thread-safe.
+    static void clearExternalProfilesCache();
+
 signals:
     void colorManagementSystemChanged();
 
@@ -433,6 +446,10 @@ private:
     PDFColorProfileIdentifiers getRGBProfilesImpl() const;
     PDFColorProfileIdentifiers getCMYKProfilesImpl() const;
     PDFColorProfileIdentifiers getExternalProfilesImpl() const;
+
+    /// Lists the installed profiles of the system and the profiles of the profile
+    /// directory (without the cache of the process)
+    PDFColorProfileIdentifiers listExternalProfiles() const;
 
     /// Returns filtered list of external profiles (list are filtered by type,
     /// so, for example, only CMYK profiles are returned)

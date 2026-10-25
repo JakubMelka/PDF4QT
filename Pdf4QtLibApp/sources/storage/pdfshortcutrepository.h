@@ -28,6 +28,7 @@
 
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 
 #include <map>
 
@@ -47,6 +48,14 @@ public:
     /// Maximal length of the stored text of the keys
     static constexpr qsizetype MAXIMUM_KEYS_LENGTH = 256;
 
+    /// Maximal length of a stored command id (the ids of PDFAppCommandRegistry are
+    /// short; a longer row of another version or of a damaged file is skipped)
+    static constexpr qsizetype MAXIMUM_COMMAND_ID_LENGTH = 256;
+
+    /// Most rows read by getShortcuts (about twice the commands of the registry; a
+    /// hostile table of millions of rows is not read whole - RS5 F2)
+    static constexpr int MAXIMUM_SHORTCUT_COUNT = 2048;
+
     explicit PDFShortcutRepository(PDFDatabase* database);
 
     /// Shortcuts of the user: command id -> portable text of the keys
@@ -54,6 +63,13 @@ public:
 
     /// Stores the shortcut of the command (empty \p keys = no shortcut)
     PDFDatabaseError setShortcut(const QString& commandId, const QString& keys);
+
+    /// Stores the shortcuts of more commands in one transaction (Assign of the
+    /// conflict of Settings › Shortcuts: the new keys of one command and the
+    /// removed keys of another one). The rows of \p resetCommandIds are removed in
+    /// the same transaction (their default shortcuts apply again; an id may not be
+    /// in both). An invalid item refuses all of them.
+    PDFDatabaseError setShortcuts(const std::map<QString, QString>& shortcuts, const QStringList& resetCommandIds = QStringList());
 
     /// Removes the shortcut of the user (the default applies)
     PDFDatabaseError resetShortcut(const QString& commandId);

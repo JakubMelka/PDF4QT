@@ -33,6 +33,7 @@
 #include "pdfappwhatsnewpage.h"
 #include "pdfappdocumentpage.h"
 #include "pdfappdocumentproperties.h"
+#include "pdfappsettingspage.h"
 
 namespace pdf
 {
@@ -65,6 +66,10 @@ void PDFAppPageRegistry::registerFactories(PDFAppRouteTable& table)
     // (package F; Page Not Found until the page exists)
     table.setFactory(QStringLiteral("/document/{documentId}"), std::make_shared<PDFAppDocumentPageFactory>());
     table.setFactory(QStringLiteral("/document/{documentId}/properties/{section}"), std::make_shared<PDFAppDocumentPropertiesPageFactory>());
+
+    // Settings (step 5): the sections and the filter /settings?q=
+    table.setFactory(QStringLiteral("/settings"), std::make_shared<PDFAppSettingsPageFactory>());
+    table.setFactory(QStringLiteral("/settings/{section}"), std::make_shared<PDFAppSettingsPageFactory>());
 }
 
 }   // namespace pdf

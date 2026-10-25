@@ -92,6 +92,17 @@ public:
         Option      ///< QString, id of one of the options (static or of the provider)
     };
 
+    /// Control of the row of the Settings page (presentation hint, step 5). Default
+    /// is chosen by the type: Bool = check box, Option = combo box, Integer = spin
+    /// box, Real = spin box of real numbers, String = text field.
+    enum class Control
+    {
+        Default,    ///< The control of the type
+        Slider,     ///< Slider with the value text (Integer, Real)
+        Color,      ///< Color button, the value is "#RRGGBB" (String)
+        Path        ///< Text field with the button Browse… of a folder (String)
+    };
+
     /// Translation context of the texts of the definitions
     static constexpr const char* TRANSLATION_CONTEXT = "pdf::PDFSettingDefinitions";
 
@@ -113,6 +124,25 @@ public:
     PDFSettingDefinition& setTitle(const char* title);
     PDFSettingDefinition& setDescription(const char* description);
     PDFSettingDefinition& setKeywords(QStringList keywords);
+
+    /// Presentation hints of the Settings page (step 5); the defaults keep the
+    /// behavior of a definition without them.
+    /// Unit shown after the value of a number (source text: "%", "px", "×", "kB")
+    PDFSettingDefinition& setUnit(const char* unit);
+    /// Decimals of a real number (spin box, slider); negative = the default (2)
+    PDFSettingDefinition& setDecimals(int decimals);
+    /// Control of the row (Control::Default = the control of the type)
+    PDFSettingDefinition& setControl(Control control);
+    /// The row is enabled only when the setting \p key has the value \p value
+    /// (Custom author name only for the author mode Custom name)
+    PDFSettingDefinition& setEnabledWhen(QString key, QVariant value);
+    /// Tag shown beside the title of the row (source text, "Restart required")
+    PDFSettingDefinition& setTag(const char* tag);
+    /// A change is expensive (the language rebuilds the whole user interface, owner
+    /// 2026-10-25): the combo box of an Option writes only a choice activated in its
+    /// open list (a click, Enter) or by Enter on the closed combo box, not every
+    /// step of the arrows or of a typed letter on the closed combo box
+    PDFSettingDefinition& setCommitOnActivation();
 
     /// Key "section.name" (for example appearance.colorScheme)
     const QString& getKey() const { return m_key; }
@@ -141,6 +171,19 @@ public:
 
     /// Keywords for the search (English, lowercase)
     const QStringList& getKeywords() const { return m_keywords; }
+
+    /// Presentation hints (setUnit, setDecimals, setControl, setEnabledWhen, setTag)
+    const char* getUnitSource() const { return m_unit; }
+    QString getUnit() const;
+    /// Decimals of a real number (2, when no hint is set; 0 for other types)
+    int getDecimals() const;
+    Control getControl() const { return m_control; }
+    bool hasEnabledWhen() const { return !m_enabledWhenKey.isEmpty(); }
+    const QString& getEnabledWhenKey() const { return m_enabledWhenKey; }
+    const QVariant& getEnabledWhenValue() const { return m_enabledWhenValue; }
+    const char* getTagSource() const { return m_tag; }
+    QString getTag() const;
+    bool isCommittedOnActivation() const { return m_isCommittedOnActivation; }
 
     /// Options of an Option setting (static ones or of the provider)
     std::vector<PDFSettingOption> getOptions() const;
@@ -181,6 +224,13 @@ private:
     const char* m_title = "";
     const char* m_description = "";
     QStringList m_keywords;
+    const char* m_unit = "";
+    int m_decimals = -1;
+    Control m_control = Control::Default;
+    QString m_enabledWhenKey;
+    QVariant m_enabledWhenValue;
+    const char* m_tag = "";
+    bool m_isCommittedOnActivation = false;
 };
 
 /// Registry of the definitions of the settings. Definitions are registered at the

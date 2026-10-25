@@ -362,10 +362,13 @@ bool PDFWidgetStyleInputs::subElementRect(QStyle::SubElement element, const QSty
         {
             if (PDFWidgetStyleImpl::inherits(widget, "QComboBoxPrivateContainer"))
             {
-                // Margins of the shadow, border 1 and padding 6. Rows of the list have
-                // 1 px of the gap between them above and below.
+                // Margins of the shadow, border 1 and padding 6 above and below. Rows
+                // of the list have 1 px of the gap between them above and below. At
+                // the sides the view reaches to the border: its scroll bar lies 3 px
+                // from the border (944:8960), the rows keep the padding of 6 px by
+                // themselves (PDFWidgetStyleImpl::getComboPopupRowInsets).
                 const QMargins margins = PDFWidgetStyleImpl::getPopupMargins(widget);
-                rect = option->rect.marginsRemoved(margins).adjusted(7, 6, -7, -6);
+                rect = option->rect.marginsRemoved(margins).adjusted(1, 6, -1, -6);
                 return true;
             }
             break;
@@ -641,11 +644,15 @@ QRect PDFWidgetStyleInputs::getComboBoxRect(const QStyleOptionComboBox* option, 
         case QStyle::SC_ComboBoxListBoxPopup:
         {
             // The popup is 4 px below the box (above it, if there is no room) and it
-            // has the width of the box. The window of the popup is larger by the
-            // margins of its shadow, only the corners of this rectangle are used.
+            // has the width of the box (Widgets 06). The window of the popup is larger
+            // by the margins of its shadow, only the corners of this rectangle are used:
+            // QComboBox::showPopup puts the top of the window to the bottom of this
+            // rectangle (below the box) or the bottom of the window to its top (above
+            // the box). QRect::bottom() is the last row, so the top row of the
+            // rectangle above the box is one more row away (else the gap is 3 px).
             const QMargins margins = PDFWidgetStyleImpl::getShadowMarginsIfTranslucent(PDFWidgetStyleImpl::PopupKind::Popover);
             const int gap = 4;
-            return QRect(QPoint(rect.left() - margins.left(), rect.top() - gap + margins.bottom()),
+            return QRect(QPoint(rect.left() - margins.left(), rect.top() - gap - 1 + margins.bottom()),
                          QPoint(rect.right() + margins.right(), rect.bottom() + 1 + gap - margins.top()));
         }
 
@@ -821,7 +828,7 @@ void PDFWidgetStyleInputs::drawComboBoxLabel(const QStyleOptionComboBox* option,
     const QComboBox* comboBox = qobject_cast<const QComboBox*>(widget);
     const bool isPlaceholder = comboBox && comboBox->currentIndex() < 0 && !comboBox->placeholderText().isEmpty();
 
-    const int alignment = Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft);
+    const int alignment = Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(state.rightToLeft);
 
     if (kind == ComboKind::Select)
     {

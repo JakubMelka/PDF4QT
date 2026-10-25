@@ -23,6 +23,7 @@
 #include "pdftoolrepository.h"
 #include "pdfdatabasestatement.h"
 #include "pdfrepositoryhelper.h"
+#include "pdfsettingdefinitions.h"
 
 #include "pdfdocumenttoolcatalog.h"
 
@@ -238,6 +239,50 @@ PDFDatabaseError PDFToolRepository::recordUsage(const QString& toolId)
     if (!statement.execute())
     {
         return statement.getError();
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+    return PDFDatabaseError();
+}
+
+qint64 PDFToolRepository::getHistoryRuns() const
+{
+    // A state setting, which is not a part of the registry of this repository:
+    // only a non-negative integer is a count
+    PDFDatabaseStatement statement(getConnection(), "SELECT CASE WHEN typeof(value) = 'integer' AND value >= 0 THEN value END FROM setting WHERE key = ?1");
+    statement.bindText(1, PDFSettingKeys::toolsHistoryRuns());
+    qint64 runs = 0;
+    if (statement.next())
+    {
+        runs = PDFRepositoryHelper::readInteger(statement, 0, 0, 0, std::numeric_limits<qint64>::max());
+        statement.reset();
+    }
+    return runs;
+}
+
+PDFDatabaseError PDFToolRepository::clearHistory()
+{
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    PDFDatabaseStatement pairs(connection, "DELETE FROM tool_pair");
+    if (!pairs.execute())
+    {
+        return pairs.getError();
+    }
+
+    PDFDatabaseStatement runs(connection, "DELETE FROM setting WHERE key = ?1");
+    runs.bindText(1, PDFSettingKeys::toolsHistoryRuns());
+    if (!runs.execute())
+    {
+        return runs.getError();
     }
 
     if (!transaction.commit())

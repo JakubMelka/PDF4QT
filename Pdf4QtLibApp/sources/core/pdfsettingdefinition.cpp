@@ -124,6 +124,63 @@ PDFSettingDefinition& PDFSettingDefinition::setKeywords(QStringList keywords)
     return *this;
 }
 
+PDFSettingDefinition& PDFSettingDefinition::setUnit(const char* unit)
+{
+    m_unit = unit ? unit : "";
+    return *this;
+}
+
+PDFSettingDefinition& PDFSettingDefinition::setDecimals(int decimals)
+{
+    // A real number never has more decimals than a double can show
+    m_decimals = decimals < 0 ? -1 : qMin(decimals, 6);
+    return *this;
+}
+
+PDFSettingDefinition& PDFSettingDefinition::setControl(Control control)
+{
+    m_control = control;
+    return *this;
+}
+
+PDFSettingDefinition& PDFSettingDefinition::setEnabledWhen(QString key, QVariant value)
+{
+    m_enabledWhenKey = std::move(key);
+    m_enabledWhenValue = std::move(value);
+    return *this;
+}
+
+PDFSettingDefinition& PDFSettingDefinition::setTag(const char* tag)
+{
+    m_tag = tag ? tag : "";
+    return *this;
+}
+
+PDFSettingDefinition& PDFSettingDefinition::setCommitOnActivation()
+{
+    m_isCommittedOnActivation = true;
+    return *this;
+}
+
+QString PDFSettingDefinition::getUnit() const
+{
+    return *m_unit ? QCoreApplication::translate(TRANSLATION_CONTEXT, m_unit) : QString();
+}
+
+int PDFSettingDefinition::getDecimals() const
+{
+    if (m_type != Type::Real)
+    {
+        return 0;
+    }
+    return m_decimals >= 0 ? m_decimals : 2;
+}
+
+QString PDFSettingDefinition::getTag() const
+{
+    return *m_tag ? QCoreApplication::translate(TRANSLATION_CONTEXT, m_tag) : QString();
+}
+
 QString PDFSettingDefinition::getTitle() const
 {
     return QCoreApplication::translate(TRANSLATION_CONTEXT, m_title);

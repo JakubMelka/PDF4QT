@@ -71,6 +71,15 @@ public:
     /// Certificates in the order of adding
     std::vector<PDFTrustedCertificate> getCertificates() const;
 
+    /// Maximal number of the rows listed by getRows
+    static constexpr int MAXIMUM_LISTED_ROW_COUNT = 2 * MAXIMUM_CERTIFICATE_COUNT;
+
+    /// Every row of the table in the order of adding (Settings › Security, owner
+    /// decision Q4), also the damaged ones, which getCertificates skips - so the
+    /// user can remove them: a value, which is not a blob of a sane size, has empty
+    /// data; the data of a row are not checked to be a certificate
+    std::vector<PDFTrustedCertificate> getRows() const;
+
     /// The certificate (DER) is trusted
     bool contains(const QByteArray& data) const;
 
@@ -81,6 +90,12 @@ public:
 
     /// Removes the certificate of the row
     PDFDatabaseError removeCertificate(qint64 id);
+
+    /// Removes the rows of getRows in one transaction. A row is removed only when
+    /// it still has the data read by getRows: the id of a removed row is given to
+    /// the next added certificate (INTEGER PRIMARY KEY), so another instance may
+    /// have replaced the row, which the user has confirmed, by another certificate
+    PDFDatabaseError removeRows(const std::vector<PDFTrustedCertificate>& rows);
 
     /// The data are a DER certificate of a sane size
     static bool isValidCertificate(const QByteArray& data);

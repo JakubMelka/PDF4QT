@@ -546,7 +546,9 @@ PDFAppRouteTable PDFAppRouteTable::createDefault()
     PDFAppRouteEntry settingsSection = createEntry(QStringLiteral("/settings/{section}"), Tab::Home, Nav::Settings, Subject::SettingsSection, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Settings"));
     settingsSection.parameters[QStringLiteral("section")] = Values::options({ QStringLiteral("general"), QStringLiteral("viewing"), QStringLiteral("color-modes"), QStringLiteral("editing"),
                                                                               QStringLiteral("security"), QStringLiteral("speech"), QStringLiteral("shortcuts"),
-                                                                              QStringLiteral("color-management"), QStringLiteral("advanced") });
+                                                                              QStringLiteral("color-management"), QStringLiteral("advanced"),
+                                                                              // Storage below Advanced (step 5, owner decision Q1)
+                                                                              QStringLiteral("storage") });
     settingsSection.isFragmentAllowed = true;
     table.addDefaultEntry(settingsSection);
 

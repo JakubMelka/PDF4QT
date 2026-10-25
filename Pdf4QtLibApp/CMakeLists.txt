@@ -77,6 +77,8 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfappsysteminfo.h
     sources/core/pdfappthumbnailer.cpp
     sources/core/pdfappthumbnailer.h
+    sources/core/pdfapptranslator.cpp
+    sources/core/pdfapptranslator.h
     sources/core/pdfappwindowfactory.cpp
     sources/core/pdfappwindowfactory.h
     sources/core/pdfsettingdefinition.cpp
@@ -109,6 +111,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/sources/pages/pages.cmake)
 # operations and the properties add their files to PDF4QT_LIBAPP_DOCUMENT_SOURCES
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources/document/document.cmake)
 
+# The page Settings (step 5): the sections, the rows and the binders of the
+# settings add their files to PDF4QT_LIBAPP_SETTINGS_SOURCES
+include(${CMAKE_CURRENT_SOURCE_DIR}/sources/settings/settings.cmake)
+
 add_library(Pdf4QtLibApp SHARED
     sources/pdfappglobal.h
     ${PDF4QT_LIBAPP_STORAGE_SOURCES}
@@ -116,6 +122,7 @@ add_library(Pdf4QtLibApp SHARED
     ${PDF4QT_LIBAPP_SHELL_SOURCES}
     ${PDF4QT_LIBAPP_PAGES_SOURCES}
     ${PDF4QT_LIBAPP_DOCUMENT_SOURCES}
+    ${PDF4QT_LIBAPP_SETTINGS_SOURCES}
 )
 
 include(GenerateExportHeader)
@@ -160,7 +167,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/core
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/shell
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/document)
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/document
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/settings)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 set_target_properties(Pdf4QtLibApp PROPERTIES

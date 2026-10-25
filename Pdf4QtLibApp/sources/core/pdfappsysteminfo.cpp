@@ -205,10 +205,10 @@ bool PDFAppNetworkPaths::isNetworkPathByName(const QString& path)
 
     // UNC paths (\\server\share, //server/share); device paths of Windows (//./, //?/)
     // are no documents, they are refused by the repositories, but they are no
-    // network paths ("//?/UNC/server/share" is one)
+    // network paths ("//?/UNC/server/share" and "//./UNC/server/share" are)
     if (slashPath.startsWith(QLatin1String("//")))
     {
-        if (slashPath.startsWith(QLatin1String("//?/UNC/"), Qt::CaseInsensitive))
+        if (slashPath.startsWith(QLatin1String("//?/UNC/"), Qt::CaseInsensitive) || slashPath.startsWith(QLatin1String("//./UNC/"), Qt::CaseInsensitive))
         {
             return true;
         }

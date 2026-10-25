@@ -844,7 +844,7 @@ void PDFWidgetStyleContainers::drawGroupBox(const QStyleOptionGroupBox* option, 
         // The title of an unchecked group box is muted as its disabled content
         const bool isMuted = !isEnabled || (hasCheckBox && !isChecked);
         const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, labelRect.width() + 1.0);
-        m_impl->drawText(painter, labelRect, Qt::AlignVCenter | (option->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
+        m_impl->drawText(painter, labelRect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(option->direction == Qt::RightToLeft), text, font,
                          PDFWidgetStyleImpl::color(isMuted ? Color::TextDisabled : Color::TextPrimary), widget);
     }
 
@@ -950,7 +950,7 @@ void PDFWidgetStyleContainers::drawDockTitle(const QStyleOptionDockWidget* optio
     const QRectF textRect(style()->subElementRect(QStyle::SE_DockWidgetTitleBarText, option, widget));
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::BodySemiBold);
     const QString text = PDFWidgetStyleImpl::getElidedText(option->title, font, textRect.width());
-    m_impl->drawText(painter, textRect, Qt::AlignVCenter | (option->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
+    m_impl->drawText(painter, textRect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(option->direction == Qt::RightToLeft), text, font,
                      PDFWidgetStyleImpl::color(Color::TextPrimary), widget);
 }
 
@@ -1005,7 +1005,7 @@ void PDFWidgetStyleContainers::drawToolBoxTab(const QStyleOptionToolBox* option,
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::BodyMedium);
     const qreal textWidth = qMax(0.0, right - 10.0 - left);
     const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, textWidth);
-    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, left, textWidth, rect.height()), Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, left, textWidth, rect.height()), Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(state.rightToLeft), text, font,
                      PDFWidgetStyleImpl::color(textColor), widget);
 }
 
@@ -1065,7 +1065,7 @@ void PDFWidgetStyleContainers::drawSmallToolButton(const QStyleOptionToolButton*
         x += iconWidth;
     }
 
-    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute, text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 
 void PDFWidgetStyleContainers::drawTitleBar(const QStyleOptionTitleBar* option, QPainter* painter, const QWidget* widget) const
@@ -1083,7 +1083,7 @@ void PDFWidgetStyleContainers::drawTitleBar(const QStyleOptionTitleBar* option, 
     const QRectF textRect(style()->subControlRect(QStyle::CC_TitleBar, option, QStyle::SC_TitleBarLabel, widget));
     const QFont font = PDFThemeFonts::getFont(Font::BodySemiBold);
     const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, textRect.width());
-    PDFStylePainter::text(painter, textRect, Qt::AlignVCenter | (option->direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::TextSingleLine,
+    PDFStylePainter::text(painter, textRect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(option->direction == Qt::RightToLeft) | Qt::TextSingleLine,
                           text, font, PDFWidgetStyleImpl::color(Color::TextPrimary));
 }
 

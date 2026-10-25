@@ -73,6 +73,10 @@ private:
     using BaseClass = PDFLabel;
 
 public:
+    /// The largest overhang of the last glyph of a line over its advance (the
+    /// right bearing of "x" or of an italic letter), which the size hint adds
+    static constexpr int MAXIMUM_OVERHANG = 4;
+
     explicit PDFAppParagraph(const QFont& font, int lineHeight, PDFThemeColors::Color color, QWidget* parent = nullptr);
 
     int getLineHeight() const { return m_lineHeight; }

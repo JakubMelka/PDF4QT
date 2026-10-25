@@ -119,6 +119,11 @@ public:
     int getLimit() const { return m_limit; }
     void setLimit(int limit);
 
+    /// Maximal number of redo steps (0 = no redo): after an undo the redo steps
+    /// farthest from the current version over the limit are dropped
+    int getRedoLimit() const { return m_redoLimit; }
+    void setRedoLimit(int limit);
+
     /// Maximal memory held by the undo and redo steps in bytes (at least one
     /// undo step is kept, unless the limit is 0)
     qint64 getMemoryLimit() const { return m_memoryLimit; }
@@ -156,6 +161,7 @@ private:
     std::deque<PDFAppUndoStep> m_undoSteps;
     std::deque<PDFAppUndoStep> m_redoSteps;
     int m_limit = DEFAULT_LIMIT;
+    int m_redoLimit = DEFAULT_LIMIT;
     qint64 m_memoryLimit = DEFAULT_MEMORY_LIMIT;
     int m_savedPosition = 0;    ///< Number of undo steps of the saved version, -1 = unreachable
     bool m_isMergeOpen = false; ///< The top undo step takes the commits of its merge key

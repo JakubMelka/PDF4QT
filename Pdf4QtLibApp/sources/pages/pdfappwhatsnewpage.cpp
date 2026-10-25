@@ -22,6 +22,7 @@
 
 #include "pdfappwhatsnewpage.h"
 #include "pdfappcontext.h"
+#include "pdfapplocale.h"
 #include "pdfapproute.h"
 #include "pdfappworkspace.h"
 #include "pdfdatabasenotifier.h"
@@ -569,7 +570,9 @@ bool PDFAppWhatsNewPage::setRoute(const PDFAppRoute& route)
     }
 
     BaseClass::setRoute(route);
-    m_release = *release;
+
+    // The release in the language of the user interface (step 5), English without a translation
+    m_release = m_catalog->getLocalizedRelease(release->version, PDFAppLocale::getUiLanguage());
     m_isRunningRelease = PDFAppWhatsNewHelper::isSameVersion(m_release.version, m_runningVersion);
     build();
 
@@ -964,6 +967,8 @@ void PDFAppWhatsNewPage::changeEvent(QEvent* event)
     BaseClass::changeEvent(event);
     if (event->type() == QEvent::LanguageChange && m_release.isValid())
     {
+        // The translation of the release of the new language (the shared catalog is not parsed again)
+        m_release = m_catalog->getLocalizedRelease(m_release.version, PDFAppLocale::getUiLanguage());
         build();
     }
 }
@@ -1135,7 +1140,7 @@ bool PDFAppReleaseNotesPage::setRoute(const PDFAppRoute& route)
     }
 
     BaseClass::setRoute(route);
-    m_release = *release;
+    m_release = m_catalog->getLocalizedRelease(release->version, PDFAppLocale::getUiLanguage());
     build();
 
     QPointer<PDFAppReleaseNotesPage> guard(this);
@@ -1263,6 +1268,8 @@ void PDFAppReleaseNotesPage::changeEvent(QEvent* event)
     BaseClass::changeEvent(event);
     if (event->type() == QEvent::LanguageChange && m_release.isValid())
     {
+        // The translation of the release of the new language (the shared catalog is not parsed again)
+        m_release = m_catalog->getLocalizedRelease(m_release.version, PDFAppLocale::getUiLanguage());
         build();
     }
 }

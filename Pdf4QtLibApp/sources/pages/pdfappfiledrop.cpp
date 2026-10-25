@@ -22,6 +22,7 @@
 
 #include "pdfappfiledrop.h"
 #include "pdfappmainwindow.h"
+#include "pdfdatabase.h"
 #include "pdfrepositoryhelper.h"
 
 #include <QCoreApplication>
@@ -30,6 +31,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMimeData>
+#include <QPointer>
 #include <QUrl>
 #include <QWidget>
 
@@ -219,12 +221,17 @@ QStringList PDFAppFileDialogs::getOpenFileNames(QWidget* parent, const QString& 
 
 QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& folder)
 {
+    return getExistingDirectory(parent, folder, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Pin a Location"));
+}
+
+QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& folder, const QString& title)
+{
     if (const FolderHandler& handler = getFolderHandler())
     {
         return handler(parent, folder);
     }
 
-    return QFileDialog::getExistingDirectory(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Pin a Location"), folder);
+    return QFileDialog::getExistingDirectory(parent, title, folder);
 }
 
 QString PDFAppFileDialogs::getSaveFileName(QWidget* parent, const QString& filePath)
@@ -241,6 +248,71 @@ QString PDFAppFileDialogs::getSaveFileName(QWidget* parent, const QString& fileP
 void PDFAppFileDialogs::setSaveFileHandler(SaveFileHandler handler)
 {
     getSaveFileHandler() = std::move(handler);
+}
+
+QString PDFAppFileDialogs::getSaveBackupFileName(QWidget* parent, const QString& filePath)
+{
+    if (const SaveFileHandler& handler = getSaveBackupHandler())
+    {
+        return handler(parent, filePath);
+    }
+
+    // The dialog adds the suffix itself (a name typed without it), so it asks before
+    // an existing backup is replaced; the static getSaveFileName has no default suffix
+    // (the native dialog of Windows adds none). The dialog is not an object on the
+    // stack: the parent may go while it runs.
+    const QFileInfo proposed(filePath);
+    QPointer<QFileDialog> dialog = new QFileDialog(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Export Settings"), proposed.absolutePath(),
+                                                   QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup)"));
+    dialog->setAcceptMode(QFileDialog::AcceptSave);
+    dialog->setFileMode(QFileDialog::AnyFile);
+    dialog->setDefaultSuffix(QLatin1String(PDFDatabaseBackup::FILE_SUFFIX));
+    dialog->selectFile(proposed.fileName());
+
+    const int result = dialog->exec();
+    QString selectedFile;
+    if (dialog)
+    {
+        if (result == QDialog::Accepted)
+        {
+            selectedFile = dialog->selectedFiles().value(0);
+        }
+        delete dialog.data();
+    }
+    return selectedFile;
+}
+
+QString PDFAppFileDialogs::getOpenBackupFileName(QWidget* parent, const QString& folder)
+{
+    if (const FolderHandler& handler = getOpenBackupHandler())
+    {
+        return handler(parent, folder);
+    }
+
+    return QFileDialog::getOpenFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Import Settings"), folder,
+                                        QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup);;All files (*)"));
+}
+
+void PDFAppFileDialogs::setSaveBackupHandler(SaveFileHandler handler)
+{
+    getSaveBackupHandler() = std::move(handler);
+}
+
+void PDFAppFileDialogs::setOpenBackupHandler(FolderHandler handler)
+{
+    getOpenBackupHandler() = std::move(handler);
+}
+
+PDFAppFileDialogs::SaveFileHandler& PDFAppFileDialogs::getSaveBackupHandler()
+{
+    static SaveFileHandler handler;
+    return handler;
+}
+
+PDFAppFileDialogs::FolderHandler& PDFAppFileDialogs::getOpenBackupHandler()
+{
+    static FolderHandler handler;
+    return handler;
 }
 
 PDFAppFileDialogs::SaveFileHandler& PDFAppFileDialogs::getSaveFileHandler()

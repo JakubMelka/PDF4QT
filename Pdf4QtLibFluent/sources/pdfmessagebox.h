@@ -132,7 +132,10 @@ public:
     /// stretch, each in the order of the calls. The button does not close the
     /// message box by itself. \p isPrimary gives it the look of the primary
     /// button and makes it the default button (Enter). The focus is not moved
-    /// (a form keeps the focus of its field).
+    /// (a form keeps the focus of its field); when the message box is shown and
+    /// the first focus would go to a button (the leading button of the row, often
+    /// a destructive action, or a check box - taken by Space), the default button
+    /// gets it.
     QPushButton* addActionButton(const QString& text, ActionPosition position, bool isPrimary);
 
     /// Returns the buttons of the own row in the order of the row
@@ -205,6 +208,7 @@ private:
                                                         QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton);
     void onButtonClicked(QAbstractButton* button);
     void ensureDefaultButton();
+    void focusDefaultActionButton();
     QAbstractButton* getEscapeButton() const;
     static QString getBadgeName(PDFThemeIcons::Badge badge);
 

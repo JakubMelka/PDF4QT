@@ -807,6 +807,36 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     endif()
 endif()
 
+# Settings (step 5 of the new application): wave 0 and package A in
+# UnitTestsAppSettings, one executable per package of wave 1, all with the fixture
+# appsettingsfixture (the fixture of the document tab with the Settings helpers)
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    foreach(PDF4QT_SETTINGS_TEST
+            AppSettings
+            AppSettingsRendering
+            AppSettingsEditing
+            AppSettingsShortcuts
+            AppSettingsLifetime)
+        string(TOLOWER "${PDF4QT_SETTINGS_TEST}" PDF4QT_SETTINGS_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_SETTINGS_TEST}
+            tst_${PDF4QT_SETTINGS_TEST_FILE}test.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+            appsettingsfixture.cpp
+            appsettingsfixture.h
+        )
+        target_link_libraries(UnitTests${PDF4QT_SETTINGS_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        set_target_properties(UnitTests${PDF4QT_SETTINGS_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_SETTINGS_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_SETTINGS_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_SETTINGS_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+endif()
+
 # Properties of the annotations read and written by PDFAnnotationPropertyEditor
 # (Pdf4QtLibCore, step 4 package B)
 add_executable(UnitTestsAnnotationProperties

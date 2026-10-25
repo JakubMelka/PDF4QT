@@ -236,7 +236,7 @@ bool PDFWidgetStyleRanges::drawControl(QStyle::ControlElement element, const QSt
             {
                 const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::Small);
                 const bool isRightToLeft = progressBar->direction == Qt::RightToLeft;
-                PDFStylePainter::text(painter, QRectF(progressBar->rect), Qt::AlignVCenter | (isRightToLeft ? Qt::AlignLeft : Qt::AlignRight) | Qt::TextSingleLine,
+                PDFStylePainter::text(painter, QRectF(progressBar->rect), Qt::AlignVCenter | PDFWidgetStyleImpl::getTrailingAlignment(isRightToLeft) | Qt::TextSingleLine,
                                       progressBar->text, font, PDFWidgetStyleImpl::color(Color::TextMuted));
             }
             return true;

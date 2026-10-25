@@ -25,10 +25,12 @@
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
+#include "pdfapptranslator.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfannotationstyle.h"
+#include "pdfcms.h"
 #include "pdfthememanager.h"
 #include "pdfutils.h"
 
@@ -44,11 +46,20 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
     m_commandLine(commandLine)
 {
     m_documentRegistry = new PDFAppDocumentRegistry(this);
+    m_translator = new PDFAppTranslator(this);
 
     // O17: the texts of the application are formatted in the language of the user
     // interface; the default locale of the process follows it ("%Ln", Qt widgets,
     // Pdf4QtLibFluent) - set before the windows and the worker threads exist
     PDFAppLocale::applyDefaultLocale();
+
+    // Every change of a setting of the color management (a color of the color
+    // modes, a slider) clears the lists of the manager of each open document: the
+    // installed profiles of the system are listed once per process instead (more
+    // than 100 ms on Windows per document and change, review RC5-BC; Settings ›
+    // Color management lists them again - PDFAppColorProfiles::scan). The cache
+    // is process-wide, so it is turned on once at the start, not by each view.
+    PDFCMSManager::setExternalProfilesCacheEnabled(true);
 
     PDFSettingDefinitions::registerBuiltinDefinitions(&m_settingRegistry);
     PDFAppCommands::registerBuiltinCommands(&m_commandRegistry);
@@ -104,6 +115,9 @@ void PDFAppContext::open(PDFDatabaseOptions options)
     applyAuthorSettings();
 
     applyColorScheme();
+
+    // The language before the windows exist (no LanguageChange to rebuild them)
+    applyLanguage();
 }
 
 void PDFAppContext::close()
@@ -252,6 +266,28 @@ void PDFAppContext::applyColorScheme()
     }
 }
 
+void PDFAppContext::applyLanguage()
+{
+    if (m_translator)
+    {
+        m_translator->setLanguage(getSettings().getString(PDFSettingKeys::appearanceLanguage()));
+    }
+}
+
+void PDFAppContext::applyRecentLimit()
+{
+    if (!m_database)
+    {
+        return;
+    }
+
+    const PDFDatabaseError error = getRecent().applyLimit();
+    if (error.isError())
+    {
+        qWarning("The history of the recent files could not be trimmed: %s", qPrintable(error.toString()));
+    }
+}
+
 void PDFAppContext::applyAuthorSettings()
 {
     const PDFSettingsRepository settings = getSettings();
@@ -324,12 +360,24 @@ void PDFAppContext::onSettingChanged(const QString& topic, const QString& key)
     {
         applyAuthorSettings();
     }
+    else if (topic == PDFSettingsRepository::getTopic() && key == PDFSettingKeys::appearanceLanguage())
+    {
+        applyLanguage();
+    }
+    else if (topic == PDFSettingsRepository::getTopic() && key == PDFSettingKeys::recentMaxFiles())
+    {
+        applyRecentLimit();
+    }
 }
 
 void PDFAppContext::onEverythingChanged()
 {
     applyAuthorSettings();
     applyColorScheme();
+    applyLanguage();
+
+    // No applyRecentLimit: a write here would make the notifier poll at once (the
+    // limit is applied, when the setting changes, and at every recording)
 }
 
 void PDFAppContext::onSystemColorSchemeChanged()

@@ -151,6 +151,7 @@ private slots:
     void titleFonts();
     void messageBoxButtons();
     void messageBoxScrimTarget();
+    void messageBoxScrimLanguageChange();
     void overlayScrollBars();
     void toolTipOfQt();
     void plainTextLines();
@@ -186,6 +187,12 @@ private slots:
     void reviewDialDeletedBySignal();
     void reviewClassFontsRestored();
     void searchFieldFocusIcon();
+
+    // Fixes of the Settings reviews of step 5 (FX5-3): texts of a right-to-left
+    // application, the popup list of a combo box, the header of the Certificate row
+    void rightToLeftAbsoluteText();
+    void comboPopupGeometry();
+    void certificateHeader();
 
 private:
     static constexpr const char* CORE_FONTS_VARIABLE = "PDF4QT_WIDGET_STYLE_TEST_CORE_FONTS";
@@ -2217,6 +2224,106 @@ void WidgetStyleTest::messageBoxButtons()
     QCOMPARE(countLeakPixels(embeddedBox.grab().toImage()), 0);
 }
 
+/// Child of a window, which hides (or deletes) a message box, when it gets
+/// QEvent::LanguageChange (a page built again at a change of the language)
+class WidgetStyleTestLanguageCloser : public QWidget
+{
+public:
+    explicit WidgetStyleTestLanguageCloser(QWidget* parent) :
+        QWidget(parent)
+    {
+
+    }
+
+    QPointer<pdf::PDFMessageBox> box;
+    bool deleteBox = false;
+    bool scrimAliveAfterHide = false;
+    bool scrimHiddenAfterHide = false;
+    int calls = 0;
+
+protected:
+    virtual void changeEvent(QEvent* event) override
+    {
+        QWidget::changeEvent(event);
+        if (event->type() != QEvent::LanguageChange || !box)
+        {
+            return;
+        }
+
+        ++calls;
+        QPointer<QWidget> scrim = box->getScrim();
+        if (deleteBox)
+        {
+            delete box.data();
+        }
+        else
+        {
+            box->hide();
+        }
+        scrimAliveAfterHide = !scrim.isNull();
+        scrimHiddenAfterHide = scrim && scrim->isHidden();
+    }
+};
+
+void WidgetStyleTest::messageBoxScrimLanguageChange()
+{
+    // QWidget::event sends QEvent::LanguageChange to a copy of the list of the
+    // children of the window. A child, which hides or deletes a message box from
+    // it (an application builds its page again), must not delete the scrim of the
+    // box - a child of the same window, which gets the event later - at once.
+    for (const bool deleteBox : { false, true })
+    {
+        QWidget window;
+        window.resize(640, 480);
+        WidgetStyleTestLanguageCloser* closer = new WidgetStyleTestLanguageCloser(&window);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        // A box deleted from the event has no parent (a box deleted synchronously
+        // would be a child of the window in the list being sent to - a bug of the
+        // application), its scrim covers the window
+        pdf::PDFMessageBox* box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, deleteBox ? nullptr : &window);
+        box->setScrimTarget(&window);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box));
+        QPointer<QWidget> scrim = box->getScrim();
+        QVERIFY(scrim);
+        QCOMPARE(scrim->parentWidget(), &window);
+
+        // The scrim comes after the closer in the list of the children
+        const QObjectList children = window.children();
+        QVERIFY(children.indexOf(closer) < children.indexOf(scrim.data()));
+
+        closer->box = box;
+        closer->deleteBox = deleteBox;
+        QEvent languageChange(QEvent::LanguageChange);
+        QCoreApplication::sendEvent(&window, &languageChange);
+
+        QCOMPARE(closer->calls, 1);
+        QVERIFY(closer->scrimAliveAfterHide);
+        QVERIFY(closer->scrimHiddenAfterHide);
+        QVERIFY(scrim);
+        QVERIFY(scrim->isHidden());
+
+        // The scrim is gone from the event loop, nothing of it is drawn meanwhile
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(!scrim);
+        if (!deleteBox)
+        {
+            QVERIFY(!box->getScrim());
+            box->show();
+            QVERIFY(box->getScrim());
+            delete box;
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        }
+
+        for (QWidget* child : window.findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+        {
+            QCOMPARE(child, closer);
+        }
+    }
+}
+
 /// Widget filled by a token (the content below an overlay scroll bar, the parts of a window)
 class WidgetStyleTestFill : public QWidget
 {
@@ -2287,6 +2394,12 @@ void WidgetStyleTest::messageBoxScrimTarget()
         QVERIFY(box.getScrim());
         QCOMPARE(box.getScrim()->parentWidget(), &window);
         QCOMPARE(box.getScrim()->geometry(), window.rect());
+        // The old scrim is hidden at once and deleted from the event loop
+        for (QWidget* child : body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+        {
+            QVERIFY(child->isHidden());
+        }
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         QCOMPARE(body->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 0);
         const QPoint movedCenter = box.mapToGlobal(box.rect().marginsRemoved(box.getShadowMargins()).center());
         QVERIFY((movedCenter - window.mapToGlobal(window.rect().center())).manhattanLength() <= 2);
@@ -2314,6 +2427,7 @@ void WidgetStyleTest::messageBoxScrimTarget()
         deletedBox->show();
         QCOMPARE(secondBody->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 1);
         delete deletedBox;
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         QCOMPARE(secondBody->findChildren<QWidget*>(Qt::FindDirectChildrenOnly).size(), 0);
 
         // A target deleted before the box is shown: the parent
@@ -4246,6 +4360,323 @@ void WidgetStyleTest::searchFieldFocusIcon()
     colors = iconColors();
     QVERIFY2(isNear(colors[true], token(pdf::PDFThemeColors::IconAccent), 24), qPrintable(colors[true].name()));
     QVERIFY2(isNear(colors[false], token(pdf::PDFThemeColors::IconMuted), 24), qPrintable(colors[false].name()));
+}
+
+void WidgetStyleTest::rightToLeftAbsoluteText()
+{
+    // The painter of a widget takes the direction of the application, not of the
+    // widget (QPainterState), so the style aligns a text to the leading side
+    // absolutely - otherwise QPainter::drawText mirrors the alignment once more
+    // (the value of a combo box of a right-to-left application was drawn at the
+    // left next to the chevron, Settings review of step 5)
+    auto inkRange = [](const QImage& image, int fromX, int toX, int fromY, int toY, const QColor& background) -> std::pair<int, int>
+    {
+        const qreal scale = image.devicePixelRatio();
+        int minimum = std::numeric_limits<int>::max();
+        int maximum = std::numeric_limits<int>::min();
+
+        for (int y = qFloor(fromY * scale); y < qFloor(toY * scale); ++y)
+        {
+            for (int x = qFloor(fromX * scale); x < qFloor(toX * scale); ++x)
+            {
+                const QColor color = image.pixelColor(x, y);
+                const int difference = qAbs(color.red() - background.red()) + qAbs(color.green() - background.green()) +
+                                       qAbs(color.blue() - background.blue()) + qAbs(color.alpha() - background.alpha());
+                if (difference > 120)
+                {
+                    minimum = qMin(minimum, x);
+                    maximum = qMax(maximum, x);
+                }
+            }
+        }
+
+        if (minimum > maximum)
+        {
+            return { 0, -1 };
+        }
+        return { qFloor(minimum / scale), qFloor(maximum / scale) };
+    };
+
+    const QList<std::pair<Qt::LayoutDirection, Qt::LayoutDirection>> directions = { { Qt::RightToLeft, Qt::RightToLeft },
+                                                                                    { Qt::RightToLeft, Qt::LeftToRight },
+                                                                                    { Qt::LeftToRight, Qt::RightToLeft } };
+    const int width = 240;
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            for (const auto& [applicationDirection, widgetDirection] : directions)
+            {
+                QApplication::setLayoutDirection(applicationDirection);
+                const bool isRightToLeft = widgetDirection == Qt::RightToLeft;
+                const QString context = QStringLiteral("scheme %1, scale %2, application %3, widget %4").arg(int(scheme)).arg(scale).arg(int(applicationDirection)).arg(int(widgetDirection));
+
+                // Combo box: the value at the leading side, the chevron (border 1 + padding 10 + 14) at the trailing side
+                pdf::PDFComboBox comboBox;
+                comboBox.setLayoutDirection(widgetDirection);
+                comboBox.addItem(QStringLiteral("Abc"));
+                comboBox.resize(width, 34);
+                comboBox.ensurePolished();
+                QImage image = render([&comboBox](QPainter& painter) { comboBox.render(&painter); }, comboBox.size(), scale);
+                auto [left, right] = inkRange(image, isRightToLeft ? 28 : 2, isRightToLeft ? width - 2 : width - 28, 9, 25, pixel(image, width / 2, 3));
+                QVERIFY2(left <= right, qPrintable(context));
+                QVERIFY2(isRightToLeft ? (left > width / 2 && right <= width - 13) : (right < width / 2 && left >= 12), qPrintable(QStringLiteral("combo box %1: %2 - %3").arg(context).arg(left).arg(right)));
+                QCOMPARE(countLeakPixels(image), 0);
+
+                // Check box: the label next to the indicator at the leading side
+                QCheckBox checkBox(QStringLiteral("Abc"));
+                checkBox.setLayoutDirection(widgetDirection);
+                checkBox.resize(width, 24);
+                checkBox.ensurePolished();
+                image = render([&checkBox](QPainter& painter) { checkBox.render(&painter); }, checkBox.size(), scale);
+                std::tie(left, right) = inkRange(image, isRightToLeft ? 0 : 24, isRightToLeft ? width - 24 : width, 0, 24, pixel(image, width / 2, 1));
+                QVERIFY2(left <= right, qPrintable(context));
+                QVERIFY2(isRightToLeft ? left > width / 2 : right < width / 2, qPrintable(QStringLiteral("check box %1: %2 - %3").arg(context).arg(left).arg(right)));
+
+                // Message of the status bar at the leading side (RFX5)
+                pdf::PDFStatusBar statusBar;
+                statusBar.setSizeGripEnabled(false);
+                statusBar.setLayoutDirection(widgetDirection);
+                statusBar.resize(width, 28);
+                statusBar.ensurePolished();
+                statusBar.showMessage(QStringLiteral("Abc"));
+                image = render([&statusBar](QPainter& painter) { statusBar.render(&painter); }, statusBar.size(), scale);
+                std::tie(left, right) = inkRange(image, 0, width, 4, 24, pixel(image, width / 2, 14));
+                QVERIFY2(left <= right, qPrintable(context));
+                QVERIFY2(isRightToLeft ? left > width / 2 : right < width / 2, qPrintable(QStringLiteral("status bar %1: %2 - %3").arg(context).arg(left).arg(right)));
+            }
+        }
+    }
+}
+
+void WidgetStyleTest::comboPopupGeometry()
+{
+    // The popup list of a combo box (Widgets 06, Settings 944:8935 / 944:8960):
+    // 4 px below and above the box, the rows keep the padding of 6 px, the scroll
+    // bar of a long list lies 3 px from the border with 2 px before the rows (rows
+    // 238 wide, the bar at 250 of 260), the current item opened without the fill
+    QWidget window;
+    window.resize(320, 140);
+    pdf::PDFComboBox* longComboBox = new pdf::PDFComboBox(&window);
+    for (int i = 0; i < 20; ++i)
+    {
+        longComboBox->addItem(QStringLiteral("Item %1").arg(i));
+    }
+    longComboBox->setGeometry(20, 20, 260, 34);
+    pdf::PDFComboBox* shortComboBox = new pdf::PDFComboBox(&window);
+    shortComboBox->addItems({ QStringLiteral("First"), QStringLiteral("Second"), QStringLiteral("Third") });
+    shortComboBox->setGeometry(20, 80, 260, 34);
+
+    const QScreen* screen = QGuiApplication::primaryScreen();
+    QVERIFY(screen);
+    const QRect available = screen->availableGeometry();
+    window.move(available.topLeft() + QPoint(40, 40));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    auto openPopup = [](QComboBox* comboBox) -> QWidget*
+    {
+        comboBox->showPopup();
+        QWidget* popup = comboBox->view()->window();
+        if (!popup->isVisible() || !QTest::qWaitForWindowExposed(popup))
+        {
+            return nullptr;
+        }
+        QCoreApplication::processEvents();
+        return popup;
+    };
+    auto rowRect = [](QComboBox* comboBox, QWidget* popup, int row) -> QRect
+    {
+        QRect rect = comboBox->view()->visualRect(comboBox->model()->index(row, 0));
+        rect.moveTopLeft(comboBox->view()->viewport()->mapTo(popup, rect.topLeft()));
+        return rect;
+    };
+
+    // Short list: below the box, as wide as the box, no scroll bar
+    QWidget* popup = openPopup(shortComboBox);
+    QVERIFY(popup);
+    const QMargins margins = pdf::PDFWidgetStyle::getPopoverMargins(popup);
+    if (margins.isNull())
+    {
+        QSKIP("Popups are not translucent on this platform, they have no margins.");
+    }
+
+    QRect panel = QRect(popup->mapToGlobal(QPoint(0, 0)), popup->size()).marginsRemoved(margins);
+    QRect box(shortComboBox->mapToGlobal(QPoint(0, 0)), shortComboBox->size());
+    QCOMPARE(panel.top(), box.bottom() + 1 + 4);
+    QCOMPARE(panel.left(), box.left());
+    QCOMPARE(panel.width(), box.width());
+    QVERIFY(!shortComboBox->view()->verticalScrollBar()->isVisibleTo(shortComboBox->view()));
+
+    // The current item (the first row) is selected, when the list opens: no fill
+    QVERIFY(shortComboBox->view()->selectionModel()->isSelected(shortComboBox->model()->index(0, 0)));
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QImage image = render([popup](QPainter& painter) { popup->render(&painter); }, popup->size(), scale);
+            const QString context = QStringLiteral("scheme %1, scale %2").arg(int(scheme)).arg(scale);
+            const int currentY = rowRect(shortComboBox, popup, 0).center().y();
+            QVERIFY2(isNear(pixel(image, margins.left() + 8, currentY), token(Color::BgSurface)), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, margins.left() + 252, currentY), token(Color::BgSurface)), qPrintable(context));
+        }
+    }
+
+    // The keyboard selects the second row, the current item keeps no fill
+    QTest::keyClick(shortComboBox->view(), Qt::Key_Down);
+    QCoreApplication::processEvents();
+    QCOMPARE(shortComboBox->view()->currentIndex().row(), 1);
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QColor surface = token(Color::BgSurface);
+        const QColor hover = blend(token(Color::BgHover), surface);
+
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QImage image = render([popup](QPainter& painter) { popup->render(&painter); }, popup->size(), scale);
+            const QString context = QStringLiteral("scheme %1, scale %2").arg(int(scheme)).arg(scale);
+            const int x = margins.left();
+            const int currentY = rowRect(shortComboBox, popup, 0).center().y();
+            const int selectedY = rowRect(shortComboBox, popup, 1).center().y();
+            QVERIFY2(isNear(pixel(image, x + 8, currentY), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 6, selectedY), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 7, selectedY), hover), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 252, selectedY), hover), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 253, selectedY), surface), qPrintable(context));
+            QCOMPARE(countLeakPixels(image), 0);
+        }
+    }
+
+    // The pointer over the current item gives it the fill
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    const QPoint currentCenter = shortComboBox->view()->visualRect(shortComboBox->model()->index(0, 0)).center();
+    QTest::mouseMove(shortComboBox->view()->viewport(), currentCenter);
+    QCoreApplication::processEvents();
+    QTRY_COMPARE(shortComboBox->view()->currentIndex().row(), 0);
+    {
+        const QImage image = render([popup](QPainter& painter) { popup->render(&painter); }, popup->size(), 1.0);
+        QVERIFY(isNear(pixel(image, margins.left() + 8, rowRect(shortComboBox, popup, 0).center().y()), blend(token(Color::BgHover), token(Color::BgSurface))));
+    }
+    shortComboBox->hidePopup();
+    QTRY_VERIFY(!popup->isVisible());
+
+    // Long list: the scroll bar 3 px from the border, the rows 2 px before it
+    popup = openPopup(longComboBox);
+    QVERIFY(popup);
+    panel = QRect(popup->mapToGlobal(QPoint(0, 0)), popup->size()).marginsRemoved(margins);
+    box = QRect(longComboBox->mapToGlobal(QPoint(0, 0)), longComboBox->size());
+    QCOMPARE(panel.top(), box.bottom() + 1 + 4);
+    QCOMPARE(panel.width(), 260);
+    QScrollBar* scrollBar = longComboBox->view()->verticalScrollBar();
+    QVERIFY(scrollBar->isVisibleTo(longComboBox->view()));
+    const QRect scrollBarRect(scrollBar->mapToGlobal(QPoint(0, 0)), scrollBar->size());
+    QCOMPARE(scrollBarRect.left() - panel.left(), 247);
+    QCOMPARE(scrollBarRect.right() + 1 - panel.left(), 259);
+    QTest::keyClick(longComboBox->view(), Qt::Key_Down);
+    QCoreApplication::processEvents();
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QColor surface = token(Color::BgSurface);
+        const QColor hover = blend(token(Color::BgHover), surface);
+
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QImage image = render([popup](QPainter& painter) { popup->render(&painter); }, popup->size(), scale);
+            const QString context = QStringLiteral("scheme %1, scale %2").arg(int(scheme)).arg(scale);
+            const int x = margins.left();
+            const int currentY = rowRect(longComboBox, popup, 0).center().y();
+            const int selectedY = rowRect(longComboBox, popup, 1).center().y();
+            QVERIFY2(isNear(pixel(image, x + 8, currentY), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 7, selectedY), hover), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 244, selectedY), hover), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 245, selectedY), surface), qPrintable(context));
+
+            // The bar of 6 px at 250 - 256 (the track along the whole list)
+            const int barY = rowRect(longComboBox, popup, 4).center().y();
+            QVERIFY2(isNear(pixel(image, x + 249, barY), surface), qPrintable(context));
+            QVERIFY2(!isNear(pixel(image, x + 250, barY), surface), qPrintable(context));
+            QVERIFY2(!isNear(pixel(image, x + 255, barY), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, x + 256, barY), surface), qPrintable(context));
+            QCOMPARE(countLeakPixels(image), 0);
+        }
+    }
+    longComboBox->hidePopup();
+    QTRY_VERIFY(!popup->isVisible());
+
+    // A list, which does not fit below the box, opens 4 px above it
+    const QPoint bottomPosition(available.left() + 40, available.bottom() - window.height() - 20);
+    window.move(bottomPosition);
+    QTRY_COMPARE(window.pos(), bottomPosition);
+    popup = openPopup(longComboBox);
+    QVERIFY(popup);
+    panel = QRect(popup->mapToGlobal(QPoint(0, 0)), popup->size()).marginsRemoved(margins);
+    box = QRect(longComboBox->mapToGlobal(QPoint(0, 0)), longComboBox->size());
+    QVERIFY2(panel.bottom() < box.top(), qPrintable(QStringLiteral("panel %1 - %2, box %3").arg(panel.top()).arg(panel.bottom()).arg(box.top())));
+    QCOMPARE(box.top() - panel.bottom() - 1, 4);
+    longComboBox->hidePopup();
+}
+
+void WidgetStyleTest::certificateHeader()
+{
+    // The columns of the Certificate row (147:3786) are a plain header as the
+    // columns of the Library row: no band, no separators, the label 13 px at 6 px,
+    // the border/divider line at 27 and 4 px before the first row
+    pdf::PDFTreeView tree;
+    QStandardItemModel model(2, 3);
+    model.setHorizontalHeaderLabels({ QStringLiteral("Type"), QStringLiteral("Certificate"), QStringLiteral("Organization") });
+    tree.setModel(&model);
+    tree.setRowStyle(pdf::PDFTreeView::RowStyle::Certificate);
+    tree.setRootIsDecorated(false);
+    tree.resize(420, 200);
+    tree.header()->setStretchLastSection(false);
+    tree.header()->resizeSection(0, 80);
+    tree.header()->resizeSection(1, 160);
+    tree.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&tree));
+
+    QHeaderView* header = tree.header();
+    QCOMPARE(header->sizeHint().height(), 32);
+    QCOMPARE(header->height(), 32);
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        const QColor surface = token(Color::BgSurface);
+
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const QImage image = render([header](QPainter& painter) { header->render(&painter); }, header->size(), scale);
+            const QString context = QStringLiteral("scheme %1, scale %2").arg(int(scheme)).arg(scale);
+            QVERIFY2(isNear(pixel(image, 40, 2), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 5, 12), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 79, 14), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 239, 14), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 40, 26), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 40, 27), blend(token(Color::BorderDivider), surface)), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 40, 28), surface), qPrintable(context));
+            QVERIFY2(isNear(pixel(image, 40, 31), surface), qPrintable(context));
+            QCOMPARE(countLeakPixels(image), 0);
+
+            // The label starts at the padding of 10 px
+            bool hasInk = false;
+            for (int x = 10; x < 40 && !hasInk; ++x)
+            {
+                for (int y = 6; y < 19 && !hasInk; ++y)
+                {
+                    hasInk = !isNear(pixel(image, x, y), surface, 40);
+                }
+            }
+            QVERIFY2(hasInk, qPrintable(context));
+        }
+    }
 }
 
 QTEST_MAIN(WidgetStyleTest)

@@ -40,6 +40,7 @@ public:
     PDFSettingKeys() = delete;
 
     // Settings › General › Application
+    static QString appearanceLanguage() { return QStringLiteral("appearance.language"); }
     static QString colorScheme() { return QStringLiteral("appearance.colorScheme"); }
 
     // Settings › General › Documents
@@ -55,6 +56,10 @@ public:
     static QString updateLatestVersion() { return QStringLiteral("update.latestVersion"); }
     static QString updateLastError() { return QStringLiteral("update.lastError"); }
     static QString updateLastSuccess() { return QStringLiteral("update.lastSuccess"); }
+
+    // Settings › Storage: the folder of the last Export / Import of a backup (a state
+    // key, owner 2026-10-25)
+    static QString storageBackupFolder() { return QStringLiteral("storage.backupFolder"); }
 
     // Panel My Bookmarks of the document
     static QString bookmarksAutoGenerate() { return QStringLiteral("bookmarks.autoGenerate"); }
@@ -168,6 +173,11 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFSettingValues
 public:
     PDFSettingValues() = delete;
 
+    // appearance.language (step 5, owner decision O12: English by default; auto =
+    // the first language of the system, which has a translation)
+    static QString languageAuto() { return QStringLiteral("auto"); }
+    static QString languageEnglish() { return QStringLiteral("en"); }
+
     // appearance.colorScheme
     static QString colorSchemeLight() { return QStringLiteral("light"); }
     static QString colorSchemeDark() { return QStringLiteral("dark"); }
@@ -205,6 +215,10 @@ public:
     static QString sectionShortcuts() { return QStringLiteral("shortcuts"); }
     static QString sectionColorManagement() { return QStringLiteral("color-management"); }
     static QString sectionAdvanced() { return QStringLiteral("advanced"); }
+
+    /// Section Storage (step 5, owner question Q1): the database file and the older
+    /// database files; it has no setting definitions (package D)
+    static QString sectionStorage() { return QStringLiteral("storage"); }
 
 private:
     static void registerGeneral(PDFSettingRegistry* registry);

@@ -308,7 +308,10 @@ bool PDFWidgetStyleButtons::drawPrimitive(QStyle::PrimitiveElement element, cons
             if (PDFWidgetStyleImpl::inherits(widget, "QComboBox"))
             {
                 // Separator of the popup list of a combo box: line with margins of 6 px
-                PDFStylePainter::fillRect(painter, QRectF(rect.left() + 6.0, rect.top() + qFloor((rect.height() - 1.0) / 2.0), rect.width() - 12.0, 1.0), Color::BorderDivider);
+                // inside of the rows (the rectangle is the width of the viewport)
+                const QMargins insets = PDFWidgetStyleImpl::getComboPopupRowInsets(widget, widget->layoutDirection());
+                const QRectF shape = rect.adjusted(insets.left(), 0.0, -insets.right(), 0.0);
+                PDFStylePainter::fillRect(painter, QRectF(shape.left() + 6.0, rect.top() + qFloor((rect.height() - 1.0) / 2.0), shape.width() - 12.0, 1.0), Color::BorderDivider);
                 return true;
             }
 
@@ -793,7 +796,7 @@ void PDFWidgetStyleButtons::drawButtonLabel(const QStyleOptionButton* option, QP
 
     if (!text.isEmpty())
     {
-        m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+        m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute, text, font, PDFWidgetStyleImpl::color(textColor), widget);
         x += textWidth;
     }
 
@@ -895,7 +898,7 @@ void PDFWidgetStyleButtons::drawIndicatorLabel(const QStyleOptionButton* option,
     if (!option->text.isEmpty())
     {
         const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, rect.width());
-        m_impl->drawText(painter, rect, Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft), text, font,
+        m_impl->drawText(painter, rect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(state.rightToLeft), text, font,
                          PDFWidgetStyleImpl::color(state.enabled ? Color::TextPrimary : Color::TextDisabled), widget);
     }
 }
@@ -1094,7 +1097,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
                 x += iconWidth;
             }
 
-            m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+            m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute, text, font, PDFWidgetStyleImpl::color(textColor), widget);
             x += textWidth;
 
             if (hasIndicator)

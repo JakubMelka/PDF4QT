@@ -22,6 +22,7 @@
 
 #include "pdfapphelppage.h"
 #include "pdfappcontext.h"
+#include "pdfapplocale.h"
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
 #include "pdfappworkspace.h"
@@ -176,8 +177,8 @@ bool PDFAppHelpPage::setRoute(const PDFAppRoute& route)
 
     BaseClass::setRoute(route);
 
-    // The language of the user interface comes with Settings (step 5): English until then
-    m_topic = m_catalog->getLocalizedTopic(topicId, QString());
+    // The topic in the language of the user interface (step 5), English without a translation
+    m_topic = m_catalog->getLocalizedTopic(topicId, PDFAppLocale::getUiLanguage());
     build();
 
     QPointer<PDFAppHelpPage> guard(this);
@@ -429,6 +430,11 @@ void PDFAppHelpPage::changeEvent(QEvent* event)
     BaseClass::changeEvent(event);
     if (event->type() == QEvent::LanguageChange && !m_topic.id.isEmpty())
     {
+        // The translation of the topic of the new language (the shared catalog is not parsed again)
+        if (m_catalog->findTopic(m_topic.id))
+        {
+            m_topic = m_catalog->getLocalizedTopic(m_topic.id, PDFAppLocale::getUiLanguage());
+        }
         build();
     }
 }

@@ -616,6 +616,20 @@ PDFAppRoute PDFAppRoutes::settings(const QString& section, const QString& anchor
     return PDFAppRoute::create({ QStringLiteral("settings"), section.isEmpty() ? QStringLiteral("general") : section }, QList<PDFAppRoute::QueryItem>(), anchor);
 }
 
+PDFAppRoute PDFAppRoutes::settingsFilter(const QString& text)
+{
+    // The encoded route has a limit of its length (a text of many non-Latin
+    // characters): the text is shortened until the route is valid
+    QString query = PDFSearchQuery::sanitize(text);
+    PDFAppRoute route = PDFAppRoute::create({ QStringLiteral("settings") }, { PDFAppRoute::QueryItem(QStringLiteral("q"), query) });
+    while (!route.isValid() && !query.isEmpty())
+    {
+        query.chop(query.size() >= 2 && query.back().isLowSurrogate() ? 2 : 1);
+        route = PDFAppRoute::create({ QStringLiteral("settings") }, { PDFAppRoute::QueryItem(QStringLiteral("q"), query) });
+    }
+    return route;
+}
+
 PDFAppRoute PDFAppRoutes::search(const QString& text, const QString& group)
 {
     // The text of a field is sanitized as the page does it: a control character or a

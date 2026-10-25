@@ -352,15 +352,22 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
     step.mergeKey = boundedMergeKey;
     step.memory = PDFAppUndoStack::estimateMemory(m_document.data(), newDocument.data());
 
-    // The limit is read at each change (no cache of the settings)
-    if (m_context && m_context->getDatabase())
-    {
-        m_undoStack->setLimit(int(m_context->getSettings().getInteger(PDFSettingKeys::editingUndoLimit())));
-    }
+    // The limits are read at each change (no cache of the settings)
+    updateUndoLimits();
     m_undoStack->push(std::move(step));
 
     setDocument(newDocument, modified.getFlags(), false);
     return true;
+}
+
+void PDFAppDocument::updateUndoLimits()
+{
+    if (m_context && m_context->getDatabase())
+    {
+        const PDFSettingsRepository settings = m_context->getSettings();
+        m_undoStack->setLimit(int(settings.getInteger(PDFSettingKeys::editingUndoLimit())));
+        m_undoStack->setRedoLimit(int(settings.getInteger(PDFSettingKeys::editingRedoLimit())));
+    }
 }
 
 void PDFAppDocument::closeUndoMerge()

@@ -41,6 +41,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QStyleOptionGroupBox>
 #include <QTabBar>
 #include <QTextEdit>
@@ -283,6 +284,26 @@ int PDFWidgetStyleImpl::getFocusFrameMargin(const QWidget* focusFrame)
 QMargins PDFWidgetStyleImpl::getShadowMarginsIfTranslucent(PopupKind kind)
 {
     return isTranslucencyAvailable() ? getShadowMargins(kind) : QMargins();
+}
+
+QMargins PDFWidgetStyleImpl::getComboPopupRowInsets(const QWidget* view, Qt::LayoutDirection direction)
+{
+    // Padding of the panel (Widgets 06) and the gap of the rows before the
+    // scroll bar (items 238 wide, the scroll bar at 250 of 260 - 944:8960)
+    constexpr int PADDING = 6;
+    constexpr int SCROLL_BAR_GAP = 2;
+
+    if (const QComboBox* comboBox = qobject_cast<const QComboBox*>(view))
+    {
+        view = comboBox->view();
+    }
+
+    // The scroll bar is in a container of the area, which is hidden, when the list does not scroll
+    const QAbstractScrollArea* area = qobject_cast<const QAbstractScrollArea*>(view);
+    const QScrollBar* scrollBar = area ? area->verticalScrollBar() : nullptr;
+    const bool hasScrollBar = scrollBar && scrollBar->isVisibleTo(area);
+    const int trailing = hasScrollBar ? SCROLL_BAR_GAP : PADDING;
+    return direction == Qt::RightToLeft ? QMargins(trailing, 0, PADDING, 0) : QMargins(PADDING, 0, trailing, 0);
 }
 
 bool PDFWidgetStyleImpl::needsHover(const QWidget* widget)

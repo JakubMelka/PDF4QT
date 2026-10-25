@@ -1315,9 +1315,14 @@ void AppSearchTest::pageActivation()
             {
                 QCOMPARE(fixture.currentTab()->getKind(), pdf::PDFAppTabKind::Help);
             }
+            else if (result.group == pdf::PDFAppSearchGroup::Settings)
+            {
+                // Settings have their page (step 5): the section with the row
+                QVERIFY(!navigated.last().at(2).toBool());
+            }
             else
             {
-                // Tools and Settings have no pages in step 2: Page Not Found (expected)
+                // Tools have no pages in step 2: Page Not Found (expected)
                 QVERIFY(navigated.last().at(2).toBool());
             }
             break;

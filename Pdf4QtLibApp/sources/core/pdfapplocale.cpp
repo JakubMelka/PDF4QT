@@ -25,6 +25,9 @@
 #include <QMutex>
 #include <QMutexLocker>
 
+#include <map>
+#include <vector>
+
 namespace pdf
 {
 
@@ -45,6 +48,45 @@ public:
     {
         static QLocale locale = PDFAppLocale::getDefaultUiLocale();
         return locale;
+    }
+
+    /// The language ("" = English); access only under getMutex()
+    static QString& getLanguage()
+    {
+        static QString language;
+        return language;
+    }
+
+    /// Most default locales kept alive by retainDefaultLocale (a language is changed
+    /// by the user, not in a loop; the locales of the languages are cached anyway)
+    static constexpr size_t MAXIMUM_RETAINED_LOCALES = 256;
+
+    /// Default locales of the process, which have been replaced (GUI thread).
+    /// QLocale::setDefault is not thread safe: a worker thread constructing QLocale()
+    /// (tr() of "%Ln", the profile descriptions of the color management, Qt itself)
+    /// at the moment of a change of the language copies the private data of the
+    /// previous default. The data are kept alive here, so such a copy never reads
+    /// freed memory (QLocale shares its data, each copy here holds a reference).
+    static void retainDefaultLocale(const QLocale& locale)
+    {
+        static std::vector<QLocale> retainedLocales;
+        if (retainedLocales.size() < MAXIMUM_RETAINED_LOCALES)
+        {
+            retainedLocales.push_back(locale);
+        }
+    }
+
+    /// Locale of a language of the user interface, created once per language (GUI
+    /// thread): the data of a locale, which has been the default, stay alive
+    static QLocale getCachedLocale(const QString& language)
+    {
+        static std::map<QString, QLocale> locales;
+        auto it = locales.find(language);
+        if (it == locales.end())
+        {
+            it = locales.emplace(language, PDFAppLocale::getLocaleForLanguage(language)).first;
+        }
+        return it->second;
     }
 };
 
@@ -82,6 +124,28 @@ void PDFAppLocale::setUiLocale(const QLocale& locale)
     {
         QMutexLocker locker(&PDFAppLocaleHelper::getMutex());
         PDFAppLocaleHelper::getLocale() = locale;
+        if (locale == getDefaultUiLocale())
+        {
+            PDFAppLocaleHelper::getLanguage().clear();
+        }
+    }
+    applyDefaultLocale();
+}
+
+QString PDFAppLocale::getUiLanguage()
+{
+    QMutexLocker locker(&PDFAppLocaleHelper::getMutex());
+    return PDFAppLocaleHelper::getLanguage();
+}
+
+void PDFAppLocale::setUiLanguage(const QString& language)
+{
+    const QString name = language.compare(QLatin1String("en"), Qt::CaseInsensitive) == 0 || language.size() > 32 ? QString() : language;
+    const QLocale locale = PDFAppLocaleHelper::getCachedLocale(name);
+    {
+        QMutexLocker locker(&PDFAppLocaleHelper::getMutex());
+        PDFAppLocaleHelper::getLocale() = locale;
+        PDFAppLocaleHelper::getLanguage() = locale == getDefaultUiLocale() ? QString() : name;
     }
     applyDefaultLocale();
 }
@@ -90,8 +154,10 @@ void PDFAppLocale::applyDefaultLocale()
 {
     // QLocale::setDefault is not reentrant: it is called only when the default differs
     const QLocale locale = getUiLocale();
-    if (QLocale() != locale)
+    const QLocale previous;
+    if (previous != locale)
     {
+        PDFAppLocaleHelper::retainDefaultLocale(previous);
         QLocale::setDefault(locale);
     }
 }

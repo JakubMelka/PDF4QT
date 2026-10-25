@@ -194,6 +194,10 @@ public:
     /// Section of Settings (general when empty) with the anchor of a setting
     static PDFAppRoute settings(const QString& section = QString(), const QString& anchor = QString());
 
+    /// Settings filtered by the text (/settings?q=, step 5); the text is sanitized
+    /// (PDFSearchQuery::sanitize) and shortened, so the route is always valid
+    static PDFAppRoute settingsFilter(const QString& text);
+
     /// Global search (Show all results) of the text, optionally in the group; the
     /// text is sanitized (PDFSearchQuery::sanitize), so the route is always valid
     static PDFAppRoute search(const QString& text, const QString& group = QString());

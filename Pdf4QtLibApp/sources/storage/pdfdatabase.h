@@ -29,10 +29,13 @@
 #include <QDateTime>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QMutex>
 #include <QTimer>
+#include <QVariant>
 
 #include <atomic>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -197,6 +200,146 @@ public:
 
     /// Name of the lock file
     static constexpr const char* UPGRADE_LOCK_FILE_NAME = "pdf4qt-upgrade.lock";
+
+    /// Time, for which deleteOlderFile waits for the lock of the upgrades (ms)
+    static constexpr int DELETE_LOCK_TIMEOUT = 2000;
+
+    /// Deletes an older database file of the folder (Settings › Storage, step 5):
+    /// \p filePath must be one of the files of getFiles of \p directory (no path of
+    /// the user interface is trusted), its schema version must be older than
+    /// \p currentSchemaVersion, it must not be a symbolic link, a junction or a
+    /// shortcut (also its -wal / -shm / -journal), and no process may use it. The
+    /// check runs under the lock of the upgrades: the file is opened in the exclusive
+    /// locking mode of SQLite without waiting (a running PDF4QT holds a shared lock
+    /// of its database file in the WAL mode the whole time), closed, then the file
+    /// and its -wal, -shm and -journal are deleted. A file used by another process
+    /// gives a busy error (PDFDatabaseError::isBusy). The messages are translated.
+    static PDFDatabaseError deleteOlderFile(const QString& directory, const QString& filePath, int currentSchemaVersion,
+                                            int lockTimeout = DELETE_LOCK_TIMEOUT);
+
+    /// Name of the version of PDF4QT, which uses the schema version, for the user
+    /// (owner decision 2026-10-25: "PDF4QT 2.0" instead of "Schema 1"). A static
+    /// table of the released schema versions; a version newer than the table is
+    /// "Newer PDF4QT", an unknown older one "PDF4QT (schema N)".
+    static QString getVersionLabel(int schemaVersion);
+
+    /// Newest schema version of the table of getVersionLabel
+    static int getNewestLabeledSchemaVersion();
+};
+
+/// Result of the check of a backup file of the settings
+enum class PDFDatabaseBackupStatus
+{
+    Valid,          ///< A backup of PDF4QT of this or of an older schema version
+    Missing,        ///< The file does not exist or it cannot be read
+    TooLarge,       ///< The file is larger than PDFDatabaseBackup::MAXIMUM_SIZE
+    NotABackup,     ///< Not a database of PDF4QT, or its schema is not the schema of its version
+    Damaged,        ///< A database of PDF4QT, which fails the integrity check
+    Newer           ///< A backup of a newer PDF4QT (a newer schema version)
+};
+
+/// Backup of the settings (Settings › Storage, owner decision Q1): one SQLite file
+/// with the whole database of the application. A backup to be imported is untrusted
+/// input: it is read whole into memory (at most MAXIMUM_SIZE bytes, so the file
+/// cannot change between its check and its import) and checked there - the header
+/// of SQLite, PRAGMA application_id, user_version (a newer schema is refused), the
+/// full integrity check (integrity_check: also the indexes against their tables), the
+/// text encoding UTF-8, in a connection with the defensive mode and without
+/// a trusted schema, and the schema itself: every table, index, trigger and view
+/// (sqlite_master) must equal the schema, which the migrations of the application
+/// create for that version, so no foreign trigger or view can reach the database.
+class PDF4QTLIBAPPSHARED_EXPORT PDFDatabaseBackup
+{
+public:
+    /// Largest backup file (owner 2026-10-25: 128 MB - the file is read and checked
+    /// in the thread of the user interface)
+    static constexpr qint64 MAXIMUM_SIZE = qint64(128) * 1024 * 1024;
+
+    /// Most rows of the trusted certificates read from a backup and the largest
+    /// certificate (the limits of PDFTrustedCertificateRepository)
+    static constexpr int MAXIMUM_CERTIFICATE_COUNT = 1000;
+    static constexpr qsizetype MAXIMUM_CERTIFICATE_SIZE = 64 * 1024;
+
+    /// Longest stored text / blob value of a security setting read from a backup
+    /// (a longer one is read as not stored - no valid value of these settings is long)
+    static constexpr qsizetype MAXIMUM_SECURITY_VALUE_SIZE = 4096;
+
+    /// Suffix of the backup files (without the dot)
+    static constexpr const char* FILE_SUFFIX = "pdf4qt-backup";
+
+    /// Key of the table storage_maintenance of a backup: the time of the export
+    static constexpr const char* CREATED_KEY = "backup.created";
+
+    /// Reads and checks the file. \p migrations are the migrations of the
+    /// application (empty = PDFDatabaseSchema::getMigrations).
+    static PDFDatabaseBackup read(const QString& filePath, const std::vector<PDFDatabaseMigration>& migrations = std::vector<PDFDatabaseMigration>());
+
+    /// Checks the content of a file (read uses it; tests)
+    static PDFDatabaseBackup fromData(const QByteArray& data, const QString& filePath, const std::vector<PDFDatabaseMigration>& migrations = std::vector<PDFDatabaseMigration>());
+
+    /// Default name of an exported file: "PDF4QT settings yyyy-MM-dd.pdf4qt-backup"
+    static QString getDefaultFileName(const QDate& date);
+
+    bool isValid() const { return m_status == PDFDatabaseBackupStatus::Valid; }
+    PDFDatabaseBackupStatus getStatus() const { return m_status; }
+    const QString& getFilePath() const { return m_filePath; }
+
+    /// Schema version of the backup (0 = unknown)
+    int getSchemaVersion() const { return m_schemaVersion; }
+
+    /// Schema version of the application, which has checked the backup
+    int getApplicationSchemaVersion() const { return m_applicationSchemaVersion; }
+
+    /// Time of the export (the time of the file, when the backup does not have it)
+    const QDateTime& getCreated() const { return m_created; }
+
+    /// Size of the file in bytes
+    qint64 getSize() const { return m_size; }
+
+    /// Content of a valid backup (empty otherwise)
+    const QByteArray& getData() const { return m_data; }
+
+    /// Technical detail of a refused file (the log)
+    const QString& getDetail() const { return m_detail; }
+
+    /// Translated reason of a refused file (the import error 1271:15560 and the note
+    /// 1271:167948), without "Nothing was changed."
+    QString getErrorText() const;
+
+    /// Keys of the security and signature settings, which the import confirmation
+    /// compares with the current values (owner 2026-10-25, Q7)
+    static QStringList getSecuritySettingKeys();
+
+    /// Data of the rows of trusted_certificate of a valid backup in the order of
+    /// adding: blobs of 1 to MAXIMUM_CERTIFICATE_SIZE bytes, at most
+    /// MAXIMUM_CERTIFICATE_COUNT; untrusted - not checked to be certificates
+    const std::vector<QByteArray>& getTrustedCertificates() const { return m_trustedCertificates; }
+
+    /// Stored value of a key of getSecuritySettingKeys in a valid backup (an invalid
+    /// QVariant = not stored, the default applies); untrusted - not validated
+    QVariant getSecuritySetting(const QString& key) const;
+
+private:
+    /// Reads the certificates and the security settings of a checked backup
+    void readSecurityData(sqlite3* handle);
+
+    PDFDatabaseBackupStatus m_status = PDFDatabaseBackupStatus::Missing;
+    QString m_filePath;
+    int m_schemaVersion = 0;
+    int m_applicationSchemaVersion = 0;
+    QDateTime m_created;
+    qint64 m_size = 0;
+    QByteArray m_data;
+    QString m_detail;
+    std::vector<QByteArray> m_trustedCertificates;
+    std::map<QString, QVariant> m_securitySettings;
+};
+
+/// What an import does with the trusted certificates (owner 2026-10-25, Q7)
+enum class PDFDatabaseImportCertificates
+{
+    KeepCurrent,    ///< The current rows of trusted_certificate stay (the backup does not add trust)
+    FromBackup      ///< The rows of the backup replace them
 };
 
 /// Parameters of PDFDatabase::open
@@ -432,6 +575,46 @@ public:
     /// Version of the linked SQLite library
     static QString getSQLiteVersion();
 
+    /// Time, for which an export or an import waits for another instance, which
+    /// writes the database or holds the lock of the upgrades (ms)
+    static constexpr int BACKUP_BUSY_TIMEOUT = 2000;
+
+    /// Export of the settings (Settings › Storage): the open database (any mode) is
+    /// copied by the backup API of SQLite into memory (a consistent snapshot also
+    /// while other instances write), the state of the running instances (the change
+    /// log, the markers of the thumbnails, the integrity check, the MCP server and its
+    /// activity log - history with the names of documents, owner 2026-10-25) is
+    /// removed, the time of the export is stored, and the copy is written to a
+    /// temporary file of the folder of \p filePath, which is renamed to it (never a
+    /// half-written file; only the owner may read it). GUI thread.
+    PDFDatabaseError exportBackup(const QString& filePath);
+
+    /// Import of a valid backup (PDFDatabaseBackup::read): its content is checked
+    /// again, copied into memory and migrated to the schema of the application, the
+    /// state of the running instances is taken from the open database, and the open
+    /// database is replaced by the backup API in one step (one write transaction),
+    /// under the lock of the upgrades of the folder of the database. Every connection
+    /// of this and of other instances sees the new content; their notifiers report
+    /// everythingChanged (the sequence of the change log jumps). Refused for a
+    /// database of a newer schema (ReadOnlyNewerSchema). Another instance holding the
+    /// lock or writing = a busy error. Nothing is changed on an error. GUI thread.
+    /// The MCP activity log (mcp_activity) is no part of a backup: the open database
+    /// keeps its rows (owner 2026-10-25). \p certificates: KeepCurrent keeps the rows
+    /// of trusted_certificate of the open database in the same step (an import never
+    /// adds trust, unless the user has asked for it - owner 2026-10-25, Q7).
+    /// Every row of sqlite_sequence is set to the largest rowid of its table (a hostile
+    /// sequence of a backup never blocks later inserts), the change log jumps.
+    PDFDatabaseError importBackup(const PDFDatabaseBackup& backup, PDFDatabaseImportCertificates certificates);
+
+    /// Deletes an older database file of the folder of the options
+    /// (PDFDatabaseFiles::deleteOlderFile); refused without a folder, in the portable
+    /// mode and for the file, which is open
+    PDFDatabaseError deleteOlderDatabaseFile(const QString& filePath);
+
+    /// Jump of the sequence of the change log at an import (every notifier finds
+    /// a sequence it has not seen and rereads everything)
+    static constexpr qint64 IMPORT_SEQUENCE_JUMP = 1000000;
+
 Q_SIGNALS:
     /// Mode of the storage has changed (open, retryOpen, close)
     void stateChanged();
@@ -460,6 +643,7 @@ private:
     void processCommitted();
     QString getMemoryUri() const;
     const std::vector<PDFDatabaseMigration>& getMigrations() const;
+    sqlite3* openTargetHandle(int busyTimeout, PDFDatabaseError* error) const;
 
     PDFDatabaseOptions m_options;
     std::vector<PDFDatabaseMigration> m_builtinMigrations;

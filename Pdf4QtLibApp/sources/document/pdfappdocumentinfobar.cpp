@@ -62,6 +62,8 @@ public:
                 return PDFAccentHue::Amber;
             case PDFAppInfoBarTone::Error:
                 return PDFAccentHue::Red;
+            case PDFAppInfoBarTone::Success:
+                return PDFAccentHue::Green;
         }
         return PDFAccentHue::Neutral;
     }
@@ -108,6 +110,8 @@ QString PDFAppInfoBar::getToneIconName(PDFAppInfoBarTone tone)
             return QStringLiteral("ban");
         case PDFAppInfoBarTone::Progress:
             return QStringLiteral("hourglass");
+        case PDFAppInfoBarTone::Success:
+            return QStringLiteral("check-circle");
     }
     return QStringLiteral("info");
 }

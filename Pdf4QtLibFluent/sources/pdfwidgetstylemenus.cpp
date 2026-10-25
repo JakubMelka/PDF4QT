@@ -361,7 +361,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
             {
                 // Title of a section: Medium 11, paddings 6 / 10 / 2
                 const QRectF textRect = rect.adjusted(ITEM_PADDING, 6.0, -ITEM_PADDING, -2.0);
-                PDFStylePainter::text(painter, textRect, Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::TextSingleLine | Qt::TextHideMnemonic,
+                PDFStylePainter::text(painter, textRect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(isRightToLeft) | Qt::TextSingleLine | Qt::TextHideMnemonic,
                                       option->text, PDFThemeFonts::getFont(Font::Caption), PDFWidgetStyleImpl::color(Color::TextMuted));
             }
             return;
@@ -448,7 +448,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     {
         const QFont shortcutFont = PDFThemeFonts::getFont(Font::Small);
         const qreal shortcutWidth = PDFWidgetStyleImpl::getTextWidth(shortcut, shortcutFont);
-        PDFStylePainter::text(painter, placeInRow(rect, isRightToLeft, right - shortcutWidth, shortcutWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine | Qt::TextHideMnemonic,
+        PDFStylePainter::text(painter, placeInRow(rect, isRightToLeft, right - shortcutWidth, shortcutWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute | Qt::TextSingleLine | Qt::TextHideMnemonic,
                               shortcut, shortcutFont, PDFWidgetStyleImpl::color(isEnabled ? Color::TextMuted : Color::TextDisabled));
         right -= shortcutWidth + ITEM_GAP;
     }
@@ -456,7 +456,7 @@ void PDFWidgetStyleMenus::drawMenuItem(const QStyleOptionMenuItem* option, QPain
     const qreal textLeft = rect.left() + ITEM_PADDING + ITEM_ICON + ITEM_GAP;
     const QFont font = PDFWidgetStyleImpl::getFont(widget, Font::Body);
     const QString text = PDFWidgetStyleImpl::getElidedText(label, font, right - textLeft);
-    m_impl->drawText(painter, placeInRow(rect, isRightToLeft, textLeft, qMax(0.0, right - textLeft), rect.height()), Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft),
+    m_impl->drawText(painter, placeInRow(rect, isRightToLeft, textLeft, qMax(0.0, right - textLeft), rect.height()), Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(isRightToLeft),
                      text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 

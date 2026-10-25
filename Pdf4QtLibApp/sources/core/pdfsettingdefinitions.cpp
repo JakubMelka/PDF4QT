@@ -58,10 +58,35 @@ void PDFSettingDefinitions::registerGeneral(PDFSettingRegistry* registry)
     // the section (Language, sidebar) comes with the Settings page (step 5).
     const QString section = sectionGeneral();
 
+    // Language of the user interface (step 5, owner decision O12: English by
+    // default; the options of 944:8916 - the native name first, the English one
+    // after it). The tag "Restart required" of Figma is not set: the language
+    // switches at once (owner question Q2).
+    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::appearanceLanguage(), PDFSettingValues::languageEnglish(),
+                                                     { { PDFSettingValues::languageAuto(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Automatic")), false },
+                                                       { PDFSettingValues::languageEnglish(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "English")), false },
+                                                       { QStringLiteral("de"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Deutsch – German")), false },
+                                                       { QStringLiteral("ko"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "한국어 – Korean")), false },
+                                                       { QStringLiteral("es"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Español – Spanish")), false },
+                                                       { QStringLiteral("cs"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Čeština – Czech")), false },
+                                                       { QStringLiteral("zh_CN"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "简体中文 – Chinese (Simplified)")), false },
+                                                       { QStringLiteral("zh_TW"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "繁體中文 – Chinese (Traditional)")), false },
+                                                       { QStringLiteral("fr"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Français – French")), false },
+                                                       { QStringLiteral("tr"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Türkçe – Turkish")), false },
+                                                       { QStringLiteral("ru"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Русский – Russian")), false } })
+                      .setSection(section, QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Application")))
+                      .setAnchor(QStringLiteral("language"))
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Language"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Language of the user interface"))
+                      .setKeywords({ QStringLiteral("language"), QStringLiteral("translation"), QStringLiteral("locale"), QStringLiteral("localization") })
+                      // The switch rebuilds the whole user interface: only a chosen
+                      // language is applied, not every arrow key (owner 2026-10-25)
+                      .setCommitOnActivation());
+
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::colorScheme(), PDFSettingValues::colorSchemeAuto(),
-                                                     { { PDFSettingValues::colorSchemeLight(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Light")), false },
-                                                       { PDFSettingValues::colorSchemeDark(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Dark")), false },
-                                                       { PDFSettingValues::colorSchemeAuto(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Auto")), false } })
+                                                     { { PDFSettingValues::colorSchemeAuto(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Automatic")), false },
+                                                       { PDFSettingValues::colorSchemeLight(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Light")), false },
+                                                       { PDFSettingValues::colorSchemeDark(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Dark")), false } })
                       .setSection(section, QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Application")))
                       .setAnchor(QStringLiteral("color-scheme"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color scheme"))
@@ -79,12 +104,14 @@ void PDFSettingDefinitions::registerGeneral(PDFSettingRegistry* registry)
                       .setSection(section, QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Tools")))
                       .setAnchor(QStringLiteral("suggest-next-tools"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Suggest tools I often use next"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "“Then continue with” in the result dialog offers the tools you usually run after this one. When off, only the default suggestions are shown and nothing is counted. Only tool identifiers and counts are kept on this computer, never file names."))
                       .setKeywords({ QStringLiteral("then continue with"), QStringLiteral("suggestions"), QStringLiteral("tool history") }));
 
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::updateAutoCheck(), true)
                       .setSection(section, QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Updates")))
                       .setAnchor(QStringLiteral("check-for-updates"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Check for updates automatically"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Once a day PDF4QT asks GitHub whether a newer version is available and shows the answer on What’s New. Nothing is downloaded or installed. When off, use Check for updates on What’s New."))
                       .setKeywords({ QStringLiteral("update"), QStringLiteral("new version"), QStringLiteral("release") }));
 }
 
@@ -181,22 +208,26 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::viewingWheelSpeedHorizontal(), 100, 10, 400)
                       .setSection(sectionViewing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Scrolling")))
                       .setAnchor(QStringLiteral("horizontal-wheel-speed"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "%"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Horizontal wheel speed"))
                       .setKeywords({ QStringLiteral("scroll"), QStringLiteral("wheel"), QStringLiteral("mouse") }));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::viewingWheelSpeedVertical(), 100, 10, 400)
                       .setSection(sectionViewing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Scrolling")))
                       .setAnchor(QStringLiteral("vertical-wheel-speed"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "%"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Vertical wheel speed"))
                       .setKeywords({ QStringLiteral("scroll"), QStringLiteral("wheel"), QStringLiteral("mouse") }));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::magnifierSize(), 100, 50, 400)
                       .setSection(sectionViewing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Magnifier")))
                       .setAnchor(QStringLiteral("magnifier-size"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "px"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Magnifier size"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Diameter of the magnifier"))
                       .setKeywords({ QStringLiteral("loupe"), QStringLiteral("zoom") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::magnifierZoom(), 2.0, 1.0, 10.0)
                       .setSection(sectionViewing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Magnifier")))
                       .setAnchor(QStringLiteral("magnifier-zoom"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "×")).setDecimals(1)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Magnifier zoom"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Magnification factor"))
                       .setKeywords({ QStringLiteral("loupe"), QStringLiteral("zoom") }));
@@ -239,23 +270,28 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::colorModesTextColor(), QStringLiteral("#FFB000"), 16)
                       .setSection(sectionColorModes(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom colors")))
                       .setAnchor(QStringLiteral("text-color"))
+                      .setControl(PDFSettingDefinition::Control::Color)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Text color"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Choosing a color switches the preset to Custom"))
                       .setKeywords({ QStringLiteral("custom colors"), QStringLiteral("foreground") }));
-    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::colorModesPageColor(), QStringLiteral("#141414"), 16)
+    // The default pair is the preset Amber (Reading theme card 160:4427)
+    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::colorModesPageColor(), QStringLiteral("#0B0B10"), 16)
                       .setSection(sectionColorModes(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom colors")))
                       .setAnchor(QStringLiteral("page-color"))
+                      .setControl(PDFSettingDefinition::Control::Color)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Page color"))
                       .setKeywords({ QStringLiteral("custom colors"), QStringLiteral("background"), QStringLiteral("paper") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::colorModesHighContrastStrength(), 10.0, 1.0, 100.0)
                       .setSection(sectionColorModes(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Mode adjustments")))
                       .setAnchor(QStringLiteral("high-contrast-strength"))
+                      .setControl(PDFSettingDefinition::Control::Slider).setDecimals(0)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "High contrast strength"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Used by the High contrast mode"))
                       .setKeywords({ QStringLiteral("high contrast"), QStringLiteral("sigmoid") }));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::colorModesBitonalThreshold(), 128, 0, 255)
                       .setSection(sectionColorModes(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Mode adjustments")))
                       .setAnchor(QStringLiteral("black-and-white-threshold"))
+                      .setControl(PDFSettingDefinition::Control::Slider)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Black and white threshold"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Used by the Bitonal mode"))
                       .setKeywords({ QStringLiteral("bitonal"), QStringLiteral("threshold") }));
@@ -271,6 +307,26 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setAnchor(QStringLiteral("maximum-redo-steps"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Maximum redo steps"))
                       .setKeywords({ QStringLiteral("redo"), QStringLiteral("history") }));
+
+    // Settings › Editing, author of the annotations (step 4; Anonymous by default -
+    // owner question Q1, the name is stored in the document); the group Author
+    // identity is above Forms (146:3196)
+    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::annotationsAuthorMode(), PDFSettingValues::authorModeAnonymous(),
+                                                   { { PDFSettingValues::authorModeAnonymous(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Anonymous (do not disclose the user name)")), false },
+                                                     { PDFSettingValues::authorModeSystemUserName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "System user name")), false },
+                                                     { PDFSettingValues::authorModeCustomName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom name")), false } })
+                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
+                      .setAnchor(QStringLiteral("author-of-new-annotations"))
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author of new annotations"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Name written into comments and markups"))
+                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations"), QStringLiteral("privacy") }));
+    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::annotationsCustomAuthorName(), QString(), 256)
+                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
+                      .setAnchor(QStringLiteral("custom-author-name"))
+                      .setEnabledWhen(PDFSettingKeys::annotationsAuthorMode(), PDFSettingValues::authorModeCustomName())
+                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom author name"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Used when “Custom name” is selected"))
+                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::formsHighlightFields(), true)
                       .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Forms")))
                       .setAnchor(QStringLiteral("highlight-form-fields"))
@@ -289,24 +345,6 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Allow editing of read-only fields"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Ignore the read-only flag of form fields"))
                       .setKeywords({ QStringLiteral("forms"), QStringLiteral("read only") }));
-
-    // Settings › Editing, author of the annotations (step 4; Anonymous by default -
-    // owner question Q1, the name is stored in the document)
-    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::annotationsAuthorMode(), PDFSettingValues::authorModeAnonymous(),
-                                                   { { PDFSettingValues::authorModeAnonymous(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Anonymous (do not disclose the user name)")), false },
-                                                     { PDFSettingValues::authorModeSystemUserName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "System user name")), false },
-                                                     { PDFSettingValues::authorModeCustomName(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom name")), false } })
-                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
-                      .setAnchor(QStringLiteral("author-of-new-annotations"))
-                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author of new annotations"))
-                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Name written into comments and markups"))
-                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations"), QStringLiteral("privacy") }));
-    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::annotationsCustomAuthorName(), QString(), 256)
-                      .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Author identity")))
-                      .setAnchor(QStringLiteral("custom-author-name"))
-                      .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Custom author name"))
-                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Used when “Custom name” is selected"))
-                      .setKeywords({ QStringLiteral("author"), QStringLiteral("name"), QStringLiteral("annotations") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::annotationsShowMarkupBar(), true)
                       .setSection(sectionEditing(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Annotations")))
                       .setAnchor(QStringLiteral("show-markup-bar-when-text-is-selected"))
@@ -372,25 +410,28 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::speechRate(), 0.0, -1.0, 1.0)
                       .setSection(sectionSpeech(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Sound")))
                       .setAnchor(QStringLiteral("rate"))
+                      .setControl(PDFSettingDefinition::Control::Slider).setDecimals(1)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Rate"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Slower to faster"))
                       .setKeywords({ QStringLiteral("speech"), QStringLiteral("speed") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::speechPitch(), 0.0, -1.0, 1.0)
                       .setSection(sectionSpeech(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Sound")))
                       .setAnchor(QStringLiteral("pitch"))
+                      .setControl(PDFSettingDefinition::Control::Slider).setDecimals(1)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Pitch"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Lower to higher"))
                       .setKeywords({ QStringLiteral("speech") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::speechVolume(), 1.0, 0.0, 1.0)
                       .setSection(sectionSpeech(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Sound")))
                       .setAnchor(QStringLiteral("volume"))
+                      .setControl(PDFSettingDefinition::Control::Slider).setDecimals(2)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Volume"))
                       .setKeywords({ QStringLiteral("speech"), QStringLiteral("loudness") }));
 
     // Settings › Color management
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"),
                                                    { { QStringLiteral("generic"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Generic")), false },
-                                                     { QStringLiteral("lcms2"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Little CMS")), false } })
+                                                     { QStringLiteral("lcms2"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Little CMS 2")), false } })
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("color-management-system"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management system"))
@@ -404,6 +445,7 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                                                      { QStringLiteral("saturation"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Saturation")), false } })
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("rendering-intent"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Rendering intent"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("intent") }));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::cmsAccuracy(), QStringLiteral("medium"),
@@ -412,64 +454,74 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                                                      { QStringLiteral("high"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "High")), false } })
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("accuracy"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Accuracy"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("precision") }));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::cmsColorAdaptation(), QStringLiteral("bradford"),
                                                    { { QStringLiteral("none"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "None")), false },
                                                      { QStringLiteral("xyzScaling"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "XYZ scaling")), false },
-                                                     { QStringLiteral("cat97"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "CAT97")), false },
-                                                     { QStringLiteral("cat02"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "CAT02")), false },
-                                                     { QStringLiteral("bradford"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Bradford")), false } })
+                                                     { QStringLiteral("cat97"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "CAT97 matrix")), false },
+                                                     { QStringLiteral("cat02"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "CAT02 matrix")), false },
+                                                     { QStringLiteral("bradford"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Bradford method")), false } })
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("color-adaptation-method"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color adaptation method"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "XYZ white point"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("white point") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::cmsBlackPointCompensation(), true)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("black-point-compensation"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Black point compensation"))
                       .setKeywords({ QStringLiteral("cms") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::cmsWhitePaperTransformed(), false)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("white-paper-color-transformed"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "White paper color transformed"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("paper") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::cmsConsiderOutputIntent(), true)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color management")))
                       .setAnchor(QStringLiteral("consider-document-output-intents"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Consider document output intents"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("output intent") }));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::cmsOutputProfile(), QStringLiteral(""), 1024)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color profiles")))
                       .setAnchor(QStringLiteral("output-color-profile"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Output color profile"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("profile") }));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::cmsDeviceGrayProfile(), QStringLiteral(""), 1024)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color profiles")))
                       .setAnchor(QStringLiteral("device-gray-color-profile"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Device gray color profile"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("gray") }));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::cmsDeviceRgbProfile(), QStringLiteral(""), 1024)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color profiles")))
                       .setAnchor(QStringLiteral("device-rgb-color-profile"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Device RGB color profile"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("rgb") }));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::cmsDeviceCmykProfile(), QStringLiteral(""), 1024)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color profiles")))
                       .setAnchor(QStringLiteral("device-cmyk-color-profile"))
+                      .setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Device CMYK color profile"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("cmyk") }));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::cmsProfileDirectory(), QStringLiteral(""), 4096)
                       .setSection(sectionColorManagement(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color profiles")))
                       .setAnchor(QStringLiteral("additional-profile-directory"))
+                      .setControl(PDFSettingDefinition::Control::Path).setEnabledWhen(PDFSettingKeys::cmsSystem(), QStringLiteral("lcms2"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Additional profile directory"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Folder with your own ICC profiles"))
                       .setKeywords({ QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("folder") }));
 
     // Settings › Advanced
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::renderingEngine(), QStringLiteral("blend2dMultiThread"),
-                                                   { { QStringLiteral("qpainter"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Software (QPainter)")), false },
+                                                   { { QStringLiteral("qpainter"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "QPainter")), false },
                                                      { QStringLiteral("blend2dMultiThread"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Blend2D – multithreaded")), false },
                                                      { QStringLiteral("blend2dSingleThread"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Blend2D – single thread")), false } })
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Rendering engine")))
@@ -479,8 +531,8 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setKeywords({ QStringLiteral("renderer"), QStringLiteral("blend2d") }));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::renderingMultithreading(), QStringLiteral("loadBalanced"),
                                                    { { QStringLiteral("singleThread"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Single thread")), false },
-                                                     { QStringLiteral("loadBalanced"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Load balanced")), false },
-                                                     { QStringLiteral("maximumThreads"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Maximum threads")), false } })
+                                                     { QStringLiteral("loadBalanced"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Multithreading (load balanced)")), false },
+                                                     { QStringLiteral("maximumThreads"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Multithreading (maximum threads)")), false } })
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Rendering engine")))
                       .setAnchor(QStringLiteral("multithreading-strategy"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Multithreading strategy"))
@@ -494,11 +546,13 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::cacheCompiledPages(), 524288, 65536, 16777216)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Cache")))
                       .setAnchor(QStringLiteral("compiled-page-cache-size"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "kB"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Compiled page cache size"))
                       .setKeywords({ QStringLiteral("memory"), QStringLiteral("cache") }));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::cacheThumbnails(), 65536, 1024, 1048576)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Cache")))
                       .setAnchor(QStringLiteral("thumbnail-image-cache-size"))
+                      .setUnit(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "kB"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Thumbnail image cache size"))
                       .setKeywords({ QStringLiteral("memory"), QStringLiteral("cache"), QStringLiteral("thumbnails") }));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::cacheFontLimit(), 32, 8, 1024)
@@ -514,16 +568,19 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::renderingMeshPreferredRatio(), 0.02, 0.0001, 1.0)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Shading")))
                       .setAnchor(QStringLiteral("preferred-mesh-resolution-ratio"))
+                      .setDecimals(3)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Preferred mesh resolution ratio"))
                       .setKeywords({ QStringLiteral("shading"), QStringLiteral("mesh") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::renderingMeshMinimalRatio(), 0.005, 0.0001, 1.0)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Shading")))
                       .setAnchor(QStringLiteral("minimal-mesh-resolution-ratio"))
+                      .setDecimals(3)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Minimal mesh resolution ratio"))
                       .setKeywords({ QStringLiteral("shading"), QStringLiteral("mesh") }));
     add(registry, PDFSettingDefinition::createReal(PDFSettingKeys::renderingColorTolerance(), 0.01, 0.0, 1.0)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Shading")))
                       .setAnchor(QStringLiteral("color-tolerance"))
+                      .setDecimals(3)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Color tolerance"))
                       .setKeywords({ QStringLiteral("shading"), QStringLiteral("mesh") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::advancedDeveloperMode(), false)
@@ -535,18 +592,21 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::advancedShowRenderTimes(), false)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer")))
                       .setAnchor(QStringLiteral("display-page-compile-draw-time"))
+                      .setEnabledWhen(PDFSettingKeys::advancedDeveloperMode(), true)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Display page compile/draw time"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Overlay timing on each page"))
                       .setKeywords({ QStringLiteral("developer"), QStringLiteral("performance"), QStringLiteral("timing") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::advancedShowTextBlocks(), false)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer")))
                       .setAnchor(QStringLiteral("display-text-blocks"))
+                      .setEnabledWhen(PDFSettingKeys::advancedDeveloperMode(), true)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Display text blocks"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Frame the text blocks found by the text layout"))
                       .setKeywords({ QStringLiteral("developer"), QStringLiteral("text layout") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::advancedShowTextLines(), false)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer")))
                       .setAnchor(QStringLiteral("display-text-lines"))
+                      .setEnabledWhen(PDFSettingKeys::advancedDeveloperMode(), true)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Display text lines"))
                       .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Frame the text lines found by the text layout"))
                       .setKeywords({ QStringLiteral("developer"), QStringLiteral("text layout") }));
@@ -614,6 +674,7 @@ void PDFSettingDefinitions::registerState(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::updateLatestVersion(), QString(), 64));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::updateLastError(), QString(), 4096));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastSuccess(), 0, 0, std::numeric_limits<qint64>::max()));
+    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::storageBackupFolder(), QString(), 32767));
 }
 
 }   // namespace pdf

@@ -22,5 +22,7 @@ The command *Read aloud* in the commands of the window starts and stops the read
 
 Choose the **Language** and the **Voice**, and set the **Rate**, the **Pitch** and the **Volume** of the speech. They are the same settings as Settings › Speech: a change in the panel applies to all documents and is kept for the next start.
 
+Settings › Speech also chooses the **Voice synthesizer** – the speech engine of your system, when it offers more of them (for example WinRT and SAPI 5 on Windows). **Play sample** says a short sentence with the current voice and settings; click **Stop** to end it.
+
 > [!NOTE] Voices of the system
 > The voices come from the speech engine of your operating system (Windows, speech-dispatcher on Linux). When no engine is available, the panel says so and the reading cannot start.

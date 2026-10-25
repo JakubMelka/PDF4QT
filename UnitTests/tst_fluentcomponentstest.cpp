@@ -660,6 +660,7 @@ private slots:
     void pageElementWidgets();
     void recentStates();
     void messageBoxCustomContent();
+    void messageBoxInitialFocus();
 
     // Step 3: the rendering issue row (198:5950) and the icon of the badge of a message box (1028:22475)
     void renderingIssueRowPixels_data();
@@ -14982,6 +14983,94 @@ void FluentComponentsTest::recentStates()
     delegate.triggerAction(&view, model.index(1, 0), pdf::PDFRecentItemDelegate::MenuAction);
     QCOMPARE(triggered.count(), 1);
     view.setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::messageBoxInitialFocus()
+{
+    // The own row of the buttons: Qt gives the first focus to the first button
+    // created - the leading one, a destructive action, which Space would take.
+    // The default (Primary) button gets it; a form keeps its field (FX5-2).
+    using Position = pdf::PDFMessageBox::ActionPosition;
+    QWidget host;
+    host.resize(800, 600);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    // A confirmation: Delete File leading, Cancel the Primary button
+    {
+        QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Delete the file?"),
+                                                                  QStringLiteral("This cannot be undone."), QDialogButtonBox::NoButton, &host);
+        QPushButton* remove = box->addActionButton(QStringLiteral("Delete File"), Position::Leading, false);
+        QPushButton* cancel = box->addActionButton(QStringLiteral("Cancel"), Position::Trailing, true);
+        QSignalSpy removeSpy(remove, &QPushButton::clicked);
+        QSignalSpy cancelSpy(cancel, &QPushButton::clicked);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QCOMPARE(box->focusWidget(), static_cast<QWidget*>(cancel));
+        QVERIFY(cancel->isDefault());
+        QTest::keyClick(box->focusWidget(), Qt::Key_Space);
+        QCOMPARE(removeSpy.count(), 0);
+        QCOMPARE(cancelSpy.count(), 1);
+
+        // Shown again: the first focus again on the Primary button
+        box->hide();
+        remove->setFocus();
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QCOMPARE(box->focusWidget(), static_cast<QWidget*>(remove));   // focused by the application
+        delete box.data();
+    }
+
+    // A form: its first field takes the first focus, not the Primary button
+    {
+        QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Rename"), QString(),
+                                                                  QDialogButtonBox::NoButton, &host);
+        pdf::PDFLineEdit* field = new pdf::PDFLineEdit(QStringLiteral("Name"));
+        box->addContent(field);
+        box->addActionButton(QStringLiteral("Cancel"), Position::Trailing, false);
+        box->addActionButton(QStringLiteral("Rename"), Position::Trailing, true);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QTRY_COMPARE(box->focusWidget(), static_cast<QWidget*>(field));
+        delete box.data();
+    }
+
+    // A check box of a confirmation is a button too (Space would toggle it)
+    {
+        QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Import?"), QString(),
+                                                                  QDialogButtonBox::NoButton, &host);
+        box->addContent(new QCheckBox(QStringLiteral("Also trust the certificates")));
+        box->addActionButton(QStringLiteral("Import"), Position::Leading, false);
+        QPushButton* cancel = box->addActionButton(QStringLiteral("Cancel"), Position::Trailing, true);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QCOMPARE(box->focusWidget(), static_cast<QWidget*>(cancel));
+        delete box.data();
+    }
+
+    // A disabled Primary button and a row without a default button keep the
+    // order of Qt (the dialog does not focus a button, which cannot be pressed)
+    {
+        QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QString(),
+                                                                  QDialogButtonBox::NoButton, &host);
+        QPushButton* first = box->addActionButton(QStringLiteral("First"), Position::Leading, false);
+        QPushButton* primary = box->addActionButton(QStringLiteral("Primary"), Position::Trailing, true);
+        primary->setEnabled(false);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QVERIFY(box->focusWidget() != primary);
+        Q_UNUSED(first);
+        delete box.data();
+    }
+
+    // Standard buttons: the default button of the button box as before
+    {
+        pdf::PDFMessageBox box(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &host);
+        box.setDefaultButton(QDialogButtonBox::Cancel);
+        box.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&box));
+        QCOMPARE(box.focusWidget(), static_cast<QWidget*>(box.getButtonBox()->button(QDialogButtonBox::Cancel)));
+    }
 }
 
 void FluentComponentsTest::messageBoxCustomContent()

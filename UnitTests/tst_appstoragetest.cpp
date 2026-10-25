@@ -44,6 +44,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <filesystem>
+#include <map>
 #include <thread>
 
 /// Helper functions of the test and of its child processes
@@ -402,7 +404,53 @@ public:
         {
             return runUpgrade(arguments.value(2), arguments.value(3).toInt(), arguments.value(4) == QLatin1String("crash"));
         }
+        if (mode == QLatin1String("--storage-hold-open"))
+        {
+            return runHoldOpen(arguments.value(2));
+        }
+        if (mode == QLatin1String("--storage-import-watch"))
+        {
+            return runImportWatch(arguments.value(2));
+        }
         return 2;
+    }
+
+    /// Opens the database file as a running PDF4QT does (WAL), writes a row, waits
+    /// for a line of the test and ends without closing it (its -wal and -shm stay)
+    static int runHoldOpen(const QString& filePath)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createOptions(filePath));
+        const bool isWritten = database.getState().mode == pdf::PDFDatabaseStorageMode::Disk &&
+                               AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('test.hold', 'yes', 0)");
+        print(isWritten ? "open" : "failed");
+        QFile input;
+        if (input.open(stdin, QIODevice::ReadOnly))
+        {
+            input.readLine();
+        }
+        std::_Exit(0);
+    }
+
+    /// A running instance of the folder: waits for the notification of an import by
+    /// another process and prints the setting appearance.colorScheme
+    static int runImportWatch(const QString& directory)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppStorageTestHelper::createFolderOptions(directory));
+        pdf::PDFDatabaseNotifier notifier(&database);
+        notifier.setPollInterval(20);
+        print("ready value=" + AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme").toUtf8());
+
+        QEventLoop loop;
+        bool isNotified = false;
+        QObject::connect(&notifier, &pdf::PDFDatabaseNotifier::everythingChanged, &loop, [&]() { isNotified = true; loop.quit(); });
+        QTimer::singleShot(60000 * AppStorageTestHelper::getTimeoutFactor(), &loop, &QEventLoop::quit);
+        loop.exec();
+
+        print(QByteArray(isNotified ? "everything" : "timeout") + " value=" + AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme").toUtf8());
+        database.close();
+        return isNotified ? 0 : 1;
     }
 
 private:
@@ -632,6 +680,8 @@ private Q_SLOTS:
     void settingDefinitions();
     void settingsRepository();
     void shortcutRepository();
+    void setValuesOneTransaction();
+    void shortcutsBatch();
     void annotationStyleRepository();
     void notifierOwnWrites();
     void notifierGap();
@@ -669,6 +719,20 @@ private Q_SLOTS:
     void schemaFileBrokenMigration();
     void schemaFileFolderErrors();
     void schemaFilePortable();
+    void versionLabels();
+    void deleteOlderFileUnderLock();
+    void deleteOlderFileInUse();
+    void deleteOlderFileHostile();
+    void backupRoundTrip();
+    void backupExportWhileOtherProcessWrites();
+    void backupImportIntoRunningInstance();
+    void backupImportHostile_data();
+    void backupImportHostile();
+    void backupImportOlderMigrated();
+    void backupPortableAndNewer();
+    void backupImportBusy();
+    void backupCertificatesAndSecurity();
+    void backupHostileSequences();
 
 private:
     QString createPath(const QString& name);
@@ -1163,7 +1227,7 @@ void AppStorageTest::settingDefinitions()
     QCOMPARE(colorScheme->validate(QVariant(QStringLiteral("dark"))), QVariant(QStringLiteral("dark")));
     QCOMPARE(colorScheme->validate(QVariant(QStringLiteral("Dark"))), QVariant(QStringLiteral("auto")));
     QCOMPARE(colorScheme->validate(QVariant(QStringLiteral("sepia"))), QVariant(QStringLiteral("auto")));
-    QCOMPARE(colorScheme->getOptions()[1].getTitle(), QStringLiteral("Dark"));
+    QCOMPARE(colorScheme->getOptions()[2].getTitle(), QStringLiteral("Dark"));
 
     // Options of the system: a stored option, which the system does not offer, is the default
     std::shared_ptr<AppStorageTestOptionsProvider> provider = std::make_shared<AppStorageTestOptionsProvider>();
@@ -1262,6 +1326,22 @@ void AppStorageTest::settingsRepository()
     QVERIFY(settings.getStoredValue(QStringLiteral("removed.setting")).isValid());
     QVERIFY(settings.restoreDefaults(QString()).isError());
 
+    // Restore defaults is one transaction (review RT5): a key refused in the middle
+    // (a trigger of the test, in either order of the keys) restores nothing
+    for (const char* blockedKey : { "appearance.colorScheme", "recent.maxFiles" })
+    {
+        QVERIFY(!settings.setValue(QStringLiteral("appearance.colorScheme"), QStringLiteral("dark")).isError());
+        QVERIFY(!settings.setValue(QStringLiteral("recent.maxFiles"), 20).isError());
+        const QByteArray trigger = QByteArray("CREATE TRIGGER rt5_block BEFORE DELETE ON setting WHEN old.key = '") + blockedKey + "' BEGIN SELECT RAISE(ABORT, 'blocked'); END";
+        QVERIFY(AppStorageTestHelper::execute(&database, trigger.constData()));
+        QVERIFY(settings.restoreDefaults(QStringLiteral("general")).isError());
+        QCOMPARE(settings.getString(QStringLiteral("appearance.colorScheme")), QStringLiteral("dark"));
+        QCOMPARE(settings.getInteger(QStringLiteral("recent.maxFiles")), qint64(20));
+        QVERIFY(AppStorageTestHelper::execute(&database, "DROP TRIGGER rt5_block"));
+    }
+    QVERIFY(!settings.restoreDefaults(QStringLiteral("general")).isError());
+    QVERIFY(settings.getChangedKeys(QStringLiteral("general")).isEmpty());
+
     QVERIFY(!settings.resetValue(QStringLiteral("update.lastCheck")).isError());
     QCOMPARE(settings.getInteger(QStringLiteral("update.lastCheck")), qint64(0));
 
@@ -1295,6 +1375,94 @@ void AppStorageTest::shortcutRepository()
     QCOMPARE(shortcuts.getShortcuts().size(), size_t(1));
     QVERIFY(!shortcuts.resetAll().isError());
     QVERIFY(shortcuts.getShortcuts().empty());
+}
+
+void AppStorageTest::setValuesOneTransaction()
+{
+    // Step 5: a batch of values (a preset with its colors, Restore defaults) in one transaction
+    pdf::PDFSettingRegistry registry;
+    pdf::PDFSettingDefinitions::registerBuiltinDefinitions(&registry);
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createOptions(createPath(QStringLiteral("settings-batch"))));
+    pdf::PDFSettingsRepository settings(&database, &registry);
+    pdf::PDFDatabaseNotifier notifier(&database);
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+
+    const QString preset = pdf::PDFSettingKeys::colorModesCustomPreset();
+    const QString text = pdf::PDFSettingKeys::colorModesTextColor();
+    const QString page = pdf::PDFSettingKeys::colorModesPageColor();
+
+    // All values are written together
+    QVERIFY(!settings.setValues({ { preset, QStringLiteral("sepia") }, { text, QStringLiteral("#5B4636") }, { page, QStringLiteral("#F4ECD8") } }).isError());
+    QCOMPARE(settings.getString(preset), QStringLiteral("sepia"));
+    QCOMPARE(settings.getString(text), QStringLiteral("#5B4636"));
+    QCOMPARE(settings.getString(page), QStringLiteral("#F4ECD8"));
+    QTRY_COMPARE(spy.size(), 3);
+
+    // An invalid value or an unknown key refuses the whole batch, nothing is stored
+    QVERIFY(settings.setValues({ { preset, QStringLiteral("night") }, { text, QString(17, QLatin1Char('#')) } }).isError());
+    QVERIFY(settings.setValues({ { preset, QStringLiteral("night") }, { QStringLiteral("unknown.key"), 1 } }).isError());
+    QVERIFY(settings.setValues({ { preset, QStringLiteral("unknown-preset") } }).isError());
+    QCOMPARE(settings.getString(preset), QStringLiteral("sepia"));
+
+    // A default value deletes the stored row; the same value notifies nothing
+    QVERIFY(!settings.setValues({ { preset, QStringLiteral("amber") }, { text, QStringLiteral("#5B4636") } }).isError());
+    QVERIFY(!settings.isChanged(preset));
+    QVERIFY(settings.isChanged(text));
+    QCOMPARE(settings.getChangedKeys(pdf::PDFSettingDefinitions::sectionColorModes()), QStringList({ text, page }));
+
+    // An empty batch does nothing; setValue is a batch of one value
+    QVERIFY(!settings.setValues({}).isError());
+    QVERIFY(!settings.setValue(page, QStringLiteral("#0B0B10")).isError());
+    QVERIFY(!settings.isChanged(page));
+
+    // A failing write inside of the batch rolls the whole batch back
+    {
+        pdf::PDFDatabaseStatement block(database.getConnection(), "CREATE TRIGGER block_text BEFORE INSERT ON setting WHEN NEW.key = 'colorModes.pageColor' BEGIN SELECT RAISE(ABORT, 'blocked'); END");
+        QVERIFY(block.execute());
+    }
+    QVERIFY(settings.setValues({ { preset, QStringLiteral("night") }, { page, QStringLiteral("#FFFFFF") } }).isError());
+    QCOMPARE(settings.getString(preset), QStringLiteral("amber"));
+    QCOMPARE(settings.getString(page), QStringLiteral("#0B0B10"));
+}
+
+void AppStorageTest::shortcutsBatch()
+{
+    // Step 5: Assign of a conflict = the new keys of one command and the removed
+    // keys of another one in one transaction
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createOptions(createPath(QStringLiteral("shortcuts-batch"))));
+    pdf::PDFShortcutRepository shortcuts(&database);
+
+    QVERIFY(!shortcuts.setShortcuts({ { QStringLiteral("edit.cut"), QString() }, { QStringLiteral("edit.delete"), QStringLiteral("Ctrl+X") } }).isError());
+    std::map<QString, QString> stored = shortcuts.getShortcuts();
+    QCOMPARE(stored.size(), size_t(2));
+    QCOMPARE(stored[QStringLiteral("edit.cut")], QString());
+    QCOMPARE(stored[QStringLiteral("edit.delete")], QStringLiteral("Ctrl+X"));
+
+    // An invalid item refuses all of them
+    QVERIFY(shortcuts.setShortcuts({ { QStringLiteral("edit.copy"), QStringLiteral("Ctrl+C") }, { QString(), QStringLiteral("Ctrl+V") } }).isError());
+    QVERIFY(shortcuts.setShortcuts({ { QStringLiteral("edit.copy"), QStringLiteral("Ctrl+C") }, { QStringLiteral("edit.paste"), QString(1000, QLatin1Char('a')) } }).isError());
+    QVERIFY(shortcuts.setShortcuts({ { QString(1000, QLatin1Char('c')), QStringLiteral("Ctrl+C") } }).isError());
+
+    // The command id has its own limit: the longest id is stored and read back, a
+    // longer one is refused, a longer row of a damaged file is skipped
+    const QString longestId = QString(pdf::PDFShortcutRepository::MAXIMUM_COMMAND_ID_LENGTH, QLatin1Char('l'));
+    QVERIFY(!shortcuts.setShortcuts({ { longestId, QStringLiteral("Ctrl+L") } }).isError());
+    QCOMPARE(shortcuts.getShortcuts()[longestId], QStringLiteral("Ctrl+L"));
+    QVERIFY(shortcuts.setShortcuts({ { longestId + QLatin1Char('l'), QStringLiteral("Ctrl+L") } }).isError());
+    QVERIFY(!shortcuts.resetShortcut(longestId).isError());
+    QCOMPARE(shortcuts.getShortcuts().size(), size_t(2));
+    QVERIFY(!shortcuts.setShortcuts({}).isError());
+
+    // A failing write inside of the batch rolls the whole batch back
+    {
+        pdf::PDFDatabaseStatement block(database.getConnection(), "CREATE TRIGGER block_paste BEFORE INSERT ON shortcut WHEN NEW.command_id = 'edit.paste' BEGIN SELECT RAISE(ABORT, 'blocked'); END");
+        QVERIFY(block.execute());
+    }
+    QVERIFY(shortcuts.setShortcuts({ { QStringLiteral("edit.copy"), QStringLiteral("Ctrl+C") }, { QStringLiteral("edit.paste"), QStringLiteral("Ctrl+V") } }).isError());
+    QCOMPARE(shortcuts.getShortcuts().size(), size_t(2));
 }
 
 void AppStorageTest::annotationStyleRepository()
@@ -2675,6 +2843,25 @@ void AppStorageTest::schemaFileNames()
     // Digits of other scripts are no version
     QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-") + QChar(0x0661) + QStringLiteral(".db")), -1);
 
+    // A trailing newline (a valid file name on Unix): '$' of the expression would
+    // match before it, the name is anchored at its real end (RS5 F2)
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-1.db\n")), -1);
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("pdf4qt-1.db\r\n")), -1);
+    QCOMPARE(Files::getSchemaVersion(QStringLiteral("\npdf4qt-1.db")), -1);
+#if !defined(Q_OS_WIN)
+    {
+        // Such a file of the folder is not listed (no such name exists on Windows)
+        const QString folder = m_directory.filePath(QStringLiteral("newline-names"));
+        QVERIFY(QDir().mkpath(folder));
+        QFile file(QDir(folder).filePath(QStringLiteral("pdf4qt-1.db\n")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("garbage");
+        file.close();
+        QCOMPARE(QDir(folder).entryList(QDir::Files | QDir::Hidden).size(), 1);
+        QVERIFY(Files::getFiles(folder, 2).empty());
+    }
+#endif
+
     QVERIFY(Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db.upgrade-12-0badf00d")));
     QVERIFY(Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db.upgrade-12-0badf00d-journal")));
     QVERIFY(!Files::isUpgradeTemporaryFileName(QStringLiteral("pdf4qt-2.db")));
@@ -3243,6 +3430,931 @@ void AppStorageTest::schemaFilePortable()
     QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 0)"));
     database.close();
     QVERIFY(!QDir(directory).exists());
+}
+
+/// Helpers of the tests of Settings › Storage (step 5, package D): backups and the
+/// deletion of older database files
+class AppStorageBackupHelper
+{
+public:
+    AppStorageBackupHelper() = delete;
+
+    /// Tables of the state of the running instances (not a part of a backup)
+    static QStringList getRuntimeTables()
+    {
+        return { QStringLiteral("change_log"), QStringLiteral("storage_maintenance"), QStringLiteral("thumbnail_rendering"),
+                 QStringLiteral("mcp_server"), QStringLiteral("mcp_client"), QStringLiteral("mcp_activity"), QStringLiteral("mcp_request") };
+    }
+
+    /// Writes one row into every table (\p tag distinguishes the databases)
+    static bool fillAllTables(pdf::PDFDatabase* database, const QString& tag)
+    {
+        const QString sql = QStringLiteral(
+            "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('appearance.colorScheme', '%1', 1);"
+            "INSERT INTO recent_file(path, name, folder, last_opened, thumbnail) VALUES ('/a%1.pdf', 'a', '/', 1, randomblob(64));"
+            "INSERT INTO recent_folder(path, last_used) VALUES ('/f%1', 1);"
+            "INSERT INTO pinned_location(path, name) VALUES ('/p%1', 'p');"
+            "INSERT INTO workspace(id, name, created) VALUES (7, 'w%1', 1);"
+            "INSERT INTO workspace_document(workspace_id, position, path) VALUES (7, 0, '/d%1.pdf');"
+            "INSERT INTO tool_pin(tool_id, pinned) VALUES ('merge%1', 1);"
+            "INSERT INTO tool_usage(tool_id, last_used) VALUES ('merge%1', 1);"
+            "INSERT INTO tool_collection(id, name, modified) VALUES (3, 'c%1', 1);"
+            "INSERT INTO tool_collection_item(collection_id, tool_id) VALUES (3, 'merge%1');"
+            "INSERT INTO tool_pair(from_tool, to_tool, last_used) VALUES ('a%1', 'b', 1);"
+            "INSERT INTO tool_parameter(tool_id, name, value) VALUES ('merge%1', 'x', 2.5);"
+            "INSERT INTO shortcut(command_id, keys) VALUES ('file.open', 'Ctrl+%1');"
+            "INSERT INTO annotation_style(style_id, value) VALUES ('s%1', '{}');"
+            "INSERT INTO bookmark(file_path, page, title) VALUES ('/b%1.pdf', 1, 't');"
+            "INSERT INTO trusted_certificate(data, added) VALUES (CAST('%1' AS BLOB), 1);"
+            "INSERT INTO mcp_activity(time, status) VALUES (1, 'ok%1');"
+            "INSERT OR REPLACE INTO mcp_server(id, instance, pid) VALUES (1, 'i%1', 1);"
+            "INSERT INTO mcp_client(session, name) VALUES ('s%1', 'n');"
+            "INSERT INTO mcp_request(kind, created) VALUES ('k%1', 1);"
+            "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES ('/t%1', 1, 'i', 1, 1);"
+            "INSERT INTO storage_maintenance(key, value) VALUES ('test.%1', 1);").arg(tag);
+        return AppStorageTestHelper::execute(database, sql.toUtf8().constData());
+    }
+
+    /// Rows of a table as sorted texts
+    static QStringList dumpTable(pdf::PDFDatabase* database, const QString& table)
+    {
+        QStringList rows;
+        const QByteArray sql = "SELECT * FROM " + table.toLatin1();
+        pdf::PDFDatabaseStatement statement(database->getConnection(), sql.constData());
+        while (statement.next())
+        {
+            QStringList columns;
+            for (int i = 0; i < statement.getColumnCount(); ++i)
+            {
+                const QVariant value = statement.getVariant(i);
+                columns << (value.typeId() == QMetaType::QByteArray ? QString::fromLatin1(value.toByteArray().toHex()) : value.toString());
+            }
+            rows << columns.join(QLatin1Char('|'));
+        }
+        rows.sort();
+        return rows;
+    }
+
+    /// Rows of every table of the data (without the state of the instances)
+    static std::map<QString, QStringList> dumpData(pdf::PDFDatabase* database)
+    {
+        std::map<QString, QStringList> data;
+        for (const pdf::PDFDatabaseTableInfo& table : pdf::PDFDatabaseSchema::getTables())
+        {
+            if (!getRuntimeTables().contains(table.name))
+            {
+                data[table.name] = dumpTable(database, table.name);
+            }
+        }
+        return data;
+    }
+
+    /// Content of a file
+    static QByteArray readFile(const QString& filePath)
+    {
+        QFile file(filePath);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    }
+
+    /// Writes a file
+    static bool writeFile(const QString& filePath, const QByteArray& data)
+    {
+        QFile file(filePath);
+        return file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(data) == data.size();
+    }
+
+    /// A database file of the application schema with \p sql executed (closed, the
+    /// write-ahead log checkpointed)
+    static bool createDatabaseFile(const QString& filePath, const char* sql, int version = pdf::PDFDatabaseSchema::getCurrentVersion())
+    {
+        if (!AppStorageTestHelper::createSchemaFile(filePath, version, "dark"))
+        {
+            return false;
+        }
+        return !sql || AppStorageTestHelper::executeOnFile(filePath, sql);
+    }
+};
+
+void AppStorageTest::versionLabels()
+{
+    // Owner decision 2026-10-25: a file of another version is labeled by PDF4QT
+    QCOMPARE(pdf::PDFDatabaseFiles::getVersionLabel(1), QStringLiteral("PDF4QT 2.0"));
+    QCOMPARE(pdf::PDFDatabaseFiles::getVersionLabel(pdf::PDFDatabaseFiles::getNewestLabeledSchemaVersion() + 1), QStringLiteral("Newer PDF4QT"));
+    QCOMPARE(pdf::PDFDatabaseFiles::getVersionLabel(999999999), QStringLiteral("Newer PDF4QT"));
+    QCOMPARE(pdf::PDFDatabaseFiles::getVersionLabel(0), QStringLiteral("PDF4QT (schema 0)"));
+
+    // Every released schema version has its label (a new migration adds its row)
+    QVERIFY(pdf::PDFDatabaseFiles::getNewestLabeledSchemaVersion() >= pdf::PDFDatabaseSchema::getCurrentVersion());
+    for (int version = 1; version <= pdf::PDFDatabaseSchema::getCurrentVersion(); ++version)
+    {
+        QVERIFY(pdf::PDFDatabaseFiles::getVersionLabel(version).startsWith(QStringLiteral("PDF4QT ")));
+        QVERIFY(!pdf::PDFDatabaseFiles::getVersionLabel(version).contains(QStringLiteral("schema")));
+    }
+
+    QCOMPARE(pdf::PDFDatabaseBackup::getDefaultFileName(QDate(2026, 10, 25)), QStringLiteral("PDF4QT settings 2026-10-25.pdf4qt-backup"));
+}
+
+void AppStorageTest::deleteOlderFileUnderLock()
+{
+    // A newer version (schema 2) runs with its file created from the older one; the
+    // older file (with its write-ahead log of a crashed older version) is deleted
+    const QString directory = createFolder(QStringLiteral("delete-older"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark", 3));
+
+    // A crashed older version: its -wal and -shm stay
+    QProcess* process = startChild({ QStringLiteral("--storage-hold-open"), olderPath });
+    QVERIFY(process->waitForReadyRead(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(process->readLine().trimmed(), QByteArray("open"));
+    process->kill();
+    QVERIFY(process->waitForFinished(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QVERIFY(QFileInfo::exists(olderPath + QStringLiteral("-wal")));
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(database.getState().filePath, newerPath);
+    QCOMPARE(database.getState().upgradedFromFilePath, olderPath);
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "test.hold"), QStringLiteral("yes"));
+
+    const std::vector<pdf::PDFDatabaseFileInfo> files = database.getDatabaseFiles();
+    QCOMPARE(int(files.size()), 2);
+    QCOMPARE(files[1].filePath, olderPath);
+    QVERIFY(!files[1].isCurrent);
+
+    const pdf::PDFDatabaseError error = database.deleteOlderDatabaseFile(olderPath);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    for (const char* suffix : { "", "-wal", "-shm", "-journal" })
+    {
+        QVERIFY2(!QFileInfo::exists(olderPath + QLatin1String(suffix)), suffix);
+    }
+
+    // The open database and the lock of the upgrades are untouched
+    QVERIFY(QFileInfo::exists(newerPath));
+    QVERIFY(QFileInfo::exists(pdf::PDFDatabaseFiles::getUpgradeLockPath(directory)));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+    QCOMPARE(int(database.getDatabaseFiles().size()), 1);
+
+    // A second deletion of the same file: it is not a file of the folder any more
+    QVERIFY(database.deleteOlderDatabaseFile(olderPath).isError());
+}
+
+void AppStorageTest::deleteOlderFileInUse()
+{
+    // An older PDF4QT runs with the older file: it is not deleted, after its end it is
+    const QString directory = createFolder(QStringLiteral("delete-in-use"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+
+    QProcess* process = startChild({ QStringLiteral("--storage-hold-open"), olderPath });
+    QVERIFY(process->waitForReadyRead(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(process->readLine().trimmed(), QByteArray("open"));
+
+    const QByteArray hash = AppStorageTestHelper::fileAndLogHash(olderPath);
+    QElapsedTimer timer;
+    timer.start();
+    pdf::PDFDatabaseError error = database.deleteOlderDatabaseFile(olderPath);
+    QVERIFY(error.isError());
+    QVERIFY(error.isBusy());
+    QCOMPARE(error.getMessage(), QStringLiteral("The file is used by another PDF4QT. Close it and try again."));
+    QVERIFY(timer.elapsed() < 5000 * AppStorageTestHelper::getTimeoutFactor());
+    QVERIFY(QFileInfo::exists(olderPath));
+    QCOMPARE(AppStorageTestHelper::fileAndLogHash(olderPath), hash);
+
+    // The older PDF4QT ends (it writes a line to the child, which ends without closing)
+    process->write("\n");
+    process->closeWriteChannel();
+    QVERIFY(process->state() == QProcess::NotRunning || process->waitForFinished(30000 * AppStorageTestHelper::getTimeoutFactor()));
+
+    error = database.deleteOlderDatabaseFile(olderPath);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QVERIFY(!QFileInfo::exists(olderPath));
+    QVERIFY(!QFileInfo::exists(olderPath + QStringLiteral("-wal")));
+
+    // A connection of this process holds a file as well
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "light"));
+    pdf::PDFDatabase holder;
+    holder.open(AppStorageTestHelper::createOptions(olderPath));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&holder, "appearance.colorScheme"), QStringLiteral("light"));
+    QVERIFY(database.deleteOlderDatabaseFile(olderPath).isBusy());
+    holder.close();
+    QVERIFY(!database.deleteOlderDatabaseFile(olderPath).isError());
+    QVERIFY(!QFileInfo::exists(olderPath));
+}
+
+void AppStorageTest::deleteOlderFileHostile()
+{
+    const QString directory = createFolder(QStringLiteral("delete-hostile"));
+    const QString otherDirectory = createFolder(QStringLiteral("delete-hostile-other"));
+    const QString olderPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    const QString currentPath = pdf::PDFDatabaseFiles::getFilePath(directory, 2);
+    const QString newerPath = pdf::PDFDatabaseFiles::getFilePath(directory, 3);
+    const QString foreignPath = pdf::PDFDatabaseFiles::getFilePath(otherDirectory, 1);
+    QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(foreignPath, 1, "light"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(newerPath, 3, "light"));
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory, 1));
+    QCOMPARE(database.getState().filePath, currentPath);
+
+    // Not a file of the list of the folder: another folder, other names, paths with
+    // .., an empty path, the folder itself
+    const QStringList refused = {
+        foreignPath,
+        QDir(directory).filePath(QStringLiteral("../%1/pdf4qt-1.db").arg(QFileInfo(otherDirectory).fileName())),
+        QDir(directory).filePath(QStringLiteral("pdf4qt-01.db")),
+        QDir(directory).filePath(QStringLiteral("pdf4qt.db")),
+        QDir(directory).filePath(QStringLiteral("pdf4qt-upgrade.lock")),
+        QString(),
+        directory
+    };
+    for (const QString& path : refused)
+    {
+        const pdf::PDFDatabaseError error = database.deleteOlderDatabaseFile(path);
+        QVERIFY2(error.isError() && !error.isBusy(), qPrintable(path));
+    }
+    QVERIFY(QFileInfo::exists(foreignPath));
+
+    // The current file and a newer file
+    QCOMPARE(database.deleteOlderDatabaseFile(currentPath).getMessage(), QStringLiteral("The file is the database of this PDF4QT."));
+    QCOMPARE(pdf::PDFDatabaseFiles::deleteOlderFile(directory, currentPath, 2).getMessage(), QStringLiteral("The file is the database of this PDF4QT."));
+    QCOMPARE(database.deleteOlderDatabaseFile(newerPath).getMessage(), QStringLiteral("The file is used by a newer PDF4QT."));
+    QVERIFY(QFileInfo::exists(currentPath));
+    QVERIFY(QFileInfo::exists(newerPath));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("dark"));
+
+    // Without a folder and in the portable mode nothing is deleted
+    QVERIFY(pdf::PDFDatabaseFiles::deleteOlderFile(QString(), olderPath, 2).isError());
+    {
+        pdf::PDFDatabase portable;
+        pdf::PDFDatabaseOptions options = AppStorageTestHelper::createFolderOptions(directory, 1);
+        options.portable = true;
+        portable.open(options);
+        QVERIFY(portable.deleteOlderDatabaseFile(olderPath).isError());
+    }
+    QVERIFY(QFileInfo::exists(olderPath));
+
+    // A symbolic link of the name of an older file leading to a file of another
+    // folder is not deleted, its target is not touched (a link may not be creatable
+    // without privileges on Windows - then that part is skipped)
+    const QString linkPath = pdf::PDFDatabaseFiles::getFilePath(directory, 1);
+    QVERIFY(QFile::remove(olderPath));
+    std::error_code linkError;
+    std::filesystem::create_symlink(std::filesystem::path(foreignPath.toStdWString()), std::filesystem::path(linkPath.toStdWString()), linkError);
+    if (!linkError)
+    {
+        const QByteArray foreignHash = AppStorageTestHelper::fileHash(foreignPath);
+        const pdf::PDFDatabaseError error = database.deleteOlderDatabaseFile(linkPath);
+        QVERIFY(error.isError());
+        QCOMPARE(error.getMessage(), QStringLiteral("The file is a link to another file. PDF4QT does not delete it."));
+        QVERIFY(QFileInfo(linkPath).isSymLink());
+        QCOMPARE(AppStorageTestHelper::fileHash(foreignPath), foreignHash);
+        QVERIFY(QFile::remove(linkPath));
+
+        // A link of the write-ahead log
+        QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+        std::filesystem::create_symlink(std::filesystem::path(foreignPath.toStdWString()), std::filesystem::path((olderPath + QStringLiteral("-wal")).toStdWString()), linkError);
+        QVERIFY(!linkError);
+        QVERIFY(database.deleteOlderDatabaseFile(olderPath).isError());
+        QVERIFY(QFileInfo::exists(olderPath));
+        QCOMPARE(AppStorageTestHelper::fileHash(foreignPath), foreignHash);
+        QVERIFY(QFile::remove(olderPath + QStringLiteral("-wal")));
+    }
+    else
+    {
+        qInfo("Symbolic links cannot be created here (%s), the part of the links is skipped", linkError.message().c_str());
+        QVERIFY(AppStorageTestHelper::createSchemaFile(olderPath, 1, "dark"));
+    }
+
+    // A damaged older file (not a database at all) is deleted: nothing can use it
+    QVERIFY(AppStorageBackupHelper::writeFile(olderPath, QByteArray(4096, 'x')));
+    QVERIFY(!database.deleteOlderDatabaseFile(olderPath).isError());
+    QVERIFY(!QFileInfo::exists(olderPath));
+}
+
+void AppStorageTest::backupRoundTrip()
+{
+    // Every table of the data goes through a backup; the state of the instances of
+    // the importing database stays
+    const QString sourceDirectory = createFolder(QStringLiteral("backup-source"));
+    const QString targetDirectory = createFolder(QStringLiteral("backup-target"));
+    const QString backupPath = QDir(createFolder(QStringLiteral("backup-files"))).filePath(pdf::PDFDatabaseBackup::getDefaultFileName(QDate(2026, 10, 25)));
+
+    pdf::PDFDatabase source;
+    source.open(AppStorageTestHelper::createFolderOptions(sourceDirectory));
+    QVERIFY(AppStorageBackupHelper::fillAllTables(&source, QStringLiteral("S")));
+    // Statistics of the query planner (PRAGMA optimize at the closing) are not exported
+    QVERIFY(AppStorageTestHelper::execute(&source, "ANALYZE"));
+    const std::map<QString, QStringList> sourceData = AppStorageBackupHelper::dumpData(&source);
+    for (const auto& [table, rows] : sourceData)
+    {
+        QVERIFY2(!rows.isEmpty(), qPrintable(table));
+    }
+
+    const qint64 beforeExport = QDateTime::currentMSecsSinceEpoch();
+    pdf::PDFDatabaseError error = source.exportBackup(backupPath);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QVERIFY(QFileInfo::exists(backupPath));
+    QVERIFY(QDir(QFileInfo(backupPath).absolutePath()).entryList(QDir::Files | QDir::Hidden).size() == 1);
+
+    // A file with a rollback journal (no -wal needed), the data of the source
+    const QByteArray content = AppStorageBackupHelper::readFile(backupPath);
+    QVERIFY(content.startsWith(QByteArray("SQLite format 3", 16)));
+    QCOMPARE(int(content[18]), 1);
+    QCOMPARE(int(content[19]), 1);
+
+    pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(backupPath);
+    QVERIFY2(backup.isValid(), qPrintable(backup.getDetail()));
+    QCOMPARE(backup.getSchemaVersion(), pdf::PDFDatabaseSchema::getCurrentVersion());
+    QVERIFY(backup.getCreated().toMSecsSinceEpoch() >= beforeExport);
+    QVERIFY(backup.getCreated().toMSecsSinceEpoch() <= QDateTime::currentMSecsSinceEpoch());
+    QCOMPARE(backup.getSize(), QFileInfo(backupPath).size());
+    QVERIFY(backup.getErrorText().isEmpty());
+
+    // The importing database has its own data and state of the instances
+    pdf::PDFDatabase target;
+    target.open(AppStorageTestHelper::createFolderOptions(targetDirectory));
+    QVERIFY(AppStorageBackupHelper::fillAllTables(&target, QStringLiteral("T")));
+    pdf::PDFDatabaseNotifier notifier(&target);
+    notifier.setPollInterval(10000);
+    QSignalSpy everythingSpy(&notifier, &pdf::PDFDatabaseNotifier::everythingChanged);
+    const qint64 sequenceBefore = notifier.getLastSequence();
+    const QStringList targetServer = AppStorageBackupHelper::dumpTable(&target, QStringLiteral("mcp_server"));
+    const QStringList targetMarkers = AppStorageBackupHelper::dumpTable(&target, QStringLiteral("thumbnail_rendering"));
+    const QStringList targetMaintenance = AppStorageBackupHelper::dumpTable(&target, QStringLiteral("storage_maintenance"));
+    const QStringList targetActivity = AppStorageBackupHelper::dumpTable(&target, QStringLiteral("mcp_activity"));
+    QCOMPARE(targetActivity.size(), 1);
+
+    // The MCP activity log is not exported (owner 2026-10-25)
+    {
+        const QString copyPath = QDir(createFolder(QStringLiteral("backup-copy"))).filePath(QStringLiteral("copy.db"));
+        QVERIFY(QFile::copy(backupPath, copyPath));
+        pdf::PDFDatabase exported;
+        exported.open(AppStorageTestHelper::createOptions(copyPath));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&exported, "SELECT COUNT(*) FROM mcp_activity"), qint64(0));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&exported, "SELECT COUNT(*) FROM trusted_certificate"), qint64(1));
+    }
+
+    error = target.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageBackupHelper::dumpTable(&target, QStringLiteral("mcp_activity")), targetActivity);
+
+    // The data of the backup, the state of the target
+    QVERIFY(AppStorageBackupHelper::dumpData(&target) == sourceData);
+    QCOMPARE(AppStorageBackupHelper::dumpTable(&target, QStringLiteral("mcp_server")), targetServer);
+    QCOMPARE(AppStorageBackupHelper::dumpTable(&target, QStringLiteral("thumbnail_rendering")), targetMarkers);
+    QCOMPARE(AppStorageBackupHelper::dumpTable(&target, QStringLiteral("storage_maintenance")), targetMaintenance);
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM storage_maintenance WHERE key = 'backup.created'"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'sqlite_stat%'"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "PRAGMA application_id"), qint64(pdf::PDFDatabase::APPLICATION_ID));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "PRAGMA user_version"), qint64(pdf::PDFDatabaseSchema::getCurrentVersion()));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM pragma_journal_mode WHERE journal_mode = 'wal'"), qint64(1));
+
+    // Every notifier rereads everything (the sequence of the change log jumped)
+    QTRY_VERIFY_WITH_TIMEOUT(everythingSpy.count() >= 1, 5000 * AppStorageTestHelper::getTimeoutFactor());
+    QVERIFY(notifier.getLastSequence() >= sequenceBefore + pdf::PDFDatabase::IMPORT_SEQUENCE_JUMP);
+
+    // The source is unchanged, the target works on (a write, a new connection)
+    QVERIFY(AppStorageBackupHelper::dumpData(&source) == sourceData);
+    QVERIFY(AppStorageTestHelper::execute(&target, "INSERT INTO setting(key, value, modified) VALUES ('test.after', 1, 0)"));
+    target.close();
+    target.open(AppStorageTestHelper::createFolderOptions(targetDirectory));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&target, "appearance.colorScheme"), QStringLiteral("S"));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&target, "test.after"), QStringLiteral("1"));
+}
+
+void AppStorageTest::backupExportWhileOtherProcessWrites()
+{
+    // The backup API copies a consistent snapshot while another process writes
+    const QString directory = createFolder(QStringLiteral("backup-concurrent"));
+    const QString filePath = pdf::PDFDatabaseFiles::getFilePath(directory, pdf::PDFDatabaseSchema::getCurrentVersion());
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory));
+    QCOMPARE(database.getState().filePath, filePath);
+
+    const int count = AppStorageTestHelper::getTransactionCount(400);
+    QProcess* process = startChild({ QStringLiteral("--storage-writer"), filePath, QStringLiteral("x"), QString::number(count) });
+    QVERIFY(process->waitForStarted(30000));
+
+    int exports = 0;
+    QElapsedTimer timer;
+    timer.start();
+    // waitForFinished updates the state of the process (no event loop runs here)
+    while (!process->waitForFinished(1) && timer.elapsed() < 120000 * AppStorageTestHelper::getTimeoutFactor())
+    {
+        const QString backupPath = QDir(directory).filePath(QStringLiteral("backup-%1.pdf4qt-backup").arg(exports));
+        const pdf::PDFDatabaseError error = database.exportBackup(backupPath);
+        if (error.isBusy())
+        {
+            continue;
+        }
+        QVERIFY2(!error.isError(), qPrintable(error.toString()));
+        const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(backupPath);
+        QVERIFY2(backup.isValid(), qPrintable(backup.getDetail()));
+
+        // A snapshot of whole transactions: the counter equals the number of the rows
+        pdf::PDFDatabase check;
+        check.open(AppStorageTestHelper::createOptions(backupPath));
+        const qint64 rows = AppStorageTestHelper::queryInteger(&check, "SELECT COUNT(*) FROM setting WHERE key LIKE 'test.wx%'");
+        const qint64 counter = AppStorageTestHelper::queryInteger(&check, "SELECT COALESCE((SELECT count FROM tool_usage WHERE tool_id = 'counter'), 0)");
+        QCOMPARE(rows, counter);
+        check.close();
+        ++exports;
+    }
+
+    QVERIFY(process->state() == QProcess::NotRunning || process->waitForFinished(120000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(process->exitCode(), 0);
+    qInfo("%d exports while another process wrote %d transactions", exports, count);
+
+    // After the writer: every transaction is in the backup
+    const QString finalPath = QDir(directory).filePath(QStringLiteral("backup-final.pdf4qt-backup"));
+    QVERIFY(!database.exportBackup(finalPath).isError());
+    pdf::PDFDatabase check;
+    check.open(AppStorageTestHelper::createOptions(finalPath));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&check, "SELECT COUNT(*) FROM setting WHERE key LIKE 'test.wx%'"), qint64(count));
+}
+
+void AppStorageTest::backupImportIntoRunningInstance()
+{
+    // Another running instance of the folder sees the imported settings at once
+    const QString directory = createFolder(QStringLiteral("backup-running"));
+    const QString sourceDirectory = createFolder(QStringLiteral("backup-running-source"));
+    const QString backupPath = QDir(sourceDirectory).filePath(QStringLiteral("settings.pdf4qt-backup"));
+
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(sourceDirectory));
+        QVERIFY(AppStorageTestHelper::execute(&source, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'imported', 0)"));
+        QVERIFY(!source.exportBackup(backupPath).isError());
+    }
+
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory));
+    QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'before', 0)"));
+
+    QProcess* process = startChild({ QStringLiteral("--storage-import-watch"), directory });
+    QVERIFY(process->waitForReadyRead(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(process->readLine().trimmed(), QByteArray("ready value=before"));
+
+    const pdf::PDFDatabaseError error = database.importBackup(pdf::PDFDatabaseBackup::read(backupPath), pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("imported"));
+
+    QVERIFY(process->waitForFinished(60000 * AppStorageTestHelper::getTimeoutFactor()));
+    const QByteArray output = process->readAll().trimmed();
+    QCOMPARE(output, QByteArray("everything value=imported"));
+    QCOMPARE(process->exitCode(), 0);
+}
+
+void AppStorageTest::backupImportHostile_data()
+{
+    QTest::addColumn<QString>("kind");
+    QTest::addColumn<int>("status");
+
+    using Status = pdf::PDFDatabaseBackupStatus;
+    QTest::newRow("missing") << QStringLiteral("missing") << int(Status::Missing);
+    QTest::newRow("empty") << QStringLiteral("empty") << int(Status::NotABackup);
+    QTest::newRow("text") << QStringLiteral("text") << int(Status::NotABackup);
+    QTest::newRow("truncated") << QStringLiteral("truncated") << int(Status::Damaged);
+    QTest::newRow("damaged") << QStringLiteral("damaged") << int(Status::Damaged);
+    QTest::newRow("huge") << QStringLiteral("huge") << int(Status::TooLarge);
+    QTest::newRow("foreign-application") << QStringLiteral("foreign-application") << int(Status::NotABackup);
+    QTest::newRow("no-application-id") << QStringLiteral("no-application-id") << int(Status::NotABackup);
+    QTest::newRow("no-version") << QStringLiteral("no-version") << int(Status::NotABackup);
+    QTest::newRow("newer") << QStringLiteral("newer") << int(Status::Newer);
+    QTest::newRow("extra-trigger") << QStringLiteral("extra-trigger") << int(Status::NotABackup);
+    QTest::newRow("extra-view") << QStringLiteral("extra-view") << int(Status::NotABackup);
+    QTest::newRow("extra-index") << QStringLiteral("extra-index") << int(Status::NotABackup);
+    QTest::newRow("extra-table") << QStringLiteral("extra-table") << int(Status::NotABackup);
+    QTest::newRow("changed-table") << QStringLiteral("changed-table") << int(Status::NotABackup);
+    QTest::newRow("dropped-trigger") << QStringLiteral("dropped-trigger") << int(Status::NotABackup);
+    QTest::newRow("statistics") << QStringLiteral("statistics") << int(Status::NotABackup);
+    QTest::newRow("swapped-index") << QStringLiteral("swapped-index") << int(Status::Damaged);
+    QTest::newRow("utf16") << QStringLiteral("utf16") << int(Status::NotABackup);
+    QTest::newRow("directory") << QStringLiteral("directory") << int(Status::Missing);
+}
+
+void AppStorageTest::backupImportHostile()
+{
+    QFETCH(QString, kind);
+    QFETCH(int, status);
+
+    // A valid backup of the application to start from
+    const QString folder = createFolder(QStringLiteral("backup-hostile"));
+    const QString validPath = QDir(folder).filePath(QStringLiteral("valid.pdf4qt-backup"));
+    const QString filePath = QDir(folder).filePath(QStringLiteral("hostile.pdf4qt-backup"));
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-hostile-source"))));
+        QVERIFY(AppStorageBackupHelper::fillAllTables(&source, QStringLiteral("H")));
+        QVERIFY(!source.exportBackup(validPath).isError());
+    }
+    const QByteArray valid = AppStorageBackupHelper::readFile(validPath);
+    QVERIFY(pdf::PDFDatabaseBackup::read(validPath).isValid());
+
+    // The hostile file
+    auto patchFile = [&](const char* sql) { return QFile::copy(validPath, filePath) && AppStorageTestHelper::executeOnFile(filePath, sql); };
+    if (kind == QLatin1String("missing"))
+    {
+    }
+    else if (kind == QLatin1String("empty"))
+    {
+        QVERIFY(AppStorageBackupHelper::writeFile(filePath, QByteArray()));
+    }
+    else if (kind == QLatin1String("text"))
+    {
+        QVERIFY(AppStorageBackupHelper::writeFile(filePath, QByteArray(8192, 'a')));
+    }
+    else if (kind == QLatin1String("truncated"))
+    {
+        QVERIFY(AppStorageBackupHelper::writeFile(filePath, valid.left(valid.size() / 2)));
+    }
+    else if (kind == QLatin1String("damaged"))
+    {
+        // Every page after the first one is garbage
+        QByteArray data = valid;
+        for (qsizetype i = 4096; i < data.size(); ++i)
+        {
+            data[i] = char(QRandomGenerator::global()->generate());
+        }
+        QVERIFY(AppStorageBackupHelper::writeFile(filePath, data));
+    }
+    else if (kind == QLatin1String("huge"))
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(valid);
+        QVERIFY(file.resize(pdf::PDFDatabaseBackup::MAXIMUM_SIZE + 1));
+    }
+    else if (kind == QLatin1String("foreign-application"))
+    {
+        QVERIFY(patchFile("PRAGMA application_id = 1234"));
+    }
+    else if (kind == QLatin1String("no-application-id"))
+    {
+        QVERIFY(patchFile("PRAGMA application_id = 0"));
+    }
+    else if (kind == QLatin1String("no-version"))
+    {
+        QVERIFY(patchFile("PRAGMA user_version = 0"));
+    }
+    else if (kind == QLatin1String("newer"))
+    {
+        QVERIFY(AppStorageTestHelper::createSchemaFile(filePath, pdf::PDFDatabaseSchema::getCurrentVersion() + 1, "dark"));
+    }
+    else if (kind == QLatin1String("extra-trigger"))
+    {
+        QVERIFY(patchFile("CREATE TRIGGER evil AFTER INSERT ON setting BEGIN DELETE FROM bookmark; END"));
+    }
+    else if (kind == QLatin1String("extra-view"))
+    {
+        QVERIFY(patchFile("CREATE VIEW evil AS SELECT * FROM setting"));
+    }
+    else if (kind == QLatin1String("extra-index"))
+    {
+        QVERIFY(patchFile("CREATE INDEX evil ON setting(value)"));
+    }
+    else if (kind == QLatin1String("extra-table"))
+    {
+        QVERIFY(patchFile("CREATE TABLE evil(x)"));
+    }
+    else if (kind == QLatin1String("changed-table"))
+    {
+        QVERIFY(patchFile("ALTER TABLE setting ADD COLUMN evil TEXT DEFAULT 'x'"));
+    }
+    else if (kind == QLatin1String("dropped-trigger"))
+    {
+        QVERIFY(patchFile("DROP TRIGGER setting_log_insert"));
+    }
+    else if (kind == QLatin1String("statistics"))
+    {
+        QVERIFY(patchFile("ANALYZE"));
+    }
+    else if (kind == QLatin1String("swapped-index"))
+    {
+        // The indexes of the keys of setting and shortcut (one text column each, as
+        // many rows) swap their root pages in sqlite_master: the schema SQL stays,
+        // every b-tree is whole and quick_check passes, but each index holds the keys
+        // of the other table (a setting, which is found by no lookup, duplicate keys)
+        QVERIFY(patchFile("DELETE FROM setting; DELETE FROM shortcut; "
+                          "INSERT INTO setting(key, value, modified) VALUES ('a', 1, 0), ('b', 2, 0), ('c', 3, 0); "
+                          "INSERT INTO shortcut(command_id, keys) VALUES ('x', 'X'), ('y', 'Y'), ('z', 'Z')"));
+        qint64 settingRoot = 0;
+        qint64 shortcutRoot = 0;
+        {
+            sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, true, 5000, nullptr);
+            QVERIFY(handle);
+            settingRoot = pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT rootpage FROM sqlite_master WHERE name = 'sqlite_autoindex_setting_1'", 0);
+            shortcutRoot = pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT rootpage FROM sqlite_master WHERE name = 'sqlite_autoindex_shortcut_1'", 0);
+            pdf::PDFDatabase::closeHandle(handle);
+        }
+
+        // The root page is the integer after the texts type, name and tbl_name of the
+        // record of sqlite_master (one byte below 128); stale copies of the records in
+        // the unused space of the pages are patched too (they are never read)
+        QVERIFY(settingRoot > 1 && settingRoot < 128 && shortcutRoot > 1 && shortcutRoot < 128 && settingRoot != shortcutRoot);
+        QByteArray data = AppStorageBackupHelper::readFile(filePath);
+        auto patchRoot = [&data](const QByteArray& record, qint64 oldRoot, qint64 newRoot)
+        {
+            int count = 0;
+            for (qsizetype index = data.indexOf(record); index >= 0; index = data.indexOf(record, index + 1))
+            {
+                const qsizetype root = index + record.size();
+                if (root < data.size() && data.at(root) == char(oldRoot))
+                {
+                    data[root] = char(newRoot);
+                    ++count;
+                }
+            }
+            return count;
+        };
+        QVERIFY(patchRoot("indexsqlite_autoindex_setting_1setting", settingRoot, shortcutRoot) > 0);
+        QVERIFY(patchRoot("indexsqlite_autoindex_shortcut_1shortcut", shortcutRoot, settingRoot) > 0);
+        QVERIFY(AppStorageBackupHelper::writeFile(filePath, data));
+
+        // The swap is a valid b-tree structure (the check of the backup must find it)
+        sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, true, 5000, nullptr);
+        QVERIFY(handle);
+        const qint64 swappedRoot = pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT rootpage FROM sqlite_master WHERE name = 'sqlite_autoindex_setting_1'", 0);
+        pdf::PDFDatabase::closeHandle(handle);
+        QCOMPARE(swappedRoot, shortcutRoot);
+    }
+    else if (kind == QLatin1String("utf16"))
+    {
+        // The schema of the application in a UTF-16 database: its pages copied into
+        // the UTF-8 live database break every open connection
+        sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, false, 5000, nullptr);
+        QVERIFY(handle);
+        QVERIFY(!pdf::PDFDatabase::executeOnHandle(handle, "PRAGMA encoding = 'UTF-16le'").isError());
+        const pdf::PDFDatabaseError error = pdf::PDFDatabaseSchema::migrate(handle, pdf::PDFDatabaseSchema::getMigrations(), pdf::PDFDatabaseSchema::getCurrentVersion());
+        pdf::PDFDatabase::closeHandle(handle);
+        QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    }
+    else if (kind == QLatin1String("directory"))
+    {
+        QVERIFY(QDir().mkpath(filePath));
+    }
+
+    const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(filePath);
+    QCOMPARE(int(backup.getStatus()), status);
+    QVERIFY(!backup.isValid());
+    QVERIFY(backup.getData().isEmpty());
+    QVERIFY(!backup.getErrorText().isEmpty());
+    if (kind == QLatin1String("newer"))
+    {
+        QCOMPARE(backup.getSchemaVersion(), pdf::PDFDatabaseSchema::getCurrentVersion() + 1);
+        QCOMPARE(backup.getErrorText(), QStringLiteral("The backup was made by a newer version of PDF4QT. Update PDF4QT, then import it again."));
+    }
+
+    // The content checked by fromData gives the same answer (except a missing file)
+    if (kind != QLatin1String("missing") && kind != QLatin1String("directory") && kind != QLatin1String("huge"))
+    {
+        QCOMPARE(int(pdf::PDFDatabaseBackup::fromData(AppStorageBackupHelper::readFile(filePath), filePath).getStatus()), status);
+    }
+
+    // The import of anything, which is not a valid backup, changes nothing
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-hostile-target"))));
+    QVERIFY(AppStorageBackupHelper::fillAllTables(&database, QStringLiteral("T")));
+    const std::map<QString, QStringList> data = AppStorageBackupHelper::dumpData(&database);
+    QVERIFY(database.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup).isError());
+    QVERIFY(database.importBackup(pdf::PDFDatabaseBackup(), pdf::PDFDatabaseImportCertificates::FromBackup).isError());
+    QVERIFY(AppStorageBackupHelper::dumpData(&database) == data);
+    QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'evil'"), qint64(0));
+}
+
+void AppStorageTest::backupImportOlderMigrated()
+{
+    // A backup of schema 1 imported by a newer version (schema 2): migrated first
+    const QString olderDirectory = createFolder(QStringLiteral("backup-older"));
+    const QString backupPath = QDir(olderDirectory).filePath(QStringLiteral("older.pdf4qt-backup"));
+    {
+        pdf::PDFDatabase older;
+        older.open(AppStorageTestHelper::createFolderOptions(olderDirectory));
+        QVERIFY(AppStorageBackupHelper::fillAllTables(&older, QStringLiteral("O")));
+        QVERIFY(!older.exportBackup(backupPath).isError());
+    }
+
+    const std::vector<pdf::PDFDatabaseMigration> migrations = AppStorageTestHelper::getNewerMigrations(1);
+    const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(backupPath, migrations);
+    QVERIFY2(backup.isValid(), qPrintable(backup.getDetail()));
+    QCOMPARE(backup.getSchemaVersion(), 1);
+    QCOMPARE(backup.getApplicationSchemaVersion(), 2);
+
+    pdf::PDFDatabase newer;
+    newer.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-newer")), 1));
+    QCOMPARE(newer.getState().schemaVersion, 2);
+    const pdf::PDFDatabaseError error = newer.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&newer, "appearance.colorScheme"), QStringLiteral("O"));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "PRAGMA user_version"), qint64(2));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&newer, "SELECT COUNT(*) FROM test_extra"), qint64(0));
+
+    // The newer backup of schema 2 is refused by the application of schema 1
+    const QString newerBackupPath = QDir(olderDirectory).filePath(QStringLiteral("newer.pdf4qt-backup"));
+    QVERIFY(!newer.exportBackup(newerBackupPath).isError());
+    QCOMPARE(pdf::PDFDatabaseBackup::read(newerBackupPath).getStatus(), pdf::PDFDatabaseBackupStatus::Newer);
+    QVERIFY(pdf::PDFDatabaseBackup::read(newerBackupPath, migrations).isValid());
+}
+
+void AppStorageTest::backupPortableAndNewer()
+{
+    const QString backupPath = QDir(createFolder(QStringLiteral("backup-portable"))).filePath(QStringLiteral("portable.pdf4qt-backup"));
+
+    // Portable: export and import of the memory database, nothing written elsewhere
+    pdf::PDFDatabase portable;
+    pdf::PDFDatabaseOptions options = AppStorageTestHelper::createOptions(QString());
+    options.portable = true;
+    portable.open(options);
+    QCOMPARE(portable.getState().mode, pdf::PDFDatabaseStorageMode::Portable);
+    QVERIFY(AppStorageBackupHelper::fillAllTables(&portable, QStringLiteral("P")));
+    const std::map<QString, QStringList> data = AppStorageBackupHelper::dumpData(&portable);
+    QVERIFY(!portable.exportBackup(backupPath).isError());
+    const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(backupPath);
+    QVERIFY(backup.isValid());
+
+    QVERIFY(AppStorageTestHelper::execute(&portable, "DELETE FROM bookmark; UPDATE setting SET value = 'changed'"));
+    pdf::PDFDatabaseNotifier notifier(&portable);
+    QSignalSpy everythingSpy(&notifier, &pdf::PDFDatabaseNotifier::everythingChanged);
+    const pdf::PDFDatabaseError error = portable.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QVERIFY(AppStorageBackupHelper::dumpData(&portable) == data);
+    QTRY_VERIFY_WITH_TIMEOUT(everythingSpy.count() >= 1, 5000 * AppStorageTestHelper::getTimeoutFactor());
+
+    // A database file of a newer version copied into memory refuses an import
+    const QString directory = createFolder(QStringLiteral("backup-newer-only"));
+    QVERIFY(AppStorageTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(directory, 2), 2, "newer"));
+    pdf::PDFDatabase newerOnly;
+    newerOnly.open(AppStorageTestHelper::createFolderOptions(directory));
+    QCOMPARE(newerOnly.getState().mode, pdf::PDFDatabaseStorageMode::ReadOnlyNewerSchema);
+    QVERIFY(newerOnly.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup).isError());
+    QCOMPARE(AppStorageTestHelper::getSettingText(&newerOnly, "appearance.colorScheme"), QStringLiteral("newer"));
+
+    // Not open
+    pdf::PDFDatabase closed;
+    QVERIFY(closed.exportBackup(backupPath).isError());
+    QVERIFY(closed.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup).isError());
+    QVERIFY(portable.exportBackup(QString()).isError());
+
+    // A folder, which cannot be written
+    QVERIFY(portable.exportBackup(QDir(backupPath).filePath(QStringLiteral("x/y.pdf4qt-backup"))).isError());
+}
+
+void AppStorageTest::backupImportBusy()
+{
+    // Another instance holds a write transaction: the import gives up after the time
+    // limit and changes nothing
+    const QString directory = createFolder(QStringLiteral("backup-busy"));
+    const QString backupPath = QDir(createFolder(QStringLiteral("backup-busy-files"))).filePath(QStringLiteral("b.pdf4qt-backup"));
+    pdf::PDFDatabase database;
+    database.open(AppStorageTestHelper::createFolderOptions(directory));
+    QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'before', 0)"));
+    QVERIFY(!database.exportBackup(backupPath).isError());
+    QVERIFY(AppStorageTestHelper::execute(&database, "UPDATE setting SET value = 'current' WHERE key = 'appearance.colorScheme'"));
+
+    QProcess* process = startChild({ QStringLiteral("--storage-hold-lock"), database.getState().filePath, QStringLiteral("-1") });
+    QVERIFY(process->waitForReadyRead(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(process->readLine().trimmed(), QByteArray("locked"));
+
+    QElapsedTimer timer;
+    timer.start();
+    const pdf::PDFDatabaseError error = database.importBackup(pdf::PDFDatabaseBackup::read(backupPath), pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY(error.isBusy());
+    QCOMPARE(error.getMessage(), QStringLiteral("Another PDF4QT is changing the settings right now. Try again in a moment."));
+    QVERIFY(timer.elapsed() < 30000 * AppStorageTestHelper::getTimeoutFactor());
+
+    process->write("\n");
+    process->closeWriteChannel();
+    QVERIFY(process->waitForFinished(30000 * AppStorageTestHelper::getTimeoutFactor()));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("current"));
+
+    // Released: the import goes through
+    QVERIFY(!database.importBackup(pdf::PDFDatabaseBackup::read(backupPath), pdf::PDFDatabaseImportCertificates::FromBackup).isError());
+    QCOMPARE(AppStorageTestHelper::getSettingText(&database, "appearance.colorScheme"), QStringLiteral("before"));
+}
+
+void AppStorageTest::backupCertificatesAndSecurity()
+{
+    // Owner 2026-10-25 (Q7): a backup tells its trusted certificates and the security
+    // settings (bounded, untrusted); the import keeps the current certificates unless
+    // the backup's ones are chosen. Owner 4: the limit of a backup is 128 MB.
+    QCOMPARE(pdf::PDFDatabaseBackup::MAXIMUM_SIZE, qint64(128) * 1024 * 1024);
+    QCOMPARE(pdf::PDFDatabaseBackup::getSecuritySettingKeys(),
+             QStringList({ QStringLiteral("security.openLinks"), QStringLiteral("security.launchFiles"), QStringLiteral("signatures.verify"),
+                           QStringLiteral("signatures.strict"), QStringLiteral("signatures.ignoreExpiration"), QStringLiteral("signatures.useSystemStore") }));
+
+    const QString backupPath = QDir(createFolder(QStringLiteral("backup-security-files"))).filePath(QStringLiteral("s.pdf4qt-backup"));
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-security-source"))));
+        // Certificates: two blobs of the backup, hostile rows (a text, a number, an
+        // empty and a huge blob) are not read
+        QVERIFY(AppStorageTestHelper::execute(&source,
+            "INSERT INTO trusted_certificate(data, added) VALUES (CAST('certificate-A' AS BLOB), 1);"
+            "INSERT INTO trusted_certificate(data, added) VALUES ('text', 2);"
+            "INSERT INTO trusted_certificate(data, added) VALUES (42, 3);"
+            "INSERT INTO trusted_certificate(data, added) VALUES (zeroblob(0), 4);"
+            "INSERT INTO trusted_certificate(data, added) VALUES (zeroblob(65537), 5);"
+            "INSERT INTO trusted_certificate(data, added) VALUES (CAST('certificate-B' AS BLOB), 6);"
+            "INSERT INTO setting(key, value, modified) VALUES ('security.launchFiles', 1, 0);"
+            "INSERT INTO setting(key, value, modified) VALUES ('signatures.strict', 0, 0);"
+            "INSERT INTO setting(key, value, modified) VALUES ('signatures.ignoreExpiration', 'yes', 0);"
+            "INSERT INTO setting(key, value, modified) VALUES ('signatures.verify', randomblob(5000), 0);"
+            "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 0);"));
+        QVERIFY(!source.exportBackup(backupPath).isError());
+    }
+
+    const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(backupPath);
+    QVERIFY2(backup.isValid(), qPrintable(backup.getDetail()));
+    QCOMPARE(int(backup.getTrustedCertificates().size()), 2);
+    QCOMPARE(backup.getTrustedCertificates()[0], QByteArray("certificate-A"));
+    QCOMPARE(backup.getTrustedCertificates()[1], QByteArray("certificate-B"));
+    QCOMPARE(backup.getSecuritySetting(QStringLiteral("security.launchFiles")), QVariant(qint64(1)));
+    QCOMPARE(backup.getSecuritySetting(QStringLiteral("signatures.strict")), QVariant(qint64(0)));
+    QCOMPARE(backup.getSecuritySetting(QStringLiteral("signatures.ignoreExpiration")), QVariant(QStringLiteral("yes")));
+    QVERIFY(!backup.getSecuritySetting(QStringLiteral("signatures.verify")).isValid());
+    QVERIFY(!backup.getSecuritySetting(QStringLiteral("security.openLinks")).isValid());
+    QVERIFY(!backup.getSecuritySetting(QStringLiteral("appearance.colorScheme")).isValid());
+
+    // An invalid backup has nothing
+    QVERIFY(pdf::PDFDatabaseBackup().getTrustedCertificates().empty());
+
+    // KeepCurrent: the settings of the backup, the certificates of the database
+    pdf::PDFDatabase target;
+    target.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-security-target"))));
+    QVERIFY(AppStorageTestHelper::execute(&target, "INSERT INTO trusted_certificate(data, added) VALUES (CAST('certificate-C' AS BLOB), 7)"));
+    const QStringList currentCertificates = AppStorageBackupHelper::dumpTable(&target, QStringLiteral("trusted_certificate"));
+    pdf::PDFDatabaseError error = target.importBackup(backup, pdf::PDFDatabaseImportCertificates::KeepCurrent);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&target, "appearance.colorScheme"), QStringLiteral("dark"));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&target, "security.launchFiles"), QStringLiteral("1"));
+    QCOMPARE(AppStorageBackupHelper::dumpTable(&target, QStringLiteral("trusted_certificate")), currentCertificates);
+
+    // FromBackup: the rows of the backup (also its damaged ones, which are skipped
+    // when the certificates are read)
+    error = target.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM trusted_certificate"), qint64(6));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM trusted_certificate WHERE data = CAST('certificate-C' AS BLOB)"), qint64(0));
+}
+
+void AppStorageTest::backupHostileSequences()
+{
+    // RS5 F2: the rows of sqlite_sequence of a backup are untrusted; after an import
+    // every row is the largest rowid of its table, foreign and duplicate rows are gone
+    // and later inserts work
+    const QString folder = createFolder(QStringLiteral("backup-sequence-files"));
+    const QString validPath = QDir(folder).filePath(QStringLiteral("valid.pdf4qt-backup"));
+    const QString hostilePath = QDir(folder).filePath(QStringLiteral("hostile.pdf4qt-backup"));
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-sequence-source"))));
+        QVERIFY(AppStorageBackupHelper::fillAllTables(&source, QStringLiteral("Q")));
+        QVERIFY(!source.exportBackup(validPath).isError());
+    }
+    QVERIFY(QFile::copy(validPath, hostilePath));
+    QVERIFY(AppStorageTestHelper::executeOnFile(hostilePath,
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('change_log', 9223372036854775807);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('change_log', 17);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('setting', 9223372036854775807);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('recent_file', 9223372036854775807);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('storage_maintenance', 9223372036854775807);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('no such table', 5);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES ('a\"b', 5);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES (NULL, 5);"
+        "INSERT INTO sqlite_sequence(name, seq) VALUES (x'00ff', 5);"));
+    const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(hostilePath);
+    QVERIFY2(backup.isValid(), qPrintable(backup.getDetail()));
+
+    pdf::PDFDatabase target;
+    target.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-sequence-target"))));
+    pdf::PDFDatabaseNotifier notifier(&target);
+    notifier.setPollInterval(10000);
+    const qint64 sequenceBefore = notifier.getLastSequence();
+    const pdf::PDFDatabaseError error = target.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+
+    // One row of each table with rowids, the largest rowid; the change log jumped
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM sqlite_sequence WHERE name NOT IN ('change_log', 'setting', 'recent_file')"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM sqlite_sequence WHERE name = 'change_log'"), qint64(1));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT seq FROM sqlite_sequence WHERE name = 'setting'"),
+             AppStorageTestHelper::queryInteger(&target, "SELECT MAX(rowid) FROM setting"));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT seq FROM sqlite_sequence WHERE name = 'recent_file'"),
+             AppStorageTestHelper::queryInteger(&target, "SELECT MAX(rowid) FROM recent_file"));
+    const qint64 changeLogSequence = AppStorageTestHelper::queryInteger(&target, "SELECT seq FROM sqlite_sequence WHERE name = 'change_log'");
+    QVERIFY(changeLogSequence >= sequenceBefore + pdf::PDFDatabase::IMPORT_SEQUENCE_JUMP);
+    QVERIFY(changeLogSequence < sequenceBefore + 2 * pdf::PDFDatabase::IMPORT_SEQUENCE_JUMP);
+
+    // Later inserts (the change log is AUTOINCREMENT) work, also after a reopening
+    QVERIFY(AppStorageTestHelper::execute(&target, "INSERT INTO setting(key, value, modified) VALUES ('test.after', 1, 0)"));
+    QVERIFY(AppStorageTestHelper::queryInteger(&target, "SELECT MAX(seq) FROM change_log") > changeLogSequence);
+    QVERIFY(AppStorageTestHelper::execute(&target, "INSERT INTO recent_file(path, name, folder, last_opened) VALUES ('/after.pdf', 'a', '/', 1)"));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&target, "test.after"), QStringLiteral("1"));
 }
 
 int main(int argc, char* argv[])

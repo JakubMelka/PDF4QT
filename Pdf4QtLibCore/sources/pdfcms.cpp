@@ -67,6 +67,11 @@
 #endif
 #endif
 
+#include <QMutex>
+#include <QMutexLocker>
+
+#include <atomic>
+#include <map>
 #include <unordered_map>
 #include <iterator>
 #include <string>
@@ -1962,7 +1967,74 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profi
     return result;
 }
 
+/// Cache of the external profiles of the process (PDFCMSManager::setExternalProfilesCacheEnabled)
+class PDFCMSExternalProfilesCache
+{
+public:
+    /// Largest number of the profile directories kept
+    static constexpr size_t MAXIMUM_DIRECTORIES = 8;
+
+    static PDFCMSExternalProfilesCache& getInstance()
+    {
+        static PDFCMSExternalProfilesCache cache;
+        return cache;
+    }
+
+    std::atomic_bool isEnabled = false;
+    QMutex mutex;
+    std::map<QString, PDFColorProfileIdentifiers> profiles;
+};
+
+void PDFCMSManager::setExternalProfilesCacheEnabled(bool enabled)
+{
+    PDFCMSExternalProfilesCache& cache = PDFCMSExternalProfilesCache::getInstance();
+    cache.isEnabled = enabled;
+    if (!enabled)
+    {
+        clearExternalProfilesCache();
+    }
+}
+
+bool PDFCMSManager::isExternalProfilesCacheEnabled()
+{
+    return PDFCMSExternalProfilesCache::getInstance().isEnabled;
+}
+
+void PDFCMSManager::clearExternalProfilesCache()
+{
+    PDFCMSExternalProfilesCache& cache = PDFCMSExternalProfilesCache::getInstance();
+    QMutexLocker locker(&cache.mutex);
+    cache.profiles.clear();
+}
+
 PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
+{
+    PDFCMSExternalProfilesCache& cache = PDFCMSExternalProfilesCache::getInstance();
+    if (!cache.isEnabled)
+    {
+        return listExternalProfiles();
+    }
+
+    // The profiles are listed once (also by the managers of other threads, which
+    // wait for the list); the lock of a manager is never taken under this lock
+    QMutexLocker locker(&cache.mutex);
+    auto it = cache.profiles.find(m_settings.profileDirectory);
+    if (it != cache.profiles.end())
+    {
+        return it->second;
+    }
+
+    if (cache.profiles.size() >= PDFCMSExternalProfilesCache::MAXIMUM_DIRECTORIES)
+    {
+        cache.profiles.clear();
+    }
+
+    PDFColorProfileIdentifiers result = listExternalProfiles();
+    cache.profiles[m_settings.profileDirectory] = result;
+    return result;
+}
+
+PDFColorProfileIdentifiers PDFCMSManager::listExternalProfiles() const
 {
     PDFColorProfileIdentifiers result;
 

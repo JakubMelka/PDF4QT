@@ -254,6 +254,13 @@ public:
     static QRect visualRect(const QStyleOption* option, const QRect& outer, const QRect& rect);
     static QRectF visualRect(bool rightToLeft, const QRectF& outer, const QRectF& rect);
 
+    /// Returns the absolute alignment of a text to the leading (trailing) side of
+    /// the direction. The painter of a widget has the direction of the application
+    /// (QPainterState), not of the widget, so a horizontal alignment, which is not
+    /// absolute, would be mirrored by QPainter::drawText once more.
+    static int getLeadingAlignment(bool rightToLeft) { return (rightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute; }
+    static int getTrailingAlignment(bool rightToLeft) { return (rightToLeft ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignAbsolute; }
+
     // ------------------------------------------------------------------
     //  Popups
     // ------------------------------------------------------------------
@@ -282,6 +289,15 @@ public:
     /// Returns the margins of the shadow of the popup kind, empty margins,
     /// if popups are not translucent on the platform.
     static QMargins getShadowMarginsIfTranslucent(PopupKind kind);
+
+    /// Returns the horizontal insets of the rows of the popup list of a combo box
+    /// from the edges of the viewport of its view. The view reaches to the border
+    /// of the panel, so that its scroll bar lies 3 px from the border (Settings
+    /// 944:8960); the rows keep the padding 6 of the panel, and 2 px from the
+    /// scroll bar, when the list scrolls.
+    /// \param view View of the popup list (or the combo box itself)
+    /// \param direction Direction of the rows
+    static QMargins getComboPopupRowInsets(const QWidget* view, Qt::LayoutDirection direction);
 
     /// Returns the paddings of the panel of the toolbar
     static QMargins getToolBarPaddings(const QToolBar* toolBar);

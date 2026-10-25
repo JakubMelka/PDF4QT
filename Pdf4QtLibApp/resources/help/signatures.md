@@ -28,6 +28,8 @@ A signature is valid only when its chain ends at a certificate you trust. PDF4QT
 
 When the root of a chain is not trusted, its card offers **Add to trusted certificates**. Add a certificate only when you know where it comes from: every signature made with it will then be shown as valid, in all documents.
 
+The table *Trusted certificates* in Settings › Security lists the certificates you have added and, with *Use system certificate store*, the certificates of your system. Select your own certificates and click **Remove** (or press Delete) to stop trusting them; the confirmation shows the name and the SHA-256 fingerprint of each certificate. The certificates of the system are managed by your operating system and cannot be removed here. *Restore defaults* of the section keeps your certificates.
+
 ## Settings
 
 Settings › Security has the options of the verification: turn the verification off, treat every warning as an error (*Strict mode*), ignore the expiration of certificates, and use the certificate store of the system. A change applies at once to the open documents.

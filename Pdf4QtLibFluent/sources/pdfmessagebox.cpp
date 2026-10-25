@@ -520,10 +520,21 @@ void PDFMessageBox::showScrim()
 
 void PDFMessageBox::hideScrim()
 {
-    if (m_scrim)
+    if (QWidget* scrim = m_scrim.data())
     {
-        // The scrim is deleted at once, the parent can be deleted before the event loop runs
-        delete m_scrim.data();
+        // The scrim is hidden at once and deleted later: the message box can be
+        // hidden (or deleted) while an event is sent to the children of the
+        // target (QWidget::event sends QEvent::LanguageChange to a copy of the list
+        // of its children), so a scrim deleted now would be used after its
+        // deletion. A target deleted before the event loop runs deletes the scrim
+        // with its other children. The scrim stops following its target at once.
+        m_scrim = nullptr;
+        if (QWidget* host = scrim->parentWidget())
+        {
+            host->removeEventFilter(scrim);
+        }
+        scrim->hide();
+        scrim->deleteLater();
     }
 }
 
@@ -696,8 +707,10 @@ void PDFMessageBox::keyPressEvent(QKeyEvent* event)
 
 void PDFMessageBox::ensureDefaultButton()
 {
-    if (!m_buttonBox)
+    if (!m_buttonBox || m_buttonBox->buttons().isEmpty())
     {
+        // The own row of the buttons replaces the buttons of the platform
+        focusDefaultActionButton();
         return;
     }
 
@@ -746,6 +759,54 @@ void PDFMessageBox::ensureDefaultButton()
     }
 
     if (defaultButton)
+    {
+        defaultButton->setFocus();
+    }
+}
+
+void PDFMessageBox::focusDefaultActionButton()
+{
+    // Qt gives the first focus to the first widget of the focus chain, which is
+    // the first button created - the leading one, often a destructive action
+    // (Delete File, Remove, Don't Save), which Space would take. The default
+    // (Primary) button gets the first focus instead; a widget of the content,
+    // which has the focus (a field focused by the application) or takes the first
+    // focus (the first field of a form), keeps it.
+    const QList<QPushButton*> actionButtons = getActionButtons();
+    QPushButton* defaultButton = nullptr;
+    for (QPushButton* button : actionButtons)
+    {
+        if (button->isDefault() && button->isEnabled() && !button->isHidden())
+        {
+            defaultButton = button;
+            break;
+        }
+    }
+
+    QWidget* currentFocus = focusWidget();
+    if (!defaultButton || (currentFocus && currentFocus != this && isAncestorOf(currentFocus)))
+    {
+        return;
+    }
+
+    // The first widget of the message box, which Tab reaches (bounded walk of the
+    // focus chain, which is a cycle through the window)
+    constexpr int MAXIMUM_STEPS = 10000;
+    QWidget* firstWidget = nullptr;
+    QWidget* widget = nextInFocusChain();
+    for (int step = 0; widget && widget != this && step < MAXIMUM_STEPS; ++step, widget = widget->nextInFocusChain())
+    {
+        if ((widget->focusPolicy() & Qt::TabFocus) && widget->isEnabled() && widget->isVisibleTo(this) && isAncestorOf(widget))
+        {
+            firstWidget = widget;
+            break;
+        }
+    }
+
+    // A button of the row or of the content (a check box of a confirmation - Space
+    // would toggle it) gives the first focus to the default button; a field, a
+    // list or another input of the content keeps it
+    if (!firstWidget || qobject_cast<QAbstractButton*>(firstWidget))
     {
         defaultButton->setFocus();
     }

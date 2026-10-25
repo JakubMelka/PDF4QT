@@ -27,6 +27,7 @@
 #include "pdfappoutlineeditor.h"
 #include "pdfapplocale.h"
 #include "pdfappcommand.h"
+#include "pdfappcolorprofiles.h"
 #include "pdfappcontext.h"
 #include "pdfappdeveloperoverlay.h"
 #include "pdfappdocument.h"
@@ -301,6 +302,8 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     canvasLayout->setContentsMargins(0, 0, 0, 0);
     canvasLayout->setSpacing(0);
 
+    // The installed profiles of the system are listed once per process (the cache
+    // of the external profiles turned on by PDFAppContext)
     m_cmsManager = new PDFCMSManager(this);
     m_progress = new PDFProgress(this);
 
@@ -1279,13 +1282,31 @@ void PDFAppDocumentView::onDatabaseChanged(const QString& topic, const QString& 
     }
     else if (topic == PDFSettingsRepository::getTopic())
     {
-        applySettings();
+        scheduleApplySettings();
     }
 }
 
 void PDFAppDocumentView::onEverythingChanged()
 {
     updateCanvasShortcuts();
+    scheduleApplySettings();
+}
+
+void PDFAppDocumentView::scheduleApplySettings()
+{
+    // The notifications of one batch (a preset with its two colors, Restore
+    // defaults - a notification per key) are applied once, so the pages are
+    // compiled once (step 5)
+    if (!m_isApplySettingsQueued)
+    {
+        m_isApplySettingsQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppDocumentView::onApplySettingsQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentView::onApplySettingsQueued()
+{
+    m_isApplySettingsQueued = false;
     applySettings();
 }
 
@@ -1830,8 +1851,16 @@ void PDFAppDocumentView::applySettings()
         }
     }
 
+    // The color management reads every profile of the folder in this thread without
+    // limits (SECURITY_TODO.md): a network folder, a folder of thousands of files or
+    // of huge files is not given to it (step 5, package B)
+    if (!PDFAppColorProfiles::isDirectoryUsable(cmsSettings.profileDirectory))
+    {
+        cmsSettings.profileDirectory.clear();
+    }
+
     cmsSettings.foregroundColor = H::getColor(settings.getString(K::colorModesTextColor()), QColor(0xFF, 0xB0, 0x00));
-    cmsSettings.backgroundColor = H::getColor(settings.getString(K::colorModesPageColor()), QColor(0x14, 0x14, 0x14));
+    cmsSettings.backgroundColor = H::getColor(settings.getString(K::colorModesPageColor()), QColor(0x0B, 0x0B, 0x10));
     cmsSettings.bitonalThreshold = int(qBound(qint64(0), settings.getInteger(K::colorModesBitonalThreshold()), qint64(255)));
     cmsSettings.sigmoidSlopeFactor = qBound(1.0, settings.getReal(K::colorModesHighContrastStrength()), 100.0);
     if (!(m_cmsManager->getSettings() == cmsSettings))

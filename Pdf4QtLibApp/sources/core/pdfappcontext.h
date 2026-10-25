@@ -38,6 +38,7 @@
 #include "pdfappthumbnailer.h"
 #include "pdfappfolderinfo.h"
 #include "pdfappdocumentregistry.h"
+#include "pdfapptranslator.h"
 
 #include <QObject>
 #include <QPointer>
@@ -131,6 +132,18 @@ public:
     /// Applies the color scheme of the settings (or of the system for Auto)
     void applyColorScheme();
 
+    /// Language of the user interface (step 5): the translator of the application,
+    /// which applies appearance.language at the opening of the storage and after
+    /// every change of any instance. It lives as long as the context.
+    PDFAppTranslator* getTranslator() const { return m_translator; }
+
+    /// Applies the setting appearance.language (the translator)
+    void applyLanguage();
+
+    /// Removes the unpinned recent files over recent.maxFiles (a lowered limit
+    /// trims the history at once - step 5); the writes of another instance too
+    void applyRecentLimit();
+
     /// Pages of the application (PDFAppPageRegistry) are registered by the navigator
     /// of a new window. false = the window is the shell only, every route ends on
     /// Page Not Found until a factory is set (tests of the shell). Default true.
@@ -162,6 +175,7 @@ private:
     QPointer<PDFAppThumbnailer> m_thumbnailer;
     QPointer<PDFAppFolderInfoService> m_folderInfo;
     QPointer<PDFAppDocumentRegistry> m_documentRegistry;
+    QPointer<PDFAppTranslator> m_translator;
     std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
     bool m_isPagesEnabled = true;
 };

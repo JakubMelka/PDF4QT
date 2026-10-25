@@ -86,6 +86,25 @@ std::vector<PDFTrustedCertificate> PDFTrustedCertificateRepository::getCertifica
     return certificates;
 }
 
+std::vector<PDFTrustedCertificate> PDFTrustedCertificateRepository::getRows() const
+{
+    std::vector<PDFTrustedCertificate> rows;
+    PDFDatabaseStatement statement(getConnection(), "SELECT id, CASE WHEN typeof(data) = 'blob' AND length(data) BETWEEN 1 AND 65536 THEN data ELSE NULL END, added "
+                                                    "FROM trusted_certificate ORDER BY id LIMIT 2000");
+    while (statement.next() && int(rows.size()) < MAXIMUM_LISTED_ROW_COUNT)
+    {
+        PDFTrustedCertificate row;
+        row.id = PDFRepositoryHelper::readInteger(statement, 0, 0, 1, std::numeric_limits<qint64>::max());
+        row.data = statement.isNull(1) ? QByteArray() : statement.getBlob(1);
+        row.added = PDFRepositoryHelper::readInteger(statement, 2, 0, 0, std::numeric_limits<qint64>::max());
+        if (row.id > 0)
+        {
+            rows.push_back(std::move(row));
+        }
+    }
+    return rows;
+}
+
 bool PDFTrustedCertificateRepository::contains(const QByteArray& data) const
 {
     // A row of the table, also one behind the limit of getCertificates (no
@@ -160,6 +179,42 @@ PDFDatabaseError PDFTrustedCertificateRepository::removeCertificate(qint64 id)
     if (!statement.execute())
     {
         return statement.getError();
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFTrustedCertificateRepository::removeRows(const std::vector<PDFTrustedCertificate>& rows)
+{
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    for (const PDFTrustedCertificate& row : rows)
+    {
+        // The data compared as getRows reads them (a damaged value is null there)
+        PDFDatabaseStatement statement(connection, "DELETE FROM trusted_certificate WHERE id = ?1 AND "
+                                                   "(CASE WHEN typeof(data) = 'blob' AND length(data) BETWEEN 1 AND 65536 THEN data ELSE NULL END) IS ?2");
+        statement.bindInt64(1, row.id);
+        if (row.data.isEmpty())
+        {
+            statement.bindNull(2);
+        }
+        else
+        {
+            statement.bindBlob(2, row.data);
+        }
+        if (!statement.execute())
+        {
+            return statement.getError();
+        }
     }
 
     if (!transaction.commit())

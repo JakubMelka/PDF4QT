@@ -69,6 +69,8 @@ class PDFDocumentTool
 
 ### Použití a řetězení toolů
 
+Potvrzeno vlastníkem 25. 10. 2026 (O21).
+
 Pravidla jsou v [tools.md](tools.md) 9.3 bod 12, tabulky v [newapp_storage.md](newapp_storage.md) 4. Vše se čte z databáze online (žádná cache), takže to vidí i ostatní instance.
 
 - **Použití** (`tool_usage`: `last_used`, `count`) se zapíše, když uživatel v GUI přijme výsledek (potvrdí volbu dialogu výsledku, ne *Discard result*) nebo když běh skončí stavem `NothingToDo`. Zastavený, chybný a zahozený běh se nezapisuje. Podle `last_used` se řadí *Recent tools* (Tools 272:12821, Home), `count` je pro budoucí sekci *Frequently used* ([tools.md](tools.md) 8.3).

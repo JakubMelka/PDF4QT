@@ -123,24 +123,72 @@ QStringList PDFSettingsRepository::getChangedKeys(const QString& section) const
     return keys;
 }
 
-PDFDatabaseError PDFSettingsRepository::setValue(const QString& key, const QVariant& value)
+PDFDatabaseError PDFSettingsRepository::normalizeValue(const QString& key, const QVariant& value, QVariant* normalizedValue, bool* isDefault) const
 {
     const PDFSettingDefinition* definition = getDefinition(key);
     if (!definition)
     {
-        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFSettingsRepository", "Unknown setting %1.").arg(key));
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFSettingsRepository", "Unknown setting %1.").arg(key.left(128)));
     }
 
-    std::optional<QVariant> normalizedValue = definition->normalize(value);
-    if (!normalizedValue)
+    std::optional<QVariant> normalized = definition->normalize(value);
+    if (!normalized)
     {
         return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFSettingsRepository", "Invalid value of the setting %1.").arg(key));
     }
 
-    if (*normalizedValue == definition->getDefaultValue())
+    *normalizedValue = *normalized;
+    *isDefault = *normalized == definition->getDefaultValue();
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFSettingsRepository::writeValue(PDFDatabaseConnection* connection, const QString& key, const QVariant& normalizedValue, bool isDefault)
+{
+    if (isDefault)
     {
         // Only changed settings are stored
-        return resetValue(key);
+        PDFDatabaseStatement statement(connection, "DELETE FROM setting WHERE key = ?1");
+        statement.bindText(1, key);
+        statement.execute();
+        return statement.getError();
+    }
+
+    // The same value is not written again (no change notification without a change)
+    PDFDatabaseStatement statement(connection, "INSERT INTO setting(key, value, modified) VALUES (?1, ?2, ?3) "
+                                               "ON CONFLICT(key) DO UPDATE SET value = excluded.value, modified = excluded.modified "
+                                               "WHERE setting.value IS NOT excluded.value");
+    statement.bindText(1, key);
+    statement.bindVariant(2, normalizedValue);
+    statement.bindInt64(3, QDateTime::currentMSecsSinceEpoch());
+    statement.execute();
+    return statement.getError();
+}
+
+PDFDatabaseError PDFSettingsRepository::setValue(const QString& key, const QVariant& value)
+{
+    return setValues({ std::make_pair(key, value) });
+}
+
+PDFDatabaseError PDFSettingsRepository::setValues(const std::vector<std::pair<QString, QVariant>>& values)
+{
+    // Every value is validated before anything is written
+    std::vector<std::pair<QVariant, bool>> normalizedValues;
+    normalizedValues.reserve(values.size());
+    for (const std::pair<QString, QVariant>& item : values)
+    {
+        QVariant normalizedValue;
+        bool isDefault = false;
+        const PDFDatabaseError error = normalizeValue(item.first, item.second, &normalizedValue, &isDefault);
+        if (error.isError())
+        {
+            return error;
+        }
+        normalizedValues.emplace_back(std::move(normalizedValue), isDefault);
+    }
+
+    if (values.empty())
+    {
+        return PDFDatabaseError();
     }
 
     PDFDatabaseConnection* connection = m_database ? m_database->getConnection() : nullptr;
@@ -150,16 +198,14 @@ PDFDatabaseError PDFSettingsRepository::setValue(const QString& key, const QVari
         return transaction.getError();
     }
 
-    // The same value is not written again (no change notification without a change)
-    PDFDatabaseStatement statement(connection, "INSERT INTO setting(key, value, modified) VALUES (?1, ?2, ?3) "
-                                               "ON CONFLICT(key) DO UPDATE SET value = excluded.value, modified = excluded.modified "
-                                               "WHERE setting.value IS NOT excluded.value");
-    statement.bindText(1, key);
-    statement.bindVariant(2, *normalizedValue);
-    statement.bindInt64(3, QDateTime::currentMSecsSinceEpoch());
-    if (!statement.execute())
+    for (size_t i = 0; i < values.size(); ++i)
     {
-        return statement.getError();
+        const PDFDatabaseError error = writeValue(connection, values[i].first, normalizedValues[i].first, normalizedValues[i].second);
+        if (error.isError())
+        {
+            // The transaction is rolled back by its destructor: nothing is stored
+            return error;
+        }
     }
 
     if (!transaction.commit())

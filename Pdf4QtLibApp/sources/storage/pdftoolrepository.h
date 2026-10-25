@@ -86,6 +86,18 @@ public:
     /// the runs of MCP are not recorded, newapp_tools.md 3)
     PDFDatabaseError recordUsage(const QString& toolId);
 
+    /// Topic of the pairs of the tools run one after another (table tool_pair)
+    static QString getPairTopic() { return QStringLiteral("tool_pair"); }
+
+    /// Number of the recorded runs of the tool history (the state setting
+    /// tools.historyRuns; a hostile stored value is 0)
+    qint64 getHistoryRuns() const;
+
+    /// Clears the tool history (Settings › General › Tool history): deletes the
+    /// pairs of the tools and resets tools.historyRuns in one transaction
+    /// (notifications tool_pair and setting)
+    PDFDatabaseError clearHistory();
+
 private:
     qint64 getCurrentTime() const;
     PDFDatabaseConnection* getConnection() const;

@@ -69,9 +69,10 @@ public:
     static constexpr int HEADER_ARROW_GAP = 4;
     static constexpr int HEADER_VERTICAL_WIDTH = 40;
 
-    /// Columns of a plain table (Library row, columns 111:2291): no band and no
-    /// separators, the label 13 px at 6 px, the divider below it at 27 and the gap
-    /// of 4 px before the first row, the paddings 10 of the cells
+    /// Columns of a plain table (Library row, columns 111:2291; Certificate row,
+    /// columns 147:3786): no band and no separators, the label 13 px at 6 px, the
+    /// divider below it at 27 and the gap of 4 px before the first row, the
+    /// paddings 10 of the cells
     static constexpr int PLAIN_HEADER_HEIGHT = 32;
     static constexpr int PLAIN_HEADER_LABEL_TOP = 6;
     static constexpr int PLAIN_HEADER_LABEL_HEIGHT = 13;
@@ -102,7 +103,11 @@ private:
     };
 
     static bool isComboPopup(const QWidget* widget);
-    /// Header of a view with the plain columns of a table (row style Library)
+
+    /// Returns true, if the item is the current item of the combo box of the popup list
+    static bool isCurrentOfComboPopup(const QStyleOptionViewItem* option, const QWidget* widget);
+
+    /// Header of a view with the plain columns of a table (row styles Library and Certificate)
     static bool isPlainHeader(const QWidget* widget);
     static bool isTreeBranchColumn(const QStyleOptionViewItem* option, const QWidget* widget);
     /// Part of the tree column, for which the panel of a row is drawn
@@ -167,11 +172,30 @@ bool PDFWidgetStyleItemViews::isComboPopup(const QWidget* widget)
     return widget && widget->parentWidget() && widget->parentWidget()->inherits("QComboBoxPrivateContainer");
 }
 
+bool PDFWidgetStyleItemViews::isCurrentOfComboPopup(const QStyleOptionViewItem* option, const QWidget* widget)
+{
+    if (!isComboPopup(widget) || !option->index.isValid())
+    {
+        return false;
+    }
+
+    // The view lies in the container of the popup, which is a child of the combo box
+    const QComboBox* comboBox = qobject_cast<const QComboBox*>(widget->parentWidget()->parentWidget());
+    return comboBox && comboBox->currentIndex() == option->index.row();
+}
+
 bool PDFWidgetStyleItemViews::isPlainHeader(const QWidget* widget)
 {
     const QHeaderView* header = qobject_cast<const QHeaderView*>(widget);
     const QWidget* view = header ? header->parentWidget() : nullptr;
-    return view && header->orientation() == Qt::Horizontal && view->property(PDFWidgetStyleProperties::ROW_STYLE).toString() == QLatin1String("library");
+    if (!view || header->orientation() != Qt::Horizontal)
+    {
+        return false;
+    }
+
+    // Tables of the cards: Library row (111:2291), Certificate row (147:3786)
+    const QString rowStyle = view->property(PDFWidgetStyleProperties::ROW_STYLE).toString();
+    return rowStyle == QLatin1String("library") || rowStyle == QLatin1String("certificate");
 }
 
 bool PDFWidgetStyleItemViews::isTreeBranchColumn(const QStyleOptionViewItem* option, const QWidget* widget)
@@ -414,8 +438,20 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
     const bool isPopup = isComboPopup(widget);
     const QRect rect = option->rect;
 
-    // Rows of a popup list are 2 px apart
-    layout.shape = isPopup ? rect.adjusted(0, POPUP_ROW_GAP / 2, 0, -POPUP_ROW_GAP / 2) : rect;
+    // Rows of a popup list are 2 px apart and they keep the padding of the panel
+    // at the sides (the cells of a view with more columns at the outer sides only)
+    layout.shape = rect;
+    if (isPopup)
+    {
+        const QMargins insets = PDFWidgetStyleImpl::getComboPopupRowInsets(widget, option->direction);
+        const bool isRightToLeft = option->direction == Qt::RightToLeft;
+        const QStyleOptionViewItem::ViewItemPosition position = option->viewItemPosition;
+        const bool hasLeading = position != QStyleOptionViewItem::Middle && position != QStyleOptionViewItem::End;
+        const bool hasTrailing = position != QStyleOptionViewItem::Middle && position != QStyleOptionViewItem::Beginning;
+        const bool hasLeft = isRightToLeft ? hasTrailing : hasLeading;
+        const bool hasRight = isRightToLeft ? hasLeading : hasTrailing;
+        layout.shape = rect.adjusted(hasLeft ? insets.left() : 0, POPUP_ROW_GAP / 2, hasRight ? -insets.right() : 0, -POPUP_ROW_GAP / 2);
+    }
 
     const RowMetrics metrics = getRowMetrics(widget);
     const int padding = isPopup ? POPUP_ROW_PADDING : metrics.padding;
@@ -495,8 +531,7 @@ PDFWidgetStyleItemViews::ItemLayout PDFWidgetStyleItemViews::getItemLayout(const
     if (isPopup)
     {
         // Space of the check mark of the current item
-        const QComboBox* comboBox = qobject_cast<const QComboBox*>(widget->parentWidget()->parentWidget());
-        if (comboBox && option->index.isValid() && comboBox->currentIndex() == option->index.row())
+        if (isCurrentOfComboPopup(option, widget))
         {
             right -= ROW_ICON + gap;
         }
@@ -1114,9 +1149,12 @@ void PDFWidgetStyleItemViews::drawItemBackground(const QStyleOptionViewItem* opt
         // Pressed row of the presets Outline and Certificate (PDFTreeView tracks the press)
         PDFStylePainter::fill(painter, shape, radii, Color::BgPressed);
     }
-    else if (isHovered || (isPopup && isEnabled && option->state.testFlag(QStyle::State_Selected)))
+    else if (isHovered || (isPopup && isEnabled && option->state.testFlag(QStyle::State_Selected) && !isCurrentOfComboPopup(option, widget)))
     {
-        // The hovered row of a popup list is its selected row
+        // The selected row of a popup list follows the pointer and the keyboard.
+        // The current item of the combo box is selected, when the list opens: it
+        // shows only its accent text and the check mark (944:8935), the fill only
+        // under the pointer.
         PDFStylePainter::fill(painter, shape, radii, Color::BgHover);
     }
 }
@@ -1129,14 +1167,14 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
     const bool isSelected = option->state.testFlag(QStyle::State_Selected) && !isPopup;
     const bool isEditing = isEdited(option, widget);
 
-    const QComboBox* comboBox = isPopup ? qobject_cast<const QComboBox*>(widget->parentWidget()->parentWidget()) : nullptr;
-    const bool isCurrentOfCombo = comboBox && option->index.isValid() && comboBox->currentIndex() == option->index.row();
+    const bool isCurrentOfCombo = isCurrentOfComboPopup(option, widget);
 
     // Separator of a popup list
     if (isPopup && option->index.isValid() && option->index.data(Qt::AccessibleDescriptionRole).toString() == QLatin1String("separator"))
     {
         const QRectF rect(option->rect);
-        PDFStylePainter::fillRect(painter, QRectF(rect.left() + 6.0, rect.top() + (rect.height() - 1.0) / 2.0, rect.width() - 12.0, 1.0), Color::BorderDivider);
+        const QRectF shape(layout.shape);
+        PDFStylePainter::fillRect(painter, QRectF(shape.left() + 6.0, rect.top() + (rect.height() - 1.0) / 2.0, shape.width() - 12.0, 1.0), Color::BorderDivider);
         return;
     }
 
@@ -1224,7 +1262,7 @@ void PDFWidgetStyleItemViews::drawItem(const QStyleOptionViewItem* option, QPain
 
         if (isWrapped || option->text.contains(QLatin1Char('\n')))
         {
-            painter->drawText(textRect, static_cast<int>(option->displayAlignment) | (isWrapped ? Qt::TextWordWrap : 0), option->text);
+            painter->drawText(textRect, static_cast<int>(QStyle::visualAlignment(option->direction, option->displayAlignment)) | (isWrapped ? Qt::TextWordWrap : 0), option->text);
         }
         else
         {
@@ -1410,7 +1448,7 @@ void PDFWidgetStyleItemViews::drawHeaderLabel(const QStyleOptionHeader* option, 
     }
 
     const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, rect.width());
-    PDFStylePainter::text(painter, rect, Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::TextSingleLine, text, font, PDFWidgetStyleImpl::color(textColor));
+    PDFStylePainter::text(painter, rect, Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(isRightToLeft) | Qt::TextSingleLine, text, font, PDFWidgetStyleImpl::color(textColor));
 }
 
 }   // namespace pdf

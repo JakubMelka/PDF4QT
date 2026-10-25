@@ -491,6 +491,39 @@ PDFDatabaseError PDFRecentRepository::removeFile(const QString& path)
     return PDFDatabaseError();
 }
 
+PDFDatabaseError PDFRecentRepository::applyLimit()
+{
+    PDFDatabaseConnection* connection = getConnection();
+
+    // Every running instance applies the limit at the notification of the setting:
+    // only one of them deletes something, the others take no write lock
+    {
+        PDFDatabaseStatement count(connection, "SELECT COUNT(*) FROM recent_file WHERE pinned IS NOT 1");
+        if (count.next() && count.getInt64(0) <= getMaximumFiles())
+        {
+            return PDFDatabaseError();
+        }
+    }
+
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    const PDFDatabaseError error = pruneFiles(connection);
+    if (error.isError())
+    {
+        return error;
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+    return PDFDatabaseError();
+}
+
 PDFDatabaseError PDFRecentRepository::setPinned(const QString& path, bool pinned)
 {
     if (!PDFRecentRepositoryHelper::isUsablePath(path))

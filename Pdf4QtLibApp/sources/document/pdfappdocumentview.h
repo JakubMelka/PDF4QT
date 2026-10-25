@@ -122,7 +122,8 @@ enum class PDFAppInfoBarTone
     Information,
     Warning,
     Error,
-    Progress
+    Progress,
+    Success     ///< A finished action (Settings › Storage, exported 1271:15212: accent/green, check-circle)
 };
 
 /// Request of an info bar over the canvas (notification bar of the design,
@@ -381,6 +382,13 @@ public:
     /// (called at each change of the settings)
     void applySettings();
 
+    /// Applies the settings once from the event loop (the notifications of the
+    /// changes of the settings are coalesced into one application)
+    void scheduleApplySettings();
+
+    /// An application of the settings is queued (tests)
+    bool isApplySettingsQueued() const { return m_isApplySettingsQueued; }
+
 Q_SIGNALS:
     /// The current page has changed (page index from 0)
     void currentPageChanged(pdf::PDFInteger pageIndex);
@@ -442,6 +450,7 @@ private:
     void onCanvasActionTriggered();
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
+    void onApplySettingsQueued();
     void onInfoBarAction(const QString& infoBarId, const QString& actionId);
     void onInfoBarClosed(const QString& infoBarId);
     void onToolMessage(const QString& text, int timeout);
@@ -497,6 +506,7 @@ private:
     bool m_isHandMode = true;
     bool m_isSelectAllPending = false;
     bool m_isApplyingSettings = false;
+    bool m_isApplySettingsQueued = false;
     bool m_isSidebarVisible = true;
     bool m_isShowingAnnotations = true;
     QString m_colorMode;

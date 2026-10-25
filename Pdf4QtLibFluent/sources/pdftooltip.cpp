@@ -254,7 +254,7 @@ private:
         const QMargins margins = PDFWidgetStyleImpl::getPopupMargins(this);
         const QRectF content = QRectF(rect()).marginsRemoved(QMarginsF(margins)).adjusted(BORDER + PADDING_H, BORDER + PADDING_V, -BORDER - PADDING_H, -BORDER - PADDING_V);
         const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
-        const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft);
+        const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | PDFWidgetStyleImpl::getLeadingAlignment(isRightToLeft);
         const QFont font = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
         const QFontMetricsF metrics(font);
 

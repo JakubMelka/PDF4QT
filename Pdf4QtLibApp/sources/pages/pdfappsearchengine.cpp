@@ -23,6 +23,7 @@
 #include "pdfappsearchengine.h"
 #include "pdfapplocale.h"
 #include "pdfappcontext.h"
+#include "pdfappsettingssection.h"
 #include "pdfsupportvideocatalog.h"
 
 #include "pdfdocumenttoolcatalog.h"
@@ -473,6 +474,52 @@ void PDFAppSettingSearchProvider::search(const PDFSearchQuery& query, const PDFA
         result.order = order++;
         results.push_back(std::move(result));
     }
+
+    // The rows of Settings › Storage are not settings (step 5, package D): the
+    // database file, the export and the import of the settings
+    struct StorageRow
+    {
+        const char* anchor;
+        const char* title;
+        const char* keywords;
+    };
+    static constexpr StorageRow storageRows[] =
+    {
+        { "location", QT_TRANSLATE_NOOP("pdf::PDFAppStorageSettingsSection", "Location"), "database file folder path storage" },
+        { "state", QT_TRANSLATE_NOOP("pdf::PDFAppStorageSettingsSection", "State"), "portable memory read only database storage" },
+        { "export", QT_TRANSLATE_NOOP("pdf::PDFAppStorageSettingsSection", "Export settings"), "backup export save copy storage" },
+        { "import", QT_TRANSLATE_NOOP("pdf::PDFAppStorageSettingsSection", "Import settings"), "backup import restore storage" }
+    };
+
+    const QString storageTitle = PDFAppSearchEngine::getSettingsSectionTitle(QStringLiteral("storage"));
+    for (const StorageRow& row : storageRows)
+    {
+        const QString title = QCoreApplication::translate("pdf::PDFAppStorageSettingsSection", row.title);
+        QStringList keywords = QString::fromLatin1(row.keywords).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        keywords << storageTitle;
+        const std::vector<PDFSearchField> fields = {
+            PDFAppSearchEngineHelper::title(PDFAppSearchEngineHelper::withSource(title, QString::fromUtf8(row.title))),
+            PDFAppSearchEngineHelper::keywords(keywords)
+        };
+        const std::optional<PDFSearchFieldMatch> match = query.match(fields);
+        if (!match)
+        {
+            ++order;
+            continue;
+        }
+
+        PDFAppSearchResult result;
+        result.group = PDFAppSearchGroup::Settings;
+        result.key = QStringLiteral("storage.") + QString::fromLatin1(row.anchor);
+        result.title = title;
+        result.subtitle = PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Settings › %1")).arg(storageTitle);
+        result.iconName = QStringLiteral("settings");
+        result.action = PDFAppSearchResult::Action::Navigate;
+        result.route = PDFAppRoutes::settings(QStringLiteral("storage"), QString::fromLatin1(row.anchor));
+        result.score = match->score;
+        result.order = order++;
+        results.push_back(std::move(result));
+    }
 }
 
 void PDFAppDocumentSearchProvider::search(const PDFSearchQuery& query, const PDFAppSearchData& data, std::vector<PDFAppSearchResult>& results) const
@@ -711,27 +758,10 @@ PDFAppSearchResults PDFAppSearchEngine::search(const QString& text, const PDFApp
 
 QString PDFAppSearchEngine::getSettingsSectionTitle(const QString& section)
 {
-    using Helper = PDFAppSearchEngineHelper;
-
-    // Sections of Settings (newapp_navigation.md 3, Figma 146:2843 … 147:4565)
-    static const std::array<std::pair<const char*, const char*>, 9> sections = {
-        std::make_pair("general", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "General")),
-        std::make_pair("viewing", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Viewing")),
-        std::make_pair("color-modes", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Color modes")),
-        std::make_pair("editing", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Editing")),
-        std::make_pair("security", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Security")),
-        std::make_pair("speech", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Speech")),
-        std::make_pair("shortcuts", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Shortcuts")),
-        std::make_pair("color-management", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Color management")),
-        std::make_pair("advanced", QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "Advanced"))
-    };
-
-    for (const std::pair<const char*, const char*>& item : sections)
+    // Sections of Settings: the registry of the page (step 5), also Storage
+    if (const PDFAppSettingsSectionInfo* info = PDFAppSettingsSectionRegistry::findSection(section))
     {
-        if (section == QLatin1String(item.first))
-        {
-            return Helper::translate(item.second);
-        }
+        return info->getTitle();
     }
     return section;
 }

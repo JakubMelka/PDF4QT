@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfdatabase.h"
+#include "pdfsettingdefinitions.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -30,6 +31,7 @@
 #include <QFileInfo>
 #include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QThread>
 #include <QThreadStorage>
 #include <QUrl>
@@ -39,7 +41,9 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <map>
+#include <optional>
 
 Q_LOGGING_CATEGORY(lcPdf4QtStorage, "pdf4qt.storage")
 
@@ -150,6 +154,72 @@ public:
 
     /// Removes the temporary file \p filePath and the files of SQLite next to it
     static void removeTemporaryFile(const QString& filePath);
+
+    /// Tables of the state of the running instances, which a backup does not carry
+    /// (change_log is handled separately: it is emptied and its sequence jumps)
+    static std::vector<const char*> getRuntimeTables();
+
+    /// Released schema versions and the versions of PDF4QT, which use them
+    /// (PDFDatabaseFiles::getVersionLabel). A new schema version (a new migration)
+    /// adds its row here.
+    static std::vector<std::pair<int, const char*>> getVersionLabels();
+
+    /// Schema of the database: one text per row of sqlite_master (type, name, table
+    /// and SQL, without the root page), sorted. \returns false on an error.
+    static bool readSchema(sqlite3* handle, QStringList* schema);
+
+    /// Schema, which the migrations create for \p version in an empty database
+    static bool createReferenceSchema(const std::vector<PDFDatabaseMigration>& migrations, int version, QStringList* schema);
+
+    /// Memory database with the content of a database file (\p data): the defensive
+    /// pragmas of the application, the header of a database with a rollback journal.
+    /// \returns nullptr on an error.
+    static sqlite3* openMemoryCopy(const QByteArray& data, bool readOnly, PDFDatabaseError* error);
+
+    /// Memory database of a copy (empty, with the pragmas of the application)
+    static sqlite3* openEmptyMemory(PDFDatabaseError* error);
+
+    /// Copies \p source into \p target by the backup API in one step
+    static int backupDatabase(sqlite3* source, sqlite3* target);
+
+    /// Replaces the rows of the table of \p target by the rows of \p source (the
+    /// columns of the table of \p target, named). \returns the result code.
+    static int copyTableRows(sqlite3* source, sqlite3* target, const char* table);
+
+    /// Executes SQL, \returns the result code
+    static int execute(sqlite3* handle, const char* sql);
+
+    /// Highest sequence number of the change log (the sequence of AUTOINCREMENT and
+    /// the rows), -1 on an error
+    static qint64 readChangeLogSequence(sqlite3* handle);
+
+    /// Sets the sequence of the change log (sqlite_sequence)
+    static int writeChangeLogSequence(sqlite3* handle, qint64 sequence);
+
+    /// Sets every row of sqlite_sequence to the largest rowid of its table; a row of
+    /// a name, which is not a table with rowids, and duplicate rows are removed (the
+    /// sequences of an imported backup are untrusted: INT64_MAX would make every
+    /// later insert of an AUTOINCREMENT table fail with SQLITE_FULL)
+    static int normalizeSequences(sqlite3* handle);
+
+    /// Removes the state of the running instances from a copy (export / import)
+    static int clearRuntimeState(sqlite3* handle);
+
+    /// Changes the page size of the memory copy to the page size of \p target (a
+    /// database in the WAL mode cannot change its page size by the backup API)
+    static int alignPageSize(sqlite3* copy, sqlite3* target);
+
+    /// The path is a symbolic link, a junction or a shortcut
+    static bool isLink(const QString& filePath);
+
+    /// Error of a refused file of deleteOlderFile (\p text is a source text of the
+    /// context pdf::PDFDatabaseFiles)
+    static PDFDatabaseError refuseFile(const char* text);
+
+    /// The database file is used by a connection of another process (or of this
+    /// one): it cannot be locked exclusively without waiting. \returns an error
+    /// (busy = in use)
+    static PDFDatabaseError checkFileNotInUse(const QString& filePath);
 };
 
 PDFDatabaseError::PDFDatabaseError(int code, int extendedCode, QString message) :
@@ -760,6 +830,401 @@ void PDFDatabaseHelper::removeTemporaryFile(const QString& filePath)
     }
 }
 
+std::vector<const char*> PDFDatabaseHelper::getRuntimeTables()
+{
+    // mcp_activity: the history of the MCP clients (names of documents) is not
+    // exported and an import keeps the current one (owner 2026-10-25)
+    return { "storage_maintenance", "thumbnail_rendering", "mcp_server", "mcp_client", "mcp_activity", "mcp_request" };
+}
+
+std::vector<std::pair<int, const char*>> PDFDatabaseHelper::getVersionLabels()
+{
+    return { { 1, "2.0" } };
+}
+
+int PDFDatabaseHelper::execute(sqlite3* handle, const char* sql)
+{
+    return handle ? sqlite3_exec(handle, sql, nullptr, nullptr, nullptr) : SQLITE_MISUSE;
+}
+
+bool PDFDatabaseHelper::readSchema(sqlite3* handle, QStringList* schema)
+{
+    schema->clear();
+    sqlite3_stmt* statement = nullptr;
+    int result = sqlite3_prepare_v2(handle, "SELECT type, name, tbl_name, sql FROM sqlite_master", -1, &statement, nullptr);
+    while (result == SQLITE_OK || result == SQLITE_ROW)
+    {
+        result = sqlite3_step(statement);
+        if (result != SQLITE_ROW)
+        {
+            break;
+        }
+
+        QStringList columns;
+        for (int column = 0; column < 4; ++column)
+        {
+            // A NULL (the SQL of an automatic index) differs from an empty text
+            const unsigned char* text = sqlite3_column_text(statement, column);
+            const int size = sqlite3_column_bytes(statement, column);
+            columns << (text ? QString::fromUtf8(reinterpret_cast<const char*>(text), size) : QStringLiteral("<null>"));
+        }
+        schema->append(columns.join(QChar(0x1F)));
+    }
+    sqlite3_finalize(statement);
+
+    schema->sort();
+    return result == SQLITE_DONE;
+}
+
+sqlite3* PDFDatabaseHelper::openEmptyMemory(PDFDatabaseError* error)
+{
+    sqlite3* handle = openHandle(QByteArrayLiteral(":memory:"), SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, error);
+    if (!handle)
+    {
+        return nullptr;
+    }
+
+    *error = applyPragmas(handle, true, false, 0);
+    if (error->isError())
+    {
+        PDFDatabase::closeHandle(handle);
+        return nullptr;
+    }
+    return handle;
+}
+
+bool PDFDatabaseHelper::createReferenceSchema(const std::vector<PDFDatabaseMigration>& migrations, int version, QStringList* schema)
+{
+    PDFDatabaseError error;
+    sqlite3* handle = openEmptyMemory(&error);
+    if (!handle)
+    {
+        return false;
+    }
+
+    error = PDFDatabaseSchema::migrate(handle, migrations, version);
+    const bool isRead = !error.isError() && readSchema(handle, schema);
+    PDFDatabase::closeHandle(handle);
+    return isRead;
+}
+
+sqlite3* PDFDatabaseHelper::openMemoryCopy(const QByteArray& data, bool readOnly, PDFDatabaseError* error)
+{
+    sqlite3* handle = openEmptyMemory(error);
+    if (!handle)
+    {
+        return nullptr;
+    }
+
+    // The buffer is owned by SQLite (also when the function fails). The header of
+    // a WAL database (bytes 18 and 19) is changed to a rollback journal: a memory
+    // database is never a WAL database.
+    const sqlite3_int64 size = data.size();
+    unsigned char* buffer = static_cast<unsigned char*>(sqlite3_malloc64(sqlite3_uint64(qMax<sqlite3_int64>(size, 1))));
+    if (!buffer)
+    {
+        *error = PDFDatabaseError::fromHandle(nullptr, SQLITE_NOMEM);
+        PDFDatabase::closeHandle(handle);
+        return nullptr;
+    }
+    memcpy(buffer, data.constData(), size_t(size));
+    if (size >= 100)
+    {
+        buffer[18] = 1;
+        buffer[19] = 1;
+    }
+
+    const unsigned flags = SQLITE_DESERIALIZE_FREEONCLOSE | (readOnly ? SQLITE_DESERIALIZE_READONLY : SQLITE_DESERIALIZE_RESIZEABLE);
+    const int result = sqlite3_deserialize(handle, "main", buffer, size, size, flags);
+    if (result != SQLITE_OK)
+    {
+        *error = PDFDatabaseError::fromHandle(handle, result);
+        PDFDatabase::closeHandle(handle);
+        return nullptr;
+    }
+
+    *error = PDFDatabaseError();
+    return handle;
+}
+
+int PDFDatabaseHelper::backupDatabase(sqlite3* source, sqlite3* target)
+{
+    sqlite3_backup* backup = sqlite3_backup_init(target, "main", source, "main");
+    if (!backup)
+    {
+        const int code = sqlite3_errcode(target);
+        return code != SQLITE_OK ? code : SQLITE_ERROR;
+    }
+
+    const int stepResult = sqlite3_backup_step(backup, -1);
+    const int finishResult = sqlite3_backup_finish(backup);
+    return (stepResult != SQLITE_DONE) ? stepResult : finishResult;
+}
+
+int PDFDatabaseHelper::copyTableRows(sqlite3* source, sqlite3* target, const char* table)
+{
+    // The columns of the table of the target (the schema of the application),
+    // named in both statements
+    QStringList columns;
+    {
+        sqlite3_stmt* info = nullptr;
+        const QByteArray sql = QByteArray("PRAGMA table_info(") + table + ")";
+        int result = sqlite3_prepare_v2(target, sql.constData(), -1, &info, nullptr);
+        while (result == SQLITE_OK || result == SQLITE_ROW)
+        {
+            result = sqlite3_step(info);
+            if (result == SQLITE_ROW)
+            {
+                columns << QString::fromUtf8(reinterpret_cast<const char*>(sqlite3_column_text(info, 1)));
+            }
+        }
+        sqlite3_finalize(info);
+        if (result != SQLITE_DONE || columns.isEmpty())
+        {
+            return result != SQLITE_DONE ? result : SQLITE_ERROR;
+        }
+    }
+
+    const QByteArray columnList = columns.join(QStringLiteral(", ")).toUtf8();
+    QByteArray placeholders;
+    for (qsizetype i = 0; i < columns.size(); ++i)
+    {
+        placeholders += (i > 0 ? ", ?" : "?") + QByteArray::number(i + 1);
+    }
+
+    int result = execute(target, (QByteArray("DELETE FROM ") + table).constData());
+    if (result != SQLITE_OK)
+    {
+        return result;
+    }
+
+    sqlite3_stmt* select = nullptr;
+    sqlite3_stmt* insert = nullptr;
+    result = sqlite3_prepare_v2(source, (QByteArray("SELECT ") + columnList + " FROM " + table).constData(), -1, &select, nullptr);
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_prepare_v2(target, (QByteArray("INSERT INTO ") + table + "(" + columnList + ") VALUES (" + placeholders + ")").constData(), -1, &insert, nullptr);
+    }
+
+    while (result == SQLITE_OK)
+    {
+        const int stepResult = sqlite3_step(select);
+        if (stepResult == SQLITE_DONE)
+        {
+            break;
+        }
+        if (stepResult != SQLITE_ROW)
+        {
+            result = stepResult;
+            break;
+        }
+
+        for (int i = 0; i < int(columns.size()) && result == SQLITE_OK; ++i)
+        {
+            result = sqlite3_bind_value(insert, i + 1, sqlite3_column_value(select, i));
+        }
+        if (result == SQLITE_OK)
+        {
+            const int insertResult = sqlite3_step(insert);
+            result = (insertResult == SQLITE_DONE) ? SQLITE_OK : insertResult;
+        }
+        sqlite3_reset(insert);
+    }
+
+    sqlite3_finalize(select);
+    sqlite3_finalize(insert);
+    return result;
+}
+
+qint64 PDFDatabaseHelper::readChangeLogSequence(sqlite3* handle)
+{
+    return PDFDatabase::queryIntegerOnHandle(handle, "SELECT MAX(COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'change_log'), 0), "
+                                                     "COALESCE((SELECT MAX(seq) FROM change_log), 0))", -1);
+}
+
+int PDFDatabaseHelper::writeChangeLogSequence(sqlite3* handle, qint64 sequence)
+{
+    // sqlite_sequence has no key: the row is updated, or inserted, when there is none
+    sqlite3_stmt* statement = nullptr;
+    int result = sqlite3_prepare_v2(handle, "UPDATE sqlite_sequence SET seq = ?1 WHERE name = 'change_log'", -1, &statement, nullptr);
+    if (result == SQLITE_OK)
+    {
+        sqlite3_bind_int64(statement, 1, sequence);
+        result = sqlite3_step(statement);
+        result = (result == SQLITE_DONE) ? SQLITE_OK : result;
+    }
+    sqlite3_finalize(statement);
+
+    if (result == SQLITE_OK && sqlite3_changes(handle) == 0)
+    {
+        statement = nullptr;
+        result = sqlite3_prepare_v2(handle, "INSERT INTO sqlite_sequence(name, seq) VALUES ('change_log', ?1)", -1, &statement, nullptr);
+        if (result == SQLITE_OK)
+        {
+            sqlite3_bind_int64(statement, 1, sequence);
+            result = sqlite3_step(statement);
+            result = (result == SQLITE_DONE) ? SQLITE_OK : result;
+        }
+        sqlite3_finalize(statement);
+    }
+    return result;
+}
+
+int PDFDatabaseHelper::normalizeSequences(sqlite3* handle)
+{
+    // One row per name of a table (the first one), no row of another name
+    int result = execute(handle, "DELETE FROM sqlite_sequence WHERE name IS NULL OR typeof(name) != 'text' "
+                                 "OR name NOT IN (SELECT name FROM sqlite_master WHERE type = 'table'); "
+                                 "DELETE FROM sqlite_sequence WHERE rowid NOT IN (SELECT MIN(rowid) FROM sqlite_sequence GROUP BY name)");
+    if (result != SQLITE_OK)
+    {
+        return result;
+    }
+
+    QStringList names;
+    sqlite3_stmt* statement = nullptr;
+    result = sqlite3_prepare_v2(handle, "SELECT name FROM sqlite_sequence", -1, &statement, nullptr);
+    while (result == SQLITE_OK)
+    {
+        const int stepResult = sqlite3_step(statement);
+        if (stepResult == SQLITE_DONE)
+        {
+            break;
+        }
+        if (stepResult != SQLITE_ROW)
+        {
+            result = stepResult;
+            break;
+        }
+        names << QString::fromUtf8(reinterpret_cast<const char*>(sqlite3_column_text(statement, 0)), sqlite3_column_bytes(statement, 0));
+    }
+    sqlite3_finalize(statement);
+
+    for (const QString& name : std::as_const(names))
+    {
+        if (result != SQLITE_OK)
+        {
+            break;
+        }
+
+        // The name is a table of sqlite_master (quoted as an identifier); a table
+        // without rowids has no sequence - its row is removed
+        QString quotedName = name;
+        quotedName.replace(QLatin1Char('"'), QStringLiteral("\"\""));
+        const QByteArray sql = "UPDATE sqlite_sequence SET seq = COALESCE((SELECT MAX(rowid) FROM \"" + quotedName.toUtf8() + "\"), 0) WHERE name = ?1";
+        const QByteArray nameData = name.toUtf8();
+        statement = nullptr;
+        if (sqlite3_prepare_v2(handle, sql.constData(), -1, &statement, nullptr) != SQLITE_OK)
+        {
+            sqlite3_finalize(statement);
+            statement = nullptr;
+            result = sqlite3_prepare_v2(handle, "DELETE FROM sqlite_sequence WHERE name = ?1", -1, &statement, nullptr);
+        }
+        if (result == SQLITE_OK)
+        {
+            sqlite3_bind_text(statement, 1, nameData.constData(), int(nameData.size()), SQLITE_TRANSIENT);
+            const int stepResult = sqlite3_step(statement);
+            result = (stepResult == SQLITE_DONE) ? SQLITE_OK : stepResult;
+        }
+        sqlite3_finalize(statement);
+    }
+    return result;
+}
+
+int PDFDatabaseHelper::clearRuntimeState(sqlite3* handle)
+{
+    // The statistics of the query planner (PRAGMA optimize) belong to the file,
+    // not to the data; the change log is emptied last (the deletes write into it)
+    int result = execute(handle, "DROP TABLE IF EXISTS sqlite_stat1; DROP TABLE IF EXISTS sqlite_stat4");
+    for (const char* table : getRuntimeTables())
+    {
+        if (result == SQLITE_OK)
+        {
+            result = execute(handle, (QByteArray("DELETE FROM ") + table).constData());
+        }
+    }
+    if (result == SQLITE_OK)
+    {
+        result = execute(handle, "DELETE FROM change_log");
+    }
+    return result;
+}
+
+int PDFDatabaseHelper::alignPageSize(sqlite3* copy, sqlite3* target)
+{
+    const qint64 targetPageSize = PDFDatabase::queryIntegerOnHandle(target, "PRAGMA page_size", -1);
+    const qint64 copyPageSize = PDFDatabase::queryIntegerOnHandle(copy, "PRAGMA page_size", -1);
+    if (targetPageSize <= 0 || copyPageSize <= 0)
+    {
+        return SQLITE_ERROR;
+    }
+    if (targetPageSize == copyPageSize)
+    {
+        return SQLITE_OK;
+    }
+
+    const QByteArray sql = "PRAGMA page_size = " + QByteArray::number(targetPageSize) + "; VACUUM";
+    const int result = execute(copy, sql.constData());
+    if (result != SQLITE_OK)
+    {
+        return result;
+    }
+    return PDFDatabase::queryIntegerOnHandle(copy, "PRAGMA page_size", -1) == targetPageSize ? SQLITE_OK : SQLITE_ERROR;
+}
+
+bool PDFDatabaseHelper::isLink(const QString& filePath)
+{
+    const QFileInfo info(filePath);
+    return info.isSymLink() || info.isJunction() || info.isShortcut();
+}
+
+PDFDatabaseError PDFDatabaseHelper::refuseFile(const char* text)
+{
+    return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabaseFiles", text));
+}
+
+PDFDatabaseError PDFDatabaseHelper::checkFileNotInUse(const QString& filePath)
+{
+    // A connection in the WAL mode holds a shared lock of the database file as long
+    // as it is open. The exclusive locking mode set before the first read takes the
+    // exclusive lock of the file (no wal-index in the shared memory is used), which
+    // fails at once, when any other connection has the file open.
+    PDFDatabaseError error;
+    sqlite3* handle = openHandle(filePath.toUtf8(), SQLITE_OPEN_READWRITE, &error);
+    if (!handle)
+    {
+        return error;
+    }
+
+    sqlite3_db_config(handle, SQLITE_DBCONFIG_DEFENSIVE, 1, nullptr);
+    sqlite3_db_config(handle, SQLITE_DBCONFIG_TRUSTED_SCHEMA, 0, nullptr);
+    sqlite3_db_config(handle, SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, nullptr);
+    sqlite3_busy_timeout(handle, 0);
+
+    int result = execute(handle, "PRAGMA locking_mode = EXCLUSIVE");
+    if (result == SQLITE_OK)
+    {
+        result = execute(handle, "BEGIN EXCLUSIVE");
+        if (result == SQLITE_OK)
+        {
+            // The first read takes the lock of the file
+            sqlite3_stmt* statement = nullptr;
+            result = sqlite3_prepare_v2(handle, "SELECT COUNT(*) FROM sqlite_master", -1, &statement, nullptr);
+            if (result == SQLITE_OK)
+            {
+                const int stepResult = sqlite3_step(statement);
+                result = (stepResult == SQLITE_ROW || stepResult == SQLITE_DONE) ? SQLITE_OK : stepResult;
+            }
+            sqlite3_finalize(statement);
+            execute(handle, "ROLLBACK");
+        }
+    }
+
+    error = PDFDatabaseError::fromHandle(handle, result);
+    PDFDatabase::closeHandle(handle);
+    return error;
+}
+
 QString PDFDatabaseFiles::getFileName(int schemaVersion)
 {
     return QStringLiteral("pdf4qt-%1.db").arg(schemaVersion);
@@ -773,8 +1238,9 @@ QString PDFDatabaseFiles::getFilePath(const QString& directory, int schemaVersio
 int PDFDatabaseFiles::getSchemaVersion(const QString& fileName)
 {
     // Only the exact names written by PDF4QT: no leading zero, no sign, at most
-    // 9 digits (no overflow), no suffix
-    static const QRegularExpression expression(QStringLiteral("^pdf4qt-([1-9][0-9]{0,8})\\.db$"));
+    // 9 digits (no overflow), no suffix - anchored at the real end (\z): '$' also
+    // matches before a trailing newline, "pdf4qt-1.db\n" is another file on Unix
+    static const QRegularExpression expression(QRegularExpression::anchoredPattern(QStringLiteral("pdf4qt-([1-9][0-9]{0,8})\\.db")));
     const QRegularExpressionMatch match = expression.match(fileName);
     if (!match.hasMatch())
     {
@@ -839,6 +1305,397 @@ bool PDFDatabaseFiles::isUpgradeTemporaryFileName(const QString& fileName)
 {
     static const QRegularExpression expression(QStringLiteral("^pdf4qt-[1-9][0-9]{0,8}\\.db\\.upgrade-"));
     return expression.match(fileName).hasMatch();
+}
+
+PDFDatabaseError PDFDatabaseFiles::deleteOlderFile(const QString& directory, const QString& filePath, int currentSchemaVersion, int lockTimeout)
+{
+    if (directory.isEmpty() || filePath.isEmpty())
+    {
+        return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is not a database file of PDF4QT."));
+    }
+
+    // Only a file listed by getFiles: the exact path of a pdf4qt-<n>.db of the folder
+    const QString folder = QDir::cleanPath(QDir(directory).absolutePath());
+    const QString path = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
+    std::optional<PDFDatabaseFileInfo> found;
+    for (const PDFDatabaseFileInfo& file : getFiles(folder, currentSchemaVersion))
+    {
+        if (file.filePath == path)
+        {
+            found = file;
+            break;
+        }
+    }
+
+    if (!found)
+    {
+        return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is not a database file of PDF4QT."));
+    }
+    if (found->schemaVersion == currentSchemaVersion)
+    {
+        return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is the database of this PDF4QT."));
+    }
+    if (found->schemaVersion > currentSchemaVersion)
+    {
+        return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is used by a newer PDF4QT."));
+    }
+
+    // A link would delete the link only, but its target could be opened by the check:
+    // no file of the folder may lead elsewhere
+    const QStringList companions = { path, path + QStringLiteral("-wal"), path + QStringLiteral("-shm"), path + QStringLiteral("-journal") };
+    const QString canonicalFolder = QFileInfo(folder).canonicalFilePath();
+    for (const QString& companion : companions)
+    {
+        const QFileInfo info(companion);
+        if (PDFDatabaseHelper::isLink(companion) || (info.exists() && !info.isFile()))
+        {
+            return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is a link to another file. PDF4QT does not delete it."));
+        }
+    }
+    if (canonicalFolder.isEmpty() || QFileInfo(QFileInfo(path).canonicalFilePath()).absolutePath() != canonicalFolder)
+    {
+        return PDFDatabaseHelper::refuseFile(QT_TRANSLATE_NOOP("pdf::PDFDatabaseFiles", "The file is a link to another file. PDF4QT does not delete it."));
+    }
+
+    // Under the lock of the upgrades: no other PDF4QT creates its file from this one meanwhile
+    PDFDatabaseError error;
+    sqlite3* lock = PDFDatabaseHelper::lockUpgrades(folder, lockTimeout, &error);
+    if (!lock)
+    {
+        if (error.isBusy())
+        {
+            return PDFDatabaseError(SQLITE_BUSY, SQLITE_BUSY, QCoreApplication::translate("pdf::PDFDatabaseFiles", "Another PDF4QT is changing the settings right now. Try again in a moment."));
+        }
+        return error;
+    }
+
+    error = PDFDatabaseHelper::checkFileNotInUse(path);
+    if (error.isBusy())
+    {
+        PDFDatabaseHelper::unlockUpgrades(lock);
+        return PDFDatabaseError(SQLITE_BUSY, error.getExtendedCode(), QCoreApplication::translate("pdf::PDFDatabaseFiles", "The file is used by another PDF4QT. Close it and try again."));
+    }
+
+    // A damaged file (the check could not read it) is deleted as well: it is not used
+    // by anything, which could read it. Errors of the environment are reported.
+    if (error.isError() && !PDFDatabaseHelper::isDamageCode(error.getCode()))
+    {
+        PDFDatabaseHelper::unlockUpgrades(lock);
+        return error;
+    }
+
+    PDFDatabaseError result;
+    for (const QString& companion : { companions[1], companions[2], companions[3], companions[0] })
+    {
+        if (QFileInfo::exists(companion) && !QFile::remove(companion))
+        {
+            result = PDFDatabaseError(SQLITE_IOERR, SQLITE_IOERR, QCoreApplication::translate("pdf::PDFDatabaseFiles", "The file %1 could not be deleted.").arg(QDir::toNativeSeparators(companion)));
+            break;
+        }
+    }
+    PDFDatabaseHelper::unlockUpgrades(lock);
+
+    if (!result.isError())
+    {
+        qCInfo(lcPdf4QtStorage) << "Older database file deleted:" << path;
+    }
+    return result;
+}
+
+QString PDFDatabaseFiles::getVersionLabel(int schemaVersion)
+{
+    for (const auto& [schema, version] : PDFDatabaseHelper::getVersionLabels())
+    {
+        if (schema == schemaVersion)
+        {
+            return QCoreApplication::translate("pdf::PDFDatabaseFiles", "PDF4QT %1").arg(QString::fromLatin1(version));
+        }
+    }
+
+    if (schemaVersion > getNewestLabeledSchemaVersion())
+    {
+        return QCoreApplication::translate("pdf::PDFDatabaseFiles", "Newer PDF4QT");
+    }
+    return QCoreApplication::translate("pdf::PDFDatabaseFiles", "PDF4QT (schema %1)").arg(schemaVersion);
+}
+
+int PDFDatabaseFiles::getNewestLabeledSchemaVersion()
+{
+    int newest = 0;
+    for (const auto& label : PDFDatabaseHelper::getVersionLabels())
+    {
+        newest = qMax(newest, label.first);
+    }
+    return newest;
+}
+
+PDFDatabaseBackup PDFDatabaseBackup::read(const QString& filePath, const std::vector<PDFDatabaseMigration>& migrations)
+{
+    PDFDatabaseBackup backup;
+    backup.m_filePath = filePath;
+    backup.m_applicationSchemaVersion = PDFDatabaseSchema::getVersion(migrations.empty() ? PDFDatabaseSchema::getMigrations() : migrations);
+
+    const QFileInfo info(filePath);
+    if (filePath.isEmpty() || !info.exists() || !info.isFile())
+    {
+        backup.m_detail = QStringLiteral("missing");
+        return backup;
+    }
+
+    backup.m_size = info.size();
+    if (backup.m_size > MAXIMUM_SIZE)
+    {
+        backup.m_status = PDFDatabaseBackupStatus::TooLarge;
+        return backup;
+    }
+
+    // The whole file is read once: the checked content is the imported content
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        backup.m_detail = file.errorString();
+        return backup;
+    }
+
+    const QByteArray data = file.read(MAXIMUM_SIZE + 1);
+    file.close();
+    if (data.size() > MAXIMUM_SIZE)
+    {
+        backup.m_status = PDFDatabaseBackupStatus::TooLarge;
+        backup.m_size = data.size();
+        return backup;
+    }
+
+    PDFDatabaseBackup result = fromData(data, filePath, migrations);
+    if (result.isValid() && !result.m_created.isValid())
+    {
+        result.m_created = info.lastModified();
+    }
+    return result;
+}
+
+PDFDatabaseBackup PDFDatabaseBackup::fromData(const QByteArray& data, const QString& filePath, const std::vector<PDFDatabaseMigration>& migrations)
+{
+    const std::vector<PDFDatabaseMigration>& usedMigrations = (migrations.empty() || !PDFDatabaseSchema::isValid(migrations)) ? PDFDatabaseSchema::getMigrations() : migrations;
+
+    PDFDatabaseBackup backup;
+    backup.m_filePath = filePath;
+    backup.m_size = data.size();
+    backup.m_applicationSchemaVersion = PDFDatabaseSchema::getVersion(usedMigrations);
+    backup.m_status = PDFDatabaseBackupStatus::NotABackup;
+
+    if (data.size() > MAXIMUM_SIZE)
+    {
+        backup.m_status = PDFDatabaseBackupStatus::TooLarge;
+        return backup;
+    }
+
+    // The header of every database file of SQLite
+    static constexpr char HEADER[] = "SQLite format 3";
+    if (data.size() < 512 || !data.startsWith(QByteArrayView(HEADER, sizeof(HEADER))))
+    {
+        backup.m_detail = QStringLiteral("not a database file");
+        return backup;
+    }
+
+    PDFDatabaseError error;
+    sqlite3* handle = PDFDatabaseHelper::openMemoryCopy(data, true, &error);
+    if (!handle)
+    {
+        backup.m_status = PDFDatabaseHelper::isDamageCode(error.getCode()) ? PDFDatabaseBackupStatus::Damaged : PDFDatabaseBackupStatus::NotABackup;
+        backup.m_detail = error.toString();
+        return backup;
+    }
+
+    int queryResult = SQLITE_OK;
+    const qint64 applicationId = PDFDatabaseHelper::queryText(handle, "PRAGMA application_id", &queryResult).toLongLong();
+    error = PDFDatabaseError::fromHandle(handle, queryResult);
+    const int schemaVersion = error.isError() ? -1 : PDFDatabaseSchema::readVersion(handle);
+
+    if (error.isError())
+    {
+        backup.m_status = PDFDatabaseHelper::isDamageCode(error.getCode()) ? PDFDatabaseBackupStatus::Damaged : PDFDatabaseBackupStatus::NotABackup;
+        backup.m_detail = error.toString();
+    }
+    else if (applicationId != PDFDatabase::APPLICATION_ID || schemaVersion <= 0)
+    {
+        backup.m_detail = QStringLiteral("application id %1, schema %2").arg(applicationId).arg(schemaVersion);
+    }
+    else if (schemaVersion > backup.m_applicationSchemaVersion)
+    {
+        backup.m_status = PDFDatabaseBackupStatus::Newer;
+        backup.m_schemaVersion = schemaVersion;
+    }
+    else
+    {
+        backup.m_schemaVersion = schemaVersion;
+
+        // Every page of the file (the schema is parsed here too). The full integrity
+        // check, not quick_check: the pages of a backup are copied into the live
+        // database as they are, so an index, whose content does not match its table
+        // (two indexes of the same shape with swapped root pages pass quick_check),
+        // or rows breaking UNIQUE / NOT NULL / CHECK must not get there.
+        int result = SQLITE_OK;
+        const QString check = PDFDatabaseHelper::queryText(handle, "PRAGMA integrity_check(1)", &result);
+        const QString encoding = (result == SQLITE_OK) ? PDFDatabaseHelper::queryText(handle, "PRAGMA encoding", &result) : QString();
+        QStringList schema;
+        QStringList reference;
+        if (result != SQLITE_OK || check != QLatin1String("ok"))
+        {
+            backup.m_status = PDFDatabaseBackupStatus::Damaged;
+            backup.m_detail = result != SQLITE_OK ? PDFDatabaseError::fromHandle(handle, result).toString() : check.left(512);
+        }
+        else if (encoding != QLatin1String("UTF-8"))
+        {
+            // The application creates UTF-8 databases only; pages of another text
+            // encoding copied into the live database break every open connection
+            // ("attached databases must use the same text encoding")
+            backup.m_detail = QStringLiteral("text encoding %1").arg(encoding.left(32));
+        }
+        else if (!PDFDatabaseHelper::readSchema(handle, &schema))
+        {
+            backup.m_status = PDFDatabaseBackupStatus::Damaged;
+            backup.m_detail = QStringLiteral("schema cannot be read");
+        }
+        else if (!PDFDatabaseHelper::createReferenceSchema(usedMigrations, schemaVersion, &reference))
+        {
+            backup.m_detail = QStringLiteral("reference schema cannot be created");
+        }
+        else if (schema != reference)
+        {
+            // A foreign table, index, trigger or view, or a changed definition
+            backup.m_detail = QStringLiteral("schema differs from the schema of version %1").arg(schemaVersion);
+        }
+        else
+        {
+            backup.m_status = PDFDatabaseBackupStatus::Valid;
+            qint64 created = 0;
+            if (PDFDatabaseHelper::readMaintenanceValue(handle, CREATED_KEY, &created) == PDFDatabaseHelper::MaintenanceValue::Read && created > 0)
+            {
+                backup.m_created = QDateTime::fromMSecsSinceEpoch(created);
+            }
+            backup.readSecurityData(handle);
+        }
+    }
+
+    PDFDatabase::closeHandle(handle);
+
+    if (backup.isValid())
+    {
+        backup.m_data = data;
+    }
+    else
+    {
+        qCWarning(lcPdf4QtStorage) << "Backup refused:" << filePath << backup.m_detail;
+    }
+    return backup;
+}
+
+QString PDFDatabaseBackup::getDefaultFileName(const QDate& date)
+{
+    return QStringLiteral("PDF4QT settings %1.%2").arg(date.toString(QStringLiteral("yyyy-MM-dd")), QLatin1String(FILE_SUFFIX));
+}
+
+QString PDFDatabaseBackup::getErrorText() const
+{
+    switch (m_status)
+    {
+        case PDFDatabaseBackupStatus::Valid:
+            return QString();
+        case PDFDatabaseBackupStatus::Missing:
+            return QCoreApplication::translate("pdf::PDFDatabaseBackup", "The file cannot be read.");
+        case PDFDatabaseBackupStatus::TooLarge:
+            return QCoreApplication::translate("pdf::PDFDatabaseBackup", "The file is too large to be a PDF4QT settings backup.");
+        case PDFDatabaseBackupStatus::NotABackup:
+            return QCoreApplication::translate("pdf::PDFDatabaseBackup", "It is not a PDF4QT settings backup.");
+        case PDFDatabaseBackupStatus::Damaged:
+            return QCoreApplication::translate("pdf::PDFDatabaseBackup", "The backup is damaged and cannot be read.");
+        case PDFDatabaseBackupStatus::Newer:
+            return QCoreApplication::translate("pdf::PDFDatabaseBackup", "The backup was made by a newer version of PDF4QT. Update PDF4QT, then import it again.");
+    }
+    return QString();
+}
+
+QStringList PDFDatabaseBackup::getSecuritySettingKeys()
+{
+    return { PDFSettingKeys::securityOpenLinks(), PDFSettingKeys::securityLaunchFiles(), PDFSettingKeys::signaturesVerify(),
+             PDFSettingKeys::signaturesStrict(), PDFSettingKeys::signaturesIgnoreExpiration(), PDFSettingKeys::signaturesUseSystemStore() };
+}
+
+QVariant PDFDatabaseBackup::getSecuritySetting(const QString& key) const
+{
+    auto it = m_securitySettings.find(key);
+    return it != m_securitySettings.end() ? it->second : QVariant();
+}
+
+void PDFDatabaseBackup::readSecurityData(sqlite3* handle)
+{
+    // The data are untrusted: bounded by SQL (a huge value is never copied), a
+    // failing statement (an older schema without the table) reads nothing
+    m_trustedCertificates.clear();
+    m_securitySettings.clear();
+
+    const QByteArray certificateSql = "SELECT data FROM trusted_certificate WHERE typeof(data) = 'blob' AND length(data) BETWEEN 1 AND " +
+                                      QByteArray::number(qint64(MAXIMUM_CERTIFICATE_SIZE)) + " ORDER BY id LIMIT " + QByteArray::number(MAXIMUM_CERTIFICATE_COUNT);
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(handle, certificateSql.constData(), -1, &statement, nullptr) == SQLITE_OK)
+    {
+        while (sqlite3_step(statement) == SQLITE_ROW && int(m_trustedCertificates.size()) < MAXIMUM_CERTIFICATE_COUNT)
+        {
+            const void* data = sqlite3_column_blob(statement, 0);
+            const int size = sqlite3_column_bytes(statement, 0);
+            if (data && size > 0 && size <= MAXIMUM_CERTIFICATE_SIZE)
+            {
+                m_trustedCertificates.emplace_back(static_cast<const char*>(data), qsizetype(size));
+            }
+        }
+    }
+    sqlite3_finalize(statement);
+
+    statement = nullptr;
+    const QByteArray settingSql = "SELECT key, CASE WHEN typeof(value) IN ('text', 'blob') AND length(CAST(value AS BLOB)) > " +
+                                  QByteArray::number(qint64(MAXIMUM_SECURITY_VALUE_SIZE)) + " THEN NULL ELSE value END FROM setting WHERE key = ?1";
+    if (sqlite3_prepare_v2(handle, settingSql.constData(), -1, &statement, nullptr) == SQLITE_OK)
+    {
+        for (const QString& key : getSecuritySettingKeys())
+        {
+            const QByteArray keyData = key.toUtf8();
+            sqlite3_reset(statement);
+            sqlite3_bind_text(statement, 1, keyData.constData(), int(keyData.size()), SQLITE_TRANSIENT);
+            if (sqlite3_step(statement) != SQLITE_ROW)
+            {
+                continue;
+            }
+
+            // The types of PDFDatabaseStatement::getVariant (what the settings read)
+            QVariant value;
+            switch (sqlite3_column_type(statement, 1))
+            {
+                case SQLITE_INTEGER:
+                    value = QVariant(qint64(sqlite3_column_int64(statement, 1)));
+                    break;
+                case SQLITE_FLOAT:
+                    value = QVariant(sqlite3_column_double(statement, 1));
+                    break;
+                case SQLITE_TEXT:
+                    value = QVariant(QString::fromUtf8(reinterpret_cast<const char*>(sqlite3_column_text(statement, 1)), sqlite3_column_bytes(statement, 1)));
+                    break;
+                case SQLITE_BLOB:
+                {
+                    const void* data = sqlite3_column_blob(statement, 1);
+                    value = QVariant(data ? QByteArray(static_cast<const char*>(data), sqlite3_column_bytes(statement, 1)) : QByteArray());
+                    break;
+                }
+                default:
+                    break;
+            }
+            if (value.isValid())
+            {
+                m_securitySettings[key] = value;
+            }
+        }
+    }
+    sqlite3_finalize(statement);
 }
 
 PDFDatabase::PDFDatabase(QObject* parent) :
@@ -2100,6 +2957,284 @@ void PDFDatabase::processCommitted()
 {
     m_commitPending.store(false);
     Q_EMIT committed();
+}
+
+sqlite3* PDFDatabase::openTargetHandle(int busyTimeout, PDFDatabaseError* error) const
+{
+    // A connection of its own to the open database (the file or the memory database
+    // of the generation), with the pragmas of the application
+    QString target;
+    bool isMemory = false;
+    {
+        QMutexLocker locker(&m_registry->mutex);
+        if (!m_registry->isOpen)
+        {
+            *error = PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabase", "The database is not open."));
+            return nullptr;
+        }
+        target = m_registry->target;
+        isMemory = m_registry->isMemory;
+    }
+
+    const int flags = isMemory ? (SQLITE_OPEN_READWRITE | SQLITE_OPEN_URI) : SQLITE_OPEN_READWRITE;
+    sqlite3* handle = PDFDatabaseHelper::openHandle(target.toUtf8(), flags, error);
+    if (!handle)
+    {
+        return nullptr;
+    }
+
+    *error = PDFDatabaseHelper::applyPragmas(handle, isMemory, false, busyTimeout);
+    if (error->isError())
+    {
+        closeHandle(handle);
+        return nullptr;
+    }
+    return handle;
+}
+
+PDFDatabaseError PDFDatabase::exportBackup(const QString& filePath)
+{
+    if (filePath.isEmpty())
+    {
+        return PDFDatabaseError::fromMessage(tr("No file of the backup is set."));
+    }
+
+    PDFDatabaseError error;
+    sqlite3* source = openTargetHandle(BACKUP_BUSY_TIMEOUT, &error);
+    if (!source)
+    {
+        return error;
+    }
+
+    // A consistent snapshot in memory (one read transaction of the source)
+    sqlite3* copy = PDFDatabaseHelper::openEmptyMemory(&error);
+    if (!copy)
+    {
+        closeHandle(source);
+        return error;
+    }
+
+    int result = PDFDatabaseHelper::backupDatabase(source, copy);
+    error = PDFDatabaseError::fromHandle(result == SQLITE_OK ? nullptr : source, result);
+    closeHandle(source);
+
+    // The state of the running instances is not a part of the backup; the time of
+    // the export is (the import dialog shows it). VACUUM removes the deleted rows
+    // from the file.
+    if (!error.isError())
+    {
+        result = PDFDatabaseHelper::clearRuntimeState(copy);
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::writeMaintenanceValue(copy, PDFDatabaseBackup::CREATED_KEY, QDateTime::currentMSecsSinceEpoch());
+        }
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::execute(copy, "VACUUM");
+        }
+        error = PDFDatabaseError::fromHandle(copy, result);
+    }
+
+    QByteArray data;
+    if (!error.isError())
+    {
+        sqlite3_int64 size = 0;
+        unsigned char* buffer = sqlite3_serialize(copy, "main", &size, 0);
+        if (!buffer)
+        {
+            error = PDFDatabaseError::fromHandle(nullptr, SQLITE_NOMEM);
+        }
+        else
+        {
+            data = QByteArray(reinterpret_cast<const char*>(buffer), qsizetype(size));
+            sqlite3_free(buffer);
+
+            // The file has a rollback journal (a reader needs no -wal / -shm files)
+            if (data.size() >= 100)
+            {
+                data[18] = 1;
+                data[19] = 1;
+            }
+        }
+    }
+    closeHandle(copy);
+
+    if (error.isError())
+    {
+        qCWarning(lcPdf4QtStorage) << "Settings cannot be exported:" << error.toString();
+        return error;
+    }
+
+    // A temporary file of the target folder renamed to the target: never a
+    // half-written backup; only the owner may read it (it holds the paths of the
+    // documents of the user)
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly))
+    {
+        return PDFDatabaseError(SQLITE_CANTOPEN, SQLITE_CANTOPEN, tr("The file %1 cannot be written: %2").arg(QDir::toNativeSeparators(filePath), file.errorString()));
+    }
+#if defined(Q_OS_UNIX)
+    file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+#endif
+    if (file.write(data) != data.size() || !file.commit())
+    {
+        const QString message = file.errorString();
+        file.cancelWriting();
+        return PDFDatabaseError(SQLITE_IOERR, SQLITE_IOERR, tr("The file %1 cannot be written: %2").arg(QDir::toNativeSeparators(filePath), message));
+    }
+    PDFDatabaseHelper::restrictPermissions(filePath);
+
+    qCInfo(lcPdf4QtStorage) << "Settings exported to" << filePath;
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFDatabase::importBackup(const PDFDatabaseBackup& backup, PDFDatabaseImportCertificates certificates)
+{
+    const PDFDatabaseState state = getState();
+    if (state.mode == PDFDatabaseStorageMode::ReadOnlyNewerSchema)
+    {
+        return PDFDatabaseError::fromMessage(tr("The settings were saved by a newer version of PDF4QT, a backup cannot replace them."));
+    }
+
+    // The content is checked again (the caller may pass any object)
+    const std::vector<PDFDatabaseMigration>& migrations = getMigrations();
+    const int applicationVersion = PDFDatabaseSchema::getVersion(migrations);
+    const PDFDatabaseBackup checked = PDFDatabaseBackup::fromData(backup.getData(), backup.getFilePath(), migrations);
+    if (!checked.isValid())
+    {
+        return PDFDatabaseError::fromMessage(checked.getErrorText());
+    }
+
+    // A copy in memory migrated to the schema of the application
+    PDFDatabaseError error;
+    sqlite3* copy = PDFDatabaseHelper::openMemoryCopy(checked.getData(), false, &error);
+    if (!copy)
+    {
+        return error;
+    }
+
+    error = PDFDatabaseSchema::migrate(copy, migrations, applicationVersion);
+    if (!error.isError() && PDFDatabaseSchema::readVersion(copy) != applicationVersion)
+    {
+        error = PDFDatabaseError::fromMessage(tr("The version of the database schema is not supported."));
+    }
+
+    sqlite3* target = nullptr;
+    if (!error.isError())
+    {
+        target = openTargetHandle(BACKUP_BUSY_TIMEOUT, &error);
+    }
+
+    // The state of the running instances is not taken from the backup; the page size
+    // of the copy is changed (VACUUM) before the state of the target is read
+    if (!error.isError())
+    {
+        int result = PDFDatabaseHelper::clearRuntimeState(copy);
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::alignPageSize(copy, target);
+        }
+        error = PDFDatabaseError::fromHandle(copy, result);
+    }
+
+    // One step under the lock of the upgrades: the backup API replaces the content
+    // in one write transaction of the target
+    sqlite3* lock = nullptr;
+    if (!error.isError() && state.mode == PDFDatabaseStorageMode::Disk && !m_options.directory.isEmpty())
+    {
+        lock = PDFDatabaseHelper::lockUpgrades(m_options.directory, BACKUP_BUSY_TIMEOUT, &error);
+    }
+
+    // The state of the running instances stays (the markers of the thumbnails, the
+    // integrity check, the MCP server), the change log is empty and its sequence
+    // jumps: every notifier finds a sequence it has not read and rereads everything.
+    // It is read as late as possible - under the lock, right before the step (no
+    // transaction of the target may stay open across sqlite3_backup_init): a row,
+    // which another instance writes after this read, is replaced by its older copy
+    // (the wait for the lock and VACUUM are not inside of that window).
+    if (!error.isError())
+    {
+        // The trusted certificates of the open database stay, unless the user has
+        // chosen to trust the certificates of the backup (owner 2026-10-25, Q7)
+        std::vector<const char*> keptTables = PDFDatabaseHelper::getRuntimeTables();
+        if (certificates == PDFDatabaseImportCertificates::KeepCurrent)
+        {
+            keptTables.push_back("trusted_certificate");
+        }
+
+        int result = SQLITE_OK;
+        for (const char* table : keptTables)
+        {
+            if (result == SQLITE_OK)
+            {
+                result = PDFDatabaseHelper::copyTableRows(target, copy, table);
+            }
+        }
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::execute(copy, "DELETE FROM change_log");
+        }
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::normalizeSequences(copy);
+        }
+
+        const qint64 sequence = PDFDatabaseHelper::readChangeLogSequence(target);
+        if (result == SQLITE_OK && sequence < 0)
+        {
+            result = SQLITE_ERROR;
+        }
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::writeChangeLogSequence(copy, sequence + IMPORT_SEQUENCE_JUMP);
+        }
+        error = PDFDatabaseError::fromHandle(copy, result);
+    }
+
+    if (!error.isError())
+    {
+        const int result = PDFDatabaseHelper::backupDatabase(copy, target);
+        error = PDFDatabaseError::fromHandle(result == SQLITE_OK ? nullptr : target, result);
+    }
+
+    PDFDatabaseHelper::unlockUpgrades(lock);
+    closeHandle(target);
+    closeHandle(copy);
+
+    if (error.isError())
+    {
+        qCWarning(lcPdf4QtStorage) << "Settings cannot be imported:" << error.toString();
+        if (error.isBusy())
+        {
+            return PDFDatabaseError(SQLITE_BUSY, error.getExtendedCode(), tr("Another PDF4QT is changing the settings right now. Try again in a moment."));
+        }
+        return error;
+    }
+
+    qCInfo(lcPdf4QtStorage) << "Settings imported from" << backup.getFilePath();
+
+    // The own notifier reads the new content at once (other connections see the
+    // change of PRAGMA data_version)
+    notifyCommitted();
+    return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFDatabase::deleteOlderDatabaseFile(const QString& filePath)
+{
+    if (m_options.portable || m_options.directory.isEmpty())
+    {
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabaseFiles", "The file is not a database file of PDF4QT."));
+    }
+
+    // The file, which is open (also a newer file copied into memory), is never deleted
+    const PDFDatabaseState state = getState();
+    const QString path = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
+    if (!state.filePath.isEmpty() && QDir::cleanPath(QFileInfo(state.filePath).absoluteFilePath()) == path)
+    {
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFDatabaseFiles", "The file is the database of this PDF4QT."));
+    }
+
+    return PDFDatabaseFiles::deleteOlderFile(m_options.directory, path, PDFDatabaseSchema::getVersion(getMigrations()));
 }
 
 }   // namespace pdf

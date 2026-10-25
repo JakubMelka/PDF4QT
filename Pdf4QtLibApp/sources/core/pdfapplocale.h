@@ -46,9 +46,10 @@ namespace pdf
 /// default paper size, the measurement system of the printer), come from
 /// getRegionalLocale() - the system.
 ///
-/// Until the translations exist (step 5, O12: the setting appearance.language,
-/// English by default) the locale is English (United States). Thread safe: the
-/// formatting functions may be called from worker threads.
+/// The locale is the locale of the shown translation (PDFAppTranslator applies the
+/// setting appearance.language, O12: English by default), English (United States)
+/// for English. Thread safe: the formatting functions may be called from worker
+/// threads.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppLocale
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFAppLocale)
@@ -67,9 +68,19 @@ public:
     /// system, otherwise the locale of the name ("cs", "pt_BR")
     static QLocale getLocaleForLanguage(const QString& language);
 
-    /// Changes the locale of the user interface (the translator at a change of the
-    /// language, tests) and makes it the default locale of the process. GUI thread.
+    /// Changes the locale of the user interface (tests) and makes it the default
+    /// locale of the process. GUI thread.
     static void setUiLocale(const QLocale& locale);
+
+    /// Language of the user interface: "" for English, else the id of the shown
+    /// translation ("cs", "zh_CN") - the help topics, What's New and the release
+    /// notes load their translation of this language (step 5). Thread safe.
+    static QString getUiLanguage();
+
+    /// Changes the language of the user interface (PDFAppTranslator; "" or "en" =
+    /// English) and its locale (getLocaleForLanguage), which becomes the default
+    /// locale of the process. GUI thread.
+    static void setUiLanguage(const QString& language);
 
     /// Makes the locale of the user interface the default locale of the process
     /// (QLocale::setDefault), when it is not already. Called by PDFAppContext at the

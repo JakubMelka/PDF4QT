@@ -119,19 +119,35 @@ public:
     /// Add… of Pinned Locations: a folder; an empty text = canceled
     static QString getExistingDirectory(QWidget* parent, const QString& folder);
 
+    /// A folder chosen by the dialog of the title \p title (Browse… of a folder
+    /// of Settings); an empty text = canceled
+    static QString getExistingDirectory(QWidget* parent, const QString& folder, const QString& title);
+
     /// Save as… of a document (step 3): a PDF file, \p filePath is the proposed
     /// file (folder and name); an empty text = canceled
     static QString getSaveFileName(QWidget* parent, const QString& filePath);
+
+    /// Export settings… of Settings › Storage (step 5): a backup file, \p filePath is
+    /// the proposed file; an empty text = canceled
+    static QString getSaveBackupFileName(QWidget* parent, const QString& filePath);
+
+    /// Import settings… of Settings › Storage (step 5): a backup file of the folder;
+    /// an empty text = canceled
+    static QString getOpenBackupFileName(QWidget* parent, const QString& folder);
 
     /// Handlers replacing the dialogs (tests); an empty handler restores the dialog
     static void setOpenFilesHandler(OpenFilesHandler handler);
     static void setFolderHandler(FolderHandler handler);
     static void setSaveFileHandler(SaveFileHandler handler);
+    static void setSaveBackupHandler(SaveFileHandler handler);
+    static void setOpenBackupHandler(FolderHandler handler);
 
 private:
     static OpenFilesHandler& getOpenFilesHandler();
     static FolderHandler& getFolderHandler();
     static SaveFileHandler& getSaveFileHandler();
+    static SaveFileHandler& getSaveBackupHandler();
+    static FolderHandler& getOpenBackupHandler();
 };
 
 /// Document open in a window, which a workspace can save (Save as workspace

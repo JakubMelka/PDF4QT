@@ -30,6 +30,9 @@
 #include <QStringList>
 #include <QVariant>
 
+#include <utility>
+#include <vector>
+
 namespace pdf
 {
 
@@ -78,6 +81,13 @@ public:
     /// error and nothing is stored. A busy database is reported as an error.
     PDFDatabaseError setValue(const QString& key, const QVariant& value);
 
+    /// Stores more values in one transaction (a preset of the Color modes with its
+    /// two colors, Restore defaults): the values are validated first, an invalid
+    /// value or an unknown key refuses all of them and nothing is stored. A value
+    /// equal to the default removes the stored value. The notifications of the
+    /// changed keys come together after the commit.
+    PDFDatabaseError setValues(const std::vector<std::pair<QString, QVariant>>& values);
+
     /// Removes the stored value (the default applies)
     PDFDatabaseError resetValue(const QString& key);
 
@@ -86,6 +96,13 @@ public:
 
 private:
     const PDFSettingDefinition* getDefinition(const QString& key) const;
+
+    /// Validated value of the key or the error (an unknown key, an invalid value);
+    /// \p isDefault is true for the default value (the row is deleted then)
+    PDFDatabaseError normalizeValue(const QString& key, const QVariant& value, QVariant* normalizedValue, bool* isDefault) const;
+
+    /// Writes the normalized value inside of a transaction (a default deletes the row)
+    static PDFDatabaseError writeValue(PDFDatabaseConnection* connection, const QString& key, const QVariant& normalizedValue, bool isDefault);
 
     QPointer<PDFDatabase> m_database;
     const PDFSettingRegistry* m_registry = nullptr;

@@ -268,6 +268,10 @@ public:
     /// Undo stack of the document
     PDFAppUndoStack* getUndoStack() const { return m_undoStack.get(); }
 
+    /// Applies the settings editing.undoLimit and editing.redoLimit to the undo
+    /// stack (read at each commit and each undo - no cache of the settings)
+    void updateUndoLimits();
+
     /// Snapshot of the current version for a worker thread
     PDFAppDocumentSnapshot getSnapshot() const;
 
@@ -275,8 +279,8 @@ public:
     /// and its flags. Refused (false), when the version is not \p expectedVersion,
     /// the document is locked or not ready, a blocking operation runs or the new
     /// document is null. Every accepted change is one undo step and increments the
-    /// version. The limits of the undo stack are read at each commit (the setting
-    /// editing.undoLimit, the memory limit of the stack).
+    /// version. The limits of the undo stack are read at each commit (the settings
+    /// editing.undoLimit and editing.redoLimit, the memory limit of the stack).
     bool commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source);
 
     /// Commits a change of a merge session (step 4, owner decision O20 - a live

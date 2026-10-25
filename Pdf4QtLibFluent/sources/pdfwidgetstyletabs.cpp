@@ -879,12 +879,12 @@ void PDFWidgetStyleTabs::drawChip(QPainter* painter, const QRectF& rect, const P
     }
     x += iconWidth;
 
-    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, shownText, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute, shownText, font, PDFWidgetStyleImpl::color(textColor), widget);
     x += textWidth;
 
     if (!countText.isEmpty())
     {
-        PDFStylePainter::text(painter, placeInRow(rect, state.rightToLeft, x + CHIP_GAP, countWidth - CHIP_GAP, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, countText, countFont, PDFWidgetStyleImpl::color(countColor));
+        PDFStylePainter::text(painter, placeInRow(rect, state.rightToLeft, x + CHIP_GAP, countWidth - CHIP_GAP, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute | Qt::TextSingleLine, countText, countFont, PDFWidgetStyleImpl::color(countColor));
     }
 }
 
@@ -962,7 +962,7 @@ void PDFWidgetStyleTabs::drawTabLabel(const QStyleOptionTab* option, QPainter* p
     }
 
     const QRectF textRect(style()->subElementRect(QStyle::SE_TabBarTabText, option, widget));
-    const int alignment = Qt::AlignVCenter | (state.rightToLeft ? Qt::AlignRight : Qt::AlignLeft);
+    const int alignment = Qt::AlignVCenter | PDFWidgetStyleImpl::getLeadingAlignment(state.rightToLeft);
 
     if (kind == TabKind::NavRow)
     {
@@ -1076,7 +1076,7 @@ void PDFWidgetStyleTabs::drawSegment(const QStyleOptionToolButton* option, QPain
         x += iconWidth;
     }
 
-    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft, text, font, PDFWidgetStyleImpl::color(textColor), widget);
+    m_impl->drawText(painter, placeInRow(rect, state.rightToLeft, x, textWidth, rect.height()), Qt::AlignVCenter | Qt::AlignLeft | Qt::AlignAbsolute, text, font, PDFWidgetStyleImpl::color(textColor), widget);
 }
 
 void PDFWidgetStyleTabs::drawTabBarButton(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const

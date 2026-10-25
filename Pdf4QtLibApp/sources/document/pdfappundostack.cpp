@@ -308,6 +308,14 @@ bool PDFAppUndoStack::undo()
         return false;
     }
 
+    // The limits of the settings (editing.undoLimit, editing.redoLimit) are read
+    // at each undo, the redo steps over the redo limit are dropped below
+    m_document->updateUndoLimits();
+    if (m_undoSteps.empty())
+    {
+        return false;
+    }
+
     m_isMergeOpen = false;
     PDFAppUndoStep step = std::move(m_undoSteps.back());
     m_undoSteps.pop_back();
@@ -319,6 +327,7 @@ bool PDFAppUndoStack::undo()
     redoStep.source = step.source;
     redoStep.memory = estimateMemory(redoStep.document.data(), step.document.data());
     m_redoSteps.push_back(std::move(redoStep));
+    trim();
 
     // The document may be deleted by a slot of its signals: nothing is used afterwards
     m_document->restore(step.document, step.flags);
@@ -380,6 +389,12 @@ void PDFAppUndoStack::setLimit(int limit)
     trim();
 }
 
+void PDFAppUndoStack::setRedoLimit(int limit)
+{
+    m_redoLimit = qMax(0, limit);
+    trim();
+}
+
 void PDFAppUndoStack::setMemoryLimit(qint64 memoryLimit)
 {
     m_memoryLimit = qMax<qint64>(0, memoryLimit);
@@ -418,9 +433,10 @@ int PDFAppUndoStack::getUnsavedChangeCount() const
 void PDFAppUndoStack::trim()
 {
     // The redo steps go first, the farthest one (at the front - the step undone
-    // first is at the front, the next redo step is at the back)
+    // first is at the front, the next redo step is at the back): over the redo
+    // limit and over the memory limit
     qint64 memory = getMemoryUsage();
-    while (!m_redoSteps.empty() && memory > m_memoryLimit)
+    while (!m_redoSteps.empty() && (m_redoSteps.size() > size_t(m_redoLimit) || memory > m_memoryLimit))
     {
         memory -= m_redoSteps.front().memory;
         m_redoSteps.pop_front();

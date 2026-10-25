@@ -265,6 +265,11 @@ public:
     /// Removes the file from the list (Remove from List)
     PDFDatabaseError removeFile(const QString& path);
 
+    /// Deletes the non-pinned files over the setting recent.maxFiles (the oldest
+    /// first, pinned files never) - a lowered limit of Settings › General trims the
+    /// history at once (step 5)
+    PDFDatabaseError applyLimit();
+
     /// Pins / unpins a recorded file. A pinned file goes to the end of the pinned
     /// files; an unpinned one becomes subject to the limit of the recent files.
     PDFDatabaseError setPinned(const QString& path, bool pinned);

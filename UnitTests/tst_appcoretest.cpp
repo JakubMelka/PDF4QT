@@ -31,6 +31,7 @@
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
 #include "pdfappmainwindow.h"
+#include "pdfsettingdefinition.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfthemeiconengine.h"
@@ -305,6 +306,8 @@ private Q_SLOTS:
     void reviewAuthorNameSanitizing();
     void reviewShortcutScopes();
     void uiLocale();
+    void settingHints();
+    void languageDefinition();
     void executableSmoke();
     void executablePortable();
 
@@ -2465,6 +2468,136 @@ int main(int argc, char* argv[])
     AppCoreTest test;
     QTEST_SET_MAIN_SOURCE_PATH
     return QTest::qExec(&test, argc, argv);
+}
+
+void AppCoreTest::settingHints()
+{
+    // Step 5: the presentation hints of the definitions (units, decimals, controls,
+    // dependencies, tags); the defaults keep a definition without them as before
+    pdf::PDFSettingRegistry registry;
+    pdf::PDFSettingDefinitions::registerBuiltinDefinitions(&registry);
+    using Control = pdf::PDFSettingDefinition::Control;
+    using Keys = pdf::PDFSettingKeys;
+
+    auto find = [&registry](const QString& key) { return registry.findDefinition(key); };
+
+    // Defaults of the hints
+    const pdf::PDFSettingDefinition plain = pdf::PDFSettingDefinition::createReal(QStringLiteral("test.real"), 1.0, 0.0, 2.0);
+    QCOMPARE(plain.getDecimals(), 2);
+    QCOMPARE(plain.getControl(), Control::Default);
+    QVERIFY(plain.getUnit().isEmpty());
+    QVERIFY(plain.getTag().isEmpty());
+    QVERIFY(!plain.hasEnabledWhen());
+    QCOMPARE(pdf::PDFSettingDefinition::createInteger(QStringLiteral("test.integer"), 1, 0, 2).setDecimals(3).getDecimals(), 0);
+    QCOMPARE(pdf::PDFSettingDefinition(plain).setDecimals(100).getDecimals(), 6);
+    QCOMPARE(pdf::PDFSettingDefinition(plain).setDecimals(-5).getDecimals(), 2);
+    QVERIFY(pdf::PDFSettingDefinition(plain).setUnit(nullptr).setTag(nullptr).getUnit().isEmpty());
+
+    // Units of 146:3132 / 147:4565
+    QCOMPARE(find(Keys::viewingWheelSpeedVertical())->getUnit(), QStringLiteral("%"));
+    QCOMPARE(find(Keys::magnifierSize())->getUnit(), QStringLiteral("px"));
+    QCOMPARE(find(Keys::magnifierZoom())->getUnit(), QString::fromUtf8("×"));
+    QCOMPARE(find(Keys::magnifierZoom())->getDecimals(), 1);
+    QCOMPARE(find(Keys::cacheCompiledPages())->getUnit(), QStringLiteral("kB"));
+    QCOMPARE(find(Keys::renderingColorTolerance())->getDecimals(), 3);
+    QCOMPARE(find(Keys::renderingMeshMinimalRatio())->getDecimals(), 3);
+
+    // Controls
+    QCOMPARE(find(Keys::colorModesTextColor())->getControl(), Control::Color);
+    QCOMPARE(find(Keys::colorModesPageColor())->getControl(), Control::Color);
+    QCOMPARE(find(Keys::colorModesHighContrastStrength())->getControl(), Control::Slider);
+    QCOMPARE(find(Keys::colorModesBitonalThreshold())->getControl(), Control::Slider);
+    QCOMPARE(find(Keys::speechVolume())->getControl(), Control::Slider);
+    QCOMPARE(find(Keys::speechVolume())->getDecimals(), 2);
+    QCOMPARE(find(Keys::speechRate())->getDecimals(), 1);
+    QCOMPARE(find(Keys::cmsProfileDirectory())->getControl(), Control::Path);
+    QCOMPARE(find(Keys::renderingAntialiasing())->getControl(), Control::Default);
+
+    // Dependencies
+    QCOMPARE(find(Keys::annotationsCustomAuthorName())->getEnabledWhenKey(), Keys::annotationsAuthorMode());
+    QCOMPARE(find(Keys::annotationsCustomAuthorName())->getEnabledWhenValue(), QVariant(pdf::PDFSettingValues::authorModeCustomName()));
+    for (const QString& key : { Keys::cmsRenderingIntent(), Keys::cmsAccuracy(), Keys::cmsColorAdaptation(), Keys::cmsBlackPointCompensation(),
+                                Keys::cmsWhitePaperTransformed(), Keys::cmsConsiderOutputIntent(), Keys::cmsOutputProfile(), Keys::cmsDeviceGrayProfile(),
+                                Keys::cmsDeviceRgbProfile(), Keys::cmsDeviceCmykProfile(), Keys::cmsProfileDirectory() })
+    {
+        QCOMPARE(find(key)->getEnabledWhenKey(), Keys::cmsSystem());
+        QCOMPARE(find(key)->getEnabledWhenValue(), QVariant(QStringLiteral("lcms2")));
+    }
+    QVERIFY(!find(Keys::cmsSystem())->hasEnabledWhen());
+    for (const QString& key : { Keys::advancedShowRenderTimes(), Keys::advancedShowTextBlocks(), Keys::advancedShowTextLines() })
+    {
+        QCOMPARE(find(key)->getEnabledWhenKey(), Keys::advancedDeveloperMode());
+        QCOMPARE(find(key)->getEnabledWhenValue(), QVariant(true));
+    }
+
+    // Every dependency names a registered setting of a value it can have
+    for (const pdf::PDFSettingDefinition* definition : registry.getDefinitions())
+    {
+        if (definition->hasEnabledWhen())
+        {
+            const pdf::PDFSettingDefinition* dependency = registry.findDefinition(definition->getEnabledWhenKey());
+            QVERIFY2(dependency, qPrintable(definition->getKey()));
+            QVERIFY2(dependency->normalize(definition->getEnabledWhenValue()).has_value(), qPrintable(definition->getKey()));
+        }
+        QVERIFY2(definition->getDecimals() >= 0 && definition->getDecimals() <= 6, qPrintable(definition->getKey()));
+    }
+
+    // Option titles of the open lists 944:8912
+    auto titleOf = [&find](const QString& key, const QString& id)
+    {
+        for (const pdf::PDFSettingOption& option : find(key)->getOptions())
+        {
+            if (option.id == id)
+            {
+                return option.getTitle();
+            }
+        }
+        return QString();
+    };
+    QCOMPARE(titleOf(Keys::colorScheme(), QStringLiteral("auto")), QStringLiteral("Automatic"));
+    QCOMPARE(find(Keys::colorScheme())->getOptions().front().id, QStringLiteral("auto"));
+    QCOMPARE(titleOf(Keys::renderingEngine(), QStringLiteral("qpainter")), QStringLiteral("QPainter"));
+    QCOMPARE(titleOf(Keys::renderingMultithreading(), QStringLiteral("loadBalanced")), QStringLiteral("Multithreading (load balanced)"));
+    QCOMPARE(titleOf(Keys::cmsSystem(), QStringLiteral("lcms2")), QStringLiteral("Little CMS 2"));
+    QCOMPARE(titleOf(Keys::cmsColorAdaptation(), QStringLiteral("bradford")), QStringLiteral("Bradford method"));
+}
+
+void AppCoreTest::languageDefinition()
+{
+    // Step 5: appearance.language - English by default (O12), the eleven options
+    // of 944:8916 in their order, the first group of General
+    pdf::PDFSettingRegistry registry;
+    pdf::PDFSettingDefinitions::registerBuiltinDefinitions(&registry);
+    const pdf::PDFSettingDefinition* language = registry.findDefinition(pdf::PDFSettingKeys::appearanceLanguage());
+    QVERIFY(language);
+    QVERIFY(language->isValid());
+    QCOMPARE(language->getType(), pdf::PDFSettingDefinition::Type::Option);
+    QCOMPARE(language->getDefaultValue(), QVariant(pdf::PDFSettingValues::languageEnglish()));
+    QCOMPARE(language->getSection(), pdf::PDFSettingDefinitions::sectionGeneral());
+    QCOMPARE(language->getAnchor(), QStringLiteral("language"));
+    QCOMPARE(language->getTitle(), QStringLiteral("Language"));
+
+    QStringList ids;
+    QStringList titles;
+    for (const pdf::PDFSettingOption& option : language->getOptions())
+    {
+        ids << option.id;
+        titles << option.getTitle();
+    }
+    QCOMPARE(ids, QStringList({ "auto", "en", "de", "ko", "es", "cs", "zh_CN", "zh_TW", "fr", "tr", "ru" }));
+    QCOMPARE(titles.first(), QStringLiteral("Automatic"));
+    QCOMPARE(titles[5], QString::fromUtf8("Čeština – Czech"));
+    QCOMPARE(titles[6], QString::fromUtf8("简体中文 – Chinese (Simplified)"));
+
+    // Owner decision Q2: the language switches at once - no tag Restart required
+    QVERIFY(language->getTag().isEmpty());
+
+    // Hostile stored values are the default; the first row of General
+    QCOMPARE(language->validate(QVariant(QStringLiteral("xx"))), QVariant(QStringLiteral("en")));
+    QCOMPARE(language->validate(QVariant(qint64(1))), QVariant(QStringLiteral("en")));
+    QCOMPARE(language->validate(QVariant(QStringLiteral("cs"))), QVariant(QStringLiteral("cs")));
+    QCOMPARE(registry.getSectionDefinitions(pdf::PDFSettingDefinitions::sectionGeneral()).front()->getKey(), pdf::PDFSettingKeys::appearanceLanguage());
+    QCOMPARE(registry.getSectionDefinitions(pdf::PDFSettingDefinitions::sectionGeneral())[1]->getKey(), pdf::PDFSettingKeys::colorScheme());
 }
 
 #include "tst_appcoretest.moc"

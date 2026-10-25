@@ -38,12 +38,15 @@ std::map<QString, QString> PDFShortcutRepository::getShortcuts(PDFDatabaseError*
 {
     std::map<QString, QString> shortcuts;
     PDFDatabaseConnection* connection = m_database ? m_database->getConnection() : nullptr;
-    PDFDatabaseStatement statement(connection, "SELECT command_id, keys FROM shortcut");
+    // Bounded by SQL: a huge value is never copied, a huge table never read whole
+    static const QByteArray sql = "SELECT command_id, keys FROM shortcut WHERE length(command_id) BETWEEN 1 AND " + QByteArray::number(qint64(MAXIMUM_COMMAND_ID_LENGTH)) +
+                                  " AND length(keys) <= " + QByteArray::number(qint64(MAXIMUM_KEYS_LENGTH)) + " LIMIT " + QByteArray::number(MAXIMUM_SHORTCUT_COUNT);
+    PDFDatabaseStatement statement(connection, sql.constData());
     while (statement.next())
     {
         const QString commandId = statement.getText(0);
         const QString keys = statement.getText(1);
-        if (!commandId.isEmpty() && keys.size() <= MAXIMUM_KEYS_LENGTH)
+        if (!commandId.isEmpty() && commandId.size() <= MAXIMUM_COMMAND_ID_LENGTH && keys.size() <= MAXIMUM_KEYS_LENGTH)
         {
             shortcuts[commandId] = keys;
         }
@@ -58,9 +61,29 @@ std::map<QString, QString> PDFShortcutRepository::getShortcuts(PDFDatabaseError*
 
 PDFDatabaseError PDFShortcutRepository::setShortcut(const QString& commandId, const QString& keys)
 {
-    if (commandId.isEmpty() || keys.size() > MAXIMUM_KEYS_LENGTH)
+    return setShortcuts({ { commandId, keys } });
+}
+
+PDFDatabaseError PDFShortcutRepository::setShortcuts(const std::map<QString, QString>& shortcuts, const QStringList& resetCommandIds)
+{
+    for (const auto& [commandId, keys] : shortcuts)
     {
-        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFShortcutRepository", "Invalid shortcut."));
+        if (commandId.isEmpty() || commandId.size() > MAXIMUM_COMMAND_ID_LENGTH || keys.size() > MAXIMUM_KEYS_LENGTH)
+        {
+            return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFShortcutRepository", "Invalid shortcut."));
+        }
+    }
+    for (const QString& commandId : resetCommandIds)
+    {
+        if (commandId.isEmpty() || commandId.size() > MAXIMUM_COMMAND_ID_LENGTH || shortcuts.count(commandId))
+        {
+            return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFShortcutRepository", "Invalid shortcut."));
+        }
+    }
+
+    if (shortcuts.empty() && resetCommandIds.isEmpty())
+    {
+        return PDFDatabaseError();
     }
 
     PDFDatabaseConnection* connection = m_database ? m_database->getConnection() : nullptr;
@@ -72,11 +95,28 @@ PDFDatabaseError PDFShortcutRepository::setShortcut(const QString& commandId, co
 
     PDFDatabaseStatement statement(connection, "INSERT INTO shortcut(command_id, keys) VALUES (?1, ?2) "
                                                "ON CONFLICT(command_id) DO UPDATE SET keys = excluded.keys WHERE shortcut.keys IS NOT excluded.keys");
-    statement.bindText(1, commandId);
-    statement.bindText(2, keys);
-    if (!statement.execute())
+    for (const auto& [commandId, keys] : shortcuts)
     {
-        return statement.getError();
+        statement.bindText(1, commandId);
+        statement.bindText(2, keys);
+        if (!statement.execute())
+        {
+            // The transaction is rolled back by its destructor: nothing is stored
+            return statement.getError();
+        }
+    }
+
+    if (!resetCommandIds.isEmpty())
+    {
+        PDFDatabaseStatement deleteStatement(connection, "DELETE FROM shortcut WHERE command_id = ?1");
+        for (const QString& commandId : resetCommandIds)
+        {
+            deleteStatement.bindText(1, commandId);
+            if (!deleteStatement.execute())
+            {
+                return deleteStatement.getError();
+            }
+        }
     }
 
     if (!transaction.commit())

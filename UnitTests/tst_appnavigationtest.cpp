@@ -47,6 +47,7 @@
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstylepainter.h"
+#include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
@@ -430,6 +431,7 @@ private slots:
     void overlayPageScrollBar();
     void headerSearchWidth();
     void messageScrim();
+    void paragraphOverhang();
     void screenshots();
 
 private:
@@ -835,7 +837,7 @@ void AppNavigationTest::routeTable_data()
     add("/help/getting-started", "/help/{topic}", "/help/getting-started", Tab::Help, Nav::None);
     add("/settings", "/settings/{section}", "/settings/general", Tab::Home, Nav::Settings);
     add("/settings?q=color", "/settings", "/settings?q=color", Tab::Home, Nav::Settings);
-    for (const char* section : { "general", "viewing", "color-modes", "editing", "security", "speech", "shortcuts", "color-management", "advanced" })
+    for (const char* section : { "general", "viewing", "color-modes", "editing", "security", "speech", "shortcuts", "color-management", "advanced", "storage" })
     {
         add(QStringLiteral("/settings/%1").arg(QLatin1String(section)), "/settings/{section}", QStringLiteral("/settings/%1").arg(QLatin1String(section)), Tab::Home, Nav::Settings);
     }
@@ -4951,6 +4953,57 @@ void AppNavigationTest::headerSearchWidth()
     QCoreApplication::processEvents();
     QCOMPARE(header->getSearchField()->width(), pdf::PDFAppWorkspaceHeader::getSearchWidth(header->width(), qCeil(title->getTextWidth())));
     QCOMPARE(header->getSearchField()->width(), 320);
+}
+
+void AppNavigationTest::paragraphOverhang()
+{
+    // The size hint of a paragraph is its text on one line: QTextLayout breaks a
+    // line, whose last glyph overhangs its advance (the right bearing of "x", of an
+    // italic letter), at the width of the advance - the hint takes the width the
+    // line needs (the title "Clip to crop box" of Settings wrapped before)
+    QFont italic = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body);
+    italic.setItalic(true);
+    const std::vector<std::pair<QFont, QString>> cases = {
+        { pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold), QStringLiteral("Clip to crop box") },
+        { pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold), QStringLiteral("Flatten tax") },
+        { pdf::PDFThemeFonts::getFont(QFont::Bold, 22), QStringLiteral("Box") },
+        { italic, QStringLiteral("Proof of a self") },
+        { italic, QStringLiteral("Half") },
+        { pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Small), QStringLiteral("Wrapped text of a hint") }
+    };
+
+    int overhanging = 0;
+    for (const auto& [font, text] : cases)
+    {
+        for (const int margin : { 0, 3 })
+        {
+            pdf::PDFAppParagraph paragraph(font, 16, pdf::PDFThemeColors::TextPrimary);
+            paragraph.setContentsMargins(margin, 0, margin, 0);
+            paragraph.setText(text);
+            const QSize hint = paragraph.sizeHint();
+            QVERIFY2(paragraph.getLines(hint.width()).size() == 1, qPrintable(text));
+            QCOMPARE(hint.height(), 16);
+            QCOMPARE(paragraph.heightForWidth(hint.width()), 16);
+
+            // At most MAXIMUM_OVERHANG wider than the advance
+            const int advance = qCeil(QFontMetricsF(font).horizontalAdvance(text)) + 2 * margin;
+            QVERIFY2(hint.width() >= advance && hint.width() <= advance + pdf::PDFAppParagraph::MAXIMUM_OVERHANG, qPrintable(text));
+            overhanging += hint.width() > advance ? 1 : 0;
+        }
+    }
+    qDebug("%d of %d texts overhang their advance", overhanging, int(cases.size()) * 2);
+
+    // A text of more lines and a paragraph of a fixed width keep their hints
+    pdf::PDFAppParagraph lines(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body), 16, pdf::PDFThemeColors::TextPrimary);
+    lines.setText(QStringLiteral("First line\nSecond line"));
+    QCOMPARE(lines.sizeHint().width(), qCeil(QFontMetricsF(lines.font()).horizontalAdvance(lines.text())));
+    pdf::PDFAppParagraph fixed(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body), 16, pdf::PDFThemeColors::TextPrimary);
+    fixed.setText(QStringLiteral("Clip to crop box"));
+    fixed.setFixedWidth(40);
+    QCOMPARE(fixed.sizeHint().width(), 40);
+    QVERIFY(fixed.sizeHint().height() > 16);
+    pdf::PDFAppParagraph empty(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body), 16, pdf::PDFThemeColors::TextPrimary);
+    QCOMPARE(empty.sizeHint(), QSize(0, 16));
 }
 
 void AppNavigationTest::messageScrim()

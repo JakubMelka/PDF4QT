@@ -518,6 +518,8 @@ private slots:
     void recentRecordOpened();
     void recentLimit_data();
     void recentLimit();
+    void recentApplyLimit();
+    void clearToolHistory();
     void recentPinning();
     void recentQueries_data();
     void recentQueries();
@@ -1284,6 +1286,95 @@ void AppDataTest::recentLimit_data()
     QTest::newRow("3 files, 2 pinned") << 3 << 8 << 2;
     QTest::newRow("pinned over the limit") << 2 << 6 << 4;
     QTest::newRow("100") << 100 << 30 << 1;
+}
+
+void AppDataTest::recentApplyLimit()
+{
+    // Step 5: a lowered limit of Settings › General trims the history at once,
+    // the pinned files stay
+    DataFixture fixture;
+    QStringList paths;
+    for (int i = 0; i < 8; ++i)
+    {
+        const QString path = fixture.createFile(QStringLiteral("limit%1.pdf").arg(i));
+        paths << path;
+        QVERIFY(!fixture.recent(2000 + i).recordOpened(path).isError());
+    }
+    QVERIFY(!fixture.recent().setPinned(paths[0], true).isError());
+    QVERIFY(!fixture.recent().setPinned(paths[1], true).isError());
+    QCOMPARE(fixture.recent().getFiles().size(), size_t(8));
+
+    // Nothing happens before applyLimit (the limit is read at the recording)
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::recentMaxFiles(), 3).isError());
+    QCOMPARE(fixture.recent().getFiles().size(), size_t(8));
+    QVERIFY(!fixture.recent().applyLimit().isError());
+
+    const std::vector<pdf::PDFRecentFile> files = fixture.recent().getFiles();
+    QCOMPARE(files.size(), size_t(5));
+    QVERIFY(fixture.recent().getFile(paths[0]).has_value());
+    QVERIFY(fixture.recent().getFile(paths[1]).has_value());
+    for (int i = 5; i < 8; ++i)
+    {
+        QVERIFY(fixture.recent().getFile(paths[i]).has_value());
+    }
+    QVERIFY(!fixture.recent().getFile(paths[2]).has_value());
+
+    // Again: nothing more to delete; a raised limit brings nothing back. Nothing to
+    // delete takes no write lock (RC5-S: every instance gets the notification of
+    // the setting) - also a connection, which cannot write, succeeds
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "PRAGMA query_only = 1"));
+    QVERIFY(!fixture.recent().applyLimit().isError());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "PRAGMA query_only = 0"));
+    QVERIFY(!fixture.recent().applyLimit().isError());
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::recentMaxFiles(), 100).isError());
+    QVERIFY(!fixture.recent().applyLimit().isError());
+    QCOMPARE(fixture.recent().getFiles().size(), size_t(5));
+
+    // A hostile stored limit is the default (10)
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('recent.maxFiles', -5, 0)"));
+    QVERIFY(!fixture.recent().applyLimit().isError());
+    QCOMPARE(fixture.recent().getFiles().size(), size_t(5));
+}
+
+void AppDataTest::clearToolHistory()
+{
+    // Step 5: Settings › General › Tool history - the pairs of the tools and the
+    // count of the runs are cleared together
+    DataFixture fixture;
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT INTO tool_pair(from_tool, to_tool, count, last_used) VALUES ('merge', 'compress', 30, 1), ('split', 'merge', 7, 2)"));
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::toolsHistoryRuns(), 37).isError());
+    QVERIFY(!fixture.tools().setPinned(QStringLiteral("pages.merge"), true).isError());
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(37));
+
+    pdf::PDFDatabaseNotifier notifier(fixture.database.get());
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+    QVERIFY(!fixture.tools().clearHistory().isError());
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+    QVERIFY(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_pair") == 0);
+
+    // The pinned tools, the usage and the other settings are kept
+    QCOMPARE(fixture.tools().getPinnedTools(), QStringList({ QStringLiteral("pages.merge") }));
+
+    // Notifications of both topics
+    QTRY_VERIFY(spy.size() >= 2);
+    QStringList topics;
+    for (const QList<QVariant>& arguments : spy)
+    {
+        topics << arguments.value(0).toString();
+    }
+    QVERIFY(topics.contains(pdf::PDFToolRepository::getPairTopic()));
+    QVERIFY(topics.contains(pdf::PDFSettingsRepository::getTopic()));
+
+    // Hostile stored counts are 0, a clear of an empty history is no error
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('tools.historyRuns', 'many', 0)"));
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('tools.historyRuns', -3, 0)"));
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('tools.historyRuns', 1.5, 0)"));
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+    QVERIFY(!fixture.tools().clearHistory().isError());
+    QVERIFY(!fixture.tools().clearHistory().isError());
 }
 
 void AppDataTest::recentLimit()
@@ -3339,6 +3430,8 @@ void AppDataTest::networkPaths_data()
     QTest::newRow("unc slashes") << QStringLiteral("//server/share/a.pdf") << true;
     QTest::newRow("unc mixed") << QStringLiteral("\\/server/share") << true;
     QTest::newRow("long unc") << QStringLiteral("\\\\?\\UNC\\server\\share\\a.pdf") << true;
+    QTest::newRow("device unc") << QStringLiteral("\\\\.\\UNC\\server\\share\\a.pdf") << true;
+    QTest::newRow("device unc slashes") << QStringLiteral("//./unc/server/share") << true;
     QTest::newRow("device") << QStringLiteral("\\\\.\\PhysicalDrive0") << false;
     QTest::newRow("long local") << QStringLiteral("\\\\?\\C:\\a.pdf") << false;
     QTest::newRow("smb url") << QStringLiteral("smb://nas/docs/a.pdf") << true;

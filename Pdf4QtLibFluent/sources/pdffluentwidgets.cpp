@@ -1576,7 +1576,7 @@ void PDFStatusBar::paintEvent(QPaintEvent* event)
     const QRectF rect(left, 1.0, qMax(0, right - left), height() - 1.0);
     const QFont messageFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
     const QString text = QFontMetricsF(messageFont).elidedText(message, Qt::ElideRight, rect.width());
-    PDFStylePainter::text(&painter, rect, Qt::AlignVCenter | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::TextSingleLine, text, messageFont, PDFStylePainter::color(PDFThemeColors::TextMuted));
+    PDFStylePainter::text(&painter, rect, Qt::AlignVCenter | Qt::AlignAbsolute | (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::TextSingleLine, text, messageFont, PDFStylePainter::color(PDFThemeColors::TextMuted));
 }
 
 #if QT_CONFIG(accessibility)

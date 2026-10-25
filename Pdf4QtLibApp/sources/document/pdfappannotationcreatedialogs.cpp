@@ -923,7 +923,7 @@ void PDFAppPageLinkTargetItem::paintEvent(QPaintEvent* event)
     const qreal textLeft = isRightToLeft ? H::ITEM_PADDING_X + checkWidth : H::ITEM_PADDING_X + H::ITEM_TILE + H::ITEM_GAP;
     const qreal blockHeight = H::ITEM_TITLE_LINE + 1 + H::ITEM_DESCRIPTION_LINE;
     const qreal blockTop = (bounds.height() - blockHeight) / 2.0;
-    const int alignment = int(isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+    const int alignment = int(isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignAbsolute | Qt::AlignVCenter;
     const PDFThemeManager* manager = PDFThemeManager::getInstance();
     const QFont titleFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::BodyMedium);
     const QFont descriptionFont = PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular);
