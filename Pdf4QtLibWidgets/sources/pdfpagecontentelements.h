@@ -293,7 +293,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
     virtual const PDFPageContentElementFreehandCurve* asElementFreehandCurve() const override { return this; }
 
@@ -331,7 +331,7 @@ public:
 
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;
-    virtual void setSize(QSizeF size);
+    virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
     virtual const PDFPageContentImageElement* asElementImage() const override { return this; }
 
@@ -419,7 +419,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
-    virtual const PDFPageContentElementEdited* asElementEdited() const { return this; }
+    virtual const PDFPageContentElementEdited* asElementEdited() const override { return this; }
 
     const PDFEditedPageContentElement* getElement() const { return m_element.get(); }
     PDFEditedPageContentElement* getElement() { return m_element.get(); }
@@ -648,7 +648,7 @@ public:
     virtual QString getTooltip() const override;
     virtual const std::optional<QCursor>& getCursor() const override;
     virtual int getInputPriority() const override;
-    virtual bool isPageContentDrawSuppressed() const;
+    virtual bool isPageContentDrawSuppressed() const override;
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,

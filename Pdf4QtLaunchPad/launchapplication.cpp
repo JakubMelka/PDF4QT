@@ -25,6 +25,8 @@
 #include "pdfsettings.h"
 
 #include <QMessageBox>
+#include <QCoreApplication>
+#include <QDir>
 #include <QProcess>
 #include <QWidget>
 
@@ -38,7 +40,16 @@ bool LaunchApplication::start(const QString& program, const QStringList& extraAr
     }
     arguments << extraArguments;
 
-#ifndef Q_OS_WIN
+#if defined(Q_OS_MACOS)
+    const QDir applicationDirectory(QCoreApplication::applicationDirPath());
+    const QString executable = applicationDirectory.absoluteFilePath(
+        QString("../../../%1.app/Contents/MacOS/%1").arg(program));
+    if (!QProcess::startDetached(executable, arguments))
+    {
+        QMessageBox::critical(parent, QObject::tr("Error"), QObject::tr("Failed to start process '%1'").arg(executable));
+        return false;
+    }
+#elif !defined(Q_OS_WIN)
     QString appDir = qgetenv("APPDIR");
 #if defined(PDF4QT_FLATPAK_BUILD)
     QString flatpakAppDir = "/app";

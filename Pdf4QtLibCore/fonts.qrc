@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/fonts">
+        <file>fontconfig-macos.conf</file>
         <file>liberation-fonts-ttf/LiberationMono-Bold.ttf</file>
         <file>liberation-fonts-ttf/LiberationMono-BoldItalic.ttf</file>
         <file>liberation-fonts-ttf/LiberationMono-Italic.ttf</file>

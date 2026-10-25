@@ -1848,7 +1848,8 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
     // Size
     if (download->entry.size > 0 && download->received != download->entry.size)
     {
-        finishDownload(std::move(download), false, PDFTranslationContext::tr("Downloaded file has size %1 bytes, but %2 bytes were expected.").arg(download->received).arg(download->entry.size));
+        const QString message = PDFTranslationContext::tr("Downloaded file has size %1 bytes, but %2 bytes were expected.").arg(download->received).arg(download->entry.size);
+        finishDownload(std::move(download), false, message);
         return;
     }
 
