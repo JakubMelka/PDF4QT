@@ -48,7 +48,9 @@
 #include "pdfapphelpcatalog.h"
 #include "pdfapphelppage.h"
 #include "pdfapplocale.h"
+#include "pdfappdocumentspeech.h"
 #include "pdfappsettingssection_general.h"
+#include "pdfappsettingssection_speech.h"
 #include "pdfapptranslator.h"
 #include "pdfappwhatsnewpage.h"
 #include "pdfdatabasenotifier.h"
@@ -97,6 +99,46 @@
 #include <cmath>
 #include <limits>
 #include <thread>
+
+/// Speech engine of the tests, which visit the section Speech: the engine of the
+/// system (speech-dispatcher, SAPI) is never started by a test (it is slow, depends
+/// on the computer and the plugin of speech-dispatcher leaks without its daemon)
+class SettingsTestSpeechEngine : public pdf::PDFAppSpeechEngine
+{
+public:
+    explicit SettingsTestSpeechEngine(QObject* parent) :
+        pdf::PDFAppSpeechEngine(parent)
+    {
+
+    }
+
+    static pdf::PDFAppSpeechEngine* create(const QString& engineName, QObject* parent)
+    {
+        Q_UNUSED(engineName);
+        return new SettingsTestSpeechEngine(parent);
+    }
+
+    static QStringList getEngines()
+    {
+        return { QString() };
+    }
+
+    virtual State getState() const override { return State::Ready; }
+    virtual QString getErrorString() const override { return QString(); }
+    virtual QList<QLocale> getLocales() const override { return { QLocale(QLocale::English, QLocale::UnitedStates) }; }
+    virtual QLocale getLocale() const override { return QLocale(QLocale::English, QLocale::UnitedStates); }
+    virtual void setLocale(const QLocale& locale) override { Q_UNUSED(locale); }
+    virtual QList<pdf::PDFAppSpeechVoice> getVoices() const override { return { { QStringLiteral("Aria"), QStringLiteral("Aria (Female, Adult)") } }; }
+    virtual QString getVoice() const override { return QStringLiteral("Aria"); }
+    virtual void setVoice(const QString& name) override { Q_UNUSED(name); }
+    virtual void setRate(double rate) override { Q_UNUSED(rate); }
+    virtual void setPitch(double pitch) override { Q_UNUSED(pitch); }
+    virtual void setVolume(double volume) override { Q_UNUSED(volume); }
+    virtual void say(const QString& text) override { Q_UNUSED(text); }
+    virtual void pause() override { }
+    virtual void resume() override { }
+    virtual void stop() override { }
+};
 
 /// Helpers of the test of the page Settings
 class SettingsTestHelper
@@ -310,6 +352,8 @@ void AppSettingsTest::initTestCase()
     // Automatic is English in every test (genericRowEachType writes it), whatever
     // the language of the system running the test is (a Czech Windows)
     pdf::PDFAppTranslator::setSystemLanguages({ QStringLiteral("en-US") });
+    pdf::PDFAppSpeechEngine::setFactory(&SettingsTestSpeechEngine::create);
+    pdf::PDFAppSpeechSettingsSection::setEngineListProvider(&SettingsTestSpeechEngine::getEngines);
     QApplication::setStyle(new pdf::PDFWidgetStyle());
     QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);

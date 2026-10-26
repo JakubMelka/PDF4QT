@@ -80,10 +80,12 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSemaphore>
 #include <QThread>
 #include <QTranslator>
 #include <QtTest>
 
+#include <atomic>
 #include <limits>
 
 /// Speech engine of the tests: it records the said texts, the test ends a text
@@ -365,11 +367,32 @@ public:
         return entries;
     }
 
-    /// The system store, which answers late (the page may be gone meanwhile)
+    /// The system store of certificateTableWorkerAfterPageGone, which answers late
+    /// (the page may be gone meanwhile): a reading waits until the test opens the
+    /// gate (a fixed delay passes under valgrind before the page is shown), the
+    /// finished readings are counted; cleanup() opens the gate, so a failed test
+    /// leaves no blocked thread of the pool
+    static inline QSemaphore s_systemStoreGate{ 0 };
+    static inline std::atomic<int> s_systemStoreReadings = 0;
+
     static pdf::PDFCertificateEntries slowSystemCertificates()
     {
-        QThread::msleep(400);
-        return systemCertificates();
+        s_systemStoreGate.tryAcquire(1, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+        pdf::PDFCertificateEntries entries = systemCertificates();
+        ++s_systemStoreReadings;
+        return entries;
+    }
+
+    static void openSystemStoreGate()
+    {
+        s_systemStoreGate.release(100);
+    }
+
+    static void closeSystemStoreGate()
+    {
+        while (s_systemStoreGate.tryAcquire())
+        {
+        }
     }
 
     static QStringList engines()
@@ -575,6 +598,7 @@ void AppSettingsEditingTest::cleanup()
     pdf::PDFAppSpeechEngine::setFactory(nullptr);
     pdf::PDFAppSpeechSettingsSection::setEngineListProvider(nullptr);
     pdf::PDFAppCertificateTable::setSystemCertificatesProvider(nullptr);
+    EditingTestHelper::openSystemStoreGate();
     pdf::PDFAppDocumentActionHandler::setLaunchHandler(nullptr);
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     QApplication::setLayoutDirection(Qt::LeftToRight);
@@ -1153,6 +1177,9 @@ void AppSettingsEditingTest::certificateTableOtherInstance()
 void AppSettingsEditingTest::certificateTableWorkerAfterPageGone()
 {
     pdf::PDFAppCertificateTable::setSystemCertificatesProvider(&EditingTestHelper::slowSystemCertificates);
+    EditingTestHelper::closeSystemStoreGate();
+    EditingTestHelper::s_systemStoreReadings = 0;
+    const int timeout = 20000 * pdftest::AppDocumentFixture::getTimeoutFactor();
 
     // The page left while the system store is read
     {
@@ -1162,15 +1189,20 @@ void AppSettingsEditingTest::certificateTableWorkerAfterPageGone()
         QVERIFY(table->getTrustListLabel()->text().contains(QStringLiteral("Reading")));
         fixture.navigate(QStringLiteral("/home"));
         QVERIFY(!table);
-        QTest::qWait(600);
+        EditingTestHelper::openSystemStoreGate();
+        QTRY_COMPARE_WITH_TIMEOUT(EditingTestHelper::s_systemStoreReadings.load(), 1, timeout);
         fixture.settle();
     }
 
-    // The window deleted, the store read twice (the setting changed meanwhile)
+    // The window deleted, the store read twice (the setting changed meanwhile; the
+    // reading with the store turned off does not ask the store)
+    EditingTestHelper::closeSystemStoreGate();
+    EditingTestHelper::s_systemStoreReadings = 0;
     {
         pdftest::AppSettingsFixture fixture;
         pdf::PDFAppCertificateTable* table = EditingTestHelper::table(fixture.openSettings(QStringLiteral("security")));
         QVERIFY(table);
+        QVERIFY(table->isLoadingSystemCertificates());
         QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::signaturesUseSystemStore(), false).isError());
         fixture.settle();
         QVERIFY(EditingTestHelper::waitForTable(table));
@@ -1180,7 +1212,8 @@ void AppSettingsEditingTest::certificateTableWorkerAfterPageGone()
         QVERIFY(table->isLoadingSystemCertificates());
         delete fixture.window.data();
         fixture.settle();
-        QTest::qWait(600);
+        EditingTestHelper::openSystemStoreGate();
+        QTRY_COMPARE_WITH_TIMEOUT(EditingTestHelper::s_systemStoreReadings.load(), 2, timeout);
         fixture.settle();
     }
 }
