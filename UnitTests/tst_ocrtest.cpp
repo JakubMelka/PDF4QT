@@ -4064,7 +4064,24 @@ void OCRTest::documentObjectsPreserved()
     PDFDocument saved = read(write(*applied));
     PDFDocument savedOriginal = read(write(document));
 
-    // Every object of the original is unchanged, except the dictionary of the written page
+    // Every object of the original is unchanged, except the dictionary of the written page.
+    // PDFDocumentBuilder::build writes the current time into ModDate of the document information
+    // (in whole seconds), so the document information is compared without it - the two builds
+    // fall into different seconds now and then.
+    const PDFObject& infoObject = document.getTrailerDictionary()->get("Info");
+    const PDFObjectReference infoReference = infoObject.isReference() ? infoObject.getReference() : PDFObjectReference();
+    auto withoutModificationDate = [](const PDFDocument& owner, const PDFObject& object)
+    {
+        const PDFDictionary* dictionary = owner.getDictionaryFromObject(object);
+        if (!dictionary)
+        {
+            return object;
+        }
+        PDFDictionaryBuilder builder(*dictionary);
+        builder.removeEntry("ModDate");
+        return PDFObject::createDictionary(std::move(builder));
+    };
+
     const PDFObjectStorage::PDFObjects& originalObjects = document.getStorage().getObjects();
     int changed = 0;
     for (size_t i = 0; i < originalObjects.size(); ++i)
@@ -4072,6 +4089,15 @@ void OCRTest::documentObjectsPreserved()
         const PDFObjectReference reference(PDFInteger(i), originalObjects[i].generation);
         if (originalObjects[i].object.isNull() || reference == pageReference)
         {
+            continue;
+        }
+        if (reference == infoReference)
+        {
+            if (!(withoutModificationDate(*applied, applied->getObjectByReference(reference)) == withoutModificationDate(document, originalObjects[i].object)))
+            {
+                ++changed;
+                qWarning() << "changed document information" << reference.objectNumber;
+            }
             continue;
         }
         if (!(applied->getObjectByReference(reference) == originalObjects[i].object))

@@ -77,6 +77,11 @@ public:
 
     /// Removes every tool (tests only)
     static void clearForTests();
+
+    /// Generation of the registry: a counter, which grows with every successful
+    /// registration and removal (MCP builds its tool catalog again when it changes,
+    /// plan of step 7, 3.10). Thread safe; starts at 0.
+    static quint64 getGeneration();
 };
 
 }   // namespace pdf

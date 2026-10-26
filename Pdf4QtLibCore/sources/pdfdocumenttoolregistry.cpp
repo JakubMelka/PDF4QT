@@ -27,6 +27,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 
+#include <atomic>
 #include <map>
 
 namespace pdf
@@ -38,6 +39,7 @@ class PDFDocumentToolRegistryStorage
 public:
     QMutex mutex;
     std::map<int, std::shared_ptr<const PDFDocumentTool>> tools;
+    std::atomic<quint64> generation = 0;
 
     static PDFDocumentToolRegistryStorage& getInstance()
     {
@@ -58,6 +60,7 @@ public:
 
         std::shared_ptr<const PDFDocumentTool> tool = std::move(it->second);
         tools.erase(it);
+        ++generation;
         return tool;
     }
 };
@@ -88,6 +91,7 @@ PDFDocumentToolRegistration PDFDocumentToolRegistry::registerTool(std::shared_pt
         return PDFDocumentToolRegistration::Duplicate;
     }
     storage.tools.emplace(index, std::move(tool));
+    ++storage.generation;
     return PDFDocumentToolRegistration::Registered;
 }
 
@@ -149,7 +153,13 @@ void PDFDocumentToolRegistry::clearForTests()
         PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
         QMutexLocker locker(&storage.mutex);
         tools.swap(storage.tools);
+        ++storage.generation;
     }
+}
+
+quint64 PDFDocumentToolRegistry::getGeneration()
+{
+    return PDFDocumentToolRegistryStorage::getInstance().generation.load();
 }
 
 }   // namespace pdf
