@@ -130,6 +130,49 @@ QString PDFRepositoryHelper::sanitizeStoredName(const QString& name)
     return result;
 }
 
+QString PDFRepositoryHelper::removeInvisibleCharacters(const QString& text, bool isControlRemoved, qsizetype maximumLength)
+{
+    QString result;
+    result.reserve(qMin(text.size(), qMax<qsizetype>(maximumLength, 0)));
+    for (qsizetype i = 0; i < text.size(); ++i)
+    {
+        // Whole code points: a surrogate pair is one character, a lone surrogate
+        // (invalid UTF-16) is dropped; the category is the category of the whole
+        // code point, so an invisible character of a surrogate pair is removed too
+        char32_t codePoint = text[i].unicode();
+        qsizetype length = 1;
+        if (text[i].isHighSurrogate() && i + 1 < text.size() && text[i + 1].isLowSurrogate())
+        {
+            codePoint = QChar::surrogateToUcs4(text[i], text[i + 1]);
+            length = 2;
+        }
+        else if (text[i].isSurrogate())
+        {
+            continue;
+        }
+
+        const QChar::Category category = QChar::category(codePoint);
+        const bool isJoiner = codePoint == 0x200C || codePoint == 0x200D;
+        bool isRemoved = category == QChar::Other_Format && !isJoiner;
+        if (isControlRemoved)
+        {
+            isRemoved = isRemoved || category == QChar::Other_Control || category == QChar::Other_NotAssigned ||
+                        category == QChar::Separator_Line || category == QChar::Separator_Paragraph;
+        }
+
+        if (!isRemoved)
+        {
+            if (result.size() + length > maximumLength)
+            {
+                break;
+            }
+            result += QStringView(text).mid(i, length);
+        }
+        i += length - 1;
+    }
+    return result;
+}
+
 QString PDFRepositoryHelper::getFileName(const QString& path)
 {
     const QString cleanPath = QDir::cleanPath(QDir::fromNativeSeparators(path));

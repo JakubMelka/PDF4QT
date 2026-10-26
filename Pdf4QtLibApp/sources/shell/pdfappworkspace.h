@@ -310,6 +310,9 @@ public:
     /// Gap between the texts and the search field
     static constexpr int SPACING = 24;
 
+    /// Gap between the icon of the page and its texts (title-row 283:1932)
+    static constexpr int ICON_SPACING = 14;
+
     explicit PDFAppWorkspaceHeader(QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceHeader() override;
 
@@ -326,8 +329,16 @@ public:
     PDFAppHeaderText* getSubtitleLabel() const { return m_subtitle; }
     PDFAppBreadcrumb* getBreadcrumb() const { return m_breadcrumb; }
 
+    /// Badge of the icon of the page (hidden without an icon)
+    PDFToolBadge* getIconBadge() const { return m_iconBadge; }
+
     /// Breadcrumbs above the title (empty = hidden)
     void setBreadcrumbs(const QList<PDFAppBreadcrumbItem>& items);
+
+    /// Icon of the page before the title and the subtitle (an invalid icon = hidden,
+    /// the texts start at the edge; Manage collections 283:1932: the Tool icon 44,
+    /// ICON_SPACING before the texts, centered on them)
+    void setIcon(const PDFAppHeaderIcon& icon);
 
 Q_SIGNALS:
     /// Enter in the search field with a non-empty text
@@ -348,6 +359,7 @@ private:
     void updateSearchWidth();
 
     QPointer<PDFAppBreadcrumb> m_breadcrumb;
+    QPointer<PDFToolBadge> m_iconBadge;
     QPointer<PDFAppHeaderText> m_title;
     QPointer<PDFAppHeaderText> m_subtitle;
     QPointer<PDFLineEdit> m_searchField;

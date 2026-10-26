@@ -22,6 +22,9 @@
 
 #include "pdfapproutetable.h"
 #include "pdfapppage.h"
+#include "pdfappbuiltintoolcollections.h"
+
+#include "pdfdocumenttoolcatalog.h"
 
 #include <QCoreApplication>
 
@@ -367,9 +370,10 @@ QString PDFAppRouteTable::describe(const PDFAppRoute& route) const
         case PDFAppRouteSubject::Page:
             return QCoreApplication::translate("pdf::PDFAppRouteTable", "Page “%1”").arg(entry->getTitle());
         case PDFAppRouteSubject::Tool:
-            return QCoreApplication::translate("pdf::PDFAppRouteTable", "Tool “%1”").arg(getRouteParameter(route, *entry, QStringLiteral("toolId")));
+            // A tool of the catalog is named by its title (940:134845), an unknown id by itself
+            return QCoreApplication::translate("pdf::PDFAppRouteTable", "Tool “%1”").arg(getToolTitle(route, *entry));
         case PDFAppRouteSubject::ToolCollection:
-            return QCoreApplication::translate("pdf::PDFAppRouteTable", "Tool collection “%1”").arg(getRouteParameter(route, *entry, QStringLiteral("collectionId")));
+            return QCoreApplication::translate("pdf::PDFAppRouteTable", "Tool collection “%1”").arg(getCollectionTitle(route, *entry));
         case PDFAppRouteSubject::SettingsSection:
             return QCoreApplication::translate("pdf::PDFAppRouteTable", "Settings section “%1”").arg(getRouteParameter(route, *entry, QStringLiteral("section")));
         case PDFAppRouteSubject::HelpTopic:
@@ -405,6 +409,20 @@ QString PDFAppRouteTable::getRouteParameter(const PDFAppRoute& route, const PDFA
         }
     }
     return QString();
+}
+
+QString PDFAppRouteTable::getToolTitle(const PDFAppRoute& route, const PDFAppRouteEntry& entry)
+{
+    const QString toolId = getRouteParameter(route, entry, QStringLiteral("toolId"));
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(toolId);
+    return tool ? tool->getTitle().left(MAXIMUM_SEARCH_TEXT_LENGTH) : toolId;
+}
+
+QString PDFAppRouteTable::getCollectionTitle(const PDFAppRoute& route, const PDFAppRouteEntry& entry)
+{
+    const QString collectionId = getRouteParameter(route, entry, QStringLiteral("collectionId"));
+    const PDFAppBuiltinToolCollection* collection = PDFAppBuiltinToolCollections::findCollection(collectionId);
+    return collection ? collection->getName().left(MAXIMUM_SEARCH_TEXT_LENGTH) : collectionId;
 }
 
 QString PDFAppRouteTable::toSearchWords(const QString& text)
@@ -447,6 +465,13 @@ QString PDFAppRouteTable::getSearchText(const PDFAppRoute& route) const
             return route.getQueryValue(QStringLiteral("q")).simplified().left(MAXIMUM_SEARCH_TEXT_LENGTH).trimmed();
         case PDFAppRouteSubject::Document:
             return QString();
+        case PDFAppRouteSubject::Tool:
+            // Search for “Merge” (the title of a tool of the catalog)
+            if (PDFDocumentToolCatalog::isValidToolId(getRouteParameter(route, *entry, QStringLiteral("toolId"))))
+            {
+                return getToolTitle(route, *entry);
+            }
+            return toSearchWords(route.getSegments().back());
         default:
             return toSearchWords(route.getSegments().back());
     }
@@ -494,10 +519,23 @@ PDFAppRouteTable PDFAppRouteTable::createDefault()
     tools.query[QStringLiteral("category")] = Values::options({ QStringLiteral("pages"), QStringLiteral("convert"), QStringLiteral("edit"), QStringLiteral("protect"),
                                                                 QStringLiteral("optimize"), QStringLiteral("review"), QStringLiteral("pinned") });
     tools.query[QStringLiteral("q")] = Values::text();
+    // The collection shown on the page (step 6, owner decision Q1): its route id
+    tools.query[QStringLiteral("collection")] = Values::slug();
     table.addDefaultEntry(tools);
 
-    table.addDefaultEntry(createEntry(QStringLiteral("/tools/collections"), Tab::Home, Nav::Tools, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Tool collections")));
-    table.addDefaultEntry(createEntry(QStringLiteral("/tools/collections/new"), Tab::Home, Nav::Tools, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "New tool collection")));
+    // The list of the collections shows the first collection: the first built-in
+    // collection, which cannot be deleted (plan of step 6, 4.4)
+    PDFAppRouteEntry collections = createEntry(QStringLiteral("/tools/collections"), Tab::Home, Nav::Tools, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Tool collections"));
+    if (!PDFAppBuiltinToolCollections::getCollections().empty())
+    {
+        collections.redirect = QStringList({ QStringLiteral("tools"), QStringLiteral("collections"), PDFAppBuiltinToolCollections::getCollections().front().getId() });
+    }
+    table.addDefaultEntry(collections);
+
+    // A new collection, optionally with a tool added at once (New collection… of Add to collection)
+    PDFAppRouteEntry collectionNew = createEntry(QStringLiteral("/tools/collections/new"), Tab::Home, Nav::Tools, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "New tool collection"));
+    collectionNew.query[QStringLiteral("tool")] = Values::slug();
+    table.addDefaultEntry(collectionNew);
 
     PDFAppRouteEntry collection = createEntry(QStringLiteral("/tools/collections/{collectionId}"), Tab::Home, Nav::Tools, Subject::ToolCollection, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Tool collection"));
     collection.parameters[QStringLiteral("collectionId")] = Values::slug();

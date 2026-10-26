@@ -110,7 +110,8 @@ public:
         View,
         GoTo,
         Annotate,   ///< Step 4, package A (877:10157)
-        Insert      ///< Step 4, package A (196:3160)
+        Insert,     ///< Step 4, package A (196:3160)
+        Tools       ///< Step 6, package C (196:3650)
     };
 
     explicit PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* parent = nullptr);
@@ -148,7 +149,7 @@ public:
     PDFAppDocumentPanelPopup* getOpenPanel() const;
 
     /// Buttons of the panels in the order of the toolbar: File, View, Annotate,
-    /// Insert, Go to and the Select button (its menu is a panel too); the buttons,
+    /// Insert, Go to, Tools and the Select button (its menu is a panel too); the buttons,
     /// which do not exist, are left out
     std::vector<QToolButton*> getPanelButtons() const;
 
@@ -197,6 +198,7 @@ private:
     void onCommandButtonClicked();
     void onMenuButtonClicked();
     void onPanelClosed();
+    void onPanelDestroyed(QObject* object);
     void onPanelNeighborRequested(bool isNext);
     void onSelectMenuAboutToHide();
     void switchToNeighbor(bool isNext);
@@ -205,7 +207,6 @@ private:
     bool isPanelWindow(const QObject* object) const;
     void onPageFieldEdited();
     void onZoomFieldEdited();
-    void onToolsClicked();
     void onViewChanged();
 
     QPointer<PDFAppDocumentView> m_view;

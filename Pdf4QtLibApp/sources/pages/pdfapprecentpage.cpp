@@ -36,11 +36,13 @@
 
 #include <QBoxLayout>
 #include <QCollator>
+#include <QDateTime>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QPainter>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QTimeZone>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -93,14 +95,6 @@ public:
         bool m_byFolder;
     };
 
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
-
     template<typename T>
     static QList<T*> toList(const QList<QPointer<T>>& pointers)
     {
@@ -142,12 +136,6 @@ public:
                 break;
         }
         return PDFComponentPainter::RecentItemType::File;
-    }
-
-    /// Text of a button: '&' of a text is not a mnemonic
-    static QString toButtonText(const QString& text)
-    {
-        return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
     }
 
     /// Items sorted by the time (newest first) in groups by the day with the headers
@@ -193,9 +181,12 @@ PDFAppRecentModel::~PDFAppRecentModel() = default;
 
 bool PDFAppRecentModel::isSameContent(const PDFAppRecentItem& first, const PDFAppRecentItem& second)
 {
+    // The times, not their texts (updateTimes formats them for the current minute);
+    // the details of a workspace are its count and its time of the save
+    const bool isSameDetails = first.type == PDFAppRecentItem::Type::Workspace ? first.savedTime == second.savedTime : first.details == second.details;
     return first.type == second.type && first.item.kind == second.item.kind && first.item.path == second.item.path && first.item.id == second.item.id &&
-           first.name == second.name && first.details == second.details && first.progressText == second.progressText && first.progress == second.progress &&
-           first.opened == second.opened && first.isPinned == second.isPinned && first.count == second.count && first.isMissing == second.isMissing &&
+           first.name == second.name && isSameDetails && first.progressText == second.progressText && first.progress == second.progress &&
+           first.time == second.time && first.isPinned == second.isPinned && first.count == second.count && first.isMissing == second.isMissing &&
            first.isLocked == second.isLocked && first.item.isRemovable == second.item.isRemovable && first.item.documentCount == second.item.documentCount && first.item.name == second.item.name;
 }
 
@@ -209,7 +200,8 @@ void PDFAppRecentModel::setItems(std::vector<PDFAppRecentItem> items)
 
     if (isSame)
     {
-        // Only the pictures may differ (a thumbnail arrived)
+        // Only the pictures (a thumbnail arrived) and the texts of the times (a later
+        // minute, O25) may differ
         for (size_t i = 0; i < items.size(); ++i)
         {
             if (items[i].pixmap.cacheKey() != m_items[i].pixmap.cacheKey())
@@ -218,6 +210,13 @@ void PDFAppRecentModel::setItems(std::vector<PDFAppRecentItem> items)
                 const QModelIndex changed = index(int(i), 0);
                 Q_EMIT dataChanged(changed, changed, { PDFComponentRoles::PixmapRole });
             }
+            if (items[i].opened != m_items[i].opened || items[i].details != m_items[i].details)
+            {
+                m_items[i].opened = items[i].opened;
+                m_items[i].details = items[i].details;
+                const QModelIndex changed = index(int(i), 0);
+                Q_EMIT dataChanged(changed, changed, { PDFComponentRoles::DateRole, PDFComponentRoles::SubtitleRole, Qt::ToolTipRole, Qt::AccessibleDescriptionRole });
+            }
         }
         return;
     }
@@ -225,6 +224,32 @@ void PDFAppRecentModel::setItems(std::vector<PDFAppRecentItem> items)
     beginResetModel();
     m_items = std::move(items);
     endResetModel();
+}
+
+void PDFAppRecentModel::updateTimes(qint64 now)
+{
+    for (size_t i = 0; i < m_items.size(); ++i)
+    {
+        PDFAppRecentItem& item = m_items[i];
+        if (item.type == PDFAppRecentItem::Type::Header)
+        {
+            continue;
+        }
+
+        const QString opened = PDFAppHomeFormat::formatTime(item.time, now);
+        const QString details = item.type == PDFAppRecentItem::Type::Workspace
+                                    ? PDFAppHomeFormat::formatTimeText(PDFAppHomeFormat::TimeText::WorkspaceDetails, item.savedTime, now, item.item.documentCount)
+                                    : item.details;
+        if (opened == item.opened && details == item.details)
+        {
+            continue;
+        }
+
+        item.opened = opened;
+        item.details = details;
+        const QModelIndex changed = index(int(i), 0);
+        Q_EMIT dataChanged(changed, changed, { PDFComponentRoles::DateRole, PDFComponentRoles::SubtitleRole, Qt::ToolTipRole, Qt::AccessibleDescriptionRole });
+    }
 }
 
 const PDFAppRecentItem* PDFAppRecentModel::getItem(int row) const
@@ -432,7 +457,7 @@ PDFAppRecentPage::PDFAppRecentPage(PDFAppContext* context, QWidget* parent) :
 
     // recent-grid: main column (toolbar, pinned, history) and the side column 340
     // (Continue where you left off, Workspaces), gap 24
-    QVBoxLayout* layout = PDFAppRecentPageHelper::createColumn(this, 0);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 0);
     m_columns = new PDFAppColumns(this);
     m_columns->setObjectName(QStringLiteral("recentGrid"));
     m_columns->addColumn(0, 1, 400);
@@ -466,7 +491,7 @@ QWidget* PDFAppRecentPage::createToolbar(QWidget* parent)
     // toolbar: the search, the sort and Clear history… (gap 12), the filters below (gap 12)
     QWidget* toolbar = new QWidget(parent);
     toolbar->setObjectName(QStringLiteral("toolbar"));
-    QVBoxLayout* layout = PDFAppRecentPageHelper::createColumn(toolbar, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(toolbar, 12);
 
     m_searchField = new PDFLineEdit(toolbar);
     m_searchField->setObjectName(QStringLiteral("recentSearch"));
@@ -524,7 +549,7 @@ QWidget* PDFAppRecentPage::createToolbar(QWidget* parent)
 
     for (const auto& chipInfo : chips)
     {
-        QPushButton* chip = new QPushButton(PDFAppRecentPageHelper::toButtonText(chipInfo.second), filters);
+        QPushButton* chip = new QPushButton(PDFAppPageWidgets::escapeMnemonic(chipInfo.second), filters);
         const QString id = getFilterId(chipInfo.first);
         chip->setObjectName(id.isEmpty() ? QStringLiteral("chip-all") : QStringLiteral("chip-%1").arg(id));
         chip->setProperty(PDFWidgetStyleProperties::CHIP, true);
@@ -546,7 +571,7 @@ QWidget* PDFAppRecentPage::createPinned(QWidget* parent)
     // pinned: the header with Show all pinned (N), the cards 3 in a row (gap 12)
     m_pinnedSection = new QWidget(parent);
     m_pinnedSection->setObjectName(QStringLiteral("pinned"));
-    QVBoxLayout* layout = PDFAppRecentPageHelper::createColumn(m_pinnedSection, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(m_pinnedSection, 12);
     m_showAllPinned = new PDFTextLink(tr("Show all pinned"), m_pinnedSection);
     m_showAllPinned->setObjectName(QStringLiteral("showAllPinned"));
     withLink(m_showAllPinned, createRoute(Filter::Pinned, PDFRecentSort::LastOpened, QString()).toString());
@@ -606,7 +631,7 @@ QWidget* PDFAppRecentPage::createContinue(QWidget* parent)
     // continue-reading: the header and the card
     m_continueSection = new QWidget(parent);
     m_continueSection->setObjectName(QStringLiteral("continueReading"));
-    QVBoxLayout* layout = PDFAppRecentPageHelper::createColumn(m_continueSection, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(m_continueSection, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Continue where you left off"), nullptr, m_continueSection));
     m_continueCard = new PDFAppContinueCard(m_continueSection);
     connect(m_continueCard, &PDFAppContinueCard::continueRequested, this, &PDFAppRecentPage::onContinueRequested);
@@ -620,7 +645,7 @@ QWidget* PDFAppRecentPage::createWorkspaces(QWidget* parent)
     // workspaces: the header with Manage, the list card (padding 8, gap 2)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("workspaces"));
-    QVBoxLayout* layout = PDFAppRecentPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     PDFTextLink* manage = new PDFTextLink(tr("Manage"), section);
     manage->setObjectName(QStringLiteral("manageWorkspaces"));
     withLink(manage, createRoute(Filter::Workspaces, PDFRecentSort::LastOpened, QString()).toString());
@@ -954,6 +979,7 @@ void PDFAppRecentPage::refreshList()
             item.progressText = QStringLiteral("—");
             item.opened = PDFAppHomeFormat::formatTime(workspace.opened, now);
             item.time = workspace.opened;
+            item.savedTime = workspace.saved;
             items.push_back(std::move(item));
         }
     }
@@ -964,9 +990,11 @@ void PDFAppRecentPage::refreshList()
     if (m_sort == PDFRecentSort::LastOpened)
     {
         items = PDFAppRecentPageHelper::groupByDay(std::move(items), now);
+        m_groupsDate = QDateTime::fromMSecsSinceEpoch(now, QTimeZone::LocalTime).date();
     }
     else
     {
+        m_groupsDate = QDate();
         QCollator collator;
         collator.setCaseSensitivity(Qt::CaseInsensitive);
         collator.setNumericMode(true);
@@ -1208,7 +1236,7 @@ void PDFAppRecentPage::refreshWorkspaces()
         m_sessionRow->setVisible(session.has_value());
         if (session)
         {
-            m_sessionRow->setMeta(PDFAppHomeFormat::formatSessionMeta(*session, now));
+            PDFAppHomeFormat::setTimeText(m_sessionRow, PDFAppHomeFormat::TimeText::SessionMeta, session->saved, now, session->documentCount);
         }
     }
     if (m_workspacesCard)
@@ -1219,7 +1247,8 @@ void PDFAppRecentPage::refreshWorkspaces()
     QStringList signature;
     for (const PDFWorkspace& workspace : workspaces)
     {
-        signature << QStringLiteral("%1|%2|%3").arg(workspace.id).arg(workspace.name, PDFAppHomeFormat::formatWorkspaceMeta(workspace, now));
+        // The times, not their texts: the minute ticker updates the texts (O25)
+        signature << QStringLiteral("%1|%2|%3|%4").arg(workspace.id).arg(workspace.name).arg(workspace.documentCount).arg(workspace.opened);
     }
     const QString text = signature.join(QChar(0x1F));
     if (text == m_workspacesSignature && m_workspaceRows.size() == qsizetype(workspaces.size()))
@@ -1231,7 +1260,8 @@ void PDFAppRecentPage::refreshWorkspaces()
     PDFAppRecentPageHelper::deleteAll(m_workspaceRows);
     for (const PDFWorkspace& workspace : workspaces)
     {
-        PDFWorkspaceRow* row = new PDFWorkspaceRow(PDFAppHomeFormat::toDisplayText(workspace.name), PDFAppHomeFormat::formatWorkspaceMeta(workspace, now), m_workspacesCard);
+        PDFWorkspaceRow* row = new PDFWorkspaceRow(PDFAppHomeFormat::toDisplayText(workspace.name), QString(), m_workspacesCard);
+        PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::WorkspaceMeta, workspace.opened, now, workspace.documentCount);
         row->setObjectName(QStringLiteral("workspaceRow"));
         row->setProperty(PDFAppRecentPageHelper::ID_PROPERTY, workspace.id);
 
@@ -1244,6 +1274,24 @@ void PDFAppRecentPage::refreshWorkspaces()
         connect(row, &PDFWorkspaceRow::clicked, this, &PDFAppRecentPage::onWorkspaceClicked);
         m_workspacesLayout->addWidget(row);
         m_workspaceRows << row;
+    }
+}
+
+void PDFAppRecentPage::updateTimeTexts(qint64 now)
+{
+    // The rows of the page (Continue where you left off, the workspaces) and the
+    // items of the list; the groups (Today, Yesterday, ...) are made again by a
+    // refresh after midnight
+    BaseClass::updateTimeTexts(now);
+    if (m_model)
+    {
+        m_model->updateTimes(now);
+    }
+
+    if (m_groupsDate.isValid() && m_groupsDate != QDateTime::fromMSecsSinceEpoch(now, QTimeZone::LocalTime).date())
+    {
+        m_groupsDate = QDate();
+        scheduleRefresh();
     }
 }
 

@@ -27,6 +27,8 @@
 #include "pdfappcontext.h"
 #include "pdfapproute.h"
 
+#include "pdfaccenthue.h"
+
 #include <QPointer>
 #include <QUrl>
 #include <QVariantMap>
@@ -44,6 +46,20 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppBreadcrumbItem
 public:
     QString text;
     PDFAppRoute route;
+};
+
+/// Icon of the header of a page before its title and subtitle (Manage collections
+/// 283:1932): the Tool icon of the size 44 (PDFComponentPainter::BadgeSize::Large,
+/// "44 in the header of a workspace" of the component 89:1289) in its hue, 14 px
+/// before the texts. An empty name = no icon (the texts start at the edge).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppHeaderIcon
+{
+public:
+    QString iconName;
+    PDFAccentHue hue = PDFAccentHue::Neutral;
+
+    bool isValid() const { return !iconName.isEmpty(); }
+    bool operator==(const PDFAppHeaderIcon&) const = default;
 };
 
 /// How the navigator shows a route
@@ -93,6 +109,9 @@ public:
     /// Breadcrumbs shown above the title of the header (empty = none; pdf4qt-help
     /// 955:152873, pdf4qt-whatsnew-notes 989:152125)
     virtual QList<PDFAppBreadcrumbItem> getHeaderBreadcrumbs() const;
+
+    /// Icon before the title and the subtitle of the header (none by default)
+    virtual PDFAppHeaderIcon getHeaderIcon() const;
 
     /// The workspace shows its header with the global search (Settings has none)
     virtual bool hasSearchHeader() const;
@@ -159,6 +178,17 @@ protected:
     /// \returns false, if the page does not exist any more (do not touch members then)
     bool replaceRoute(const PDFAppRoute& route);
 
+    /// The page is the shown page of its tab and the entry of the history before
+    /// the current one has the route \p route: a filter of the page cleared to
+    /// that route goes Back (requestBack) instead of replacing or pushing its
+    /// route, so the history never has two equal entries next to each other
+    /// (owner decision O25, the Tools and Settings pages)
+    bool isPreviousRoute(const PDFAppRoute& route) const;
+
+    /// Emits backRequested (the tab shows the previous entry of its history and
+    /// deletes this page). \returns false, if the page does not exist any more
+    bool requestBack();
+
 private:
     QPointer<PDFAppContext> m_context;
     PDFAppRoute m_route;
@@ -177,6 +207,18 @@ public:
 
     /// Creates the page (it is shown by setRoute afterwards); nullptr = Page Not Found
     virtual PDFAppPage* createPage(PDFAppContext* context, QWidget* parent) const = 0;
+
+    /// Creates the page of the route (the navigator calls this function); the
+    /// default calls createPage. A factory, whose page depends on the route (the
+    /// tool pages of PDFAppToolPageRegistry, step 6), overrides it; nullptr = Page
+    /// Not Found.
+    virtual PDFAppPage* createPageForRoute(PDFAppContext* context, QWidget* parent, const PDFAppRoute& route) const;
+
+    /// The page shown for \p pageRoute is also the page of \p route (both routes
+    /// match the entry of this factory): PDFAppNavigator refuses PDFAppPage::replaceRoute
+    /// to a route of another page. The default is true; a factory, whose page depends
+    /// on the route (createPageForRoute), compares the parameters, which choose the page.
+    virtual bool isSamePage(const PDFAppRoute& pageRoute, const PDFAppRoute& route) const;
 };
 
 }   // namespace pdf

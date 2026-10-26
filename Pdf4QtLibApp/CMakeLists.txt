@@ -40,6 +40,8 @@ set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfdatabaseschema.h
     sources/storage/pdfdatabasestatement.cpp
     sources/storage/pdfdatabasestatement.h
+    sources/storage/pdfdocumenttoolusage.cpp
+    sources/storage/pdfdocumenttoolusage.h
     sources/storage/pdfrecentrepository.cpp
     sources/storage/pdfrecentrepository.h
     sources/storage/pdfrepositoryhelper.cpp
@@ -48,6 +50,10 @@ set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfsettingsrepository.h
     sources/storage/pdfshortcutrepository.cpp
     sources/storage/pdfshortcutrepository.h
+    sources/storage/pdftoolcollectionrepository.cpp
+    sources/storage/pdftoolcollectionrepository.h
+    sources/storage/pdftoolparameterrepository.cpp
+    sources/storage/pdftoolparameterrepository.h
     sources/storage/pdftoolrepository.cpp
     sources/storage/pdftoolrepository.h
     sources/storage/pdfworkspacerepository.cpp
@@ -71,6 +77,8 @@ set(PDF4QT_LIBAPP_CORE_SOURCES
     sources/core/pdfapplog.h
     sources/core/pdfapplocale.cpp
     sources/core/pdfapplocale.h
+    sources/core/pdfappminuteticker.cpp
+    sources/core/pdfappminuteticker.h
     sources/core/pdfapppaths.cpp
     sources/core/pdfapppaths.h
     sources/core/pdfappsysteminfo.cpp
@@ -115,6 +123,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/sources/document/document.cmake)
 # settings add their files to PDF4QT_LIBAPP_SETTINGS_SOURCES
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources/settings/settings.cmake)
 
+# The Tools catalog (step 6): the presentation, the state and the collections of
+# the tools, the tool pages and the pages of the catalog add their files to
+# PDF4QT_LIBAPP_TOOLS_SOURCES
+include(${CMAKE_CURRENT_SOURCE_DIR}/sources/tools/tools.cmake)
+
 add_library(Pdf4QtLibApp SHARED
     sources/pdfappglobal.h
     ${PDF4QT_LIBAPP_STORAGE_SOURCES}
@@ -123,6 +136,7 @@ add_library(Pdf4QtLibApp SHARED
     ${PDF4QT_LIBAPP_PAGES_SOURCES}
     ${PDF4QT_LIBAPP_DOCUMENT_SOURCES}
     ${PDF4QT_LIBAPP_SETTINGS_SOURCES}
+    ${PDF4QT_LIBAPP_TOOLS_SOURCES}
 )
 
 include(GenerateExportHeader)
@@ -168,7 +182,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/shell
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/document
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/settings)
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/settings
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/tools)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 set_target_properties(Pdf4QtLibApp PROPERTIES

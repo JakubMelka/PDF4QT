@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappsearchengine.h"
+#include "pdfapptoolpresentation.h"
 #include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappsettingssection.h"
@@ -347,35 +348,44 @@ void PDFAppToolSearchProvider::search(const PDFSearchQuery& query, const PDFAppS
     int order = 0;
     for (const PDFDocumentToolSearchMatch& match : PDFDocumentToolSearch::search(query))
     {
-        const PDFDocumentToolCatalogEntry* tool = match.tool;
-        if (!tool)
+        if (!match.tool)
         {
             continue;
         }
-
-        const PDFDocumentToolCategoryInfo* category = PDFDocumentToolCatalog::getCategoryInfo(tool->getCategory());
-        const QString categoryTitle = category ? category->getTitle() : QString();
-
-        PDFAppSearchResult result;
-        result.group = PDFAppSearchGroup::Tools;
-        result.key = tool->getId();
-        result.title = tool->getTitle();
-
-        // The reason of a match by a keyword ("matches “signature”", Figma 285:3026),
-        // otherwise the category of the tool
-        const QString reason = match.field == PDFDocumentToolSearchMatch::Field::Keyword && !match.keyword.isEmpty()
-                                   ? PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "matches “%1”")).arg(match.keyword)
-                                   : categoryTitle;
-        result.subtitle = reason.isEmpty() ? tool->getDescription() : PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "%1 · %2")).arg(tool->getDescription(), reason);
-        result.meta = categoryTitle;
-        result.iconName = tool->getIconName();
-        result.hue = PDFAppSearchEngine::getToolHue(int(tool->getHue()));
-        result.action = PDFAppSearchResult::Action::Navigate;
-        result.route = PDFAppRoutes::tool(tool->getId());
-        result.score = match.score;
-        result.order = order++;
-        results.push_back(std::move(result));
+        results.push_back(createResult(match, order++));
     }
+}
+
+PDFAppSearchResult PDFAppToolSearchProvider::createResult(const PDFDocumentToolSearchMatch& match, int order)
+{
+    PDFAppSearchResult result;
+    const PDFDocumentToolCatalogEntry* tool = match.tool;
+    if (!tool)
+    {
+        return result;
+    }
+
+    const PDFDocumentToolCategoryInfo* category = PDFDocumentToolCatalog::getCategoryInfo(tool->getCategory());
+    const QString categoryTitle = category ? category->getTitle() : QString();
+
+    result.group = PDFAppSearchGroup::Tools;
+    result.key = tool->getId();
+    result.title = tool->getTitle();
+
+    // The reason of a match by a keyword ("matches “signature”", Figma 285:3026),
+    // otherwise the category of the tool
+    const QString reason = match.field == PDFDocumentToolSearchMatch::Field::Keyword && !match.keyword.isEmpty()
+                               ? PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "matches “%1”")).arg(match.keyword)
+                               : categoryTitle;
+    result.subtitle = reason.isEmpty() ? tool->getDescription() : PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "%1 · %2")).arg(tool->getDescription(), reason);
+    result.meta = categoryTitle;
+    result.iconName = tool->getIconName();
+    result.hue = PDFAppSearchEngine::getToolHue(int(tool->getHue()));
+    result.action = PDFAppSearchResult::Action::Navigate;
+    result.route = PDFAppRoutes::tool(tool->getId());
+    result.score = match.score;
+    result.order = order;
+    return result;
 }
 
 void PDFAppCommandSearchProvider::search(const PDFSearchQuery& query, const PDFAppSearchData& data, std::vector<PDFAppSearchResult>& results) const
@@ -847,22 +857,7 @@ QString PDFAppSearchEngine::getVisibleText(const QString& text, qsizetype maximu
 
 PDFAccentHue PDFAppSearchEngine::getToolHue(int documentToolHue)
 {
-    switch (static_cast<PDFDocumentToolHue>(documentToolHue))
-    {
-        case PDFDocumentToolHue::Amber:
-            return PDFAccentHue::Amber;
-        case PDFDocumentToolHue::Blue:
-            return PDFAccentHue::Blue;
-        case PDFDocumentToolHue::Green:
-            return PDFAccentHue::Green;
-        case PDFDocumentToolHue::Red:
-            return PDFAccentHue::Red;
-        case PDFDocumentToolHue::Violet:
-            return PDFAccentHue::Violet;
-        case PDFDocumentToolHue::Teal:
-            return PDFAccentHue::Teal;
-    }
-    return PDFAccentHue::Neutral;
+    return PDFAppToolPresentation::getHue(static_cast<PDFDocumentToolHue>(documentToolHue));
 }
 
 }   // namespace pdf

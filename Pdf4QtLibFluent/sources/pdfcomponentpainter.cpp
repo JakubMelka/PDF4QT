@@ -79,6 +79,14 @@ public:
     static constexpr qreal SWATCH_SLASH_Y = 17.0 - SWATCH_SLASH_SHIFT;
     static constexpr qreal SWATCH_SLASH_LENGTH = 20.0;
 
+    // Icon choice of the collections editor (283:1888, icons 284:2227): the
+    // Tool icon 32 in the padding of 2 (36), the selected one in the ring of 2
+    // border/focus (40), radius 10
+    static constexpr int ICON_CHOICE = 36;
+    static constexpr int ICON_CHOICE_SELECTED = 40;
+    static constexpr qreal ICON_CHOICE_RADIUS = 10.0;
+    static constexpr qreal ICON_CHOICE_RING = 2.0;
+
     // Page thumbnail 78:892: radius 2, border 1 inside, shadow (0, 1, 2, 0)
     static constexpr qreal THUMBNAIL_RADIUS = 2.0;
     static constexpr qreal THUMBNAIL_SHADOW_OFFSET = 1.0;
@@ -788,6 +796,59 @@ void PDFComponentPainter::paintColorSwatch(QPainter* painter, const QRectF& rect
     }
 }
 
+QSize PDFComponentPainter::getIconChoiceSize(bool isSelected)
+{
+    const int extent = isSelected ? PDFComponentPainterHelper::ICON_CHOICE_SELECTED : PDFComponentPainterHelper::ICON_CHOICE;
+    return QSize(extent, extent);
+}
+
+qreal PDFComponentPainter::getIconChoiceRadius()
+{
+    return PDFComponentPainterHelper::ICON_CHOICE_RADIUS;
+}
+
+void PDFComponentPainter::paintIconChoice(QPainter* painter, const QRectF& rect, const IconChoice& choice, const State& state)
+{
+    if (!painter || rect.isEmpty())
+    {
+        return;
+    }
+
+    const DirectionGuard directionGuard(painter, state);
+
+    // The selected choice has the ring of 2 px around the padding of 2 (40 x 40),
+    // the others only the padding (36 x 36); the shape is centered in the rectangle
+    const bool isSelected = state.isChecked();
+    const QSize size = getIconChoiceSize(isSelected);
+    const QRectF shape = alignedCentered(rect, QSizeF(qMin<qreal>(size.width(), rect.width()), qMin<qreal>(size.height(), rect.height())));
+    const PDFStylePainter::Radii radii(PDFComponentPainterHelper::ICON_CHOICE_RADIUS);
+
+    const PDFStylePainterGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    if (state.isPressed())
+    {
+        PDFStylePainter::fill(painter, shape, radii, PDFThemeColors::BgPressed);
+    }
+    else if (state.isHovered())
+    {
+        PDFStylePainter::fill(painter, shape, radii, PDFThemeColors::BgHover);
+    }
+
+    const ToolBadge badge{ choice.iconName, isSelected ? PDFAccentHue::Blue : PDFAccentHue::Neutral, BadgeSize::Medium };
+    paintToolBadge(painter, shape, badge, state);
+
+    if (isSelected)
+    {
+        PDFStylePainter::strokeInside(painter, shape, radii, state.isEnabled() ? PDFThemeColors::BorderFocus : PDFThemeColors::BorderStrong, PDFComponentPainterHelper::ICON_CHOICE_RING);
+    }
+
+    if (state.hasFocusRing())
+    {
+        paintFocusRingOutside(painter, shape, radii);
+    }
+}
+
 PDFComponentPainter::ThumbnailSize PDFComponentPainter::normalized(ThumbnailSize size)
 {
     switch (size)
@@ -974,6 +1035,8 @@ public:
     static constexpr int COLLECTION_RIGHT = 8;
     static constexpr int COLLECTION_GAP = 12;
     static constexpr int COLLECTION_ICON = 16;
+    static constexpr int COLLECTION_CREATE_HEIGHT = 54;
+    static constexpr int COLLECTION_CREATE_PADDING = 11;    ///< The padding 10 inside of the border of 1 (272:12952)
 
     // Tool shortcut 192:836: radius 10, border 1 counted in the layout, padding
     // 8, 12, 8, 8, gap 10: the badge at 9, the name at 51, 13 from the right
@@ -1663,7 +1726,8 @@ QSize PDFComponentPainter::getToolRowMinimumSize(const ToolRow& row)
 {
     using Helper = PDFComponentRowPainterHelper;
     const int tagWidth = row.tag.isEmpty() ? 0 : getTagSize(Tag{ row.tag }).width() + Helper::TOOL_GAP;
-    return QSize(Helper::TOOL_LEFT + Helper::BADGE + 2 * Helper::TOOL_GAP + Helper::MIN_TEXT + tagWidth + Helper::TOOL_STAR + Helper::TOOL_RIGHT, Helper::TOOL_HEIGHT);
+    const int starWidth = row.starVisible ? Helper::TOOL_GAP + Helper::TOOL_STAR : 0;
+    return QSize(Helper::TOOL_LEFT + Helper::BADGE + Helper::TOOL_GAP + Helper::MIN_TEXT + tagWidth + starWidth + Helper::TOOL_RIGHT, Helper::TOOL_HEIGHT);
 }
 
 bool PDFComponentPainter::isToolRowTagShown(const QRectF& rect, const ToolRow& row)
@@ -1676,7 +1740,8 @@ bool PDFComponentPainter::isToolRowTagShown(const QRectF& rect, const ToolRow& r
     }
 
     // The tag lies before the star; it is dropped, when it would reach the badge
-    const qreal tagLeft = rect.right() - Helper::TOOL_RIGHT - Helper::TOOL_STAR - Helper::TOOL_GAP - getTagSize(Tag{ row.tag }).width();
+    const qreal starWidth = row.starVisible ? Helper::TOOL_STAR + Helper::TOOL_GAP : 0.0;
+    const qreal tagLeft = rect.right() - Helper::TOOL_RIGHT - starWidth - getTagSize(Tag{ row.tag }).width();
     return tagLeft > rect.left() + Helper::TOOL_LEFT + Helper::BADGE;
 }
 
@@ -1717,11 +1782,18 @@ void PDFComponentPainter::paintToolRow(QPainter* painter, const QRectF& rect, co
     const QRectF badgeRect = Helper::line(rect, rect.left() + Helper::TOOL_LEFT, Helper::BADGE, Helper::BADGE);
     paintToolBadge(painter, state.visualRect(rect, badgeRect), ToolBadge{ row.iconName, row.hue, BadgeSize::Medium }, state);
 
-    const QRectF starRect = Helper::line(rect, rect.right() - Helper::TOOL_RIGHT - Helper::TOOL_STAR, Helper::TOOL_STAR, Helper::TOOL_STAR);
-    qreal trailingLeft = starRect.left();
-    if (row.paintNested)
+    // The trailing part (the star, the tag) starts at trailingLeft; a row without
+    // the star lets the texts and the tag reach the padding (trailingLeft is then
+    // one gap behind it, the gap before the trailing part is subtracted below)
+    qreal trailingLeft = rect.right() - Helper::TOOL_RIGHT + Helper::TOOL_GAP;
+    if (row.starVisible)
     {
-        paintStar(painter, state.visualRect(rect, starRect), StarSize::Medium, Helper::nestedState(state, row.pinned));
+        const QRectF starRect = Helper::line(rect, rect.right() - Helper::TOOL_RIGHT - Helper::TOOL_STAR, Helper::TOOL_STAR, Helper::TOOL_STAR);
+        trailingLeft = starRect.left();
+        if (row.paintNested)
+        {
+            paintStar(painter, state.visualRect(rect, starRect), StarSize::Medium, Helper::nestedState(state, row.pinned));
+        }
     }
 
     if (isToolRowTagShown(rect, row))
@@ -1743,14 +1815,18 @@ void PDFComponentPainter::paintToolRow(QPainter* painter, const QRectF& rect, co
 
 QSize PDFComponentPainter::getCollectionRowSize(const CollectionRow& row)
 {
-    Q_UNUSED(row);
-    return QSize(PDFComponentRowPainterHelper::COLLECTION_WIDTH, PDFComponentRowPainterHelper::COLLECTION_HEIGHT);
+    using Helper = PDFComponentRowPainterHelper;
+    return QSize(Helper::COLLECTION_WIDTH, row.isCreate ? Helper::COLLECTION_CREATE_HEIGHT : Helper::COLLECTION_HEIGHT);
 }
 
 QSize PDFComponentPainter::getCollectionRowMinimumSize(const CollectionRow& row)
 {
-    Q_UNUSED(row);
     using Helper = PDFComponentRowPainterHelper;
+    if (row.isCreate)
+    {
+        // The paddings inside of the border, no chevron
+        return QSize(2 * Helper::COLLECTION_CREATE_PADDING + Helper::BADGE + Helper::COLLECTION_GAP + Helper::MIN_TEXT, Helper::COLLECTION_CREATE_HEIGHT);
+    }
     return QSize(Helper::COLLECTION_LEFT + Helper::BADGE + 2 * Helper::COLLECTION_GAP + Helper::MIN_TEXT + Helper::CHEVRON + Helper::COLLECTION_RIGHT, Helper::COLLECTION_HEIGHT);
 }
 
@@ -1771,6 +1847,35 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
     const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setClipRect(rect, Qt::IntersectClip);
+
+    if (row.isCreate)
+    {
+        // new-collection 272:12952: bg/subtle, the border border/default
+        PDFStylePainter::fill(painter, rect, radii, Color::BgSubtle);
+        Helper::fillPointer(painter, rect, radii, state);
+        PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderDefault);
+        if (state.hasFocusRing())
+        {
+            paintFocusRingInside(painter, rect, radii);
+        }
+
+        // The circle bg/surface with its border, the icon icon/accent
+        const QRectF createCircle = Helper::line(rect, rect.left() + Helper::COLLECTION_CREATE_PADDING, Helper::BADGE, Helper::BADGE);
+        const QRectF visualCreateCircle = state.visualRect(rect, createCircle);
+        PDFStylePainter::fillEllipse(painter, visualCreateCircle, PDFStylePainter::color(Color::BgSurface));
+        PDFStylePainter::strokeEllipseInside(painter, visualCreateCircle, PDFStylePainter::color(Color::BorderDefault), 1.0);
+        if (!row.iconName.isEmpty())
+        {
+            PDFStylePainter::icon(painter, alignedCentered(visualCreateCircle, QSizeF(Helper::COLLECTION_ICON, Helper::COLLECTION_ICON)), row.iconName, Helper::icon(state, Color::IconAccent));
+        }
+
+        // The name text/accent, no chevron
+        const qreal createTextLeft = createCircle.right() + Helper::COLLECTION_GAP;
+        Helper::drawTextBlock(painter, state, rect, createTextLeft, rect.right() - Helper::COLLECTION_CREATE_PADDING - createTextLeft,
+                              row.name, Helper::text(state, Color::TextAccent), row.meta, Helper::text(state, Color::TextMuted), 1);
+        return;
+    }
+
     Helper::fillPointer(painter, rect, radii, state);
 
     if (state.hasFocusRing())
@@ -1791,9 +1896,10 @@ void PDFComponentPainter::paintCollectionRow(QPainter* painter, const QRectF& re
     const qreal chevronLeft = rect.right() - Helper::COLLECTION_RIGHT - Helper::CHEVRON;
     Helper::drawIcon(painter, state, rect, Helper::line(rect, chevronLeft, Helper::CHEVRON, Helper::CHEVRON), Helper::chevronIcon(state), Helper::pointerIcon(state));
 
+    // The name of a collection is data (a name given by the user): its own direction
     const qreal textLeft = circleRect.right() + Helper::COLLECTION_GAP;
     Helper::drawTextBlock(painter, state, rect, textLeft, chevronLeft - Helper::COLLECTION_GAP - textLeft,
-                          row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1);
+                          row.name, Helper::text(state, Color::TextPrimary), row.meta, Helper::text(state, Color::TextMuted), 1, Helper::TextKind::Data);
 }
 
 QSize PDFComponentPainter::getToolShortcutSize(const ToolShortcut& shortcut)

@@ -170,6 +170,17 @@ public:
     /// character, or two adjacent characters swapped)
     static bool isWithinOneEdit(QStringView first, QStringView second);
 
+    /// Number of edits (a changed, added or removed character, two adjacent
+    /// characters swapped - the optimal string alignment distance) between the two
+    /// words; \p limit + 1, when it is greater than \p limit (the computation stops
+    /// early). Words longer than MAXIMUM_WORD_LENGTH give \p limit + 1.
+    static int getEditDistance(QStringView first, QStringView second, int limit);
+
+    /// Most edits of a word of a query of \p length characters, which is still near
+    /// a word of a text (PDFDocumentToolSearch::searchNearest): 3 from 8 characters,
+    /// 2 from 5 characters, 0 for shorter words (only the matches of matchWord)
+    static int getNearDistanceLimit(qsizetype length);
+
 private:
     QString m_text;
     QString m_normalizedText;
@@ -229,6 +240,43 @@ public:
 
     /// Match of one tool (std::nullopt, if it does not match)
     static std::optional<PDFDocumentToolSearchMatch> matchTool(const PDFDocumentToolCatalogEntry& tool, const PDFSearchQuery& query);
+
+    /// Most tools offered by searchNearest
+    static constexpr int MAXIMUM_NEAREST = 3;
+
+    /// Shortest word of a query, which searchNearest uses ("to", "a" are left out)
+    static constexpr qsizetype MINIMUM_NEAR_WORD_LENGTH = 3;
+
+    /// Scores of a word of a query near a word of a title / a keyword
+    /// (searchNearest), lowered by NEAR_EDIT_PENALTY for each edit
+    static constexpr int TITLE_NEAR = 40;
+    static constexpr int KEYWORD_NEAR = 20;
+    static constexpr int NEAR_EDIT_PENALTY = 5;
+
+    /// A word of a query offers a tool only, when it is decisive: it has at least
+    /// MINIMUM_DECISIVE_WORD_LENGTH characters ("the", "and" of the keyword "front
+    /// and back" are not), it is near at most MAXIMUM_COMMON_WORD_TOOLS tools ("pdf",
+    /// "page" are too common) and its score is at least MINIMUM_DECISIVE_SCORE (a
+    /// keyword three edits away is too weak). Other words add to the score only.
+    static constexpr qsizetype MINIMUM_DECISIVE_WORD_LENGTH = 4;
+    static constexpr int MAXIMUM_COMMON_WORD_TOOLS = 12;
+    static constexpr int MINIMUM_DECISIVE_SCORE = 10;
+
+    /// Nearest tools of a query, for which search finds nothing (owner decision
+    /// O25, tools.md 9.1 point 4: the empty catalog search offers up to three
+    /// nearest tools, nothing when no tool is close enough). Only the titles and the
+    /// keywords (the texts of the user interface and the English ones) are compared.
+    /// A word of the query (of at least MINIMUM_NEAR_WORD_LENGTH characters) is near
+    /// a word of a tool, when it matches it as search does (equal, the beginning,
+    /// one typo) or when it differs by at most getNearDistanceLimit edits from it or
+    /// from its beginning - never in the first character. A tool is offered, when
+    /// a decisive word of the query is near one of its words; a query of more words
+    /// needs only some of them ("compress scan quality").
+    /// Order: more near words of the query, the higher score, the order of the
+    /// catalog. The tools of \p excludedTools (unavailable) are never offered; at
+    /// most \p maximumCount (bounded to MAXIMUM_NEAREST) tools.
+    static std::vector<PDFDocumentToolSearchMatch> searchNearest(const PDFSearchQuery& query, const QStringList& excludedTools = QStringList(), int maximumCount = MAXIMUM_NEAREST);
+    static std::vector<PDFDocumentToolSearchMatch> searchNearest(const QString& text, const QStringList& excludedTools = QStringList(), int maximumCount = MAXIMUM_NEAREST);
 };
 
 }   // namespace pdf

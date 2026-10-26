@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapppagenotfound.h"
+#include "pdfapppagelayout.h"
 #include "pdfappworkspace.h"
 
 #include "pdfaccenthue.h"
@@ -322,12 +323,6 @@ public:
             return text;
         }
         return QStringLiteral("<p style=\"white-space:pre-wrap\">%1</p>").arg(text.toHtmlEscaped());
-    }
-
-    /// Text of a button: '&' of the data is not a mnemonic
-    static QString toButtonText(const QString& text)
-    {
-        return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
     }
 
     static bool isInvisible(QChar::Category category)
@@ -710,7 +705,7 @@ void PDFPageNotFoundPage::updateElidedTexts()
         // of the button comes from the style; a few steps cover the rounding)
         const QString searchText = Helper::toVisibleText(m_request.searchText);
         QString shownText = searchText;
-        m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(shownText)));
+        m_searchButton->setText(tr("Search for “%1”").arg(PDFAppPageWidgets::escapeMnemonic(shownText)));
         const QFontMetricsF metrics(m_searchButton->font());
         for (int attempt = 0; attempt < 8 && pageWidth < QWIDGETSIZE_MAX && !shownText.isEmpty(); ++attempt)
         {
@@ -726,7 +721,7 @@ void PDFPageNotFoundPage::updateElidedTexts()
             {
                 shownText = QString(QChar(0x2026));
             }
-            m_searchButton->setText(tr("Search for “%1”").arg(Helper::toButtonText(shownText)));
+            m_searchButton->setText(tr("Search for “%1”").arg(PDFAppPageWidgets::escapeMnemonic(shownText)));
             if (shownText.size() == 1)
             {
                 break;

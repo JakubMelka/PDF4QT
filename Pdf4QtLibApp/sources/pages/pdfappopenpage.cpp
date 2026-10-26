@@ -49,14 +49,6 @@ public:
     /// Folder cards: three in a row at 782 px (253), fewer in a narrow page
     static constexpr int FOLDER_MINIMUM_WIDTH = 200;
 
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
-
     template<typename T>
     static QList<T*> toList(const QList<QPointer<T>>& pointers)
     {
@@ -101,7 +93,7 @@ PDFAppOpenPage::PDFAppOpenPage(PDFAppContext* context, QWidget* parent) :
 
     // open-grid: main column (drop zone, folders, pinned and recent files) and the
     // side column 360 (workspaces, pinned locations), gap 24
-    QVBoxLayout* layout = PDFAppOpenPageHelper::createColumn(this, 0);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 0);
     m_columns = new PDFAppColumns(this);
     m_columns->setObjectName(QStringLiteral("openGrid"));
     m_columns->addColumn(0, 1, 400);
@@ -176,7 +168,7 @@ QWidget* PDFAppOpenPage::createFolders(QWidget* parent)
     // recent-folders: the header with the hint, the cards 3 in a row, gaps 12
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("recentFolders"));
-    QVBoxLayout* layout = PDFAppOpenPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     PDFLabel* hint = PDFAppPageWidgets::createHint(tr("Standard folders first, then the folders you opened from recently"), section);
     hint->setObjectName(QStringLiteral("foldersHint"));
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Recent Folders"), hint, section));
@@ -193,7 +185,7 @@ QWidget* PDFAppOpenPage::createFileList(const QString& title, PDFTextLink* link,
 {
     // pinned-files / recent-files: the header with View all, the list card (padding 8, rows without gaps)
     QWidget* section = new QWidget(parent);
-    QVBoxLayout* sectionLayout = PDFAppOpenPageHelper::createColumn(section, 12);
+    QVBoxLayout* sectionLayout = PDFAppPageWidgets::createColumn(section, 12);
     sectionLayout->addWidget(PDFAppPageWidgets::createSectionHeader(title, link, section));
 
     QWidget* listCard = PDFAppPageWidgets::createCard(8, 0, section);
@@ -215,7 +207,7 @@ QWidget* PDFAppOpenPage::createWorkspaces(QWidget* parent)
     // workspaces: the header with Manage, the list card (padding 8, gap 2)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("workspaces"));
-    QVBoxLayout* layout = PDFAppOpenPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     PDFTextLink* manage = createLink(tr("Manage"), PDFAppRoutes::recent(QStringLiteral("workspaces")), section);
     manage->setObjectName(QStringLiteral("manageWorkspaces"));
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Workspaces"), manage, section));
@@ -242,7 +234,7 @@ QWidget* PDFAppOpenPage::createLocations(QWidget* parent)
     // pinned-locations: the header with Add…, the list card (padding 8, gap 8)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("pinnedLocations"));
-    QVBoxLayout* layout = PDFAppOpenPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     m_addLocationLink = new PDFTextLink(tr("Add…"), section);
     m_addLocationLink->setObjectName(QStringLiteral("addLocation"));
     connect(m_addLocationLink, &PDFTextLink::clicked, this, &PDFAppOpenPage::onAddLocationClicked);
@@ -321,7 +313,8 @@ void PDFAppOpenPage::refreshFolders()
         {
             isPinned = isPinned || PDFRepositoryHelper::isSamePath(location.path, folder.path);
         }
-        signature << QStringLiteral("%1|%2|%3|%4|%5").arg(folder.path, folder.name).arg(int(folder.kind)).arg(PDFAppHomeFormat::formatLastUsed(folder.lastUsed, now)).arg(isPinned);
+        // The times, not their texts: the minute ticker updates the texts (O25)
+        signature << QStringLiteral("%1|%2|%3|%4|%5").arg(folder.path, folder.name).arg(int(folder.kind)).arg(folder.lastUsed).arg(isPinned);
     }
 
     const QString text = signature.join(QChar(0x1F));
@@ -346,8 +339,9 @@ void PDFAppOpenPage::refreshFolders()
             isPinned = isPinned || PDFRepositoryHelper::isSamePath(location.path, folder.path);
         }
 
-        PDFFolderCard* card = new PDFFolderCard(PDFAppHomeFormat::toDisplayText(folder.name), PDFAppHomeFormat::toDisplayPath(folder.path),
-                                                PDFAppHomeFormat::formatLastUsed(folder.lastUsed, now), PDFAppHomeFormat::getFolderHue(folder.kind), grid);
+        PDFFolderCard* card = new PDFFolderCard(PDFAppHomeFormat::toDisplayText(folder.name), PDFAppHomeFormat::toDisplayPath(folder.path), QString(),
+                                                PDFAppHomeFormat::getFolderHue(folder.kind), grid);
+        PDFAppHomeFormat::setTimeText(card, PDFAppHomeFormat::TimeText::LastUsed, folder.lastUsed, now);
         card->setObjectName(QStringLiteral("folderCard"));
         card->setIconName(PDFAppHomeFormat::getFolderIconName(folder.kind));
         card->setProperty(PDFAppOpenPageHelper::PATH_PROPERTY, folder.path);
@@ -369,8 +363,8 @@ void PDFAppOpenPage::refreshFolders()
 PDFRecentFileRow* PDFAppOpenPage::createFileRow(const PDFRecentFile& file, QWidget* parent)
 {
     // file row of Open: the name, the folder, the time, the star (24) and the menu
-    PDFRecentFileRow* row = new PDFRecentFileRow(PDFAppHomeFormat::toDisplayText(file.name), PDFAppHomeFormat::toDisplayPath(file.folder),
-                                                 PDFAppHomeFormat::formatTime(file.lastOpened, getNow()), parent);
+    PDFRecentFileRow* row = new PDFRecentFileRow(PDFAppHomeFormat::toDisplayText(file.name), PDFAppHomeFormat::toDisplayPath(file.folder), QString(), parent);
+    PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::Time, file.lastOpened, getNow());
     row->setObjectName(QStringLiteral("fileRow"));
     row->setPinned(file.pinned);
     row->setProperty(PDFAppOpenPageHelper::PATH_PROPERTY, file.path);
@@ -409,13 +403,12 @@ void PDFAppOpenPage::refreshFiles()
         recent = repository.getFiles(query);
     }
 
-    const qint64 now = getNow();
     QStringList signature;
     for (const std::vector<PDFRecentFile>* list : { &pinned, &recent })
     {
         for (const PDFRecentFile& file : *list)
         {
-            signature << QStringLiteral("%1|%2|%3|%4").arg(file.path, file.name, PDFAppHomeFormat::formatTime(file.lastOpened, now)).arg(file.pinned);
+            signature << QStringLiteral("%1|%2|%3|%4").arg(file.path, file.name).arg(file.lastOpened).arg(file.pinned);
         }
         signature << QStringLiteral("--");
     }
@@ -477,7 +470,7 @@ void PDFAppOpenPage::refreshWorkspaces()
         m_sessionRow->setVisible(session.has_value());
         if (session)
         {
-            m_sessionRow->setMeta(PDFAppHomeFormat::formatSessionMeta(*session, now));
+            PDFAppHomeFormat::setTimeText(m_sessionRow, PDFAppHomeFormat::TimeText::SessionMeta, session->saved, now, session->documentCount);
         }
     }
 
@@ -492,7 +485,7 @@ void PDFAppOpenPage::refreshWorkspaces()
     QStringList signature;
     for (const PDFWorkspace& workspace : workspaces)
     {
-        signature << QStringLiteral("%1|%2|%3").arg(workspace.id).arg(workspace.name, PDFAppHomeFormat::formatWorkspaceMeta(workspace, now));
+        signature << QStringLiteral("%1|%2|%3|%4").arg(workspace.id).arg(workspace.name).arg(workspace.documentCount).arg(workspace.opened);
     }
     const QString text = signature.join(QChar(0x1F));
     if (text == m_workspacesSignature && m_workspaceRows.size() == qsizetype(workspaces.size()))
@@ -505,7 +498,8 @@ void PDFAppOpenPage::refreshWorkspaces()
     int index = m_workspacesLayout->indexOf(m_sessionRow) + 1;
     for (const PDFWorkspace& workspace : workspaces)
     {
-        PDFWorkspaceRow* row = new PDFWorkspaceRow(PDFAppHomeFormat::toDisplayText(workspace.name), PDFAppHomeFormat::formatWorkspaceMeta(workspace, now), m_workspacesCard);
+        PDFWorkspaceRow* row = new PDFWorkspaceRow(PDFAppHomeFormat::toDisplayText(workspace.name), QString(), m_workspacesCard);
+        PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::WorkspaceMeta, workspace.opened, now, workspace.documentCount);
         row->setObjectName(QStringLiteral("workspaceRow"));
         row->setProperty(PDFAppOpenPageHelper::ID_PROPERTY, workspace.id);
 

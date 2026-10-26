@@ -34,6 +34,7 @@
 #include "pdfwidgetformmanager.h"
 
 #include <QTimer>
+#include <QPointer>
 #include <QPainter>
 #include <QFontMetrics>
 #include <QScreen>
@@ -511,7 +512,15 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document, std::v
         m_scaledImageCache.clear();
         m_compiler->stop(document.hasReset() || document.hasPageContentsChanged());
         m_textLayoutCompiler->stop(document.hasReset() || document.hasPageContentsChanged());
+
+        // The new layout is announced by drawSpaceChanged, whose receiver can delete
+        // the proxy (the application deletes its view)
+        QPointer<PDFDrawWidgetProxy> self(this);
         m_controller->setDocument(document);
+        if (!self)
+        {
+            return;
+        }
 
         if (PDFOptionalContentActivity* optionalContentActivity = document.getOptionalContentActivity())
         {
@@ -552,6 +561,17 @@ void PDFDrawWidgetProxy::update()
     {
         return;
     }
+
+    // The layout is computed with the updates disabled (the scroll bars changed by it
+    // must not update it again). The signal is emitted after the flag is restored and
+    // nothing touches the proxy after it: a receiver can delete the proxy (the
+    // application deletes its view, for example after a zoom).
+    updateLayout();
+    Q_EMIT drawSpaceChanged();
+}
+
+void PDFDrawWidgetProxy::updateLayout()
+{
     PDFBoolGuard guard(m_updateDisabled);
 
     Q_ASSERT(m_widget);
@@ -726,8 +746,6 @@ void PDFDrawWidgetProxy::update()
             m_verticalOffsetRange = Range<PDFInteger>(m_verticalOffset);
         }
     }
-
-    Q_EMIT drawSpaceChanged();
 }
 
 QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
@@ -893,8 +911,14 @@ void PDFDrawWidgetProxy::setPageDecoration(const PDFPageDecoration& decoration)
 
     if (isMarginChanged && m_widget)
     {
-        // The layout, the scroll ranges and the fit zoom depend on the margin
+        // The layout, the scroll ranges and the fit zoom depend on the margin; a
+        // receiver of drawSpaceChanged can delete the proxy
+        QPointer<PDFDrawWidgetProxy> self(this);
         update();
+        if (!self)
+        {
+            return;
+        }
     }
 
     Q_EMIT repaintNeeded();
@@ -1538,8 +1562,18 @@ QPoint PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
     PDFInteger oldHorizontalOffset = m_horizontalOffset;
     PDFInteger oldVerticalOffset = m_verticalOffset;
 
+    // A receiver of drawSpaceChanged can delete the proxy
+    QPointer<PDFDrawWidgetProxy> self(this);
     setHorizontalOffset(m_horizontalOffset + offset.x());
+    if (!self)
+    {
+        return QPoint();
+    }
     setVerticalOffset(m_verticalOffset + offset.y());
+    if (!self)
+    {
+        return QPoint();
+    }
 
     return QPoint(m_horizontalOffset - oldHorizontalOffset, m_verticalOffset - oldVerticalOffset);
 }
@@ -1555,6 +1589,10 @@ void PDFDrawWidgetProxy::zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPos
     const PDFReal clampedZoom = qBound(MIN_ZOOM, zoom, MAX_ZOOM);
     if (m_zoom != clampedZoom)
     {
+        // Each step announces the change by drawSpaceChanged, whose receiver can
+        // delete the proxy (the application deletes its view)
+        QPointer<PDFDrawWidgetProxy> self(this);
+
         if (widgetPosition.has_value())
         {
             QPointF point = widgetPosition.value();
@@ -1565,11 +1603,19 @@ void PDFDrawWidgetProxy::zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPos
             m_zoom = clampedZoom;
 
             update();
+            if (!self)
+            {
+                return;
+            }
 
             const PDFReal hp = posX / m_pixelToDeviceSpaceUnit + point.x();
             const PDFReal vp = posY / m_pixelToDeviceSpaceUnit + point.y();
 
             setHorizontalOffset(hp);
+            if (!self)
+            {
+                return;
+            }
             setVerticalOffset(vp);
         }
         else
@@ -1580,9 +1626,17 @@ void PDFDrawWidgetProxy::zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPos
             m_zoom = clampedZoom;
 
             update();
+            if (!self)
+            {
+                return;
+            }
 
             // Try to restore offsets, so we are in the same place
             setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
+            if (!self)
+            {
+                return;
+            }
             setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
         }
     }
@@ -1796,7 +1850,13 @@ void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
 {
     if (m_zoomMode != ZoomMode::Custom)
     {
+        // A receiver of drawSpaceChanged can delete the proxy
+        QPointer<PDFDrawWidgetProxy> self(this);
         applyZoomMode(m_zoomMode, pageIndex);
+        if (!self)
+        {
+            return;
+        }
     }
 
     PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
@@ -1844,10 +1904,16 @@ void PDFDrawWidgetProxy::goToPageAndEnsureVisible(PDFInteger pageIndex, QRectF e
 
     if (layoutItem.isValid())
     {
-        // We have found our page, navigate onto it
+        // We have found our page, navigate onto it; a receiver of drawSpaceChanged
+        // can delete the proxy
+        QPointer<PDFDrawWidgetProxy> self(this);
         if (isBlockMode())
         {
             setBlockIndex(layoutItem.blockIndex);
+            if (!self)
+            {
+                return;
+            }
         }
 
         QRectF pageRect = fromDeviceSpace(layoutItem.pageRectMM);
@@ -1868,6 +1934,10 @@ void PDFDrawWidgetProxy::goToPageAndEnsureVisible(PDFInteger pageIndex, QRectF e
             if (!displayedRect.contains(p1))
             {
                 scrollByPixels(-QPoint(0, p1.y() - displayedRect.top()));
+                if (!self)
+                {
+                    return;
+                }
             }
 
             QPoint p2(topRectPoint.x(), center.y());
@@ -1894,11 +1964,21 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
             }
         }
 
+        // A receiver of drawSpaceChanged can delete the proxy
+        QPointer<PDFDrawWidgetProxy> self(this);
         m_controller->setPageLayout(pageLayout);
+        if (!self)
+        {
+            return;
+        }
 
         if (pageIndex.has_value())
         {
             goToPage(*pageIndex);
+            if (!self)
+            {
+                return;
+            }
         }
 
         Q_EMIT pageLayoutChanged();
@@ -1909,7 +1989,13 @@ void PDFDrawWidgetProxy::setCustomPageLayout(PDFDrawSpaceController::LayoutItems
 {
     if (m_controller->getCustomLayout() != layoutItems)
     {
+        // A receiver of drawSpaceChanged can delete the proxy
+        QPointer<PDFDrawWidgetProxy> self(this);
         m_controller->setCustomLayout(std::move(layoutItems));
+        if (!self)
+        {
+            return;
+        }
         Q_EMIT pageLayoutChanged();
     }
 }
@@ -2051,13 +2137,23 @@ void PDFDrawWidgetProxy::fitToDestinationRectangle(PDFInteger pageIndex, const Q
 
     const QRectF destinationRectangleMM = page->getRectMM(normalizedRectangle);
 
+    // A receiver of drawSpaceChanged can delete the proxy
+    QPointer<PDFDrawWidgetProxy> self(this);
     if (destinationRectangleMM.isValid() && !qFuzzyIsNull(destinationRectangleMM.width()) && !qFuzzyIsNull(destinationRectangleMM.height()))
     {
         m_zoomMode = ZoomMode::Custom;
         zoomImpl(getZoomToFitSize(ZoomHint::Fit, destinationRectangleMM.size()));
+        if (!self)
+        {
+            return;
+        }
     }
 
     goToPage(pageIndex);
+    if (!self)
+    {
+        return;
+    }
     alignViewToPagePoint(pageIndex, normalizedRectangle.left(), normalizedRectangle.top());
 }
 
@@ -2075,6 +2171,10 @@ void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
     }
 
     const PDFInteger pageIndex = *destinationPageIndex;
+
+    // Each step announces the change by drawSpaceChanged, whose receiver can delete
+    // the proxy (the application deletes its view)
+    QPointer<PDFDrawWidgetProxy> self(this);
 
     switch (destination.getDestinationType())
     {
@@ -2122,8 +2222,16 @@ void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
             {
                 applyZoomMode(m_zoomMode, pageIndex);
             }
+            if (!self)
+            {
+                return;
+            }
 
             goToPage(pageIndex);
+            if (!self)
+            {
+                return;
+            }
             alignViewToPagePoint(pageIndex, left, top);
             break;
         }
@@ -2132,6 +2240,10 @@ void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
         case DestinationType::FitB:
         {
             applyZoomMode(ZoomMode::Fit, pageIndex);
+            if (!self)
+            {
+                return;
+            }
             goToPage(pageIndex);
             break;
         }
@@ -2140,7 +2252,15 @@ void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
         case DestinationType::FitBH:
         {
             applyZoomMode(ZoomMode::FitWidth, pageIndex);
+            if (!self)
+            {
+                return;
+            }
             goToPage(pageIndex);
+            if (!self)
+            {
+                return;
+            }
             if (destination.hasTop())
             {
                 alignViewToPagePoint(pageIndex, std::nullopt, destination.getTop());
@@ -2152,7 +2272,15 @@ void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
         case DestinationType::FitBV:
         {
             applyZoomMode(ZoomMode::FitHeight, pageIndex);
+            if (!self)
+            {
+                return;
+            }
             goToPage(pageIndex);
+            if (!self)
+            {
+                return;
+            }
             if (destination.hasLeft())
             {
                 alignViewToPagePoint(pageIndex, destination.getLeft(), std::nullopt);
@@ -2198,7 +2326,13 @@ void PDFDrawWidgetProxy::updateCompilerActivePages()
 
 void PDFDrawWidgetProxy::onTextLayoutChanged()
 {
+    // A receiver of repaintNeeded can delete the proxy
+    QPointer<PDFDrawWidgetProxy> self(this);
     Q_EMIT repaintNeeded();
+    if (!self)
+    {
+        return;
+    }
     Q_EMIT textLayoutChanged();
 }
 

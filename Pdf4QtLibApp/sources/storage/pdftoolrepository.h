@@ -35,6 +35,8 @@
 namespace pdf
 {
 
+class PDFDocumentToolPair;
+
 /// Use of a tool (table tool_usage): written when the user accepts the result of
 /// the tool (phase 2, newapp_tools.md 3)
 class PDF4QTLIBAPPSHARED_EXPORT PDFToolUsage
@@ -97,6 +99,19 @@ public:
     /// pairs of the tools and resets tools.historyRuns in one transaction
     /// (notifications tool_pair and setting)
     PDFDatabaseError clearHistory();
+
+    /// Clears the list of the recently used tools (Clear of Recent tools of the
+    /// Tools page, owner decision Q2 of step 6): deletes the rows of tool_usage.
+    /// The pins, the collections and the pairs of the tools stay.
+    PDFDatabaseError clearUsage();
+
+    /// Most pairs of the tools, which are read
+    static constexpr int MAXIMUM_PAIRS = 10000;
+
+    /// Counters of the pairs of the tools (table tool_pair), whose first tool is one
+    /// of \p fromToolIds (empty = all pairs), the highest counter first. Rows with an
+    /// unknown tool, a tool paired with itself or an invalid counter are skipped.
+    std::vector<PDFDocumentToolPair> getPairs(const QStringList& fromToolIds = QStringList()) const;
 
 private:
     qint64 getCurrentTime() const;

@@ -28,6 +28,7 @@
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentmenus.h"
+#include "pdfappdocumenttoolspanel.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfdatabasenotifier.h"
@@ -208,12 +209,9 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
 
     // Annotate and Insert open the panels of step 4 (enabled by their commands -
     // a locked document or one without the permission disables them); Tools opens
-    // the catalog of the tools
+    // the Tools panel of step 6 (196:3650)
     m_annotateButton->setEnabled(false);
     m_insertButton->setEnabled(false);
-    m_toolsButton->setCheckable(false);
-    disconnect(m_toolsButton.data(), &QToolButton::clicked, this, &PDFAppDocumentToolbar::onMenuButtonClicked);
-    connect(m_toolsButton.data(), &QToolButton::clicked, this, &PDFAppDocumentToolbar::onToolsClicked);
     m_layout->addWidget(m_leftGroup);
     m_layout->addStretch(1);
 
@@ -294,10 +292,16 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
 
 PDFAppDocumentToolbar::~PDFAppDocumentToolbar()
 {
-    // The panels close while the toolbar is whole (they are popup windows)
+    // The panels close while the toolbar is whole (they are popup windows); their
+    // signals reach the dying toolbar no more (the buttons would emit toggled to
+    // the application while the tab is being destroyed)
     for (const auto& item : m_panels)
     {
-        delete item.second.data();
+        if (PDFAppDocumentPanelPopup* panel = item.second.data())
+        {
+            panel->disconnect(this);
+            delete panel;
+        }
     }
     m_panels.clear();
 }
@@ -441,6 +445,8 @@ QToolButton* PDFAppDocumentToolbar::getMenuButton(Panel panel) const
             return m_annotateButton.data();
         case Panel::Insert:
             return m_insertButton.data();
+        case Panel::Tools:
+            return m_toolsButton.data();
     }
     return nullptr;
 }
@@ -536,8 +542,15 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
             case Panel::Insert:
                 popup = new PDFAppInsertPanel(m_view, this);
                 break;
+            case Panel::Tools:
+                popup = new PDFAppDocumentToolsPanel(m_view, this);
+                break;
         }
         connect(popup.data(), &PDFAppDocumentPanelPopup::closed, this, &PDFAppDocumentToolbar::onPanelClosed);
+
+        // A panel deleted by the application while it is open sends no closed: its
+        // button is unchecked too (the slot does not touch the deleted panel)
+        connect(popup.data(), &QObject::destroyed, this, &PDFAppDocumentToolbar::onPanelDestroyed);
         connect(popup.data(), &PDFAppDocumentPanelPopup::neighborRequested, this, &PDFAppDocumentToolbar::onPanelNeighborRequested);
 
         // The panel grabs the mouse: the pointer over another panel button is seen
@@ -570,7 +583,7 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
         return;
     }
 
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
     {
         if (getMenuButton(panel) != button)
         {
@@ -591,10 +604,26 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
     }
 }
 
+void PDFAppDocumentToolbar::onPanelDestroyed(QObject* object)
+{
+    // ~QWidget emits destroyed before the QPointer of the panel is cleared: the
+    // dying panel is only compared, none of its members is called (CLAUDE.md)
+    for (const auto& item : m_panels)
+    {
+        if (item.second.data() == object)
+        {
+            if (QToolButton* button = getMenuButton(item.first))
+            {
+                button->setChecked(false);
+            }
+        }
+    }
+}
+
 void PDFAppDocumentToolbar::onPanelClosed()
 {
     // The buttons of the closed panels are not checked
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
     {
         QToolButton* button = getMenuButton(panel);
         PDFAppDocumentPanelPopup* popup = findPanel(panel);
@@ -607,9 +636,9 @@ void PDFAppDocumentToolbar::onPanelClosed()
 
 std::vector<QToolButton*> PDFAppDocumentToolbar::getPanelButtons() const
 {
-    // The order of the layout (Tools opens no panel, it navigates)
+    // The order of the layout
     std::vector<QToolButton*> buttons;
-    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_annotateButton.data(), m_insertButton.data(), m_goToButton.data(), m_selectButton.data() })
+    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_annotateButton.data(), m_insertButton.data(), m_goToButton.data(), m_toolsButton.data(), m_selectButton.data() })
     {
         if (button)
         {
@@ -626,7 +655,7 @@ QToolButton* PDFAppDocumentToolbar::getOpenPanelButton() const
         return m_selectButton.data();
     }
 
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
     {
         const PDFAppDocumentPanelPopup* popup = findPanel(panel);
         if (popup && popup->isVisible())
@@ -692,7 +721,7 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
         }
     }
 
-    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+    for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
     {
         if (getMenuButton(panel) == button)
         {
@@ -836,16 +865,6 @@ void PDFAppDocumentToolbar::onCommandButtonClicked()
     }
 }
 
-void PDFAppDocumentToolbar::onToolsClicked()
-{
-    // The catalog of the tools (phase 2 adds the tools of the document)
-    PDFAppMainWindow* mainWindow = qobject_cast<PDFAppMainWindow*>(window());
-    if (mainWindow && mainWindow->getNavigator())
-    {
-        mainWindow->getNavigator()->navigate(PDFAppRoutes::tools());
-    }
-}
-
 void PDFAppDocumentToolbar::updateState()
 {
     PDFAppDocumentView* view = m_view.data();
@@ -877,7 +896,7 @@ void PDFAppDocumentToolbar::updateState()
         const QString reason = (!isEnabled && controller && isReady) ? controller->getEditingRefusalReason() : QString();
         item.first->setToolTip(reason.isEmpty() ? item.first->accessibleName() : reason);
     }
-    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_goToButton.data(), m_selectButton.data() })
+    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_goToButton.data(), m_toolsButton.data(), m_selectButton.data() })
     {
         if (button)
         {

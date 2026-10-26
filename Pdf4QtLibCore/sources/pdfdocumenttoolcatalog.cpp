@@ -175,6 +175,155 @@ QStringList PDFDocumentToolCatalogEntry::getTranslatedKeywords() const
     return PDFDocumentToolCatalog::splitKeywords(translated);
 }
 
+PDFDocumentToolInputKind PDFDocumentToolCatalogEntry::getInputKind() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getInputKind() : PDFDocumentToolInputKind::One;
+}
+
+PDFDocumentToolResultKind PDFDocumentToolCatalogEntry::getResultKind() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getResultKind() : PDFDocumentToolResultKind::ChangeDocument;
+}
+
+PDFDocumentToolExternalDependency PDFDocumentToolCatalogEntry::getExternalDependency() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getExternalDependency() : PDFDocumentToolExternalDependency::None;
+}
+
+QString PDFDocumentToolCatalogEntry::getPdfToolCommand() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getPdfToolCommand() : QString();
+}
+
+QStringList PDFDocumentToolCatalogEntry::getDefaultSuccessors() const
+{
+    QStringList successors;
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    if (!data)
+    {
+        return successors;
+    }
+
+    const QString id = getId();
+    for (const QString& successor : PDFDocumentToolCatalog::splitKeywords(data->getSuccessorsText()))
+    {
+        if (successor != id && PDFDocumentToolCatalog::isValidToolId(successor) && !successors.contains(successor))
+        {
+            successors << successor;
+            if (successors.size() >= PDFDocumentToolCatalog::MAXIMUM_DEFAULT_SUCCESSORS)
+            {
+                break;
+            }
+        }
+    }
+    return successors;
+}
+
+QString PDFDocumentToolExtendedData::getId() const
+{
+    return QString::fromLatin1(m_id);
+}
+
+QString PDFDocumentToolExtendedData::getPdfToolCommand() const
+{
+    return QString::fromLatin1(m_pdfToolCommand ? m_pdfToolCommand : "");
+}
+
+QString PDFDocumentToolExtendedData::getSuccessorsText() const
+{
+    return QString::fromLatin1(m_successors ? m_successors : "");
+}
+
+const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExtendedData()
+{
+    // Extended data of phase 2 (plan of step 6, chapter 3), one row per tool in the
+    // order of the catalog: the input and result kinds and the external dependency
+    // from tools.md 5 ("Vstup -> výstup"), the command of PdfTool, which does the
+    // same ("Dnes: ... CLI"; a command, which only lists something, is not the
+    // tool), the default successors from Then continue with of the *-done frames of
+    // Figma in the order of their choices (none for a tool without such a frame).
+    // Decisions: Split, the exports and Manage Certificates write files (Files);
+    // Manage Pages works over more documents and changes the open one; Scan to
+    // PDF starts without a document and creates a new one (adding pages to an
+    // open document is its option); Redact Content writes a new redacted copy;
+    // Sign with Certificate and Add Timestamp write a new signed file and leave
+    // the open document unchanged (tools.md 4.7, 9.3 point 11, 10.3 point 31).
+    using Input = PDFDocumentToolInputKind;
+    using Result = PDFDocumentToolResultKind;
+    using Dependency = PDFDocumentToolExternalDependency;
+    static const std::vector<PDFDocumentToolExtendedData> data =
+    {
+        PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("pages.split", Input::One, Result::Files, Dependency::None, "separate", ""),
+        PDFDocumentToolExtendedData("pages.extract", Input::One, Result::NewDocument, Dependency::None, "", "optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("pages.interleave", Input::Multiple, Result::NewDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
+        PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.crop", Input::One, Result::ChangeDocument, Dependency::None, "", "pages.resize,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.resize", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
+        PDFDocumentToolExtendedData("pages.boxes", Input::One, Result::ChangeDocument, Dependency::None, "", "review.output-preview"),
+        PDFDocumentToolExtendedData("convert.images-to-pdf", Input::None, Result::NewDocument, Dependency::None, "", "optimize.images"),
+        PDFDocumentToolExtendedData("convert.blank", Input::None, Result::NewDocument, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("convert.scan", Input::None, Result::NewDocument, Dependency::Scanner, "", "optimize.compress"),
+        PDFDocumentToolExtendedData("convert.ocr", Input::One, Result::ChangeDocument, Dependency::Tesseract, "ocr", "optimize.compress,convert.extract-text"),
+        PDFDocumentToolExtendedData("convert.pdf-to-images", Input::One, Result::Files, Dependency::None, "render", ""),
+        PDFDocumentToolExtendedData("convert.extract-text", Input::One, Result::Files, Dependency::None, "fetch-text", ""),
+        PDFDocumentToolExtendedData("convert.extract-images", Input::One, Result::Files, Dependency::None, "fetch-images", ""),
+        PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", ""),
+        PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
+        PDFDocumentToolExtendedData("edit.page-numbers", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", ""),
+        PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", ""),
+        PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", ""),
+        PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("protect.sign-by-hand", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),
+        PDFDocumentToolExtendedData("protect.certificates", Input::None, Result::Files, Dependency::None, "cert-store", ""),
+        PDFDocumentToolExtendedData("protect.redact", Input::One, Result::NewDocument, Dependency::None, "redact", "protect.sanitize,protect.password,optimize.compress"),
+        PDFDocumentToolExtendedData("protect.sanitize", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),
+        PDFDocumentToolExtendedData("protect.remove-links", Input::One, Result::ChangeDocument, Dependency::None, "remove-external-links", "protect.sanitize,protect.password"),
+        PDFDocumentToolExtendedData("optimize.compress", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "protect.password"),
+        PDFDocumentToolExtendedData("optimize.images", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.structure"),
+        PDFDocumentToolExtendedData("optimize.structure", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "optimize.images"),
+        PDFDocumentToolExtendedData("optimize.bitonal", Input::One, Result::ChangeDocument, Dependency::None, "bitonal", "convert.ocr"),
+        PDFDocumentToolExtendedData("optimize.grayscale", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress"),
+        PDFDocumentToolExtendedData("review.compare", Input::Multiple, Result::Analysis, Dependency::None, "diff", ""),
+        PDFDocumentToolExtendedData("review.measure", Input::One, Result::Analysis, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("review.output-preview", Input::One, Result::Analysis, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("review.ink-coverage", Input::One, Result::Analysis, Dependency::None, "ink-coverage", ""),
+        PDFDocumentToolExtendedData("review.soft-proof", Input::One, Result::Analysis, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("review.statistics", Input::One, Result::Analysis, Dependency::None, "statistics", ""),
+        PDFDocumentToolExtendedData("review.object-inspector", Input::One, Result::Analysis, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("review.report", Input::One, Result::Analysis, Dependency::None, "info", ""),
+    };
+    return data;
+}
+
+const PDFDocumentToolExtendedData* PDFDocumentToolCatalog::findExtendedData(QStringView id)
+{
+    if (id.isEmpty() || id.size() > MAXIMUM_ID_LENGTH)
+    {
+        return nullptr;
+    }
+
+    for (const PDFDocumentToolExtendedData& data : getExtendedData())
+    {
+        if (data.m_id && id == QLatin1StringView(data.m_id))
+        {
+            return &data;
+        }
+    }
+    return nullptr;
+}
+
 const std::vector<PDFDocumentToolCatalogEntry>& PDFDocumentToolCatalog::getTools()
 {
     // The tools of GUI_overhaul/tools.md 4 and 5: identifiers, keywords, subgroups

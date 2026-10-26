@@ -721,6 +721,19 @@ QPushButton* PDFAppPageWidgets::createButton(const QString& text, const QString&
     return button;
 }
 
+QVBoxLayout* PDFAppPageWidgets::createColumn(QWidget* widget, int spacing)
+{
+    QVBoxLayout* layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(spacing);
+    return layout;
+}
+
+QString PDFAppPageWidgets::escapeMnemonic(const QString& text)
+{
+    return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
+}
+
 void PDFAppPageWidgets::setLink(QWidget* widget, const QString& link)
 {
     if (widget)

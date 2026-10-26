@@ -903,7 +903,15 @@ void PDFComponentPainter::paintToolCategoryHeader(QPainter* painter, const QRect
     const qreal textWidth = textRight - textLeft;
     const int blockHeight = Helper::LINE_BOLD_15 + (header.description.isEmpty() ? 0 : Helper::HEADER_TEXT_GAP + Helper::LINE_12);
     const qreal top = content.top() + qFloor((content.height() - blockHeight) / 2.0);
-    Helper::drawText(painter, state, rect, QRectF(textLeft, top, textWidth, Helper::LINE_BOLD_15), header.title, Helper::font(PDFThemeFonts::Role::Title), Helper::text(state, Color::TextPrimary));
+    const QRectF titleRect(textLeft, top, textWidth, Helper::LINE_BOLD_15);
+    if (header.isTitleData)
+    {
+        Helper::drawDataText(painter, state, rect, titleRect, header.title, Helper::font(PDFThemeFonts::Role::Title), Helper::text(state, Color::TextPrimary));
+    }
+    else
+    {
+        Helper::drawText(painter, state, rect, titleRect, header.title, Helper::font(PDFThemeFonts::Role::Title), Helper::text(state, Color::TextPrimary));
+    }
     Helper::drawText(painter, state, rect, QRectF(textLeft, top + Helper::LINE_BOLD_15 + Helper::HEADER_TEXT_GAP, textWidth, Helper::LINE_12), header.description,
                      Helper::font(PDFThemeFonts::Role::Small), Helper::text(state, Color::TextTertiary));
 }

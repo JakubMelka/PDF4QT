@@ -18,6 +18,8 @@ A PDF form has fields, which you can fill in directly on the page: text fields, 
 
 Every confirmed field is one step, which **Undo** takes back. **Undo** in a field, which you are just typing, confirms the field first and then takes the step back – **Redo** gives your text back. **Save** and closing the document confirm the field you are typing in, so nothing you have typed is lost.
 
+A button of the form, which resets the form, returns the fields to their default values as one step *Reset form*; **Undo** gives your values back. A form, which has its default values already, is not changed.
+
 ## Fields, which cannot be filled
 
 - A **locked** document cannot be changed – unlock it in its tab first.
@@ -31,7 +33,7 @@ Some forms calculate fields by scripts, for example a total of other fields. PDF
 
 ## Options
 
-The highlight of the fields and of the required fields is a part of [Settings › Editing](/settings/editing#highlight-form-fields). A change of the settings applies at once to the open documents.
+[Highlight form fields](/settings/editing#highlight-form-fields) tints all fields, which can be filled, and [Highlight required form fields](/settings/editing#highlight-required-form-fields) marks the fields, which must be filled; both are on by default. A change of the settings applies at once to the open documents. See [Editing settings](/help/settings-editing).
 
 > [!WARNING] Signed documents
 > Filling in a form changes the document. When the document is signed, PDF4QT asks, before it saves the changes, and saves them as an update after the signed part of the file, so the signature stays valid for its version. The change after the signature is shown in the signatures of the document.

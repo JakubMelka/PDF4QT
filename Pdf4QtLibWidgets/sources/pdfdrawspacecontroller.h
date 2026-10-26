@@ -670,6 +670,10 @@ private:
     /// \param referenceSizeMM Size to be fitted into the viewport [mm]
     PDFReal getZoomToFitSize(ZoomHint hint, QSizeF referenceSizeMM) const;
 
+    /// Computes the layout of the pages, the offsets and the scroll bars (the work of
+    /// update without its signal)
+    void updateLayout();
+
     void zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPosition = std::nullopt);
     PDFInteger getPreferredPageForZoom(PDFInteger preferredPageIndex = -1) const;
     PDFReal getZoomForMode(ZoomMode mode, PDFInteger preferredPageIndex = -1) const;

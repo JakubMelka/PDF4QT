@@ -538,12 +538,52 @@ PDFAppRoute PDFAppRoutes::recent(const QString& filter, const QString& sort, con
     return PDFAppRoute::create({ QStringLiteral("recent") }, query);
 }
 
-PDFAppRoute PDFAppRoutes::tools(const QString& category)
+/// Helpers of the builders of the routes
+class PDFAppRoutesHelper
+{
+public:
+    PDFAppRoutesHelper() = delete;
+
+    /// Search text of the query item "q" of a filter (Tools, Settings): the text is
+    /// sanitized as a search text and shortened until the route of \p segments and
+    /// \p query with it is valid (the encoded route has a limit of its length - a
+    /// text of many non-Latin characters); empty when no part of the text fits
+    static QString getFilterText(const QStringList& segments, const QList<PDFAppRoute::QueryItem>& query, const QString& text)
+    {
+        QString result = PDFSearchQuery::sanitize(text);
+        while (!result.isEmpty())
+        {
+            QList<PDFAppRoute::QueryItem> textQuery = query;
+            textQuery.append(PDFAppRoute::QueryItem(QStringLiteral("q"), result));
+            if (PDFAppRoute::create(segments, textQuery).isValid())
+            {
+                break;
+            }
+            result.chop(result.size() >= 2 && result.back().isLowSurrogate() ? 2 : 1);
+        }
+        return result;
+    }
+};
+
+PDFAppRoute PDFAppRoutes::tools(const QString& category, const QString& searchText, const QString& collection)
 {
     QList<PDFAppRoute::QueryItem> query;
+    if (!collection.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("collection"), collection));
+        return PDFAppRoute::create({ QStringLiteral("tools") }, query);
+    }
+
     if (!category.isEmpty())
     {
         query.append(PDFAppRoute::QueryItem(QStringLiteral("category"), category));
+    }
+
+    // The text is sanitized and shortened as the filter of Settings, so the route is valid
+    const QString text = PDFAppRoutesHelper::getFilterText({ QStringLiteral("tools") }, query, searchText);
+    if (!text.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("q"), text));
     }
     return PDFAppRoute::create({ QStringLiteral("tools") }, query);
 }
@@ -561,6 +601,16 @@ PDFAppRoute PDFAppRoutes::toolCollections()
 PDFAppRoute PDFAppRoutes::toolCollection(const QString& collectionId)
 {
     return PDFAppRoute::create({ QStringLiteral("tools"), QStringLiteral("collections"), collectionId });
+}
+
+PDFAppRoute PDFAppRoutes::toolCollectionNew(const QString& toolId)
+{
+    QList<PDFAppRoute::QueryItem> query;
+    if (!toolId.isEmpty())
+    {
+        query.append(PDFAppRoute::QueryItem(QStringLiteral("tool"), toolId));
+    }
+    return PDFAppRoute::create({ QStringLiteral("tools"), QStringLiteral("collections"), QStringLiteral("new") }, query);
 }
 
 PDFAppRoute PDFAppRoutes::ai()
@@ -620,14 +670,8 @@ PDFAppRoute PDFAppRoutes::settingsFilter(const QString& text)
 {
     // The encoded route has a limit of its length (a text of many non-Latin
     // characters): the text is shortened until the route is valid
-    QString query = PDFSearchQuery::sanitize(text);
-    PDFAppRoute route = PDFAppRoute::create({ QStringLiteral("settings") }, { PDFAppRoute::QueryItem(QStringLiteral("q"), query) });
-    while (!route.isValid() && !query.isEmpty())
-    {
-        query.chop(query.size() >= 2 && query.back().isLowSurrogate() ? 2 : 1);
-        route = PDFAppRoute::create({ QStringLiteral("settings") }, { PDFAppRoute::QueryItem(QStringLiteral("q"), query) });
-    }
-    return route;
+    const QString query = PDFAppRoutesHelper::getFilterText({ QStringLiteral("settings") }, QList<PDFAppRoute::QueryItem>(), text);
+    return PDFAppRoute::create({ QStringLiteral("settings") }, { PDFAppRoute::QueryItem(QStringLiteral("q"), query) });
 }
 
 PDFAppRoute PDFAppRoutes::search(const QString& text, const QString& group)

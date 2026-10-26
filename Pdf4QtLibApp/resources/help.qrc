@@ -4,6 +4,8 @@
         <file>help/ai-permissions.md</file>
         <file>help/annotations.md</file>
         <file>help/bookmarks.md</file>
+        <file>help/color-management.md</file>
+        <file>help/color-modes.md</file>
         <file>help/data-storage.md</file>
         <file>help/document-properties.md</file>
         <file>help/edit-annotations.md</file>
@@ -19,7 +21,14 @@
         <file>help/save-and-print.md</file>
         <file>help/search.md</file>
         <file>help/settings.md</file>
+        <file>help/settings-advanced.md</file>
+        <file>help/settings-editing.md</file>
+        <file>help/settings-general.md</file>
+        <file>help/settings-security.md</file>
+        <file>help/settings-viewing.md</file>
         <file>help/signatures.md</file>
+        <file>help/tool-collections.md</file>
+        <file>help/tools.md</file>
         <file>help/whats-new-and-updates.md</file>
         <file>help/window-and-tabs.md</file>
         <file>help/workspaces.md</file>

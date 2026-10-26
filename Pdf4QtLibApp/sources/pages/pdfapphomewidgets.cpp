@@ -27,6 +27,8 @@
 
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfcomponentcards.h"
+#include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfstylepainterguard.h"
@@ -49,7 +51,6 @@
 #include <QFontMetrics>
 #include <QtMath>
 
-#include <atomic>
 
 namespace pdf
 {
@@ -59,12 +60,6 @@ class PDFAppHomeWidgetsHelper
 {
 public:
     PDFAppHomeWidgetsHelper() = delete;
-
-    static std::atomic<qint64>& getTimeOverride()
-    {
-        static std::atomic<qint64> time(0);
-        return time;
-    }
 
     static QString translate(const char* text)
     {
@@ -81,6 +76,39 @@ public:
     static QDateTime toLocal(qint64 time)
     {
         return QDateTime::fromMSecsSinceEpoch(time, QTimeZone::LocalTime);
+    }
+
+    /// Writes the time text into the widget of PDFAppHomeFormat::setTimeText (the
+    /// setters of the components repaint only a changed text)
+    static void applyTimeText(QWidget* widget, const QString& text)
+    {
+        if (PDFRecentFileRow* fileRow = qobject_cast<PDFRecentFileRow*>(widget))
+        {
+            fileRow->setTime(text);
+        }
+        else if (PDFRecentToolRow* toolRow = qobject_cast<PDFRecentToolRow*>(widget))
+        {
+            toolRow->setLastUsed(text);
+        }
+        else if (PDFWorkspaceRow* workspaceRow = qobject_cast<PDFWorkspaceRow*>(widget))
+        {
+            workspaceRow->setMeta(text);
+        }
+        else if (PDFFolderCard* folderCard = qobject_cast<PDFFolderCard*>(widget))
+        {
+            folderCard->setMeta(text);
+        }
+        else if (PDFAppSessionRow* sessionRow = qobject_cast<PDFAppSessionRow*>(widget))
+        {
+            sessionRow->setMeta(text);
+        }
+        else if (QLabel* label = qobject_cast<QLabel*>(widget))
+        {
+            if (label->text() != text)
+            {
+                label->setText(text);
+            }
+        }
     }
 
     static QVBoxLayout* createColumn(QWidget* widget, const QMargins& margins, int spacing)
@@ -152,47 +180,99 @@ private:
 
 qint64 PDFAppHomeFormat::getCurrentTime()
 {
-    const qint64 time = PDFAppHomeWidgetsHelper::getTimeOverride().load();
-    return time > 0 ? time : QDateTime::currentMSecsSinceEpoch();
+    return PDFAppLocale::getCurrentTime();
 }
 
 void PDFAppHomeFormat::setCurrentTimeOverride(qint64 time)
 {
-    PDFAppHomeWidgetsHelper::getTimeOverride().store(qMax(qint64(0), time));
+    PDFAppLocale::setCurrentTimeOverride(time);
 }
 
-QString PDFAppHomeFormat::formatTime(qint64 time, qint64 now)
+QString PDFAppHomeFormat::formatTime(qint64 time, qint64 now, PDFAppLocale::RecentTimeUse use)
 {
     if (time <= 0)
     {
         return QString();
     }
 
-    const QDateTime dateTime = PDFAppHomeWidgetsHelper::toLocal(time);
-    const QDate date = dateTime.date();
-    const QDate today = PDFAppHomeWidgetsHelper::toLocal(now).date();
-    // O17: the language of the user interface, not the locale of the system
-    const QString clock = PDFAppLocale::formatClock(dateTime.time());
+    // O25: the hybrid relative time of recent activity, O17: the language of the
+    // user interface
+    return PDFAppLocale::formatRecentTime(PDFAppHomeWidgetsHelper::toLocal(time), PDFAppHomeWidgetsHelper::toLocal(now), use);
+}
 
-    if (date == today)
+QString PDFAppHomeFormat::formatTimeText(TimeText kind, qint64 time, qint64 now, int count)
+{
+    PDFWorkspace workspace;
+    workspace.documentCount = count;
+    switch (kind)
     {
-        return PDFAppHomeWidgetsHelper::translate("Today %1").arg(clock);
+        case TimeText::Time:
+            return formatTime(time, now);
+        case TimeText::LastUsed:
+            return formatLastUsed(time, now);
+        case TimeText::LastOpened:
+            return formatLastOpened(time, now);
+        case TimeText::WorkspaceMeta:
+            workspace.opened = time;
+            return formatWorkspaceMeta(workspace, now);
+        case TimeText::WorkspaceDetails:
+            workspace.saved = time;
+            return formatWorkspaceDetails(workspace, now);
+        case TimeText::SessionMeta:
+            workspace.saved = time;
+            return formatSessionMeta(workspace, now);
     }
-    if (date == today.addDays(-1))
+    return QString();
+}
+
+void PDFAppHomeFormat::setTimeText(QWidget* widget, TimeText kind, qint64 time, qint64 now, int count)
+{
+    if (!widget)
     {
-        return PDFAppHomeWidgetsHelper::translate("Yesterday %1").arg(clock);
+        return;
     }
-    return PDFAppLocale::formatDate(date);
+
+    widget->setProperty(TIME_KIND_PROPERTY, int(kind));
+    widget->setProperty(TIME_PROPERTY, time);
+    widget->setProperty(TIME_COUNT_PROPERTY, count);
+    PDFAppHomeWidgetsHelper::applyTimeText(widget, formatTimeText(kind, time, now, count));
+}
+
+void PDFAppHomeFormat::updateTimeTexts(QWidget* root, qint64 now)
+{
+    if (!root)
+    {
+        return;
+    }
+
+    QList<QWidget*> widgets = root->findChildren<QWidget*>();
+    widgets.prepend(root);
+    for (QWidget* widget : std::as_const(widgets))
+    {
+        const QVariant kind = widget->property(TIME_KIND_PROPERTY);
+        if (!kind.isValid())
+        {
+            continue;
+        }
+
+        const int value = kind.toInt();
+        if (value < int(TimeText::Time) || value > int(TimeText::SessionMeta))
+        {
+            continue;
+        }
+        const QString text = formatTimeText(TimeText(value), widget->property(TIME_PROPERTY).toLongLong(), now, widget->property(TIME_COUNT_PROPERTY).toInt());
+        PDFAppHomeWidgetsHelper::applyTimeText(widget, text);
+    }
 }
 
 QString PDFAppHomeFormat::formatLastUsed(qint64 time, qint64 now)
 {
-    return time > 0 ? PDFAppHomeWidgetsHelper::translate("Last used %1").arg(formatTime(time, now)) : PDFAppHomeWidgetsHelper::translate("Not used yet");
+    return time > 0 ? PDFAppHomeWidgetsHelper::translate("Last used %1").arg(formatTime(time, now, PDFAppLocale::RecentTimeUse::InSentence)) : PDFAppHomeWidgetsHelper::translate("Not used yet");
 }
 
 QString PDFAppHomeFormat::formatLastOpened(qint64 time, qint64 now)
 {
-    return time > 0 ? PDFAppHomeWidgetsHelper::translate("Last opened %1").arg(formatTime(time, now)) : QString();
+    return time > 0 ? PDFAppHomeWidgetsHelper::translate("Last opened %1").arg(formatTime(time, now, PDFAppLocale::RecentTimeUse::InSentence)) : QString();
 }
 
 QString PDFAppHomeFormat::formatSize(qint64 bytes)
@@ -299,7 +379,7 @@ QString PDFAppHomeFormat::formatWorkspaceMeta(const PDFWorkspace& workspace, qin
     {
         return count;
     }
-    return PDFAppHomeWidgetsHelper::translate("%1 · Opened %2").arg(count, formatTime(workspace.opened, now));
+    return PDFAppHomeWidgetsHelper::translate("%1 · Opened %2").arg(count, formatTime(workspace.opened, now, PDFAppLocale::RecentTimeUse::InSentence));
 }
 
 QString PDFAppHomeFormat::formatWorkspaceDetails(const PDFWorkspace& workspace, qint64 now)
@@ -309,7 +389,7 @@ QString PDFAppHomeFormat::formatWorkspaceDetails(const PDFWorkspace& workspace, 
     {
         return count;
     }
-    return PDFAppHomeWidgetsHelper::translate("%1 · Saved %2").arg(count, formatTime(workspace.saved, now));
+    return PDFAppHomeWidgetsHelper::translate("%1 · Saved %2").arg(count, formatTime(workspace.saved, now, PDFAppLocale::RecentTimeUse::InSentence));
 }
 
 QString PDFAppHomeFormat::formatSessionMeta(const PDFWorkspace& session, qint64 now)
@@ -319,7 +399,7 @@ QString PDFAppHomeFormat::formatSessionMeta(const PDFWorkspace& session, qint64 
     {
         return count;
     }
-    return PDFAppHomeWidgetsHelper::translate("%1 · closed %2").arg(count, formatTime(session.saved, now));
+    return PDFAppHomeWidgetsHelper::translate("%1 · closed %2").arg(count, formatTime(session.saved, now, PDFAppLocale::RecentTimeUse::InSentence));
 }
 
 PDFAppHomeFormat::DateGroup PDFAppHomeFormat::getDateGroup(qint64 time, qint64 now)
@@ -785,7 +865,7 @@ void PDFAppContinueCard::setFile(const PDFRecentFile& file, qint64 now)
     }
     if (m_opened)
     {
-        m_opened->setText(PDFAppHomeFormat::formatLastOpened(file.lastOpened, now));
+        PDFAppHomeFormat::setTimeText(m_opened, PDFAppHomeFormat::TimeText::LastOpened, file.lastOpened, now);
     }
     if (m_progressText)
     {
@@ -829,6 +909,11 @@ QString PDFAppContinueCard::getName() const
 QString PDFAppContinueCard::getProgressText() const
 {
     return m_progressText ? m_progressText->text() : QString();
+}
+
+QString PDFAppContinueCard::getOpenedText() const
+{
+    return m_opened ? m_opened->text() : QString();
 }
 
 QRect PDFAppContinueCard::getBarRect() const

@@ -34,6 +34,9 @@
 #include "pdfappdocumentpage.h"
 #include "pdfappdocumentproperties.h"
 #include "pdfappsettingspage.h"
+#include "pdfapptoolspage.h"
+#include "pdfapptoolcollectionspage.h"
+#include "pdfapptoolpageregistry.h"
 
 namespace pdf
 {
@@ -70,6 +73,16 @@ void PDFAppPageRegistry::registerFactories(PDFAppRouteTable& table)
     // Settings (step 5): the sections and the filter /settings?q=
     table.setFactory(QStringLiteral("/settings"), std::make_shared<PDFAppSettingsPageFactory>());
     table.setFactory(QStringLiteral("/settings/{section}"), std::make_shared<PDFAppSettingsPageFactory>());
+
+    // The Tools catalog (step 6): the catalog with its filters, the collections and
+    // the pages of the tools - a tool has a page only, when PDFAppToolPageRegistry
+    // has one (phase 2), otherwise Page Not Found
+    table.setFactory(QStringLiteral("/tools"), std::make_shared<PDFAppToolsPageFactory>());
+    table.setFactory(QStringLiteral("/tools/collections"), std::make_shared<PDFAppToolCollectionsPageFactory>());
+    table.setFactory(QStringLiteral("/tools/collections/new"), std::make_shared<PDFAppToolCollectionsPageFactory>());
+    table.setFactory(QStringLiteral("/tools/collections/{collectionId}"), std::make_shared<PDFAppToolCollectionsPageFactory>());
+    table.setFactory(QStringLiteral("/tools/{toolId}"), std::make_shared<PDFAppToolRoutePageFactory>(PDFAppToolPageKind::Start));
+    table.setFactory(QStringLiteral("/document/{documentId}/tool/{toolId}"), std::make_shared<PDFAppToolRoutePageFactory>(PDFAppToolPageKind::Document));
 }
 
 }   // namespace pdf

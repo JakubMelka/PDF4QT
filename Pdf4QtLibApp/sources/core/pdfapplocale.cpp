@@ -24,7 +24,9 @@
 
 #include <QMutex>
 #include <QMutexLocker>
+#include <QTimeZone>
 
+#include <atomic>
 #include <map>
 #include <vector>
 
@@ -36,6 +38,17 @@ class PDFAppLocaleHelper
 {
 public:
     PDFAppLocaleHelper() = delete;
+
+    /// A minute and an hour in milliseconds (times of recent activity)
+    static constexpr qint64 MINUTE = 60 * 1000;
+    static constexpr qint64 HOUR = 60 * MINUTE;
+
+    /// Fixed current time of the tests (0 = the clock)
+    static std::atomic<qint64>& getTimeOverride()
+    {
+        static std::atomic<qint64> time = 0;
+        return time;
+    }
 
     static QMutex& getMutex()
     {
@@ -199,6 +212,58 @@ QString PDFAppLocale::formatDateTime(const QDateTime& dateTime)
 QString PDFAppLocale::formatDataSize(qint64 bytes, int precision, QLocale::DataSizeFormats format)
 {
     return getUiLocale().formattedDataSize(qMax(qint64(0), bytes), qBound(0, precision, 3), format);
+}
+
+QString PDFAppLocale::formatRecentTime(const QDateTime& time, const QDateTime& now, RecentTimeUse use)
+{
+    if (!time.isValid() || !now.isValid())
+    {
+        return QString();
+    }
+
+    // The elapsed time is the difference of the instants (a change of the daylight
+    // saving time does not change it); a future time less than a minute ahead is a
+    // difference of the clocks of two instances
+    const qint64 elapsed = now.toMSecsSinceEpoch() - time.toMSecsSinceEpoch();
+    if (elapsed > -PDFAppLocaleHelper::MINUTE && elapsed < PDFAppLocaleHelper::MINUTE)
+    {
+        if (use == RecentTimeUse::InSentence)
+        {
+            return tr("just now", "Time of recent activity less than a minute ago inside of a sentence: Opened just now");
+        }
+        return tr("Just now", "Time of recent activity less than a minute ago");
+    }
+    if (elapsed > 0 && elapsed < PDFAppLocaleHelper::HOUR)
+    {
+        const int minutes = int(elapsed / PDFAppLocaleHelper::MINUTE);
+        return minutes == 1 ? tr("%Ln minute ago", "Time of recent activity", minutes) : tr("%Ln minutes ago", "Time of recent activity", minutes);
+    }
+
+    // The calendar days of the time zone of the current time
+    const QDateTime local = time.toTimeZone(now.timeZone());
+    const QDate date = local.date();
+    const QDate today = now.date();
+    const QString clock = formatClock(local.time());
+    if (date == today)
+    {
+        return tr("Today %1", "Time of recent activity: Today 15:56").arg(clock);
+    }
+    if (date == today.addDays(-1))
+    {
+        return tr("Yesterday %1", "Time of recent activity: Yesterday 16:20").arg(clock);
+    }
+    return formatDate(date);
+}
+
+qint64 PDFAppLocale::getCurrentTime()
+{
+    const qint64 time = PDFAppLocaleHelper::getTimeOverride().load();
+    return time > 0 ? time : QDateTime::currentMSecsSinceEpoch();
+}
+
+void PDFAppLocale::setCurrentTimeOverride(qint64 time)
+{
+    PDFAppLocaleHelper::getTimeOverride().store(qMax(qint64(0), time));
 }
 
 }   // namespace pdf

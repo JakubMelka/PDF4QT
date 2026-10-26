@@ -325,6 +325,11 @@ public:
     qreal getTopRadius() const { return m_header.topRadius; }
     void setTopRadius(qreal radius);
 
+    /// The title is data (the name of a collection given by the user): it keeps its
+    /// own direction (TextKind::Data); off by default (the name of a category)
+    bool isTitleData() const { return m_header.isTitleData; }
+    void setTitleData(bool isTitleData);
+
     virtual bool isInteractive() const override { return false; }
 
     PDFComponentPainter::ToolCategoryHeader getContent() const;

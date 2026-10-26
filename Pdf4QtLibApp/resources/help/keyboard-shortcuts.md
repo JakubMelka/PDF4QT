@@ -126,10 +126,12 @@ This key works in the Outline panel of the sidebar (F2 on the page opens the pro
 
 1. Open [Settings › Shortcuts](/settings/shortcuts). The field **Search actions or shortcuts…** finds a command by its name or by its keys.
 2. Click the shortcut of the command (or **Add shortcut**), or select the row and press **F2**, **Enter** or **Space**, then press the new combination of keys. **Esc** cancels the recording.
-3. When another command already uses the combination, PDF4QT asks: **Assign Shortcut** gives the keys to the new command and removes them from the other one, **Cancel** keeps both as they were. A key of the page and a key of a panel of the sidebar (F2) do not get in the way of each other.
+3. When another command already uses the combination, PDF4QT asks *Assign … to “…”?* and shows, which command uses the keys now: **Assign Shortcut** gives the keys to the new command and removes them from the other one, **Cancel** keeps both as they were. A key of the page and a key of a panel of the sidebar (F2) do not get in the way of each other.
 4. The menu of a row (right click) has **Remove shortcut** and **Reset to Default**. **Restore defaults** of the section gives every command its default shortcut again.
 
-Esc, Tab, Enter alone and Alt+F4 cannot be shortcuts. A changed shortcut works at once in every window of PDF4QT.
+Esc, Tab, Enter alone, Alt+F4 and a modifier key alone cannot be shortcuts; the status bar says why. A changed shortcut works at once in every window of PDF4QT, and the tooltips of the buttons show it.
+
+Many commands have no shortcut by default – for example **Read aloud**, **Magnifier**, **Lock document** or the color modes. The table of Settings › Shortcuts lists all of them, so you can give a shortcut to any command you use often.
 
 > [!NOTE] Lists, buttons and fields
 > **Tab** and **Shift+Tab** move the keyboard focus between the parts of a page, **Enter** and **Space** activate the focused row, button or link.

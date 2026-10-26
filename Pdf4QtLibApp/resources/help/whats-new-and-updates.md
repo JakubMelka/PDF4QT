@@ -18,11 +18,12 @@ PDF4QT asks GitHub at most once a day, whether a newer version is available. It 
 
 | State | Meaning |
 | --- | --- |
+| Not checked yet | PDF4QT has not asked GitHub yet |
 | You're up to date | The version you are running is the latest release |
 | Checking for updates… | PDF4QT is asking GitHub right now |
 | PDF4QT … is available | A newer version exists; **Download from GitHub** opens the page of the release |
 | Could not check for updates | GitHub could not be reached; **Try Again** asks again |
-| Automatic check is off | PDF4QT checks only, when you click **Check for updates** |
+| Automatic check is off | PDF4QT checks only, when you click **Check for updates**; **Turn on in Settings** turns the automatic check on |
 
 When more windows of PDF4QT are open, only one of them asks GitHub and the others show its result.
 

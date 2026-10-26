@@ -1974,6 +1974,62 @@ QSize PDFColorSwatch::getContentSizeHint() const
     return PDFComponentPainter::getColorSwatchSize();
 }
 
+PDFIconChoice::PDFIconChoice(QWidget* parent) :
+    BaseClass(FocusRing::Outside, parent)
+{
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setFocusRingRadius(PDFComponentPainter::getIconChoiceRadius());
+    setSelectionBehavior(SelectionBehavior::Exclusive);
+
+    // The selected choice is larger (the ring of the design takes its own place)
+    connect(this, &QAbstractButton::toggled, this, &PDFIconChoice::onToggled);
+}
+
+PDFIconChoice::PDFIconChoice(const QString& iconName, const QString& text, QWidget* parent) :
+    PDFIconChoice(parent)
+{
+    m_choice.iconName = iconName;
+    setText(text);
+    setToolTip(text);
+}
+
+void PDFIconChoice::setIconName(const QString& iconName)
+{
+    if (m_choice.iconName != iconName)
+    {
+        m_choice.iconName = iconName;
+        update();
+    }
+}
+
+void PDFIconChoice::setSelected(bool isSelected)
+{
+    if (isSelected)
+    {
+        setChecked(true);
+    }
+    else
+    {
+        uncheck();
+    }
+}
+
+void PDFIconChoice::onToggled()
+{
+    updateGeometry();
+    update();
+}
+
+void PDFIconChoice::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::paintIconChoice(painter, QRectF(rect), m_choice, state);
+}
+
+QSize PDFIconChoice::getContentSizeHint() const
+{
+    return PDFComponentPainter::getIconChoiceSize(isChecked());
+}
+
 /// Drop shadow of a page thumbnail. It is drawn around the widget, outside of
 /// it (into its parent), so the widget keeps the size of the frame. The color
 /// is taken at the time of drawing.

@@ -97,6 +97,7 @@ private slots:
     void reviewLinksMovable();
     void reviewLinkDragPans();
     void reviewOwnerDeletedFromEmissions();
+    void proxyOwnerDeletedFromEmissions();
     void reviewHighlightedAnnotation();
     void reviewPickTargetToolDeleted();
     void reviewSpecificationShapeTypes();
@@ -2555,6 +2556,211 @@ void AnnotationToolsTest::reviewOwnerDeletedFromEmissions()
         view->annotations->pasteAnnotations(view->device(QPointF(200, 200)));
         QVERIFY(!view);
     }
+}
+
+void AnnotationToolsTest::proxyOwnerDeletedFromEmissions()
+{
+    // Review RT6: the application deletes its view (the document tab, the window) from
+    // the signals of the proxy - drawSpaceChanged after the command Zoom In of the Tools
+    // panel. PDFDrawWidgetProxy::update emitted drawSpaceChanged inside of the scope of
+    // its PDFBoolGuard, whose destructor wrote into the deleted proxy. Every emission of
+    // every operation of the proxy (and of the input of the draw widget) deletes the
+    // owner once: the proxy, its controller and the draw widget use nothing after it
+    // (heap-use-after-free - run it under ASan)
+    auto createDocument = []()
+    {
+        PDFDocumentBuilder builder;
+        for (int i = 0; i < 6; ++i)
+        {
+            builder.appendPage(QRectF(0, 0, 300, 400));
+        }
+        return builder.build();
+    };
+    auto pageReference = [](DeletableToolsView* view, size_t index)
+    {
+        return view->document->getCatalog()->getPage(index)->getPageReference();
+    };
+    auto drawWidget = [](DeletableToolsView* view)
+    {
+        return view->widget->getDrawWidget()->getWidget();
+    };
+    auto sendKey = [drawWidget](DeletableToolsView* view, Qt::Key key)
+    {
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+        QCoreApplication::sendEvent(drawWidget(view), &press);
+    };
+    auto sendWheel = [drawWidget](DeletableToolsView* view, int delta)
+    {
+        QWidget* target = drawWidget(view);
+        const QPointF position(200, 200);
+        QWheelEvent wheel(position, target->mapToGlobal(position), QPoint(), QPoint(0, delta), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(target, &wheel);
+    };
+
+    using Step = std::function<void(DeletableToolsView*)>;
+    struct Operation
+    {
+        const char* name;
+        Step setup;
+        Step run;
+    };
+
+    auto performOperation = [](PDFDrawWidgetProxy::Operation operation) -> Step
+    {
+        return [operation](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->performOperation(operation); };
+    };
+    auto layout = [](PageLayout pageLayout) -> Step
+    {
+        return [pageLayout](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->setPageLayout(pageLayout); };
+    };
+    const Step none = [](DeletableToolsView*) { };
+    const Step fitWidth = performOperation(PDFDrawWidgetProxy::ZoomFitWidth);
+    const Step singlePageFit = [](DeletableToolsView* view)
+    {
+        view->widget->getDrawWidgetProxy()->setPageLayout(PageLayout::SinglePage);
+        view->widget->getDrawWidgetProxy()->performOperation(PDFDrawWidgetProxy::ZoomFit);
+    };
+    const Step customLayout = layout(PageLayout::Custom);
+    const Step noSmoothScrolling = [](DeletableToolsView* view) { view->widget->setSmoothWheelScrolling(false); };
+
+    const std::vector<Operation> operations =
+    {
+        { "update", none, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->update(); } },
+        { "zoom", none, [](DeletableToolsView* view) { PDFDrawWidgetProxy* proxy = view->widget->getDrawWidgetProxy(); proxy->zoom(proxy->getZoom() * 1.7); } },
+        { "zoomAtPoint", none, [](DeletableToolsView* view) { PDFDrawWidgetProxy* proxy = view->widget->getDrawWidgetProxy(); proxy->zoom(proxy->getZoom() * 1.7, QPointF(120, 150)); } },
+        { "zoomIn", none, performOperation(PDFDrawWidgetProxy::ZoomIn) },
+        { "zoomOut", none, performOperation(PDFDrawWidgetProxy::ZoomOut) },
+        { "zoomFit", none, performOperation(PDFDrawWidgetProxy::ZoomFit) },
+        { "zoomFitWidth", none, performOperation(PDFDrawWidgetProxy::ZoomFitWidth) },
+        { "zoomFitHeight", none, performOperation(PDFDrawWidgetProxy::ZoomFitHeight) },
+        { "rotateRight", none, performOperation(PDFDrawWidgetProxy::RotateRight) },
+        { "rotateLeft", none, performOperation(PDFDrawWidgetProxy::RotateLeft) },
+        { "documentStart", none, performOperation(PDFDrawWidgetProxy::NavigateDocumentStart) },
+        { "documentEnd", none, performOperation(PDFDrawWidgetProxy::NavigateDocumentEnd) },
+        { "nextPage", none, performOperation(PDFDrawWidgetProxy::NavigateNextPage) },
+        { "previousPage", none, performOperation(PDFDrawWidgetProxy::NavigatePreviousPage) },
+        { "nextStep", none, performOperation(PDFDrawWidgetProxy::NavigateNextStep) },
+        { "previousStep", none, performOperation(PDFDrawWidgetProxy::NavigatePreviousStep) },
+        { "nextBlock", singlePageFit, performOperation(PDFDrawWidgetProxy::NavigateNextPage) },
+        { "goToPage", none, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToPage(4); } },
+        { "goToPageFitWidth", fitWidth, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToPage(4); } },
+        { "goToPageBlock", singlePageFit, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToPage(4); } },
+        { "goToPageAndEnsureVisible", none, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToPageAndEnsureVisible(5, QRectF(200, 20, 50, 50)); } },
+        { "goToPageAndEnsureVisibleBlock", singlePageFit, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToPageAndEnsureVisible(5, QRectF(200, 20, 50, 50)); } },
+        { "scrollByPixels", none, [](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->scrollByPixels(QPoint(-40, -300)); } },
+        { "singlePage", none, layout(PageLayout::SinglePage) },
+        { "twoColumns", none, layout(PageLayout::TwoColumnLeft) },
+        { "customLayout", customLayout, [](DeletableToolsView* view)
+            {
+                PDFDrawSpaceController::LayoutItems items;
+                for (PDFInteger i = 0; i < 6; ++i)
+                {
+                    items.emplace_back(0, i, 0, QRectF(0, i * 160.0, 110, 150));
+                }
+                view->widget->getDrawWidgetProxy()->setCustomPageLayout(std::move(items));
+            } },
+        { "destinationXYZ", none, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createXYZ(pageReference(view, 3), 20, 300, 2.0)); } },
+        { "destinationXYZFitWidth", fitWidth, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createXYZ(pageReference(view, 3), 20, 300, 0.0)); } },
+        { "destinationFit", none, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createFit(pageReference(view, 3))); } },
+        { "destinationFitH", none, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createFitH(pageReference(view, 3), 200)); } },
+        { "destinationFitV", none, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createFitV(pageReference(view, 3), 100)); } },
+        { "destinationFitR", none, [pageReference](DeletableToolsView* view) { view->widget->getDrawWidgetProxy()->goToDestination(PDFDestination::createFitR(pageReference(view, 3), 50, 100, 150, 200)); } },
+        { "pageDecoration", none, [](DeletableToolsView* view)
+            {
+                PDFPageDecoration decoration;
+                decoration.margin = 24;
+                view->widget->getDrawWidgetProxy()->setPageDecoration(decoration);
+            } },
+        { "setDocument", none, [createDocument](DeletableToolsView* view)
+            {
+                view->document.reset(new PDFDocument(createDocument()));
+                view->widget->setDocument(PDFModifiedDocument(view->document, nullptr), {});
+            } },
+        { "keyPageDown", none, [sendKey](DeletableToolsView* view) { sendKey(view, Qt::Key_PageDown); } },
+        { "keyDown", none, [sendKey](DeletableToolsView* view) { sendKey(view, Qt::Key_Down); } },
+        { "wheelSmooth", none, [sendWheel](DeletableToolsView* view) { sendWheel(view, -120); } },
+        { "wheel", noSmoothScrolling, [sendWheel](DeletableToolsView* view) { sendWheel(view, -120); } },
+        { "wheelNextBlock", [singlePageFit, noSmoothScrolling](DeletableToolsView* view) { singlePageFit(view); noSmoothScrolling(view); }, [sendWheel](DeletableToolsView* view) { sendWheel(view, -120); } },
+        { "wheelSmoothNextBlock", singlePageFit, [sendWheel](DeletableToolsView* view) { sendWheel(view, -120); } },
+    };
+
+    // The view of each run: shown (the scroll bars are visible), zoomed in and in the
+    // middle of the document, so every operation changes the draw space
+    auto createView = [&createDocument](const Step& setup)
+    {
+        QPointer<DeletableToolsView> view = new DeletableToolsView(createDocument());
+        view->resize(800, 800);
+        view->show();
+        PDFDrawWidgetProxy* proxy = view->widget->getDrawWidgetProxy();
+        proxy->zoom(1.5);
+        proxy->goToPage(2);
+        setup(view.data());
+        return view;
+    };
+
+    // Deletes the view at the given emission of the signal (never for -1) and counts
+    // the emissions
+    auto connectDeletion = [](const QPointer<DeletableToolsView>& view, int signalIndex, int deleteAt, int* counter)
+    {
+        PDFDrawWidgetProxy* proxy = view->widget->getDrawWidgetProxy();
+        auto slot = [view, deleteAt, counter]()
+        {
+            if (++(*counter) == deleteAt && view)
+            {
+                delete view.data();
+            }
+        };
+        switch (signalIndex)
+        {
+            case 0:
+                QObject::connect(proxy, &PDFDrawWidgetProxy::drawSpaceChanged, view.data(), slot);
+                break;
+            case 1:
+                QObject::connect(proxy, &PDFDrawWidgetProxy::repaintNeeded, view.data(), slot);
+                break;
+            default:
+                QObject::connect(proxy, &PDFDrawWidgetProxy::pageLayoutChanged, view.data(), slot);
+                break;
+        }
+    };
+    const std::array<const char*, 3> signalNames = { "drawSpaceChanged", "repaintNeeded", "pageLayoutChanged" };
+
+    int sites = 0;
+    for (const Operation& operation : operations)
+    {
+        for (int signalIndex = 0; signalIndex < int(signalNames.size()); ++signalIndex)
+        {
+            // The emissions of the operation (not of the destruction of the view)
+            int emissions = 0;
+            {
+                int counter = 0;
+                QPointer<DeletableToolsView> view = createView(operation.setup);
+                connectDeletion(view, signalIndex, -1, &counter);
+                operation.run(view.data());
+                emissions = counter;
+                QVERIFY(view);
+                delete view.data();
+            }
+
+            for (int deleteAt = 1; deleteAt <= emissions; ++deleteAt)
+            {
+                int counter = 0;
+                QPointer<DeletableToolsView> view = createView(operation.setup);
+                connectDeletion(view, signalIndex, deleteAt, &counter);
+                operation.run(view.data());
+                QVERIFY2(!view, qPrintable(QStringLiteral("%1: %2 #%3").arg(QLatin1String(operation.name), QLatin1String(signalNames[signalIndex])).arg(deleteAt)));
+                ++sites;
+            }
+
+            if (signalIndex == 0 && qstrcmp(operation.name, "update") == 0)
+            {
+                QVERIFY(emissions > 0);
+            }
+        }
+    }
+
+    // Most of the operations change the draw space at least once
+    QVERIFY2(sites > 2 * int(operations.size()), qPrintable(QString::number(sites)));
 }
 
 void AnnotationToolsTest::reviewHighlightedAnnotation()

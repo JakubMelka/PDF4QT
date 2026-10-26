@@ -669,6 +669,10 @@ private slots:
     void messageBoxBadgeIcon();
     void messageBoxTextLines();
 
+    // Step 6: the icon chooser and the Tool row without the star of the collections editor (283:1888)
+    void iconChoice();
+    void toolRowWithoutStar();
+
 private:
     /// Returns the pixel of the area, which differs most from the background
     static QColor strongestInk(const QImage& image, const QRect& area, const QColor& background);
@@ -2954,6 +2958,16 @@ void FluentComponentsTest::rowSizes()
     QCOMPARE(Painter::getWorkspaceRowSize(RowSamples::workspaceRow()), QSize(344, 52));
     QCOMPARE(Painter::getToolRowSize(RowSamples::toolRow()), QSize(380, 48));
     QCOMPARE(Painter::getCollectionRowSize(RowSamples::collectionRow()), QSize(324, 52));
+    Painter::CollectionRow createRow = RowSamples::collectionRow();
+    createRow.isCreate = true;
+    QCOMPARE(Painter::getCollectionRowSize(createRow), QSize(324, 54));
+    QVERIFY(Painter::getCollectionRowMinimumSize(createRow).width() < Painter::getCollectionRowSize(createRow).width());
+    pdf::PDFCollectionRow createWidget(QStringLiteral("New collection…"), QStringLiteral("Group the tools you use for one task"));
+    QVERIFY(!createWidget.isCreateVariant());
+    createWidget.setCreateVariant(true);
+    QVERIFY(createWidget.isCreateVariant());
+    QCOMPARE(createWidget.sizeHint(), QSize(324, 54));
+    QVERIFY(createWidget.getContent().isCreate);
     QCOMPARE(Painter::getToolShortcutSize(RowSamples::toolShortcut()), QSize(180, 48));
     QCOMPARE(Painter::getIssueRowSize(RowSamples::issueRow()), QSize(786, 52));
     QCOMPARE(Painter::getVersionRowSize(RowSamples::versionRow()), QSize(324, 60));
@@ -3220,6 +3234,21 @@ void FluentComponentsTest::rowPixels()
     QVERIFY(isCloser(strongestInk(image, QRect(302, 19, 14, 14), surface), token(Color::IconMuted), token(Color::IconDefault)));
     image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 52), RowSamples::collectionRow(), state(focus)); }, QSize(324, 52), scale);
     QVERIFY(isCloser(strongestInk(image, QRect(302, 19, 14, 14), surface), token(Color::IconMuted), token(Color::IconDefault)));
+
+    // The create row (new-collection 272:12952): bg/subtle inside the border
+    // border/default, the circle bg/surface with its border and the icon
+    // icon/accent, no chevron; under the pointer bg/hover over bg/subtle
+    Painter::CollectionRow createRow = RowSamples::collectionRow();
+    createRow.isCreate = true;
+    createRow.iconName = QStringLiteral("plus-circle");
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 54), createRow, state(none)); }, QSize(324, 54), scale);
+    QVERIFY(isNear(pixel(image, 200, 4), token(Color::BgSubtle)));
+    QVERIFY(isNear(pixel(image, 200, 0), token(Color::BorderDefault)));
+    QVERIFY(isNear(pixel(image, 14, 27), token(Color::BgSurface)));
+    QVERIFY(isNear(pixel(image, 310, 27), token(Color::BgSubtle)));
+    QVERIFY(isCloser(strongestInk(image, QRect(19, 19, 16, 16), token(Color::BgSurface)), token(Color::IconAccent), token(Color::IconMuted)));
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 54), createRow, state(over)); }, QSize(324, 54), scale);
+    QVERIFY(isNear(pixel(image, 200, 4), blend(token(Color::BgHover), token(Color::BgSubtle))));
 
     // Tool shortcut: surface and border, the neutral steps under the pointer, the focus ring outside without the border
     const Painter::ToolShortcut shortcut = RowSamples::toolShortcut();
@@ -10187,6 +10216,63 @@ void FluentComponentsTest::dataTextDirection()
     image = render([&](QPainter& painter) { Painter::paintFolderCard(&painter, QRectF(0, 0, 252, 84), folder, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(252, 84));
     heights = edgeInkHeights(image, QRect(36, 18, 156, 48));
     QVERIFY2(heights.first > 4 && heights.second > 0 && heights.second <= 3, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // Review RS6: the name of a collection (Collection row, the title of a Tool
+    // category header of a collection) is data. Right-to-left interface with a Latin
+    // name: the dot of "abc." at its right end; the text area of the row lies between
+    // the chevron (left) and the circle (right), the title centered without the meta
+    Painter::CollectionRow collection;
+    collection.name = QStringLiteral("abc.");
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 52), collection, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(324, 52));
+    heights = edgeInkHeights(image, QRect(30, 14, 245, 24));
+    QVERIFY2(heights.first > 4 && heights.second > 0 && heights.second <= 3, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // Left-to-right interface with a Hebrew name: the dot of "אבג." at its left end
+    collection.name = QStringLiteral("אבג.");
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 52), collection, state(QStyle::State_None, Qt::LeftToRight)); }, QSize(324, 52));
+    heights = edgeInkHeights(image, QRect(50, 14, 240, 24));
+    QVERIFY2(heights.first > 0 && heights.first <= 3 && heights.second > 4, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // A long Latin name in right-to-left: elided at its end - the ellipsis at the right
+    collection.name = QStringLiteral("Annual invoices and receipts of all the departments of the company");
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 52), collection, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(324, 52));
+    heights = edgeInkHeights(image, QRect(30, 14, 245, 24));
+    QVERIFY2(heights.first > 4 && heights.second > 0 && heights.second <= 3, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // The create row "New collection" is a text of the interface: in right-to-left
+    // the dot of "abc." is at its left end
+    Painter::CollectionRow create;
+    create.name = QStringLiteral("abc.");
+    create.isCreate = true;
+    image = render([&](QPainter& painter) { Painter::paintCollectionRow(&painter, QRectF(0, 0, 324, 54), create, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(324, 54));
+    heights = edgeInkHeights(image, QRect(14, 14, 250, 26));
+    QVERIFY2(heights.first > 0 && heights.first <= 3 && heights.second > 4, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // Tool category header: the title of a collection is data (isTitleData), the name
+    // of a category a text of the interface
+    Painter::ToolCategoryHeader header;
+    header.title = QStringLiteral("abc.");
+    header.isTitleData = true;
+    image = render([&](QPainter& painter) { Painter::paintToolCategoryHeader(&painter, QRectF(0, 0, 393, 61), header, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(393, 61));
+    heights = edgeInkHeights(image, QRect(14, 18, 318, 24));
+    QVERIFY2(heights.first > 4 && heights.second > 0 && heights.second <= 3, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+    header.isTitleData = false;
+    image = render([&](QPainter& painter) { Painter::paintToolCategoryHeader(&painter, QRectF(0, 0, 393, 61), header, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(393, 61));
+    heights = edgeInkHeights(image, QRect(14, 18, 318, 24));
+    QVERIFY2(heights.first > 0 && heights.first <= 3 && heights.second > 4, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+    header.title = QStringLiteral("אבג.");
+    header.isTitleData = true;
+    image = render([&](QPainter& painter) { Painter::paintToolCategoryHeader(&painter, QRectF(0, 0, 393, 61), header, state(QStyle::State_None, Qt::LeftToRight)); }, QSize(393, 61));
+    heights = edgeInkHeights(image, QRect(60, 18, 318, 24));
+    QVERIFY2(heights.first > 0 && heights.first <= 3 && heights.second > 4, qPrintable(QStringLiteral("%1 %2").arg(heights.first).arg(heights.second)));
+
+    // The widget passes the kind to its painter
+    pdf::PDFToolCategoryHeader categoryHeader(QStringLiteral("abc."), QString(), QString(), QStringLiteral("layers"), pdf::PDFAccentHue::Blue);
+    QVERIFY(!categoryHeader.isTitleData());
+    QVERIFY(!categoryHeader.getContent().isTitleData);
+    categoryHeader.setTitleData(true);
+    QVERIFY(categoryHeader.isTitleData());
+    QVERIFY(categoryHeader.getContent().isTitleData);
 }
 
 void FluentComponentsTest::delegateSizes()
@@ -15570,6 +15656,151 @@ void FluentComponentsTest::messageBoxBadgeIcon()
     box->setBadgeIconName(QString());
     QCOMPARE(box->getBadgeIconName(), QString());
     delete box.data();
+}
+
+void FluentComponentsTest::iconChoice()
+{
+    // Sizes of 284:2227: the selected choice 40 (ring 2, padding 2, badge 32), the others 36
+    QCOMPARE(Painter::getIconChoiceSize(true), QSize(40, 40));
+    QCOMPARE(Painter::getIconChoiceSize(false), QSize(36, 36));
+    QCOMPARE(Painter::getIconChoiceRadius(), 10.0);
+
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+        for (qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            const Painter::IconChoice choice{ QStringLiteral("camera") };
+
+            // Selected: the ring border/focus at the edge, the Blue badge inside (padding 4 from the edge)
+            const QImage selected = render([&](QPainter& painter) { Painter::paintIconChoice(&painter, QRectF(0, 0, 40, 40), choice, state(QStyle::State_On)); }, QSize(40, 40), scale);
+            QVERIFY(isNear(pixel(selected, 20, 1), token(Color::BorderFocus), 12));
+            QVERIFY(isNear(pixel(selected, 7, 20), pdf::PDFStylePainter::color(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Blue, pdf::PDFAccentHueColors::Role::Background)), 12));
+            QCOMPARE(countLeakPixels(selected), 0);
+
+            // Unselected: the Neutral badge (padding 2), no ring
+            const QImage unselected = render([&](QPainter& painter) { Painter::paintIconChoice(&painter, QRectF(0, 0, 36, 36), choice, state(QStyle::State_None)); }, QSize(36, 36), scale);
+            QVERIFY(isNear(pixel(unselected, 5, 18), pdf::PDFStylePainter::color(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Neutral, pdf::PDFAccentHueColors::Role::Background)), 12));
+            QVERIFY(isNear(pixel(unselected, 18, 0.5), token(Color::BgSurface), 6));
+
+            // Hover lays bg/hover under the badge
+            const QImage hovered = render([&](QPainter& painter) { Painter::paintIconChoice(&painter, QRectF(0, 0, 36, 36), choice, state(QStyle::State_MouseOver)); }, QSize(36, 36), scale);
+            QVERIFY(!isNear(pixel(hovered, 18, 1), token(Color::BgSurface), 1));
+        }
+    }
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // The widget: an exclusive group, the selected one larger, the arrows move the selection
+    QWidget window;
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    QButtonGroup group;
+    pdf::PDFIconChoice* rotate = new pdf::PDFIconChoice(QStringLiteral("rotate-cw"), QStringLiteral("Rotate"), &window);
+    pdf::PDFIconChoice* camera = new pdf::PDFIconChoice(QStringLiteral("camera"), QStringLiteral("Camera"), &window);
+    group.addButton(rotate);
+    group.addButton(camera);
+    layout->addWidget(rotate);
+    layout->addWidget(camera);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    rotate->setSelected(true);
+    QCOMPARE(rotate->sizeHint(), QSize(40, 40));
+    QCOMPARE(camera->sizeHint(), QSize(36, 36));
+    QCOMPARE(rotate->getFocusRing(), pdf::PDFComponentButton::FocusRing::Outside);
+    QCOMPARE(rotate->getFocusRingRadius(), 10.0);
+    rotate->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(rotate, Qt::Key_Right);
+    QVERIFY(camera->isSelected());
+    QVERIFY(!rotate->isSelected());
+    QCOMPARE(camera->sizeHint(), QSize(40, 40));
+    QCOMPARE(rotate->sizeHint(), QSize(36, 36));
+    camera->click();
+    QVERIFY(camera->isSelected());
+    camera->setSelected(false);
+    QVERIFY(!group.checkedButton());
+    camera->setIconName(QStringLiteral("zap"));
+    QCOMPARE(camera->getIconName(), QStringLiteral("zap"));
+
+    // The widget draws as its painter
+    camera->setSelected(true);
+    layout->activate();
+    QCOMPARE(camera->size(), QSize(40, 40));
+    const QImage widgetImage = renderWidget(camera, 1.0);
+    const QImage painterImage = renderInWidget([](QPainter& painter) { Painter::paintIconChoice(&painter, QRectF(0, 0, 40, 40), Painter::IconChoice{ QStringLiteral("zap") }, Painter::State(QStyle::State_Enabled | QStyle::State_On)); }, QSize(40, 40), 1.0);
+    QVERIFY2(describeDifference(widgetImage, painterImage, 4).isEmpty(), qPrintable(describeDifference(widgetImage, painterImage, 4)));
+
+    // Accessibility: the name of the meaning of the icon
+    QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(rotate);
+    QVERIFY(accessible);
+    QCOMPARE(accessible->text(QAccessible::Name), QStringLiteral("Rotate"));
+    QCOMPARE(rotate->toolTip(), QStringLiteral("Rotate"));
+
+    // Disabled: the icon icon/disabled, no ring of the focus; defensive cases
+    window.setEnabled(false);
+    QVERIFY(!camera->getComponentState().isEnabled());
+    Painter::paintIconChoice(nullptr, QRectF(0, 0, 40, 40), Painter::IconChoice(), Painter::State());
+    const QImage empty = render([](QPainter& painter) { Painter::paintIconChoice(&painter, QRectF(), Painter::IconChoice(), Painter::State()); }, QSize(4, 4));
+    QCOMPARE(countLeakPixels(empty), 0);
+}
+
+void FluentComponentsTest::toolRowWithoutStar()
+{
+    // 284:2304: the Tool row without the star gives its place to the texts
+    Painter::ToolRow row;
+    row.name = QStringLiteral("Rotate Pages");
+    row.description = QStringLiteral("Turn pages in 90° steps");
+    row.iconName = QStringLiteral("rotate-cw");
+    row.hue = pdf::PDFAccentHue::Amber;
+    Painter::ToolRow starless = row;
+    starless.starVisible = false;
+    QCOMPARE(Painter::getToolRowSize(starless), QSize(380, 48));
+    QCOMPARE(Painter::getToolRowMinimumSize(row).width() - Painter::getToolRowMinimumSize(starless).width(), 38);
+
+    // The tag reaches the padding of 6 instead of the star
+    starless.tag = QStringLiteral("Advanced");
+    QVERIFY(Painter::isToolRowTagShown(QRectF(0, 0, 380, 48), starless));
+    row.tag = starless.tag;
+    const int narrow = 8 + 32 + Painter::getTagSize(Painter::Tag{ starless.tag }).width() + 6 + 1;
+    QVERIFY(Painter::isToolRowTagShown(QRectF(0, 0, narrow, 48), starless));
+    QVERIFY(!Painter::isToolRowTagShown(QRectF(0, 0, narrow, 48), row));
+
+    // No star is drawn: the place of the star is bg/surface
+    starless.tag.clear();
+    const QImage image = render([&](QPainter& painter) { Painter::paintToolRow(&painter, QRectF(0, 0, 380, 48), starless, state(QStyle::State_None)); }, QSize(380, 48));
+    QCOMPARE(countPixels(image, QRect(346, 10, 28, 28), token(Color::IconMuted), 24), 0);
+
+    // The widget hides its star
+    pdf::PDFToolRow toolRow(row.name, row.description, row.iconName, row.hue);
+    QVERIFY(toolRow.isStarVisible());
+    toolRow.setStarVisible(false);
+    QVERIFY(!toolRow.isStarVisible());
+    toolRow.resize(380, 48);
+    toolRow.show();
+    QVERIFY(toolRow.getStarButton()->isHidden());
+    QVERIFY(!toolRow.getContent().starVisible);
+    toolRow.setTag(QStringLiteral("Advanced"));
+    const int tagWidth = Painter::getTagSize(Painter::Tag{ QStringLiteral("Advanced") }).width();
+    QCOMPARE(toolRow.getTagWidget()->geometry(), QRect(380 - 6 - tagWidth, 13, tagWidth, 21));
+    toolRow.setStarVisible(true);
+    QVERIFY(!toolRow.getStarButton()->isHidden());
+    QCOMPARE(toolRow.getStarButton()->geometry(), QRect(346, 10, 28, 28));
+
+    // Review RC6-2: a star hidden or deleted by the application gives its place too
+    // (as PDFRecentFileRow) - the texts and the tag are not cut next to an empty place
+    const int minimumWithStar = toolRow.minimumSizeHint().width();
+    toolRow.getStarButton()->hide();
+    QVERIFY(!toolRow.isStarVisible());
+    QVERIFY(!toolRow.getContent().starVisible);
+    toolRow.getStarButton()->show();
+    QVERIFY(toolRow.getContent().starVisible);
+    delete toolRow.getStarButton();
+    QVERIFY(!toolRow.getStarButton());
+    QVERIFY(!toolRow.isStarVisible());
+    QVERIFY(!toolRow.getContent().starVisible);
+    QCOMPARE(minimumWithStar - toolRow.minimumSizeHint().width(), 38);
+    toolRow.setStarVisible(true);
+    QVERIFY(!toolRow.isStarVisible());
 }
 
 QTEST_MAIN(FluentComponentsTest)

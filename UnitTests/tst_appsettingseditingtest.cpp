@@ -1611,6 +1611,13 @@ void AppSettingsEditingTest::restoreDefaults()
     QCOMPARE(EditingTestHelper::table(page)->getModel()->getCount(pdf::PDFAppCertificateEntry::Type::User), 1);
     QVERIFY(dialog == nullptr || !page->getRestoreDialog());
     QCOMPARE(pdf::PDFAppSecuritySettingsSection(fixture.context.get(), QStringLiteral("security")).getRestoreDefaultsText(1).contains(QStringLiteral("trusted certificates")), true);
+    {
+        // The count of more settings is a plural of the locale (%Ln), not a plain number
+        const QString text = pdf::PDFAppSecuritySettingsSection(fixture.context.get(), QStringLiteral("security")).getRestoreDefaultsText(1234);
+        QVERIFY2(text.startsWith(QStringLiteral("These 1,234 settings of the ")), qPrintable(text));
+        QVERIFY(text.contains(QStringLiteral("trusted certificates")));
+        QVERIFY(!text.contains(QStringLiteral("%")));
+    }
 
     // Speech: the names of the engine and the locale, a new engine after the restore
     QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::speechEngine(), QStringLiteral("sapi")).isError());

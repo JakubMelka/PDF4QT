@@ -98,7 +98,13 @@ bool PDFWidget::event(QEvent* event)
             // the zoom) calculated for the previous screen.
             if (m_proxy)
             {
+                // A receiver of drawSpaceChanged of the proxy can delete the widget
+                QPointer<PDFWidget> self(this);
                 m_proxy->update();
+                if (!self)
+                {
+                    return true;
+                }
             }
             break;
         }
@@ -129,7 +135,13 @@ bool PDFWidget::focusNextPrevChild(bool next)
 
 void PDFWidget::setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult)
 {
+    // A receiver of drawSpaceChanged of the proxy can delete the widget
+    QPointer<PDFWidget> self(this);
     m_proxy->setDocument(document, std::move(signatureVerificationResult));
+    if (!self)
+    {
+        return;
+    }
     m_pageRenderingErrors.clear();
     m_drawWidget->getWidget()->update();
 }
@@ -411,7 +423,14 @@ void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
         case MouseOperation::Translate:
         {
             QPoint difference = currentMousePosition - m_lastMousePosition;
+
+            // A receiver of drawSpaceChanged of the proxy can delete the widget
+            QPointer<PDFDrawWidget> self(this);
             m_widget->getDrawWidgetProxy()->scrollByPixels(difference);
+            if (!self)
+            {
+                return;
+            }
             m_lastMousePosition = currentMousePosition;
             break;
         }
@@ -498,8 +517,14 @@ void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
         {
             if (event->matches(keyToOperation.first))
             {
-                m_widget->getDrawWidgetProxy()->performOperation(keyToOperation.second);
+                // A receiver of drawSpaceChanged of the proxy can delete the widget
+                QPointer<PDFDrawWidget> self(this);
                 event->accept();
+                m_widget->getDrawWidgetProxy()->performOperation(keyToOperation.second);
+                if (!self)
+                {
+                    return;
+                }
             }
         }
     }
@@ -588,11 +613,19 @@ void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     event->ignore();
 
+    // The operation scrolls the view, a receiver of drawSpaceChanged of the proxy can
+    // delete the widget
+    QPointer<PDFDrawWidget> self(this);
+
     // The drag of the page ends by the release of its button, even when an input
     // interface accepts the release (its cursor comes back at once)
     if (m_mouseOperation == MouseOperation::Translate && event->button() == Qt::LeftButton)
     {
         performMouseOperation(event->pos());
+        if (!self)
+        {
+            return;
+        }
         m_mouseOperation = MouseOperation::None;
     }
 
@@ -602,6 +635,10 @@ void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
     }
 
     performMouseOperation(event->pos());
+    if (!self)
+    {
+        return;
+    }
 
     switch (m_mouseOperation)
     {
@@ -643,12 +680,20 @@ void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
         m_mouseOperation = MouseOperation::None;
     }
 
+    // The operation scrolls the view, a receiver of drawSpaceChanged of the proxy can
+    // delete the widget
+    QPointer<PDFDrawWidget> self(this);
+
     // The own operation of the widget follows every move; the input interfaces still
     // get the move (their hover and cursor are current, when the operation ends)
     const bool isOwnOperation = isMouseOperationActive();
     if (isOwnOperation)
     {
         performMouseOperation(event->pos());
+        if (!self)
+        {
+            return;
+        }
     }
 
     if (processEvent<QMouseEvent, &IDrawWidgetInputInterface::mouseMoveEvent>(event))
@@ -659,6 +704,10 @@ void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
     if (!isOwnOperation)
     {
         performMouseOperation(event->pos());
+        if (!self)
+        {
+            return;
+        }
     }
     updateCursor();
     event->accept();
@@ -819,9 +868,15 @@ void PDFDrawWidget::onWheelScrollTimeout()
         stepY = (m_wheelScrollPendingOffset.y() > 0.0) ? 1 : -1;
     }
 
+    // A receiver of drawSpaceChanged of the proxy can delete the widget
+    QPointer<PDFDrawWidget> self(this);
     PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     const QPoint scrollStep(stepX, stepY);
     const QPoint appliedOffset = proxy->scrollByPixels(scrollStep);
+    if (!self)
+    {
+        return;
+    }
 
     if (appliedOffset.y() == 0 && scrollStep.y() != 0 && proxy->isBlockMode())
     {
@@ -834,7 +889,15 @@ void PDFDrawWidget::onWheelScrollTimeout()
         if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
         {
             verticalScrollbar->setValue(newValue);
+            if (!self)
+            {
+                return;
+            }
             proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+            if (!self)
+            {
+                return;
+            }
         }
     }
 
@@ -964,7 +1027,14 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
         }
         else
         {
+            // A receiver of drawSpaceChanged of the proxy can delete the widget
+            QPointer<PDFDrawWidget> self(this);
             QPoint offset = proxy->scrollByPixels(scrollByPixels);
+            if (!self)
+            {
+                event->accept();
+                return;
+            }
 
             if (offset.y() == 0 && scrollByPixels.y() != 0 && proxy->isBlockMode())
             {
@@ -977,7 +1047,10 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
                 if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
                 {
                     verticalScrollbar->setValue(newValue);
-                    proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+                    if (self)
+                    {
+                        proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+                    }
                 }
             }
         }

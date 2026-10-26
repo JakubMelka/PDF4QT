@@ -29,6 +29,8 @@
 #include "pdfappinstance.h"
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
+#include "pdfapphomewidgets.h"
+#include "pdfappminuteticker.h"
 #include "pdfapppaths.h"
 #include "pdfappmainwindow.h"
 #include "pdfsettingdefinition.h"
@@ -49,6 +51,8 @@
 #include <QRandomGenerator>
 #include <QSignalSpy>
 #include <QStyleHints>
+#include <QTimeZone>
+#include <QTranslator>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -306,6 +310,11 @@ private Q_SLOTS:
     void reviewAuthorNameSanitizing();
     void reviewShortcutScopes();
     void uiLocale();
+    void recentTimeFormat();
+    void recentTimeCzech();
+    void recentTimeDaylightSaving();
+    void minuteTicker();
+    void minuteTickerLifetime();
     void settingHints();
     void languageDefinition();
     void executableSmoke();
@@ -2118,6 +2127,425 @@ void AppCoreTest::uiLocale()
     std::thread worker([&threadText]() { threadText = pdf::PDFAppLocale::formatNumber(5678); });
     worker.join();
     QCOMPARE(threadText, QStringLiteral("5.678"));
+}
+
+/// Czech texts of the relative times (owner decision O25) for the test of the plural
+/// forms: the real translation of the application has no texts of the new
+/// application yet (no lupdate in phase 1), so a test translator gives the forms of
+/// the three Czech plural forms by the count of %Ln (1 / 2-4 / 5+)
+class AppCoreRecentTimeTranslator : public QTranslator
+{
+public:
+    using QTranslator::QTranslator;
+
+    virtual bool isEmpty() const override { return false; }
+
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        if (qstrcmp(context, "pdf::PDFAppLocale") != 0 || !sourceText)
+        {
+            return QString();
+        }
+
+        const QByteArray text(sourceText);
+        if (text == "Just now")
+        {
+            return QString::fromUtf8("Právě teď");
+        }
+        if (text == "Today %1")
+        {
+            return QStringLiteral("Dnes %1");
+        }
+        if (text == "Yesterday %1")
+        {
+            return QString::fromUtf8("Včera %1");
+        }
+        if (text == "%Ln minute ago" || text == "%Ln minutes ago")
+        {
+            // Czech: 1 minuta, 2-4 minuty, 5+ minut
+            if (n == 1)
+            {
+                return QString::fromUtf8("před %Ln minutou (1)");
+            }
+            if (n >= 2 && n <= 4)
+            {
+                return QString::fromUtf8("před %Ln minutami (2-4)");
+            }
+            return QString::fromUtf8("před %Ln minutami (5+)");
+        }
+        return QString();
+    }
+};
+
+void AppCoreTest::recentTimeFormat()
+{
+    // O25: the hybrid time of recent activity; O17: English (United States) on a
+    // Czech system. The zone of the current time is UTC (the days of the zone)
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+    using L = pdf::PDFAppLocale;
+    const QDateTime now(QDate(2026, 10, 26), QTime(15, 56, 0), QTimeZone::UTC);
+
+    QCOMPARE(L::formatRecentTime(now, now), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-59), now), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addMSecs(-59999), now), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-60), now), QStringLiteral("1 minute ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-119), now), QStringLiteral("1 minute ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-120), now), QStringLiteral("2 minutes ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-59 * 60), now), QStringLiteral("59 minutes ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-59 * 60 - 59), now), QStringLiteral("59 minutes ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-60 * 60), now), QStringLiteral("Today 14:56"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 26), QTime(0, 0), QTimeZone::UTC), now), QStringLiteral("Today 00:00"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 25), QTime(16, 20), QTimeZone::UTC), now), QStringLiteral("Yesterday 16:20"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 25), QTime(0, 0), QTimeZone::UTC), now), QStringLiteral("Yesterday 00:00"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 24), QTime(23, 59), QTimeZone::UTC), now), QStringLiteral("Oct 24, 2026"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 9, 25), QTime(9, 0), QTimeZone::UTC), now), QStringLiteral("Sep 25, 2026"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2025, 12, 31), QTime(9, 0), QTimeZone::UTC), now), QStringLiteral("Dec 31, 2025"));
+
+    // The boundary of midnight: the minutes win over the day, then Yesterday
+    const QDateTime afterMidnight(QDate(2026, 10, 26), QTime(0, 10), QTimeZone::UTC);
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 25), QTime(23, 50), QTimeZone::UTC), afterMidnight), QStringLiteral("20 minutes ago"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 26), QTime(0, 0), QTimeZone::UTC), afterMidnight), QStringLiteral("10 minutes ago"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 25), QTime(23, 10), QTimeZone::UTC), afterMidnight), QStringLiteral("Yesterday 23:10"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 24), QTime(23, 10), QTimeZone::UTC), afterMidnight), QStringLiteral("Oct 24, 2026"));
+
+    // The future (a clock set back, another instance): "Just now" less than a minute
+    // ahead, otherwise the absolute text - never "in 5 minutes" or a negative count
+    QCOMPARE(L::formatRecentTime(now.addSecs(30), now), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addMSecs(59999), now), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(60), now), QStringLiteral("Today 15:57"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(30 * 60), now), QStringLiteral("Today 16:26"));
+    QCOMPARE(L::formatRecentTime(now.addDays(2), now), QStringLiteral("Oct 28, 2026"));
+    for (qint64 seconds = 1; seconds < 3 * 24 * 3600; seconds += 97)
+    {
+        const QString text = L::formatRecentTime(now.addSecs(seconds), now);
+        QVERIFY2(!text.contains(QLatin1String("ago")) && !text.contains(QLatin1Char('-')) && !text.startsWith(QLatin1String("in ")), qPrintable(text));
+    }
+
+    // The time is converted to the zone of the current time
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 26), QTime(1, 30), QTimeZone::fromSecondsAheadOfUtc(-3 * 3600)), now), QStringLiteral("Today 04:30"));
+
+    // Invalid times give an empty text
+    QVERIFY(L::formatRecentTime(QDateTime(), now).isEmpty());
+    QVERIFY(L::formatRecentTime(now, QDateTime()).isEmpty());
+
+    // PDFAppHomeFormat formats the times of the pages by it (the local time, 0 = unknown)
+    const qint64 localNow = QDateTime(QDate(2026, 10, 26), QTime(15, 56), QTimeZone::LocalTime).toMSecsSinceEpoch();
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTime(localNow - 5 * 60000, localNow), QStringLiteral("5 minutes ago"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTime(localNow - 20000, localNow), QStringLiteral("Just now"));
+    QVERIFY(pdf::PDFAppHomeFormat::formatTime(0, localNow).isEmpty());
+    QCOMPARE(pdf::PDFAppHomeFormat::formatLastUsed(localNow - 60000, localNow), QStringLiteral("Last used 1 minute ago"));
+
+    // Inside of a sentence: "just now" with a small letter, the other texts unchanged
+    // ("Opened Yesterday 16:15" of Figma), one implementation (RFW6)
+    using Use = L::RecentTimeUse;
+    QCOMPARE(L::formatRecentTime(now.addSecs(-10), now, Use::InSentence), QStringLiteral("just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(30), now, Use::InSentence), QStringLiteral("just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-10), now, Use::Standalone), QStringLiteral("Just now"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-60), now, Use::InSentence), QStringLiteral("1 minute ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-300), now, Use::InSentence), QStringLiteral("5 minutes ago"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-60 * 60), now, Use::InSentence), QStringLiteral("Today 14:56"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 10, 25), QTime(16, 15), QTimeZone::UTC), now, Use::InSentence), QStringLiteral("Yesterday 16:15"));
+    QCOMPARE(L::formatRecentTime(QDateTime(QDate(2026, 9, 25), QTime(9, 0), QTimeZone::UTC), now, Use::InSentence), QStringLiteral("Sep 25, 2026"));
+    QVERIFY(L::formatRecentTime(QDateTime(), now, Use::InSentence).isEmpty());
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTime(localNow - 20000, localNow, Use::InSentence), QStringLiteral("just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatLastUsed(localNow - 20000, localNow), QStringLiteral("Last used just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatLastOpened(localNow - 20000, localNow), QStringLiteral("Last opened just now"));
+    pdf::PDFWorkspace workspace;
+    workspace.documentCount = 3;
+    workspace.opened = localNow - 20000;
+    workspace.saved = localNow - 20000;
+    QCOMPARE(pdf::PDFAppHomeFormat::formatWorkspaceMeta(workspace, localNow), QStringLiteral("3 documents · Opened just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatWorkspaceDetails(workspace, localNow), QStringLiteral("3 documents · Saved just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatSessionMeta(workspace, localNow), QStringLiteral("3 documents · closed just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTimeText(pdf::PDFAppHomeFormat::TimeText::Time, localNow - 20000, localNow, 0), QStringLiteral("Just now"));
+    QCOMPARE(pdf::PDFAppHomeFormat::formatTimeText(pdf::PDFAppHomeFormat::TimeText::LastUsed, localNow - 20000, localNow, 0), QStringLiteral("Last used just now"));
+    workspace.opened = QDateTime(QDate(2026, 10, 25), QTime(16, 15), QTimeZone::LocalTime).toMSecsSinceEpoch();
+    QCOMPARE(pdf::PDFAppHomeFormat::formatWorkspaceMeta(workspace, localNow), QStringLiteral("3 documents · Opened Yesterday 16:15"));
+
+    // The injected current time of the tests (shared by PDFAppHomeFormat)
+    L::setCurrentTimeOverride(localNow);
+    QCOMPARE(L::getCurrentTime(), localNow);
+    QCOMPARE(pdf::PDFAppHomeFormat::getCurrentTime(), localNow);
+    L::setCurrentTimeOverride(0);
+    QVERIFY(qAbs(L::getCurrentTime() - QDateTime::currentMSecsSinceEpoch()) < 60000);
+}
+
+void AppCoreTest::recentTimeCzech()
+{
+    // A Czech user interface: the plural forms of %Ln (1 / 2-4 / 5+) come from the
+    // translator with the count, the clock and the date from the Czech locale
+    pdftest::AppSystemLocaleGuard guard(pdftest::AppSystemLocaleGuard::czech());
+    AppCoreRecentTimeTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    pdf::PDFAppLocale::setUiLocale(pdftest::AppSystemLocaleGuard::czech());
+
+    using L = pdf::PDFAppLocale;
+    const QDateTime now(QDate(2026, 10, 26), QTime(15, 56), QTimeZone::UTC);
+    QCOMPARE(L::formatRecentTime(now.addSecs(-10), now), QString::fromUtf8("Právě teď"));
+    QCOMPARE(L::formatRecentTime(now.addSecs(-60), now), QString::fromUtf8("před 1 minutou (1)"));
+    for (int minutes : { 2, 3, 4 })
+    {
+        QCOMPARE(L::formatRecentTime(now.addSecs(-60 * minutes), now), QString::fromUtf8("před %1 minutami (2-4)").arg(minutes));
+    }
+    for (int minutes : { 5, 11, 21, 22, 59 })
+    {
+        QCOMPARE(L::formatRecentTime(now.addSecs(-60 * minutes), now), QString::fromUtf8("před %1 minutami (5+)").arg(minutes));
+    }
+    QCOMPARE(L::formatRecentTime(now.addSecs(-2 * 3600), now), QStringLiteral("Dnes 13:56"));
+    QCOMPARE(L::formatRecentTime(now.addDays(-1), now), QString::fromUtf8("Včera 15:56"));
+
+    // The date in the language of the user interface (the format of the date is
+    // untranslated here, the names of the months are Czech)
+    const QDate older(2026, 9, 25);
+    QCOMPARE(L::formatRecentTime(QDateTime(older, QTime(9, 0), QTimeZone::UTC), now), L::formatDate(older));
+    QVERIFY(L::formatDate(older) != QStringLiteral("Sep 25, 2026"));
+
+    QVERIFY(QCoreApplication::removeTranslator(&translator));
+}
+
+void AppCoreTest::recentTimeDaylightSaving()
+{
+    // The minutes are the elapsed time, the days are the calendar days of the zone of
+    // the current time - also on the days of the changes of the daylight saving time
+    const QTimeZone prague("Europe/Prague");
+    if (!prague.isValid())
+    {
+        QSKIP("The time zone Europe/Prague is not available");
+    }
+
+    using L = pdf::PDFAppLocale;
+    auto at = [&prague](int month, int day, int hour, int minute) { return QDateTime(QDate(2026, month, day), QTime(hour, minute), QTimeZone::UTC).toTimeZone(prague); };
+
+    // Oct 25, 2026 03:00 CEST -> 02:00 CET: 02:40 CEST and then 02:10 CET is 30 minutes later
+    const QDateTime beforeChange = at(10, 25, 0, 40);
+    const QDateTime afterChange = at(10, 25, 1, 10);
+    QCOMPARE(beforeChange.time(), QTime(2, 40));
+    QCOMPARE(afterChange.time(), QTime(2, 10));
+    QCOMPARE(L::formatRecentTime(beforeChange, afterChange), QStringLiteral("30 minutes ago"));
+    QCOMPARE(L::formatRecentTime(afterChange, beforeChange), QStringLiteral("Today 02:10"));
+
+    // The day of 25 hours: 00:30 CEST is Today at 23:30 CET, the day before Yesterday
+    const QDateTime lateEvening = at(10, 25, 22, 30);
+    QCOMPARE(lateEvening.time(), QTime(23, 30));
+    QCOMPARE(L::formatRecentTime(at(10, 24, 22, 30), lateEvening), QStringLiteral("Today 00:30"));
+    QCOMPARE(L::formatRecentTime(at(10, 23, 22, 30), lateEvening), QStringLiteral("Yesterday 00:30"));
+    QCOMPARE(L::formatRecentTime(at(10, 23, 21, 59), lateEvening), QStringLiteral("Oct 23, 2026"));
+
+    // Mar 29, 2026 02:00 CET -> 03:00 CEST: 01:50 CET and 03:20 CEST are 30 minutes apart
+    const QDateTime springBefore = at(3, 29, 0, 50);
+    const QDateTime springAfter = at(3, 29, 1, 20);
+    QCOMPARE(springBefore.time(), QTime(1, 50));
+    QCOMPARE(springAfter.time(), QTime(3, 20));
+    QCOMPARE(L::formatRecentTime(springBefore, springAfter), QStringLiteral("30 minutes ago"));
+    QCOMPARE(L::formatRecentTime(at(3, 28, 23, 0), at(3, 29, 21, 30)), QStringLiteral("Today 00:00"));
+}
+
+void AppCoreTest::minuteTicker()
+{
+    using T = pdf::PDFAppMinuteTicker;
+
+    // The minute of a time and the interval to the next boundary
+    QCOMPARE(T::getMinute(0), qint64(0));
+    QCOMPARE(T::getMinute(59999), qint64(0));
+    QCOMPARE(T::getMinute(60000), qint64(1));
+    QCOMPARE(T::getMinute(-1), qint64(-1));
+    QCOMPARE(T::getMinute(-60000), qint64(-1));
+    QCOMPARE(T::getMinute(-60001), qint64(-2));
+    QCOMPARE(T::getIntervalToNextMinute(0), int(T::MINUTE) + T::BOUNDARY_DELAY);
+    QCOMPARE(T::getIntervalToNextMinute(30000), 30000 + T::BOUNDARY_DELAY);
+    QCOMPARE(T::getIntervalToNextMinute(59999), 1 + T::BOUNDARY_DELAY);
+    QCOMPARE(T::getIntervalToNextMinute(-1), 1 + T::BOUNDARY_DELAY);
+
+    const qint64 base = QDateTime(QDate(2026, 10, 26), QTime(15, 56, 10), QTimeZone::UTC).toMSecsSinceEpoch();
+    pdf::PDFAppLocale::setCurrentTimeOverride(base);
+
+    pdf::PDFAppMinuteTicker ticker;
+    QVERIFY(!ticker.isRunning());
+    QCOMPARE(ticker.getRemainingTime(), -1);
+
+    // A visible and a hidden widget: the timer runs for the visible one, aligned
+    // to the next boundary of a minute of the clock
+    QWidget visible;
+    QWidget hidden;
+    pdf::PDFAppMinuteSubscription* visibleSubscription = new pdf::PDFAppMinuteSubscription(&ticker, &visible);
+    pdf::PDFAppMinuteSubscription* hiddenSubscription = new pdf::PDFAppMinuteSubscription(&ticker, &hidden);
+    QCOMPARE(visibleSubscription->parent(), &visible);
+    QCOMPARE(visibleSubscription->getWidget(), &visible);
+    visibleSubscription->setUpdated(base);
+    hiddenSubscription->setUpdated(base);
+    QCOMPARE(hiddenSubscription->getUpdatedMinute(), T::getMinute(base));
+    QCoreApplication::processEvents();
+    QCOMPARE(ticker.getSubscriptionCount(), 2);
+    QCOMPARE(ticker.getActiveSubscriptionCount(), 0);
+    QVERIFY(!ticker.isRunning());
+
+    QSignalSpy visibleSpy(visibleSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged);
+    QSignalSpy hiddenSpy(hiddenSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged);
+    visible.show();
+    QTRY_VERIFY(ticker.isRunning());
+    QCOMPARE(ticker.getActiveSubscriptionCount(), 1);
+    QVERIFY(ticker.getRemainingTime() <= int(T::MINUTE) + T::BOUNDARY_DELAY);
+
+    // A show in the same minute as the last update emits nothing (from the event loop)
+    QCoreApplication::processEvents();
+    QCOMPARE(visibleSpy.count(), 0);
+
+    // A tick in the same minute: nothing; a tick of a new minute: only the visible
+    // widget, with the current time
+    ticker.tick();
+    QCOMPARE(visibleSpy.count(), 0);
+    pdf::PDFAppLocale::setCurrentTimeOverride(base + T::MINUTE);
+    ticker.tick();
+    QCOMPARE(visibleSpy.count(), 1);
+    QCOMPARE(visibleSpy.at(0).at(0).toLongLong(), base + T::MINUTE);
+    QCOMPARE(hiddenSpy.count(), 0);
+    QCOMPARE(ticker.getTickCount(), 2);
+    QVERIFY(ticker.isRunning());
+
+    // The hidden widget is updated, when it is shown (once, from the event loop)
+    hidden.show();
+    QCOMPARE(hiddenSpy.count(), 0);
+    QTRY_COMPARE(hiddenSpy.count(), 1);
+    QCOMPARE(hiddenSpy.at(0).at(0).toLongLong(), base + T::MINUTE);
+    QCoreApplication::processEvents();
+    QCOMPARE(hiddenSpy.count(), 1);
+
+    // An update of the owner (a refresh) in the new minute: a show emits nothing
+    hidden.hide();
+    pdf::PDFAppLocale::setCurrentTimeOverride(base + 2 * T::MINUTE);
+    hiddenSubscription->setUpdated(base + 2 * T::MINUTE);
+    hidden.show();
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    QCOMPARE(hiddenSpy.count(), 1);
+
+    // No visible widget: the timer stops
+    visible.hide();
+    hidden.hide();
+    QTRY_VERIFY(!ticker.isRunning());
+    QCOMPARE(ticker.getActiveSubscriptionCount(), 0);
+    ticker.tick();
+    QCOMPARE(visibleSpy.count(), 1);
+
+    // A subscription, whose owner has never updated its texts, is notified at its first show
+    QWidget fresh;
+    pdf::PDFAppMinuteSubscription* freshSubscription = new pdf::PDFAppMinuteSubscription(&ticker, &fresh);
+    QSignalSpy freshSpy(freshSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged);
+    fresh.show();
+    QTRY_COMPARE(freshSpy.count(), 1);
+    fresh.hide();
+
+    // A widget without a ticker (no context) never ticks
+    QWidget lonely;
+    pdf::PDFAppMinuteSubscription* lonelySubscription = new pdf::PDFAppMinuteSubscription(nullptr, &lonely);
+    lonely.show();
+    QCoreApplication::processEvents();
+    QVERIFY(lonelySubscription->isActive());
+    QVERIFY(!ticker.isRunning());
+
+    pdf::PDFAppLocale::setCurrentTimeOverride(0);
+}
+
+void AppCoreTest::minuteTickerLifetime()
+{
+    using T = pdf::PDFAppMinuteTicker;
+    const qint64 base = QDateTime(QDate(2026, 10, 26), QTime(15, 56, 10), QTimeZone::UTC).toMSecsSinceEpoch();
+    pdf::PDFAppLocale::setCurrentTimeOverride(base);
+
+    // A widget deleted while the timer is pending: the timer stops, nothing is left
+    {
+        T ticker;
+        QWidget* widget = new QWidget();
+        new pdf::PDFAppMinuteSubscription(&ticker, widget);
+        widget->show();
+        QTRY_VERIFY(ticker.isRunning());
+        delete widget;
+        QCOMPARE(ticker.getSubscriptionCount(), 0);
+        QTRY_VERIFY(!ticker.isRunning());
+        ticker.tick();
+    }
+
+    // The widgets (and the other widget of the tick) deleted from the signal of the tick
+    {
+        T ticker;
+        QPointer<QWidget> first = new QWidget();
+        QPointer<QWidget> second = new QWidget();
+        pdf::PDFAppMinuteSubscription* firstSubscription = new pdf::PDFAppMinuteSubscription(&ticker, first);
+        pdf::PDFAppMinuteSubscription* secondSubscription = new pdf::PDFAppMinuteSubscription(&ticker, second);
+        int secondCount = 0;
+        firstSubscription->setUpdated(pdf::PDFAppLocale::getCurrentTime());
+        secondSubscription->setUpdated(pdf::PDFAppLocale::getCurrentTime());
+        QObject::connect(firstSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged, first, [&]() { delete first.data(); delete second.data(); });
+        QObject::connect(secondSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged, second, [&]() { ++secondCount; });
+        first->show();
+        second->show();
+        QTRY_VERIFY(ticker.isRunning());
+        QCoreApplication::processEvents();
+        QVERIFY(first && second);
+        pdf::PDFAppLocale::setCurrentTimeOverride(base + T::MINUTE);
+        ticker.tick();
+        QVERIFY(!first);
+        QVERIFY(!second);
+        QCOMPARE(secondCount, 0);
+        QCOMPARE(ticker.getSubscriptionCount(), 0);
+        QTRY_VERIFY(!ticker.isRunning());
+    }
+
+    // The ticker (the context) deleted from the signal of the tick and before its widgets
+    {
+        T* ticker = new T();
+        QPointer<T> guard(ticker);
+        QWidget first;
+        QWidget second;
+        pdf::PDFAppMinuteSubscription* firstSubscription = new pdf::PDFAppMinuteSubscription(ticker, &first);
+        pdf::PDFAppMinuteSubscription* secondSubscription = new pdf::PDFAppMinuteSubscription(ticker, &second);
+        int secondCount = 0;
+        firstSubscription->setUpdated(pdf::PDFAppLocale::getCurrentTime());
+        secondSubscription->setUpdated(pdf::PDFAppLocale::getCurrentTime());
+        QObject::connect(firstSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged, &first, [&]() { delete guard.data(); });
+        QObject::connect(secondSubscription, &pdf::PDFAppMinuteSubscription::minuteChanged, &second, [&]() { ++secondCount; });
+        first.show();
+        second.show();
+        QTRY_VERIFY(guard && guard->isRunning());
+        pdf::PDFAppLocale::setCurrentTimeOverride(base + 2 * T::MINUTE);
+        ticker->tick();
+        QVERIFY(!guard);
+        QCOMPARE(secondCount, 0);
+
+        // The subscriptions live on without the ticker; their widgets go later
+        first.hide();
+        second.hide();
+        first.show();
+        QCoreApplication::processEvents();
+        QVERIFY(firstSubscription->isActive());
+    }
+
+    // A subscription deleted by its owner before its widget; a pending show of a
+    // deleted subscription is dropped
+    {
+        T ticker;
+        QWidget widget;
+        pdf::PDFAppMinuteSubscription* subscription = new pdf::PDFAppMinuteSubscription(&ticker, &widget);
+        widget.show();
+        delete subscription;
+        QCoreApplication::processEvents();
+        QCOMPARE(ticker.getSubscriptionCount(), 0);
+        QVERIFY(!ticker.isRunning());
+        widget.hide();
+        widget.show();
+        QCoreApplication::processEvents();
+    }
+
+    // The context owns the ticker
+    {
+        const pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable" }, QString());
+        pdf::PDFAppContext context(commandLine);
+        QVERIFY(context.getMinuteTicker());
+        QCOMPARE(context.getMinuteTicker()->parent(), &context);
+    }
+
+    pdf::PDFAppLocale::setCurrentTimeOverride(0);
 }
 
 void AppCoreTest::authorSettingApplied()

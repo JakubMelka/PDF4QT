@@ -352,6 +352,12 @@ private slots:
     void toolSearch_data();
     void toolSearch();
     void toolSearchOrder();
+    void toolSearchNearest_data();
+    void toolSearchNearest();
+    void toolSearchNearestRules();
+    void toolSearchNearestHostile();
+    void editDistance_data();
+    void editDistance();
 
     // Engine
     void groups();
@@ -551,6 +557,10 @@ void AppSearchTest::toolSearch_data()
     QTest::newRow("title") << "merge" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Title);
     QTest::newRow("join") << "join" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
     QTest::newRow("combine") << "combine" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
+    QTest::newRow("bind") << "bind" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
+    QTest::newRow("assemble") << "assemble" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
+    QTest::newRow("concatenate") << "concatenate" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
+    QTest::newRow("sanitize") << "sanitize" << "protect.sanitize" << int(pdf::PDFDocumentToolSearchMatch::Field::Keyword);
     QTest::newRow("typo") << "mrege" << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Title);
     QTest::newRow("diacritics") << QStringLiteral("Mérge") << "pages.merge" << int(pdf::PDFDocumentToolSearchMatch::Field::Title);
     QTest::newRow("case") << "COMPRESS" << "optimize.compress" << int(pdf::PDFDocumentToolSearchMatch::Field::Title);
@@ -624,6 +634,169 @@ void AppSearchTest::toolSearchOrder()
     QCOMPARE(pdf::PDFSearchQuery::splitWords(QStringLiteral("a b c"), 2), QStringList({ "a", "b" }));
     QCOMPARE(pdf::PDFSearchQuery::splitWords(QString(70, QLatin1Char('x'))).front().size(), pdf::PDFSearchQuery::MAXIMUM_WORD_LENGTH);
     QCOMPARE(pdf::PDFSearchField().getScore(pdf::PDFSearchMatchQuality::None), 0);
+}
+
+void AppSearchTest::toolSearchNearest_data()
+{
+    QTest::addColumn<QString>("query");
+    QTest::addColumn<QStringList>("expected");
+
+    // O25, tools.md 9.1 point 4: a query, which finds no tool, offers up to three nearest tools
+    // Only some words of a query of more words match (the tools near two words first)
+    QTest::newRow("partial words") << "compress scan quality" << QStringList({ "optimize.images", "convert.scan", "optimize.compress" });
+    QTest::newRow("two words, a typo") << "compare documetns" << QStringList({ "review.compare", "optimize.compress", "pages.split" });
+    // More edits than the one typo of the search (two swaps), never the first character
+    QTest::newRow("two swaps") << "tiemstmap" << QStringList({ "protect.timestamp" });
+    QTest::newRow("longer word") << "spliting" << QStringList({ "pages.split" });
+    QTest::newRow("converting") << "converting" << QStringList({ "optimize.bitonal", "optimize.grayscale" });
+    // A swap the search finds too: the nearest tools are its best matches
+    QTest::newRow("encyrpt") << "encyrpt" << QStringList({ "protect.certificate-encrypt", "protect.password", "protect.permissions" });
+    // Nothing close enough: the catalog has no watermark tool, nonsense, another first
+    // character, a common word with nonsense, short words, a keyword three edits away
+    QTest::newRow("no watermark tool") << "wotermrak" << QStringList();
+    QTest::newRow("nonsense") << "xyzq" << QStringList();
+    QTest::newRow("nonsense words") << "xyzq qwerty" << QStringList();
+    QTest::newRow("first character") << "xompress" << QStringList();
+    QTest::newRow("common word") << "pdf xyzq" << QStringList();
+    QTest::newRow("short words") << "the of and" << QStringList();
+    QTest::newRow("weak keyword") << "attachmnt" << QStringList();
+    QTest::newRow("empty") << "" << QStringList();
+    QTest::newRow("punctuation") << " !!! ... " << QStringList();
+}
+
+void AppSearchTest::toolSearchNearest()
+{
+    QFETCH(QString, query);
+    QFETCH(QStringList, expected);
+
+    QStringList ids;
+    for (const pdf::PDFDocumentToolSearchMatch& match : pdf::PDFDocumentToolSearch::searchNearest(query))
+    {
+        QVERIFY(match.tool);
+        QVERIFY(match.score > 0);
+        QCOMPARE(match.field == pdf::PDFDocumentToolSearchMatch::Field::Keyword, !match.keyword.isEmpty());
+        ids << match.tool->getId();
+    }
+    QCOMPARE(ids, expected);
+
+    // The same query gives the same tools (deterministic) also as a query object
+    QStringList again;
+    for (const pdf::PDFDocumentToolSearchMatch& match : pdf::PDFDocumentToolSearch::searchNearest(pdf::PDFSearchQuery(query)))
+    {
+        again << match.tool->getId();
+    }
+    QCOMPARE(again, expected);
+}
+
+void AppSearchTest::toolSearchNearestRules()
+{
+    using Search = pdf::PDFDocumentToolSearch;
+    const QString query = QStringLiteral("compress scan quality");
+
+    // Excluded (unavailable) tools are never offered, the next ones take their places
+    const std::vector<pdf::PDFDocumentToolSearchMatch> excluded = Search::searchNearest(query, { QStringLiteral("optimize.images") });
+    QVERIFY(!excluded.empty());
+    for (const pdf::PDFDocumentToolSearchMatch& match : excluded)
+    {
+        QVERIFY(match.tool->getId() != QLatin1String("optimize.images"));
+    }
+    QCOMPARE(excluded.front().tool->getId(), QStringLiteral("convert.scan"));
+
+    // At most three, the count of the caller bounded
+    QVERIFY(Search::searchNearest(query, QStringList(), 0).empty());
+    QVERIFY(Search::searchNearest(query, QStringList(), -5).empty());
+    QCOMPARE(Search::searchNearest(query, QStringList(), 1).size(), size_t(1));
+    QCOMPARE(Search::searchNearest(query, QStringList(), 100).size(), size_t(Search::MAXIMUM_NEAREST));
+    QVERIFY(Search::searchNearest(pdf::PDFSearchQuery()).empty());
+
+    // Ties keep the order of the catalog, scores never grow down the list within the same words
+    const std::vector<pdf::PDFDocumentToolSearchMatch> converting = Search::searchNearest(QStringLiteral("converting"));
+    QCOMPARE(converting.size(), size_t(2));
+    QCOMPARE(converting[0].score, converting[1].score);
+    QVERIFY(pdf::PDFDocumentToolCatalog::getToolIndex(converting[0].tool->getId()) < pdf::PDFDocumentToolCatalog::getToolIndex(converting[1].tool->getId()));
+
+    // The limits of the edits by the length of the word of the query
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(0), 0);
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(4), 0);
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(5), 2);
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(7), 2);
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(8), 3);
+    QCOMPARE(pdf::PDFSearchQuery::getNearDistanceLimit(64), 3);
+
+    // 46 tools: well below one millisecond for a typical query (the time printed)
+    QElapsedTimer timer;
+    timer.start();
+    constexpr int ROUNDS = 200;
+    for (int i = 0; i < ROUNDS; ++i)
+    {
+        Search::searchNearest(query);
+    }
+    const double milliseconds = double(timer.nsecsElapsed()) / 1e6 / ROUNDS;
+    qInfo("nearest tools of \"%s\": %.3f ms per query", qPrintable(query), milliseconds);
+    QVERIFY(milliseconds < 5.0 * SearchTestHelper::getTimeoutFactor());
+}
+
+void AppSearchTest::toolSearchNearestHostile()
+{
+    using Search = pdf::PDFDocumentToolSearch;
+
+    // A text of 10 kB, controls and bidirectional characters, words over the word limit
+    QVERIFY(Search::searchNearest(QString(10240, QLatin1Char('a'))).size() <= size_t(Search::MAXIMUM_NEAREST));
+    QVERIFY(Search::searchNearest(QStringLiteral("compress ").repeated(2000)).size() <= size_t(Search::MAXIMUM_NEAREST));
+    QVERIFY(Search::searchNearest(QChar(0x202E) + QStringLiteral("compress") + QChar(0) + QChar(0x200B) + QChar(0x2028) + QStringLiteral("scan")).size() <= size_t(Search::MAXIMUM_NEAREST));
+    QVERIFY(Search::searchNearest(QString(70, QChar(0xD800))).empty());
+
+    // Random texts: never a crash, at most three valid tools, the same result again
+    QRandomGenerator generator(20261026);
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < 2000; ++i)
+    {
+        const QString text = i % 2 ? SearchTestHelper::randomText(generator, int(generator.bounded(1, 300)))
+                                   : QString::fromLatin1(QByteArray::number(generator.generate64(), 36)) + QLatin1Char(' ') + QString::fromLatin1(QByteArray::number(generator.generate(), 36));
+        const std::vector<pdf::PDFDocumentToolSearchMatch> first = Search::searchNearest(text);
+        const std::vector<pdf::PDFDocumentToolSearchMatch> second = Search::searchNearest(text);
+        QVERIFY(first.size() <= size_t(Search::MAXIMUM_NEAREST));
+        QCOMPARE(first.size(), second.size());
+        for (size_t j = 0; j < first.size(); ++j)
+        {
+            QVERIFY(first[j].tool && pdf::PDFDocumentToolCatalog::findTool(first[j].tool->getId()));
+            QCOMPARE(first[j].tool, second[j].tool);
+        }
+    }
+    qInfo("nearest tools of 4000 random texts: %lld ms", qint64(timer.elapsed()));
+}
+
+void AppSearchTest::editDistance_data()
+{
+    QTest::addColumn<QString>("first");
+    QTest::addColumn<QString>("second");
+    QTest::addColumn<int>("limit");
+    QTest::addColumn<int>("distance");
+
+    QTest::newRow("equal") << "merge" << "merge" << 0 << 0;
+    QTest::newRow("changed") << "merge" << "marge" << 2 << 1;
+    QTest::newRow("adjacent swap") << "merge" << "mrege" << 2 << 1;
+    QTest::newRow("two swaps") << "timestamp" << "tiemstmap" << 3 << 2;
+    QTest::newRow("added") << "split" << "spliting" << 3 << 3;
+    QTest::newRow("kitten") << "kitten" << "sitting" << 5 << 3;
+    QTest::newRow("over the limit") << "abcdef" << "uvwxyz" << 2 << 3;
+    QTest::newRow("lengths over the limit") << "abc" << "" << 1 << 2;
+    QTest::newRow("both empty") << "" << "" << 0 << 0;
+    QTest::newRow("negative limit") << "a" << "b" << -1 << 1;
+    QTest::newRow("too long") << QString(65, QLatin1Char('a')) << QString(65, QLatin1Char('a')) << 3 << 4;
+    QTest::newRow("longest") << QString(64, QLatin1Char('a')) << QString(63, QLatin1Char('a')) + QLatin1Char('b') << 3 << 1;
+}
+
+void AppSearchTest::editDistance()
+{
+    QFETCH(QString, first);
+    QFETCH(QString, second);
+    QFETCH(int, limit);
+    QFETCH(int, distance);
+
+    QCOMPARE(pdf::PDFSearchQuery::getEditDistance(first, second, limit), distance);
+    QCOMPARE(pdf::PDFSearchQuery::getEditDistance(second, first, limit), distance);
 }
 
 // ---------------------------------------------------------------- engine

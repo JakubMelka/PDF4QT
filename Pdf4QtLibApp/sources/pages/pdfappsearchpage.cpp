@@ -58,12 +58,6 @@ public:
         return group ? int(*group) : -1;
     }
 
-    /// Text of a button: '&' of the data is not a mnemonic
-    static QString toButtonText(const QString& text)
-    {
-        return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
-    }
-
     /// Longest part of the text of the search shown in the texts of the page
     static constexpr qsizetype MAXIMUM_SHOWN_TEXT = 64;
 
@@ -144,7 +138,7 @@ void PDFAppSearchPage::build()
 QPushButton* PDFAppSearchPage::createChip(std::optional<PDFAppSearchGroup> group, QWidget* parent)
 {
     const QString text = group ? PDFAppSearchGroups::getTitle(*group) : tr("All");
-    QPushButton* chip = new QPushButton(PDFAppSearchPageHelper::toButtonText(text), parent);
+    QPushButton* chip = new QPushButton(PDFAppPageWidgets::escapeMnemonic(text), parent);
     chip->setObjectName(group ? QStringLiteral("chip-%1").arg(PDFAppSearchGroups::getId(*group)) : QStringLiteral("chip-all"));
     chip->setProperty(PDFWidgetStyleProperties::CHIP, true);
     chip->setProperty(PDFWidgetStyleProperties::CHIP_COUNT, 0);

@@ -837,6 +837,53 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     endforeach()
 endif()
 
+# The Tools catalog (step 6 of the new application): wave 0 and package A in
+# UnitTestsAppTools, package B in UnitTestsAppToolCollections, package C in
+# UnitTestsAppToolsPanel, all with the fixture apptoolsfixture (the fixture of the
+# document tab with the helpers of the tools)
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    foreach(PDF4QT_TOOLS_TEST
+            AppTools
+            AppToolCollections
+            AppToolsPanel
+            AppToolsLifetime)
+        string(TOLOWER "${PDF4QT_TOOLS_TEST}" PDF4QT_TOOLS_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_TOOLS_TEST}
+            tst_${PDF4QT_TOOLS_TEST_FILE}test.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+            apptoolsfixture.cpp
+            apptoolsfixture.h
+        )
+        target_link_libraries(UnitTests${PDF4QT_TOOLS_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        set_target_properties(UnitTests${PDF4QT_TOOLS_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_TOOLS_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_TOOLS_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_TOOLS_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+endif()
+
+# The core of the tools of phase 2 (Pdf4QtLibCore, step 6 package D): the extended
+# data of the catalog, the suggestions of the next tools, the tool interface, its
+# parameters, results and registry
+add_executable(UnitTestsDocumentTool
+    tst_documenttooltest.cpp
+    testdocumenttool.h
+)
+target_link_libraries(UnitTestsDocumentTool PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsDocumentTool PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentTool "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentTool")
+set_tests_properties(UnitTestsDocumentTool PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # Properties of the annotations read and written by PDFAnnotationPropertyEditor
 # (Pdf4QtLibCore, step 4 package B)
 add_executable(UnitTestsAnnotationProperties

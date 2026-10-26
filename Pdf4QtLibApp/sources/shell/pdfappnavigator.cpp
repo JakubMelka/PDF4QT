@@ -346,7 +346,7 @@ void PDFAppNavigator::showCurrentEntry(PDFAppTab* tab, bool restoreViewState)
     if (match.isFound() && isTabOfRoute && match.entry->factory)
     {
         std::shared_ptr<const PDFAppPageFactory> factory = match.entry->factory;
-        page = factory->createPage(m_context, tab);
+        page = factory->createPageForRoute(m_context, tab, resolvedRoute);
         if (!guard || !tabGuard)
         {
             delete page.data();
@@ -568,7 +568,9 @@ void PDFAppNavigator::onPageRouteReplaced(const PDFAppRoute& route)
     PDFAppRoute replacedRoute = route;
     const PDFAppRouteMatch currentMatch = resolve(&currentRoute);
     const PDFAppRouteMatch replacedMatch = resolve(&replacedRoute);
-    if (!replacedMatch.isFound() || !currentMatch.entry || replacedMatch.entry != currentMatch.entry || replacedRoute != route)
+    // (a factory, whose page depends on the route, compares the parameters of its page)
+    const bool isSamePage = currentMatch.entry && (!currentMatch.entry->factory || currentMatch.entry->factory->isSamePage(currentRoute, replacedRoute));
+    if (!replacedMatch.isFound() || !currentMatch.entry || replacedMatch.entry != currentMatch.entry || replacedRoute != route || !isSamePage)
     {
         qWarning("A page has replaced its route by a route of another page, it is refused: %s", qPrintable(route.toString().left(256)));
         return;

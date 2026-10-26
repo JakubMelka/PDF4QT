@@ -24,6 +24,7 @@
 #define PDFAPPHOMEWIDGETS_H
 
 #include "pdfappglobal.h"
+#include "pdfapplocale.h"
 #include "pdfrecentrepository.h"
 #include "pdfworkspacerepository.h"
 
@@ -73,8 +74,11 @@ public:
     /// Fixed current time (tests); 0 = the clock
     static void setCurrentTimeOverride(qint64 time);
 
-    /// "Today 10:24", "Yesterday 16:15", "Sep 18, 2026"; empty for an unknown time
-    static QString formatTime(qint64 time, qint64 now);
+    /// Time of recent activity (owner decision O25, PDFAppLocale::formatRecentTime):
+    /// "Just now", "5 minutes ago", "Today 10:24", "Yesterday 16:15", "Sep 18, 2026";
+    /// empty for an unknown time. Inside of a sentence (\p use InSentence: "Opened
+    /// just now") "just now" has a small letter.
+    static QString formatTime(qint64 time, qint64 now, PDFAppLocale::RecentTimeUse use = PDFAppLocale::RecentTimeUse::Standalone);
 
     /// "Last used Today 10:24" / "Not used yet" (folder cards)
     static QString formatLastUsed(qint64 time, qint64 now);
@@ -117,6 +121,35 @@ public:
 
     /// Meta of Restore last session: "3 documents · closed Today 10:24"
     static QString formatSessionMeta(const PDFWorkspace& session, qint64 now);
+
+    /// Time text of a widget, which follows the clock (owner decision O25): the
+    /// minute ticker formats it again by updateTimeTexts
+    enum class TimeText
+    {
+        Time,               ///< formatTime: a recent file row, a recent tool row, a label
+        LastUsed,           ///< formatLastUsed: the meta of a folder card
+        LastOpened,         ///< formatLastOpened: Continue where you left off
+        WorkspaceMeta,      ///< formatWorkspaceMeta: the meta of a workspace row (opened)
+        WorkspaceDetails,   ///< formatWorkspaceDetails: the details of a workspace (saved)
+        SessionMeta         ///< formatSessionMeta: the meta of Restore last session
+    };
+
+    /// Names of the dynamic properties of a widget with a time text
+    static constexpr const char* TIME_KIND_PROPERTY = "pdf4qtTimeKind";
+    static constexpr const char* TIME_PROPERTY = "pdf4qtTime";
+    static constexpr const char* TIME_COUNT_PROPERTY = "pdf4qtTimeCount";
+
+    /// Text of the kind of a time text (\p count = the documents of a workspace)
+    static QString formatTimeText(TimeText kind, qint64 time, qint64 now, int count);
+
+    /// Sets the time text of the widget (PDFRecentFileRow, PDFRecentToolRow,
+    /// PDFWorkspaceRow, PDFFolderCard, PDFAppSessionRow or a label) and remembers its
+    /// time in dynamic properties, so updateTimeTexts formats it again
+    static void setTimeText(QWidget* widget, TimeText kind, qint64 time, qint64 now, int count = 0);
+
+    /// Formats the time texts of \p root and of its descendants set by setTimeText
+    /// against \p now again: nothing is read, no widget is created or deleted
+    static void updateTimeTexts(QWidget* root, qint64 now);
 
     /// Group of the time of opening
     static DateGroup getDateGroup(qint64 time, qint64 now);
@@ -285,6 +318,9 @@ public:
     QString getName() const;
     QString getProgressText() const;
     qreal getProgress() const { return m_progress; }
+
+    /// "Last opened 5 minutes ago" (follows the clock, O25)
+    QString getOpenedText() const;
 
     QPushButton* getContinueButton() const { return m_continueButton; }
 

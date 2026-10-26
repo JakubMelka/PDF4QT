@@ -334,6 +334,7 @@ void PDFAppWorkspaceTab::onPageChanged()
     m_header->setTexts(page ? page->getHeaderTitle() : QString(), page ? page->getHeaderSubtitle() : QString(),
                        page ? page->getHeaderSubtitleAccent() : QString());
     m_header->setBreadcrumbs(page ? page->getHeaderBreadcrumbs() : QList<PDFAppBreadcrumbItem>());
+    m_header->setIcon(page ? page->getHeaderIcon() : PDFAppHeaderIcon());
 }
 
 void PDFAppWorkspaceTab::placeBanner()

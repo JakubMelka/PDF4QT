@@ -23,6 +23,7 @@
 #include "pdfapphomepage.h"
 #include "pdfapproute.h"
 #include "pdftoolrepository.h"
+#include "pdfapptoolpresentation.h"
 
 #include "pdfdocumenttoolcatalog.h"
 
@@ -51,34 +52,6 @@ public:
     /// Tiles: five in a row at 1166 px (224), fewer in a narrow page
     static constexpr int TILE_MINIMUM_WIDTH = 200;
 
-    static PDFAccentHue getHue(PDFDocumentToolHue hue)
-    {
-        switch (hue)
-        {
-            case PDFDocumentToolHue::Amber:
-                return PDFAccentHue::Amber;
-            case PDFDocumentToolHue::Blue:
-                return PDFAccentHue::Blue;
-            case PDFDocumentToolHue::Green:
-                return PDFAccentHue::Green;
-            case PDFDocumentToolHue::Red:
-                return PDFAccentHue::Red;
-            case PDFDocumentToolHue::Violet:
-                return PDFAccentHue::Violet;
-            case PDFDocumentToolHue::Teal:
-                return PDFAccentHue::Teal;
-        }
-        return PDFAccentHue::Neutral;
-    }
-
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
-
     /// Divider of the support list (border/divider, 1 px)
     static QWidget* createDivider(QWidget* parent)
     {
@@ -96,7 +69,7 @@ PDFAppHomePage::PDFAppHomePage(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("homePage"));
 
     // workspace-pane 28:4: Quick Actions, the dashboard of three columns, gap 24
-    QVBoxLayout* layout = PDFAppHomePageHelper::createColumn(this, 24);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 24);
     layout->addWidget(createQuickActions(this));
 
     m_columns = new PDFAppColumns(this);
@@ -167,7 +140,7 @@ QWidget* PDFAppHomePage::createQuickActions(QWidget* parent)
     // quick-actions-section: the title Bold 16, the tiles 88 px high, gaps 12
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("quickActions"));
-    QVBoxLayout* layout = PDFAppHomePageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     PDFAppParagraph* title = PDFAppPageWidgets::createText(tr("Quick Actions"), PDFThemeFonts::getFont(QFont::Bold, 16), 19, PDFThemeColors::TextPrimary, section);
     title->setObjectName(QStringLiteral("quickActionsTitle"));
     layout->addWidget(title);
@@ -191,7 +164,7 @@ QWidget* PDFAppHomePage::createQuickActions(QWidget* parent)
         }
 
         PDFQuickActionTile* tile = new PDFQuickActionTile(entry->getTitle(), getQuickActionDescription(toolId, entry->getDescription()), entry->getIconName(),
-                                                          PDFAppHomePageHelper::getHue(entry->getHue()), grid);
+                                                          PDFAppToolPresentation::getHue(entry->getHue()), grid);
         tile->setObjectName(QStringLiteral("tile-%1").arg(toolId));
         tile->setProperty(PDFAppHomePageHelper::TOOL_PROPERTY, PDFAppRoutes::tool(toolId).toString());
         grid->addWidget(tile);
@@ -218,7 +191,7 @@ QWidget* PDFAppHomePage::createRecentFiles(QWidget* parent)
     // recent-files: the header with View all, the list card (padding 8, rows without gaps)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("recentFiles"));
-    QVBoxLayout* layout = PDFAppHomePageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Recent Files"), createLink(tr("View all"), PDFAppRoutes::recent(), section), section));
 
     m_recentFilesCard = PDFAppPageWidgets::createCard(8, 0, section);
@@ -243,11 +216,11 @@ QWidget* PDFAppHomePage::createLearnAndSupport(QWidget* parent)
     // learn-and-support: Learn & Resources and Support, gap 20
     QWidget* column = new QWidget(parent);
     column->setObjectName(QStringLiteral("learnAndSupport"));
-    QVBoxLayout* layout = PDFAppHomePageHelper::createColumn(column, 20);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(column, 20);
 
     QWidget* learn = new QWidget(column);
     learn->setObjectName(QStringLiteral("learn"));
-    QVBoxLayout* learnLayout = PDFAppHomePageHelper::createColumn(learn, 12);
+    QVBoxLayout* learnLayout = PDFAppPageWidgets::createColumn(learn, 12);
     learnLayout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Learn & Resources"), createLink(tr("View all resources"), PDFAppRoutes::support(), learn), learn));
 
     QWidget* cards = new QWidget(learn);
@@ -286,7 +259,7 @@ QWidget* PDFAppHomePage::createLearnAndSupport(QWidget* parent)
     // support: the list card with dividers (padding 6)
     QWidget* support = new QWidget(column);
     support->setObjectName(QStringLiteral("support"));
-    QVBoxLayout* supportLayout = PDFAppHomePageHelper::createColumn(support, 12);
+    QVBoxLayout* supportLayout = PDFAppPageWidgets::createColumn(support, 12);
     supportLayout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Support"), nullptr, support));
     // support-list: padding 6 with the border inside of it (164 = 6 + 3 x 50 + 2 + 6)
     m_supportCard = PDFAppPageWidgets::createCard(5, 0, support);
@@ -336,7 +309,7 @@ QWidget* PDFAppHomePage::createRecentTools(QWidget* parent)
     // recent-tools: the header, the list card (padding 8, gap 2)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("recentTools"));
-    QVBoxLayout* layout = PDFAppHomePageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Recent Tools"), nullptr, section));
 
     m_recentToolsCard = PDFAppPageWidgets::createCard(8, 2, section);
@@ -442,7 +415,8 @@ void PDFAppHomePage::refreshRecentFiles()
     QStringList signatureParts;
     for (const PDFRecentFile& file : files)
     {
-        signatureParts << QStringLiteral("%1|%2|%3|%4|%5").arg(file.path, file.name).arg(file.lastOpened).arg(file.pinned).arg(PDFAppHomeFormat::formatTime(file.lastOpened, now));
+        // The times, not their texts: the minute ticker updates the texts (O25)
+        signatureParts << QStringLiteral("%1|%2|%3|%4").arg(file.path, file.name).arg(file.lastOpened).arg(file.pinned);
     }
     const QString signature = signatureParts.join(QChar(0x1F));
 
@@ -463,8 +437,8 @@ void PDFAppHomePage::refreshRecentFiles()
         for (const PDFRecentFile& file : files)
         {
             // recent-file-row: the name, the folder, the time and the menu (no star on Home)
-            PDFRecentFileRow* row = new PDFRecentFileRow(PDFAppHomeFormat::toDisplayText(file.name), PDFAppHomeFormat::toDisplayPath(file.folder),
-                                                         PDFAppHomeFormat::formatTime(file.lastOpened, now), m_recentFilesCard);
+            PDFRecentFileRow* row = new PDFRecentFileRow(PDFAppHomeFormat::toDisplayText(file.name), PDFAppHomeFormat::toDisplayPath(file.folder), QString(), m_recentFilesCard);
+            PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::Time, file.lastOpened, now);
             row->setObjectName(QStringLiteral("recentFileRow"));
             row->setStarVisible(false);
             row->setPinned(file.pinned);
@@ -504,7 +478,7 @@ void PDFAppHomePage::refreshRecentTools()
     QStringList signatureParts;
     for (const PDFToolUsage& tool : usage)
     {
-        signatureParts << QStringLiteral("%1|%2").arg(tool.toolId, PDFAppHomeFormat::formatTime(tool.lastUsed, now));
+        signatureParts << QStringLiteral("%1|%2").arg(tool.toolId).arg(tool.lastUsed);
     }
     const QString signature = signatureParts.join(QChar(0x1F));
     if (signature == m_recentToolsSignature && m_recentToolRows.size() == qsizetype(usage.size()))
@@ -533,8 +507,8 @@ void PDFAppHomePage::refreshRecentTools()
             continue;
         }
 
-        PDFRecentToolRow* row = new PDFRecentToolRow(entry->getTitle(), PDFAppHomeFormat::formatTime(tool.lastUsed, now), entry->getIconName(),
-                                                     PDFAppHomePageHelper::getHue(entry->getHue()), m_recentToolsCard);
+        PDFRecentToolRow* row = new PDFRecentToolRow(entry->getTitle(), QString(), entry->getIconName(), PDFAppToolPresentation::getHue(entry->getHue()), m_recentToolsCard);
+        PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::Time, tool.lastUsed, now);
         row->setObjectName(QStringLiteral("recentToolRow"));
         row->setProperty(PDFAppHomePageHelper::TOOL_PROPERTY, PDFAppRoutes::tool(entry->getId()).toString());
         connect(row, &PDFRecentToolRow::clicked, this, &PDFAppHomePage::onRecentToolClicked);

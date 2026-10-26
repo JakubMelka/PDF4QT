@@ -13,7 +13,10 @@ Annotations on a page can be selected and changed directly. Every change is one 
 - Click an annotation to select it. **Shift+click** adds another annotation or removes it from the selection.
 - **Ctrl** + drag on an empty place of the page draws a rectangle: the annotations, which lie completely inside, are selected.
 - Where annotations overlap, a click selects the topmost one and **Alt+click** selects the next one below it. A right click on overlapping annotations lists them, each with its own menu.
+- **Select All on Displayed Pages** in the menu of an annotation selects every annotation of the pages you see.
 - **Esc** or a click on an empty place clears the selection. The panel **Notes** shows the same selection.
+
+The status bar says what you can do with the selection, for example which handles it has.
 
 ## The annotation bar
 
@@ -23,7 +26,9 @@ Trying several colors or widths one after another is one step - one **Undo** ret
 
 ## Move, resize and rotate
 
-Drag an annotation to move it, the square handles change its size (**Shift** keeps the proportions) and the round handle above it rotates it. The arrow keys move the selection. The menu **Rotate and Flip** turns the selection by 90 degrees or mirrors it.
+Drag an annotation to move it, the square handles change its size (**Shift** keeps the proportions) and the round handle above it rotates it; some annotations turn only in steps of 90 degrees. The arrow keys move the selection. The menu **Rotate and Flip** turns the selection by 90 degrees or by 180 degrees, or mirrors it horizontally or vertically.
+
+The points of a line, a polyline, a polygon and a freehand drawing have their own handles: drag a point to move it. A right click on a point or on a part of an annotation offers what is possible there: **Delete Point**, **Insert Point**, **Remove This Part**, **Add Stroke** and **Erase Here** (freehand drawings), **Mark More Text** (highlights and other text marks), **Add Callout Line** and **Remove Callout Line** (text boxes).
 
 A click always follows a link, also a selected one. To edit a link, select it by **Ctrl+click** (**Shift+click** adds it to the selection), **Alt+click** or a right click - then drag it to move it, and its handles change the size of its clickable area. A link, which is not selected, is not moved by a drag. A link cannot be rotated.
 
@@ -32,6 +37,8 @@ A click always follows a link, also a selected one. To edit a link, select it by
 ## Properties
 
 **Properties…** (**F2**) opens all properties of the annotation: the author, the subject and the text of the comment, the color, the fill, the opacity, the border and the parts of its type - the line endings, the icon of a sticky note, the font of a text box, the leader lines of a measurement. **Apply** changes everything as one step, **Cancel** keeps the annotation as it was.
+
+The section **Behavior** of **Properties** has the flags of the annotation: **Locked**, **Hidden on the page**, **Contents locked**, **Printed with the page**, **Keeps its size when zoomed** and **Stays upright when the page is rotated**.
 
 The properties of a link have its **Destination**: the page (a page label such as *iv* works too) and the way the page is shown - the whole page, its width or height, an area or a position. **Go to target** shows the target, **Set to current view** takes the page and the place, which you see now. The **Text** of a link is its description for screen readers.
 
@@ -43,7 +50,7 @@ The properties of a link have its **Destination**: the page (a page label such a
 
 **Cut**, **Copy** and **Paste** work with annotations as with text, also between two documents. **Paste at Original Position** (**Ctrl+Shift+V**) puts the copy at the same place of the page. Annotations can also be dragged onto the page of another document; hold **Ctrl** to copy them.
 
-**Copy to Pages…** copies the selected annotations - with their comments and replies - to other pages: all pages, the selected pages, a range such as *2-10*, even or odd pages.
+**Copy to Pages…** copies the selected annotations - with their comments and replies - to other pages at the same position and size: all pages, the current page, the pages selected in the thumbnails or a range such as *2-10*, and only the even, odd, portrait or landscape pages of them. One copy makes at most 100,000 annotations.
 
 ## Hide and delete
 

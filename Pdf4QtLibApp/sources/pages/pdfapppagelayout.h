@@ -348,6 +348,12 @@ public:
     /// Push button of the design (primary or secondary) with an icon
     static QPushButton* createButton(const QString& text, const QString& iconName, bool isPrimary, QWidget* parent);
 
+    /// Vertical layout of the widget without margins with the spacing
+    static QVBoxLayout* createColumn(QWidget* widget, int spacing);
+
+    /// Text of a button or of an action, whose '&' is not a mnemonic (a text of data)
+    static QString escapeMnemonic(const QString& text);
+
     /// Name of the dynamic property of a widget holding its link (an https
     /// address or a route of the application)
     static constexpr const char* LINK_PROPERTY = "pdf4qtLink";

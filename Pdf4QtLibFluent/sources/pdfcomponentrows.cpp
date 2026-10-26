@@ -558,12 +558,31 @@ void PDFToolRow::setPinned(bool isPinned)
     }
 }
 
+bool PDFToolRow::isStarVisible() const
+{
+    return isNestedShown(m_star.data());
+}
+
+void PDFToolRow::setStarVisible(bool isVisible)
+{
+    // The star hides itself through the layout of the nested widgets of the row
+    if (m_star && isStarVisible() != isVisible)
+    {
+        m_star->setVisible(isVisible);
+        updateGeometry();
+        update();
+    }
+}
+
 PDFComponentPainter::ToolRow PDFToolRow::getContent() const
 {
     PDFComponentPainter::ToolRow row = m_row;
     row.name = text();
     row.pinned = isPinned();
     row.paintNested = false;
+
+    // A star hidden or deleted by the application leaves its place to the texts and the tag
+    row.starVisible = isStarVisible();
 
     // A tag hidden or deleted by the application leaves its place to the texts
     if (!isNestedShown(m_tag.data()))
@@ -633,6 +652,16 @@ void PDFCollectionRow::setIconName(const QString& iconName)
     if (m_row.iconName != iconName)
     {
         m_row.iconName = iconName;
+        update();
+    }
+}
+
+void PDFCollectionRow::setCreateVariant(bool isCreate)
+{
+    if (m_row.isCreate != isCreate)
+    {
+        m_row.isCreate = isCreate;
+        updateGeometry();
         update();
     }
 }

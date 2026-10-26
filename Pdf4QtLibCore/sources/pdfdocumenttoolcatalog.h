@@ -71,6 +71,32 @@ enum class PDFDocumentToolLockedAccess
     NoDocument      ///< The tool does not work with an open document (Images to PDF, Blank PDF, Manage Certificates)
 };
 
+/// Input of a tool (newapp_tools.md 2, the data of the introduction page and of MCP)
+enum class PDFDocumentToolInputKind
+{
+    None,       ///< No document (Blank PDF, Images to PDF, Manage Certificates)
+    One,        ///< One document (the document of the tab)
+    Multiple    ///< More documents (Merge, Compare)
+};
+
+/// Result of a tool (newapp_tools.md 2: the choices of the result dialog and the
+/// parameter result of MCP)
+enum class PDFDocumentToolResultKind
+{
+    ChangeDocument, ///< The document is changed (Keep in this tab / Save as a copy / Overwrite)
+    NewDocument,    ///< A new PDF (Open in a new tab / Save as a file)
+    Files,          ///< Files written by the tool (images, text, audio, several PDFs)
+    Analysis        ///< Nothing is written, the tool shows information
+};
+
+/// External dependency of a tool, which may be missing at run time
+enum class PDFDocumentToolExternalDependency
+{
+    None,
+    Tesseract,  ///< The OCR engine and its language models
+    Scanner     ///< A scanner of the system
+};
+
 /// Category of the catalog: its texts, icon and hue (Figma Tool category header)
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolCategoryInfo
 {
@@ -243,6 +269,27 @@ public:
     /// Availability for a locked document (tools.md 4.7)
     PDFDocumentToolLockedAccess getLockedAccess() const { return m_lockedAccess; }
 
+    // Extended data of phase 2 (step 6, plan chapter 3). The values come from the
+    // table of the extended data of the catalog (PDFDocumentToolCatalog::getExtendedData);
+    // a tool without a row has the defaults written at each getter.
+
+    /// Input of the tool (default One)
+    PDFDocumentToolInputKind getInputKind() const;
+
+    /// Result of the tool (default ChangeDocument)
+    PDFDocumentToolResultKind getResultKind() const;
+
+    /// External dependency (default None)
+    PDFDocumentToolExternalDependency getExternalDependency() const;
+
+    /// Command of PdfTool, which does the same ("optimize", "unite"; empty = none)
+    QString getPdfToolCommand() const;
+
+    /// Default successors of Then continue with (newapp_tools.md 3, O21): at most
+    /// three identifiers of the catalog, never the tool itself, in their order
+    /// (invalid and duplicate identifiers of the table are left out; default empty)
+    QStringList getDefaultSuccessors() const;
+
 private:
     friend class PDFDocumentToolCatalog;
 
@@ -256,6 +303,51 @@ private:
     bool m_hasOwnTab;
     bool m_isAdvanced;
     PDFDocumentToolLockedAccess m_lockedAccess;
+};
+
+/// Extended data of one tool (phase 2 preparation, step 6): a row of the table
+/// PDFDocumentToolCatalog::getExtendedData. Data only.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolExtendedData
+{
+public:
+    constexpr PDFDocumentToolExtendedData(const char* id,
+                                          PDFDocumentToolInputKind inputKind,
+                                          PDFDocumentToolResultKind resultKind,
+                                          PDFDocumentToolExternalDependency externalDependency,
+                                          const char* pdfToolCommand,
+                                          const char* successors) :
+        m_id(id),
+        m_inputKind(inputKind),
+        m_resultKind(resultKind),
+        m_externalDependency(externalDependency),
+        m_pdfToolCommand(pdfToolCommand),
+        m_successors(successors)
+    {
+
+    }
+
+    /// Identifier of the tool of the catalog
+    QString getId() const;
+
+    PDFDocumentToolInputKind getInputKind() const { return m_inputKind; }
+    PDFDocumentToolResultKind getResultKind() const { return m_resultKind; }
+    PDFDocumentToolExternalDependency getExternalDependency() const { return m_externalDependency; }
+
+    /// Command of PdfTool (empty = none)
+    QString getPdfToolCommand() const;
+
+    /// Comma separated identifiers of the default successors, as written in the table
+    QString getSuccessorsText() const;
+
+private:
+    friend class PDFDocumentToolCatalog;
+
+    const char* m_id;
+    PDFDocumentToolInputKind m_inputKind;
+    PDFDocumentToolResultKind m_resultKind;
+    PDFDocumentToolExternalDependency m_externalDependency;
+    const char* m_pdfToolCommand;
+    const char* m_successors;
 };
 
 /// Static catalog of the 46 tools of phase 2 (tools.md, Figma Tools Overview
@@ -312,6 +404,18 @@ public:
 
     /// Translation context of the texts of the catalog
     static constexpr const char* TRANSLATION_CONTEXT = "pdf::PDFDocumentToolCatalog";
+
+    /// Most default successors of a tool (O21)
+    static constexpr int MAXIMUM_DEFAULT_SUCCESSORS = 3;
+
+    /// Table of the extended data of the tools (input and result kinds, external
+    /// dependency, command of PdfTool, default successors), at most one row per
+    /// tool; a tool without a row has the defaults of the getters of
+    /// PDFDocumentToolCatalogEntry. Every tool of the catalog has its row (step 6, package D).
+    static const std::vector<PDFDocumentToolExtendedData>& getExtendedData();
+
+    /// Row of the extended data of the tool, nullptr = none (defaults)
+    static const PDFDocumentToolExtendedData* findExtendedData(QStringView id);
 
 private:
     friend class PDFDocumentToolCatalogEntry;

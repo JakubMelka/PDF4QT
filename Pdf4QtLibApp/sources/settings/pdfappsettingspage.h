@@ -207,6 +207,7 @@ private:
     void updateFilter();
     void applyPendingFocus();
     bool navigateTo(const PDFAppRoute& route, PDFAppNavigationMode mode, PendingFocus focus);
+    bool clearFilter();
     void connectSection(PDFAppSettingsSection* section);
     void highlightAnchor(QWidget* widget);
 

@@ -43,6 +43,7 @@ class QTimer;
 namespace pdf
 {
 
+class PDFAppMinuteSubscription;
 class PDFAppNetworkPaths;
 class PDFTextLink;
 
@@ -191,6 +192,11 @@ public:
     /// Number of the reads of the database (tests: notifications are coalesced)
     int getRefreshCount() const { return m_refreshCount; }
 
+    /// Subscription of the page to the minute ticker of the context: the times of
+    /// recent activity ("5 minutes ago", O25) follow the clock while the page is
+    /// visible (nullptr without a context)
+    PDFAppMinuteSubscription* getMinuteSubscription() const { return m_minuteSubscription.data(); }
+
     /// Text of the effective shortcut of the command Open… of the window ("Ctrl+O")
     QString getBrowseShortcutText() const;
 
@@ -238,6 +244,11 @@ protected:
     /// Current time for the texts of the times
     qint64 getNow() const;
 
+    /// Formats the time texts of the page against \p now again (after a tick of the
+    /// minute ticker and after each refresh): the widgets of PDFAppHomeFormat::setTimeText;
+    /// nothing is read and no widget is rebuilt
+    virtual void updateTimeTexts(qint64 now);
+
     /// Creates a text link with the route
     PDFTextLink* createLink(const QString& text, const PDFAppRoute& route, QWidget* parent);
 
@@ -280,6 +291,7 @@ private:
     void onRefreshTimer();
     void onRetryTimer();
     void onDialogFinished(int result);
+    void onMinuteChanged(qint64 now);
 
     /// Asks the service for the information (marks the request, remembers a refusal)
     void requestInfo(const QString& path, bool countPdfFiles);
@@ -291,6 +303,7 @@ private:
     QPointer<QTimer> m_retryTimer;
     QPointer<QDialog> m_dialog;
     QPointer<QDialog> m_errorBox;
+    QPointer<PDFAppMinuteSubscription> m_minuteSubscription;
     QHash<QString, PDFAppFolderInfo> m_pathInfos;
     QHash<QString, bool> m_refusedRequests;     ///< Path -> count the PDF files
     QHash<QString, ThumbnailEntry> m_thumbnails;

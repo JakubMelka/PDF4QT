@@ -42,7 +42,15 @@
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 #include "pdftoolrepository.h"
+#include "pdftoolcollectionrepository.h"
+#include "pdfappbuiltintoolcollections.h"
+#include "pdfapptoolcollections.h"
+#include "pdfapptoolstate.h"
+#include "pdfdocumenttoolsuggestions.h"
 #include "pdfworkspacerepository.h"
+#include "pdfdocumenttoolusage.h"
+#include "pdftoolparameterrepository.h"
+#include "testdocumenttool.h"
 
 #include "pdfthemeiconengine.h"
 
@@ -294,6 +302,13 @@ public:
         return repository;
     }
 
+    pdf::PDFToolCollectionRepository collections(qint64 time = 0) const
+    {
+        pdf::PDFToolCollectionRepository repository(database.get());
+        repository.setCurrentTime(time);
+        return repository;
+    }
+
     pdf::PDFSettingsRepository settings() const { return pdf::PDFSettingsRepository(database.get(), &registry); }
 
     /// Creates a file in the temporary folder, returns its stored (normalized) path
@@ -342,6 +357,11 @@ public:
         for (const pdf::PDFToolUsage& usage : tools().getUsage())
         {
             lines << QStringLiteral("usage %1 %2 %3").arg(usage.toolId).arg(usage.lastUsed).arg(usage.count);
+        }
+        for (const pdf::PDFToolCollectionRow& collection : collections().getCollections())
+        {
+            lines << QStringLiteral("collection %1 %2 %3 %4 %5 %6").arg(collection.id).arg(collection.builtinId, collection.name, collection.iconName).arg(collection.modified)
+                                                                  .arg(collection.toolIds.join(QLatin1Char(',')));
         }
         return lines.join(QLatin1Char('\n'));
     }
@@ -416,7 +436,7 @@ public:
             ok = ok && AppDataTestHelper::execute(database, QStringLiteral("DROP TRIGGER IF EXISTS temp.fault_commit_%1").arg(kind).toUtf8().constData());
         }
         ok = ok && AppDataTestHelper::execute(database, "DROP TABLE IF EXISTS temp.fault_child") && AppDataTestHelper::execute(database, "DROP TABLE IF EXISTS temp.fault_parent");
-        for (const char* table : { "recent_file", "recent_folder", "pinned_location", "workspace", "workspace_document", "tool_pin", "tool_usage" })
+        for (const char* table : { "recent_file", "recent_folder", "pinned_location", "workspace", "workspace_document", "tool_pin", "tool_usage", "tool_collection", "tool_collection_item" })
         {
             ok = ok && AppDataTestHelper::execute(database, QStringLiteral("DROP VIEW IF EXISTS temp.%1").arg(QLatin1String(table)).toUtf8().constData());
         }
@@ -438,8 +458,20 @@ public:
     ///     process inside of the rendering (PDFAppThumbnailer::TEST_EXIT_CODE)
     /// --appdata-sleep: waits (a running process of another instance), killed by the test
     /// --appdata-exit: ends at once
+    /// --appdata-collection <database file> <name>: creates a custom collection of
+    ///     the name (exit 0), 6 = the name exists (step 6)
+    /// --appdata-toolusage <database file> <runs>: records the runs of Document Report
+    ///     after Compare (PDFDocumentToolUsage, step 6 package D), exit 0
     static int run(const QStringList& arguments)
     {
+        if (arguments.size() >= 4 && arguments[1] == QLatin1String("--appdata-collection"))
+        {
+            return runCollection(arguments[2], arguments[3]);
+        }
+        if (arguments.size() >= 4 && arguments[1] == QLatin1String("--appdata-toolusage"))
+        {
+            return runToolUsage(arguments[2], arguments[3].toInt());
+        }
         if (arguments.size() >= 2 && arguments[1] == QLatin1String("--appdata-exit"))
         {
             return 0;
@@ -469,6 +501,47 @@ public:
         const pdf::PDFDatabaseError error = repository.recordOpened(arguments[3]);
         database.close();
         return error.isError() ? 4 : 0;
+    }
+
+    static int runCollection(const QString& databasePath, const QString& name)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        if (database.getState().mode != pdf::PDFDatabaseStorageMode::Disk)
+        {
+            return 3;
+        }
+
+        bool isDuplicate = false;
+        const pdf::PDFDatabaseError error = pdf::PDFToolCollectionRepository(&database).createCollection(name, QString(), { QStringLiteral("pages.merge") }, nullptr, &isDuplicate);
+        database.close();
+        if (isDuplicate)
+        {
+            return 6;
+        }
+        return error.isError() ? 4 : 0;
+    }
+
+    static int runToolUsage(const QString& databasePath, int runs)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        if (database.getState().mode != pdf::PDFDatabaseStorageMode::Disk)
+        {
+            return 3;
+        }
+
+        pdf::PDFDocumentToolUsage usage(&database);
+        for (int i = 0; i < runs; ++i)
+        {
+            if (usage.recordRun(QStringLiteral("review.report"), QStringLiteral("review.compare")).isError())
+            {
+                database.close();
+                return 4;
+            }
+        }
+        database.close();
+        return 0;
     }
 
     static int runThumbnailCrash(const QString& databasePath, const QString& path)
@@ -532,6 +605,16 @@ private slots:
     void hostileRows();
     void workspaces();
     void tools();
+    void toolCollectionRepository();
+    void toolCollectionNames();
+    void toolCollectionHostileRows();
+    void toolCollectionEdges();
+    void toolCollectionTwoProcesses();
+    void toolUsageClear();
+    void toolPairsRead();
+    void toolUsageRecording();
+    void toolUsageTwoProcesses();
+    void toolParameterValues();
     void schemaMigration();
     void notificationsOfAnotherConnection();
     void notificationsOfAnotherProcess();
@@ -1065,7 +1148,32 @@ public:
                !fixture.workspaces(330).saveLastSession({ { files[0], 1 } }).isError() &&
                !fixture.tools().setPinned(QStringLiteral("pages.merge"), true).isError() &&
                !fixture.tools().setPinned(QStringLiteral("optimize.compress"), true).isError() &&
-               !fixture.tools(340).recordUsage(QStringLiteral("pages.merge")).isError();
+               !fixture.tools(340).recordUsage(QStringLiteral("pages.merge")).isError() && prepareCollections();
+    }
+
+    /// Collections of step 6 (review RT6): a custom collection, an override of a
+    /// renamed built-in collection and an override, which differs from its built-in
+    /// definition by one tool only
+    bool prepareCollections()
+    {
+        DataFixture& fixture = m_fixture;
+        const pdf::PDFAppBuiltinToolCollection* print = pdf::PDFAppBuiltinToolCollections::findCollection(QStringLiteral("prepare-for-print"));
+        const pdf::PDFAppBuiltinToolCollection* extract = pdf::PDFAppBuiltinToolCollections::findCollection(QStringLiteral("extract-content"));
+        if (!print || !extract)
+        {
+            return false;
+        }
+
+        pdf::PDFToolCollectionDraft printDraft;
+        printDraft.builtinId = print->getId();
+        printDraft.name = QStringLiteral("Print shop");
+        printDraft.toolIds = { QStringLiteral("pages.boxes"), QStringLiteral("review.soft-proof") };
+        pdf::PDFToolCollectionDraft extractDraft;
+        extractDraft.builtinId = extract->getId();
+        extractDraft.name = extract->getSourceName();
+        extractDraft.toolIds = extract->getToolIds() + QStringList({ QStringLiteral("pages.split") });
+        return !fixture.collections(350).createCollection(QStringLiteral("Invoices"), QStringLiteral("star"), { QStringLiteral("pages.merge"), QStringLiteral("optimize.compress") }, &custom).isError() &&
+               !fixture.collections(360).saveCollection(printDraft).isError() && !fixture.collections(370).saveCollection(extractDraft).isError();
     }
 
     /// The operations of the repositories by their names
@@ -1097,6 +1205,47 @@ public:
         operations["unpinTool"] = [&]() { return fixture.tools().setPinned(QStringLiteral("pages.merge"), false); };
         operations["toolOrder"] = [&]() { return fixture.tools().setPinnedOrder({ QStringLiteral("optimize.compress"), QStringLiteral("pages.merge") }); };
         operations["recordUsage"] = [&]() { return fixture.tools(1000).recordUsage(QStringLiteral("review.compare")); };
+        operations["clearUsage"] = [&]() { return fixture.tools().clearUsage(); };
+        operations["createCollection"] = [&]() { return fixture.collections(1000).createCollection(QStringLiteral("Gamma"), QStringLiteral("zap"), { QStringLiteral("pages.split") }); };
+        operations["saveCustom"] = [&]()
+        {
+            pdf::PDFToolCollectionDraft draft;
+            draft.id = custom;
+            draft.name = QStringLiteral("Invoices 2");
+            draft.toolIds = { QStringLiteral("pages.split"), QStringLiteral("pages.merge") };
+            return fixture.collections(1000).saveCollection(draft);
+        };
+        operations["saveBuiltin"] = [&]()
+        {
+            pdf::PDFToolCollectionDraft draft;
+            draft.builtinId = QStringLiteral("fix-a-scan");
+            draft.name = QStringLiteral("Scans");
+            draft.iconName = QStringLiteral("camera");
+            draft.toolIds = { QStringLiteral("pages.rotate"), QStringLiteral("pages.crop") };
+            return fixture.collections(1000).saveCollection(draft);
+        };
+        operations["saveOverride"] = [&]()
+        {
+            pdf::PDFToolCollectionDraft draft;
+            draft.builtinId = QStringLiteral("prepare-for-print");
+            draft.name = QStringLiteral("Print shop 2");
+            draft.toolIds = { QStringLiteral("review.soft-proof") };
+            return fixture.collections(1000).saveCollection(draft);
+        };
+        operations["saveDefault"] = [&]()
+        {
+            const pdf::PDFAppBuiltinToolCollection* print = pdf::PDFAppBuiltinToolCollections::findCollection(QStringLiteral("prepare-for-print"));
+            pdf::PDFToolCollectionDraft draft;
+            draft.builtinId = print->getId();
+            draft.name = print->getSourceName();
+            draft.toolIds = print->getToolIds();
+            return fixture.collections(1000).saveCollection(draft);
+        };
+        operations["deleteCollection"] = [&]() { return fixture.collections().deleteCollection(custom); };
+        operations["resetBuiltin"] = [&]() { return fixture.collections().resetBuiltin(QStringLiteral("prepare-for-print")); };
+        operations["addToBuiltin"] = [&]() { return fixture.collections(1000).addTool(0, QStringLiteral("fix-a-scan"), QStringLiteral("pages.split")); };
+        operations["addToCustom"] = [&]() { return fixture.collections(1000).addTool(custom, QString(), QStringLiteral("pages.split")); };
+        operations["removeToDefault"] = [&]() { return fixture.collections(1000).setToolIncluded(0, QStringLiteral("extract-content"), QStringLiteral("pages.split"), false); };
         return operations;
     }
 
@@ -1109,6 +1258,7 @@ public:
     qint64 locations[2] = { };
     qint64 alpha = 0;
     qint64 beta = 0;
+    qint64 custom = 0;
 
 private:
     DataFixture& m_fixture;
@@ -1145,6 +1295,17 @@ void AppDataTest::repositoryFaults_data()
         { "unpinTool", { "abort:DELETE:tool_pin" } },
         { "toolOrder", { "abort:UPDATE:tool_pin", "commit:tool_pin" } },
         { "recordUsage", { "abort:INSERT:tool_usage", "commit:tool_usage" } },
+        { "clearUsage", { "abort:DELETE:tool_usage", "commit:tool_usage" } },
+        { "createCollection", { "abort:INSERT:tool_collection", "abort:INSERT:tool_collection_item", "commit:tool_collection", "read:tool_collection" } },
+        { "saveCustom", { "abort:UPDATE:tool_collection", "abort:DELETE:tool_collection_item", "abort:INSERT:tool_collection_item", "commit:tool_collection_item", "read:tool_collection_item" } },
+        { "saveBuiltin", { "abort:INSERT:tool_collection", "abort:INSERT:tool_collection_item", "commit:tool_collection" } },
+        { "saveOverride", { "abort:UPDATE:tool_collection", "abort:DELETE:tool_collection_item", "commit:tool_collection" } },
+        { "saveDefault", { "abort:DELETE:tool_collection_item", "abort:DELETE:tool_collection", "commit:tool_collection" } },
+        { "deleteCollection", { "abort:DELETE:tool_collection_item", "abort:DELETE:tool_collection", "commit:tool_collection", "read:tool_collection" } },
+        { "resetBuiltin", { "abort:DELETE:tool_collection_item", "abort:DELETE:tool_collection", "commit:tool_collection" } },
+        { "addToBuiltin", { "abort:INSERT:tool_collection", "abort:INSERT:tool_collection_item", "commit:tool_collection" } },
+        { "addToCustom", { "abort:UPDATE:tool_collection", "abort:DELETE:tool_collection_item", "commit:tool_collection_item" } },
+        { "removeToDefault", { "abort:DELETE:tool_collection_item", "abort:DELETE:tool_collection", "commit:tool_collection" } },
     };
 
     for (const auto& row : rows)
@@ -4157,6 +4318,897 @@ void AppDataTest::renameDeleted()
 
     first.close();
     second.close();
+}
+
+/// Czech names of the built-in collections (the names of the user interface are
+/// compared with a new name, step 6)
+class AppDataCollectionTranslator : public QTranslator
+{
+public:
+    virtual bool isEmpty() const override { return false; }
+
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        if (qstrcmp(context, pdf::PDFAppBuiltinToolCollections::TRANSLATION_CONTEXT) != 0 || !sourceText)
+        {
+            return QString();
+        }
+        if (qstrcmp(sourceText, "Prepare for sharing") == 0)
+        {
+            return QString::fromUtf8("Připravit ke sdílení");
+        }
+        if (qstrcmp(sourceText, "Fix a scan") == 0)
+        {
+            return QString::fromUtf8("Opravit sken");
+        }
+        return QString();
+    }
+};
+
+void AppDataTest::toolCollectionRepository()
+{
+    // Step 6: custom collections, overrides of the built-in collections, Reset to
+    // default, Add to collection - every write one transaction
+    DataFixture fixture;
+    pdf::PDFToolCollectionRepository repository = fixture.collections(1000);
+    QVERIFY(repository.getCollections().empty());
+    QCOMPARE(repository.getCustomCollectionCount(), 0);
+
+    // The merged collections: the seven built-in collections of 272:12821
+    std::vector<pdf::PDFAppToolCollection> merged = pdf::PDFAppToolCollections::read(fixture.database.get());
+    QCOMPARE(merged.size(), size_t(7));
+    QCOMPARE(merged.front().routeId, QStringLiteral("prepare-for-sharing"));
+    QVERIFY(merged.front().isBuiltin && !merged.front().isOverridden && merged.front().rowId == 0);
+
+    // Create a custom collection
+    qint64 id = 0;
+    bool isDuplicate = true;
+    bool isLimit = true;
+    QVERIFY(!repository.createCollection(QStringLiteral("  Monthly invoices "), QStringLiteral("folder"),
+                                         { QStringLiteral("pages.merge"), QStringLiteral("optimize.compress") }, &id, &isDuplicate, &isLimit).isError());
+    QVERIFY(id > 0);
+    QVERIFY(!isDuplicate && !isLimit);
+    std::optional<pdf::PDFToolCollectionRow> row = repository.getCollection(id);
+    QVERIFY(row);
+    QCOMPARE(row->name, QStringLiteral("Monthly invoices"));
+    QCOMPARE(row->iconName, QStringLiteral("folder"));
+    QCOMPARE(row->modified, qint64(1000));
+    QCOMPARE(row->toolIds, QStringList({ QStringLiteral("pages.merge"), QStringLiteral("optimize.compress") }));
+    QVERIFY(!row->isBuiltin());
+
+    // Save of the custom collection: name, icon and the order of the tools replaced
+    pdf::PDFToolCollectionDraft draft;
+    draft.id = id;
+    draft.name = QStringLiteral("Invoices");
+    draft.iconName = QStringLiteral("zap");
+    draft.toolIds = { QStringLiteral("optimize.compress"), QStringLiteral("protect.password"), QStringLiteral("pages.merge") };
+    qint64 savedId = 0;
+    QVERIFY(!fixture.collections(2000).saveCollection(draft, &savedId).isError());
+    QCOMPARE(savedId, id);
+    row = repository.getCollection(id);
+    QCOMPARE(row->name, QStringLiteral("Invoices"));
+    QCOMPARE(row->iconName, QStringLiteral("zap"));
+    QCOMPARE(row->modified, qint64(2000));
+    QCOMPARE(row->toolIds, draft.toolIds);
+
+    // An icon outside of the chooser is the default icon (NULL)
+    draft.iconName = QStringLiteral("book-open");
+    QVERIFY(!repository.saveCollection(draft).isError());
+    QVERIFY(repository.getCollection(id)->iconName.isEmpty());
+    merged = pdf::PDFAppToolCollections::read(fixture.database.get());
+    QCOMPARE(merged.size(), size_t(8));
+    QCOMPARE(merged.back().routeId, QStringLiteral("custom-%1").arg(id));
+    QCOMPARE(merged.back().iconName, QStringLiteral("folder"));
+
+    // Refused: an empty name, no tool, an unknown / duplicate tool, an unknown built-in collection
+    pdf::PDFToolCollectionDraft invalid = draft;
+    invalid.name = QStringLiteral(" \t ");
+    QVERIFY(repository.saveCollection(invalid).isError());
+    invalid = draft;
+    invalid.toolIds.clear();
+    QVERIFY(repository.saveCollection(invalid).isError());
+    invalid.toolIds = { QStringLiteral("pages.merge"), QStringLiteral("pages.unknown") };
+    QVERIFY(repository.saveCollection(invalid).isError());
+    invalid.toolIds = { QStringLiteral("pages.merge"), QStringLiteral("pages.merge") };
+    QVERIFY(repository.saveCollection(invalid).isError());
+    invalid = draft;
+    invalid.builtinId = QStringLiteral("not-builtin");
+    QVERIFY(repository.saveCollection(invalid).isError());
+    QCOMPARE(repository.getCollection(id)->toolIds, draft.toolIds);
+
+    // A built-in collection: the first change creates its override
+    QVERIFY(!repository.getBuiltinOverride(QStringLiteral("fix-a-scan")));
+    QVERIFY(!repository.addTool(0, QStringLiteral("fix-a-scan"), QStringLiteral("convert.ocr")).isError());
+    std::optional<pdf::PDFToolCollectionRow> override = repository.getBuiltinOverride(QStringLiteral("fix-a-scan"));
+    QVERIFY(override);
+    QVERIFY(override->name.isEmpty());          // not renamed
+    QVERIFY(override->iconName.isEmpty());      // the default icon
+    QCOMPARE(override->toolIds, QStringList({ QStringLiteral("pages.rotate"), QStringLiteral("pages.crop"), QStringLiteral("pages.interleave"),
+                                               QStringLiteral("pages.remove"), QStringLiteral("convert.ocr") }));
+    merged = pdf::PDFAppToolCollections::read(fixture.database.get());
+    const pdf::PDFAppToolCollection* fixAScan = pdf::PDFAppToolCollections::find(merged, QStringLiteral("fix-a-scan"));
+    QVERIFY(fixAScan && fixAScan->isOverridden && fixAScan->rowId == override->id);
+    QCOMPARE(fixAScan->name, QStringLiteral("Fix a scan"));
+    QCOMPARE(fixAScan->iconName, QStringLiteral("rotate-cw"));
+    QCOMPARE(fixAScan->toolIds, override->toolIds);
+
+    // A tool, which is there, is no write; the last tool is not removed
+    QVERIFY(!repository.addTool(0, QStringLiteral("fix-a-scan"), QStringLiteral("convert.ocr")).isError());
+    QVERIFY(!repository.setToolIncluded(id, QString(), QStringLiteral("pages.merge"), false).isError());
+    QVERIFY(!repository.setToolIncluded(id, QString(), QStringLiteral("protect.password"), false).isError());
+    QVERIFY(repository.setToolIncluded(id, QString(), QStringLiteral("optimize.compress"), false).isError());
+    QCOMPARE(repository.getCollection(id)->toolIds, QStringList({ QStringLiteral("optimize.compress") }));
+    QVERIFY(repository.addTool(id, QString(), QStringLiteral("unknown.tool")).isError());
+    QVERIFY(repository.addTool(id + 100, QString(), QStringLiteral("pages.merge")).isError());
+
+    // Save of a built-in collection: renamed, own icon
+    pdf::PDFToolCollectionDraft builtinDraft;
+    builtinDraft.builtinId = QStringLiteral("fix-a-scan");
+    builtinDraft.name = QStringLiteral("My scans");
+    builtinDraft.iconName = QStringLiteral("camera");
+    builtinDraft.toolIds = { QStringLiteral("pages.rotate") };
+    QVERIFY(!repository.saveCollection(builtinDraft, &savedId).isError());
+    QCOMPARE(savedId, override->id);
+    override = repository.getBuiltinOverride(QStringLiteral("fix-a-scan"));
+    QCOMPARE(override->name, QStringLiteral("My scans"));
+    QCOMPARE(override->iconName, QStringLiteral("camera"));
+
+    // The built-in name is stored as "not renamed", the built-in definition removes the override
+    builtinDraft.name = QStringLiteral("Fix a scan");
+    builtinDraft.iconName = QStringLiteral("rotate-cw");
+    QVERIFY(!repository.saveCollection(builtinDraft).isError());
+    QVERIFY(repository.getBuiltinOverride(QStringLiteral("fix-a-scan"))->name.isEmpty());
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_collection WHERE builtin_id = 'fix-a-scan' AND name = 'Fix a scan' AND icon IS NULL"), qint64(1));
+    builtinDraft.toolIds = { QStringLiteral("pages.rotate"), QStringLiteral("pages.crop"), QStringLiteral("pages.interleave"), QStringLiteral("pages.remove") };
+    QVERIFY(!repository.saveCollection(builtinDraft).isError());
+    QVERIFY(!repository.getBuiltinOverride(QStringLiteral("fix-a-scan")));
+
+    // Reset to default deletes the override and its items; a built-in collection cannot be deleted
+    QVERIFY(!repository.addTool(0, QStringLiteral("extract-content"), QStringLiteral("convert.ocr")).isError());
+    const qint64 overrideId = repository.getBuiltinOverride(QStringLiteral("extract-content"))->id;
+    QVERIFY(repository.deleteCollection(overrideId).isError());
+    QVERIFY(!repository.resetBuiltin(QStringLiteral("extract-content")).isError());
+    QVERIFY(!repository.getBuiltinOverride(QStringLiteral("extract-content")));
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_collection_item WHERE collection_id NOT IN (SELECT id FROM tool_collection)"), qint64(0));
+    QVERIFY(!repository.resetBuiltin(QStringLiteral("extract-content")).isError());
+    QVERIFY(repository.resetBuiltin(QStringLiteral("unknown")).isError());
+
+    // Delete a custom collection with its items; a missing one is an error
+    QVERIFY(!repository.deleteCollection(id).isError());
+    QVERIFY(!repository.getCollection(id));
+    QVERIFY(repository.deleteCollection(id).isError());
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_collection_item"), qint64(0));
+
+    // A saved collection, which another instance has deleted, is not created again by Save
+    QVERIFY(repository.saveCollection(draft).isError());
+
+    // One transaction: a failed write of the items leaves nothing
+    QVERIFY(AppDataFault::abortWrites(fixture.database.get(), QStringLiteral("INSERT"), QStringLiteral("tool_collection_item")));
+    QVERIFY(repository.createCollection(QStringLiteral("Broken"), QString(), { QStringLiteral("pages.merge") }).isError());
+    QVERIFY(repository.addTool(0, QStringLiteral("sign-a-contract"), QStringLiteral("pages.merge")).isError());
+    QVERIFY(AppDataFault::clear(fixture.database.get()));
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_collection"), qint64(0));
+
+    // The limit of the custom collections
+    for (int i = 0; i < pdf::PDFToolCollectionRepository::MAXIMUM_CUSTOM_COLLECTIONS; ++i)
+    {
+        QVERIFY(!repository.createCollection(QStringLiteral("Collection %1").arg(i), QString(), { QStringLiteral("pages.merge") }).isError());
+    }
+    isLimit = false;
+    QVERIFY(repository.createCollection(QStringLiteral("One more"), QString(), { QStringLiteral("pages.merge") }, nullptr, nullptr, &isLimit).isError());
+    QVERIFY(isLimit);
+    QCOMPARE(repository.getCustomCollectionCount(), pdf::PDFToolCollectionRepository::MAXIMUM_CUSTOM_COLLECTIONS);
+
+    // Notifications of the topics of the collections
+    pdf::PDFDatabaseNotifier notifier(fixture.database.get());
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+    QVERIFY(!repository.addTool(0, QStringLiteral("prepare-for-print"), QStringLiteral("pages.merge")).isError());
+    QTRY_VERIFY(!spy.isEmpty());
+    QStringList topics;
+    for (const QList<QVariant>& arguments : std::as_const(spy))
+    {
+        topics << arguments.value(0).toString();
+    }
+    QVERIFY(topics.contains(pdf::PDFToolCollectionRepository::getCollectionTopic()));
+    QVERIFY(topics.contains(pdf::PDFToolCollectionRepository::getItemTopic()));
+}
+
+void AppDataTest::toolCollectionNames()
+{
+    // Names are unique without case (also of other than ASCII letters) against the
+    // custom collections and the built-in names in English and in the language of
+    // the user interface
+    DataFixture fixture;
+    pdf::PDFToolCollectionRepository repository = fixture.collections();
+    const QStringList tools = { QStringLiteral("pages.merge") };
+
+    qint64 id = 0;
+    QVERIFY(!repository.createCollection(QString::fromUtf8("Účty"), QString(), tools, &id).isError());
+    bool isDuplicate = false;
+    QVERIFY(repository.createCollection(QString::fromUtf8("úČTY"), QString(), tools, nullptr, &isDuplicate).isError());
+    QVERIFY(isDuplicate);
+    QVERIFY(repository.findByName(QString::fromUtf8("ÚČTY")));
+    QCOMPARE(repository.findByName(QString::fromUtf8("účty"))->id, id);
+    QVERIFY(!repository.findByName(QString::fromUtf8("účty"), id));
+
+    // The built-in names in English
+    isDuplicate = false;
+    QVERIFY(repository.createCollection(QStringLiteral("PREPARE FOR SHARING"), QString(), tools, nullptr, &isDuplicate).isError());
+    QVERIFY(isDuplicate);
+    QCOMPARE(repository.findByName(QStringLiteral("prepare for sharing"))->builtinId, QStringLiteral("prepare-for-sharing"));
+
+    // A renamed built-in collection: its new name and its built-in names are taken
+    pdf::PDFToolCollectionDraft draft;
+    draft.builtinId = QStringLiteral("fix-a-scan");
+    draft.name = QStringLiteral("Scans");
+    draft.toolIds = tools;
+    QVERIFY(!repository.saveCollection(draft).isError());
+    QVERIFY(repository.createCollection(QStringLiteral("scans"), QString(), tools).isError());
+    QVERIFY(repository.createCollection(QStringLiteral("fix a scan"), QString(), tools).isError());
+
+    // The edited collection is not compared with itself
+    draft.name = QStringLiteral("SCANS");
+    QVERIFY(!repository.saveCollection(draft).isError());
+    pdf::PDFToolCollectionDraft custom;
+    custom.id = id;
+    custom.name = QString::fromUtf8("ÚČTY");
+    custom.toolIds = tools;
+    QVERIFY(!repository.saveCollection(custom).isError());
+    QCOMPARE(repository.getCollection(id)->name, QString::fromUtf8("ÚČTY"));
+
+    // The names of the language of the user interface
+    AppDataCollectionTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    isDuplicate = false;
+    QVERIFY(repository.createCollection(QString::fromUtf8("připravit KE sdílení"), QString(), tools, nullptr, &isDuplicate).isError());
+    QVERIFY(isDuplicate);
+    std::vector<pdf::PDFAppToolCollection> merged = pdf::PDFAppToolCollections::read(fixture.database.get());
+    QCOMPARE(merged.front().name, QString::fromUtf8("Připravit ke sdílení"));
+    QCOMPARE(pdf::PDFAppToolCollections::find(merged, QStringLiteral("fix-a-scan"))->name, QStringLiteral("SCANS"));
+
+    // A built-in collection saved with its translated name is not renamed
+    draft.name = QString::fromUtf8("Opravit sken");
+    QVERIFY(!repository.saveCollection(draft).isError());
+    QVERIFY(repository.getBuiltinOverride(QStringLiteral("fix-a-scan"))->name.isEmpty());
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM tool_collection WHERE builtin_id = 'fix-a-scan' AND name = 'Fix a scan'"), qint64(1));
+    QVERIFY(QCoreApplication::removeTranslator(&translator));
+
+    // Control and format characters are removed, the joiners stay, too long names are refused
+    const QString bidi = QStringLiteral("Re") + QChar(0x202E) + QStringLiteral("ports") + QChar(0x200B) + QChar(0x0007);
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(bidi), QStringLiteral("Reports"));
+    const QString family = QString::fromUtf8("\xF0\x9F\x91\xA8") + QChar(0x200D) + QString::fromUtf8("\xF0\x9F\x91\xA9");
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(family), family);
+    QVERIFY(pdf::PDFToolCollectionRepository::normalizeName(QString(pdf::PDFRepositoryHelper::MAXIMUM_NAME_LENGTH + 1, QLatin1Char('x'))).isEmpty());
+    QVERIFY(pdf::PDFToolCollectionRepository::normalizeName(QString(1024 * 1024, QLatin1Char('x'))).isEmpty());
+    QVERIFY(pdf::PDFToolCollectionRepository::normalizeName(QString(QChar(0x202E))).isEmpty());
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(QString(pdf::PDFRepositoryHelper::MAXIMUM_NAME_LENGTH, QLatin1Char('y'))).size(),
+             qsizetype(pdf::PDFRepositoryHelper::MAXIMUM_NAME_LENGTH));
+    QVERIFY(!repository.createCollection(bidi, QString(), tools).isError());
+    QVERIFY(repository.findByName(QStringLiteral("reports")));
+
+    // Format characters outside of the BMP (the tag characters, the musical format
+    // controls) never make a name different: a surrogate pair is checked as one code point
+    const QString tagged = QStringLiteral("Reports") + QString::fromUcs4(U"\U000E0041\U000E0001\U0001D173");
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(tagged), QStringLiteral("Reports"));
+    QCOMPARE(pdf::PDFToolCollectionRepository::sanitizeName(tagged), QStringLiteral("Reports"));
+    isDuplicate = false;
+    QVERIFY(repository.createCollection(tagged, QString(), tools, nullptr, &isDuplicate).isError());
+    QVERIFY(isDuplicate);
+    const QString emoji = QString::fromUcs4(U"\U0001F4C4 Reports");
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(emoji), emoji);
+    QCOMPARE(pdf::PDFToolCollectionRepository::normalizeName(QStringLiteral("A") + QChar(0xD800) + QStringLiteral("B") + QChar(0xDC00)), QStringLiteral("AB"));
+
+    // Review RS6: names, which look the same, are the same name - a no-break space,
+    // a run of spaces, a joiner inside of a word, full-width letters, a decomposed accent
+    for (const QString& lookalike : { QStringLiteral("Prepare for sharing"), QStringLiteral("Prepare  for sharing"), QStringLiteral("Pre‍pare for sharing"),
+                                      QStringLiteral("Ｐrepare for sharing"), QStringLiteral("Účty"), QStringLiteral("Rep‌orts") })
+    {
+        isDuplicate = false;
+        QVERIFY2(repository.createCollection(lookalike, QString(), tools, nullptr, &isDuplicate).isError(), qPrintable(lookalike));
+        QVERIFY(isDuplicate);
+    }
+    QVERIFY(!repository.createCollection(QStringLiteral("Prepare for sharing 2"), QString(), tools).isError());
+}
+
+void AppDataTest::toolCollectionEdges()
+{
+    // Edges of PDFToolCollectionRepository (review RT6): invalid ids and names, the
+    // order of more overrides of the built-in collections, the excluded built-in
+    // collection of the name check, an unknown built-in collection
+    DataFixture fixture;
+    pdf::PDFToolCollectionRepository repository = fixture.collections(10);
+    QVERIFY(!repository.getCollection(0));
+    QVERIFY(!repository.getCollection(-5));
+    QVERIFY(!repository.getBuiltinOverride(QStringLiteral("no-such-collection")));
+    QVERIFY(!repository.getBuiltinOverride(QString()));
+    QVERIFY(!repository.findByName(QString()));
+    QVERIFY(!repository.findByName(QStringLiteral("   ")));
+
+    // Overrides in the order of the built-in collections, also when written in another order
+    QVERIFY(!repository.addTool(0, QStringLiteral("extract-content"), QStringLiteral("pages.split")).isError());
+    QVERIFY(!repository.addTool(0, QStringLiteral("prepare-for-sharing"), QStringLiteral("pages.split")).isError());
+    QVERIFY(!repository.addTool(0, QStringLiteral("fix-a-scan"), QStringLiteral("pages.split")).isError());
+    QStringList order;
+    for (const pdf::PDFToolCollectionRow& row : repository.getCollections())
+    {
+        order << row.builtinId;
+    }
+    QCOMPARE(order, QStringList({ QStringLiteral("prepare-for-sharing"), QStringLiteral("fix-a-scan"), QStringLiteral("extract-content") }));
+
+    // The name of a built-in collection: found, except for the collection itself
+    const pdf::PDFAppBuiltinToolCollection* scan = pdf::PDFAppBuiltinToolCollections::findCollection(QStringLiteral("fix-a-scan"));
+    QVERIFY(scan);
+    const std::optional<pdf::PDFToolCollectionRow> found = repository.findByName(scan->getSourceName().toUpper());
+    QVERIFY(found);
+    QCOMPARE(found->builtinId, scan->getId());
+    QVERIFY(!repository.findByName(scan->getSourceName(), 0, scan->getId()));
+
+    // An unknown built-in collection, an unknown tool, a custom collection, which does not exist
+    QVERIFY(repository.setToolIncluded(0, QStringLiteral("no-such-collection"), QStringLiteral("pages.split"), true).isError());
+    QVERIFY(repository.setToolIncluded(0, QString(), QStringLiteral("unknown.tool"), true).isError());
+    QVERIFY(repository.setToolIncluded(424242, QString(), QStringLiteral("pages.split"), true).isError());
+    QVERIFY(repository.resetBuiltin(QStringLiteral("no-such-collection")).isError());
+    QVERIFY(repository.deleteCollection(424242).isError());
+    pdf::PDFToolCollectionDraft draft;
+    draft.builtinId = QStringLiteral("no-such-collection");
+    draft.name = QStringLiteral("Name");
+    draft.toolIds = { QStringLiteral("pages.split") };
+    QVERIFY(repository.saveCollection(draft).isError());
+    draft.builtinId.clear();
+    draft.id = 424242;
+    QVERIFY(repository.saveCollection(draft).isError());
+
+    // The merge of rows, which did not come from the repository (an icon outside of
+    // the allowlist, an override with an icon of another version): the default icons
+    pdf::PDFToolCollectionRow custom;
+    custom.id = 77;
+    custom.name = QStringLiteral("Hostile");
+    custom.iconName = QStringLiteral("evil-icon");
+    custom.toolIds = { QStringLiteral("pages.merge") };
+    pdf::PDFToolCollectionRow override;
+    override.id = 78;
+    override.builtinId = QStringLiteral("fix-a-scan");
+    override.iconName = QStringLiteral("../../icon");
+    override.toolIds = { QStringLiteral("pages.crop") };
+    const std::vector<pdf::PDFAppToolCollection> merged = pdf::PDFAppToolCollections::merge({ custom, override });
+    const pdf::PDFAppToolCollection* hostile = pdf::PDFAppToolCollections::find(merged, QStringLiteral("custom-77"));
+    QVERIFY(hostile);
+    QCOMPARE(hostile->iconName, pdf::PDFAppBuiltinToolCollections::getDefaultIconName());
+    const pdf::PDFAppToolCollection* overridden = pdf::PDFAppToolCollections::find(merged, QStringLiteral("fix-a-scan"));
+    QVERIFY(overridden && overridden->isOverridden);
+    QCOMPARE(overridden->iconName, scan->getIconName());
+
+    // Rows of ids, which no route can name (0, negative - written explicitly by a hostile writer): skipped
+    const size_t count = repository.getCollections().size();
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT INTO tool_collection(id, builtin_id, name, icon, modified) VALUES (0, NULL, 'Zero', NULL, 1), (-3, NULL, 'Negative', NULL, 1)"));
+    QCOMPARE(repository.getCollections().size(), count);
+    QVERIFY(!repository.findByName(QStringLiteral("Zero")));
+}
+
+void AppDataTest::toolCollectionHostileRows()
+{
+    // Rows of another version or of a hostile writer: never a crash, bounded values
+    DataFixture fixture;
+    pdf::PDFDatabase* database = fixture.database.get();
+    QVERIFY(AppDataTestHelper::execute(database,
+        "INSERT INTO tool_collection(id, builtin_id, name, icon, modified) VALUES "
+        "(1, 'unknown-builtin', 'Foreign', 'mail', 5), "                                   // unknown built-in: skipped
+        "(2, NULL, zeroblob(4), 'evil', 'yesterday'), "                                    // name of another type, icon not allowed, modified text
+        "(3, NULL, '', NULL, -7), "                                                         // empty name
+        "(4, NULL, replace(hex(zeroblob(32768)), '0', 'n'), 'star', 9), "                               // 64 kB name
+        "(5, NULL, X'41424344', 'zap', 1), "                                                // blob name
+        "(6, 42, 'Integer builtin', NULL, 1), "                                             // builtin_id of another type: skipped
+        "(7, 'prepare-for-sharing', 'Prepare for sharing', 'not-an-icon', 3), "             // override, icon not allowed
+        "(8, NULL, 'Unknown tools', NULL, 4)"));
+    QVERIFY(AppDataTestHelper::execute(database,
+        "INSERT INTO tool_collection_item(collection_id, tool_id, position) VALUES "
+        "(2, 'optimize.compress', 2), (2, 'pages.merge', 1), (2, 'unknown.tool', 0), (2, 42, 3), "
+        "(3, 'review.compare', 5), (3, 'pages.split', 5), (3, 'pages.merge', 5), "         // equal positions: the order of the catalog
+        "(4, 'pages.rotate', 'first'), (4, 'pages.crop', 0), "                             // a text position goes last
+        "(7, 'protect.password', 0), "
+        "(8, 'nothing.known', 0), (8, 'other.unknown', 1)"));
+
+    pdf::PDFToolCollectionRepository repository = fixture.collections();
+    const std::vector<pdf::PDFToolCollectionRow> rows = repository.getCollections();
+    QStringList ids;
+    for (const pdf::PDFToolCollectionRow& row : rows)
+    {
+        ids << QString::number(row.id);
+    }
+    QCOMPARE(ids, QStringList({ QStringLiteral("7"), QStringLiteral("2"), QStringLiteral("3"), QStringLiteral("4"), QStringLiteral("5"), QStringLiteral("8") }));
+
+    QCOMPARE(rows[0].builtinId, QStringLiteral("prepare-for-sharing"));
+    QVERIFY(rows[0].name.isEmpty());
+    QVERIFY(rows[0].iconName.isEmpty());
+    QCOMPARE(rows[1].name, QStringLiteral("Untitled collection"));
+    QVERIFY(rows[1].iconName.isEmpty());
+    QCOMPARE(rows[1].modified, qint64(0));
+    QCOMPARE(rows[1].toolIds, QStringList({ QStringLiteral("pages.merge"), QStringLiteral("optimize.compress") }));
+    QCOMPARE(rows[2].name, QStringLiteral("Untitled collection"));
+    QCOMPARE(rows[2].modified, qint64(0));
+    QCOMPARE(rows[2].toolIds, QStringList({ QStringLiteral("pages.merge"), QStringLiteral("pages.split"), QStringLiteral("review.compare") }));
+    QCOMPARE(rows[3].name.size(), qsizetype(pdf::PDFRepositoryHelper::MAXIMUM_NAME_LENGTH));
+    QCOMPARE(rows[3].iconName, QStringLiteral("star"));
+    QCOMPARE(rows[3].toolIds, QStringList({ QStringLiteral("pages.crop"), QStringLiteral("pages.rotate") }));
+    QCOMPARE(rows[4].name, QStringLiteral("Untitled collection"));
+    QVERIFY(rows[5].toolIds.isEmpty());
+
+    // The merged collections: an icon of the chooser always, "0 tools"
+    const std::vector<pdf::PDFAppToolCollection> merged = pdf::PDFAppToolCollections::merge(rows);
+    QCOMPARE(merged.size(), size_t(12));
+    QCOMPARE(merged[0].iconName, QStringLiteral("mail"));
+    QCOMPARE(merged[0].name, QStringLiteral("Prepare for sharing"));
+    QCOMPARE(merged[0].toolIds, QStringList({ QStringLiteral("protect.password") }));
+    for (const pdf::PDFAppToolCollection& collection : merged)
+    {
+        QVERIFY(pdf::PDFAppBuiltinToolCollections::isValidIconName(collection.iconName));
+        QVERIFY(!collection.name.isEmpty());
+    }
+    QCOMPARE(merged.back().routeId, QStringLiteral("custom-8"));
+    QVERIFY(merged.back().toolIds.isEmpty());
+
+    // Writes over hostile rows work, the names of the hostile rows are compared
+    QVERIFY(!repository.addTool(2, QString(), QStringLiteral("review.measure")).isError());
+    QCOMPARE(repository.getCollection(2)->toolIds, QStringList({ QStringLiteral("pages.merge"), QStringLiteral("optimize.compress"), QStringLiteral("review.measure") }));
+
+    // The items of the tools of a newer version (the same schema, the same file) stay
+    // over the writes of this version: Add to collection, Remove, Save
+    QVERIFY(!repository.setToolIncluded(8, QString(), QStringLiteral("pages.merge"), true).isError());
+    pdf::PDFToolCollectionDraft unknownDraft;
+    unknownDraft.id = 8;
+    unknownDraft.name = QStringLiteral("Unknown tools");
+    unknownDraft.toolIds = { QStringLiteral("pages.split"), QStringLiteral("pages.merge") };
+    QVERIFY(!repository.saveCollection(unknownDraft).isError());
+    QVERIFY(!repository.setToolIncluded(8, QString(), QStringLiteral("pages.merge"), false).isError());
+    QCOMPARE(repository.getCollection(8)->toolIds, QStringList({ QStringLiteral("pages.split") }));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_collection_item WHERE collection_id = 8 AND tool_id IN ('nothing.known', 'other.unknown')"), qint64(2));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_collection_item WHERE collection_id = 2 AND tool_id = 'unknown.tool'"), qint64(1));
+    QVERIFY(repository.createCollection(QStringLiteral("untitled COLLECTION"), QString(), { QStringLiteral("pages.merge") }).isError());
+    QVERIFY(!repository.deleteCollection(4).isError());
+    QVERIFY(repository.deleteCollection(1).isError());
+    QVERIFY(repository.deleteCollection(6).isError());
+
+    // Route ids of the custom collections: a bounded parser
+    QCOMPARE(pdf::PDFAppToolCollections::parseCustomRouteId(QStringLiteral("custom-12")), qint64(12));
+    QCOMPARE(pdf::PDFAppToolCollections::parseCustomRouteId(QStringLiteral("custom-999999999999999999")), qint64(999999999999999999));
+    for (const char* invalid : { "custom-0", "custom-012", "custom-", "custom--1", "custom-+1", "custom-1a", "custom-9999999999999999999", "Custom-1", "custom-1 ", "prepare-for-sharing", "" })
+    {
+        QCOMPARE(pdf::PDFAppToolCollections::parseCustomRouteId(QString::fromLatin1(invalid)), qint64(0));
+    }
+    QVERIFY(pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("prepare-for-sharing")));
+    QVERIFY(pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("custom-99999999999")));
+    QVERIFY(!pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("custom-0")));
+    QVERIFY(!pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("prepare")));
+}
+
+void AppDataTest::toolCollectionTwoProcesses()
+{
+    // Two processes create a collection of the same name at once: one of them wins,
+    // the other one is refused as a duplicate (the name check is inside of BEGIN IMMEDIATE)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        database.close();
+    }
+
+    const int factor = AppDataTestHelper::getTimeoutFactor();
+    for (int round = 0; round < 3; ++round)
+    {
+        const QString name = QStringLiteral("Shared %1").arg(round);
+        QProcess first;
+        QProcess second;
+        first.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-collection"), databasePath, name });
+        second.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-collection"), databasePath, name.toUpper() });
+        QVERIFY(first.waitForFinished(30000 * factor));
+        QVERIFY(second.waitForFinished(30000 * factor));
+        QCOMPARE(first.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(second.exitStatus(), QProcess::NormalExit);
+
+        // 0 = created, 6 = duplicate
+        const QList<int> codes = { first.exitCode(), second.exitCode() };
+        QVERIFY2(codes.contains(0) && codes.contains(6), qPrintable(QStringLiteral("%1 %2").arg(codes[0]).arg(codes[1])));
+    }
+
+    pdf::PDFDatabase database;
+    database.open(AppDataTestHelper::createFileOptions(databasePath));
+    QCOMPARE(pdf::PDFToolCollectionRepository(&database).getCustomCollectionCount(), 3);
+    database.close();
+}
+
+void AppDataTest::toolUsageClear()
+{
+    // Clear of Recent tools (Q2): only the use is deleted - the pins, the collections
+    // and the pairs stay
+    DataFixture fixture;
+    QVERIFY(!fixture.tools(100).recordUsage(QStringLiteral("pages.merge")).isError());
+    QVERIFY(!fixture.tools(200).recordUsage(QStringLiteral("optimize.compress")).isError());
+    QVERIFY(!fixture.tools().setPinned(QStringLiteral("pages.merge"), true).isError());
+    QVERIFY(!fixture.collections().createCollection(QStringLiteral("Mine"), QString(), { QStringLiteral("pages.merge") }).isError());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), "INSERT INTO tool_pair(from_tool, to_tool, count, last_used) VALUES ('pages.merge', 'optimize.compress', 3, 1)"));
+
+    pdf::PDFDatabaseNotifier notifier(fixture.database.get());
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+    QVERIFY(!fixture.tools().clearUsage().isError());
+    QVERIFY(fixture.tools().getUsage().empty());
+    QCOMPARE(fixture.tools().getPinnedTools(), QStringList({ QStringLiteral("pages.merge") }));
+    QCOMPARE(fixture.collections().getCustomCollectionCount(), 1);
+    QCOMPARE(fixture.tools().getPairs().size(), size_t(1));
+    QTRY_VERIFY(!spy.isEmpty());
+    QCOMPARE(spy.last().value(0).toString(), pdf::PDFToolRepository::getUsageTopic());
+
+    // A clear of an empty list, a failed clear keeps the rows
+    QVERIFY(!fixture.tools().clearUsage().isError());
+    QVERIFY(!fixture.tools(300).recordUsage(QStringLiteral("review.compare")).isError());
+    QVERIFY(AppDataFault::abortWrites(fixture.database.get(), QStringLiteral("DELETE"), QStringLiteral("tool_usage")));
+    QVERIFY(fixture.tools().clearUsage().isError());
+    QVERIFY(AppDataFault::clear(fixture.database.get()));
+    QCOMPARE(fixture.tools().getUsage().size(), size_t(1));
+
+    // The state of the pages follows
+    const pdf::PDFAppToolState state = pdf::PDFAppToolState::read(fixture.database.get(), 5);
+    QCOMPARE(state.usage.size(), size_t(1));
+    QCOMPARE(state.getLastUsed(QStringLiteral("review.compare")), qint64(300));
+    QVERIFY(state.isPinned(QStringLiteral("pages.merge")));
+    QCOMPARE(state.collections.size(), size_t(8));
+    QVERIFY(state.isSuggestNextEnabled);
+    QVERIFY(pdf::PDFAppToolState::isRelevantTopic(pdf::PDFToolRepository::getUsageTopic()));
+    QVERIFY(pdf::PDFAppToolState::isRelevantTopic(pdf::PDFToolCollectionRepository::getItemTopic()));
+    QVERIFY(pdf::PDFAppToolState::isRelevantTopic(pdf::PDFSettingsRepository::getTopic(), pdf::PDFSettingKeys::toolsSuggestNext()));
+    QVERIFY(!pdf::PDFAppToolState::isRelevantTopic(pdf::PDFSettingsRepository::getTopic(), QStringLiteral("viewing.zoom")));
+    QVERIFY(!pdf::PDFAppToolState::isRelevantTopic(QStringLiteral("recent_file")));
+}
+
+void AppDataTest::toolPairsRead()
+{
+    // Counters of the pairs for the suggestions: hostile rows skipped, filtered by the first tool
+    DataFixture fixture;
+    QVERIFY(fixture.tools().getPairs().empty());
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO tool_pair(from_tool, to_tool, count, last_used) VALUES "
+        "('pages.merge', 'optimize.compress', 7, 100), "
+        "('pages.merge', 'protect.password', 9, 50), "
+        "('pages.merge', 'pages.merge', 4, 1), "                 // a tool with itself
+        "('pages.merge', 'unknown.tool', 4, 1), "                // unknown tool
+        "('optimize.compress', 'protect.password', 0, 1), "      // no counter
+        "('optimize.compress', 'protect.sanitize', -3, 1), "     // negative counter
+        "('optimize.compress', 'pages.split', 'many', 1), "      // text counter
+        "('optimize.compress', 'pages.extract', 2, 'late'), "    // text time
+        "('review.compare', 'review.measure', 1, 7)"));
+
+    const std::vector<pdf::PDFDocumentToolPair> all = fixture.tools().getPairs();
+    QCOMPARE(all.size(), size_t(4));
+    QCOMPARE(all[0].toTool, QStringLiteral("protect.password"));
+    QCOMPARE(all[0].count, qint64(9));
+    QCOMPARE(all[1].toTool, QStringLiteral("optimize.compress"));
+    QCOMPARE(all[1].lastUsed, qint64(100));
+
+    const std::vector<pdf::PDFDocumentToolPair> compress = fixture.tools().getPairs({ QStringLiteral("optimize.compress") });
+    QCOMPARE(compress.size(), size_t(1));
+    QCOMPARE(compress[0].toTool, QStringLiteral("pages.extract"));
+    QCOMPARE(compress[0].lastUsed, qint64(0));
+
+    const std::vector<pdf::PDFDocumentToolPair> two = pdf::PDFAppToolState::readPairs(fixture.database.get(), { QStringLiteral("pages.merge"), QStringLiteral("review.compare") });
+    QCOMPARE(two.size(), size_t(3));
+    QVERIFY(pdf::PDFAppToolState::readPairs(nullptr, QStringList()).empty());
+
+    // The pairs are the input of the suggestions of the collections editor
+    pdf::PDFDocumentToolSuggestionInput input;
+    input.fromTools = { QStringLiteral("pages.merge") };
+    input.pairs = all;
+    input.defaultSuccessors = QStringList();
+    const QStringList suggestions = pdf::PDFDocumentToolSuggestions::suggest(input);
+    QCOMPARE(suggestions, QStringList({ QStringLiteral("protect.password"), QStringLiteral("optimize.compress") }));
+
+    // More rows of other tools than the limit with higher counters (another version,
+    // a hostile writer) never hide the pairs of the requested tools
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 10050) "
+        "INSERT INTO tool_pair(from_tool, to_tool, count, last_used) SELECT 'other.tool' || x, 'pages.split', 1000000, 1 FROM n"));
+    const std::vector<pdf::PDFDocumentToolPair> merge = fixture.tools().getPairs({ QStringLiteral("pages.merge"), QStringLiteral("unknown.tool"), QStringLiteral("pages.merge") });
+    QCOMPARE(merge.size(), size_t(2));
+    QCOMPARE(merge[0].toTool, QStringLiteral("protect.password"));
+    QCOMPARE(merge[1].toTool, QStringLiteral("optimize.compress"));
+    QCOMPARE(fixture.tools().getPairs({ QStringLiteral("review.compare"), QStringLiteral("pages.merge") }).size(), size_t(3));
+    QVERIFY(fixture.tools().getPairs({ QStringLiteral("unknown.tool") }).empty());
+    QVERIFY(fixture.tools().getPairs().size() <= size_t(pdf::PDFToolRepository::MAXIMUM_PAIRS));
+}
+
+void AppDataTest::toolUsageRecording()
+{
+    // PDFDocumentToolUsage (step 6, package D): the use and the pairs of an accepted
+    // run in one BEGIN IMMEDIATE, MCP not counted, the setting tools.suggestNext
+    DataFixture fixture;
+    pdf::PDFDatabase* database = fixture.database.get();
+    pdf::PDFDocumentToolUsage usage(database);
+    pdf::PDFDocumentToolAvailability availability;
+
+    // The defaults of the catalog before the first pair
+    QVERIFY(usage.isSuggestNextEnabled());
+    QCOMPARE(usage.getSuggestions(QStringLiteral("pages.merge"), availability), QStringList({ QStringLiteral("edit.page-numbers"), QStringLiteral("protect.password"), QStringLiteral("optimize.compress") }));
+    QVERIFY(usage.getSuggestions(QStringLiteral("unknown.tool"), availability).isEmpty());
+
+    // A run without a previous tool: only the use
+    usage.setCurrentTime(1000);
+    QVERIFY(!usage.recordRun(QStringLiteral("pages.merge")).isError());
+    QCOMPARE(fixture.tools().getUsage().size(), size_t(1));
+    QCOMPARE(fixture.tools().getUsage().front().lastUsed, qint64(1000));
+    QVERIFY(fixture.tools().getPairs().empty());
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(0));
+
+    // The next tool over the result: the use, the pair with the inserted defaults and the
+    // run of the history - notified in one commit
+    pdf::PDFDatabaseNotifier notifier(database);
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+    usage.setCurrentTime(2000);
+    QVERIFY(!usage.recordRun(QStringLiteral("optimize.compress"), QStringLiteral("pages.merge")).isError());
+    QCOMPARE(fixture.tools().getPairs({ QStringLiteral("pages.merge") }).size(), size_t(3));
+    QCOMPARE(fixture.tools().getPairs().front().toTool, QStringLiteral("optimize.compress"));
+    QCOMPARE(fixture.tools().getPairs().front().count, qint64(3));
+    QCOMPARE(fixture.tools().getPairs().front().lastUsed, qint64(2000));
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(1));
+    QCOMPARE(fixture.tools().getUsage().front().toolId, QStringLiteral("optimize.compress"));
+    QCOMPARE(usage.getSuggestions(QStringLiteral("pages.merge"), availability), QStringList({ QStringLiteral("optimize.compress"), QStringLiteral("edit.page-numbers"), QStringLiteral("protect.password") }));
+    QTRY_VERIFY(!spy.isEmpty());
+    QStringList topics;
+    for (const QList<QVariant>& arguments : std::as_const(spy))
+    {
+        topics << arguments.value(0).toString();
+    }
+    QVERIFY(topics.contains(pdf::PDFToolRepository::getUsageTopic()));
+    QVERIFY(topics.contains(pdf::PDFToolRepository::getPairTopic()));
+
+    // Unavailable tools are skipped
+    availability.isDocumentLocked = true;
+    QCOMPARE(usage.getSuggestions(QStringLiteral("pages.merge"), availability), QStringList());
+    availability.isDocumentLocked = false;
+
+    // MCP never counts; an unknown tool is refused; an unknown or the same previous tool records no pair
+    const qint64 runs = fixture.tools().getHistoryRuns();
+    QVERIFY(!usage.recordRun(QStringLiteral("protect.password"), QStringLiteral("pages.merge"), pdf::PDFDocumentToolUsage::Origin::Mcp).isError());
+    QCOMPARE(fixture.tools().getUsage().size(), size_t(2));
+    QVERIFY(usage.recordRun(QStringLiteral("unknown.tool"), QStringLiteral("pages.merge")).isError());
+    QVERIFY(usage.recordRun(QString(100000, QLatin1Char('x'))).isError());
+    QVERIFY(!usage.recordRun(QStringLiteral("protect.password"), QStringLiteral("unknown.tool")).isError());
+    QVERIFY(!usage.recordRun(QStringLiteral("protect.password"), QStringLiteral("protect.password")).isError());
+    QCOMPARE(fixture.tools().getUsage().size(), size_t(3));
+    QCOMPARE(fixture.tools().getHistoryRuns(), runs);
+    QCOMPARE(fixture.tools().getPairs().size(), size_t(3));
+
+    // A failure of any part rolls the whole run back
+    for (const char* table : { "tool_pair", "setting", "tool_usage" })
+    {
+        const std::vector<pdf::PDFToolUsage> usageBefore = fixture.tools().getUsage();
+        const std::vector<pdf::PDFDocumentToolPair> pairsBefore = fixture.tools().getPairs();
+        QVERIFY(AppDataFault::abortWrites(database, QStringLiteral("INSERT"), QString::fromLatin1(table)));
+        QVERIFY2(usage.recordRun(QStringLiteral("edit.page-numbers"), QStringLiteral("pages.merge")).isError(), table);
+        QVERIFY(AppDataFault::clear(database));
+        QCOMPARE(fixture.tools().getUsage().size(), usageBefore.size());
+        QCOMPARE(fixture.tools().getUsage().front().toolId, usageBefore.front().toolId);
+        QCOMPARE(fixture.tools().getPairs(), pairsBefore);
+        QCOMPARE(fixture.tools().getHistoryRuns(), runs);
+    }
+    QVERIFY(AppDataFault::failCommit(database, QStringLiteral("tool_pair")));
+    QVERIFY(usage.recordRun(QStringLiteral("edit.page-numbers"), QStringLiteral("pages.merge")).isError());
+    QVERIFY(AppDataFault::clear(database));
+    QVERIFY(AppDataFault::abortWrites(database, QStringLiteral("DELETE"), QStringLiteral("tool_pair")));
+    QVERIFY(usage.recordRun(QStringLiteral("edit.page-numbers"), QStringLiteral("pages.merge")).isError());
+    QVERIFY(AppDataFault::clear(database));
+    QVERIFY(AppDataFault::failReads(database, QStringLiteral("tool_pair")));
+    QVERIFY(usage.recordRun(QStringLiteral("edit.page-numbers"), QStringLiteral("pages.merge")).isError());
+    QVERIFY(AppDataTestHelper::execute(database, "DROP VIEW IF EXISTS temp.tool_pair"));
+    QCOMPARE(fixture.tools().getHistoryRuns(), runs);
+    QCOMPARE(fixture.tools().getPairs().size(), size_t(3));
+
+    // The setting off: the use is recorded (Recent tools), the history is not; only the defaults are suggested
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::toolsSuggestNext(), false).isError());
+    QVERIFY(!usage.isSuggestNextEnabled());
+    const std::vector<pdf::PDFDocumentToolPair> pairsBefore = fixture.tools().getPairs();
+    usage.setCurrentTime(3000);
+    QVERIFY(!usage.recordRun(QStringLiteral("review.compare"), QStringLiteral("pages.merge")).isError());
+    QCOMPARE(fixture.tools().getUsage().front().toolId, QStringLiteral("review.compare"));
+    QCOMPARE(fixture.tools().getPairs(), pairsBefore);
+    QCOMPARE(fixture.tools().getHistoryRuns(), runs);
+    QCOMPARE(usage.getSuggestions(QStringLiteral("pages.merge"), availability), QStringList({ QStringLiteral("edit.page-numbers"), QStringLiteral("protect.password"), QStringLiteral("optimize.compress") }));
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::toolsSuggestNext(), true).isError());
+
+    // Hostile rows are dropped by the next write of the tool, a hostile counter of the
+    // runs starts again; a pair with a tool, which this version does not know (a tool of
+    // a newer version), is dropped too - no forward compatibility of the history (O25)
+    QVERIFY(AppDataTestHelper::execute(database,
+        "INSERT INTO tool_pair(from_tool, to_tool, count, last_used) VALUES "
+        "('review.compare', 'unknown.tool', 5, 1), ('review.compare', 'review.compare', 5, 1), "
+        "('review.compare', 'review.report', 'many', 1), ('review.compare', 'review.measure', 3, 'late')"));
+    QVERIFY(AppDataTestHelper::execute(database, "UPDATE setting SET value = 'abc' WHERE key = 'tools.historyRuns'"));
+    QVERIFY(!usage.recordRun(QStringLiteral("review.report"), QStringLiteral("review.compare")).isError());
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_pair WHERE from_tool = 'review.compare'"), qint64(2));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_pair WHERE from_tool = 'review.compare' AND to_tool = 'review.compare'"), qint64(0));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT count FROM tool_pair WHERE from_tool = 'review.compare' AND to_tool = 'review.report'"), qint64(1));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT count FROM tool_pair WHERE from_tool = 'review.compare' AND to_tool = 'review.measure'"), qint64(3));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_pair WHERE to_tool = 'unknown.tool'"), qint64(0));
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(1));
+
+    // Aging: the sum of the counters stays bounded
+    for (int i = 0; i < 120; ++i)
+    {
+        QVERIFY(!usage.recordRun(QStringLiteral("review.report"), QStringLiteral("review.compare")).isError());
+    }
+    QVERIFY(AppDataTestHelper::queryInteger(database, "SELECT SUM(count) FROM tool_pair WHERE from_tool = 'review.compare'") <= pdf::PDFDocumentToolSuggestions::AGING_LIMIT + 1);
+    QCOMPARE(fixture.tools().getHistoryRuns(), qint64(121));
+    QCOMPARE(usage.getSuggestions(QStringLiteral("review.compare"), availability), QStringList({ QStringLiteral("review.report") }));
+
+    // Clear history (Settings): the defaults again, the use stays
+    QVERIFY(!fixture.tools().clearHistory().isError());
+    QCOMPARE(usage.getSuggestions(QStringLiteral("pages.merge"), availability), QStringList({ QStringLiteral("edit.page-numbers"), QStringLiteral("protect.password"), QStringLiteral("optimize.compress") }));
+    QVERIFY(!fixture.tools().getUsage().empty());
+
+    // No database
+    pdf::PDFDocumentToolUsage none(nullptr);
+    QVERIFY(none.recordRun(QStringLiteral("pages.merge")).isError());
+    QVERIFY(none.isSuggestNextEnabled());
+    QCOMPARE(none.getSuggestions(QStringLiteral("optimize.compress"), availability), QStringList({ QStringLiteral("protect.password") }));
+}
+
+void AppDataTest::toolUsageTwoProcesses()
+{
+    // Three processes record runs at once: nothing is lost (BEGIN IMMEDIATE)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        database.close();
+    }
+
+    const int factor = AppDataTestHelper::getTimeoutFactor();
+    constexpr int PROCESS_COUNT = 3;
+    constexpr int RUN_COUNT = 15;
+    std::vector<std::unique_ptr<QProcess>> processes;
+    for (int i = 0; i < PROCESS_COUNT; ++i)
+    {
+        processes.push_back(std::make_unique<QProcess>());
+        processes.back()->start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-toolusage"), databasePath, QString::number(RUN_COUNT) });
+    }
+    for (const std::unique_ptr<QProcess>& process : processes)
+    {
+        QVERIFY(process->waitForFinished(60000 * factor));
+        QCOMPARE(process->exitStatus(), QProcess::NormalExit);
+        QCOMPARE(process->exitCode(), 0);
+    }
+
+    // 45 runs: below the aging limit, Compare has no default successors
+    pdf::PDFDatabase database;
+    database.open(AppDataTestHelper::createFileOptions(databasePath));
+    pdf::PDFToolRepository tools(&database);
+    const std::vector<pdf::PDFDocumentToolPair> pairs = tools.getPairs();
+    QCOMPARE(pairs.size(), size_t(1));
+    QCOMPARE(pairs.front().count, qint64(PROCESS_COUNT * RUN_COUNT));
+    QCOMPARE(tools.getUsage().front().count, qint64(PROCESS_COUNT * RUN_COUNT));
+    QCOMPARE(tools.getHistoryRuns(), qint64(PROCESS_COUNT * RUN_COUNT));
+    database.close();
+}
+
+void AppDataTest::toolParameterValues()
+{
+    // PDFToolParameterRepository (step 6, package D): the last values of the parameters
+    // validated by their definitions, a Secret never stored, hostile rows = the defaults
+    DataFixture fixture;
+    pdf::PDFDatabase* database = fixture.database.get();
+    pdf::PDFToolParameterRepository repository(database);
+    pdftest::TestDocumentTool tool;
+    const pdf::PDFDocumentToolParameterDefinitions definitions = tool.getParameters();
+    const QString toolId = tool.getId();
+    const QVariantMap defaults = pdf::PDFDocumentToolParameters::getDefaultValues(definitions);
+
+    QCOMPARE(repository.getValues(toolId, definitions), defaults);
+
+    QVariantMap values;
+    values.insert(QStringLiteral("pages"), QStringLiteral("2-3"));
+    values.insert(QStringLiteral("mode"), QStringLiteral("title"));
+    values.insert(QStringLiteral("detailed"), true);
+    values.insert(QStringLiteral("repeat"), 9);
+    values.insert(QStringLiteral("scale"), 0.5);
+    values.insert(QStringLiteral("title"), QStringLiteral("Annual report"));
+    values.insert(QStringLiteral("color"), QStringLiteral("#102030"));
+    values.insert(QStringLiteral("reportFile"), QStringLiteral("C:/a.txt"));
+    values.insert(QStringLiteral("outputFolder"), QStringLiteral("C:/out"));
+    values.insert(QStringLiteral("fileName"), QStringLiteral("{name}.txt"));
+    values.insert(QStringLiteral("password"), QStringLiteral("secret"));
+
+    pdf::PDFDatabaseNotifier notifier(database);
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+    QVERIFY(!repository.setValues(toolId, definitions, values).isError());
+    QTRY_VERIFY(!spy.isEmpty());
+    QCOMPARE(spy.last().value(0).toString(), pdf::PDFToolParameterRepository::getTopic());
+    QCOMPARE(spy.last().value(1).toString(), toolId);
+
+    QVariantMap expected;
+    QVERIFY(pdf::PDFDocumentToolParameters::normalize(definitions, values, &expected).empty());
+    expected.insert(QStringLiteral("password"), QString());
+    QCOMPARE(repository.getValues(toolId, definitions), expected);
+
+    // The secret is never in the table, the types of SQLite are native
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_parameter WHERE name = 'password'"), qint64(0));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_parameter"), qint64(10));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT typeof(value) = 'integer' FROM tool_parameter WHERE name = 'repeat'"), qint64(1));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT typeof(value) = 'real' FROM tool_parameter WHERE name = 'scale'"), qint64(1));
+    const pdf::PDFDocumentToolParameterDefinition* secret = pdf::PDFDocumentToolParameters::find(definitions, QStringLiteral("password"));
+    QVERIFY(repository.setValue(toolId, *secret, QStringLiteral("secret")).isError());
+
+    // A value equal to the default removes its row; one value alone
+    const pdf::PDFDocumentToolParameterDefinition* repeat = pdf::PDFDocumentToolParameters::find(definitions, QStringLiteral("repeat"));
+    QVERIFY(!repository.setValue(toolId, *repeat, 1).isError());
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_parameter WHERE name = 'repeat'"), qint64(0));
+    QVERIFY(!repository.setValue(toolId, *repeat, 42).isError());
+    QCOMPARE(repository.getValues(toolId, definitions).value(QStringLiteral("repeat")), QVariant(qint64(42)));
+
+    // Invalid input refuses the whole write
+    QVariantMap invalid;
+    invalid.insert(QStringLiteral("repeat"), 7);
+    invalid.insert(QStringLiteral("color"), QStringLiteral("blue"));
+    QVERIFY(repository.setValues(toolId, definitions, invalid).isError());
+    QCOMPARE(repository.getValues(toolId, definitions).value(QStringLiteral("repeat")), QVariant(qint64(42)));
+    invalid.clear();
+    invalid.insert(QStringLiteral("unknown"), 1);
+    QVERIFY(repository.setValues(toolId, definitions, invalid).isError());
+    QVERIFY(repository.setValues(QStringLiteral("unknown.tool"), definitions, values).isError());
+    QVERIFY(repository.setValues(toolId, { definitions.front(), definitions.front() }, QVariantMap()).isError());
+    QCOMPARE(repository.getValues(QStringLiteral("unknown.tool"), definitions), defaults);
+
+    // Hostile rows of another version or of another program
+    QVERIFY(!repository.clearValues(toolId).isError());
+    QVERIFY(AppDataTestHelper::execute(database,
+        "INSERT INTO tool_parameter(tool_id, name, value) VALUES "
+        "('review.statistics', 'repeat', 'abc'), ('review.statistics', 'detailed', 5), ('review.statistics', 'password', 'leaked'), "
+        "('review.statistics', 'unknown', 1), ('review.statistics', 'pages', '{\"pages\":\"0\"}'), ('review.statistics', 'mode', 'hack'), "
+        "('review.statistics', 'title', zeroblob(100)), ('review.statistics', 'reportFile', 12), ('review.statistics', 'scale', 1e308), "
+        "('review.statistics', 'color', 'red'), ('review.statistics', 'fileName', 'a/b'), ('unknown.tool', 'repeat', 3), "
+        "('review.statistics', 'outputFolder', printf('%.*c', 100000, 'x'))"));
+    QCOMPARE(repository.getValues(toolId, definitions), defaults);
+
+    // The next write removes the stored secret
+    QVERIFY(!repository.setValues(toolId, definitions, QVariantMap()).isError());
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_parameter WHERE name = 'password'"), qint64(0));
+
+    // A write failure keeps the stored values
+    QVERIFY(!repository.setValue(toolId, *repeat, 5).isError());
+    QVERIFY(AppDataFault::abortWrites(database, QStringLiteral("INSERT"), QStringLiteral("tool_parameter")));
+    values.insert(QStringLiteral("password"), QString());
+    QVERIFY(repository.setValues(toolId, definitions, values).isError());
+    QVERIFY(AppDataFault::clear(database));
+    QCOMPARE(repository.getValues(toolId, definitions).value(QStringLiteral("repeat")), QVariant(qint64(5)));
+    QCOMPARE(repository.getValues(toolId, definitions).value(QStringLiteral("mode")), QVariant(QStringLiteral("count")));
+
+    // A failed commit keeps the stored values too
+    QVERIFY(AppDataFault::failCommit(database, QStringLiteral("tool_parameter")));
+    QVERIFY(repository.setValues(toolId, definitions, values).isError());
+    QVERIFY(repository.clearValues(toolId).isError());
+    QVERIFY(AppDataFault::clear(database));
+    QVERIFY(AppDataFault::abortWrites(database, QStringLiteral("DELETE"), QStringLiteral("tool_parameter")));
+    QVERIFY(repository.clearValues(toolId).isError());
+    QVERIFY(AppDataFault::clear(database));
+    QCOMPARE(repository.getValues(toolId, definitions).value(QStringLiteral("repeat")), QVariant(qint64(5)));
+
+    // Invalid definitions read the defaults only
+    QCOMPARE(repository.getValues(toolId, { definitions.front(), definitions.front() }), QVariantMap({ { definitions.front().getName(), definitions.front().getDefaultValue() } }));
+
+    // Clear
+    QVERIFY(!repository.clearValues(toolId).isError());
+    QCOMPARE(repository.getValues(toolId, definitions), defaults);
+    QVERIFY(repository.clearValues(QStringLiteral("unknown.tool")).isError());
+
+    // No database
+    pdf::PDFToolParameterRepository none(nullptr);
+    QCOMPARE(none.getValues(toolId, definitions), defaults);
+    QVERIFY(none.setValues(toolId, definitions, values).isError());
+    QVERIFY(none.clearValues(toolId).isError());
 }
 
 int main(int argc, char* argv[])

@@ -579,6 +579,15 @@ void PDFToolCategoryHeader::setTopRadius(qreal radius)
     }
 }
 
+void PDFToolCategoryHeader::setTitleData(bool isTitleData)
+{
+    if (m_header.isTitleData != isTitleData)
+    {
+        m_header.isTitleData = isTitleData;
+        update();
+    }
+}
+
 void PDFToolCategoryHeader::updateDescription()
 {
     // "Merge, split, reorder and rotate pages, 6 tools"

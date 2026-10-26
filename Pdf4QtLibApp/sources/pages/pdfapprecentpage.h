@@ -64,8 +64,9 @@ public:
     QString details;
     QString progressText;
     qreal progress = -1.0;
-    QString opened;
-    qint64 time = 0;            ///< Time of opening / of the use (sort, groups)
+    QString opened;             ///< Text of the time (O25: "5 minutes ago", follows the clock)
+    qint64 time = 0;            ///< Time of opening / of the use (sort, groups, the text opened)
+    qint64 savedTime = 0;       ///< Workspace: the time of the save in the details ("Saved 5 minutes ago")
     QString sortFolder;         ///< Folder for the sort by folder
     bool isPinned = false;
     bool isMissing = false;     ///< The file no longer exists
@@ -105,6 +106,10 @@ public:
 
     /// Row of the item of the type with the path and the id (-1 = none)
     int findItem(PDFAppRecentItem::Type type, const QString& path, qint64 id) const;
+
+    /// Formats the time texts of the items against \p now again (O25, the minute
+    /// ticker): the rows, whose texts change, get dataChanged - no reset of the model
+    void updateTimes(qint64 now);
 
     /// Updates the existence / the details of the item of the path
     void setMissing(const QString& path, bool isMissing);
@@ -258,6 +263,7 @@ public:
 protected:
     virtual void refresh() override;
     virtual void onPathInfoChanged(const QString& path) override;
+    virtual void updateTimeTexts(qint64 now) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
@@ -323,6 +329,7 @@ private:
     QList<QPointer<PDFWorkspaceRow>> m_workspaceRows;
     QString m_pinnedSignature;
     QString m_workspacesSignature;
+    QDate m_groupsDate;         ///< Day of the groups of the list (Today, Yesterday, ...)
 };
 
 /// Factory of the page Recent

@@ -27,6 +27,7 @@
 #include "pdfapppaths.h"
 #include "pdfapptranslator.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfrepositoryhelper.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfannotationstyle.h"
@@ -47,6 +48,7 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
 {
     m_documentRegistry = new PDFAppDocumentRegistry(this);
     m_translator = new PDFAppTranslator(this);
+    m_minuteTicker = new PDFAppMinuteTicker(this);
 
     // O17: the texts of the application are formatted in the language of the user
     // interface; the default locale of the process follows it ("%Ln", Qt widgets,
@@ -194,6 +196,11 @@ PDFToolRepository PDFAppContext::getTools() const
     return PDFToolRepository(m_database);
 }
 
+PDFToolCollectionRepository PDFAppContext::getToolCollections() const
+{
+    return PDFToolCollectionRepository(m_database);
+}
+
 PDFDatabaseState PDFAppContext::getStorageState() const
 {
     return m_database ? m_database->getState() : PDFDatabaseState();
@@ -308,46 +315,11 @@ void PDFAppContext::applyAuthorSettings()
 
 QString PDFAppContext::sanitizeAuthorName(const QString& name)
 {
+    // Control characters, line and paragraph separators, bidirectional
+    // controls and other format characters never get into the documents; the
+    // joiners (ZWNJ, ZWJ) are a part of names written in some scripts
     constexpr qsizetype MAXIMUM_LENGTH = 256;
-
-    QString result;
-    result.reserve(qMin(name.size(), MAXIMUM_LENGTH));
-    for (qsizetype i = 0; i < name.size(); ++i)
-    {
-        // Whole code points: a surrogate pair is one character, a lone surrogate
-        // (invalid UTF-16) is dropped
-        char32_t codePoint = name.at(i).unicode();
-        qsizetype length = 1;
-        if (QChar::isHighSurrogate(codePoint) && i + 1 < name.size() && name.at(i + 1).isLowSurrogate())
-        {
-            codePoint = QChar::surrogateToUcs4(name.at(i), name.at(i + 1));
-            length = 2;
-        }
-        else if (QChar::isSurrogate(codePoint))
-        {
-            continue;
-        }
-
-        // Control characters, line and paragraph separators, bidirectional
-        // controls and other format characters never get into the documents; the
-        // joiners (ZWNJ, ZWJ) are a part of names written in some scripts
-        const QChar::Category category = QChar::category(codePoint);
-        const bool isJoiner = codePoint == 0x200C || codePoint == 0x200D;
-        const bool isRemoved = category == QChar::Other_Control || category == QChar::Other_NotAssigned ||
-                               category == QChar::Separator_Line || category == QChar::Separator_Paragraph ||
-                               (category == QChar::Other_Format && !isJoiner);
-        if (!isRemoved)
-        {
-            if (result.size() + length > MAXIMUM_LENGTH)
-            {
-                break;
-            }
-            result.append(name.mid(i, length));
-        }
-        i += length - 1;
-    }
-
-    return result.trimmed();
+    return PDFRepositoryHelper::removeInvisibleCharacters(name, true, MAXIMUM_LENGTH).trimmed();
 }
 
 void PDFAppContext::onSettingChanged(const QString& topic, const QString& key)

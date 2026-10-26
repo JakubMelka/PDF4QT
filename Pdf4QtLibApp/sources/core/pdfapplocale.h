@@ -109,6 +109,38 @@ public:
 
     /// "1.3 kB" (QLocale::formattedDataSize in the locale of the user interface)
     static QString formatDataSize(qint64 bytes, int precision, QLocale::DataSizeFormats format);
+
+    /// Place of a time of recent activity in a text (formatRecentTime)
+    enum class RecentTimeUse
+    {
+        Standalone,     ///< The whole text ("Just now")
+        InSentence      ///< A part of a sentence ("Opened just now")
+    };
+
+    /// Time of recent activity (owner decision O25: the recent files of Home, Open
+    /// and Recent, the recent folders, the workspaces, the last session and the
+    /// recent tools of the Tools page and of the Tools panel): "Just now" under a
+    /// minute, "5 minutes ago" under an hour, then "Today 15:56", "Yesterday 16:20"
+    /// and the date "Sep 25, 2026". The minutes are the elapsed time, the days are
+    /// the calendar days of the time zone of \p now (a day of a change of the
+    /// daylight saving time has 23 or 25 hours). A time in the future (a clock set
+    /// back, another instance) is "Just now" less than a minute ahead, otherwise the
+    /// absolute text ("Today 16:30", the date) - never "in 5 minutes". An empty text
+    /// for an invalid time. Times, which are data of a document (comments, document
+    /// properties), stay absolute (formatDateTime). The texts of a visible list are
+    /// updated once a minute by PDFAppMinuteTicker.
+    /// A time inside of a sentence (\p use RecentTimeUse::InSentence: "Opened just
+    /// now", "Last used 5 minutes ago") starts with a small letter; "Today 10:24"
+    /// and "Yesterday 16:15" keep their capital letters there (Figma: "Opened
+    /// Yesterday 16:15").
+    static QString formatRecentTime(const QDateTime& time, const QDateTime& now, RecentTimeUse use = RecentTimeUse::Standalone);
+
+    /// Current time in milliseconds since the epoch of the times of recent activity
+    /// (tests fix it by setCurrentTimeOverride). Thread safe.
+    static qint64 getCurrentTime();
+
+    /// Fixed current time (tests); 0 = the clock
+    static void setCurrentTimeOverride(qint64 time);
 };
 
 }   // namespace pdf

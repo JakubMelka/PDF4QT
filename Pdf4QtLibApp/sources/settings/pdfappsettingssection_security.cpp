@@ -60,7 +60,7 @@ QString PDFAppSecuritySettingsSection::getRestoreDefaultsText(int count) const
     {
         return tr("This setting of the %1 section goes back to its default value. Your trusted certificates, the other sections, your history and your shortcuts stay as they are.").arg(getTitle());
     }
-    return tr("These %1 settings of the %2 section go back to their default values. Your trusted certificates, the other sections, your history and your shortcuts stay as they are.").arg(count).arg(getTitle());
+    return tr("These %Ln settings of the %1 section go back to their default values. Your trusted certificates, the other sections, your history and your shortcuts stay as they are.", nullptr, count).arg(getTitle());
 }
 
 QWidget* PDFAppSecuritySettingsSection::findAnchorWidget(const QString& anchor) const

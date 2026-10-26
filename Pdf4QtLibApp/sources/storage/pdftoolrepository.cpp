@@ -26,10 +26,12 @@
 #include "pdfsettingdefinitions.h"
 
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolsuggestions.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
 
+#include <algorithm>
 #include <limits>
 
 namespace pdf
@@ -44,6 +46,20 @@ public:
     static PDFDatabaseError unknownTool()
     {
         return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFToolRepository", "Unknown tool."));
+    }
+
+    /// Order of the pairs: the highest counter first, then by the tools
+    static bool isPairBefore(const PDFDocumentToolPair& left, const PDFDocumentToolPair& right)
+    {
+        if (left.count != right.count)
+        {
+            return left.count > right.count;
+        }
+        if (left.fromTool != right.fromTool)
+        {
+            return left.fromTool < right.fromTool;
+        }
+        return left.toTool < right.toTool;
     }
 };
 
@@ -290,6 +306,90 @@ PDFDatabaseError PDFToolRepository::clearHistory()
         return transaction.getError();
     }
     return PDFDatabaseError();
+}
+
+PDFDatabaseError PDFToolRepository::clearUsage()
+{
+    PDFDatabaseConnection* connection = getConnection();
+    PDFDatabaseTransaction transaction(connection);
+    if (!transaction.isActive())
+    {
+        return transaction.getError();
+    }
+
+    PDFDatabaseStatement statement(connection, "DELETE FROM tool_usage");
+    if (!statement.execute())
+    {
+        return statement.getError();
+    }
+
+    if (!transaction.commit())
+    {
+        return transaction.getError();
+    }
+    return PDFDatabaseError();
+}
+
+std::vector<PDFDocumentToolPair> PDFToolRepository::getPairs(const QStringList& fromToolIds) const
+{
+    // The first tools are filtered by SQL (the primary key): rows of other tools -
+    // also many hostile rows with high counters - never hide the pairs of the tools
+    QStringList filter;
+    for (const QString& toolId : fromToolIds)
+    {
+        if (PDFDocumentToolCatalog::isValidToolId(toolId) && !filter.contains(toolId))
+        {
+            filter << toolId;
+        }
+    }
+    if (!fromToolIds.isEmpty() && filter.isEmpty())
+    {
+        return std::vector<PDFDocumentToolPair>();
+    }
+
+    std::vector<PDFDocumentToolPair> pairs;
+    PDFDatabaseStatement statement(getConnection(),
+        "SELECT CASE WHEN typeof(from_tool) = 'text' AND length(from_tool) <= 64 THEN from_tool END, "
+        "CASE WHEN typeof(to_tool) = 'text' AND length(to_tool) <= 64 THEN to_tool END, count, last_used FROM tool_pair "
+        "WHERE ?2 IS NULL OR from_tool = ?2 "
+        "ORDER BY CASE WHEN typeof(count) = 'integer' THEN count END DESC, from_tool, to_tool LIMIT ?1");
+    const qsizetype queryCount = filter.isEmpty() ? 1 : filter.size();
+    for (qsizetype i = 0; i < queryCount && pairs.size() < size_t(MAXIMUM_PAIRS); ++i)
+    {
+        statement.bindInt64(1, MAXIMUM_PAIRS);
+        if (filter.isEmpty())
+        {
+            statement.bindNull(2);
+        }
+        else
+        {
+            statement.bindText(2, filter[i]);
+        }
+
+        while (statement.next())
+        {
+            PDFDocumentToolPair pair;
+            pair.fromTool = PDFRepositoryHelper::readText(statement, 0, PDFDocumentToolCatalog::MAXIMUM_ID_LENGTH);
+            pair.toTool = PDFRepositoryHelper::readText(statement, 1, PDFDocumentToolCatalog::MAXIMUM_ID_LENGTH);
+            pair.count = PDFRepositoryHelper::readInteger(statement, 2, 0, 0, std::numeric_limits<qint64>::max());
+            pair.lastUsed = PDFRepositoryHelper::readInteger(statement, 3, 0, 0, std::numeric_limits<qint64>::max());
+            if (pair.count <= 0 || pair.fromTool == pair.toTool || !PDFDocumentToolCatalog::isValidToolId(pair.fromTool) ||
+                !PDFDocumentToolCatalog::isValidToolId(pair.toTool))
+            {
+                continue;
+            }
+            pairs.push_back(pair);
+            if (pairs.size() >= size_t(MAXIMUM_PAIRS))
+            {
+                statement.reset();
+                break;
+            }
+        }
+    }
+
+    // The highest counter first (the order of one query)
+    std::stable_sort(pairs.begin(), pairs.end(), PDFToolRepositoryHelper::isPairBefore);
+    return pairs;
 }
 
 }   // namespace pdf

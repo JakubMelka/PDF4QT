@@ -38,6 +38,7 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumenttoolbar.h"
+#include "pdfappdocumenttoolspanel.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
 #include "pdfappsearchengine.h"
@@ -210,7 +211,7 @@ public:
             return toolbar->openPanel(Panel::File) && toolbar->switchPanel(button, false);
         }
 
-        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
         {
             if (toolbar->getMenuButton(panel) == button)
             {
@@ -234,7 +235,7 @@ public:
     static int countOpen(pdf::PDFAppDocumentToolbar* toolbar)
     {
         int count = toolbar->getSelectMenu() && toolbar->getSelectMenu()->isVisible() ? 1 : 0;
-        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert })
+        for (Panel panel : { Panel::File, Panel::View, Panel::GoTo, Panel::Annotate, Panel::Insert, Panel::Tools })
         {
             if (toolbar->findPanel(panel) && toolbar->findPanel(panel)->isVisible())
             {
@@ -334,6 +335,7 @@ private slots:
     void popoverStyleFunctions();
     void screenshots();
     void viewDestroyedSilently();
+    void panelReopenFocus();
 };
 
 void AppDocumentViewTest::initTestCase()
@@ -2744,9 +2746,11 @@ void AppDocumentViewTest::panelHoverSwitch()
     QVERIFY(tab);
     pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
     const std::vector<QToolButton*> buttons = toolbar->getPanelButtons();
-    QCOMPARE(buttons.size(), size_t(6));
+    QCOMPARE(buttons.size(), size_t(7));
     QCOMPARE(buttons.back(), toolbar->getSelectButton());
-    QVERIFY(std::find(buttons.cbegin(), buttons.cend(), toolbar->getToolsButton()) == buttons.cend());
+
+    // Tools is a panel of the menu bar too (step 6, 196:3650), before the Select button
+    QCOMPARE(buttons.at(buttons.size() - 2), toolbar->getToolsButton());
     for (QToolButton* button : buttons)
     {
         QVERIFY2(button->isVisible() && button->isEnabled(), qPrintable(button->objectName()));
@@ -2809,7 +2813,7 @@ void AppDocumentViewTest::panelHoverSwitch()
     }
 
     // The pointer over the open panel, its own button and buttons of no panel (zoom,
-    // page navigation, Tools, the search field, sidebar) keeps the panel
+    // page navigation, the search field, sidebar) keeps the panel
     QToolButton* fileButton = toolbar->getMenuButton(H::Panel::File);
     QVERIFY(H::open(toolbar, fileButton));
     fixture.settle();
@@ -2818,7 +2822,7 @@ void AppDocumentViewTest::panelHoverSwitch()
     H::hover(fileButton);
     for (QWidget* widget : std::initializer_list<QWidget*>{ toolbar->getCommandButton(pdf::PDFAppCommands::zoomIn()), toolbar->getCommandButton(pdf::PDFAppCommands::zoomOut()),
                                                            toolbar->getCommandButton(pdf::PDFAppCommands::nextPage()), toolbar->getPageField(), toolbar->getZoomField(),
-                                                           toolbar->getToolsButton(), toolbar->getSearchField(), toolbar->getCommandButton(pdf::PDFAppCommands::toggleSidebar()),
+                                                           toolbar->getSearchField(), toolbar->getCommandButton(pdf::PDFAppCommands::toggleSidebar()),
                                                            toolbar->getCommandButton(pdf::PDFAppCommands::undo()) })
     {
         if (widget && widget->isVisible())
@@ -2891,7 +2895,7 @@ void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
     QCOMPARE(toolbar->getOpenPanelButton(), viewButton);
 
     // The keyboard from the menu of the button: Right opens the next panel (File
-    // around the end), Left the previous one (Go to)
+    // around the end), Left the previous one (Tools, step 6)
     H::closeAll(toolbar);
     fixture.settle();
     QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Right); });
@@ -2901,7 +2905,7 @@ void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
     fixture.settle();
     QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Left); });
     selectButton->showMenu();
-    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::GoTo));
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Tools));
 
     // The tab deleted while the menu of the button runs, after the switch
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
@@ -3018,6 +3022,17 @@ void AppDocumentViewTest::panelArrowSwitch()
     QVERIFY(goToPanel->getPageField()->hasFocus());
     QVERIFY(H::focus(goToPanel->getGoButton()));
     QTest::keyClick(goToPanel->getGoButton(), nextKey);
+    QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Tools));
+
+    // Tools (step 6): the search field uses the arrows; the row All tools opens the
+    // Select menu (its current tool is the current item)
+    pdf::PDFAppDocumentToolsPanel* toolsPanel = qobject_cast<pdf::PDFAppDocumentToolsPanel*>(toolbar->getOpenPanel());
+    QVERIFY(toolsPanel);
+    QVERIFY(toolsPanel->getSearchField()->hasFocus());
+    QTest::keyClick(toolsPanel->getSearchField(), nextKey);
+    QCOMPARE(toolbar->getOpenPanel(), toolsPanel);
+    QVERIFY(H::focus(toolsPanel->getAllToolsRow()));
+    QTest::keyClick(toolsPanel->getAllToolsRow(), nextKey);
     QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getSelectButton());
     pdf::PDFAppDocumentSelectMenu* menu = toolbar->getSelectMenu();
     QVERIFY(menu->activeAction());
@@ -3040,6 +3055,9 @@ void AppDocumentViewTest::panelArrowSwitch()
     QTest::keyClick(filePanel->getCommandButton(C::saveAs()), previousKey);
     QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getSelectButton());
     QTest::keyClick(menu, previousKey);
+    QCOMPARE(toolbar->getOpenPanel(), toolsPanel);
+    QVERIFY(H::focus(toolsPanel->getAllToolsRow()));
+    QTest::keyClick(toolsPanel->getAllToolsRow(), previousKey);
     QCOMPARE(toolbar->getOpenPanel(), goToPanel);
 
     // The key sent to the panel itself (the focus at a row) switches too
@@ -3616,6 +3634,85 @@ void AppDocumentViewTest::screenshots()
     pdf::PDFAppDocumentPanelPopup* panel = tab->getView()->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::File);
     fixture.settle();
     ViewTestHelper::save(folder, QStringLiteral("view-rtl"), ViewTestHelper::renderWindowWithPopups(fixture.window, { panel }, 1.0));
+}
+
+void AppDocumentViewTest::panelReopenFocus()
+{
+    // Review RSP6 / RC6-1: a panel opened again starts at its first control, not at the
+    // control after the one focused before it was closed (PDFAppDocumentPanelPopup::popup
+    // forgets the remembered focus of its window) - by the mouse, by the keyboard and
+    // by the switch between the panels
+    using Panel = pdf::PDFAppDocumentToolbar::Panel;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ReopenFocus.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+
+    // The focus widget of the window of the panel (offscreen does not activate popups)
+    auto focusOf = [](pdf::PDFAppDocumentPanelPopup* panel) { return panel->focusWidget(); };
+    auto moveFocus = [&focusOf](pdf::PDFAppDocumentPanelPopup* panel)
+    {
+        QWidget* before = focusOf(panel);
+        QTest::keyClick(before, Qt::Key_Tab);
+        return focusOf(panel) && focusOf(panel) != before;
+    };
+    auto closeByEscape = [](pdf::PDFAppDocumentPanelPopup* panel)
+    {
+        QTest::keyClick(panel, Qt::Key_Escape);
+        pdftest::AppDocumentFixture::settle();
+        return !panel->isVisible();
+    };
+
+    for (const Panel kind : { Panel::File, Panel::View, Panel::Annotate, Panel::Insert, Panel::GoTo })
+    {
+        QToolButton* button = toolbar->getMenuButton(kind);
+        QVERIFY(button && button->isVisible() && button->isEnabled());
+        const QString name = button->objectName();
+
+        // The mouse: the first opening gives the first control
+        PanelSwitchHelper::click(button);
+        fixture.settle();
+        QPointer<pdf::PDFAppDocumentPanelPopup> panel = toolbar->getOpenPanel();
+        QVERIFY2(panel, qPrintable(name));
+        QPointer<QWidget> first = focusOf(panel);
+        QVERIFY2(first && panel->isAncestorOf(first), qPrintable(name));
+
+        // Opened again after Esc and after a click on its button
+        QVERIFY2(moveFocus(panel), qPrintable(name));
+        QVERIFY(closeByEscape(panel));
+        PanelSwitchHelper::click(button);
+        fixture.settle();
+        QCOMPARE(toolbar->getOpenPanel(), panel.data());
+        QVERIFY2(focusOf(panel) == first, qPrintable(name));
+        QVERIFY(moveFocus(panel));
+        PanelSwitchHelper::click(button);
+        QTRY_VERIFY(!panel->isVisible());
+        PanelSwitchHelper::click(button);
+        fixture.settle();
+        QCOMPARE(toolbar->getOpenPanel(), panel.data());
+        QVERIFY2(focusOf(panel) == first, qPrintable(name));
+        QVERIFY(moveFocus(panel));
+        QVERIFY(closeByEscape(panel));
+
+        // The keyboard: Space on the button of the toolbar
+        button->setFocus(Qt::TabFocusReason);
+        QTest::keyClick(button, Qt::Key_Space);
+        fixture.settle();
+        QCOMPARE(toolbar->getOpenPanel(), panel.data());
+        QVERIFY2(focusOf(panel) == first, qPrintable(name));
+        QVERIFY(moveFocus(panel));
+
+        // The switch to another panel and back (the pointer, Left / Right)
+        QToolButton* other = toolbar->getToolsButton();
+        QVERIFY(toolbar->switchPanel(other, true));
+        fixture.settle();
+        QVERIFY(!panel->isVisible());
+        QVERIFY(toolbar->switchPanel(button, true));
+        fixture.settle();
+        QCOMPARE(toolbar->getOpenPanel(), panel.data());
+        QVERIFY2(focusOf(panel) == first, qPrintable(name));
+        QVERIFY(closeByEscape(panel));
+    }
 }
 
 QTEST_MAIN(AppDocumentViewTest)

@@ -587,7 +587,7 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer")))
                       .setAnchor(QStringLiteral("developer-mode"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer mode"))
-                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Show diagnostic tools in the menus"))
+                      .setDescription(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Enable the diagnostic overlays of the pages below"))
                       .setKeywords({ QStringLiteral("developer"), QStringLiteral("debug"), QStringLiteral("diagnostics") }));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::advancedShowRenderTimes(), false)
                       .setSection(sectionAdvanced(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Developer")))

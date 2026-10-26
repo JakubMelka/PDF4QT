@@ -64,15 +64,6 @@ public:
         paragraph->setText(text);
         return paragraph;
     }
-
-    /// Vertical layout without margins with the spacing
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
 };
 
 PDFAppLibraryModel::PDFAppLibraryModel(std::vector<PDFAppThirdPartyLibrary> libraries, QObject* parent) :
@@ -246,7 +237,7 @@ PDFAppAboutPage::PDFAppAboutPage(PDFAppContext* context, QWidget* parent) :
 {
     setObjectName(QStringLiteral("aboutPage"));
 
-    QVBoxLayout* layout = PDFAppAboutPageHelper::createColumn(this, 0);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 0);
     layout->addStretch(1);
     buildContent();
 
@@ -383,7 +374,7 @@ QWidget* PDFAppAboutPage::createAppCard(QWidget* parent)
     layout->addWidget(logo, 0, Qt::AlignTop);
 
     QWidget* content = new QWidget(m_appCard);
-    QVBoxLayout* contentLayout = Helper::createColumn(content, 8);
+    QVBoxLayout* contentLayout = PDFAppPageWidgets::createColumn(content, 8);
     layout->addWidget(content, 1);
 
     // Title Bold 22 and the version Regular 13 text/tertiary on the baseline, gap 10
@@ -442,7 +433,7 @@ QWidget* PDFAppAboutPage::createAuthorSection(QWidget* parent)
 
     m_authorSection = new QWidget(parent);
     m_authorSection->setObjectName(QStringLiteral("authorSection"));
-    QVBoxLayout* layout = Helper::createColumn(m_authorSection, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(m_authorSection, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("About the author"), nullptr, m_authorSection));
 
     // card 111:2260: padding 20, gap 14
@@ -458,7 +449,7 @@ QWidget* PDFAppAboutPage::createAuthorSection(QWidget* parent)
     identityLayout->addWidget(new PDFAvatar(QStringLiteral("JM"), 56, 18, identity));
 
     QWidget* identityText = new QWidget(identity);
-    QVBoxLayout* identityTextLayout = Helper::createColumn(identityText, 2);
+    QVBoxLayout* identityTextLayout = PDFAppPageWidgets::createColumn(identityText, 2);
     identityTextLayout->addWidget(PDFAppPageWidgets::createText(QStringLiteral("Jakub Melka"), PDFThemeFonts::getFont(QFont::Bold, 16), 19, PDFThemeColors::TextPrimary, identityText));
     identityTextLayout->addWidget(PDFAppPageWidgets::createText(tr("Author and maintainer of PDF4QT since 2018"), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextTertiary, identityText));
     identityLayout->addWidget(identityText, 1, Qt::AlignVCenter);
@@ -487,7 +478,7 @@ QWidget* PDFAppAboutPage::createLibrariesSection(QWidget* parent)
 {
     m_librariesSection = new QWidget(parent);
     m_librariesSection->setObjectName(QStringLiteral("librariesSection"));
-    QVBoxLayout* layout = PDFAppAboutPageHelper::createColumn(m_librariesSection, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(m_librariesSection, 12);
 
     m_noticesLink = new PDFTextLink(tr("Third-party notices"));
     m_noticesLink->setObjectName(QStringLiteral("noticesLink"));
@@ -513,7 +504,7 @@ QWidget* PDFAppAboutPage::createBuildSection(QWidget* parent)
 {
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("buildSection"));
-    QVBoxLayout* layout = PDFAppAboutPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Build information"), nullptr, section));
 
     // card 111:2368: padding 8; the button below the rows (paddings 8 / 2 / 2)
@@ -544,7 +535,7 @@ QWidget* PDFAppAboutPage::createLicenseSection(QWidget* parent)
 
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("licenseSection"));
-    QVBoxLayout* layout = Helper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("License"), nullptr, section));
 
     // card 111:2405: padding 14, gap 8
@@ -581,7 +572,7 @@ QWidget* PDFAppAboutPage::createLinksSection(QWidget* parent)
 {
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("linksSection"));
-    QVBoxLayout* layout = PDFAppAboutPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Links"), nullptr, section));
 
     // links-list 111:2417: padding 8, gap 2

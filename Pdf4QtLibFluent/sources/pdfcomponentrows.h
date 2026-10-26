@@ -316,6 +316,13 @@ public:
     bool isPinned() const;
     void setPinned(bool isPinned);
 
+    /// The star is a part of the row (Show star of the component, default true).
+    /// A row without the star (the tools of a collection, 283:1888) hides its
+    /// nested star and gives its place to the texts and the tag; so does a star
+    /// hidden or deleted by the application (as PDFRecentFileRow).
+    bool isStarVisible() const;
+    void setStarVisible(bool isVisible);
+
     PDFStarButton* getStarButton() const { return m_star.data(); }
     PDFTag* getTagWidget() const { return m_tag.data(); }
 
@@ -361,6 +368,11 @@ public:
 
     const QString& getIconName() const { return m_row.iconName; }
     void setIconName(const QString& iconName);
+
+    /// The row creates a collection (New collection… of the Tools page 272:12952,
+    /// PDFComponentPainter::CollectionRow::isCreate; default false)
+    bool isCreateVariant() const { return m_row.isCreate; }
+    void setCreateVariant(bool isCreate);
 
     PDFComponentPainter::CollectionRow getContent() const;
 

@@ -52,6 +52,7 @@
 #include <QScrollBar>
 #include <QStyle>
 #include <QStyleOptionSlider>
+#include <QTextDocument>
 #include <QtMath>
 #include <QVBoxLayout>
 #include <QVersionNumber>
@@ -887,8 +888,24 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     m_subtitle = new PDFAppHeaderText(PDFThemeFonts::getFont(QFont::Normal, 14), PDFThemeColors::TextTertiary, this);
     m_subtitle->setObjectName(QStringLiteral("headerSubtitle"));
     m_subtitle->hide();
-    textLayout->addWidget(m_title);
-    textLayout->addWidget(m_subtitle);
+
+    // title-row 283:1932: the optional icon of the page (Tool icon 44), gap 14, and
+    // the title with the subtitle; the icon is centered on the texts. A hidden icon
+    // takes no space: the texts start at the edge as without the row.
+    QHBoxLayout* titleRowLayout = new QHBoxLayout();
+    titleRowLayout->setContentsMargins(0, 0, 0, 0);
+    titleRowLayout->setSpacing(ICON_SPACING);
+    m_iconBadge = new PDFToolBadge(QString(), PDFAccentHue::Neutral, PDFComponentPainter::BadgeSize::Large, this);
+    m_iconBadge->setObjectName(QStringLiteral("headerIcon"));
+    m_iconBadge->hide();
+    titleRowLayout->addWidget(m_iconBadge, 0, Qt::AlignVCenter);
+    QVBoxLayout* titleColumnLayout = new QVBoxLayout();
+    titleColumnLayout->setContentsMargins(0, 0, 0, 0);
+    titleColumnLayout->setSpacing(4);
+    titleColumnLayout->addWidget(m_title);
+    titleColumnLayout->addWidget(m_subtitle);
+    titleRowLayout->addLayout(titleColumnLayout, 1);
+    textLayout->addLayout(titleRowLayout);
     layout->addLayout(textLayout, 1);
 
     m_searchField = new PDFLineEdit(this);
@@ -896,7 +913,7 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     m_searchField->setSearchField();
     // Search field Filled=True (49:143, 941:7123): the clear button x-circle at the right
     m_searchField->setClearButtonEnabled(true);
-    m_searchField->setPlaceholderText(tr("Search tools, documents, or help..."));
+    m_searchField->setPlaceholderText(tr("Search tools, documents, or help…"));
     m_searchField->setAccessibleName(tr("Search tools, documents, or help"));
     m_searchField->setFixedWidth(SEARCH_WIDTH);
     m_searchField->setMaxLength(256);
@@ -938,7 +955,7 @@ void PDFAppWorkspaceHeader::updateSearchWidth()
         return;
     }
 
-    // The widest of the shown texts (the title, the subtitle, the breadcrumbs)
+    // The widest of the shown texts (the title, the subtitle - after the icon -, the breadcrumbs)
     int textWidth = 0;
     for (const PDFAppHeaderText* text : { m_title.data(), m_subtitle.data() })
     {
@@ -946,6 +963,10 @@ void PDFAppWorkspaceHeader::updateSearchWidth()
         {
             textWidth = qMax(textWidth, qCeil(text->getTextWidth()));
         }
+    }
+    if (m_iconBadge && !m_iconBadge->isHidden() && textWidth > 0)
+    {
+        textWidth += m_iconBadge->sizeHint().width() + ICON_SPACING;
     }
     if (m_breadcrumb && !m_breadcrumb->isHidden())
     {
@@ -992,9 +1013,11 @@ PDFAppHeaderText::~PDFAppHeaderText() = default;
 void PDFAppHeaderText::setHeaderText(const QString& text, const QString& accent)
 {
     // A text of a page is never a rich text, the tooltip shows the whole text of
-    // an elided text only (event)
+    // an elided text only (event). The tooltip of Qt shows a text, which looks like
+    // HTML, as a rich text: a text of data (the name of a tool collection, review
+    // RS6) is escaped, so it is shown as it is and loads no picture
     setText(text);
-    setToolTip(text);
+    setToolTip(Qt::mightBeRichText(text) ? QStringLiteral("<p style=\"white-space:pre-wrap\">%1</p>").arg(text.toHtmlEscaped()) : text);
     if (m_accent != accent)
     {
         m_accent = accent;
@@ -1121,6 +1144,23 @@ void PDFAppWorkspaceHeader::setBreadcrumbs(const QList<PDFAppBreadcrumbItem>& it
         m_breadcrumb->setItems(items);
         m_breadcrumb->setVisible(!items.isEmpty());
     }
+    updateSearchWidth();
+}
+
+void PDFAppWorkspaceHeader::setIcon(const PDFAppHeaderIcon& icon)
+{
+    if (!m_iconBadge)
+    {
+        return;
+    }
+
+    // Decorative: the title names the page for assistive technologies
+    if (icon.isValid())
+    {
+        m_iconBadge->setIconName(icon.iconName);
+        m_iconBadge->setHue(icon.hue);
+    }
+    m_iconBadge->setVisible(icon.isValid());
     updateSearchWidth();
 }
 

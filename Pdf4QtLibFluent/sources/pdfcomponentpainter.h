@@ -516,6 +516,30 @@ public:
     /// press lay bg/hover / bg/pressed over the own surface bg/surface.
     static void paintColorSwatch(QPainter* painter, const QRectF& rect, const ColorSwatch& swatch, const State& state);
 
+    // ------------------------------------------------------------- Icon choice
+
+    /// Content of an icon choice (the icon chooser of the collections editor,
+    /// Figma Manage collections 283:1888, icons 284:2227): a Tool icon of 32 px
+    struct IconChoice
+    {
+        QString iconName;
+    };
+
+    /// Returns the size of the icon choice: 40 x 40 when it is selected (the
+    /// ring of 2 px, the padding of 2 and the badge of 32), 36 x 36 otherwise
+    /// (the padding of 2 and the badge)
+    static QSize getIconChoiceSize(bool isSelected);
+
+    /// Returns the radius of the shape of the icon choice (10)
+    static qreal getIconChoiceRadius();
+
+    /// Draws the icon choice centered in the rectangle: the selected choice (state
+    /// On) is the Blue Tool icon inside of a ring border/focus 2 px (radius 10),
+    /// the others the Neutral Tool icon. Hover and press lay bg/hover / bg/pressed
+    /// under the badge (radius 10; not drawn by the design), the focus ring lies
+    /// outside of the shape, a disabled choice has the icon icon/disabled.
+    static void paintIconChoice(QPainter* painter, const QRectF& rect, const IconChoice& choice, const State& state);
+
     // ---------------------------------------------------------- Page thumbnail
 
     /// Size of the frame of a page thumbnail (component Page thumbnail 78:892)
@@ -735,6 +759,11 @@ public:
         QString tag;
         bool pinned = false;
         bool paintNested = true;
+
+        /// The star is a part of the row (Show star of the component). A row
+        /// without the star (the tools of a collection and the suggestions of the
+        /// collections editor 283:1888) gives its place to the texts and the tag.
+        bool starVisible = true;
     };
 
     /// Returns the size of the row (380 x 48)
@@ -761,15 +790,24 @@ public:
 
     /// Content of a collection of tools (component Collection row 89:1367). The
     /// circle of the icon has the fixed colors bg/accent-subtle and icon/accent
-    /// (it is not a Tool icon, review F-32).
+    /// (it is not a Tool icon, review F-32). The name of a collection is data (its
+    /// own direction, TextKind::Data); the name of the create row is a text of the
+    /// user interface.
     struct CollectionRow
     {
         QString name;
         QString meta;
         QString iconName = QStringLiteral("layers");
+
+        /// The row, which creates a collection (new-collection 272:12952 of the
+        /// Tools page): bg/subtle with the border border/default (radius 8, the
+        /// padding 10 inside of the border), the circle bg/surface with the border
+        /// border/default and the icon icon/accent, the name text/accent, no
+        /// chevron, 54 high
+        bool isCreate = false;
     };
 
-    /// Returns the size of the row (324 x 52)
+    /// Returns the size of the row (324 x 52, the create row 324 x 54)
     static QSize getCollectionRowSize(const CollectionRow& row);
 
     /// Returns the minimal size of the row (the texts are elided)
@@ -1121,6 +1159,11 @@ public:
         QString iconName = QStringLiteral("grid");
         PDFAccentHue hue = PDFAccentHue::Blue;
         qreal topRadius = 0.0;      ///< Radius of the top corners: the header lies at the top of a rounded card, which clips it in the design
+
+        /// The title is data (the name of a collection of the user): its own
+        /// direction (TextKind::Data); the name of a category is a text of the
+        /// user interface
+        bool isTitleData = false;
     };
 
     /// Returns the size of the header (393 x 61)

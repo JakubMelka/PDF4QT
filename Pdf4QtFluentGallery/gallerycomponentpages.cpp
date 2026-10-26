@@ -782,6 +782,15 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
     taggedTool->setTag(QStringLiteral("Advanced"));
     taggedTool->setPinned(true);
     builder.row();
+    Painter::ToolRow starlessToolRow = toolRow;
+    starlessToolRow.starVisible = false;
+    Helper::rowSpecimen(builder, QStringLiteral("Without star (collections editor 284:2304)"), Painter::getToolRowSize(starlessToolRow), [starlessToolRow](QPainter& painter, const QRectF& rect)
+    {
+        Painter::paintToolRow(&painter, rect, starlessToolRow, Helper::state(GalleryPages::Default));
+    });
+    pdf::PDFToolRow* starlessTool = Helper::liveOnCard(builder, QStringLiteral("Live without star"), new pdf::PDFToolRow(QStringLiteral("Rotate Pages"), QStringLiteral("Turn pages in 90° steps"), QStringLiteral("rotate-cw"), pdf::PDFAccentHue::Amber, page));
+    starlessTool->setStarVisible(false);
+    builder.row();
 
     // Collection row
     builder.block(QStringLiteral("Collection row (PDFCollectionRow) - fixed colors of the circle (F-32)"), QStringLiteral("89:1367"));
@@ -794,6 +803,22 @@ GalleryPages::Page GalleryPages::createCatalogPage(QWidget* parent)
         Painter::paintCollectionRow(&painter, rect, collectionRow, state);
     });
     Helper::liveStates(builder, [page]() { return new pdf::PDFCollectionRow(QStringLiteral("Prepare for sharing"), QStringLiteral("3 tools · Compress, Sanitize, Sign"), page); });
+    Painter::CollectionRow createRow;
+    createRow.name = QStringLiteral("New collection…");
+    createRow.meta = QStringLiteral("Group the tools you use for one task");
+    createRow.iconName = QStringLiteral("plus-circle");
+    createRow.isCreate = true;
+    Helper::stateSpecimens(builder, QStringLiteral("Create (new-collection 272:12952)"), Painter::getCollectionRowSize(createRow), collectionNodes, [createRow](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintCollectionRow(&painter, rect, createRow, state);
+    });
+    Helper::liveStates(builder, [page]()
+    {
+        pdf::PDFCollectionRow* row = new pdf::PDFCollectionRow(QStringLiteral("New collection…"), QStringLiteral("Group the tools you use for one task"), page);
+        row->setIconName(QStringLiteral("plus-circle"));
+        row->setCreateVariant(true);
+        return row;
+    });
 
     // Tool shortcut
     builder.block(QStringLiteral("Tool shortcut (PDFToolShortcut) - focus ring outside"), QStringLiteral("192:836"));
@@ -1069,6 +1094,29 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     }
     pdf::PDFColorSwatch* hoveredSwatch = builder.live(QStringLiteral("Live, hover"), new pdf::PDFColorSwatch(pdf::PDFStylePainter::color(Color::AnnotationGreen), QStringLiteral("Green"), builder.page()));
     Helper::setState(hoveredSwatch, GalleryPages::Hover);
+
+    // Icon choice: the icon chooser of the collections editor (283:1888, 284:2227)
+    builder.block(QStringLiteral("Icon choice (PDFIconChoice) - icon chooser of the collections editor"), QStringLiteral("284:2227"));
+    static constexpr const char* iconChoiceIcons[] = { "rotate-cw", "camera", "mail", "pen-tool", "briefcase", "printer", "download", "folder", "star", "zap" };
+    for (const bool enabled : { true, false })
+    {
+        QWidget* chooser = new QWidget(builder.page());
+        QHBoxLayout* chooserLayout = new QHBoxLayout(chooser);
+        chooserLayout->setContentsMargins(4, 4, 4, 4);
+        chooserLayout->setSpacing(6);
+        QButtonGroup* group = new QButtonGroup(chooser);
+        for (const char* iconName : iconChoiceIcons)
+        {
+            pdf::PDFIconChoice* choice = new pdf::PDFIconChoice(QString::fromLatin1(iconName), QString::fromLatin1(iconName), chooser);
+            group->addButton(choice);
+            chooserLayout->addWidget(choice, 0, Qt::AlignTop);
+            choice->setSelected(iconName == iconChoiceIcons[0]);
+        }
+        chooser->setEnabled(enabled);
+        builder.live(enabled ? QStringLiteral("Live, exclusive group") : QStringLiteral("Live, disabled group"), chooser);
+    }
+    pdf::PDFIconChoice* hoveredChoice = builder.live(QStringLiteral("Live, hover"), new pdf::PDFIconChoice(QStringLiteral("camera"), QStringLiteral("Camera"), builder.page()));
+    Helper::setState(hoveredChoice, GalleryPages::Hover);
 
     // Row of the annotation colors: the Color row of the Annotate panel, the fill
     // of a shape tool (none and white) and a narrow bar (the rest through More)

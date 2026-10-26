@@ -652,6 +652,8 @@ private slots:
     void focusAfterPin();
     void homeEmptyStates();
     void formatsUiLanguage();
+    void recentTimesFollowClock();
+    void recentTimesDeletion();
     void screenshots();
     void screenshotsStates();
 };
@@ -1085,7 +1087,7 @@ void AppHomeTest::homeContent()
     const QList<pdf::PDFRecentToolRow*> toolRows = page->getRecentToolRows();
     QCOMPARE(toolRows.size(), 5);
     QCOMPARE(toolRows[0]->getName(), pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress")->getTitle());
-    QCOMPARE(toolRows[0]->getLastUsed(), QStringLiteral("Today 11:02"));
+    QCOMPARE(toolRows[0]->getLastUsed(), QStringLiteral("28 minutes ago"));     // O25: 11:02 at 11:30
     QCOMPARE(toolRows[0]->getHue(), pdf::PDFAccentHue::Violet);
     QCOMPARE(toolRows[1]->getName(), pdf::PDFDocumentToolCatalog::findTool(u"protect.sign")->getTitle());
     QCOMPARE(toolRows[1]->getLastUsed(), QStringLiteral("Today 09:40"));
@@ -5010,16 +5012,239 @@ void AppHomeTest::homeEmptyStates()
     QCOMPARE(large.getIcon()->sizeHint(), QSize(72, 72));
 }
 
+void AppHomeTest::recentTimesFollowClock()
+{
+    // O25: the times of recent activity are relative ("5 minutes ago") and follow the
+    // clock - one shared minute ticker of the context; a tick updates only the texts
+    // of the visible page (the same widgets, no read of the database)
+    HomeFixture fixture;
+    const HomeSample sample = HomeTestHelper::fill(fixture);
+    Q_UNUSED(sample);
+    fixture.navigate(QStringLiteral("/home"));
+    pdf::PDFAppHomePage* home = fixture.page<pdf::PDFAppHomePage>();
+    QVERIFY(home);
+    pdf::PDFAppMinuteTicker* ticker = fixture.context->getMinuteTicker();
+    QVERIFY(ticker);
+    QVERIFY(home->getMinuteSubscription());
+    QTRY_VERIFY(ticker->isRunning());
+    QVERIFY(home->getMinuteSubscription()->isActive());
+
+    const QList<pdf::PDFRecentFileRow*> fileRows = home->getRecentFileRows();
+    const QList<pdf::PDFRecentToolRow*> toolRows = home->getRecentToolRows();
+    QCOMPARE(fileRows.size(), 5);
+    QCOMPARE(toolRows.size(), 5);
+    QCOMPARE(fileRows[0]->getTime(), QStringLiteral("Today 10:24"));
+    QCOMPARE(toolRows[0]->getLastUsed(), QStringLiteral("28 minutes ago"));
+    const int refreshes = home->getRefreshCount();
+
+    // A minute later
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::getNow() + 60000);
+    ticker->tick();
+    QCOMPARE(toolRows[0]->getLastUsed(), QStringLiteral("29 minutes ago"));
+    QCOMPARE(home->getRecentToolRows(), toolRows);
+    QCOMPARE(home->getRecentFileRows(), fileRows);
+    QCOMPARE(home->getRefreshCount(), refreshes);
+    QVERIFY(QAccessible::queryAccessibleInterface(toolRows[0])->text(QAccessible::Description).contains(QStringLiteral("29 minutes ago")));
+
+    // The clock at 10:24:30: Just now, an older time of today, a time in the future
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(0, 10, 24) + 30000);
+    ticker->tick();
+    QCOMPARE(fileRows[0]->getTime(), QStringLiteral("Just now"));
+    QCOMPARE(fileRows[1]->getTime(), QStringLiteral("Today 08:17"));
+    QCOMPARE(fileRows[2]->getTime(), QStringLiteral("Yesterday 16:03"));
+    QCOMPARE(toolRows[0]->getLastUsed(), QStringLiteral("Today 11:02"));
+    QCOMPARE(home->getRecentFileRows(), fileRows);
+    QCOMPARE(home->getRefreshCount(), refreshes);
+
+    // A refresh of the same data keeps the rows and gives them the current texts
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(0, 10, 30));
+    home->refreshNow();
+    QCOMPARE(home->getRecentFileRows(), fileRows);
+    QCOMPARE(fileRows[0]->getTime(), QStringLiteral("6 minutes ago"));
+
+    // A hidden page is not updated (the ticker stops), it is updated when shown
+    home->hide();
+    QTRY_VERIFY(!ticker->isRunning());
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(0, 10, 40));
+    ticker->tick();
+    QCOMPARE(fileRows[0]->getTime(), QStringLiteral("6 minutes ago"));
+    home->show();
+    QCOMPARE(fileRows[0]->getTime(), QStringLiteral("16 minutes ago"));
+    QTRY_VERIFY(ticker->isRunning());
+    fixture.settle();
+    QCOMPARE(home->getRecentFileRows(), fileRows);
+
+    // Open: the folder cards, the file rows, Restore last session and the workspaces
+    fixture.navigate(QStringLiteral("/open"));
+    pdf::PDFAppOpenPage* open = fixture.page<pdf::PDFAppOpenPage>();
+    QVERIFY(open);
+    QTRY_VERIFY(ticker->isRunning());
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(0, 10, 25));
+    ticker->tick();
+    const QList<pdf::PDFRecentFileRow*> openRows = open->getRecentFileRows();
+    const QList<pdf::PDFWorkspaceRow*> workspaceRows = open->getWorkspaceRows();
+    const int openRefreshes = open->getRefreshCount();
+    QVERIFY(!openRows.isEmpty());
+    QCOMPARE(openRows[0]->getTime(), QStringLiteral("1 minute ago"));
+    QCOMPARE(open->getSessionRow()->getMeta(), QStringLiteral("3 documents · closed 1 minute ago"));
+    pdf::PDFWorkspaceRow* thesis = nullptr;
+    for (pdf::PDFWorkspaceRow* row : workspaceRows)
+    {
+        thesis = row->getName() == QStringLiteral("Thesis review") ? row : thesis;
+    }
+    QVERIFY(thesis);
+    QCOMPARE(thesis->getMeta(), QStringLiteral("4 documents · Opened Yesterday 16:15"));
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(1, 16, 20));
+    ticker->tick();
+    QCOMPARE(thesis->getMeta(), QStringLiteral("4 documents · Opened 5 minutes ago"));
+
+    // Inside of a sentence "just now" has a small letter (RFW6), "Today" / "Yesterday"
+    // keep their capitals
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(1, 16, 15) + 20000);
+    ticker->tick();
+    QCOMPARE(thesis->getMeta(), QStringLiteral("4 documents · Opened just now"));
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(1, 16, 20));
+    ticker->tick();
+    QCOMPARE(thesis->getMeta(), QStringLiteral("4 documents · Opened 5 minutes ago"));
+    QCOMPARE(open->getWorkspaceRows(), workspaceRows);
+    QCOMPARE(open->getRecentFileRows(), openRows);
+    QCOMPARE(open->getRefreshCount(), openRefreshes);
+    pdf::PDFFolderCard* folder = open->getFolderCards().isEmpty() ? nullptr : open->getFolderCards().front();
+    QVERIFY(folder);
+    QVERIFY(folder->getMeta().startsWith(QStringLiteral("Last used")) || folder->getMeta() == QStringLiteral("Not used yet"));
+
+    // Recent: the items of the list (dataChanged, no reset), Continue where you
+    // left off; the groups of the days stay until a refresh
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::getNow());
+    fixture.navigate(QStringLiteral("/recent"));
+    pdf::PDFAppRecentPage* recent = fixture.page<pdf::PDFAppRecentPage>();
+    QVERIFY(recent);
+    QTRY_VERIFY(ticker->isRunning());
+    pdf::PDFAppRecentModel* model = recent->getModel();
+    const int row = model->findItem(pdf::PDFAppRecentItem::Type::File, sample.projectReport, 0);
+    QVERIFY(row >= 0);
+    QCOMPARE(model->index(row, 0).data(pdf::PDFComponentRoles::DateRole).toString(), QStringLiteral("Today 10:24"));
+    fixture.waitIdle(300);
+    QSignalSpy resetSpy(model, &QAbstractItemModel::modelReset);
+    QSignalSpy changedSpy(model, &QAbstractItemModel::dataChanged);
+    const int recentRefreshes = recent->getRefreshCount();
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(0, 10, 27));
+    ticker->tick();
+    QVERIFY(!recent->isRefreshPending());
+    QCOMPARE(model->index(row, 0).data(pdf::PDFComponentRoles::DateRole).toString(), QStringLiteral("3 minutes ago"));
+    QCOMPARE(resetSpy.count(), 0);
+    QVERIFY(changedSpy.count() >= 1);
+    QCOMPARE(recent->getRefreshCount(), recentRefreshes);
+    QVERIFY(recent->getContinueCard());
+    QCOMPARE(recent->getContinueCard()->getOpenedText(), QStringLiteral("Last opened 3 minutes ago"));
+    QCOMPARE(recent->getSessionRow()->getMeta(), QStringLiteral("3 documents · closed 3 minutes ago"));
+    HomeFixture::settle();
+    QCOMPARE(resetSpy.count(), 0);
+
+    // A workspace saved a moment ago: its details follow the clock too
+    const int workspaceRow = model->findItem(pdf::PDFAppRecentItem::Type::Workspace, QString(), sample.thesisId);
+    QVERIFY(workspaceRow >= 0);
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::at(10, 9, 2));
+    ticker->tick();
+    QVERIFY(recent->isRefreshPending());    // another day: the groups again
+    QCOMPARE(model->index(workspaceRow, 0).data(pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("4 documents · Saved 2 minutes ago"));
+    QCOMPARE(model->index(workspaceRow, 0).data(pdf::PDFComponentRoles::DateRole).toString(), QStringLiteral("Sep 19, 2026"));
+    QCOMPARE(resetSpy.count(), 0);
+
+    // A tick on another day makes the groups again (a refresh)
+    HomeFixture::settle();
+    QVERIFY(!recent->isRefreshPending());
+    const int dayRefreshes = recent->getRefreshCount();
+    QVERIFY(dayRefreshes > recentRefreshes);
+    pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::getNow() + 24 * 3600 * 1000LL);
+    ticker->tick();
+    QVERIFY(recent->isRefreshPending());
+    QTRY_VERIFY(recent->getRefreshCount() > dayRefreshes);
+    QCOMPARE(model->index(model->findItem(pdf::PDFAppRecentItem::Type::File, sample.projectReport, 0), 0).data(pdf::PDFComponentRoles::DateRole).toString(),
+             QStringLiteral("Yesterday 10:24"));
+
+    // The window gone: no subscription is left, the ticker stops
+    delete fixture.window.data();
+    HomeFixture::settle();
+    QCOMPARE(ticker->getSubscriptionCount(), 0);
+    QTRY_VERIFY(!ticker->isRunning());
+}
+
+void AppHomeTest::recentTimesDeletion()
+{
+    // The window deleted from the tick of the minute (the signal of the page), the
+    // page deleted by a navigation from it, the window deleted while the timer is pending
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        HomeFixture fixture;
+        HomeTestHelper::fill(fixture);
+        pdf::PDFAppHomePage* home = fixture.page<pdf::PDFAppHomePage>();
+        QVERIFY(home);
+        pdf::PDFAppMinuteTicker* ticker = fixture.context->getMinuteTicker();
+        QTRY_VERIFY(ticker->isRunning());
+
+        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+        QPointer<pdf::PDFAppHomePage> page = home;
+        if (variant == 0)
+        {
+            QObject::connect(home->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, home, [window]() { delete window.data(); });
+        }
+        else
+        {
+            QObject::connect(home->getMinuteSubscription(), &pdf::PDFAppMinuteSubscription::minuteChanged, home, [&fixture]()
+            {
+                fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/recent")), pdf::PDFAppNavigationMode::Push);
+            });
+        }
+        pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::getNow() + 60000);
+        ticker->tick();
+        HomeFixture::settle();
+        if (variant == 0)
+        {
+            QVERIFY(!window);
+            QVERIFY(!page);
+            QCOMPARE(ticker->getSubscriptionCount(), 0);
+            QTRY_VERIFY(!ticker->isRunning());
+        }
+        else
+        {
+            QVERIFY(window);
+            QVERIFY(fixture.page<pdf::PDFAppRecentPage>());
+            pdf::PDFAppHomeFormat::setCurrentTimeOverride(HomeFixture::getNow() + 120000);
+            ticker->tick();
+        }
+    }
+
+    // The context (and its ticker) gone before a page of a window
+    {
+        HomeFixture fixture;
+        pdf::PDFAppHomePage* home = fixture.page<pdf::PDFAppHomePage>();
+        QVERIFY(home && home->getMinuteSubscription());
+        QPointer<pdf::PDFAppMinuteTicker> ticker = fixture.context->getMinuteTicker();
+        QVERIFY(ticker);
+        delete ticker.data();
+        QVERIFY(!ticker);
+        home->hide();
+        home->show();
+        HomeFixture::settle();
+        home->refreshNow();
+    }
+}
+
 void AppHomeTest::recentModel_data()
 {
     // A change of one shown field of an item: the model must show it (a reset);
-    // the same content keeps the model, a new picture changes only its role
+    // the same content keeps the model, a new picture or a new text of the same
+    // time (a later minute, O25 - also the details of a workspace with the same
+    // time of the save) changes only its roles
     QTest::addColumn<QString>("field");
     QTest::addColumn<bool>("isReset");
 
     QTest::newRow("same") << QStringLiteral("same") << false;
     QTest::newRow("pixmap") << QStringLiteral("pixmap") << false;
-    for (const char* field : { "type", "kind", "path", "id", "name", "details", "progressText", "progress", "opened", "isPinned", "count", "isMissing", "isLocked",
+    QTest::newRow("opened") << QStringLiteral("opened") << false;
+    QTest::newRow("workspaceDetails") << QStringLiteral("workspaceDetails") << false;
+    for (const char* field : { "type", "kind", "path", "id", "name", "details", "progressText", "progress", "time", "savedTime", "isPinned", "count", "isMissing", "isLocked",
                                "isRemovable", "documentCount", "itemName", "rows" })
     {
         QTest::newRow(field) << QString::fromLatin1(field) << true;
@@ -5084,6 +5309,9 @@ void AppHomeTest::recentModel()
         { QStringLiteral("progressText"), [&]() { items[1].progressText = QStringLiteral("Finished"); } },
         { QStringLiteral("progress"), [&]() { items[1].progress = 1.0; } },
         { QStringLiteral("opened"), [&]() { items[1].opened = QStringLiteral("Yesterday 16:15"); } },
+        { QStringLiteral("workspaceDetails"), [&]() { items[3].details = QStringLiteral("3 documents · Saved 5 minutes ago"); } },
+        { QStringLiteral("time"), [&]() { items[1].time += 60000; } },
+        { QStringLiteral("savedTime"), [&]() { items[3].savedTime += 60000; } },
         { QStringLiteral("isPinned"), [&]() { items[1].isPinned = true; } },
         { QStringLiteral("count"), [&]() { items[0].count = 4; } },
         { QStringLiteral("isMissing"), [&]() { items[1].isMissing = true; } },
@@ -5097,11 +5325,18 @@ void AppHomeTest::recentModel()
     model.setItems(items);
 
     QCOMPARE(resetSpy.count(), isReset ? 1 : 0);
-    QCOMPARE(changedSpy.count(), field == QLatin1String("pixmap") ? 1 : 0);
+    const bool isRoleChange = field == QLatin1String("pixmap") || field == QLatin1String("opened") || field == QLatin1String("workspaceDetails");
+    QCOMPARE(changedSpy.count(), isRoleChange ? 1 : 0);
     if (field == QLatin1String("pixmap"))
     {
         QCOMPARE(changedSpy[0][0].toModelIndex().row(), 1);
         QVERIFY(changedSpy[0][2].value<QList<int>>().contains(pdf::PDFComponentRoles::PixmapRole));
+    }
+    if (field == QLatin1String("opened") || field == QLatin1String("workspaceDetails"))
+    {
+        QCOMPARE(changedSpy[0][0].toModelIndex().row(), field == QLatin1String("opened") ? 1 : 3);
+        QVERIFY(changedSpy[0][2].value<QList<int>>().contains(pdf::PDFComponentRoles::DateRole));
+        QVERIFY(changedSpy[0][2].value<QList<int>>().contains(pdf::PDFComponentRoles::SubtitleRole));
     }
 
     // The model shows the new items (every role as a model filled with them at once)

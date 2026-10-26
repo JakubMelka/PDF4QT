@@ -58,14 +58,6 @@ public:
         return paragraph;
     }
 
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
-
     static PDFThemeColors::Color hue(PDFAccentHue hue, PDFAccentHueColors::Role role)
     {
         return PDFAccentHueColors::getColor(hue, role);
@@ -77,7 +69,7 @@ PDFAppSponsorPage::PDFAppSponsorPage(PDFAppContext* context, QWidget* parent) :
 {
     setObjectName(QStringLiteral("sponsorPage"));
 
-    QVBoxLayout* layout = PDFAppSponsorPageHelper::createColumn(this, 24);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 24);
     layout->addStretch(1);
     buildContent();
 }
@@ -228,7 +220,7 @@ QWidget* PDFAppSponsorPage::createHero(QWidget* parent)
     layout->addWidget(heart, 0, Qt::AlignTop);
 
     QWidget* content = new QWidget(m_hero);
-    QVBoxLayout* contentLayout = Helper::createColumn(content, 8);
+    QVBoxLayout* contentLayout = PDFAppPageWidgets::createColumn(content, 8);
     layout->addWidget(content, 1);
 
     PDFAppParagraph* headline = Helper::createParagraph(tr("If PDF4QT saves you time, consider giving some back."), PDFThemeFonts::getFont(QFont::Bold, 22),
@@ -279,7 +271,7 @@ QWidget* PDFAppSponsorPage::createPossibilities(QWidget* parent)
 {
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("possibilities"));
-    QVBoxLayout* layout = PDFAppSponsorPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("What your support makes possible"), PDFAppPageWidgets::createHint(tr("Time, mostly"), nullptr), section));
 
     // two rows of two highlight cards, gaps 12
@@ -312,7 +304,7 @@ QWidget* PDFAppSponsorPage::createWaysToHelp(QWidget* parent)
 {
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("waysToHelp"));
-    QVBoxLayout* layout = PDFAppSponsorPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("Ways to help"), PDFAppPageWidgets::createHint(tr("Money is only one of them"), nullptr), section));
 
     // list 123:2794: card, padding 8, gap 2
@@ -351,7 +343,7 @@ QWidget* PDFAppSponsorPage::createAuthorNote(QWidget* parent)
 
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("authorNote"));
-    QVBoxLayout* layout = Helper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("A note from the author"), nullptr, section));
 
     // card 123:2858: padding 16, gap 12
@@ -365,7 +357,7 @@ QWidget* PDFAppSponsorPage::createAuthorNote(QWidget* parent)
     identityLayout->setSpacing(12);
     identityLayout->addWidget(new PDFAvatar(QStringLiteral("JM"), 40, 14, identity));
     QWidget* identityText = new QWidget(identity);
-    QVBoxLayout* identityTextLayout = Helper::createColumn(identityText, 1);
+    QVBoxLayout* identityTextLayout = PDFAppPageWidgets::createColumn(identityText, 1);
     identityTextLayout->addWidget(PDFAppPageWidgets::createText(QStringLiteral("Jakub Melka"), PDFThemeFonts::getFont(PDFThemeFonts::Role::BodySemiBold), 16, PDFThemeColors::TextPrimary, identityText));
     identityTextLayout->addWidget(PDFAppPageWidgets::createText(tr("Author of PDF4QT"), PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), 13, PDFThemeColors::TextMuted, identityText));
     identityLayout->addWidget(identityText, 1, Qt::AlignVCenter);
@@ -382,7 +374,7 @@ QWidget* PDFAppSponsorPage::createPriorities(QWidget* parent)
 {
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("priorities"));
-    QVBoxLayout* layout = PDFAppSponsorPageHelper::createColumn(section, 12);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, 12);
     layout->addWidget(PDFAppPageWidgets::createSectionHeader(tr("What the time goes into now"), nullptr, section));
 
     // list 123:2869: card, padding 8, rows 46
@@ -427,7 +419,7 @@ QWidget* PDFAppSponsorPage::createPromise(QWidget* parent)
     layout->addWidget(shield, 0, Qt::AlignTop);
 
     QWidget* texts = new QWidget(m_promise);
-    QVBoxLayout* textsLayout = Helper::createColumn(texts, 3);
+    QVBoxLayout* textsLayout = PDFAppPageWidgets::createColumn(texts, 3);
     textsLayout->addWidget(PDFAppPageWidgets::createText(tr("Free, for everyone"), PDFThemeFonts::getFont(PDFThemeFonts::Role::TileTitle), 17, PDFThemeColors::TextPrimary, texts));
     textsLayout->addWidget(Helper::createParagraph(tr("PDF4QT stays free and open source under the MIT license, without ads or telemetry, however it is funded. "
                                                       "Sponsors get gratitude, not a different program."),

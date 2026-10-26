@@ -16,6 +16,11 @@ The window of PDF4QT has no title bar of the system. Its top bar holds the tabs,
 - **Ctrl+W** or the button **×** of the tab closes it. **Ctrl+Tab** and **Ctrl+Shift+Tab** switch to the next and to the previous tab.
 - **Help** (or **F1**) opens this user manual in a tab of its own. A window has at most one Help tab: the next topic opens in the same tab, and **Back** and **Forward** move between the topics you have read there. Links from the manual to other pages open them in the Home tab.
 - Drag a tab to change the order of the tabs.
+- A window has at most 200 tabs.
+
+## Drop files on the window
+
+Drop PDF files from the file manager anywhere on the window: each of them opens in its own tab (at most 100 files at once). Only PDF files on this computer are opened; folders, other files and files of other computers are left out and a message lists them.
 
 ## Closing a tab and quitting
 

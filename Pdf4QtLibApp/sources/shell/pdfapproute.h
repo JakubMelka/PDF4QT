@@ -166,14 +166,23 @@ public:
     /// search text (empty = none); an empty part is not in the query
     static PDFAppRoute recent(const QString& filter = QString(), const QString& sort = QString(), const QString& searchText = QString());
 
-    /// Catalog of the tools (category: pages, convert, edit, protect, optimize, review, pinned)
-    static PDFAppRoute tools(const QString& category = QString());
+    /// Catalog of the tools: the category (pages, convert, edit, protect, optimize,
+    /// review, pinned; empty = all), the search text (sanitized as settingsFilter,
+    /// empty = none) and the collection shown on the page (its route id -
+    /// PDFAppToolCollections; empty = none, owner decision Q1 of step 6: a
+    /// collection excludes the category and the text, which are left out then);
+    /// an empty part is not in the query
+    static PDFAppRoute tools(const QString& category = QString(), const QString& searchText = QString(), const QString& collection = QString());
 
     /// Introduction page of a tool of the catalog
     static PDFAppRoute tool(const QString& toolId);
 
     static PDFAppRoute toolCollections();
     static PDFAppRoute toolCollection(const QString& collectionId);
+
+    /// New collection (/tools/collections/new), optionally with the tool, which the
+    /// editor adds at once (?tool=, New collection… of Add to collection)
+    static PDFAppRoute toolCollectionNew(const QString& toolId = QString());
     static PDFAppRoute ai();
 
     /// What's New of the running version (empty) or of the version

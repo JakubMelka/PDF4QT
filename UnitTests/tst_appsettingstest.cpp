@@ -304,6 +304,7 @@ private Q_SLOTS:
     void anchorHighlight();
     void filterQuery();
     void filterHostileTexts();
+    void clearFilterGoesBack();
     void globalSearchToRow();
     void deletionMatrix();
     void deleteFromOwnSignals();
@@ -460,6 +461,11 @@ void AppSettingsTest::genericRowEachType()
     // The dependencies are fulfilled, so every control is enabled
     QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::annotationsAuthorMode(), pdf::PDFSettingValues::authorModeCustomName()).isError());
     QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::advancedDeveloperMode(), true).isError());
+
+    // Developer mode only enables the overlay rows below it, it adds nothing to any menu
+    const pdf::PDFSettingDefinition* developerMode = fixture.context->getSettingRegistry()->findDefinition(pdf::PDFSettingKeys::advancedDeveloperMode());
+    QVERIFY(developerMode);
+    QCOMPARE(developerMode->getDescription(), QStringLiteral("Enable the diagnostic overlays of the pages below"));
 
     int rows = 0;
     for (const QString& sectionId : pdf::PDFAppSettingsSectionRegistry::getSectionIds())
@@ -908,6 +914,92 @@ void AppSettingsTest::filterQuery()
     QTest::mouseClick(page->getNavigationItem(QStringLiteral("viewing")), Qt::LeftButton);
     fixture.settle();
     QCOMPARE(fixture.settingsPage()->getSectionId(), QStringLiteral("viewing"));
+}
+
+void AppSettingsTest::clearFilterGoesBack()
+{
+    // O25: a cleared filter, whose page of the sections (/settings/general) is the entry
+    // before the search, goes Back to it - no two equal entries next to each other
+    pdftest::AppSettingsFixture fixture;
+    pdf::PDFAppTab* tab = fixture.window->getCurrentTab();
+    const pdf::PDFAppHistory& history = tab->getHistory();
+    QPointer<pdf::PDFAppSettingsPage> page = fixture.openSettings(QStringLiteral("general"));
+    QVERIFY(page);
+    const int count = history.getCount();
+    const int index = history.getCurrentIndex();
+    QVERIFY(index > 0);
+    const QString beforeSettings = history.getEntry(index - 1)->route.toString();
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings/general"));
+
+    // Typed: the first text a Push, further typing replaces it
+    page->getSearchField()->setFocus();
+    QTest::keyClicks(page->getSearchField(), QStringLiteral("undo"));
+    QTRY_VERIFY(fixture.settingsPage() && fixture.settingsPage()->isFiltering());
+    page = fixture.settingsPage();
+    QTest::keyClicks(page->getSearchField(), QStringLiteral("x"));
+    QTRY_COMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings?q=undox"));
+    QCOMPARE(history.getCount(), count + 1);
+
+    // Esc: Back to the page before the search, the field keeps the focus
+    QTest::keyClick(page->getSearchField(), Qt::Key_Escape);
+    fixture.settle();
+    QVERIFY(fixture.settingsPage() && !fixture.settingsPage()->isFiltering());
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings/general"));
+    QCOMPARE(history.getCurrentIndex(), index);
+    page = fixture.settingsPage();
+    QTRY_VERIFY(page->getSearchField()->hasFocus());
+    QVERIFY(page->getSearchField()->text().isEmpty());
+
+    // Forward (documented): the filtered entry with its last text is the next entry;
+    // Back from the sections leads before them, not to a second /settings/general
+    QVERIFY(history.canGoForward());
+    QCOMPARE(history.getEntry(index + 1)->route.toString(), QStringLiteral("/settings?q=undox"));
+    fixture.window->getNavigator()->goForward(tab);
+    fixture.settle();
+    QCOMPARE(fixture.settingsPage()->getQuery(), QStringLiteral("undox"));
+    fixture.window->getNavigator()->goBack(tab);
+    fixture.settle();
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings/general"));
+    fixture.window->getNavigator()->goBack(tab);
+    fixture.settle();
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), beforeSettings);
+    fixture.window->getNavigator()->goForward(tab);
+    fixture.settle();
+
+    // The text deleted by the keys and Clear search of the empty state: Back as well
+    page = fixture.settingsPage();
+    page->getSearchField()->setFocus();
+    QTest::keyClicks(page->getSearchField(), QStringLiteral("cache"));
+    QTRY_VERIFY(fixture.settingsPage() && fixture.settingsPage()->isFiltering());
+    page = fixture.settingsPage();
+    page->getSearchField()->selectAll();
+    QTest::keyClick(page->getSearchField(), Qt::Key_Backspace);
+    QTRY_VERIFY(fixture.settingsPage() && !fixture.settingsPage()->isFiltering());
+    QCOMPARE(history.getCurrentIndex(), index);
+
+    page = fixture.settingsPage();
+    page->getSearchField()->setFocus();
+    QTest::keyClicks(page->getSearchField(), QStringLiteral("zzqqxxyy"));
+    QTRY_VERIFY(fixture.settingsPage() && fixture.settingsPage()->isFiltering() && !fixture.settingsPage()->getEmptyState()->isHidden());
+    QTest::mouseClick(fixture.settingsPage()->getClearSearchButton(), Qt::LeftButton);
+    fixture.settle();
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings/general"));
+    QCOMPARE(history.getCurrentIndex(), index);
+
+    // A search from another section: the sections replace the filtered entry (the
+    // entry before is /settings/editing, not the cleared route)
+    page = fixture.openSettings(QStringLiteral("editing"));
+    const int editingIndex = history.getCurrentIndex();
+    page->getSearchField()->setFocus();
+    QTest::keyClicks(page->getSearchField(), QStringLiteral("undo"));
+    QTRY_VERIFY(fixture.settingsPage() && fixture.settingsPage()->isFiltering());
+    const int filteredCount = history.getCount();
+    QTest::keyClick(fixture.settingsPage()->getSearchField(), Qt::Key_Escape);
+    fixture.settle();
+    QCOMPARE(SettingsTestHelper::currentRoute(fixture), QStringLiteral("/settings/general"));
+    QCOMPARE(history.getCurrentIndex(), editingIndex + 1);
+    QCOMPARE(history.getCount(), filteredCount);
+    QCOMPARE(history.getEntry(editingIndex)->route.toString(), QStringLiteral("/settings/editing"));
 }
 
 void AppSettingsTest::filterHostileTexts()

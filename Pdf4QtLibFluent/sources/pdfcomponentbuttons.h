@@ -713,6 +713,43 @@ private:
     QString m_colorName;
 };
 
+/// Icon of a choice of icons (the icon chooser of the collections editor, Figma
+/// Manage collections 283:1888): a Tool icon of 32 px, Neutral, and Blue inside
+/// of a ring border/focus 2 px, when it is selected. The selected choice is 40 x 40,
+/// the others 36 x 36 (the design does not reserve the ring). It is checkable;
+/// the choices are put into an exclusive QButtonGroup (one stop of Tab, the
+/// arrows move the selection). The focus ring lies outside (radius 10). The name
+/// for assistive technologies and the tooltip is the text (\p setText) - the
+/// meaning of the icon, which the application gives ("Camera").
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFIconChoice : public PDFComponentButton
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFComponentButton;
+
+public:
+    explicit PDFIconChoice(QWidget* parent = nullptr);
+    explicit PDFIconChoice(const QString& iconName, const QString& text, QWidget* parent = nullptr);
+
+    const QString& getIconName() const { return m_choice.iconName; }
+    void setIconName(const QString& iconName);
+
+    /// Selects or unselects the choice (unselecting the selected choice of an
+    /// exclusive group leaves the group without a selection)
+    bool isSelected() const { return isChecked(); }
+    void setSelected(bool isSelected);
+
+protected:
+    virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
+    virtual QSize getContentSizeHint() const override;
+
+private:
+    void onToggled();
+
+    PDFComponentPainter::IconChoice m_choice;
+};
+
 /// Frame of the first page of a document (component Page thumbnail) with its
 /// shadow. The application gives the picture of the page; without it the frame
 /// shows the placeholder lines of the component.

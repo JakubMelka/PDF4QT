@@ -230,11 +230,12 @@ public:
     /// Matches the route
     PDFAppRouteMatch match(const PDFAppRoute& route) const;
 
-    /// Text, which names what the route shows (Page Not Found: "Tool “convert.epub”")
+    /// Text, which names what the route shows (Page Not Found: "Tool “convert.epub”";
+    /// a tool of the catalog by its title "Tool “Merge”", a built-in collection by its name)
     QString describe(const PDFAppRoute& route) const;
 
-    /// Text of the search offered by Page Not Found ("convert epub"), empty if
-    /// there is nothing to search
+    /// Text of the search offered by Page Not Found ("convert epub"; the title of
+    /// a tool of the catalog "Merge"), empty if there is nothing to search
     QString getSearchText(const PDFAppRoute& route) const;
 
     /// Maximal length of the text of the search offered by Page Not Found
@@ -244,6 +245,8 @@ private:
     static PDFAppRouteEntry createEntry(const QString& pattern, PDFAppTabKind tabKind, PDFAppNavItem navItem, PDFAppRouteSubject subject, const char* title);
     static QString toSearchWords(const QString& text);
     static QString getRouteParameter(const PDFAppRoute& route, const PDFAppRouteEntry& entry, const QString& name);
+    static QString getToolTitle(const PDFAppRoute& route, const PDFAppRouteEntry& entry);
+    static QString getCollectionTitle(const PDFAppRoute& route, const PDFAppRouteEntry& entry);
     void addDefaultEntry(PDFAppRouteEntry entry);
     static bool isParameterSegment(const QString& segment);
     static QString getParameterName(const QString& segment);

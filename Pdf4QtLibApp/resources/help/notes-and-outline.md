@@ -32,10 +32,11 @@ Right-click a note for its menu:
 
 | Action | How |
 | --- | --- |
-| Add an item for the current view | The button **+** in the header of **Outline**, the Insert key in the outline, or **Insert › Outline item** in the toolbar. Text selected on the page is offered as the title. Type the title and press Enter; Esc adds nothing |
+| Go to the page of an item | Click the item, or **Go to Page** in its menu |
+| Add an item for the current view | The button **+** in the header of **Outline**, **New Item** in the menu of an item, the Insert key in the outline, or **Insert › Outline item** in the toolbar. Text selected on the page is offered as the title. Type the title and press Enter; Esc adds nothing |
 | Rename an item | F2, or **Rename** in the menu of the item. Enter keeps the new title, Esc the old one |
 | Move an item | Drag it above, below or onto another item, or use **Move Up**, **Move Down**, **Indent** and **Outdent** in its menu |
-| Select more items | Hold Ctrl or Shift. Drag the selected items together, or delete them all at once |
+| Select more items | Hold Ctrl or Shift; such a click does not go to the page of the item. Drag the selected items together, or delete them all at once |
 | Change where an item goes | **Set Target** in the menu of the item - see below |
 | Bold or italic title | **Bold** and **Italic** in the menu of the item |
 | Delete an item | The Delete key, or **Delete** in the menu. The item goes with the items inside of it |

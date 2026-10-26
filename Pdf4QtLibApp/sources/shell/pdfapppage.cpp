@@ -22,6 +22,7 @@
 
 #include "pdfapppage.h"
 #include "pdfappcontext.h"
+#include "pdfapptab.h"
 
 #include <utility>
 
@@ -70,6 +71,11 @@ QString PDFAppPage::getHeaderSubtitleAccent() const
 QList<PDFAppBreadcrumbItem> PDFAppPage::getHeaderBreadcrumbs() const
 {
     return QList<PDFAppBreadcrumbItem>();
+}
+
+PDFAppHeaderIcon PDFAppPage::getHeaderIcon() const
+{
+    return PDFAppHeaderIcon();
 }
 
 bool PDFAppPage::hasSearchHeader() const
@@ -141,6 +147,46 @@ bool PDFAppPage::replaceRoute(const PDFAppRoute& route)
     return !guard.isNull();
 }
 
+bool PDFAppPage::isPreviousRoute(const PDFAppRoute& route) const
+{
+    // The tab of the page is one of its ancestors (as PDFAppNavigator::findTab)
+    const PDFAppTab* tab = nullptr;
+    for (const QObject* current = parent(); current && !tab; current = current->parent())
+    {
+        tab = qobject_cast<const PDFAppTab*>(current);
+    }
+
+    // A page, which is being shown or which has been replaced, has no entry
+    if (!tab || tab->getPage() != this || !route.isValid())
+    {
+        return false;
+    }
+
+    const PDFAppHistory& history = tab->getHistory();
+    const PDFAppHistoryEntry* previous = history.getEntry(history.getCurrentIndex() - 1);
+    return previous && previous->route == route;
+}
+
+bool PDFAppPage::requestBack()
+{
+    QPointer<PDFAppPage> guard(this);
+    Q_EMIT backRequested();
+    return !guard.isNull();
+}
+
 PDFAppPageFactory::~PDFAppPageFactory() = default;
+
+PDFAppPage* PDFAppPageFactory::createPageForRoute(PDFAppContext* context, QWidget* parent, const PDFAppRoute& route) const
+{
+    Q_UNUSED(route);
+    return createPage(context, parent);
+}
+
+bool PDFAppPageFactory::isSamePage(const PDFAppRoute& pageRoute, const PDFAppRoute& route) const
+{
+    Q_UNUSED(pageRoute);
+    Q_UNUSED(route);
+    return true;
+}
 
 }   // namespace pdf

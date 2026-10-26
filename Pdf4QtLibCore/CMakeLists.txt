@@ -61,10 +61,18 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttextfloweditormodel.h
     sources/pdfdocumentwriter.cpp
     sources/pdfdocumentwriter.h
+    sources/pdfdocumenttool.cpp
+    sources/pdfdocumenttool.h
     sources/pdfdocumenttoolcatalog.cpp
     sources/pdfdocumenttoolcatalog.h
+    sources/pdfdocumenttoolparameter.cpp
+    sources/pdfdocumenttoolparameter.h
+    sources/pdfdocumenttoolregistry.cpp
+    sources/pdfdocumenttoolregistry.h
     sources/pdfdocumenttoolsearch.cpp
     sources/pdfdocumenttoolsearch.h
+    sources/pdfdocumenttoolsuggestions.cpp
+    sources/pdfdocumenttoolsuggestions.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdffile.cpp

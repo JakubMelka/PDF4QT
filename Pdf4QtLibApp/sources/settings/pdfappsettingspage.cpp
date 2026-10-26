@@ -51,21 +51,6 @@ namespace pdf
 
 PDFAppSettingsPage::PendingFocus PDFAppSettingsPage::s_pendingFocus = PDFAppSettingsPage::PendingFocus::None;
 
-/// Helpers of the page Settings
-class PDFAppSettingsPageHelper
-{
-public:
-    PDFAppSettingsPageHelper() = delete;
-
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
-};
-
 PDFAppSettingsSectionHeader::PDFAppSettingsSectionHeader(const QString& iconName, const QString& title, const QString& subtitle, bool hasRestoreButton, QWidget* parent) :
     BaseClass(parent)
 {
@@ -82,7 +67,7 @@ PDFAppSettingsSectionHeader::PDFAppSettingsSectionHeader(const QString& iconName
 
     // text 146:3333: the title Bold 22 and the subtitle Regular 13, gap 2
     QWidget* texts = new QWidget(this);
-    QVBoxLayout* textsLayout = PDFAppSettingsPageHelper::createColumn(texts, 2);
+    QVBoxLayout* textsLayout = PDFAppPageWidgets::createColumn(texts, 2);
     m_title = PDFAppPageWidgets::createText(title, PDFThemeFonts::getFont(QFont::Bold, 22), 27, PDFThemeColors::TextPrimary, texts);
     m_title->setObjectName(QStringLiteral("sectionTitle"));
     textsLayout->addWidget(m_title);
@@ -111,7 +96,7 @@ PDFAppSettingsPage::PDFAppSettingsPage(PDFAppContext* context, QWidget* parent) 
     s_pendingFocus = PendingFocus::None;
     setObjectName(QStringLiteral("settingsPage"));
 
-    QVBoxLayout* layout = PDFAppSettingsPageHelper::createColumn(this, 0);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 0);
 
     // settings-grid 146:2884: the menu 300 and the content column, gap 24; a narrow
     // page has the menu above the content
@@ -121,13 +106,13 @@ PDFAppSettingsPage::PDFAppSettingsPage(PDFAppContext* context, QWidget* parent) 
 
     m_menuColumn = new QWidget();
     m_menuColumn->setObjectName(QStringLiteral("settingsMenu"));
-    PDFAppSettingsPageHelper::createColumn(m_menuColumn, 0);
+    PDFAppPageWidgets::createColumn(m_menuColumn, 0);
     m_columns->addColumn(m_menuColumn, MENU_WIDTH, 0, 0, Qt::AlignTop);
 
     // content-column 146:3131: the storage banner (941:138200) and the body, gap 24
     m_contentColumn = new QWidget();
     m_contentColumn->setObjectName(QStringLiteral("contentColumn"));
-    m_contentLayout = PDFAppSettingsPageHelper::createColumn(m_contentColumn, 24);
+    m_contentLayout = PDFAppPageWidgets::createColumn(m_contentColumn, 24);
     m_columns->addColumn(m_contentColumn, 0, 1, MINIMUM_CONTENT_WIDTH, Qt::AlignTop);
     layout->addStretch(1);
 
@@ -181,16 +166,14 @@ PDFAppSettingsPage::~PDFAppSettingsPage()
 
 void PDFAppSettingsPage::buildMenu()
 {
-    using Helper = PDFAppSettingsPageHelper;
-
     m_menuBody = new QWidget(m_menuColumn);
     m_menuBody->setObjectName(QStringLiteral("menuBody"));
-    QVBoxLayout* layout = Helper::createColumn(m_menuBody, 16);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(m_menuBody, 16);
 
     // title-group 146:3067: Settings Bold 28 (Inter Extra Bold is not bundled) and
     // the subtitle Regular 14 text/tertiary, gap 4
     QWidget* titleGroup = new QWidget(m_menuBody);
-    QVBoxLayout* titleLayout = Helper::createColumn(titleGroup, 4);
+    QVBoxLayout* titleLayout = PDFAppPageWidgets::createColumn(titleGroup, 4);
     PDFAppParagraph* title = PDFAppPageWidgets::createText(tr("Settings"), PDFThemeFonts::getFont(QFont::Bold, 28), 34, PDFThemeColors::TextPrimary, titleGroup);
     title->setObjectName(QStringLiteral("menuTitle"));
     titleLayout->addWidget(title);
@@ -237,11 +220,9 @@ void PDFAppSettingsPage::buildMenu()
 
 void PDFAppSettingsPage::buildContent()
 {
-    using Helper = PDFAppSettingsPageHelper;
-
     m_contentBody = new QWidget(m_contentColumn);
     m_contentBody->setObjectName(QStringLiteral("contentBody"));
-    m_bodyLayout = Helper::createColumn(m_contentBody, 24);
+    m_bodyLayout = PDFAppPageWidgets::createColumn(m_contentBody, 24);
 
     // A refused write (a busy or read-only database)
     m_statusLabel = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 15, PDFThemeColors::TextDanger, m_contentBody);
@@ -782,6 +763,23 @@ bool PDFAppSettingsPage::navigateTo(const PDFAppRoute& route, PDFAppNavigationMo
     return isAlive;
 }
 
+bool PDFAppSettingsPage::clearFilter()
+{
+    // The sections replace the filtered page; when the previous entry of the history
+    // is the same page of the sections (the page before the search), the tab goes
+    // Back to it - no two equal entries (O25). The next page takes the focus of the field.
+    const PDFAppRoute route = PDFAppRoutes::settings();
+    if (!isPreviousRoute(route))
+    {
+        return navigateTo(route, PDFAppNavigationMode::Replace, PendingFocus::Search);
+    }
+
+    s_pendingFocus = PendingFocus::Search;
+    const bool isAlive = requestBack();
+    s_pendingFocus = PendingFocus::None;
+    return isAlive;
+}
+
 void PDFAppSettingsPage::applyPendingFocus()
 {
     const PendingFocus focus = m_focus;
@@ -926,7 +924,7 @@ void PDFAppSettingsPage::onSearchTimeout()
         // An emptied filter goes back to the sections
         if (isFiltering())
         {
-            navigateTo(PDFAppRoutes::settings(), PDFAppNavigationMode::Replace, PendingFocus::Search);
+            clearFilter();
         }
         return;
     }
@@ -954,7 +952,7 @@ void PDFAppSettingsPage::onClearSearchClicked()
         m_searchField->clear();
     }
     m_searchTimer.stop();
-    navigateTo(PDFAppRoutes::settings(), PDFAppNavigationMode::Replace, PendingFocus::Search);
+    clearFilter();
 }
 
 void PDFAppSettingsPage::onRestoreClicked()

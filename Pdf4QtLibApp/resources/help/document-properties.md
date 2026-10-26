@@ -4,7 +4,7 @@ category: open-and-view
 order: 60
 summary: The properties of a document, how links and actions of a document are opened, rendering issues and the developer view.
 keywords: properties, information, title, author, subject, keywords, custom properties, metadata, XMP, fonts, embedded, security, encryption, permissions, password, viewer preferences, print settings, link, web link, URL, program, launch, JavaScript, script, form, rendering issues, errors, developer, text blocks, render times
-related: /help/read-documents, /help/signatures, /settings/security
+related: /help/read-documents, /help/signatures, /help/settings-security, /settings/security
 ---
 The properties of a document describe the document itself and the file on the disk. Open them by **File › Properties…** or by **Ctrl+D**. They replace the view of the document in its tab; **Back to document** returns to the pages.
 
@@ -18,11 +18,11 @@ The properties of a document describe the document itself and the file on the di
 | Display and print | How the author asks a viewer to show and to print the document |
 | XMP metadata | The metadata packet of the document as XML |
 
-**Copy all** copies the properties of every section as text.
+**Copy all** copies the properties of every section as text; the copy button of a row copies its value.
 
 ## Change the properties
 
-The title, the subject, the author, the keywords and the custom properties have the **Edit** button. Type the new value and press **Enter**, **Esc** cancels the change. In the section **XMP metadata** edit the XML and press **Apply changes**; **Create default metadata** makes a packet from the properties of a document, which has none. Each change is one step of **Undo** and the document has unsaved changes until you save it.
+The title, the subject, the author, the keywords and the custom properties have the **Edit** button. Type the new value and press **Enter**, **Esc** cancels the change. In the section **XMP metadata** edit the XML and press **Apply changes**, or **Discard** to return to the packet of the document; **Create default metadata** makes a packet from the properties of a document, which has none. Each change is one step of **Undo** and the document has unsaved changes until you save it.
 
 > [!NOTE] Locked documents
 > A locked document cannot be changed. Unlock it first, or use **Edit a Copy**.
@@ -32,11 +32,14 @@ The title, the subject, the author, the keywords and the custom properties have 
 A link of a document shows where it leads, when the pointer is over it: the address in a tooltip and in the status bar.
 
 - **A link in the document** goes to its page at once.
-- **A web link** (http, https or an e-mail address) asks every time, before it opens in your web browser or your e-mail program. Check the address – a link in a document can lead to a fake site. **Copy Link** copies the address instead. Other kinds of addresses are never opened.
+- **A web link** (http, https or an e-mail address) asks every time – *Open the web link?* or *Open the e-mail link?* – before it opens in your web browser or your e-mail program. Check the address – a link in a document can lead to a fake site. **Copy Link** copies the address instead. Other kinds of addresses are never opened. **Allow URI link launch** in [Settings › Security](/settings/security#allow-uri-link-launch) turns web links off (it is on by default).
 - **A link to another PDF document** opens it in a new tab.
-- **A program or a file**, which a document wants to start, is never started without your confirmation, and only when [Settings › Security](/settings/security) allows it (it is turned off by default).
+- **A link to a file on another computer** (a network share) is not opened by a click, because opening it connects to that computer. The bar above the page says so; **Open Anyway** opens it.
+- **A program or a file**, which a document wants to start, is never started without your confirmation (*Start a program from …?*, *Open a file from …?*), and only when **Allow application launch** in [Settings › Security](/settings/security#allow-application-launch) allows it (it is turned off by default).
 
-When a link is not opened, a bar above the page says why. **Security Settings** opens the setting, which turns web links or programs on and off.
+When a link is not opened, a bar above the page says why. **Security Settings** opens the setting, which turns web links or programs on and off. See [Security settings](/help/settings-security).
+
+To select or edit a link instead of following it, click it with **Ctrl** (**Command** on macOS); the tooltip of a link says so in a document, which can be changed.
 
 > [!WARNING] Scripts and forms
 > PDF4QT does not run JavaScript of documents. A form, which uses scripts to calculate or to check its fields, works without them, and a bar says so. A form is never sent to the internet.
@@ -47,4 +50,4 @@ When a part of a page cannot be drawn exactly (a font, which is not embedded, an
 
 ## Developer view
 
-With **Developer mode** in [Settings › Advanced](/settings/advanced) the pages can show the blocks and the lines of the recognized text and the time of drawing of each page. It helps to find, why a text is selected or read aloud in a wrong order.
+With **Developer mode** in [Settings › Advanced](/settings/advanced#developer-mode) the pages can show the blocks (**Display text blocks**) and the lines (**Display text lines**) of the recognized text and the time of compiling and drawing of each page (**Display page compile/draw time**). It helps to find, why a text is selected or read aloud in a wrong order. See [Advanced settings](/help/settings-advanced).

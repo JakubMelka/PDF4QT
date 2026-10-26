@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappwhatsnewpage.h"
+#include "pdfapptoolpresentation.h"
 #include "pdfappcontext.h"
 #include "pdfapplocale.h"
 #include "pdfapproute.h"
@@ -51,7 +52,6 @@ class PDFAppWhatsNewHelper
 public:
     PDFAppWhatsNewHelper() = delete;
 
-    static PDFAccentHue getHue(PDFDocumentToolHue hue);
     static QString getReleaseDate(const PDFWhatsNewRelease& release);
     static QString getReleaseMeta(const PDFWhatsNewRelease& release, const QVersionNumber& runningVersion);
     static bool isSameVersion(const QVersionNumber& left, const QVersionNumber& right);
@@ -61,26 +61,6 @@ public:
     static QWidget* createColumn(QWidget* parent);
     static QString getOldestVersion(const PDFWhatsNewCatalog& catalog);
 };
-
-PDFAccentHue PDFAppWhatsNewHelper::getHue(PDFDocumentToolHue hue)
-{
-    switch (hue)
-    {
-        case PDFDocumentToolHue::Amber:
-            return PDFAccentHue::Amber;
-        case PDFDocumentToolHue::Blue:
-            return PDFAccentHue::Blue;
-        case PDFDocumentToolHue::Green:
-            return PDFAccentHue::Green;
-        case PDFDocumentToolHue::Red:
-            return PDFAccentHue::Red;
-        case PDFDocumentToolHue::Violet:
-            return PDFAccentHue::Violet;
-        case PDFDocumentToolHue::Teal:
-            return PDFAccentHue::Teal;
-    }
-    return PDFAccentHue::Neutral;
-}
 
 QString PDFAppWhatsNewHelper::getReleaseDate(const PDFWhatsNewRelease& release)
 {
@@ -768,7 +748,7 @@ QWidget* PDFAppWhatsNewPage::createNewTools(QWidget* parent)
             continue;
         }
 
-        PDFToolRow* row = new PDFToolRow(tool->getTitle(), tool->getDescription(), tool->getIconName(), PDFAppWhatsNewHelper::getHue(tool->getHue()), grid);
+        PDFToolRow* row = new PDFToolRow(tool->getTitle(), tool->getDescription(), tool->getIconName(), PDFAppToolPresentation::getHue(tool->getHue()), grid);
         row->setProperty("pdf4qtToolId", toolId);
         grid->addWidget(row);
         connect(row, &PDFToolRow::clicked, this, &PDFAppWhatsNewPage::onToolClicked);

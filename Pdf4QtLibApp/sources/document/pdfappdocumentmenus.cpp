@@ -376,8 +376,19 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
         return;
     }
 
-    // The keyboard starts at the first control of the panel
+    // The keyboard starts at the first control of the panel, also when the panel is
+    // opened again: the window remembers its last focused control, after which
+    // focusNextPrevChild would continue - the remembered control is forgotten first
     activateWindow();
+    if (QWidget* remembered = focusWidget())
+    {
+        remembered->clearFocus();
+        if (!guard)
+        {
+            // A slot of the loss of the focus has deleted the panel
+            return;
+        }
+    }
     focusNextPrevChild(true);
 }
 

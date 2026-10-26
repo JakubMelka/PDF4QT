@@ -27,6 +27,7 @@
 #include "pdfapphomedialogs.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappmainwindow.h"
+#include "pdfappminuteticker.h"
 #include "pdfappsysteminfo.h"
 #include "pdfappthumbnailer.h"
 #include "pdfdatabasenotifier.h"
@@ -121,6 +122,10 @@ PDFAppHomeBasePage::PDFAppHomeBasePage(PDFAppContext* context, QWidget* parent) 
     m_retryTimer->setSingleShot(true);
     m_retryTimer->setInterval(RETRY_INTERVAL);
     connect(m_retryTimer, &QTimer::timeout, this, &PDFAppHomeBasePage::onRetryTimer);
+
+    // O25: the times of recent activity follow the clock while the page is visible
+    m_minuteSubscription = new PDFAppMinuteSubscription(context ? context->getMinuteTicker() : nullptr, this);
+    connect(m_minuteSubscription, &PDFAppMinuteSubscription::minuteChanged, this, &PDFAppHomeBasePage::onMinuteChanged);
 
     if (context)
     {
@@ -664,6 +669,14 @@ void PDFAppHomeBasePage::refreshNow()
     // A refresh may rebuild the rows: the focused item gets the focus back
     const FocusState focus = captureFocus();
     refresh();
+
+    // The rows kept by the refresh (the same data) get the texts of the current minute
+    const qint64 now = getNow();
+    updateTimeTexts(now);
+    if (m_minuteSubscription)
+    {
+        m_minuteSubscription->setUpdated(now);
+    }
     restoreFocus(focus);
 }
 
@@ -948,6 +961,17 @@ QPixmap PDFAppHomeBasePage::getThumbnail(const PDFRecentFile& file)
 qint64 PDFAppHomeBasePage::getNow() const
 {
     return PDFAppHomeFormat::getCurrentTime();
+}
+
+void PDFAppHomeBasePage::updateTimeTexts(qint64 now)
+{
+    PDFAppHomeFormat::updateTimeTexts(this, now);
+}
+
+void PDFAppHomeBasePage::onMinuteChanged(qint64 now)
+{
+    // Only the texts: no read of the database, no rebuild of the rows
+    updateTimeTexts(now);
 }
 
 PDFTextLink* PDFAppHomeBasePage::createLink(const QString& text, const PDFAppRoute& route, QWidget* parent)

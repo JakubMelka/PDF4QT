@@ -23,6 +23,7 @@
 #include "pdfdocumenttoolsearch.h"
 
 #include <algorithm>
+#include <array>
 
 namespace pdf
 {
@@ -303,6 +304,72 @@ bool PDFSearchQuery::isWithinOneEdit(QStringView first, QStringView second)
     return shorter.mid(i) == longer.mid(i + 1);
 }
 
+int PDFSearchQuery::getEditDistance(QStringView first, QStringView second, int limit)
+{
+    limit = std::max(limit, 0);
+    const qsizetype firstSize = first.size();
+    const qsizetype secondSize = second.size();
+    if (firstSize > MAXIMUM_WORD_LENGTH || secondSize > MAXIMUM_WORD_LENGTH || qAbs(firstSize - secondSize) > limit)
+    {
+        return limit + 1;
+    }
+
+    // Optimal string alignment distance by three rows of the matrix (the row
+    // before the previous one gives the swap of two adjacent characters)
+    std::array<int, MAXIMUM_WORD_LENGTH + 1> beforePrevious = { };
+    std::array<int, MAXIMUM_WORD_LENGTH + 1> previous = { };
+    std::array<int, MAXIMUM_WORD_LENGTH + 1> current = { };
+    for (qsizetype j = 0; j <= secondSize; ++j)
+    {
+        previous[size_t(j)] = int(j);
+    }
+
+    int previousRowMinimum = 0;
+    for (qsizetype i = 1; i <= firstSize; ++i)
+    {
+        current[0] = int(i);
+        int rowMinimum = current[0];
+        for (qsizetype j = 1; j <= secondSize; ++j)
+        {
+            const int cost = first[i - 1] == second[j - 1] ? 0 : 1;
+            int value = std::min({ previous[size_t(j)] + 1, current[size_t(j - 1)] + 1, previous[size_t(j - 1)] + cost });
+            if (i > 1 && j > 1 && first[i - 1] == second[j - 2] && first[i - 2] == second[j - 1])
+            {
+                value = std::min(value, beforePrevious[size_t(j - 2)] + 1);
+            }
+            current[size_t(j)] = value;
+            rowMinimum = std::min(rowMinimum, value);
+        }
+
+        // The minimum of a row is at least the smaller of the minimums of the two
+        // rows before it (a swap reaches back two rows): two rows over the limit
+        // keep every following row over it
+        if (rowMinimum > limit && previousRowMinimum > limit)
+        {
+            return limit + 1;
+        }
+
+        previousRowMinimum = rowMinimum;
+        beforePrevious = previous;
+        previous = current;
+    }
+
+    return std::min(previous[size_t(secondSize)], limit + 1);
+}
+
+int PDFSearchQuery::getNearDistanceLimit(qsizetype length)
+{
+    if (length >= 8)
+    {
+        return 3;
+    }
+    if (length >= 5)
+    {
+        return 2;
+    }
+    return 0;
+}
+
 PDFSearchMatchQuality PDFSearchQuery::matchWord(QStringView queryWord, QStringView word)
 {
     if (queryWord.isEmpty() || word.isEmpty())
@@ -547,6 +614,265 @@ std::vector<PDFDocumentToolSearchMatch> PDFDocumentToolSearch::search(const PDFS
 std::vector<PDFDocumentToolSearchMatch> PDFDocumentToolSearch::search(const QString& text)
 {
     return search(PDFSearchQuery(text));
+}
+
+/// Helpers of the nearest tools of a query
+class PDFDocumentToolNearestHelper
+{
+public:
+    PDFDocumentToolNearestHelper() = delete;
+
+    /// Normalized words of the titles and of the keywords of a tool
+    class ToolWords
+    {
+    public:
+        const PDFDocumentToolCatalogEntry* tool = nullptr;
+        int catalogIndex = 0;
+        QStringList titleWords;
+        std::vector<std::pair<QString, QStringList>> keywords;  ///< Keyword and its words
+    };
+
+    /// Best score of a word of the query against one word of the tool: the
+    /// scores of search for a match of matchWord, a near score otherwise
+    static int getWordScore(QStringView queryWord, QStringView word, int exactScore, int prefixScore, int typoScore, int nearScore)
+    {
+        switch (PDFSearchQuery::matchWord(queryWord, word))
+        {
+            case PDFSearchMatchQuality::Exact:
+                return exactScore;
+            case PDFSearchMatchQuality::Prefix:
+                return prefixScore;
+            case PDFSearchMatchQuality::Typo:
+                return typoScore;
+            case PDFSearchMatchQuality::None:
+                break;
+        }
+
+        // Never a difference in the first character ("epub" is not "publish")
+        const int limit = PDFSearchQuery::getNearDistanceLimit(queryWord.size());
+        if (limit <= 0 || queryWord.isEmpty() || word.isEmpty() || queryWord.front() != word.front())
+        {
+            return 0;
+        }
+
+        // The whole word, or its beginning of about the length of the query
+        int distance = PDFSearchQuery::getEditDistance(queryWord, word, limit);
+        if (word.size() > queryWord.size())
+        {
+            for (const qsizetype length : { queryWord.size() - 1, queryWord.size(), queryWord.size() + 1 })
+            {
+                if (length > 0 && length < word.size())
+                {
+                    distance = std::min(distance, PDFSearchQuery::getEditDistance(queryWord, word.left(length), limit));
+                }
+            }
+        }
+
+        return distance <= limit ? std::max(nearScore - PDFDocumentToolSearch::NEAR_EDIT_PENALTY * distance, 1) : 0;
+    }
+
+    /// Best score of a word of the query against the words of a list
+    static int getListScore(QStringView queryWord, const QStringList& words, int exactScore, int prefixScore, int typoScore, int nearScore)
+    {
+        int best = 0;
+        for (const QString& word : words)
+        {
+            best = std::max(best, getWordScore(queryWord, word, exactScore, prefixScore, typoScore, nearScore));
+            if (best == exactScore)
+            {
+                break;
+            }
+        }
+        return best;
+    }
+
+    static ToolWords getToolWords(const PDFDocumentToolCatalogEntry& tool, int catalogIndex)
+    {
+        ToolWords result;
+        result.tool = &tool;
+        result.catalogIndex = catalogIndex;
+
+        // The texts of the user interface and the English ones
+        result.titleWords = PDFSearchQuery::splitWords(tool.getTitle());
+        for (const QString& word : PDFSearchQuery::splitWords(tool.getSourceTitle()))
+        {
+            if (!result.titleWords.contains(word))
+            {
+                result.titleWords << word;
+            }
+        }
+
+        QStringList keywords = tool.getTranslatedKeywords();
+        for (const QString& keyword : tool.getKeywords())
+        {
+            if (!keywords.contains(keyword))
+            {
+                keywords << keyword;
+            }
+        }
+        for (const QString& keyword : std::as_const(keywords))
+        {
+            result.keywords.emplace_back(keyword, PDFSearchQuery::splitWords(keyword));
+        }
+        return result;
+    }
+
+    /// Score of the tool for one word of the query; \p keyword gets the keyword,
+    /// when a keyword gave the score (a title wins a tie)
+    static int getToolScore(QStringView queryWord, const ToolWords& tool, QString* keyword)
+    {
+        using Search = PDFDocumentToolSearch;
+
+        const int titleScore = getListScore(queryWord, tool.titleWords, Search::TITLE_EXACT, Search::TITLE_PREFIX, Search::TITLE_TYPO, Search::TITLE_NEAR);
+        int keywordScore = 0;
+        for (const auto& [text, words] : tool.keywords)
+        {
+            const int score = getListScore(queryWord, words, Search::KEYWORD_EXACT, Search::KEYWORD_PREFIX, Search::KEYWORD_TYPO, Search::KEYWORD_NEAR);
+            if (score > keywordScore)
+            {
+                keywordScore = score;
+                *keyword = text;
+            }
+        }
+
+        if (titleScore >= keywordScore)
+        {
+            keyword->clear();
+            return titleScore;
+        }
+        return keywordScore;
+    }
+
+    /// Candidate of the nearest tools
+    class Candidate
+    {
+    public:
+        const PDFDocumentToolCatalogEntry* tool = nullptr;
+        int catalogIndex = 0;
+        int matchedWords = 0;
+        int score = 0;
+        bool isDecisive = false;        ///< A decisive word of the query is near the tool
+        int bestWordScore = 0;
+        QString keyword;                ///< Keyword of the best word (empty = the title)
+    };
+
+    /// Order: more near words of the query, the higher score, the order of the catalog
+    static bool isBefore(const Candidate& left, const Candidate& right)
+    {
+        if (left.matchedWords != right.matchedWords)
+        {
+            return left.matchedWords > right.matchedWords;
+        }
+        if (left.score != right.score)
+        {
+            return left.score > right.score;
+        }
+        return left.catalogIndex < right.catalogIndex;
+    }
+};
+
+std::vector<PDFDocumentToolSearchMatch> PDFDocumentToolSearch::searchNearest(const PDFSearchQuery& query, const QStringList& excludedTools, int maximumCount)
+{
+    using Helper = PDFDocumentToolNearestHelper;
+
+    std::vector<PDFDocumentToolSearchMatch> result;
+    maximumCount = std::clamp(maximumCount, 0, MAXIMUM_NEAREST);
+    if (query.isEmpty() || maximumCount == 0)
+    {
+        return result;
+    }
+
+    // Words of the query long enough to say something, each once
+    QStringList queryWords;
+    for (const QString& word : query.getWords())
+    {
+        if (word.size() >= MINIMUM_NEAR_WORD_LENGTH && !queryWords.contains(word))
+        {
+            queryWords << word;
+        }
+    }
+    if (queryWords.isEmpty())
+    {
+        return result;
+    }
+
+    std::vector<Helper::ToolWords> tools;
+    const std::vector<PDFDocumentToolCatalogEntry>& catalog = PDFDocumentToolCatalog::getTools();
+    tools.reserve(catalog.size());
+    for (size_t i = 0; i < catalog.size(); ++i)
+    {
+        tools.push_back(Helper::getToolWords(catalog[i], int(i)));
+    }
+
+    // Scores of each word of the query against each tool
+    std::vector<Helper::Candidate> candidates(tools.size());
+    for (size_t i = 0; i < tools.size(); ++i)
+    {
+        candidates[i].tool = tools[i].tool;
+        candidates[i].catalogIndex = tools[i].catalogIndex;
+    }
+
+    for (const QString& queryWord : std::as_const(queryWords))
+    {
+        std::vector<int> scores(tools.size(), 0);
+        std::vector<QString> keywords(tools.size());
+        int matchingTools = 0;
+        for (size_t i = 0; i < tools.size(); ++i)
+        {
+            scores[i] = Helper::getToolScore(queryWord, tools[i], &keywords[i]);
+            if (scores[i] > 0)
+            {
+                ++matchingTools;
+            }
+        }
+
+        // A short word or a word near too many tools does not say, which tool the
+        // user looks for
+        const bool isDistinctive = queryWord.size() >= MINIMUM_DECISIVE_WORD_LENGTH && matchingTools <= MAXIMUM_COMMON_WORD_TOOLS;
+        for (size_t i = 0; i < tools.size(); ++i)
+        {
+            if (scores[i] <= 0)
+            {
+                continue;
+            }
+
+            Helper::Candidate& candidate = candidates[i];
+            ++candidate.matchedWords;
+            candidate.score += scores[i];
+            candidate.isDecisive = candidate.isDecisive || (isDistinctive && scores[i] >= MINIMUM_DECISIVE_SCORE);
+            if (scores[i] > candidate.bestWordScore)
+            {
+                candidate.bestWordScore = scores[i];
+                candidate.keyword = keywords[i];
+            }
+        }
+    }
+
+    std::stable_sort(candidates.begin(), candidates.end(), Helper::isBefore);
+    for (const Helper::Candidate& candidate : candidates)
+    {
+        if (int(result.size()) >= maximumCount)
+        {
+            break;
+        }
+        if (!candidate.isDecisive || candidate.matchedWords == 0 || excludedTools.contains(candidate.tool->getId()))
+        {
+            continue;
+        }
+
+        PDFDocumentToolSearchMatch match;
+        match.tool = candidate.tool;
+        match.score = candidate.score;
+        match.field = candidate.keyword.isEmpty() ? PDFDocumentToolSearchMatch::Field::Title : PDFDocumentToolSearchMatch::Field::Keyword;
+        match.keyword = candidate.keyword;
+        result.push_back(std::move(match));
+    }
+    return result;
+}
+
+std::vector<PDFDocumentToolSearchMatch> PDFDocumentToolSearch::searchNearest(const QString& text, const QStringList& excludedTools, int maximumCount)
+{
+    return searchNearest(PDFSearchQuery(text), excludedTools, maximumCount);
 }
 
 }   // namespace pdf

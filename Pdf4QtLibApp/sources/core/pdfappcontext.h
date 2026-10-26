@@ -35,10 +35,12 @@
 #include "pdfrecentrepository.h"
 #include "pdfworkspacerepository.h"
 #include "pdftoolrepository.h"
+#include "pdftoolcollectionrepository.h"
 #include "pdfappthumbnailer.h"
 #include "pdfappfolderinfo.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfapptranslator.h"
+#include "pdfappminuteticker.h"
 
 #include <QObject>
 #include <QPointer>
@@ -90,6 +92,7 @@ public:
     PDFRecentRepository getRecent() const;
     PDFWorkspaceRepository getWorkspaces() const;
     PDFToolRepository getTools() const;
+    PDFToolCollectionRepository getToolCollections() const;
 
     /// Services of step 2, owned by the context (created by open, destroyed by
     /// close before the database); nullptr when the storage is not open.
@@ -137,6 +140,11 @@ public:
     /// every change of any instance. It lives as long as the context.
     PDFAppTranslator* getTranslator() const { return m_translator; }
 
+    /// Shared minute timer of the relative times of recent activity (owner
+    /// decision O25): the pages and panels, which show them, subscribe their
+    /// widgets. It lives as long as the context.
+    PDFAppMinuteTicker* getMinuteTicker() const { return m_minuteTicker; }
+
     /// Applies the setting appearance.language (the translator)
     void applyLanguage();
 
@@ -176,6 +184,7 @@ private:
     QPointer<PDFAppFolderInfoService> m_folderInfo;
     QPointer<PDFAppDocumentRegistry> m_documentRegistry;
     QPointer<PDFAppTranslator> m_translator;
+    QPointer<PDFAppMinuteTicker> m_minuteTicker;
     std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
     bool m_isPagesEnabled = true;
 };

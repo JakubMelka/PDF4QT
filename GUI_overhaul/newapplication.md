@@ -146,3 +146,62 @@ Potvrzeno vlastníkem 25. 10. 2026 (O21):
 | O21 | Tooly a asistent (25. 10. 2026) | Pravidla použití a řetězení toolů v [newapp_tools.md](newapp_tools.md) 3 platí, jak jsou napsaná (použití = přijatý výsledek nebo NothingToDo; návrhy *Then continue with* nejvýš tři, uživatelská dvojice od počitadla 2, výchozí následníci s hodnotou 2, stárnutí nad 50; běhy z MCP se nepočítají). Oprávnění asistenta podle kapitoly 6: *Ask* u *Read documents* = jeden dotaz za relaci, zavření tabu asistentem patří pod *Read documents*, po *Deny* se další čtení zeptá znovu, *Allow* platí i pro později otevřené dokumenty. |
 | O22 | Settings, krok 5 (25. 10. 2026) | Desátá sekce **Storage** pod Advanced (`/settings/storage`): kde je nastavení uložené (*Show in Folder*), stav úložiště, starší soubory databáze s *Delete…* (jen starší, jen nepoužívané jinou běžící verzí, po potvrzení) a **export / import nastavení = záloha celé databáze** (export záložním API SQLite do dočasného souboru a přejmenování; import ověří soubor jako nedůvěryhodný vstup – hlavičku, `application_id`, verzi schématu, integritu a přesnou shodu schématu s referencí, novější schéma odmítne, starší zmigruje, po potvrzení nahradí živou databázi a ostatní instance se znovu načtou). Sekce se doplní do Figmy (svolení 25. 10. 2026). Nový jazyk rozhraní se projeví hned, bez štítku „Restart required“. Soubory překladů `.ts` se v kroku 5 nemění, přeloží je později překladatelé. Tabulka důvěryhodných certifikátů v Security, odebrat jdou jen vlastní. Výchozí hodnoty programu zůstávají (ořez podle CropBoxu zapnutý, hlasitost předčítání 100 %). |
 | O23 | Settings, revize kroku 5 (25. 10. 2026) | Výběr předvolby barev pro čtení přepne režim zobrazení na *Custom colors*. Jazyk se přepne až po výběru ze seznamu (klepnutí / Enter), ne při každé šipce v zavřeném seznamu. Dialogy exportu a importu nastavení si pamatují poslední složku. Limit importované zálohy je 128 MB. Záznam činnosti AI asistenta (`mcp_activity`) se do zálohy nevkládá a import ponechá současný. Souběh smazání staršího souboru databáze se startem starší verze na Linuxu se přijímá. Import zálohy: zaškrtávací políčko „Also trust the N certificates of the backup“ (výchozí vypnuto, jinak zůstanou současné certifikáty) a výpis každého oslabeného bezpečnostního nastavení „staré → nové“. |
+| O24 | Tools, krok 6 (26. 10. 2026) | Klik na kolekci na stránce Tools ukáže tooly kolekce na stránce Tools (`/tools?collection=`, v pořadí kolekce, odkaz *Edit*); editor se otevře přes *Edit*, *Manage* a *New collection…*. *Clear* u *Recent tools* po potvrzení smaže seznam naposledy použitých toolů (stránka Tools, Home, panel Tools dokumentu, *For you*); připnuté tooly, kolekce a historie pro *Then continue with* zůstanou; odkaz je skrytý, dokud je seznam prázdný. Hledání v katalogu ukáže důvod shody („matches “combine”“ místo popisu), když tool našlo jen klíčové slovo. Neuložené změny kolekce se při odchodu ze stránky neptají: zůstanou v historii (Zpět se k nim vrátí), zapíše je jen *Save*. |
+| O25 | Tools, krok 6 – návrhy a hledání (26. 10. 2026) | *Then continue with*: při shodě počitadel vyhraje výchozí návrh, dvojice uživatele ho nahradí až po třetím použití. Vypnutá volba *Suggest tools I often use next* dál zapisuje *Recent tools*, nepočítá jen dvojice. Počet běhů u *Clear history* počítá jen běhy, které tvoří dvojici. Dvojice s toolem, který tato verze nezná, se nezachovávají (bez dopředné kompatibility historie); položky kolekcí s takovým toolem se naopak zachovávají, protože kolekci sestavil uživatel. Neuložený koncept kolekce v historii si pamatuje id a čas poslední změny kolekce; když kolekce mezitím zmizela, koncept se zahodí, když se změnila (jinou instancí nebo novým id), ukáže se lišta *Reload / Keep my changes*. Smazání textu filtru na stránkách Tools a Settings, které vede na stránku bez filtru shodnou s předchozím záznamem historie, se vrátí o krok zpět místo přepsání záznamu (v historii nezůstanou dva stejné záznamy). Časy v seznamech nedávné aktivity (soubory na Home a Recent, *Recent tools* na stránce Tools i v panelu, otevření pracovních prostorů) jsou v celé aplikaci kombinované: „Just now“ do minuty, „N minutes ago“ do hodiny, pak „Today 15:56“, „Yesterday 16:20“ a datum; viditelné relativní texty obnovuje jeden společný časovač jednou za minutu. Data dokumentu (čas komentářů, vlastnosti dokumentu) zůstávají absolutní. Hledání v katalogu bez výsledku nabídne až tři nejbližší dostupné tooly; když žádný není dost blízko, nenabídne nic. Volba pro skrytí toolů *Advanced* z mřížky (tools.md 9.2 bod 4) nebude: tooly *Advanced* jsou na konci kategorie a hledání je najde. |
+
+## 8. Otevřené body (vyřeší se později)
+
+Body z kroků fáze 1, které čekají na rozhodnutí vlastníka nebo na designéra. Doporučení je návrh koordinátora; do rozhodnutí platí stav programu.
+
+### 8.1 Krok 5 – k rozhodnutí vlastníka (26. 10. 2026)
+
+| # | Bod | Doporučení |
+| --- | --- | --- |
+| A1 | **Šířka sloupců dat certifikátů** (`settings-security`, tabulka *Trusted certificates*): Figma má sloupce *Valid from* / *Valid to* 84 px, datum v jazyce rozhraní podle O17 („Oct 12, 2026“, „12. 10. 2026“) se nevejde, program má 116 / 114 px. | Nechat širší sloupce, designér je ve Figmě rozšíří. |
+| A2 | **Oddělovače v seznamech ICC profilů** (`settings-dropdowns`, seznamy sekce Color management): Figma odděluje vestavěné, systémové a vlastní profily čarou, program má jeden seznam bez čar (obecný řádek nastavení zatím oddělovač mezi volbami neumí). | Doplnit (malý úkol). |
+| A3 | **ICC profil nainstalovaný za běhu:** seznam systémových profilů je v paměti (bez toho stála každá změna nastavení barev 150 ms na otevřený dokument), nový profil ve Windows uvidí dokumenty až po otevření Settings › Color management nebo po restartu. | Přijmout. |
+| A4 | **Oprávnění zálohy ve Windows** (Settings › Storage › *Export…*): na Linuxu má záloha práva jen pro vlastníka (0600), ve Windows dědí oprávnění složky; záloha obsahuje cesty k dokumentům a historii. | Přijmout (složku vybírá uživatel); jinak ACL jen pro vlastníka. |
+| A5 | **Tři drobnosti z revize RFX5:** (1) import zálohy ověřuje integritu souboru dvakrát ve vlákně GUI (záloha 128 MB = sekundy zamrzlého okna místo poloviny); (2) seznam bezpečnostních nastavení, která import hlídá („Off → On“), je v kódu na dvou místech (`PDFDatabaseBackup::getSecuritySettingKeys` a `getSecurityRules` sekce Storage); (3) sekce Storage načítá soubory databáze při každém zobrazení (i po obnovení okna) a fokus může skočit z tlačítka *Delete…*. | Opravit spolu s A2. |
+
+### 8.2 Krok 5 – chybějící rámce ve Figmě (designér)
+
+Program tyto stavy má, ve Figmě nejsou; kontrola věrnosti je zatím nemá s čím porovnat.
+
+| Kde | Stav |
+| --- | --- |
+| Settings › Shortcuts | dialog konfliktu zkratky („Ctrl+P už používá *Print*“, Assign / Cancel), řádek během nahrávání zkratky |
+| Settings › Security | potvrzení *Remove* certifikátu, prázdná tabulka, poškozený řádek certifikátu, řádek „a N certifikátů Adobe Approved Trust List“ |
+| Settings › Storage | řádek *State* ve stavu *In memory* a *Read only* |
+| Settings › Speech | stav během přehrávání (*Play sample* → *Stop*) |
+| Settings obecně | filtrovaná stránka `/settings?q=`, stav bez shody, zvýraznění řádku po skoku z hledání, hláška o chybě zápisu, vývojářské řádky *Display text blocks* / *Display text lines* |
+
+### 8.3 Krok 5 – nesoulady uvnitř Figmy (designér opraví Figmu, program je správně)
+
+- `settings-general`, řádek Language: hodnota „Automatic detection“ a štítek „Restart required“; seznam v `settings-dropdowns` má „Automatic“ a jazyk se podle O22 / O23 mění bez restartu. Program: „Automatic“ bez štítku.
+- `settings-speech`, řádek Voice synthesizer: interní id „winrt“; seznam má „Windows (WinRT)“, program ukazuje čitelný název.
+- `settings-colormanagement`: názvy profilů jsou ukázkové, program ukazuje profily, které skutečně najde.
+- `settings-dropdowns`, seznam Author: široký 331 px, podle stránky Widgets má seznam šířku pole (rozhodnutí vlastníka 25. 10. 2026: platí Widgets).
+
+### 8.4 Už rozhodnuté nebo zapsané jinde
+
+- Souběh při mazání starého souboru databáze na Linuxu – přijato (O23).
+- [SECURITY_TODO.md](../SECURITY_TODO.md) #10 (složka ICC profilů starých aplikací bez limitů) a #11 (načítání překladů starých aplikací) – řeší se v samostatném bezpečnostním úkolu.
+
+### 8.5 Nápověda – nálezy kontroly manuálu (26. 10. 2026)
+
+| # | Bod | Doporučení |
+| --- | --- | --- |
+| H1 | **Témata AI** (`ai-assistant.md`, `ai-permissions.md`, řádek AI v `getting-started.md`, zmínka o tokenu AI v přenosném režimu) popisují krok 7 (MCP a stránka AI), který ještě není hotový; `/ai` zatím otevře *Page Not Found*. | Nechat (fáze 1 vyjde až celá); krok 7 témata ověří proti kódu. Jinak je do kroku 7 skrýt z katalogu nápovědy. |
+| H2 | **Jazyk vs. Locale:** panel Read aloud (195:2499) píše „Language“, Settings › Speech (`settings-speech`) píše „Locale“ pro totéž nastavení. | Sjednotit na „Language“ (srozumitelnější); designér opraví `settings-speech`. |
+| H3 | **„Draw text as real text“** ve skupině „Printing and export“ (`settings-viewing`) zmiňuje export, který ve fázi 1 není (export obrázků je tool fáze 2). | Nechat; text platí od fáze 2. |
+| H4 | **Output color profile** nabízí jen sRGB (vestavěný); jádro jiné výstupní profily nehledá. | Nechat (obrazovky jsou sRGB); případně fáze 2 se správou barev monitoru. |
+| H5 | **Vlastní barvy se ztratí** (`settings-colormodes`): výběr předvolby pro čtení přepíše dvojici barev uživatele a *Custom…* ji nevrátí (drží jen aktuální dvojici). | Ukládat vlastní dvojici zvlášť, *Custom…* ji obnoví (malá úprava, schéma beze změny – další dvě nastavení). |
+| H6 | **Systémové ICC profily na Linuxu:** profily přímo ve složce `/usr/share/color/icc` se nečtou, jen z jejích podsložek (`PDFCMSManager::listExternalProfiles`, jádro). | Opravit v jádře (číst i samotnou složku). |
+| H7 | **Zavádějící popisky:** „Thumbnail image cache size“ (`settings-advanced`) ve skutečnosti omezuje celou sdílenou cache obrázků procesu (`QPixmapCache`); skupina „Printing and export“ (`settings-viewing`) – volbu „Draw text as real text“ používá jen tisk. | Přejmenovat na „Image cache size“ a skupinu na „Printing“ (do fáze 2); designér upraví Figmu. |
+| H8 | **Množné číslo v Storage:** potvrzení importu („Also trust the %1 certificates of the backup“, „%1 more certificates“) nepoužívá `%Ln` (tvary množného čísla, formát čísla O17). | Opravit spolu s A5. |
+
+### 8.6 Budoucí úkoly
+
+| # | Úkol | Návrh |
+| --- | --- | --- |
+| F1 | **Katalog videí Support ze stránek autora** (požadavek vlastníka 26. 10. 2026). Dnes je katalog `PDFSupportVideoCatalog` pevná tabulka v programu, nové video se k uživatelům dostane až s novou verzí. | Na stránkách autora leží soubor `videos.json` (verze formátu, seznam videí: `id`, názvy a popisy v jazycích – `en` povinně, další volitelně –, délka, odkaz jen `https://www.youtube.com/…` / `youtu.be`, téma, štítky, `toolIds`, nejnižší verze PDF4QT, náhled) a jeho podpis `videos.json.sig` (Ed25519 nebo ECDSA přes OpenSSL, které už program linkuje; veřejný klíč v programu, soukromý jen u autora, podepíše ho skript při publikaci). Program ho stáhne nejvýš jednou denně stejnou cestou jako kontrola aktualizací (`PDFUpdateChecker`: jen https, limit velikosti, timeout, bez cookies, jedna instance za den přes rezervaci v databázi) a jen když je zapnutá kontrola aktualizací (stejný souhlas s připojením k internetu). Obsah je nedůvěryhodný: přísná kontrola schématu a délek, prostý text, jen odkazy YouTube, neznámé tooly a videa pro novější verzi se vynechají, nejvýš N videí; náhledy (PNG / JPEG ze stejných stránek, limit velikosti a rozměrů) se uloží do databáze. Uložený katalog (nová tabulka = migrace schématu) nahradí přibalený; přibalený zůstává pro první spuštění, offline a přenosný režim bez sítě. Stránka Support, hledání a *For you* čtou katalog z jednoho místa a sledují jeho změnu (oznámení databáze). **Schváleno vlastníkem 26. 10. 2026**, přibalený katalog se navíc aktualizuje při každém vydání (bod kontrolního seznamu vydání: zkopírovat aktuální `videos.json` a náhledy do resources). Otevřené: adresa stránek autora (vlastní doména, nebo GitHub Pages repozitáře). |

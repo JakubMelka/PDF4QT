@@ -77,6 +77,18 @@ public:
     /// but a too long name is shortened instead of refused
     static QString sanitizeStoredName(const QString& name);
 
+    /// Text of a name entered by the user or read from the database without the
+    /// invisible characters, which may make two names look the same or reorder a
+    /// text: lone surrogates and the format characters of whole code points
+    /// (bidirectional controls, zero width characters, the tag characters outside
+    /// of the BMP) are removed, the joiners ZWNJ / ZWJ stay (emoji sequences, some
+    /// scripts). With \p isControlRemoved also the control characters, the
+    /// unassigned code points and the line / paragraph separators are removed.
+    /// At most \p maximumLength UTF-16 units are kept (a surrogate pair is never
+    /// cut); the text is not trimmed. Used by the author name of the annotations
+    /// and the names of the tool collections.
+    static QString removeInvisibleCharacters(const QString& text, bool isControlRemoved, qsizetype maximumLength);
+
     /// Last part of a path ("Report.pdf", "Documents"); the path itself for a root
     static QString getFileName(const QString& path);
 

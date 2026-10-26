@@ -23,7 +23,7 @@ At the bottom of the sidebar, the switch **Light / Dark / Auto** chooses the col
 ## Open your first document
 
 1. Click **Open** in the sidebar.
-2. Drop PDF files on the area *Drop PDF files here*, or click **Browse Files…** and choose them.
+2. Drop PDF files on the area *Drop PDF files here*, or click **Browse Files…** (**Ctrl+O**) and choose them. You can also drop PDF files anywhere on the window.
 3. Each document opens in its own tab. The Home tab stays where it is, so you can go back to it at any time.
 
 You can also open documents from the file manager of your system or from the command line, see [Open documents](/help/open-documents).
@@ -34,7 +34,7 @@ Every page of PDF4QT has an address, for example `/settings/general`. You can go
 
 - **Alt+Left** goes back, **Alt+Right** goes forward.
 - The back and forward buttons of your mouse do the same.
-- A link to a page, which does not exist, shows *Page Not Found* with the buttons **Back**, **Search for…** and **Go to Home**.
+- A link to a page, which does not exist, shows *Page not found* with the buttons **Back**, **Search for “…”** and **Go to Home**.
 
 > [!TIP] Search everything
 > Press **Ctrl+K** to search tools, commands, settings, documents and this manual from any page with a search field. See [Search everything](/help/search).

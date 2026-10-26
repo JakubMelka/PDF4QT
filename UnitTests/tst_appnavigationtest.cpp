@@ -32,6 +32,7 @@
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
 #include "pdfapptab.h"
+#include "pdfapptoolpageregistry.h"
 #include "pdfapptopbar.h"
 #include "pdfappwindowfactory.h"
 #include "pdfappwindowframe.h"
@@ -388,6 +389,7 @@ private slots:
     void historyAndViewState();
     void navigationFromOwnSignal();
     void replaceRoute();
+    void replaceRouteToolPages();
     void deletionDuringNavigation();
     void deletionInAnyOrder();
     void newTab();
@@ -752,10 +754,13 @@ void AppNavigationTest::routeBuilders()
                                             Routes::about("third-party"), Routes::support(), Routes::sponsor(), Routes::help("topic"), Routes::settings(),
                                             Routes::recent("workspaces", "last-opened", "q"), Routes::support("pages", "merge"), Routes::releaseNotes("1.6.0"),
                                             Routes::settings("advanced", "row"), Routes::search("x", "help"), Routes::document(documentId(), 3),
-                                            Routes::documentProperties(documentId(), "xmp"), Routes::documentTool(documentId(), "ocr"), Routes::toolTab("merge", "m1") })
+                                            Routes::documentProperties(documentId(), "xmp"), Routes::documentTool(documentId(), "ocr"), Routes::toolTab("merge", "m1"),
+                                            Routes::tools("pinned", "merge"), Routes::tools(QString(), QString(), "custom-1"), Routes::toolCollectionNew("pages.merge") })
     {
+        // The list of the collections is redirected to the first collection (step 6)
         const pdf::PDFAppRouteMatch match = table.match(route);
-        QVERIFY2(match.result == pdf::PDFAppRouteMatch::Result::NotImplemented, qPrintable(route.toString()));
+        const bool isRedirect = route == Routes::toolCollections() && match.result == pdf::PDFAppRouteMatch::Result::Redirect;
+        QVERIFY2(match.result == pdf::PDFAppRouteMatch::Result::NotImplemented || isRedirect, qPrintable(route.toString()));
     }
 }
 
@@ -822,7 +827,10 @@ void AppNavigationTest::routeTable_data()
     add("/recent?filter=workspaces", "/recent", "/recent?filter=workspaces", Tab::Home, Nav::Recent);
     add("/tools", "/tools", "/tools", Tab::Home, Nav::Tools);
     add("/tools?category=optimize&q=size", "/tools", "/tools?category=optimize&q=size", Tab::Home, Nav::Tools);
-    add("/tools/collections", "/tools/collections", "/tools/collections", Tab::Home, Nav::Tools);
+    // The list of the collections shows the first (built-in) collection (step 6)
+    add("/tools/collections", "/tools/collections/{collectionId}", "/tools/collections/prepare-for-sharing", Tab::Home, Nav::Tools);
+    add("/tools?collection=custom-1", "/tools", "/tools?collection=custom-1", Tab::Home, Nav::Tools);
+    add("/tools/collections/new?tool=pages.merge", "/tools/collections/new", "/tools/collections/new?tool=pages.merge", Tab::Home, Nav::Tools);
     add("/tools/collections/new", "/tools/collections/new", "/tools/collections/new", Tab::Home, Nav::Tools);
     add("/tools/collections/my-tools", "/tools/collections/{collectionId}", "/tools/collections/my-tools", Tab::Home, Nav::Tools);
     add("/tools/compress", "/tools/{toolId}", "/tools/compress", Tab::Home, Nav::Tools);
@@ -1557,6 +1565,79 @@ void AppNavigationTest::replaceRoute()
     QVERIFY(fixture.window.isNull());
 }
 
+/// Factory of a tool page, whose destructor uses the registry of the tool pages
+class NavigationRegistryUserFactory : public NavigationTestFactory
+{
+public:
+    NavigationRegistryUserFactory() : NavigationTestFactory(QStringLiteral("Tool")) { }
+    ~NavigationRegistryUserFactory() { hadPage = pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge")); }
+
+    static inline bool hadPage = false;
+};
+
+/// A tool page factory, whose page depends on more of the route (it refuses every replacement)
+class NavigationStrictToolFactory : public NavigationTestFactory
+{
+public:
+    NavigationStrictToolFactory() : NavigationTestFactory(QStringLiteral("Strict")) { }
+
+    virtual bool isSamePage(const pdf::PDFAppRoute& pageRoute, const pdf::PDFAppRoute& route) const override
+    {
+        Q_UNUSED(pageRoute);
+        Q_UNUSED(route);
+        return false;
+    }
+};
+
+void AppNavigationTest::replaceRouteToolPages()
+{
+    // The pages of the tools (step 6) are chosen by the route (createPageForRoute):
+    // all of them match /tools/{toolId}, the page of a tool replaces its route only
+    // by a route of the same tool
+    NavigationFixture fixture;
+    auto merge = std::make_shared<NavigationTestFactory>("Merge");
+    QVERIFY(pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"), merge));
+    QVERIFY(pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"), std::make_shared<NavigationTestFactory>("Split")));
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/tools/{toolId}"), std::make_shared<pdf::PDFAppToolRoutePageFactory>(pdf::PDFAppToolPageKind::Start));
+
+    fixture.navigate("/tools/pages.merge");
+    QPointer<NavigationTestPage> page = qobject_cast<NavigationTestPage*>(fixture.currentPage());
+    QVERIFY(page);
+    QCOMPARE(page->getTitle(), QStringLiteral("Merge"));
+
+    QSignalSpy replacedSpy(fixture.navigator(), &pdf::PDFAppNavigator::routeReplaced);
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("route of another page"));
+    QVERIFY(page->replaceRouteTo(pdf::PDFAppRoutes::tool(QStringLiteral("pages.split"))));
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge")));
+    QCOMPARE(replacedSpy.count(), 0);
+
+    // Back and Forward still show the page of Merge
+    fixture.navigate("/about");
+    QVERIFY(fixture.navigator()->goBack());
+    QCOMPARE(fixture.currentPage()->getTitle(), QStringLiteral("Merge"));
+
+    pdf::PDFAppToolRoutePageFactory start(pdf::PDFAppToolPageKind::Start);
+    QVERIFY(start.isSamePage(pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge")), pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge"))));
+    QVERIFY(!start.isSamePage(pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge")), pdf::PDFAppRoutes::tool(QStringLiteral("pages.split"))));
+    pdf::PDFAppToolRoutePageFactory document(pdf::PDFAppToolPageKind::Document);
+    QVERIFY(document.isSamePage(pdf::PDFAppRoute::parse(QStringLiteral("/document/a/tool/pages.merge")), pdf::PDFAppRoute::parse(QStringLiteral("/document/a/tool/pages.merge"))));
+    QVERIFY(!document.isSamePage(pdf::PDFAppRoute::parse(QStringLiteral("/document/a/tool/pages.merge")), pdf::PDFAppRoute::parse(QStringLiteral("/document/b/tool/pages.merge"))));
+    QVERIFY(!document.isSamePage(pdf::PDFAppRoute::parse(QStringLiteral("/document/a/tool/pages.merge")), pdf::PDFAppRoute::parse(QStringLiteral("/document/a/tool/pages.split"))));
+
+    // The registered factory, which creates the page, decides too (review RC6-1)
+    QVERIFY(pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"), std::make_shared<NavigationStrictToolFactory>()));
+    QVERIFY(!start.isSamePage(pdf::PDFAppRoutes::tool(QStringLiteral("pages.split")), pdf::PDFAppRoutes::tool(QStringLiteral("pages.split"))));
+    QVERIFY(start.isSamePage(pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge")), pdf::PDFAppRoutes::tool(QStringLiteral("pages.merge"))));
+
+    // A replaced factory is released outside of the lock of the registry: its
+    // destructor may use the registry (a deadlock otherwise)
+    QVERIFY(pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"), std::make_shared<NavigationRegistryUserFactory>()));
+    NavigationRegistryUserFactory::hadPage = false;
+    QVERIFY(pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"), merge));
+    QVERIFY(NavigationRegistryUserFactory::hadPage);
+    pdf::PDFAppToolPageRegistry::clear();
+}
+
 void AppNavigationTest::deletionDuringNavigation()
 {
     // The window is deleted by the factory of the page
@@ -2280,7 +2361,7 @@ void AppNavigationTest::searchField()
     pdf::PDFAppWorkspaceTab* homeTab = fixture.window->getHomeTab();
     pdf::PDFLineEdit* search = homeTab->getSearchField();
     QVERIFY(search);
-    QCOMPARE(search->placeholderText(), QStringLiteral("Search tools, documents, or help..."));
+    QCOMPARE(search->placeholderText(), QStringLiteral("Search tools, documents, or help…"));
     QCOMPARE(search->width(), 320);
 
     // Ctrl+K focuses it (also from a New tab, which has its own field)
@@ -3515,6 +3596,38 @@ void AppNavigationTest::headerTexts()
     header.setTexts(QStringLiteral("Title"), subtitle);
     QCOMPARE(label->getAccentIndex(), -1);
     QCOMPARE(qCeil(label->getTextWidth()), qCeil(pdf::PDFStylePainter::textWidth(subtitle, label->font())));
+
+    // The icon of a page (Manage collections 283:1932): none by default - the texts at
+    // the edge -, the Tool icon 44 with the texts 14 px after it, centered on them;
+    // mirrored right-to-left; the search field gives the texts the width of the icon
+    QVERIFY(header.getIconBadge()->isHidden());
+    QCOMPARE(header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).x(), 0);
+    QCOMPARE(label->mapTo(&header, QPoint(0, 0)).x(), 0);
+    const int titleTop = header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).y();
+    pdf::PDFAppHeaderIcon icon;
+    icon.iconName = QStringLiteral("layers");
+    header.setIcon(icon);
+    QCoreApplication::processEvents();
+    pdf::PDFToolBadge* badge = header.getIconBadge();
+    QVERIFY(badge->isVisible());
+    QCOMPARE(badge->size(), QSize(44, 44));
+    QCOMPARE(badge->getIconName(), QStringLiteral("layers"));
+    QCOMPARE(badge->getHue(), pdf::PDFAccentHue::Neutral);
+    QCOMPARE(badge->mapTo(&header, QPoint(0, 0)).x(), 0);
+    QCOMPARE(header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).x(), 44 + 14);
+    QCOMPARE(label->mapTo(&header, QPoint(0, 0)).x(), 44 + 14);
+    QCOMPARE(header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).y(), titleTop);
+    const int textsCenter = header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).y() + (label->mapTo(&header, QPoint(0, 0)).y() + label->height() - header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).y()) / 2;
+    QVERIFY(qAbs(badge->mapTo(&header, QPoint(0, 0)).y() + 22 - textsCenter) <= 1);
+    header.setLayoutDirection(Qt::RightToLeft);
+    QCoreApplication::processEvents();
+    QCOMPARE(badge->mapTo(&header, QPoint(0, 0)).x() + 44, header.width());
+    QCOMPARE(header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).x() + header.getTitleLabel()->width(), header.width() - 44 - 14);
+    header.setLayoutDirection(Qt::LeftToRight);
+    header.setIcon(pdf::PDFAppHeaderIcon());
+    QCoreApplication::processEvents();
+    QVERIFY(badge->isHidden());
+    QCOMPARE(header.getTitleLabel()->mapTo(&header, QPoint(0, 0)).x(), 0);
 
     // Empty texts hide the lines
     header.setTexts(QString(), QString());

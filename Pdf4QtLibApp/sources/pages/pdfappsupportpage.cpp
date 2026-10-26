@@ -58,20 +58,6 @@ public:
 
     /// Width of the search field of the tutorials (tutorial-search)
     static constexpr int SEARCH_WIDTH = 280;
-
-    /// Text of a button: '&' of a text is not a mnemonic
-    static QString toButtonText(const QString& text)
-    {
-        return QString(text).replace(QLatin1Char('&'), QLatin1String("&&"));
-    }
-
-    static QVBoxLayout* createColumn(QWidget* widget, int spacing)
-    {
-        QVBoxLayout* layout = new QVBoxLayout(widget);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(spacing);
-        return layout;
-    }
 };
 
 PDFAppSupportPage::PDFAppSupportPage(PDFAppContext* context, QWidget* parent) :
@@ -80,7 +66,7 @@ PDFAppSupportPage::PDFAppSupportPage(PDFAppContext* context, QWidget* parent) :
     setObjectName(QStringLiteral("supportPage"));
 
     // support-grid 116:2460: quick actions and the tutorials, gap 24
-    QVBoxLayout* layout = PDFAppSupportPageHelper::createColumn(this, 24);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(this, 24);
     layout->addStretch(1);
     buildContent();
 
@@ -401,7 +387,7 @@ QWidget* PDFAppSupportPage::createTutorials(QWidget* parent)
     // header: the texts (Bold 15, Regular 12 text/tertiary, gap 3) and the
     // search with the channel button (gap 10)
     QWidget* texts = new QWidget();
-    QVBoxLayout* textsLayout = Helper::createColumn(texts, 3);
+    QVBoxLayout* textsLayout = PDFAppPageWidgets::createColumn(texts, 3);
     textsLayout->addWidget(PDFAppPageWidgets::createText(tr("Video tutorials"), PDFThemeFonts::getFont(PDFThemeFonts::Role::Title), 18, PDFThemeColors::TextPrimary, texts));
     textsLayout->addWidget(PDFAppPageWidgets::createText(tr("Short videos organized by topic. The tags on each card open related tutorials."), PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 15,
                                       PDFThemeColors::TextTertiary, texts));
@@ -482,7 +468,7 @@ QWidget* PDFAppSupportPage::createTutorials(QWidget* parent)
 
 QPushButton* PDFAppSupportPage::createChip(const QString& topic, const QString& text, int count, QWidget* parent)
 {
-    QPushButton* chip = new QPushButton(PDFAppSupportPageHelper::toButtonText(text), parent);
+    QPushButton* chip = new QPushButton(PDFAppPageWidgets::escapeMnemonic(text), parent);
     chip->setObjectName(topic.isEmpty() ? QStringLiteral("chip-all") : QStringLiteral("chip-%1").arg(topic));
     chip->setProperty(PDFWidgetStyleProperties::CHIP, true);
     chip->setProperty(PDFWidgetStyleProperties::CHIP_COUNT, qMax(0, count));

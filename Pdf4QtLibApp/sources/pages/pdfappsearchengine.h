@@ -239,6 +239,12 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolSearchProvider : public PDFAppSearchPr
 public:
     virtual PDFAppSearchGroup getGroup() const override { return PDFAppSearchGroup::Tools; }
     virtual void search(const PDFSearchQuery& query, const PDFAppSearchData& data, std::vector<PDFAppSearchResult>& results) const override;
+
+    /// Result of a tool found by the search (also the nearest tools of
+    /// PDFDocumentToolSearch::searchNearest): the title, the description with the
+    /// reason of a keyword match or the category, the icon and the route of the tool.
+    /// An empty result (no key) for a match without a tool.
+    static PDFAppSearchResult createResult(const PDFDocumentToolSearchMatch& match, int order);
 };
 
 /// Commands of the registry: the effective shortcut of the user is the meta text,

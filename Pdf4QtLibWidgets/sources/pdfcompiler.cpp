@@ -28,6 +28,7 @@
 #include "pdfdrawspacecontroller.h"
 
 #include <QCache>
+#include <QPointer>
 #include <QtConcurrent/QtConcurrent>
 
 #include "pdfdbgheap.h"
@@ -431,9 +432,16 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
         }
     }
 
+    // A receiver of renderingError can delete the compiler (the application deletes
+    // its view with the proxy)
+    QPointer<PDFAsynchronousPageCompiler> self(this);
     for (const auto& error : errors)
     {
         Q_EMIT renderingError(error.first, { error.second });
+        if (!self)
+        {
+            return;
+        }
     }
 
     if (!compiledPages.empty())
