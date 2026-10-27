@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappsettingcontrol.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappcontext.h"
 #include "pdfappfiledrop.h"
 #include "pdfapplocale.h"
@@ -319,6 +320,7 @@ void PDFAppSettingControl::createControl(QWidget* parent)
             PDFColorButton* button = new PDFColorButton(parent);
             button->setFixedWidth(CONTROL_WIDTH);
             connect(button, &PDFColorButton::colorSelected, this, &PDFAppSettingControl::onColorSelected);
+            PDFAppColorPicker::attach(button);
             m_editor = button;
             m_widget = button;
             break;

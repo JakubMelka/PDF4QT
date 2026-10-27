@@ -30,6 +30,7 @@
 #include "pdfappannotationmenus.h"
 #include "pdfappannotationoperations.h"
 #include "pdfappannotationpropertiesdialog.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappcopytopagesdialog.h"
 #include "pdfappcommand.h"
 #include "pdfappcommentpopup.h"
@@ -51,6 +52,7 @@
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgettool.h"
 
+#include "pdfcolorpickerdialog.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
@@ -271,6 +273,7 @@ private slots:
     void propertiesApplyOneStep();
     void propertiesReadOnly();
     void propertiesLink();
+    void propertiesBlendMode();
     void linksMoveAndResize();
     void geometryDialog();
     void copyToPagesOneStep();
@@ -304,6 +307,7 @@ private slots:
     void reviewCommitBlockedByOperation();
     void reviewOperationsHostileArguments();
     void reviewBarAndPopupUpdates();
+    void moreColorsDialog();
 };
 
 void AppAnnotationEditTest::initTestCase()
@@ -1573,16 +1577,16 @@ void AppAnnotationEditTest::propertiesDialogVariants()
         QStringList absent;
     };
     const Variant variants[] = {
-        { "square", { "propertiesAuthor", "propertiesSubject", "propertiesText", "propertiesColor", "propertiesFill", "propertiesOpacity", "propertiesBorderWidth", "propertiesBorderStyle" },
+        { "square", { "propertiesAuthor", "propertiesSubject", "propertiesText", "propertiesColor", "propertiesFill", "propertiesOpacity", "propertiesBlendMode", "propertiesBorderWidth", "propertiesBorderStyle" },
           { "propertiesLineStart", "propertiesIcon:Comment", "propertiesFont" } },
-        { "line", { "propertiesColor", "propertiesLineStart", "propertiesLineEnd", "propertiesBorderWidth" }, { "propertiesFill", "propertiesFont" } },
+        { "line", { "propertiesColor", "propertiesBlendMode", "propertiesLineStart", "propertiesLineEnd", "propertiesBorderWidth" }, { "propertiesFill", "propertiesFont" } },
         { "polyline", { "propertiesLineStart", "propertiesLineEnd" }, { "propertiesFill" } },
         { "polygon", { "propertiesFill", "propertiesBorderWidth" }, { "propertiesLineStart" } },
-        { "text", { "propertiesIcon:Comment", "propertiesIcon:NewParagraph", "propertiesOpen", "propertiesColor", "propertiesOpacity" }, { "propertiesFill", "propertiesBorderWidth" } },
+        { "text", { "propertiesIcon:Comment", "propertiesIcon:NewParagraph", "propertiesOpen", "propertiesColor", "propertiesOpacity", "propertiesBlendMode" }, { "propertiesFill", "propertiesBorderWidth" } },
         { "freetext", { "propertiesFont", "propertiesFontSize", "propertiesTextColor", "propertiesAlignment", "propertiesBorderWidth", "propertiesColor", "propertiesFill" },
           { "propertiesBorderStyle" } },
         { "callout", { "propertiesCalloutEnd" }, {} },
-        { "highlight", { "propertiesColor", "propertiesOpacity" }, { "propertiesFill", "propertiesBorderWidth" } },
+        { "highlight", { "propertiesColor", "propertiesOpacity", "propertiesBlendMode" }, { "propertiesFill", "propertiesBorderWidth" } },
         { "measurement", { "propertiesMeasuredValue", "propertiesLeaderLine", "propertiesLeaderExtension", "propertiesCaption" }, {} },
         { "stamp", { "propertiesIconName" }, { "propertiesFill" } },
     };
@@ -1733,6 +1737,192 @@ void AppAnnotationEditTest::propertiesApplyOneStep()
     QVERIFY(!guard);
 }
 
+void AppAnnotationEditTest::propertiesBlendMode()
+{
+    using H = AppAnnotationEditTestHelper;
+    using F = pdf::PDFAnnotationProperties;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+
+    // Two overlapping rectangles of the page 2: A filled yellow below B filled cyan
+    const pdf::PDFObjectReference overlapA = H::find(document, 1, QStringLiteral("overlapA"));
+    const pdf::PDFObjectReference overlapB = H::find(document, 1, QStringLiteral("overlapB"));
+    QVERIFY(overlapA.isValid() && overlapB.isValid());
+    const std::pair<pdf::PDFObjectReference, QColor> fills[] = { { overlapA, QColor(255, 255, 0) }, { overlapB, QColor(0, 255, 255) } };
+    for (const auto& [annotation, fill] : fills)
+    {
+        pdf::PDFAnnotationProperties properties = H::properties(document, annotation);
+        properties.interiorColor = fill;
+        pdf::PDFAppAnnotationResult result = pdf::PDFAppAnnotationOperations::setProperties(document->getDocument(), annotation, properties, F::InteriorColor);
+        QVERIFY(result);
+        QVERIFY(controller->commit(*result, pdf::PDFAppAnnotationChangeKind::Annotation));
+    }
+    controller->selectAnnotations({});
+    view->goToPage(1);
+    fixture.settle();
+    const int stepsBefore = pdftest::AppDocumentFixture::undoCount(document);
+
+    // Pixel of the canvas at a point of the page 2 (the page compiled again after a change)
+    auto canvasPixel = [&fixture, view](const QPointF& pagePoint)
+    {
+        fixture.settle();
+        QTest::qWait(50);
+        fixture.settle();
+        bool ok = false;
+        const QPoint position = pdftest::AppDocumentFixture::pageToWidget(view, 1, pagePoint, &ok);
+        QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+        if (!ok || !canvas)
+        {
+            return QColor();
+        }
+        const QImage image = canvas->grab().toImage();
+        const QPoint scaled(qRound(position.x() * image.devicePixelRatio()), qRound(position.y() * image.devicePixelRatio()));
+        return image.rect().contains(scaled) ? image.pixelColor(scaled) : QColor();
+    };
+    const QPointF overlapPoint(120, 205);
+    const QPointF onlyBPoint(170, 245);
+
+    // Normal: B covers A, the overlap has the color of B
+    QColor overlap = canvasPixel(overlapPoint);
+    QColor onlyB = canvasPixel(onlyBPoint);
+    QVERIFY2(overlap.isValid() && onlyB.isValid(), "page 2 is not shown");
+    QVERIFY2(overlap.blue() > 200 && overlap.green() > 200 && overlap.red() < 60, qPrintable(overlap.name()));
+    QVERIFY2(qAbs(overlap.blue() - onlyB.blue()) < 20, qPrintable(overlap.name() + QStringLiteral(" ") + onlyB.name()));
+
+    // The row of the dialog (1296:31359): Normal and the modes the viewer draws, Normal shown
+    pdf::PDFAppAnnotationPropertiesDialog* dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, overlapB, fixture.window);
+    QVERIFY(dialog);
+    fixture.settle();
+    pdf::PDFComboBox* blendMode = dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"));
+    QVERIFY(blendMode);
+    QVERIFY(blendMode->isEnabled());
+    QCOMPARE(blendMode->count(), int(pdf::PDFAnnotationPropertyEditor::getOfferedBlendModes().size()));
+    QCOMPARE(blendMode->currentData().toString(), QStringLiteral("Normal"));
+    QCOMPARE(blendMode->currentText(), QObject::tr("Normal"));
+    QCOMPARE(blendMode->accessibleName(), QObject::tr("Blend mode"));
+    QCOMPARE(blendMode->itemText(blendMode->findData(QStringLiteral("ColorDodge"))), QObject::tr("Color dodge"));
+    QCOMPARE(dialog->getChangedFields(), F::Fields(F::None));
+
+    // Multiply together with the opacity: one undo step, BM written, the page drawn by Multiply
+    blendMode->setCurrentIndex(blendMode->findData(QStringLiteral("Multiply")));
+    QCOMPARE(dialog->getChangedFields(), F::Fields(F::BlendMode));
+    dialog->findChild<pdf::PDFLineEdit*>(QStringLiteral("propertiesAuthor"))->setText(QStringLiteral("Blender"));
+    QCOMPARE(dialog->getChangedFields(), F::Fields(F::BlendMode | F::Author));
+    H::save(QStringLiteral("annotation-properties-blend-mode"), H::renderWithPopups(fixture.window, { dialog }));
+    blendMode->showPopup();
+    fixture.settle();
+    H::save(QStringLiteral("annotation-properties-blend-mode-list"), H::renderWithPopups(fixture.window, { dialog, blendMode->view()->window() }));
+    blendMode->hidePopup();
+    fixture.settle();
+    QVERIFY(dialog->apply());
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), stepsBefore + 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QObject::tr("Edit annotation properties"));
+    QCOMPARE(H::properties(document, overlapB).blendMode, QByteArray("Multiply"));
+    QCOMPARE(H::properties(document, overlapB).author, QStringLiteral("Blender"));
+    controller->selectAnnotations({});
+    overlap = canvasPixel(overlapPoint);
+    onlyB = canvasPixel(onlyBPoint);
+    QVERIFY2(overlap.blue() < 60 && overlap.green() > 200, qPrintable(overlap.name()));
+    QVERIFY2(onlyB.blue() > 200 && onlyB.green() > 200, qPrintable(onlyB.name()));
+
+    // Undo restores Normal and the drawing
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    fixture.settle();
+    QCOMPARE(H::properties(document, overlapB).blendMode, QByteArray("Normal"));
+    overlap = canvasPixel(overlapPoint);
+    QVERIFY2(overlap.blue() > 200 && overlap.red() < 60, qPrintable(overlap.name()));
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::redo()));
+    fixture.settle();
+    QCOMPARE(H::properties(document, overlapB).blendMode, QByteArray("Multiply"));
+
+    // A mode the viewer does not draw is shown as it is and kept by other changes
+    pdf::PDFAnnotationProperties properties = H::properties(document, overlapB);
+    properties.blendMode = "Hue";
+    pdf::PDFAppAnnotationResult result = pdf::PDFAppAnnotationOperations::setProperties(document->getDocument(), overlapB, properties, F::BlendMode);
+    QVERIFY(result);
+    QVERIFY(controller->commit(*result, pdf::PDFAppAnnotationChangeKind::Annotation));
+    fixture.settle();
+    dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, overlapB, fixture.window);
+    fixture.settle();
+    blendMode = dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"));
+    QCOMPARE(blendMode->count(), int(pdf::PDFAnnotationPropertyEditor::getOfferedBlendModes().size()) + 1);
+    QCOMPARE(blendMode->currentData().toString(), QStringLiteral("Hue"));
+    QCOMPARE(blendMode->currentText(), QObject::tr("%1 (not displayed)").arg(QObject::tr("Hue")));
+    QCOMPARE(dialog->getChangedFields(), F::Fields(F::None));
+    H::save(QStringLiteral("annotation-properties-blend-mode-not-displayed"), H::render(dialog));
+    dialog->findChild<pdf::PDFLineEdit*>(QStringLiteral("propertiesAuthor"))->setText(QStringLiteral("Hue keeper"));
+    QVERIFY(dialog->apply());
+    fixture.settle();
+    QCOMPARE(H::properties(document, overlapB).blendMode, QByteArray("Hue"));
+    QCOMPARE(H::properties(document, overlapB).author, QStringLiteral("Hue keeper"));
+
+    // The item of the mode of the document stays after a change of the language (the
+    // controls are built again) and another mode can be picked
+    dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, overlapB, fixture.window);
+    fixture.settle();
+    blendMode = dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"));
+    blendMode->setCurrentIndex(blendMode->findData(QStringLiteral("Screen")));
+    QEvent languageChange(QEvent::LanguageChange);
+    QApplication::sendEvent(dialog, &languageChange);
+    fixture.settle();
+    blendMode = dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"));
+    QVERIFY(blendMode);
+    QCOMPARE(blendMode->currentData().toString(), QStringLiteral("Screen"));
+    QVERIFY(blendMode->findData(QStringLiteral("Hue")) >= 0);
+    QCOMPARE(dialog->getChangedFields(), F::Fields(F::BlendMode));
+    QVERIFY(dialog->apply());
+    fixture.settle();
+    QCOMPARE(H::properties(document, overlapB).blendMode, QByteArray("Screen"));
+
+    // The names of the modes; an unknown name of the document is marked
+    QCOMPARE(pdf::PDFAppAnnotationPropertiesDialog::getBlendModeName("Compatible"), QObject::tr("%1 (not displayed)").arg(QObject::tr("Compatible")));
+    QCOMPARE(pdf::PDFAppAnnotationPropertiesDialog::getBlendModeName("Odd"), QObject::tr("%1 (not displayed)").arg(QStringLiteral("Odd")));
+    for (const char* name : { "Screen", "Overlay", "Darken", "Lighten", "ColorBurn", "HardLight", "SoftLight", "Difference", "Exclusion", "Saturation", "Color", "Luminosity" })
+    {
+        QVERIFY(!pdf::PDFAppAnnotationPropertiesDialog::getBlendModeName(name).isEmpty());
+    }
+
+    // A Locked annotation and a locked document: the row is read only
+    dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, H::find(document, 0, QStringLiteral("locked")), fixture.window);
+    fixture.settle();
+    QVERIFY(dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode")));
+    QVERIFY(!dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"))->isEnabled());
+    QVERIFY(!dialog->getEditableFields().testFlag(F::BlendMode));
+    dialog->reject();
+    fixture.settle();
+    document->setLocked(true);
+    fixture.settle();
+    dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, overlapB, fixture.window);
+    fixture.settle();
+    QVERIFY(!dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"))->isEnabled());
+    dialog->reject();
+    fixture.settle();
+    document->setLocked(false);
+    fixture.settle();
+
+    // Right-to-left and the dark theme: the row is laid out, no leak color
+    QApplication::setLayoutDirection(Qt::RightToLeft);
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
+    dialog = pdf::PDFAppAnnotationPropertiesDialog::open(controller, overlapB, fixture.window);
+    fixture.settle();
+    blendMode = dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode"));
+    QVERIFY(blendMode && blendMode->isVisible());
+    const QImage darkImage = H::render(dialog);
+    QCOMPARE(H::countLeakPixels(darkImage), 0);
+    H::save(QStringLiteral("annotation-properties-blend-mode-dark-rtl"), darkImage);
+    dialog->reject();
+    fixture.settle();
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    fixture.settle();
+}
+
 void AppAnnotationEditTest::propertiesReadOnly()
 {
     using H = AppAnnotationEditTestHelper;
@@ -1847,6 +2037,7 @@ void AppAnnotationEditTest::propertiesLink()
     QCOMPARE(page->text(), tab->getView()->getPageLabel(2));
     QVERIFY(dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesHighlight")));
     QVERIFY(!dialog->findChild<pdf::PDFLineEdit*>(QStringLiteral("propertiesAuthor")));
+    QVERIFY(!dialog->findChild<pdf::PDFComboBox*>(QStringLiteral("propertiesBlendMode")));
     QCOMPARE(dialog->findChild<pdf::PDFLabel*>(QStringLiteral("propertiesBehaviorHint"))->text(),
              QObject::tr("Locked: the link cannot be moved, resized, restyled, deleted or retargeted. Contents locked: only its description cannot be changed."));
 
@@ -3812,6 +4003,138 @@ void AppAnnotationEditTest::reviewOperationsHostileArguments()
     QVERIFY(!Ops::copyToPages(document, { square }, {}));
     QVERIFY(!Ops::copyToPages(document, {}, { 1 }));
     QVERIFY(!Ops::setRectangle(document, square, QRectF(0, 0, Ops::MAXIMUM_COORDINATE * 10, 10)));
+}
+
+/// "More colors…" of a color row: the palette, its link and the dialog Color picker
+class AppAnnotationEditMoreColorsHelper
+{
+public:
+    AppAnnotationEditMoreColorsHelper() = delete;
+
+    /// Opens the palette of the row, activates More colors… and returns the dialog
+    static pdf::PDFColorPickerDialog* open(pdf::PDFColorSwatchRow* row)
+    {
+        if (!row || !row->showPalette())
+        {
+            return nullptr;
+        }
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFColorPalette* palette = row->getPalette();
+        if (!palette || !palette->getMoreColorsLink())
+        {
+            return nullptr;
+        }
+        palette->getMoreColorsLink()->click();
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFAppColorPicker* picker = pdf::PDFAppColorPicker::find(row);
+        return picker ? picker->getDialog() : nullptr;
+    }
+
+    /// Types the hexadecimal color into the dialog and takes it by OK
+    static void choose(pdf::PDFColorPickerDialog* dialog, const QString& hex)
+    {
+        QTest::keyClick(dialog->getHexField(), Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClicks(dialog->getHexField(), hex);
+        dialog->getOkButton()->click();
+        pdftest::AppDocumentFixture::settle();
+    }
+};
+
+void AppAnnotationEditTest::moreColorsDialog()
+{
+    using H = AppAnnotationEditTestHelper;
+    using MoreColors = AppAnnotationEditMoreColorsHelper;
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openAnnotations(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
+    pdf::PDFAppAnnotationBar* bar = H::handler(tab)->getAnnotationBar();
+    const pdf::PDFObjectReference square = H::find(document, 0, QStringLiteral("square"));
+    controller->selectAnnotations({ square });
+    fixture.settle();
+
+    // The annotation bar: the color of the selection as one undo step, the
+    // colors tried one after another merged as the swatches (O20)
+    pdf::PDFColorSwatchRow* row = bar->getSwatchRow();
+    QVERIFY(pdf::PDFAppColorPicker::find(row));
+    QPointer<Dialog> dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getCurrentColor().rgb(), H::properties(document, square).color.rgb());
+    QCOMPARE(dialog->getScrimTarget(), fixture.window->getDialogHost());
+    MoreColors::choose(dialog, QStringLiteral("#123456"));
+    QVERIFY(!dialog);
+    QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x12, 0x34, 0x56));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QObject::tr("Change color"));
+    QCOMPARE(row->getColor().rgb(), qRgb(0x12, 0x34, 0x56));
+    dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    MoreColors::choose(dialog, QStringLiteral("#224466"));
+    QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x22, 0x44, 0x66));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+
+    // Cancel writes nothing
+    dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    QTest::keyClick(dialog->getHexField(), Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(dialog->getHexField(), QStringLiteral("#FFFFFF"));
+    dialog->getCancelButton()->click();
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x22, 0x44, 0x66));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+
+    // One undo returns the color before the dialog
+    QVERIFY(document->getUndoStack()->undo());
+    fixture.settle();
+    QVERIFY(H::properties(document, square).color.rgb() != qRgb(0x22, 0x44, 0x66));
+
+    // The properties dialog: More colors… of its Color row opens the picker over it;
+    // the dialog takes the color at Apply as one step
+    pdf::PDFAppAnnotationPropertiesDialog* properties = pdf::PDFAppAnnotationPropertiesDialog::open(controller, square, fixture.window);
+    fixture.settle();
+    QVERIFY(properties);
+    pdf::PDFColorSwatchRow* colorRow = properties->findChild<pdf::PDFColorSwatchRow*>(QStringLiteral("propertiesColor"));
+    QVERIFY(colorRow && pdf::PDFAppColorPicker::find(colorRow));
+    dialog = MoreColors::open(colorRow);
+    QVERIFY(dialog);
+    QCOMPARE(dialog->parentWidget(), static_cast<QWidget*>(properties));
+    QCOMPARE(dialog->getScrimTarget(), fixture.window->getDialogHost());
+    MoreColors::choose(dialog, QStringLiteral("#0A84FF"));
+    QVERIFY(!dialog);
+    QVERIFY(properties->isVisible());
+    QCOMPARE(colorRow->getColor().rgb(), qRgb(0x0A, 0x84, 0xFF));
+    QVERIFY(properties->getChangedFields().testFlag(pdf::PDFAnnotationProperties::Color));
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+    QVERIFY(properties->apply());
+    fixture.settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+    QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x0A, 0x84, 0xFF));
+
+    // The properties dialog closed while the picker is open: the picker goes without a color
+    QPointer<pdf::PDFAppAnnotationPropertiesDialog> propertiesGuard = pdf::PDFAppAnnotationPropertiesDialog::open(controller, square, fixture.window);
+    fixture.settle();
+    QVERIFY(propertiesGuard);
+    dialog = MoreColors::open(propertiesGuard->findChild<pdf::PDFColorSwatchRow*>(QStringLiteral("propertiesColor")));
+    QVERIFY(dialog);
+    delete propertiesGuard.data();
+    fixture.settle();
+    QTRY_VERIFY(!dialog);
+    QCOMPARE(H::properties(document, square).color.rgb(), qRgb(0x0A, 0x84, 0xFF));
+
+    // The tab deleted with the picker of the bar open
+    controller->selectAnnotations({ square });
+    fixture.settle();
+    dialog = MoreColors::open(bar->getSwatchRow());
+    QVERIFY(dialog);
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    delete tab;
+    fixture.settle();
+    QVERIFY(!tabGuard);
+    QTRY_VERIFY(!dialog);
 }
 
 QTEST_MAIN(AppAnnotationEditTest)

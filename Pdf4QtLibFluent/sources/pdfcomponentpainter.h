@@ -1553,6 +1553,77 @@ public:
     /// Draws the panel of the palette (without its shadow) into the rectangle
     static void paintColorPalette(QPainter* painter, const QRectF& rect, const ColorPalette& palette, const State& state);
 
+    // ----------------------------------------------------------- Color picker
+
+    /// Geometry of the dialog Color picker 1294:1695 (PDFColorPickerDialog),
+    /// opened by "More colors…": a card of the message box without the badge
+    /// (paddings 20 / 22 inside of the border, gap 14), the saturation / value
+    /// area, the hue row (the comparison chip, the hue slider, the eyedropper
+    /// Icon button 28), the fields (Hex and R / G / B with their captions
+    /// Medium 11, the error message Regular 12 / 16) and the buttons.
+    struct ColorPickerMetrics
+    {
+        static constexpr int CARD_WIDTH = 400;          ///< Width of the card (the content is 354 wide)
+        static constexpr int AREA_HEIGHT = 176;         ///< Height of the saturation / value area (as wide as the content)
+        static constexpr int AREA_RADIUS = 8;           ///< Radius of the area
+        static constexpr int MARKER = 14;               ///< Ring of the marker of the area (2 px sample/white with a shadow)
+        static constexpr int MARKER_STROKE = 2;         ///< Width of the ring of the marker
+        static constexpr int ROW_HEIGHT = 28;           ///< Height of the hue row
+        static constexpr int ROW_GAP = 12;              ///< Gap of the parts of the hue row
+        static constexpr int COMPARISON_WIDTH = 40;     ///< Comparison chip: the current color and the new one, 20 each
+        static constexpr int COMPARISON_RADIUS = 6;     ///< Radius of the comparison chip
+        static constexpr int SLIDER_HEIGHT = 20;        ///< Height of the hue slider (the thumb of Slider)
+        static constexpr int SLIDER_TRACK = 8;          ///< Height of the track with the spectrum (radius 4)
+        static constexpr int SLIDER_THUMB = 14;         ///< Thumb of the hue slider (the thumb of Slider 144:2961)
+        static constexpr int FIELD_GAP = 8;             ///< Gap of the fields
+        static constexpr int CAPTION_GAP = 6;           ///< Caption above its field, the error message below the fields
+        static constexpr int CHANNEL_WIDTH = 72;        ///< Width of the R / G / B spin boxes (the text "255" and the stepper)
+        static constexpr int ERROR_LINE = 16;           ///< Line of the error message (Regular 12)
+    };
+
+    /// Content of the saturation / value area: the hue (0 - 360), the saturation
+    /// and the value (0 - 1) of the color shown by the marker
+    struct ColorArea
+    {
+        qreal hue = 0.0;
+        qreal saturation = 0.0;
+        qreal value = 1.0;
+    };
+
+    /// Returns the center of the marker of the color in the area
+    static QPointF getColorAreaPoint(const QRectF& area, qreal saturation, qreal value);
+
+    /// Returns the saturation and the value of the point of the area (bounded to 0 - 1)
+    static QPointF getColorAreaValues(const QRectF& area, const QPointF& point);
+
+    /// Draws the area into the rectangle: the hue, white to the left, black to
+    /// the bottom, the border/default inside (the focus ring of 2 px inside with
+    /// State_HasFocus) and the marker centered on the color - its ring reaches
+    /// out of the rectangle by its half (MARKER / 2), the caller keeps the room
+    static void paintColorArea(QPainter* painter, const QRectF& area, const ColorArea& content, const State& state);
+
+    /// Returns the rectangle of the thumb of the hue slider (\p hue 0 - 359)
+    static QRectF getHueSliderThumbRect(const QRectF& rect, qreal hue);
+
+    /// Returns the hue (0 - 359) of the position along the hue slider
+    static qreal getHueSliderValue(const QRectF& rect, qreal x);
+
+    /// Draws the hue slider into the rectangle: the track with the spectrum and
+    /// the thumb of Slider (Hover, Pressed, Disabled; State_HasFocus draws the
+    /// ring around the thumb). It is not mirrored for right-to-left.
+    static void paintHueSlider(QPainter* painter, const QRectF& rect, qreal hue, const State& state);
+
+    /// Content of the comparison chip: the current color (an invalid color is no
+    /// color: crossed) at the leading side and the new color at the trailing side
+    struct ColorComparison
+    {
+        QColor current;
+        QColor color;
+    };
+
+    /// Draws the comparison chip into the rectangle (40 x 28, radius 6, the border/default inside)
+    static void paintColorComparison(QPainter* painter, const QRectF& rect, const ColorComparison& content, const State& state);
+
     // --------------------------------------------------------- Signature card
 
     /// Status of a signature or of a certificate of its chain

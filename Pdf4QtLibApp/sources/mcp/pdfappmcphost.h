@@ -163,7 +163,9 @@ public:
     PDFAppMcpConfirmationProvider* getConfirmationProvider() const { return m_confirmationProvider; }
 
     /// Queues a confirmation: a waiting activity row, the provider shows it; the
-    /// receiver gets the decision from the event loop. Returns its id.
+    /// receiver gets the decision from the event loop. A host shut down already
+    /// denies it at once (DeniedStopped, delivered before the return - the host is
+    /// deleted before the event loop runs again). Returns its id.
     quint64 requestConfirmation(std::shared_ptr<PDFAppMcpConfirmation> confirmation);
 
     /// The decision of a confirmation (the provider, a timeout, a closed tab)

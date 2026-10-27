@@ -38,6 +38,12 @@ public:
         const QString message = requests.requests.empty() ? QString() : requests.requests.front().message;
         return QStringLiteral("PDF4QT needs a choice of the user, but the client cannot ask the user (no elicitation capability). %1").arg(message).trimmed();
     }
+
+    /// Key of an input request of a task in the round \p round ("pdf4qt.choice#2")
+    static QString createTaskInputKey(const QString& key, int round)
+    {
+        return key + QLatin1Char('#') + QString::number(round);
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -487,10 +493,29 @@ void PDFMcpDispatcher::handleInputRequired(PendingCall& pending, const PDFMcpInp
                 m_callIndex.erase(pending.call.get());
                 pending.call.reset();
             }
+            // The keys of each round are new ("unique over the lifetime of a
+            // single task"): the host keeps its keys, the client sees "<key>#<round>"
+            PDFMcpInputRequests taskRequests;
+            QJsonObject taskAllowedValues;
+            ++pending.taskInputRound;
+            pending.taskInputKeys.clear();
+            for (const PDFMcpInputRequest& request : requests.requests)
+            {
+                PDFMcpInputRequest taskRequest = request;
+                taskRequest.key = PDFMcpDispatcherCallsHelper::createTaskInputKey(request.key, pending.taskInputRound);
+                pending.taskInputKeys[taskRequest.key] = request.key;
+                const QJsonValue allowed = requests.allowedValues.value(request.key);
+                if (!allowed.isUndefined())
+                {
+                    taskAllowedValues.insert(taskRequest.key, allowed);
+                }
+                taskRequests.requests.push_back(std::move(taskRequest));
+            }
+
             task->status = PDFMcpTask::Status::InputRequired;
             task->statusMessage = QStringLiteral("Waiting for a choice of the user in the client");
-            task->inputRequests = createInputRequestsJson(requests, client.era);
-            task->allowedValues = requests.allowedValues;
+            task->inputRequests = createInputRequestsJson(taskRequests, client.era);
+            task->allowedValues = taskAllowedValues;
             task->lastUpdatedAt = PDFMcpClock::now();
             pending.allowedValues = requests.allowedValues;
 

@@ -40,6 +40,7 @@
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
@@ -48,6 +49,7 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QPushButton>
@@ -257,6 +259,13 @@ PDFAppMcpConfirmationUi::PDFAppMcpConfirmationUi(PDFAppMcpHost* host) :
     m_tickTimer->setInterval(TICK_INTERVAL);
     connect(m_tickTimer, &QTimer::timeout, this, &PDFAppMcpConfirmationUi::tick);
 
+    // A modal dialog of the application closed: a waiting request shows its
+    // dialog at once (the tick checks it too, plan 2.5)
+    if (QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
+    {
+        connect(application, &QGuiApplication::focusWindowChanged, this, &PDFAppMcpConfirmationUi::onFocusWindowChanged);
+    }
+
     if (m_host)
     {
         m_host->setConfirmationProvider(this);
@@ -272,6 +281,12 @@ PDFAppMcpConfirmationUi::PDFAppMcpConfirmationUi(PDFAppMcpHost* host) :
 
 PDFAppMcpConfirmationUi::~PDFAppMcpConfirmationUi()
 {
+    // No signal of the application reaches the object being destroyed
+    if (QCoreApplication* application = QCoreApplication::instance())
+    {
+        disconnect(application, nullptr, this, nullptr);
+    }
+
     if (m_host && m_host->getConfirmationProvider() == this)
     {
         m_host->setConfirmationProvider(nullptr);
@@ -325,7 +340,7 @@ void PDFAppMcpConfirmationUi::showConfirmation(std::shared_ptr<PDFAppMcpConfirma
 
     Entry entry;
     entry.confirmation = std::move(confirmation);
-    entry.shownAt = getTime();
+    entry.queuedAt = getTime();
     entry.hasDocument = entry.confirmation->document != nullptr;
     m_entries.push_back(std::move(entry));
 
@@ -396,7 +411,37 @@ bool PDFAppMcpConfirmationUi::removeEntry(quint64 confirmationId)
 
 qint64 PDFAppMcpConfirmationUi::getRemainingTime(const Entry& entry) const
 {
-    return qMax<qint64>(0, qint64(m_timeout) - (getTime() - entry.shownAt));
+    // The 2 minutes of a request count from its dialog (a request queued behind
+    // others gets its whole time - item 38); before, the bound of the queue
+    if (entry.isShown)
+    {
+        return qMax<qint64>(0, qint64(m_timeout) - (getTime() - entry.shownAt));
+    }
+    return qMax<qint64>(0, qint64(m_queueTimeout) - (getTime() - entry.queuedAt));
+}
+
+qint64 PDFAppMcpConfirmationUi::getRemainingTime(quint64 confirmationId) const
+{
+    for (const Entry& entry : m_entries)
+    {
+        if (entry.confirmation && entry.confirmation->id == confirmationId)
+        {
+            return getRemainingTime(entry);
+        }
+    }
+    return -1;
+}
+
+bool PDFAppMcpConfirmationUi::isShown(quint64 confirmationId) const
+{
+    for (const Entry& entry : m_entries)
+    {
+        if (entry.confirmation && entry.confirmation->id == confirmationId)
+        {
+            return entry.isShown;
+        }
+    }
+    return false;
 }
 
 std::vector<quint64> PDFAppMcpConfirmationUi::getWaitingIds() const
@@ -449,6 +494,17 @@ void PDFAppMcpConfirmationUi::tick()
         }
     }
 
+    // The modal dialog, for which a request waits, has closed (a window without
+    // the focus does not change the focus window)
+    if (m_isWaitingForModal && !QApplication::activeModalWidget())
+    {
+        refresh();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     if (m_dialog)
     {
         if (const Entry* entry = findEntry(m_dialog->getConfirmationId()))
@@ -482,6 +538,14 @@ void PDFAppMcpConfirmationUi::onRefreshQueued()
     if (m_isRefreshQueued)
     {
         refresh();
+    }
+}
+
+void PDFAppMcpConfirmationUi::onFocusWindowChanged()
+{
+    if (m_isWaitingForModal)
+    {
+        scheduleRefresh();
     }
 }
 
@@ -626,7 +690,19 @@ void PDFAppMcpConfirmationUi::refresh()
 
     Entry* dialogEntry = targets.empty() ? nullptr : targets.front();
     PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(currentTab);
-    if (dialogEntry && dialogEntry->isPreview && documentTab && dialogEntry->hasDocument)
+
+    // While a modal dialog of the application is open, no new dialog appears:
+    // the user could not answer it, its time would run out behind the modal
+    // dialog (plan 2.5 - a first read with Ask and files.open wait for it)
+    const bool isDialogShownFor = dialogEntry && m_dialog && m_scrim && m_dialog->getConfirmationId() == dialogEntry->confirmation->id &&
+                                  m_scrim->parentWidget() == currentTab;
+    m_isWaitingForModal = dialogEntry && !dialogEntry->isShown && !isDialogShownFor && QApplication::activeModalWidget() != nullptr;
+    if (m_isWaitingForModal)
+    {
+        closeDialog();
+        closePreview();
+    }
+    else if (dialogEntry && dialogEntry->isPreview && documentTab && dialogEntry->hasDocument)
     {
         closeDialog();
         showPreview(*dialogEntry, documentTab);
@@ -662,7 +738,23 @@ void PDFAppMcpConfirmationUi::showDialogEntry(Entry& entry, PDFAppTab* tab, int 
         return;
     }
 
+    // The widget of the tab, which has the focus, gets it back when the dialog
+    // closes (item 39; a dialog after a dialog keeps the first one)
+    QWidget* focusWidget = QApplication::focusWidget();
+    const bool isFocusInDialog = focusWidget && m_scrim && (focusWidget == m_scrim || m_scrim->isAncestorOf(focusWidget));
+    if (!isFocusInDialog)
+    {
+        m_focusBeforeDialog = focusWidget && tab->isAncestorOf(focusWidget) ? focusWidget : nullptr;
+    }
+
     closeDialog();
+
+    // Its 2 minutes start now (item 38)
+    if (!entry.isShown)
+    {
+        entry.isShown = true;
+        entry.shownAt = getTime();
+    }
 
     PDFAppMcpConfirmScrim* scrim = new PDFAppMcpConfirmScrim(tab);
     PDFAppMcpConfirmDialog* dialog = new PDFAppMcpConfirmDialog(entry.confirmation, m_host ? &m_host->getResolver() : nullptr, scrim);
@@ -694,10 +786,43 @@ void PDFAppMcpConfirmationUi::closeDialog()
         {
             dialog->disconnect(this);
         }
+
+        // Qt gives the focus of a hidden dialog to the next widget of the chain:
+        // it goes back to where it was (item 39)
+        QWidget* focusWidget = QApplication::focusWidget();
+        const bool hadFocus = focusWidget && (focusWidget == scrim || scrim->isAncestorOf(focusWidget));
+        QPointer<QWidget> tab = scrim->parentWidget();
         scrim->hide();
         scrim->deleteLater();
+        if (hadFocus && tab)
+        {
+            restoreFocus(tab);
+        }
     }
     m_dialog = nullptr;
+}
+
+void PDFAppMcpConfirmationUi::restoreFocus(QWidget* tab)
+{
+    if (!tab || !tab->isVisible())
+    {
+        return;
+    }
+
+    QWidget* target = m_focusBeforeDialog.data();
+    m_focusBeforeDialog = nullptr;
+    if (!target || !tab->isAncestorOf(target) || !target->isVisible() || !target->isEnabled())
+    {
+        // The canvas of a document tab
+        PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(tab);
+        PDFAppDocumentView* view = documentTab ? documentTab->getView() : nullptr;
+        target = view ? view->getPdfWidget() : nullptr;
+    }
+
+    if (target && target->isVisible() && target->isEnabled())
+    {
+        target->setFocus(Qt::OtherFocusReason);
+    }
 }
 
 void PDFAppMcpConfirmationUi::showPreview(Entry& entry, PDFAppDocumentTab* tab)

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappannotatepanels.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotatecommands.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
@@ -38,9 +39,13 @@
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
+#include "pdfwidgetstyleproperties.h"
 
 #include <QCoreApplication>
+#include <QEvent>
+#include <QFocusEvent>
 #include <QHBoxLayout>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -58,6 +63,44 @@ public:
     /// Gap between a caption (13 high in the design) and its tiles: the tiles lie
     /// 21 px below the top of the section (877:10160, 196:3191)
     static constexpr int CAPTION_GAP = 7;
+
+    /// Caption of the color row of a markup tool (Highlight and comment shares the
+    /// color of Highlight)
+    static const char* getColorCaptionText(PDFAppAnnotationToolKind kind)
+    {
+        switch (kind)
+        {
+            case PDFAppAnnotationToolKind::Underline:
+                //: Caption of the color row of the Annotate panel, when it edits the color of Underline
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Underline color");
+            case PDFAppAnnotationToolKind::Strikeout:
+                //: Caption of the color row of the Annotate panel, when it edits the color of Strikeout
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Strikeout color");
+            case PDFAppAnnotationToolKind::Squiggly:
+                //: Caption of the color row of the Annotate panel, when it edits the color of Squiggly
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Squiggly color");
+            default:
+                //: Caption of the color row of the Annotate panel, when it edits the color of Highlight (also of Highlight and comment)
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight color");
+        }
+    }
+
+    /// Name of the markup tool, whose color the color row edits (the accessible
+    /// name "Color of Underline")
+    static const char* getColorTargetName(PDFAppAnnotationToolKind kind)
+    {
+        switch (kind)
+        {
+            case PDFAppAnnotationToolKind::Underline:
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Underline");
+            case PDFAppAnnotationToolKind::Strikeout:
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Strikeout");
+            case PDFAppAnnotationToolKind::Squiggly:
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Squiggly");
+            default:
+                return QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight");
+        }
+    }
 
     /// Tool id of Insert - Page numbers (the tool route, Page Not Found in phase 1)
     static QString getPageNumbersToolId() { return QStringLiteral("edit.page-numbers"); }
@@ -102,6 +145,13 @@ PDFAppAnnotatePanel::PDFAppAnnotatePanel(PDFAppDocumentView* view, QWidget* pare
     setObjectName(QStringLiteral("annotatePanel"));
     setTitleText(QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Annotate"));
 
+    // Hover intent of the tiles (the pointer rests on a tile, before it becomes
+    // the target of the color row)
+    m_hoverIntentTimer = new QTimer(this);
+    m_hoverIntentTimer->setSingleShot(true);
+    m_hoverIntentTimer->setInterval(HOVER_INTENT_DELAY);
+    connect(m_hoverIntentTimer, &QTimer::timeout, this, &PDFAppAnnotatePanel::onHoverIntentTimeout);
+
     QVBoxLayout* layout = getContentLayout();
 
     // section-text-markup 877:10158: caption, tiles 877:10160
@@ -110,11 +160,20 @@ PDFAppAnnotatePanel::PDFAppAnnotatePanel(PDFAppDocumentView* view, QWidget* pare
     markupLayout->setContentsMargins(0, 0, 0, 0);
     markupLayout->setSpacing(PDFAppAnnotatePanelsHelper::CAPTION_GAP);
     markupLayout->addWidget(createCaption(QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Text markup")));
-    QWidget* tiles = createTileRow({ createTile(PDFAppCommands::annotateHighlight(), QStringLiteral("highlighter"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight")),
-                                     createTile(PDFAppCommands::annotateUnderline(), QStringLiteral("underline"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Underline")),
-                                     createTile(PDFAppCommands::annotateStrikeout(), QStringLiteral("strikethrough"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Strikeout")),
-                                     createTile(PDFAppCommands::annotateSquiggly(), QStringLiteral("squiggly"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Squiggly")),
-                                     createTile(PDFAppCommands::annotateHighlightComment(), QStringLiteral("highlight-comment"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight and comment")) });
+    const std::vector<QToolButton*> markupTiles = { createTile(PDFAppCommands::annotateHighlight(), QStringLiteral("highlighter"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight")),
+                                                    createTile(PDFAppCommands::annotateUnderline(), QStringLiteral("underline"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Underline")),
+                                                    createTile(PDFAppCommands::annotateStrikeout(), QStringLiteral("strikethrough"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Strikeout")),
+                                                    createTile(PDFAppCommands::annotateSquiggly(), QStringLiteral("squiggly"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Squiggly")),
+                                                    createTile(PDFAppCommands::annotateHighlightComment(), QStringLiteral("highlight-comment"), QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Highlight and comment")) };
+    const PDFAppAnnotationToolKind markupKinds[] = { PDFAppAnnotationToolKind::Highlight, PDFAppAnnotationToolKind::Underline, PDFAppAnnotationToolKind::Strikeout,
+                                                     PDFAppAnnotationToolKind::Squiggly, PDFAppAnnotationToolKind::HighlightComment };
+    for (size_t i = 0; i < markupTiles.size() && i < std::size(markupKinds); ++i)
+    {
+        // The hover and the focus of a tile choose the target of the color row
+        m_markupTiles.emplace_back(markupKinds[i], markupTiles[i]);
+        markupTiles[i]->installEventFilter(this);
+    }
+    QWidget* tiles = createTileRow(markupTiles);
     if (QHBoxLayout* tileLayout = qobject_cast<QHBoxLayout*>(tiles->layout()))
     {
         // Four tiles 88 and Highlight and comment 140 (the stretch shares the width in that ratio)
@@ -131,12 +190,16 @@ PDFAppAnnotatePanel::PDFAppAnnotatePanel(PDFAppDocumentView* view, QWidget* pare
     QVBoxLayout* colorLayout = new QVBoxLayout(colorSection);
     colorLayout->setContentsMargins(0, 0, 0, 0);
     colorLayout->setSpacing(PDFAppAnnotatePanelsHelper::CAPTION_GAP);
-    colorLayout->addWidget(createCaption(QT_TRANSLATE_NOOP("pdf::PDFAppDocumentPanelPopup", "Color")));
+    // The caption names the target of the color row (retranslate sets its text)
+    m_colorCaption = createCaption(nullptr);
+    m_colorCaption->setObjectName(QStringLiteral("annotateColorCaption"));
+    colorLayout->addWidget(m_colorCaption);
     m_colorRow = new PDFColorSwatchRow(colorSection);
     m_colorRow->setObjectName(QStringLiteral("annotateColors"));
     colorLayout->addWidget(m_colorRow, 0, Qt::AlignLeading);
     layout->addWidget(colorSection);
     connect(m_colorRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppAnnotatePanel::onColorSelected);
+    PDFAppColorPicker::attach(m_colorRow.data());
 
     // divider 877:10210, item-show-all-comments 877:10212
     layout->addWidget(createDivider());
@@ -179,14 +242,221 @@ int PDFAppAnnotatePanel::countComments(const PDFDocument* document)
 
 AnnotationType PDFAppAnnotatePanel::getColorMarkupType() const
 {
+    const AnnotationType type = PDFAppAnnotationTools::getMarkupType(getColorTargetKind());
+    return type != AnnotationType::Invalid ? type : AnnotationType::Highlight;
+}
+
+PDFAppAnnotationToolKind PDFAppAnnotatePanel::getColorTargetKind() const
+{
+    if (m_targetKind != PDFAppAnnotationToolKind::None)
+    {
+        return m_targetKind;
+    }
+
+    // The checked tile: the active markup tool, else the last used markup
     const PDFAppAnnotationCreator* creator = m_creator.data();
     if (!creator)
     {
-        return AnnotationType::Highlight;
+        return PDFAppAnnotationToolKind::Highlight;
     }
 
-    const AnnotationType activeType = PDFAppAnnotationTools::getMarkupType(creator->getActiveKind());
-    return activeType != AnnotationType::Invalid ? activeType : creator->getLastMarkupType();
+    const PDFAppAnnotationToolKind activeKind = creator->getActiveKind();
+    if (PDFAppAnnotationTools::isMarkup(activeKind))
+    {
+        return activeKind;
+    }
+
+    const PDFAppAnnotationToolKind lastKind = PDFAppAnnotationTools::getMarkupKind(creator->getLastMarkupType());
+    return lastKind != PDFAppAnnotationToolKind::None ? lastKind : PDFAppAnnotationToolKind::Highlight;
+}
+
+QToolButton* PDFAppAnnotatePanel::getMarkupTile(PDFAppAnnotationToolKind kind) const
+{
+    for (const auto& item : m_markupTiles)
+    {
+        if (item.first == kind)
+        {
+            return item.second.data();
+        }
+    }
+    return nullptr;
+}
+
+PDFLabel* PDFAppAnnotatePanel::getColorCaption() const
+{
+    return m_colorCaption.data();
+}
+
+bool PDFAppAnnotatePanel::isHoverIntentPending() const
+{
+    return m_hoverIntentTimer->isActive() && m_pendingTargetKind != PDFAppAnnotationToolKind::None;
+}
+
+PDFAppAnnotationToolKind PDFAppAnnotatePanel::getTileKind(const QObject* object) const
+{
+    if (object)
+    {
+        for (const auto& item : m_markupTiles)
+        {
+            if (item.second == object)
+            {
+                return item.first;
+            }
+        }
+    }
+    return PDFAppAnnotationToolKind::None;
+}
+
+void PDFAppAnnotatePanel::resetColorTarget()
+{
+    m_hoverIntentTimer->stop();
+    m_targetKind = PDFAppAnnotationToolKind::None;
+    m_pendingTargetKind = PDFAppAnnotationToolKind::None;
+    m_isKeyboardUsed = false;
+}
+
+void PDFAppAnnotatePanel::setColorTarget(PDFAppAnnotationToolKind kind)
+{
+    m_hoverIntentTimer->stop();
+    m_pendingTargetKind = PDFAppAnnotationToolKind::None;
+
+    // A tile of a document, which cannot be annotated, is no target (its tiles
+    // and the color row are disabled)
+    const QToolButton* tile = getMarkupTile(kind);
+    if (!tile || !tile->isEnabled() || !m_colorRow || !m_colorRow->isEnabled() || kind == getColorTargetKind())
+    {
+        return;
+    }
+
+    m_targetKind = kind;
+    updateColorTarget();
+}
+
+void PDFAppAnnotatePanel::onHoverIntentTimeout()
+{
+    if (m_pendingTargetKind != PDFAppAnnotationToolKind::None)
+    {
+        setColorTarget(m_pendingTargetKind);
+    }
+}
+
+void PDFAppAnnotatePanel::updateColorTarget()
+{
+    const PDFAppAnnotationCreator* creator = m_creator.data();
+    const PDFAppAnnotationToolKind targetKind = getColorTargetKind();
+    const bool isEditable = creator && creator->isCreationAllowed();
+
+    for (const auto& item : m_markupTiles)
+    {
+        QToolButton* tile = item.second.data();
+        if (!tile)
+        {
+            continue;
+        }
+
+        // The color bar of the Action tile shows the remembered color of the tool
+        const QColor color = creator ? creator->getColor(item.first, PDFAppAnnotationCreator::ColorTarget::Stroke) : QColor();
+        const bool isTarget = isEditable && item.first == targetKind && !tile->isChecked();
+        if (tile->property(PDFWidgetStyleProperties::COLOR_BAR).value<QColor>() != color ||
+            tile->property(PDFWidgetStyleProperties::EDIT_TARGET).toBool() != isTarget)
+        {
+            tile->setProperty(PDFWidgetStyleProperties::COLOR_BAR, color);
+            tile->setProperty(PDFWidgetStyleProperties::EDIT_TARGET, isTarget);
+            tile->update();
+        }
+
+        //: Accessible description of a markup tile of the Annotate panel, the name of the color of its tool
+        const QString description = color.isValid() ? QCoreApplication::translate("pdf::PDFAppDocumentPanelPopup", "Color: %1").arg(getColorName(color)) : QString();
+        if (tile->accessibleDescription() != description)
+        {
+            tile->setAccessibleDescription(description);
+        }
+    }
+
+    if (m_colorCaption)
+    {
+        m_colorCaption->setText(QCoreApplication::translate("pdf::PDFAppDocumentPanelPopup", PDFAppAnnotatePanelsHelper::getColorCaptionText(targetKind)));
+    }
+    if (m_colorRow)
+    {
+        m_colorRow->setColor(creator ? creator->getColor(targetKind, PDFAppAnnotationCreator::ColorTarget::Stroke) : QColor());
+        m_colorRow->setEnabled(isEditable);
+
+        //: Accessible name of the color row of the Annotate panel ("Color of Underline")
+        const QString name = QCoreApplication::translate("pdf::PDFAppDocumentPanelPopup", "Color of %1")
+                                 .arg(QCoreApplication::translate("pdf::PDFAppDocumentPanelPopup", PDFAppAnnotatePanelsHelper::getColorTargetName(targetKind)));
+        m_colorRow->setAccessibleName(name);
+    }
+}
+
+QString PDFAppAnnotatePanel::getColorName(const QColor& color)
+{
+    for (const PDFColorSwatchRow::Entry& entry : PDFColorSwatchRow::getAnnotationColors(PDFColorSwatchRow::Option::White))
+    {
+        if (entry.canonicalColor.isValid() && entry.canonicalColor.rgb() == color.rgb())
+        {
+            return entry.name;
+        }
+    }
+    return color.name(QColor::HexRgb).toUpper();
+}
+
+void PDFAppAnnotatePanel::hideEvent(QHideEvent* event)
+{
+    // The next opening starts at the checked tile again
+    resetColorTarget();
+    BaseClass::hideEvent(event);
+}
+
+bool PDFAppAnnotatePanel::eventFilter(QObject* watched, QEvent* event)
+{
+    const PDFAppAnnotationToolKind kind = getTileKind(watched);
+    switch (event->type())
+    {
+        case QEvent::KeyPress:
+            if (isVisible())
+            {
+                // The first focus of the opened panel is no choice of the user, a
+                // focus moved by the keyboard is
+                m_isKeyboardUsed = true;
+            }
+            break;
+
+        case QEvent::Enter:
+            if (kind != PDFAppAnnotationToolKind::None && isVisible() && static_cast<QWidget*>(watched)->isEnabled())
+            {
+                // The pointer must rest on the tile (it may only cross it on its
+                // way to the color row)
+                m_pendingTargetKind = kind;
+                m_hoverIntentTimer->start();
+            }
+            break;
+
+        case QEvent::Leave:
+            if (kind != PDFAppAnnotationToolKind::None && kind == m_pendingTargetKind)
+            {
+                // The target stays, the pointer has only crossed the tile
+                m_hoverIntentTimer->stop();
+                m_pendingTargetKind = PDFAppAnnotationToolKind::None;
+            }
+            break;
+
+        case QEvent::FocusIn:
+            if (kind != PDFAppAnnotationToolKind::None && isVisible() && m_isKeyboardUsed)
+            {
+                const Qt::FocusReason reason = static_cast<QFocusEvent*>(event)->reason();
+                if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason || reason == Qt::ShortcutFocusReason || reason == Qt::OtherFocusReason)
+                {
+                    setColorTarget(kind);
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    return BaseClass::eventFilter(watched, event);
 }
 
 void PDFAppAnnotatePanel::updateState()
@@ -206,11 +476,7 @@ void PDFAppAnnotatePanel::updateState()
             tile->setChecked(tile->isEnabled());
         }
     }
-    if (m_colorRow)
-    {
-        m_colorRow->setColor(PDFAppAnnotationToolSettings::getMarkupColor(getColorMarkupType()));
-        m_colorRow->setEnabled(m_creator && m_creator->isCreationAllowed());
-    }
+    updateColorTarget();
 
     // The count of the comments is read, when the panel opens - once per version
     // of the document (a change of the tools updates the panel, not the count)
@@ -244,10 +510,7 @@ void PDFAppAnnotatePanel::retranslate()
         m_showComments->setText(text);
         m_showComments->setAccessibleName(text);
     }
-    if (m_colorRow)
-    {
-        m_colorRow->setAccessibleName(QCoreApplication::translate("pdf::PDFAppDocumentPanelPopup", "Color of the markup"));
-    }
+    updateColorTarget();
 }
 
 PDFColorSwatchRow* PDFAppAnnotatePanel::getColorRow() const
@@ -262,11 +525,16 @@ PDFAppPanelMenuItem* PDFAppAnnotatePanel::getShowCommentsItem() const
 
 void PDFAppAnnotatePanel::onColorSelected(const QColor& color)
 {
-    // The color of the active markup is remembered for the next markups; the
-    // panel stays open (tools.md 9.8)
+    // Only the tool of the target tile remembers the color for its next
+    // markups; the panel stays open (tools.md 9.8) and the bars follow at once
+    QPointer<PDFAppAnnotatePanel> guard(this);
     if (PDFAppAnnotationCreator* creator = m_creator.data())
     {
-        creator->setColor(PDFAppAnnotationTools::getMarkupKind(getColorMarkupType()), PDFAppAnnotationCreator::ColorTarget::Stroke, color);
+        creator->setColor(getColorTargetKind(), PDFAppAnnotationCreator::ColorTarget::Stroke, color);
+    }
+    if (guard)
+    {
+        updateColorTarget();
     }
 }
 

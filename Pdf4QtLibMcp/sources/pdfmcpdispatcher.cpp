@@ -22,6 +22,7 @@
 
 #include "pdfmcpdispatcher.h"
 #include "pdfmcpdispatcher_p.h"
+#include "pdfmcpconnection.h"
 
 #include <QCryptographicHash>
 #include <QHostAddress>
@@ -32,6 +33,7 @@
 #include <QNetworkInterface>
 #include <QUrl>
 
+#include <algorithm>
 #include <cmath>
 
 namespace pdf
@@ -146,6 +148,49 @@ void PDFMcpDispatcherLink::releaseAddress(const QString& address)
     }
 }
 
+void PDFMcpDispatcherLink::addIdleConnection(PDFMcpConnection* connection)
+{
+    QMutexLocker locker(&m_mutex);
+    m_idleConnections.push_back(connection);
+}
+
+bool PDFMcpDispatcherLink::leaveIdleConnection(PDFMcpConnection* connection)
+{
+    QMutexLocker locker(&m_mutex);
+    std::erase(m_idleConnections, connection);
+    return std::find(m_evictedConnections.cbegin(), m_evictedConnections.cend(), connection) != m_evictedConnections.cend();
+}
+
+void PDFMcpDispatcherLink::removeConnection(PDFMcpConnection* connection)
+{
+    QMutexLocker locker(&m_mutex);
+    std::erase(m_idleConnections, connection);
+    std::erase(m_evictedConnections, connection);
+}
+
+bool PDFMcpDispatcherLink::evictIdleConnection()
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_idleConnections.empty())
+    {
+        return false;
+    }
+
+    // The connection lives while it is in the list (its destructor removes it
+    // under this mutex); an event posted to it is removed with it
+    PDFMcpConnection* connection = m_idleConnections.front();
+    m_idleConnections.erase(m_idleConnections.begin());
+    m_evictedConnections.push_back(connection);
+    QMetaObject::invokeMethod(connection, &PDFMcpConnection::evict, Qt::QueuedConnection);
+    return true;
+}
+
+int PDFMcpDispatcherLink::getPendingEvictions() const
+{
+    QMutexLocker locker(&m_mutex);
+    return int(m_evictedConnections.size());
+}
+
 void PDFMcpDispatcherLink::setAssistants(std::vector<PDFMcpAssistantInfo> assistants, bool notify)
 {
     QMutexLocker locker(&m_mutex);
@@ -170,7 +215,8 @@ std::vector<PDFMcpAssistantInfo> PDFMcpDispatcherLink::getAssistants() const
 PDFMcpDispatcher::PDFMcpDispatcher(std::shared_ptr<PDFMcpServerShared> shared, QObject* parent) :
     BaseClass(parent),
     m_shared(std::move(shared)),
-    m_completionLimiter(PDFMcpLimits::MAXIMUM_COMPLETIONS_PER_SECOND, PDFMcpLimits::MAXIMUM_COMPLETIONS_PER_SECOND)
+    m_completionLimiter(PDFMcpLimits::MAXIMUM_COMPLETIONS_PER_SECOND, PDFMcpLimits::MAXIMUM_COMPLETIONS_PER_SECOND),
+    m_initializeLimiter(PDFMcpLimits::INITIALIZE_BURST, PDFMcpLimits::INITIALIZE_RATE)
 {
     const PDFMcpServerConfig& config = m_shared->getConfig();
     m_catalog = m_shared->getCatalog();
@@ -328,6 +374,16 @@ bool PDFMcpDispatcher::checkAuthorization(const std::shared_ptr<PDFMcpExchange>&
     qint64 retryAfter = 0;
     if (m_throttle.isBlocked(address, now, &retryAfter))
     {
+        // Local mode: every local process shares the loopback address, so a
+        // flood of wrong tokens of another process would lock the assistant
+        // with the token out. The valid token (256 bits) passes the block there;
+        // missing and wrong tokens stay blocked (follow-up 21). The remote mode
+        // blocks the address also for the token (the hosts of a LAN differ).
+        if (config.bindMode != PDFMcpBindMode::Remote && isAuthorizationValid(exchange->getRequest(), m_tokenHash))
+        {
+            return true;
+        }
+
         PDFMcpJsonWriter data;
         data.beginObject();
         data.writeMember(QLatin1StringView("retryAfterMs"), retryAfter);
@@ -827,6 +883,7 @@ void PDFMcpDispatcher::handleGet(const std::shared_ptr<PDFMcpExchange>& exchange
     }
 
     session->lastSeen = PDFMcpClock::now();
+    session->isUsed = true;
     PDFMcpAssistantInfo info;
     info.key = session->key;
     info.name = session->clientName;
@@ -886,6 +943,7 @@ void PDFMcpDispatcher::handleClientResponse(const std::shared_ptr<PDFMcpExchange
     }
 
     session->lastSeen = PDFMcpClock::now();
+    session->isUsed = true;
     respondEmpty(exchange, 202);
 
     if (id.getKind() != PDFMcpRequestIdKind::Integer)
@@ -1050,8 +1108,15 @@ QByteArray PDFMcpDispatcher::createErrorMessage(const PDFMcpRequestId& id, int c
     PDFMcpJsonWriter writer;
     writer.beginObject();
     writer.writeMember(QLatin1StringView("jsonrpc"), QLatin1StringView("2.0"));
-    writer.key(QLatin1StringView("id"));
-    id.write(writer);
+
+    // An id, which could not be read (or none at all), is omitted - both MCP
+    // schemas say "id?: RequestId" of an error (owner decision of 2026-10-27,
+    // follow-up 31), never "id": null
+    if (id.isValid())
+    {
+        writer.key(QLatin1StringView("id"));
+        id.write(writer);
+    }
     writer.key(QLatin1StringView("error"));
     writer.beginObject();
     writer.writeMember(QLatin1StringView("code"), code);

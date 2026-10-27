@@ -15,7 +15,7 @@ The tool `files` opens PDF files in PDF4QT and saves documents (Open and save fi
 ```
 
 - With Open and save files set to Ask, PDF4QT asks the user to open the file ("Claude Code wants to open a document").
-- A file, which is open already, is not opened again: you get its `documentId` and its tab is activated. That needs only Read documents.
+- A file, which is open already, is not opened again: you get its `documentId` and its tab is activated. That needs only Read documents (with Ask, the read approval of your client, as every read).
 - The file must be a PDF (it must start with `%PDF`).
 - The call waits until the document is ready and returns its `documentId`, `title`, `pageCount` and `state`. Pass the `documentId` to the next calls.
 - A document with a password: PDF4QT shows its password screen and waits up to 2 minutes for the user to type the password. Never ask the user for the password yourself – you never receive it. Without the password, the result has `state: password_required` and an error.

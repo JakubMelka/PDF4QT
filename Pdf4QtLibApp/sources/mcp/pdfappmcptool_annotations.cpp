@@ -1056,7 +1056,7 @@ void PDFAppMcpAnnotationsTool::handle(const PDFAppMcpToolInvocation& invocation)
                 if (!points || points->size() < minimum || (isLine && points->size() != 2))
                 {
                     error = isLine ? QStringLiteral("%1: %2 needs points with 2 points").arg(path, type)
-                                   : QStringLiteral("%1: %2 needs points with %3 to 1000 points").arg(path, type).arg(minimum);
+                                   : QStringLiteral("%1: %2 needs points with %3 to 1000 points").arg(path, type, QString::number(minimum));
                     break;
                 }
                 item.kind = type == QLatin1String("line") ? PDFAppAnnotationItem::Kind::Line

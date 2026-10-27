@@ -454,7 +454,7 @@ PDFRowDelegate::WatchedView* PDFRowDelegate::findWatched(const QObject* view)
 
     for (WatchedView& watched : m_views)
     {
-        if (watched.view.data() == view)
+        if (watched.view.isObject(view))
         {
             return &watched;
         }
@@ -585,7 +585,7 @@ void PDFRowDelegate::unwatchView(QAbstractItemView* view)
 {
     for (auto it = m_views.begin(); it != m_views.end(); ++it)
     {
-        if (it->view.data() == view && view)
+        if (it->view.isObject(view))
         {
             if (m_trackedView == view)
             {
@@ -611,7 +611,7 @@ bool PDFRowDelegate::isWatching(const QAbstractItemView* view) const
 
     for (const WatchedView& watched : m_views)
     {
-        if (watched.view.data() == view)
+        if (watched.view.isObject(view))
         {
             return true;
         }
@@ -673,13 +673,14 @@ void PDFRowDelegate::ensureWatched(const QWidget* widget) const
 
 void PDFRowDelegate::onWatchedDestroyed(QObject* object)
 {
-    // No function of the destroyed object is called: a view is in the destructor
-    // of QWidget (its viewport still exists), a viewport is being deleted
+    // No function of the destroyed object is called and the object is never cast
+    // to its class, only its address is compared: a view is in the destructor of
+    // QWidget (its viewport still exists), a viewport is being deleted
     for (auto it = m_views.begin(); it != m_views.end(); ++it)
     {
-        if (it->view.data() == object)
+        if (it->view.isObject(object))
         {
-            if (m_trackedView.data() == object)
+            if (m_trackedView.isObject(object))
             {
                 m_pressedIndex = QPersistentModelIndex();
                 m_pressedAction = -1;
@@ -709,11 +710,11 @@ void PDFRowDelegate::onWatchedDestroyed(QObject* object)
             return;
         }
 
-        if (it->viewport.data() == object)
+        if (it->viewport.isObject(object))
         {
             // A viewport replaced by setViewport: the new one is installed by the
             // event ChildAdded of the view or at the next paint
-            if (m_trackedViewport.data() == object)
+            if (m_trackedViewport.isObject(object))
             {
                 m_trackedViewport = nullptr;
             }
@@ -1246,14 +1247,14 @@ bool PDFRowDelegate::eventFilter(QObject* watched, QEvent* event)
                 continue;
             }
 
-            if (watched == entry.view.data())
+            if (entry.view.isObject(watched))
             {
                 QPointer<QObject> guard(watched);
                 const bool handled = handleViewEvent(entry.view.data(), event);
                 return !guard || handled;
             }
 
-            if (watched == entry.viewport.data())
+            if (entry.viewport.isObject(watched))
             {
                 QPointer<QObject> guard(watched);
                 const bool handled = handleViewportEvent(entry.view.data(), event);

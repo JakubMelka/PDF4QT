@@ -26,6 +26,7 @@
 #include "pdffluentglobal.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
+#include "pdfwatchedpointer.h"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -720,11 +721,12 @@ private:
 
     // The field is created first: it precedes the actions in the focus chain,
     // so Tab goes from the field to the confirm and the cancel button
-    QPointer<QLineEdit> m_editor;
+    // (the event filter recognizes the editing widgets also in their destructors)
+    PDFWatchedPointer<QLineEdit> m_editor;
     QPointer<PDFIconButton> m_editButton;
     QPointer<PDFIconButton> m_copyButton;
-    QPointer<PDFIconButton> m_confirmButton;
-    QPointer<PDFIconButton> m_cancelButton;
+    PDFWatchedPointer<PDFIconButton> m_confirmButton;
+    PDFWatchedPointer<PDFIconButton> m_cancelButton;
     /// A member, not a child: the application cannot reach it by children() and delete it
     QTimer m_copiedTimer;
 };

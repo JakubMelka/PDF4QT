@@ -29,6 +29,7 @@
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
 #include "pdfannotationmanipulator.h"
+#include "pdfannotationproperties.h"
 
 #include <QBuffer>
 #include <QFontMetricsF>
@@ -1586,6 +1587,7 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
     }
 
     std::map<PDFAppeareanceStreams::Key, PDFObjectReference> appearanceStreams;
+    const QByteArray blendModeName = getAppearanceStreamBlendMode(annotationReference);
 
     QRectF boundingRectangle;
     for (const PDFAppeareanceStreams::Key& key : keys)
@@ -1638,6 +1640,10 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
         formFactory.endDictionary();
 
         mergeTo(formReference, formFactory.takeObject());
+        if (!blendModeName.isEmpty())
+        {
+            setAppearanceStreamBlendMode(formReference, resourcesReference, blendModeName);
+        }
         appearanceStreams[key] = formReference;
     }
 
@@ -1717,6 +1723,70 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
 
         mergeTo(annotationReference, annotationFactory.takeObject());
     }
+}
+
+QByteArray PDFDocumentBuilder::getAppearanceStreamBlendMode(PDFObjectReference annotationReference) const
+{
+    const PDFDictionary* annotationDictionary = getDictionaryFromObject(getObjectByReference(annotationReference));
+    if (!annotationDictionary)
+    {
+        return QByteArray();
+    }
+
+    const QByteArray name = PDFAnnotationPropertyEditor::readBlendMode(&m_storage, annotationDictionary->get("BM"));
+    const BlendMode blendMode = PDFBlendModeInfo::getBlendMode(name);
+    if (blendMode == BlendMode::Invalid || blendMode == BlendMode::Normal || blendMode == BlendMode::Compatible)
+    {
+        return QByteArray();
+    }
+    return name;
+}
+
+void PDFDocumentBuilder::setAppearanceStreamBlendMode(PDFObjectReference formReference, PDFObjectReference resourcesReference, const QByteArray& blendModeName)
+{
+    static constexpr const char* GRAPHIC_STATE_NAME = "PDF4QTBlendMode";
+
+    const PDFObject& formObject = getObjectByReference(formReference);
+    const PDFStream* formStream = formObject.isStream() ? formObject.getStream() : nullptr;
+    const PDFDictionary* resources = getDictionaryFromObject(getObjectByReference(resourcesReference));
+    if (!formStream || !resources)
+    {
+        return;
+    }
+
+    PDFObjectFactory extGStateFactory;
+    extGStateFactory.beginDictionary();
+    extGStateFactory.beginDictionaryItem("Type");
+    extGStateFactory << WrapName("ExtGState");
+    extGStateFactory.endDictionaryItem();
+    extGStateFactory.beginDictionaryItem("BM");
+    extGStateFactory << WrapName(blendModeName);
+    extGStateFactory.endDictionaryItem();
+    extGStateFactory.endDictionary();
+    const PDFObjectReference extGStateReference = addObject(extGStateFactory.takeObject());
+
+    // The graphic states of QPdfWriter (its opacity) are kept, a new dictionary is written
+    // into the resources, so a dictionary shared by other objects is never changed
+    const PDFDictionary* graphicStates = getDictionaryFromObject(resources->get("ExtGState"));
+    PDFDictionaryBuilder graphicStatesBuilder = graphicStates ? PDFDictionaryBuilder(*graphicStates) : PDFDictionaryBuilder();
+    graphicStatesBuilder.setEntry(PDFInplaceOrMemoryString(GRAPHIC_STATE_NAME), PDFObject::createReference(extGStateReference));
+    PDFDictionaryBuilder resourcesBuilder(*resources);
+    resourcesBuilder.setEntry(PDFInplaceOrMemoryString("ExtGState"), PDFObject::createDictionary(std::move(graphicStatesBuilder)));
+    setObject(resourcesReference, PDFObject::createDictionary(std::move(resourcesBuilder)));
+
+    // The mode is set before the content; the graphic states of the content set only the opacity
+    QByteArray content = getDecodedStream(formStream);
+    content.prepend(QByteArray("q /") + GRAPHIC_STATE_NAME + " gs\n");
+    content.append("\nQ\n");
+
+    PDFArrayBuilder filters;
+    filters.appendItem(PDFObject::createName("FlateDecode"));
+    QByteArray compressedData = PDFFlateDecodeFilter::compress(content);
+    PDFDictionaryBuilder streamDictionary(*formStream->getDictionary());
+    streamDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
+    streamDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::move(filters)));
+    streamDictionary.removeEntry("DecodeParms");
+    setObject(formReference, PDFObject::createStream(PDFStream(std::move(streamDictionary), std::move(compressedData))));
 }
 
 bool PDFDocumentBuilder::updateHighlightAnnotationAppearanceStream(PDFObjectReference annotationReference,

@@ -165,6 +165,23 @@ public:
     /// of PDFThemeColors::Color (the sun of the Light segment of the theme switch)
     static constexpr const char* ICON_COLOR = "iconColor";
 
+    /// QToolButton (Action tile 190:740, Qt::ToolButtonTextUnderIcon): QColor of
+    /// the optional color bar of the tile (property Color bar of the component):
+    /// a bar 18 x 3 (radius 1.5) centered right below the icon, the remembered
+    /// color of the tool of the tile (the text markup tiles of the Annotate panel
+    /// 877:10157). A canonical annotation color (the light-theme value of an
+    /// annotation/* token, PDFColorSwatchRow) is drawn as the token of the current
+    /// theme, another color as it is; a color, which cannot be told from the fill
+    /// of the tile, gets a 1 px border/strong outline; a disabled tile draws the
+    /// bar in icon/disabled. No property or an invalid color = no bar.
+    static constexpr const char* COLOR_BAR = "colorBar";
+
+    /// QToolButton (Action tile 190:740): the tile is the target of an editor
+    /// beside it, which is not the checked tile (the color row of the Annotate
+    /// panel edits the color of the hovered or focused tile, 1295:31357): 1 px
+    /// border/strong inside of the shape of the tile
+    static constexpr const char* EDIT_TARGET = "editTarget";
+
     /// QToolButton: the button shows the chevron of a menu, although it has
     /// no menu (it opens a popup of its own)
     static constexpr const char* MENU_INDICATOR = "menuIndicator";

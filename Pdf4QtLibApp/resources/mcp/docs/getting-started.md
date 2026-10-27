@@ -63,7 +63,7 @@ Changes are not saved to the file. Saving is a separate step (`files.save` or `f
 
 ## 5. Waiting for the user
 
-With a permission set to Ask, PDF4QT shows a confirmation in the window of the document and your call waits for the answer – up to 2 minutes. Meanwhile:
+With a permission set to Ask, PDF4QT shows a confirmation in the window of the document and your call waits for the answer – up to 2 minutes after the question appears (a question waiting behind other questions or behind another dialog of PDF4QT waits at most 10 minutes to appear). Meanwhile:
 
 - a client with the tasks extension gets a task with the status message "Waiting for the user to confirm in PDF4QT"; poll it until it ends;
 - other clients keep the request open; with a `progressToken` they get progress notifications, otherwise keep-alive comments only.

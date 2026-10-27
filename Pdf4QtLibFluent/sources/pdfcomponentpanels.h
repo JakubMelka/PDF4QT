@@ -786,6 +786,13 @@ public:
     /// Puts the color to the front of the recent colors
     void addRecentColor(const Entry& entry);
 
+    /// Selects a color picked outside of the swatches (the dialog of "More
+    /// colors…", PDFColorPickerDialog) as a click on a swatch does: the color
+    /// becomes the current color and the first recent color, an open popover
+    /// closes and colorSelected is emitted (so the color button and the color
+    /// swatch row report it by their colorSelected). An invalid color is ignored.
+    void selectColor(const QColor& color);
+
     /// Current color: the suggested swatch of the same color is selected (none, if no suggested color equals it)
     const QColor& getCurrentColor() const { return m_currentColor; }
     void setCurrentColor(const QColor& color);

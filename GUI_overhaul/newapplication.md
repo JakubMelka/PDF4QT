@@ -88,6 +88,7 @@ Každý krok: implementační agent → dvě nezávislé kontroly (věrnost Figm
 Automatické testy běží offscreen a psali je stejní agenti jako kód; revize každého kroku stále nacházejí skutečné chyby (krok 7: asistent smazal jinou položku osnovy, heslo zapsané do dokumentu, spojení obsazené navždy, testy bez vzhledu Fluent, které nic neověřovaly). Fáze 1 má asi 200 tisíc řádků produkčního C++ a 117 tisíc řádků testů – vlastník ji nečte řádek po řádku, ale podle rizika:
 
 - **Ruční testování** podle kontrolního seznamu po oblastech (koordinátor ho připraví; funkce, které nesmí vypadnout, podle [tools.md](tools.md) kapitola 6): nativní okna Windows, Linux X11 a Wayland, vysoké DPI na skutečných monitorech, IME, čtečka obrazovky, drag & drop mezi aplikacemi, dlouhé sezení s více taby a undo, skuteční klienti MCP (ruční zkouška s Claude Code dělá vlastník sám).
+- **Souhrnné měření pokrytí** celé aplikace (rozhodnutí vlastníka 27. 10. 2026): všechny testy najednou proti `Pdf4QtLibApp`, `Pdf4QtLibMcp` a `Pdf4QtLibFluent` (clang, řádky / větve / MC/DC) – skutečné celkové číslo a seznam kódu, který netestuje nic; kroky 2–7 měřily jen svou oblast se svými testy (řádky 59–88 %, větve 52–75 %).
 - **Sbírka skutečných PDF** (stovky dokumentů: poškozené, obří, podepsané, formuláře, XFA): otevřít, vykreslit, uložit, znovu otevřít, porovnat se starým Viewerem.
 - **Průzkumné testování** několik dní běžné práce, nálezy se zapisují; beta vedle starých aplikací před vydáním.
 - **Podklady k revizi vlastníka** ke každému kroku (i zpětně ke krokům 1–7): seznam souborů k osobnímu čtení seřazený podle rizika, u každého, na co se zaměřit, a souhrn rozhodnutí, která agenti udělali sami. Osobně se čte asi 5–10 % kódu: změny `Pdf4QtLibCore`, bezpečnostní hranice (síť MCP, cesty k souborům, nedůvěryhodný vstup, podpisy), schéma a migrace databáze (vydaná migrace se nemění), veřejná rozhraní a architektura (hlavičky). Stránky a dialogy jen výběrem (jeden vzor pořádně, ostatní na shodu se vzorem), testy podle názvů a řádků v CLAUDE.md. Paměť a vlákna ověřují ASan, valgrind a testy životnosti, kvalitu testů mutační kontrola (agent rozbije kód, test musí selhat).
@@ -203,7 +204,7 @@ Program tyto stavy má, ve Figmě nejsou; kontrola věrnosti je zatím nemá s �
 
 | # | Bod | Doporučení |
 | --- | --- | --- |
-| H1 | **Témata AI** (`ai-assistant.md`, `ai-permissions.md`, řádek AI v `getting-started.md`, zmínka o tokenu AI v přenosném režimu) popisují krok 7 (MCP a stránka AI), který ještě není hotový; `/ai` zatím otevře *Page Not Found*. | Nechat (fáze 1 vyjde až celá); krok 7 témata ověří proti kódu. Jinak je do kroku 7 skrýt z katalogu nápovědy. |
+| H1 | **Témata AI** (`ai-assistant.md`, `ai-permissions.md`, řádek AI v `getting-started.md`, zmínka o tokenu AI v přenosném režimu) popisují krok 7 (MCP a stránka AI), který ještě není hotový; `/ai` zatím otevře *Page Not Found*. | **Vyřešeno krokem 7 (27. 10. 2026):** `/ai` otevře stránku AI a témata AI (`ai-assistant`, `ai-permissions`, nové `ai-tools`) odpovídají kódu – kontroluje je `UnitTestsAppMcpContent::helpTopicsMatchCode`. |
 | H2 | **Jazyk vs. Locale:** panel Read aloud (195:2499) píše „Language“, Settings › Speech (`settings-speech`) píše „Locale“ pro totéž nastavení. | Sjednotit na „Language“ (srozumitelnější); designér opraví `settings-speech`. |
 | H3 | **„Draw text as real text“** ve skupině „Printing and export“ (`settings-viewing`) zmiňuje export, který ve fázi 1 není (export obrázků je tool fáze 2). | Nechat; text platí od fáze 2. |
 | H4 | **Output color profile** nabízí jen sRGB (vestavěný); jádro jiné výstupní profily nehledá. | Nechat (obrazovky jsou sRGB); případně fáze 2 se správou barev monitoru. |
@@ -217,3 +218,52 @@ Program tyto stavy má, ve Figmě nejsou; kontrola věrnosti je zatím nemá s �
 | # | Úkol | Návrh |
 | --- | --- | --- |
 | F1 | **Katalog videí Support ze stránek autora** (požadavek vlastníka 26. 10. 2026). Dnes je katalog `PDFSupportVideoCatalog` pevná tabulka v programu, nové video se k uživatelům dostane až s novou verzí. | Na stránkách autora leží soubor `videos.json` (verze formátu, seznam videí: `id`, názvy a popisy v jazycích – `en` povinně, další volitelně –, délka, odkaz jen `https://www.youtube.com/…` / `youtu.be`, téma, štítky, `toolIds`, nejnižší verze PDF4QT, náhled) a jeho podpis `videos.json.sig` (Ed25519 nebo ECDSA přes OpenSSL, které už program linkuje; veřejný klíč v programu, soukromý jen u autora, podepíše ho skript při publikaci). Program ho stáhne nejvýš jednou denně stejnou cestou jako kontrola aktualizací (`PDFUpdateChecker`: jen https, limit velikosti, timeout, bez cookies, jedna instance za den přes rezervaci v databázi) a jen když je zapnutá kontrola aktualizací (stejný souhlas s připojením k internetu). Obsah je nedůvěryhodný: přísná kontrola schématu a délek, prostý text, jen odkazy YouTube, neznámé tooly a videa pro novější verzi se vynechají, nejvýš N videí; náhledy (PNG / JPEG ze stejných stránek, limit velikosti a rozměrů) se uloží do databáze. Uložený katalog (nová tabulka = migrace schématu) nahradí přibalený; přibalený zůstává pro první spuštění, offline a přenosný režim bez sítě. Stránka Support, hledání a *For you* čtou katalog z jednoho místa a sledují jeho změnu (oznámení databáze). **Schváleno vlastníkem 26. 10. 2026**, přibalený katalog se navíc aktualizuje při každém vydání (bod kontrolního seznamu vydání: zkopírovat aktuální `videos.json` a náhledy do resources). Otevřené: adresa stránek autora (vlastní doména, nebo GitHub Pages repozitáře). |
+
+### 8.7 Krok 7 – MCP server a stránka AI (27. 10. 2026)
+
+Popis toho, co krok 7 postavil, je v [newapp_mcp.md](newapp_mcp.md) (kapitoly 2, 3, 5 a 7).
+
+**Chybějící rámce ve Figmě (designér).** Program tyto stavy má, ve Figmě nejsou; kontrola věrnosti je zatím nemá s čím porovnat.
+
+| # | Kde | Stav |
+| --- | --- | --- |
+| 1 | stránka AI › nastavení klienta | karty Claude Desktop, Codex CLI, Gemini CLI, GitHub Copilot a Cursor (nakreslené jsou jen dlaždice a čip „Claude Desktop“; karta *Other client* 955:149400 nemá čipy variant) |
+| 2 | stránka AI › *Recent activity* | stavy bez nakresleného řádku: „Canceled by the assistant“, „Denied · the server stopped“, „Denied · a dialog was open in PDF4QT“, „Waiting for a choice in <client>“; jen jako text v 955:150808: „Denied · the tab was closed“, „Denied · the assistant disconnected“, „Denied · a tool is running on the document“ |
+| 3 | dokument | dotaz na čtení bez otevřeného dokumentu |
+| 4 | dokument | dotazy na změnu hodnot formuláře, úpravu osnovy, smazání anotací a zavření tabu |
+| 5 | stránka AI › *Recent activity* | víc než 5 řádků (program ukazuje 10, O27) a prázdný stav |
+| 6 | stránka AI | okno 720 × 480 a rozvržení zprava doleva |
+| 7 | stránka AI | dotaz na otevření souboru chráněného heslem |
+| 8 | stránka AI › *Connected assistants* | prázdný stav, když server **běží** (jediný prázdný stav 653:6172 „Start the server to accept connections.“ platí pro zastavený server) |
+| 9 | stránka AI › nový token | dialog bez připojených asistentů (text jen v 955:150808) |
+| 10 | stránka AI › nastavení klienta | varianty s vypnutým *Require access token* (text jen v 955:150808) |
+| 11 | dotazy v dokumentu | důvody „Overwriting the original file is always confirmed“, „Asked because a dialog was open when the request came“ a důvod s více oprávněními (texty jen v 958:28030) |
+| 12 | dotaz na otevření (stránka AI) | vzdálený původ (štítek *Remote*) a monogram jiného klienta než Claude |
+| 13 | stavový řádek, *New tab* | položka AI pro víc čekajících požadavků („1 of 3“) a banner čekajícího dotazu na *New tab* (nakreslený je jen Home) |
+| 14 | dlaždice asistentů, řádky aktivity | stavy Disabled, hover, pressed a fokus dlaždic, řádků aktivity a odkazu *Show* |
+| 15 | všechny rámce AI | tmavé téma |
+| 16 | dokument | stavový řádek se stránkou a položkou AI zároveň |
+| 17 | dokument | zpráva stavového řádku po návratu z náhledu (*Show on Page*) |
+| 18 | dotaz na otevření | dlouhá cesta zalomená do více řádků |
+| 19 | stránka AI › nastavení klienta | vybraná dlaždice vedle nevybraných |
+
+**Rozdíly Figma × program (rozhodnutí vlastníka 27. 10. 2026: program zůstává).**
+
+| # | Kde | Figma | Program | Stav |
+| --- | --- | --- | --- | --- |
+| D1 | vybraná dlaždice asistenta (955:149138) | 74 px | 66 px jako nevybrané | opraví se ve Figmě (FW7-F) |
+| D2 | řádky se zaškrtávacím polem *Require access token* a *Start with PDF4QT* (653:5502, 653:5534) | 54 px | 56 px | opraví se ve Figmě (FW7-F) |
+| D3 | pole portu ve stavu obsazeného portu (955:148659) | okraj `accent/red/border-strong` | okraj neplatného pole podle stránky *Widgets* (`text/danger`) | opraví se ve Figmě (FW7-F) |
+| D4 | pole tokenu | vlastní tečky skrytého tokenu | znaky skrytého textu pole hesla knihovny (`PDFLineEdit::setPasswordField`) | designér upraví Figmu |
+| D5 | dotaz na otevření (940:136305) | řádek důvodu s ikonou sliders 14 a jménem oprávnění SemiBold; monogram s odznakem CLI | řádek důvodu jako ostatní dotazy (ikona info 16, Regular 12 `text/secondary`); monogram bez odznaku jako v dotazech dokumentu, banneru a lištách | designér upraví Figmu |
+| D6 | dotaz na otevření | dlouhá cesta na jednom řádku | dlouhá cesta se zalomí | designér upraví Figmu |
+
+**Otevřené body.**
+
+| # | Bod | Doporučení |
+| --- | --- | --- |
+| M1 | **`text_box` asistenta:** `annotations.add` nepoužije `fillColor` a text je vždy černý (`pdfappannotationoperations_create.cpp`); dokumentace pro asistenty to tak popisuje. | Sjednotit s nástrojem *Text box* kroku 4 (barva textu a výplň), pak upravit `docs/annotations.md` a test. |
+| M2 | **Jména klientů a odkazy návodů:** `clientInfo.name` `claude-code`, `claude-ai`, `codex-mcp-client`, `cursor-vscode` a `mcp-inspector` nejsou ověřená ve zdrojích klientů (ověřené jsou Gemini CLI a VS Code); odkaz na dokumentaci Gemini nejde ověřit, odkazy Claude Desktop a VS Code jen zčásti. | Ověřit při ruční zkoušce vlastníka s Claude Code a před vydáním; nesprávné jméno je jen kosmetické (asistent se ukáže se jménem z `clientInfo` a ikonou `mcp`). |
+| M3 | **Doba držení řádků aktivity:** záznam čekající na konečný stav se v paměti drží 15 min od poslední změny (`PDFAppMcpActivityLog::KEEP_TIME`); velmi dlouhá volání fáze 2 (OCR) by konečný stav ztratila. | Ve fázi 2 držet řádek běžícího volání do jeho konce (omezené počtem volání), ne podle času. |
+| M4 | **Logging a -32022:** revize 2026-07-28 *Logging* označuje jako zastaralý (SEP-2577, SHOULD NOT), server ho podle D4 nabízí dál; chyba -32022 vyjmenuje v `data.supported` jen 2026-07-28, protože starší revize se vyjednávají přes `initialize`. | Nechat; posoudit s další revizí MCP. |
+| M5 | **Hlavička `Server: PDF4QT/<verze>`** prozradí ve vzdáleném režimu verzi programu počítačům v síti. | Přijmout (záměr: podle ní zkouška obsazeného portu pozná jiné okno PDF4QT); vzdálený režim je i tak jen pro důvěryhodnou síť (HTTP bez TLS). |

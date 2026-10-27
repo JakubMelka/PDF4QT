@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappannotationtoolbar.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotationcreatedialogs.h"
 #include "pdfappannotationcreatetools.h"
 #include "pdfappdocumentview.h"
@@ -352,6 +353,7 @@ void PDFAppAnnotationToolBar::buildParts()
         m_colorRow = new PDFColorSwatchRow(this);
         m_colorRow->setObjectName(QStringLiteral("toolColors"));
         connect(m_colorRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppAnnotationToolBar::onColorSelected);
+        PDFAppColorPicker::attach(m_colorRow.data());
         addPart(m_colorRow);
         setFoldableSwatchRow(m_colorRow);
 

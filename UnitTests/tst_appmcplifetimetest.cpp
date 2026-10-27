@@ -1354,6 +1354,20 @@ void AppMcpLifetimeTest::runScenario(const QString& name, McpLifetimeRecorder::M
     pdftest::AppDocumentFixture::settle();
     if (mode == McpLifetimeRecorder::Mode::Replay && recorder.isFired())
     {
+        // A request, which still waits for the user, has moved to the dialog of another
+        // tab (a request without a document whose tab went): the user denies it
+        if (pdf::PDFAppMcpConfirmationUi* confirmationUi = fixture.ui())
+        {
+            for (quint64 id : confirmationUi->getWaitingIds())
+            {
+                if (fixture.ui())
+                {
+                    fixture.ui()->answer(id, pdf::PDFAppMcpDecision::DeniedUser);
+                }
+            }
+            pdftest::AppDocumentFixture::settle();
+        }
+
         // Every call of the assistant ends (denied, canceled or done) - nothing waits
         // for a deleted dialog or tab. A direct call of the fixture belongs to no
         // server: when the controller (the server and the host) is deleted, the stop

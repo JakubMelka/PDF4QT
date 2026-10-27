@@ -39,8 +39,11 @@
 #include "pdfmcpratelimiter.h"
 #include "pdfmcptasks.h"
 #include "pdfmcplistener.h"
+#include "pdfmcpsubscriptions.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QMessageAuthenticationCode>
 #include <QElapsedTimer>
 #include <QHostInfo>
 #include <QJsonArray>
@@ -58,6 +61,7 @@
 #include <atomic>
 #include <cmath>
 #include <deque>
+#include <chrono>
 #include <thread>
 #include <limits>
 
@@ -412,8 +416,9 @@ public:
                 }
                 else if (name == QLatin1String("askslow"))
                 {
+                    // {"value":"twice"} asks again after the answer "A" (two rounds of input of a task)
                     const QString choice = getChoice(request);
-                    if (choice.isEmpty())
+                    if (choice.isEmpty() || (choice == QLatin1String("A") && request.arguments.value(QStringLiteral("value")).toString() == QLatin1String("twice")))
                     {
                         QTimer::singleShot(400, qApp, [call]() { call->requestInput(createChoice()); });
                     }
@@ -890,13 +895,13 @@ public:
     /// A JSON-RPC error response (the data checked by \p dataSpec, when given)
     static void checkError(const QJsonObject& response, int code, const QString& dataSpec, const QString& path, QStringList* errors)
     {
-        // The id is written as null, when it could not be read (plan of step 7,
-        // 1.5; the schemas of both eras say id?: RequestId - judgment of RP7)
+        // The schemas of both eras say id?: RequestId: an id, which could not be
+        // read, is omitted - never null (owner decision of 2026-10-27, follow-up 31)
         check(response, QStringLiteral("jsonrpc:s id?:x error:o"), path, errors);
         const QJsonValue id = response.value(QStringLiteral("id"));
-        if (!id.isUndefined() && !id.isNull() && !hasType(id, u"I"))
+        if (!id.isUndefined() && !hasType(id, u"I"))
         {
-            errors->append(path + QStringLiteral(".id: string or integer"));
+            errors->append(path + QStringLiteral(".id: string or integer (omitted, when unreadable)"));
         }
         check(response.value(QStringLiteral("error")), dataSpec.isEmpty() ? QStringLiteral("code:i message:s data?:x") : QStringLiteral("code:i message:s data:o"),
               path + QStringLiteral(".error"), errors);
@@ -1256,6 +1261,8 @@ private slots:
     // Package A
     void serverStartStop();
     void httpParser();
+    void httpParserEdges();
+    void jsonReaderEdges();
     void httpPartialHeads();
     void httpFuzz();
     void jsonRpcErrors();
@@ -1295,6 +1302,24 @@ private slots:
     void reviewSchemaBounds();
     void reviewThrottleKeepsBlocks();
     void reviewProgressTokenExact();
+
+    // Fix wave FW7-L (follow-ups of step 7)
+    void fixConnectionEviction();
+    void fixConnectionEvictionRefused();
+    void fixSubscriptionFilterLinear();
+    void fixTaskInputKeysUnique();
+    void fixLegacyInitializeLimits();
+    void coverageExchangeAndWorker();
+    void coverageConnectionTimeouts();
+    void coveragePipelinedRequest();
+    void coverageBackpressure();
+    void coveragePortProbe();
+    void coverageJsonEdges();
+    void coverageSchemaEdges();
+    void coverageLibraryUnits();
+    void coverageProtocolEdges();
+    void coverageInputAnyValues();
+    void coverageDispatcherEdges();
 
     void conformance_data();
     void conformance();
@@ -2189,6 +2214,187 @@ void McpTest::serverStartStop()
     server.checkTimeouts();
 }
 
+void McpTest::httpParserEdges()
+{
+    // Review RT7 (coverage of the parser and of the responses, plan 10.2 item 6)
+    using Parser = pdf::PDFMcpHttpParser;
+
+    // Every reason phrase of plan 1.5, an unknown status
+    for (int status : { 200, 202, 400, 401, 403, 404, 405, 406, 408, 411, 413, 415, 417, 429, 431, 500, 503, 505 })
+    {
+        QVERIFY2(pdf::PDFMcpHttpResponse::getReasonPhrase(status) != QByteArray("Unknown"), qPrintable(QString::number(status)));
+    }
+    QCOMPARE(pdf::PDFMcpHttpResponse::getReasonPhrase(299), QByteArray("Unknown"));
+    QCOMPARE(pdf::PDFMcpHttpResponse::getReasonPhrase(431), QByteArray("Request Header Fields Too Large"));
+
+    // A response, which closes the connection (JSON and SSE)
+    pdf::PDFMcpHttpResponse response;
+    response.status = 503;
+    response.body = "x";
+    response.closeConnection = true;
+    response.headers.emplace_back(QByteArray("X-Split\r\nInjected"), QByteArray("a\r\nb"));
+    const QByteArray data = response.serialize("1.0");
+    QVERIFY(data.startsWith("HTTP/1.1 503 Service Unavailable\r\nServer: PDF4QT/1.0\r\n"));
+    QVERIFY(data.contains("\r\nConnection: close\r\n"));
+    QVERIFY(data.contains("\r\nX-SplitInjected: ab\r\n"));
+    QVERIFY(data.endsWith("\r\n\r\nx"));
+    const QByteArray streamHead = response.serializeStreamHead("1.0");
+    QVERIFY(streamHead.contains("\r\nConnection: close\r\n"));
+    QVERIFY(streamHead.contains("\r\nTransfer-Encoding: chunked\r\n"));
+    QVERIFY(!streamHead.contains("Content-Length"));
+
+    // The head too large by a few long headers (not by their count), whole and unfinished
+    pdf::PDFMcpHttpParserLimits limits;
+    limits.maximumHeaderSize = 256;
+    {
+        Parser parser(limits);
+        QCOMPARE(parser.feed("GET /mcp HTTP/1.1\r\nHost: h\r\nX-A: " + QByteArray(120, 'a') + "\r\nX-B: " + QByteArray(120, 'b') + "\r\n\r\n"), Parser::Status::Error);
+        QCOMPARE(parser.getErrorStatus(), 431);
+    }
+    {
+        Parser parser(limits);
+        QCOMPARE(parser.feed("GET /mcp HTTP/1.1\r\nHost: h\r\nX-A: " + QByteArray(300, 'a')), Parser::Status::Error);
+        QCOMPARE(parser.getErrorStatus(), 431);
+    }
+    {
+        // Exactly at the limit with the empty line: complete
+        const QByteArray head = "GET /mcp HTTP/1.1\r\nHost: h\r\n";
+        const QByteArray filler = "X: " + QByteArray(256 - head.size() - 2 - 5, 'f') + "\r\n";
+        Parser parser(limits);
+        QCOMPARE(parser.feed(head + filler + "\r\n"), Parser::Status::RequestComplete);
+    }
+
+    struct Case
+    {
+        const char* name;
+        QByteArray data;
+        int status;
+    };
+    const QByteArray host = "Host: h\r\n";
+    const std::vector<Case> cases = {
+        { "control in target", "GET /m\x01x HTTP/1.1\r\n" + host + "\r\n", 400 },
+        { "high byte in target", "GET /m\xc3\xa9 HTTP/1.1\r\n" + host + "\r\n", 400 },
+        { "method of 33 characters", QByteArray(33, 'G') + " /mcp HTTP/1.1\r\n" + host + "\r\n", 400 },
+        { "method of 32 characters", QByteArray(32, 'G') + " /mcp HTTP/1.1\r\n" + host + "\r\n", 0 },
+        { "folded by a tab", "GET /mcp HTTP/1.1\r\nHost: h\r\nX: a\r\n\tb\r\n\r\n", 400 },
+        { "empty Content-Length", "POST /mcp HTTP/1.1\r\n" + host + "Content-Length: \r\n\r\n", 400 },
+        { "token characters of a name", "GET /mcp HTTP/1.1\r\n" + host + "X!#$%&'*+-.^_`|~09az: 1\r\n\r\n", 0 },
+        { "a separator in a name", "GET /mcp HTTP/1.1\r\n" + host + "X/Y: 1\r\n\r\n", 400 },
+        { "HTTP/1.x digits", "GET /mcp HTTP/a.1\r\n" + host + "\r\n", 400 },
+        { "HTTP/1.x minor", "GET /mcp HTTP/1.x\r\n" + host + "\r\n", 400 },
+        { "HTTP/1,1", "GET /mcp HTTP/1,1\r\n" + host + "\r\n", 400 },
+        { "HTTP/9.9", "GET /mcp HTTP/9.9\r\n" + host + "\r\n", 505 }
+    };
+    for (const Case& testCase : cases)
+    {
+        Parser parser;
+        const Parser::Status status = parser.feed(testCase.data);
+        if (testCase.status == 0)
+        {
+            QVERIFY2(status == Parser::Status::RequestComplete, testCase.name);
+        }
+        else
+        {
+            QVERIFY2(status == Parser::Status::Error && parser.getErrorStatus() == testCase.status,
+                     qPrintable(QStringLiteral("%1: %2").arg(QString::fromLatin1(testCase.name)).arg(parser.getErrorStatus())));
+
+            // parse() of a parser in the error state stays in it
+            QCOMPARE(parser.parse(), Parser::Status::Error);
+        }
+    }
+
+    // An empty feed, parse() of a complete request
+    {
+        Parser parser;
+        QCOMPARE(parser.feed(QByteArrayView()), Parser::Status::NeedMoreData);
+        QVERIFY(!parser.hasStarted());
+        QCOMPARE(parser.feed("GET /mcp HTTP/1.1\r\nHost: h\r\nConnection: keep-alive, Upgrade\r\n\r\n"), Parser::Status::RequestComplete);
+        QCOMPARE(parser.feed(QByteArrayView()), Parser::Status::RequestComplete);
+        QCOMPARE(parser.parse(), Parser::Status::RequestComplete);
+        QVERIFY(!parser.getRequest().isConnectionClose());
+    }
+}
+
+void McpTest::jsonReaderEdges()
+{
+    // Review RT7: the type errors of every accessor of the reader, the ids of the
+    // requests, the escapes of the scanner
+    const QJsonObject object = QJsonDocument::fromJson(R"({"n":null,"b":true,"d":1.5,"s":"text","a":[1],"o":{"x":1},"long":"abcdef",
+                                                         "q":[1,2,3,4,5,6,7,"x"],"r":{"left":1,"bottom":2,"right":3,"top":4,"z":1}})").object();
+    QVERIFY(!object.isEmpty());
+
+    const struct
+    {
+        const char* key;
+        const char* typeName;
+    } values[] = { { "n", "null" }, { "b", "a boolean" }, { "d", "a number" }, { "s", "a string" }, { "a", "an array" }, { "o", "an object" } };
+
+    for (const auto& value : values)
+    {
+        pdf::PDFMcpJsonReader reader(object, QStringLiteral("arguments"));
+        const QLatin1StringView key(value.key);
+        const bool isString = QByteArray(value.key) == "s";
+        const bool isNumber = QByteArray(value.key) == "d";
+        const bool isBool = QByteArray(value.key) == "b";
+        const bool isArray = QByteArray(value.key) == "a";
+        const bool isObject = QByteArray(value.key) == "o";
+        QCOMPARE(reader.getString(key, 100, true).has_value(), isString);
+        QCOMPARE(reader.getNumber(key, -10.0, 10.0, true).has_value(), isNumber);
+        QCOMPARE(reader.getBool(key, true).has_value(), isBool);
+        QCOMPARE(reader.getArray(key, 10, true).has_value(), isArray);
+        QCOMPARE(reader.getObject(key, true).has_value(), isObject);
+        const QString errors = reader.getErrorText();
+        QVERIFY2(errors.contains(QStringLiteral("arguments.%1").arg(QLatin1StringView(value.key))), qPrintable(errors));
+        if (!isString)
+        {
+            QVERIFY2(errors.contains(QStringLiteral("expected a string, got %1").arg(QLatin1StringView(value.typeName))), qPrintable(errors));
+        }
+        if (!isObject)
+        {
+            QVERIFY2(errors.contains(QStringLiteral("expected an object, got %1").arg(QLatin1StringView(value.typeName))), qPrintable(errors));
+        }
+    }
+
+    // Required and missing, limits, a reader without a path, a child of another type
+    pdf::PDFMcpJsonReader reader(object);
+    QVERIFY(!reader.getNumber(QLatin1StringView("missing"), 0.0, 1.0, true));
+    QVERIFY(!reader.getBool(QLatin1StringView("missing"), true));
+    QVERIFY(!reader.getArray(QLatin1StringView("missing"), 1, true));
+    QVERIFY(!reader.getObject(QLatin1StringView("missing"), true));
+    QVERIFY(!reader.getInteger(QLatin1StringView("missing"), 0, 1, true));
+    QVERIFY(!reader.getNumber(QLatin1StringView("d"), 2.0, 3.0, true));
+    QVERIFY(!reader.getString(QLatin1StringView("long"), 3, true));
+    QVERIFY(!reader.getQuad(object.value(QStringLiteral("q")), QStringLiteral("q")).has_value());
+    QVERIFY(!reader.getRect(QLatin1StringView("r"), true));
+    pdf::PDFMcpJsonReader child = reader.item(object.value(QStringLiteral("s")), QStringLiteral("s"));
+    QVERIFY(child.getObject().isEmpty());
+    const QString errors = reader.getErrorText();
+    QVERIFY2(errors.contains(QStringLiteral("missing: is required")), qPrintable(errors));
+    QVERIFY2(errors.contains(QStringLiteral("must be from 2 to 3")), qPrintable(errors));
+    QVERIFY2(errors.contains(QStringLiteral("is longer than 3 characters")), qPrintable(errors));
+    QVERIFY2(errors.contains(QStringLiteral("q: expected an array of 8 finite numbers")), qPrintable(errors));
+    QVERIFY2(errors.contains(QStringLiteral("r.z: unknown property")), qPrintable(errors));
+    QCOMPARE(reader.getKeyPath(QLatin1StringView("k")), QStringLiteral("k"));
+
+    // Ids of the requests
+    QCOMPARE(pdf::PDFMcpRequestId::createString(QStringLiteral("a")).toKey(), QStringLiteral("s:a"));
+    QCOMPARE(pdf::PDFMcpRequestId::createInteger(-7).toKey(), QStringLiteral("i:-7"));
+    QVERIFY(pdf::PDFMcpRequestId::createInvalid().toKey().isEmpty());
+    QVERIFY(pdf::PDFMcpRequestId().toKey().isEmpty());
+    QCOMPARE(pdf::PDFMcpRequestId::createString(QStringLiteral("a")).toJson(), QJsonValue(QStringLiteral("a")));
+    QCOMPARE(pdf::PDFMcpRequestId::createInteger(5).toJson(), QJsonValue(qint64(5)));
+    QVERIFY(pdf::PDFMcpRequestId::createInvalid().toJson().isNull());
+    QCOMPARE(pdf::PDFMcpRequestId::fromJson(QJsonValue(QString(pdf::PDFMcpLimits::MAXIMUM_ID_LENGTH + 1, QLatin1Char('x')))).getKind(), pdf::PDFMcpRequestIdKind::Invalid);
+    QCOMPARE(pdf::PDFMcpRequestId::fromJson(QJsonValue(QString(pdf::PDFMcpLimits::MAXIMUM_ID_LENGTH, QLatin1Char('x')))).getKind(), pdf::PDFMcpRequestIdKind::String);
+
+    // The escapes of the scanner in a string id: \/ \b \r decoded as QJsonDocument does
+    const QByteArray text = R"({"jsonrpc":"2.0","id":"a\/b\bc\rd","method":"m"})";
+    const pdf::PDFMcpJsonScanResult scan = pdf::PDFMcpJsonScanner().scan(text);
+    QVERIFY2(scan.isValid(), qPrintable(scan.errorMessage));
+    QCOMPARE(scan.id.getString(), QStringLiteral("a/b\bc\rd"));
+    QCOMPARE(scan.id.getString(), QJsonDocument::fromJson(text).object().value(QStringLiteral("id")).toString());
+}
+
 void McpTest::httpParser()
 {
     using Parser = pdf::PDFMcpHttpParser;
@@ -2510,7 +2716,11 @@ void McpTest::jsonRpcErrors()
         {
             QCOMPARE(response.status, 400);
             QCOMPARE(McpServerHelper::getErrorCode(response.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
-            QVERIFY(response.json().value(QStringLiteral("id")).isNull());
+
+            // An id, which could not be read, is omitted (follow-up 31, owner
+            // 2026-10-27: both MCP schemas say "id?: RequestId"), never null
+            QVERIFY2(!response.json().contains(QStringLiteral("id")), response.body.constData());
+            QVERIFY2(!response.body.contains("\"id\""), response.body.constData());
         }
     }
 
@@ -2520,6 +2730,7 @@ void McpTest::jsonRpcErrors()
         QByteArray body;
         int status;
         int code;
+        bool hasId = false;     ///< The id 1 of the body is readable and echoed
     };
 
     QByteArray deep = R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"x":)";
@@ -2539,14 +2750,15 @@ void McpTest::jsonRpcErrors()
         { "string", R"("x")", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
         { "trailing garbage", R"({"jsonrpc":"2.0","id":1,"method":"tools/list"}x)", 400, pdf::PDFMcpErrorCodes::PARSE_ERROR },
         { "empty", "", 400, pdf::PDFMcpErrorCodes::PARSE_ERROR },
-        { "jsonrpc 1.0", R"({"jsonrpc":"1.0","id":1,"method":"tools/list"})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
-        { "no jsonrpc", R"({"id":1,"method":"tools/list"})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
-        { "method number", R"({"jsonrpc":"2.0","id":1,"method":5})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
-        { "empty method", R"({"jsonrpc":"2.0","id":1,"method":""})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
-        { "params array", R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":[]})", 400, pdf::PDFMcpErrorCodes::INVALID_PARAMS },
-        { "meta array", R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":[]}})", 400, pdf::PDFMcpErrorCodes::INVALID_PARAMS },
-        { "no method", R"({"jsonrpc":"2.0","id":1})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
-        { "response without a session", R"({"jsonrpc":"2.0","id":1,"result":{}})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST }
+        { "jsonrpc 1.0", R"({"jsonrpc":"1.0","id":1,"method":"tools/list"})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST, true },
+        { "no jsonrpc", R"({"id":1,"method":"tools/list"})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST, true },
+        { "method number", R"({"jsonrpc":"2.0","id":1,"method":5})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST, true },
+        { "empty method", R"({"jsonrpc":"2.0","id":1,"method":""})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST, true },
+        { "params array", R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":[]})", 400, pdf::PDFMcpErrorCodes::INVALID_PARAMS, true },
+        { "meta array", R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":[]}})", 400, pdf::PDFMcpErrorCodes::INVALID_PARAMS, true },
+        { "no method", R"({"jsonrpc":"2.0","id":1})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST, true },
+        { "response without a session", R"({"jsonrpc":"2.0","id":1,"result":{}})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST },
+        { "null id", R"({"jsonrpc":"2.0","id":null,"method":"tools/list"})", 400, pdf::PDFMcpErrorCodes::INVALID_REQUEST }
     };
 
     for (const BodyCase& bodyCase : bodyCases)
@@ -2554,6 +2766,19 @@ void McpTest::jsonRpcErrors()
         const pdftest::McpTestResponse response = fixture.raw(McpServerHelper::createRawPost(fixture.port(), bodyCase.body, McpServerHelper::modernHeaders("tools/list")));
         QVERIFY2(response.status == bodyCase.status, qPrintable(QStringLiteral("%1: %2").arg(QString::fromLatin1(bodyCase.name)).arg(response.status)));
         QVERIFY2(McpServerHelper::getErrorCode(response.json()) == bodyCase.code, bodyCase.name);
+
+        // The id of an error is echoed when it was read, omitted otherwise -
+        // never "id": null (follow-up 31)
+        const QJsonObject message = response.json();
+        if (bodyCase.hasId)
+        {
+            QVERIFY2(message.value(QStringLiteral("id")) == QJsonValue(1), bodyCase.name);
+        }
+        else
+        {
+            QVERIFY2(!message.contains(QStringLiteral("id")), bodyCase.name);
+        }
+        QVERIFY2(!response.body.contains("null"), bodyCase.name);
     }
 
     // Lone surrogates: the scanner records them; a document, which QJsonDocument
@@ -2587,6 +2812,11 @@ void McpTest::jsonRpcErrors()
     QCOMPARE(McpServerHelper::getErrorCode(legacyBatch.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
     const pdftest::McpTestResponse legacyDuplicate = legacy.post(R"({"jsonrpc":"2.0","id":1,"id":1,"method":"ping"})");
     QCOMPARE(legacyDuplicate.status, 400);
+    QVERIFY(!legacyDuplicate.json().contains(QStringLiteral("id")));
+    const pdftest::McpTestResponse legacyNullId = legacy.post(R"({"jsonrpc":"2.0","id":null,"method":"ping"})");
+    QCOMPARE(legacyNullId.status, 400);
+    QCOMPARE(McpServerHelper::getErrorCode(legacyNullId.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
+    QVERIFY(!legacyNullId.json().contains(QStringLiteral("id")));
 }
 
 void McpTest::authHostOrigin()
@@ -2667,18 +2897,25 @@ void McpTest::authHostOrigin()
     twoOrigins.append(qMakePair(QByteArray("Origin"), QByteArray("http://localhost")));
     QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, twoOrigins)).status, 403);
 
-    // Throttle: 20 failures of an address in a minute - 429 for a minute, also with the token
+    // Throttle: 20 failures of an address in a minute - 429 for a minute for a
+    // missing or wrong token; the valid token passes the block of the local mode,
+    // where every local process shares the loopback address (follow-up 21)
     for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_AUTHORIZATION_FAILURES - 4; ++i)
     {
         QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers, false)).status, 401);
     }
-    const pdftest::McpTestResponse blocked = fixture.raw(McpServerHelper::createRawPost(port, discover, headers));
+    const pdftest::McpTestResponse blocked = fixture.raw(McpServerHelper::createRawPost(port, discover, headers, false));
     QCOMPARE(blocked.status, 429);
     QCOMPARE(McpServerHelper::getErrorCode(blocked.json()), pdf::PDFMcpErrorCodes::RATE_LIMITED);
     QVERIFY(blocked.json().value(QStringLiteral("error")).toObject().value(QStringLiteral("data")).toObject().value(QStringLiteral("retryAfterMs")).toInteger() > 0);
     QVERIFY(!blocked.header("Retry-After").isEmpty());
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, wrong, false)).status, 429);
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, lowerCase, false)).status, 200);
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers)).status, 200);
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, wrong, false)).status, 429);
     pdf::PDFMcpClock::setOffset(61000);
     QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers)).status, 200);
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, wrong, false)).status, 401);
     pdf::PDFMcpClock::setOffset(0);
 
     // A server without the token: no Authorization needed, a loopback origin is refused
@@ -2743,6 +2980,18 @@ void McpTest::remoteHosts()
     QList<QPair<QByteArray, QByteArray>> withoutToken = headers;
     withoutToken.removeLast();
     QCOMPARE(harness.request("POST", "127.0.0.1:4321", withoutToken, body).status, 401);
+
+    // A blocked address of the remote mode is blocked also for the token (the
+    // hosts of a LAN have their own addresses - follow-up 21 is local only)
+    for (int i = 1; i < pdf::PDFMcpLimits::MAXIMUM_AUTHORIZATION_FAILURES; ++i)
+    {
+        QCOMPARE(harness.request("POST", "127.0.0.1:4321", withoutToken, body).status, 401);
+    }
+    QCOMPARE(harness.request("POST", "127.0.0.1:4321", withoutToken, body).status, 429);
+    QCOMPARE(harness.request("POST", "127.0.0.1:4321", headers, body).status, 429);
+    pdf::PDFMcpClock::setOffset(61000);
+    QCOMPARE(harness.request("POST", "127.0.0.1:4321", headers, body).status, 200);
+    pdf::PDFMcpClock::setOffset(0);
 
     // A miss refreshes the list at most once per second (no crash, still refused)
     for (int i = 0; i < 5; ++i)
@@ -3149,19 +3398,28 @@ void McpTest::legacyLifecycle()
     disconnected.request(QStringLiteral("ping"));
     QCOMPARE(disconnected.lastResponse().status, 404);
 
-    // At most 64 sessions
+    // At most 64 sessions (initialized ones - an unused session ends after
+    // 10 s; the clock goes on by the rate of initialize of an address -
+    // follow-up 36)
     std::vector<pdftest::McpTestClient> clients;
     int refused = 0;
     for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_LEGACY_SESSIONS + 2; ++i)
     {
+        pdf::PDFMcpClock::setOffset(pdf::PDFMcpClock::getOffset() + 1000 / pdf::PDFMcpLimits::INITIALIZE_RATE);
         pdftest::McpTestClient many = fixture.client(pdftest::McpTestEra::Legacy20251125);
         many.request(QStringLiteral("initialize"), QJsonObject({ { QStringLiteral("protocolVersion"), QStringLiteral("2025-11-25") } }));
         if (many.lastResponse().status == 503)
         {
             ++refused;
         }
+        else
+        {
+            QCOMPARE(many.lastResponse().status, 200);
+            QCOMPARE(many.notify(QStringLiteral("notifications/initialized")), 202);
+        }
     }
     QVERIFY(refused >= 2);
+    pdf::PDFMcpClock::setOffset(0);
 }
 
 void McpTest::listenStreams()
@@ -3702,8 +3960,9 @@ void McpTest::tasksExtension()
         waiting = client.request(QStringLiteral("tasks/get"), QJsonObject({ { QStringLiteral("taskId"), askId } })).value(QStringLiteral("result")).toObject();
         return waiting.value(QStringLiteral("status")).toString() == QLatin1String("input_required");
     }, 5000));
-    QVERIFY(waiting.value(QStringLiteral("inputRequests")).toObject().contains(QStringLiteral("pdf4qt.choice")));
-    const QJsonObject answer({ { QStringLiteral("pdf4qt.choice"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), QJsonObject({ { QStringLiteral("documentId"), QStringLiteral("A") } }) } }) } });
+    // The key of the host gets the suffix of the round (unique over the lifetime of the task - follow-up 32)
+    QVERIFY(waiting.value(QStringLiteral("inputRequests")).toObject().contains(QStringLiteral("pdf4qt.choice#1")));
+    const QJsonObject answer({ { QStringLiteral("pdf4qt.choice#1"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), QJsonObject({ { QStringLiteral("documentId"), QStringLiteral("A") } }) } }) } });
     QVERIFY(client.request(QStringLiteral("tasks/update"), QJsonObject({ { QStringLiteral("taskId"), askId }, { QStringLiteral("inputResponses"), answer } })).contains(QStringLiteral("result")));
     const QJsonObject answered = client.pollTask(askId).value(QStringLiteral("result")).toObject();
     QCOMPARE(answered.value(QStringLiteral("status")).toString(), QStringLiteral("completed"));
@@ -4305,6 +4564,11 @@ void McpTest::progressWhileStopping()
                 {
                     call->reportProgress(progress += 1.0, 0.0, QStringLiteral("working"));
                     call->log(QStringLiteral("error"), QStringLiteral("log"));
+
+                    // Paced (review RT7): four spinning reporters flooded the thread of
+                    // the server, so the fourth call came after the time limit in a slow
+                    // (instrumented) build; thousands of reports still overlap the stop
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
                 }
             });
         });
@@ -4526,7 +4790,10 @@ void McpTest::unauthenticatedBodyNotRead()
     }
     QVERIFY(sendHead("Bearer wrong", &answer));
     QVERIFY2(answer.startsWith("HTTP/1.1 429"), answer.constData());
-    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers)).status, 429);
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers, false)).status, 429);
+
+    // The valid token passes the block of the local mode (follow-up 21)
+    QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers)).status, 200);
     pdf::PDFMcpClock::setOffset(pdf::PDFMcpLimits::AUTHORIZATION_BLOCK_TIME + 1000);
 
     // The token: a large body is read as before (white space after the message)
@@ -4794,6 +5061,14 @@ void McpTest::schemaShapes()
     McpShape::checkError(client.request(QStringLiteral("unknown/method")), pdf::PDFMcpErrorCodes::METHOD_NOT_FOUND, QString(), QStringLiteral("unknown/method"), &errors);
     QCOMPARE(client.lastResponse().status, isModern ? 404 : 200);
 
+    // An error of a request id, which could not be read, omits the id (follow-up 31)
+    const QJsonObject unreadable = client.post(R"({"jsonrpc":"2.0","id":[1],"method":"tools/list"})").json();
+    McpShape::checkError(unreadable, pdf::PDFMcpErrorCodes::INVALID_REQUEST, QString(), QStringLiteral("unreadable id"), &errors);
+    if (unreadable.contains(QStringLiteral("id")))
+    {
+        errors.append(QStringLiteral("unreadable id: the id must be omitted"));
+    }
+
     if (isModern)
     {
         // The errors of the modern era with their data
@@ -5056,8 +5331,9 @@ void McpTest::reviewTaskInputTimeout()
     QVERIFY(result.value(QStringLiteral("content")).toArray().first().toObject().value(QStringLiteral("text")).toString().contains(QStringLiteral("did not answer")));
     QVERIFY(task.value(QStringLiteral("ttlMs")).toInteger() >= pdf::PDFMcpLimits::TASK_TTL);
 
-    // The answer comes too late: the task does not wait any more
-    const QJsonObject answer({ { QStringLiteral("pdf4qt.choice"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), QJsonObject({ { QStringLiteral("documentId"), QStringLiteral("A") } }) } }) } });
+    // The answer comes too late: the task does not wait any more (the key of
+    // the first round of a task - follow-up 32)
+    const QJsonObject answer({ { QStringLiteral("pdf4qt.choice#1"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), QJsonObject({ { QStringLiteral("documentId"), QStringLiteral("A") } }) } }) } });
     QCOMPARE(McpServerHelper::getErrorCode(client.request(QStringLiteral("tasks/update"), QJsonObject({ { QStringLiteral("taskId"), taskId }, { QStringLiteral("inputResponses"), answer } }))), pdf::PDFMcpErrorCodes::INVALID_PARAMS);
 
     // An answer within the time still runs the call
@@ -5158,6 +5434,1064 @@ void McpTest::reviewProgressTokenExact()
     QVERIFY(client.lastResponse().isSse);
     QVERIFY(client.lastResponse().body.contains("\"progressToken\":9007199254740993"));
     QVERIFY(!client.lastResponse().body.contains("9007199254740992"));
+}
+
+/// The parts of one run of the server with one I/O thread (the connections
+/// start in the order of the test) and its shared state for the observations
+/// (PDFMcpServer keeps its shared state private)
+class McpSingleThreadRun
+{
+public:
+    explicit McpSingleThreadRun(const pdf::PDFMcpServerConfig& config, std::shared_ptr<const pdf::PDFMcpCatalog> catalog = McpServerHelper::createCatalog()) :
+        shared(std::make_shared<pdf::PDFMcpServerShared>(config)),
+        listener(&ioThreads, nullptr)
+    {
+        host.setHandler(&McpServerHelper::handle);
+        shared->host = &host;
+        shared->setCatalog(std::move(catalog));
+        ioThreads.start(1, shared);
+        dispatcher = std::make_unique<pdf::PDFMcpDispatcher>(shared, nullptr);
+        isListening = listener.listen(QHostAddress::LocalHost, 0);
+        port = listener.serverPort();
+        dispatcher->setPort(port);
+    }
+
+    ~McpSingleThreadRun()
+    {
+        // The order of PDFMcpServer::stop
+        listener.close();
+        dispatcher->shutdown();
+        ioThreads.stop();
+        dispatcher.reset();
+    }
+
+    /// Opens a connection and waits until the server has \p count connections
+    QTcpSocket* open(int count)
+    {
+        std::unique_ptr<QTcpSocket> socket = std::make_unique<QTcpSocket>();
+        socket->connectToHost(QHostAddress::LocalHost, port);
+        if (!socket->waitForConnected(5000))
+        {
+            return nullptr;
+        }
+        QTcpSocket* result = socket.get();
+        sockets.push_back(std::move(socket));
+        return McpTestHelper::waitFor([this, count]() { return shared->connectionCount.load() >= count; }, 5000) ? result : nullptr;
+    }
+
+    /// Reads one complete response of the socket (status 0 = none)
+    static pdftest::McpTestResponse read(QTcpSocket* socket, QByteArray* data)
+    {
+        pdftest::McpTestResponse response;
+        McpTestHelper::waitFor([&]()
+        {
+            *data += socket->readAll();
+            response = pdftest::McpTestClient::parseResponse(*data, false);
+            return response.isComplete;
+        }, 5000);
+        return response;
+    }
+
+    /// A request of server/discover (kept alive without Connection: close) of
+    /// the client \p name (each client has its own rate limit)
+    QByteArray createDiscover(bool keepAlive, const QByteArray& name = "eviction") const
+    {
+        const QByteArray body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\","
+                                "\"io.modelcontextprotocol/clientCapabilities\":{},\"io.modelcontextprotocol/clientInfo\":{\"name\":\"" + name + "\",\"version\":\"1\"}}}}";
+        QByteArray request = McpServerHelper::createRawPost(port, body, McpServerHelper::modernHeaders("server/discover"));
+        if (keepAlive)
+        {
+            request.replace("Connection: close\r\n", "");
+        }
+        return request;
+    }
+
+    /// A request of a socket answered with 200 (the connection stays open)
+    bool requestOk(QTcpSocket* socket, const QByteArray& name = "eviction")
+    {
+        socket->write(createDiscover(true, name));
+        QByteArray data;
+        return read(socket, &data).status == 200;
+    }
+
+    pdftest::FakeMcpHost host;
+    std::shared_ptr<pdf::PDFMcpServerShared> shared;
+    pdf::PDFMcpIoThreads ioThreads;
+    std::unique_ptr<pdf::PDFMcpDispatcher> dispatcher;
+    pdf::PDFMcpListener listener;
+    quint16 port = 0;
+    bool isListening = false;
+    std::vector<std::unique_ptr<QTcpSocket>> sockets;
+};
+
+void McpTest::fixConnectionEviction()
+{
+    // Follow-up 22: 64 connections without a request held every slot of the
+    // local mode (no token needed to connect). At the limit the oldest
+    // connection, which has not completed a request, is evicted (503) instead
+    // of refusing the new one; a request in progress (its head is complete), a
+    // stream and a connection with a completed request are never evicted.
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.headerTimeout = 120000;
+    config.bodyTimeout = 120000;
+    McpSingleThreadRun run(config);
+    QVERIFY(run.isListening);
+    int count = 0;
+
+    // A connection with a completed request (kept alive)
+    QTcpSocket* completed = run.open(++count);
+    QVERIFY(completed);
+    QVERIFY(run.requestOk(completed));
+
+    // A stream: a call, which the host keeps open
+    QTcpSocket* stream = run.open(++count);
+    QVERIFY(stream);
+    pdftest::McpTestClient client(run.port);
+    client.setToken(McpServerHelper::token());
+    const QByteArray call = client.createHttpRequest("POST", client.createRequest(QStringLiteral("tools/call"), QJsonObject({ { QStringLiteral("name"), QStringLiteral("slow") }, { QStringLiteral("arguments"), QJsonObject() } })));
+    stream->write(call);
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.host.calls.size() == 1; }, 5000));
+
+    // A request in progress: its head is complete, its body has not arrived
+    QTcpSocket* partialBody = run.open(++count);
+    QVERIFY(partialBody);
+    const QByteArray post = run.createDiscover(false);
+    partialBody->write(post.left(post.size() - 10));
+    QVERIFY(run.requestOk(completed));      // the head has reached the server meanwhile (one I/O thread)
+
+    // The oldest connection without a request: a part of a head
+    QTcpSocket* oldest = run.open(++count);
+    QVERIFY(oldest);
+    oldest->write("POST /mcp HTTP/1.1\r\nHost: 127");
+    QVERIFY(run.requestOk(completed));
+
+    // Idle connections up to the limit
+    std::vector<QTcpSocket*> idle;
+    while (count < pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS)
+    {
+        idle.push_back(run.open(++count));
+        QVERIFY(idle.back());
+    }
+    QCOMPARE(run.shared->connectionCount.load(), pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS);
+
+    // A new client at the limit is served; the oldest connection without a
+    // request is evicted with 503
+    QTcpSocket* newcomer = run.open(++count);
+    QVERIFY(newcomer);
+    QVERIFY2(run.requestOk(newcomer), "A new connection at the limit was refused although idle connections hold the slots");
+    QByteArray evictedData;
+    QCOMPARE(McpSingleThreadRun::read(oldest, &evictedData).status, 503);
+
+    // More newcomers evict the idle connections in their order
+    constexpr int NEWCOMERS = 3;
+    for (int i = 0; i < NEWCOMERS; ++i)
+    {
+        // (the evicted connections leave the count meanwhile: no wait for it)
+        QVERIFY(run.open(0));
+    }
+    for (int i = 0; i < NEWCOMERS; ++i)
+    {
+        QByteArray data;
+        QCOMPARE(McpSingleThreadRun::read(idle[size_t(i)], &data).status, 503);
+    }
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.shared->connectionCount.load() - run.shared->link->getPendingEvictions() <= pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS; }, 5000));
+    QCOMPARE(idle[NEWCOMERS]->bytesAvailable(), qint64(0));
+    QCOMPARE(idle[NEWCOMERS]->state(), QAbstractSocket::ConnectedState);
+
+    // The connections with a request were kept: the kept-alive connection
+    // answers again, the request in progress completes, the stream goes on
+    QVERIFY(run.requestOk(completed));
+    partialBody->write(post.right(10));
+    QByteArray partialData;
+    const pdftest::McpTestResponse partialResponse = McpSingleThreadRun::read(partialBody, &partialData);
+    QCOMPARE(partialResponse.status, 200);
+    QVERIFY(partialResponse.json().value(QStringLiteral("result")).toObject().contains(QStringLiteral("supportedVersions")));
+    QCOMPARE(stream->state(), QAbstractSocket::ConnectedState);
+    run.host.calls.front()->finish(McpServerHelper::createText(QStringLiteral("finished")));
+    QByteArray streamData;
+    QCOMPARE(McpSingleThreadRun::read(stream, &streamData).status, 200);
+    QVERIFY(streamData.contains("finished"));
+
+    // The closed connections free their slots and their pending evictions
+    for (QTcpSocket* socket : { oldest, idle[0], idle[1], idle[2] })
+    {
+        socket->abort();
+    }
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.shared->link->getPendingEvictions() == 0; }, 5000));
+}
+
+void McpTest::fixConnectionEvictionRefused()
+{
+    // Follow-up 22: without a connection, which has not completed a request,
+    // a new connection at the limit is still refused (503) and no connection
+    // with a completed request is evicted
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.headerTimeout = 120000;
+    McpSingleThreadRun run(config);
+    QVERIFY(run.isListening);
+
+    std::vector<QTcpSocket*> kept;
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS; ++i)
+    {
+        kept.push_back(run.open(i + 1));
+        QVERIFY(kept.back());
+        QVERIFY(run.requestOk(kept.back(), "kept-" + QByteArray::number(i)));
+    }
+
+    QTcpSocket* refused = run.open(pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS + 1);
+    QVERIFY(refused);
+    QByteArray data;
+    const pdftest::McpTestResponse response = McpSingleThreadRun::read(refused, &data);
+    QCOMPARE(response.status, 503);
+    QCOMPARE(McpServerHelper::getErrorCode(response.json()), pdf::PDFMcpErrorCodes::SERVER_STOPPING);
+    QCOMPARE(run.shared->link->getPendingEvictions(), 0);
+
+    for (QTcpSocket* socket : kept)
+    {
+        QCOMPARE(socket->bytesAvailable(), qint64(0));
+    }
+    QVERIFY(run.requestOk(kept.front(), "kept-0"));
+    QVERIFY(run.requestOk(kept.back(), "kept-" + QByteArray::number(pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS - 1)));
+}
+
+void McpTest::fixSubscriptionFilterLinear()
+{
+    // Follow-up 23: the duplicates of resourceSubscriptions and taskIds are
+    // found by a set - a list of 100 000 items is read in linear time; the
+    // first occurrence of each item is kept in its order, at most 256 of them
+    QJsonArray uris;
+    QJsonArray taskIds;
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_ARRAY_ITEMS; ++i)
+    {
+        const QString id = QString(QChar(u'A' + (i % 300) / 26)) + QChar(u'A' + (i % 300) % 26);
+        uris.append(i % 7 == 6 ? QJsonValue(QStringLiteral("http://invalid")) : QJsonValue(QStringLiteral("pdf4qt://documents/%1/info").arg(id)));
+        taskIds.append(i % 5 == 4 ? QJsonValue(5) : QJsonValue(QStringLiteral("task-%1").arg(i)));
+    }
+    const QJsonObject notifications({ { QStringLiteral("resourceSubscriptions"), uris }, { QStringLiteral("taskIds"), taskIds } });
+
+    QElapsedTimer timer;
+    timer.start();
+    QString error;
+    const std::optional<pdf::PDFMcpSubscriptionFilter> filter = pdf::PDFMcpSubscriptionFilter::parse(notifications, &error);
+    qInfo("fixSubscriptionFilterLinear: %lld ms for %d items", timer.elapsed(), int(uris.size() + taskIds.size()));
+    QVERIFY(filter);
+    QCOMPARE(filter->resourceSubscriptions.size(), qsizetype(pdf::PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM));
+    QCOMPARE(filter->resourceSubscriptions.front(), QStringLiteral("pdf4qt://documents/AA/info"));
+    QCOMPARE(QSet<QString>(filter->resourceSubscriptions.begin(), filter->resourceSubscriptions.end()).size(), filter->resourceSubscriptions.size());
+    QCOMPARE(filter->taskIds.size(), qsizetype(pdf::PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM));
+    QCOMPARE(filter->taskIds.front(), QStringLiteral("task-0"));
+    QCOMPARE(filter->taskIds[4], QStringLiteral("task-5"));
+
+    // Duplicates keep the first occurrence; invalid items are skipped
+    const QJsonObject small({ { QStringLiteral("resourceSubscriptions"), QJsonArray({ QStringLiteral("pdf4qt://b"), QStringLiteral("pdf4qt://a"), QStringLiteral("pdf4qt://b"), 5, QStringLiteral("pdf4qt://c"), QStringLiteral("pdf4qt://a") }) },
+                              { QStringLiteral("taskIds"), QJsonArray({ QStringLiteral("t2"), QStringLiteral("t1"), QStringLiteral("t2"), QString(), QString(65, QLatin1Char('x')) }) } });
+    const std::optional<pdf::PDFMcpSubscriptionFilter> smallFilter = pdf::PDFMcpSubscriptionFilter::parse(small, &error);
+    QVERIFY(smallFilter);
+    QCOMPARE(smallFilter->resourceSubscriptions, QStringList({ QStringLiteral("pdf4qt://b"), QStringLiteral("pdf4qt://a"), QStringLiteral("pdf4qt://c") }));
+    QCOMPARE(smallFilter->taskIds, QStringList({ QStringLiteral("t2"), QStringLiteral("t1") }));
+    QVERIFY(smallFilter->hasTaskIds);
+}
+
+void McpTest::fixTaskInputKeysUnique()
+{
+    // Follow-up 32: "Each request key in inputRequests MUST be unique over the
+    // lifetime of a single task" - a call, which asks twice, got the key
+    // pdf4qt.choice in both rounds. The keys of the client have the suffix of
+    // their round, the host gets its own keys back; an answer to a key of an
+    // older round is not outstanding any more and is ignored.
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.taskCreationDelay = 100;
+    McpServerFixture fixture(config);
+    QVERIFY(fixture.isRunning);
+
+    pdftest::McpTestClient client = fixture.client();
+    client.setCapabilities(QJsonObject({ { QStringLiteral("elicitation"), QJsonObject() }, { QStringLiteral("extensions"), QJsonObject({ { QStringLiteral("io.modelcontextprotocol/tasks"), QJsonObject() } }) } }));
+    client.setInputRetryRounds(0);
+
+    const QString taskId = client.callTool(QStringLiteral("askslow"), QJsonObject({ { QStringLiteral("value"), QStringLiteral("twice") } })).value(QStringLiteral("result")).toObject().value(QStringLiteral("taskId")).toString();
+    QVERIFY(!taskId.isEmpty());
+
+    const auto waitForKey = [&](const QString& previousKey, QString* key) -> bool
+    {
+        return McpTestHelper::waitFor([&]()
+        {
+            // Polled as the poll interval asks (the rate limit of the assistant)
+            QTest::qWait(100);
+            const QJsonObject task = client.request(QStringLiteral("tasks/get"), QJsonObject({ { QStringLiteral("taskId"), taskId } })).value(QStringLiteral("result")).toObject();
+            const QStringList keys = task.value(QStringLiteral("inputRequests")).toObject().keys();
+            if (task.value(QStringLiteral("status")).toString() != QLatin1String("input_required") || keys.size() != 1 || keys.front() == previousKey)
+            {
+                return false;
+            }
+            *key = keys.front();
+            return true;
+        }, 5000);
+    };
+    const auto answer = [&](const QString& key, const QString& value)
+    {
+        const QJsonObject responses({ { key, QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), QJsonObject({ { QStringLiteral("documentId"), value } }) } }) } });
+        return client.request(QStringLiteral("tasks/update"), QJsonObject({ { QStringLiteral("taskId"), taskId }, { QStringLiteral("inputResponses"), responses } }));
+    };
+
+    QString firstKey;
+    QVERIFY(waitForKey(QString(), &firstKey));
+    QCOMPARE(firstKey, QStringLiteral("pdf4qt.choice#1"));
+    QVERIFY(answer(firstKey, QStringLiteral("A")).contains(QStringLiteral("result")));
+
+    // The second question of the same task has a new key
+    QString secondKey;
+    QVERIFY2(waitForKey(firstKey, &secondKey), "The second round of the task reused the key of the first one");
+    QCOMPARE(secondKey, QStringLiteral("pdf4qt.choice#2"));
+
+    // An answer to the key of the first round is ignored: the task still waits
+    QVERIFY(answer(firstKey, QStringLiteral("B")).contains(QStringLiteral("result")));
+    const QJsonObject stillWaiting = client.request(QStringLiteral("tasks/get"), QJsonObject({ { QStringLiteral("taskId"), taskId } })).value(QStringLiteral("result")).toObject();
+    QCOMPARE(stillWaiting.value(QStringLiteral("status")).toString(), QStringLiteral("input_required"));
+    QVERIFY(stillWaiting.value(QStringLiteral("inputRequests")).toObject().contains(secondKey));
+
+    // The answer of the second round reaches the host by its own key
+    QVERIFY(answer(secondKey, QStringLiteral("B")).contains(QStringLiteral("result")));
+    const QJsonObject answered = client.pollTask(taskId).value(QStringLiteral("result")).toObject();
+    QCOMPARE(answered.value(QStringLiteral("status")).toString(), QStringLiteral("completed"));
+    QCOMPARE(answered.value(QStringLiteral("result")).toObject().value(QStringLiteral("content")).toArray().first().toObject().value(QStringLiteral("text")).toString(), QStringLiteral("chosen B"));
+}
+
+void McpTest::fixLegacyInitializeLimits()
+{
+    // Follow-up 36: legacy initialize was not rate-limited and a session, which
+    // never sent notifications/initialized or a request, lived for 30 minutes -
+    // a token holder could hold the 64 sessions (503 for new legacy clients).
+    McpServerFixture fixture;
+    QVERIFY(fixture.isRunning);
+    const QJsonObject params({ { QStringLiteral("protocolVersion"), QStringLiteral("2025-11-25") } });
+
+    // initialize of one address: a burst, then 429 with the wait (the tokens
+    // refilled by the rate meanwhile - a slow machine - give a few more)
+    std::vector<QByteArray> unused;
+    pdftest::McpTestClient limited = fixture.client(pdftest::McpTestEra::Legacy20251125);
+    QJsonObject refused;
+    for (int i = 0; i < 4 * pdf::PDFMcpLimits::INITIALIZE_BURST; ++i)
+    {
+        pdftest::McpTestClient many = fixture.client(pdftest::McpTestEra::Legacy20251125);
+        const QJsonObject answer = many.request(QStringLiteral("initialize"), params);
+        if (many.lastResponse().status != 200)
+        {
+            QCOMPARE(many.lastResponse().status, 429);
+            refused = answer;
+            limited = many;
+            break;
+        }
+        unused.push_back(many.getSessionId());
+    }
+    QVERIFY(int(unused.size()) >= pdf::PDFMcpLimits::INITIALIZE_BURST);
+    QCOMPARE(limited.lastResponse().status, 429);
+    QCOMPARE(McpServerHelper::getErrorCode(refused), pdf::PDFMcpErrorCodes::RATE_LIMITED);
+    QVERIFY(refused.value(QStringLiteral("error")).toObject().value(QStringLiteral("data")).toObject().value(QStringLiteral("retryAfterMs")).toInteger() > 0);
+    QVERIFY(!limited.lastResponse().header("Retry-After").isEmpty());
+
+    // The tokens come back by the rate; a client, which initializes properly,
+    // and one, which only sends a request, keep their sessions
+    pdf::PDFMcpClock::setOffset(1000);
+    pdftest::McpTestClient initialized = fixture.client(pdftest::McpTestEra::Legacy20251125);
+    QVERIFY(!initialized.initialize().isEmpty());
+    pdftest::McpTestClient requesting = fixture.client(pdftest::McpTestEra::Legacy20251125);
+    requesting.request(QStringLiteral("initialize"), params);
+    QCOMPARE(requesting.lastResponse().status, 200);
+    QVERIFY(requesting.request(QStringLiteral("ping")).contains(QStringLiteral("result")));
+
+    // The unused sessions end after their time, the used ones stay
+    const int sessionsBefore = fixture.countEvents(pdf::PDFMcpAssistantEvent::Kind::SessionEnded);
+    pdf::PDFMcpClock::setOffset(pdf::PDFMcpLimits::UNUSED_SESSION_TIME + 1000);
+    fixture.server->checkTimeouts();
+    QVERIFY(McpTestHelper::waitFor([&]() { return fixture.countEvents(pdf::PDFMcpAssistantEvent::Kind::SessionEnded) >= sessionsBefore + int(unused.size()); }, 5000));
+    for (const QByteArray& sessionId : unused)
+    {
+        pdftest::McpTestClient gone = fixture.client(pdftest::McpTestEra::Legacy20251125);
+        gone.setSessionId(sessionId);
+        gone.request(QStringLiteral("ping"));
+        QCOMPARE(gone.lastResponse().status, 404);
+    }
+    QVERIFY(initialized.request(QStringLiteral("ping")).contains(QStringLiteral("result")));
+    QVERIFY(requesting.request(QStringLiteral("ping")).contains(QStringLiteral("result")));
+    pdf::PDFMcpClock::setOffset(0);
+}
+
+void McpTest::coverageExchangeAndWorker()
+{
+    // Follow-up 47 (coverage of the I/O layer): an exchange refuses output
+    // after its end and after its client has gone
+    pdf::PDFMcpHttpRequest request;
+    request.method = "POST";
+    request.target = "/mcp";
+    request.version = "HTTP/1.1";
+
+    pdf::PDFMcpExchange streaming(request, QStringLiteral("127.0.0.1"), false, QByteArray("1"));
+    QVERIFY(streaming.beginStream());
+    QVERIFY(streaming.beginStream());
+    QVERIFY(streaming.isStreaming());
+    QVERIFY(!streaming.respond(pdf::PDFMcpHttpResponse()));
+    QVERIFY(streaming.sendComment("x"));
+    QVERIFY(streaming.endStream());
+    QVERIFY(streaming.isFinished());
+    QVERIFY(!streaming.beginStream());
+    QVERIFY(!streaming.sendEvent("{}"));
+
+    pdf::PDFMcpExchange closed(request, QStringLiteral("127.0.0.1"), false, QByteArray("1"));
+    closed.markClosed();
+    QVERIFY(closed.isClosed());
+    QVERIFY(!closed.beginStream());
+    QVERIFY(!closed.sendEvent("{}"));
+    QVERIFY(!closed.sendComment("x"));
+    QVERIFY(!closed.endStream());
+    QVERIFY(!closed.respond(pdf::PDFMcpHttpResponse()));
+    bool isFinished = true;
+    bool closeConnection = true;
+    QVERIFY(closed.takeOutput(&isFinished, &closeConnection).isEmpty());
+    QVERIFY(!isFinished);
+
+    // A descriptor, which no connection can take, is closed by its worker
+    std::shared_ptr<pdf::PDFMcpServerShared> shared = std::make_shared<pdf::PDFMcpServerShared>(McpServerHelper::createConfig());
+    pdf::PDFMcpIoWorker worker(shared);
+    worker.addConnection(-1);
+    QVERIFY(worker.findChildren<pdf::PDFMcpConnection*>().isEmpty());
+    QCOMPARE(shared->connectionCount.load(), 0);
+
+    // I/O threads, which do not run, close an accepted socket at once
+    pdf::PDFMcpIoThreads stopped;
+    pdf::PDFMcpListener listener(&stopped, nullptr);
+    QVERIFY(listener.listen(QHostAddress::LocalHost, 0));
+    QTcpSocket socket;
+    socket.connectToHost(QHostAddress::LocalHost, listener.serverPort());
+    QVERIFY(socket.waitForConnected(5000));
+    QVERIFY(McpTestHelper::waitFor([&]() { return socket.state() == QAbstractSocket::UnconnectedState; }, 5000));
+}
+
+void McpTest::coverageConnectionTimeouts()
+{
+    // Follow-up 47: a new connection without a request gets 408 after the
+    // time of a head; a kept-alive connection after its request closes without
+    // a response (the loopback filter of Windows holds back only an incomplete
+    // head - an empty connection reaches the server)
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.headerTimeout = 300;
+    McpSingleThreadRun run(config);
+    QVERIFY(run.isListening);
+
+    QTcpSocket* silent = run.open(1);
+    QVERIFY(silent);
+    QByteArray data;
+    const pdftest::McpTestResponse timedOut = McpSingleThreadRun::read(silent, &data);
+    QCOMPARE(timedOut.status, 408);
+    QCOMPARE(timedOut.header("Connection"), QByteArray("close"));
+
+    QTcpSocket* kept = run.open(0);
+    QVERIFY(kept);
+    QVERIFY(run.requestOk(kept));
+    QVERIFY(McpTestHelper::waitFor([&]() { return kept->state() == QAbstractSocket::UnconnectedState; }, 5000));
+    QVERIFY(kept->readAll().isEmpty());
+}
+
+void McpTest::coveragePipelinedRequest()
+{
+    // Follow-up 47: a request, which arrives while the previous request of the
+    // connection is with the dispatcher, waits in the socket and is answered
+    // after the first response
+    McpSingleThreadRun run(McpServerHelper::createConfig());
+    QVERIFY(run.isListening);
+
+    QTcpSocket* socket = run.open(1);
+    QVERIFY(socket);
+    const QByteArray body = R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"slow","arguments":{},)" + McpServerHelper::modernMeta() + "}}";
+    QByteArray call = McpServerHelper::createRawPost(run.port, body, McpServerHelper::modernHeaders("tools/call", "slow"));
+    call.replace("Connection: close\r\n", "");
+    socket->write(call);
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.host.calls.size() == 1; }, 5000));
+
+    socket->write(run.createDiscover(true));
+    QTcpSocket* barrier = run.open(2);
+    QVERIFY(barrier);
+    QVERIFY(run.requestOk(barrier));    // the second request has reached the connection (one I/O thread)
+
+    run.host.calls.front()->finish(McpServerHelper::createText(QStringLiteral("first")));
+    QByteArray data;
+    QVERIFY(McpTestHelper::waitFor([&]() { data += socket->readAll(); return data.count("HTTP/1.1 200") == 2 && data.contains("supportedVersions"); }, 5000));
+    QVERIFY(data.indexOf("first") < data.indexOf("supportedVersions"));
+}
+
+void McpTest::coverageBackpressure()
+{
+    // Follow-up 47: a connection, whose unsent data exceed 32 MiB, is closed
+    // (here one static resource larger than the limit, served whole)
+    pdf::PDFMcpResourceDefinition big;
+    big.uri = QStringLiteral("pdf4qt://docs/huge.md");
+    big.name = QStringLiteral("huge.md");
+    big.mimeType = QStringLiteral("text/markdown");
+    big.isStatic = true;
+    big.content = QByteArray(pdf::PDFMcpLimits::MAXIMUM_PENDING_OUTPUT + 1024 * 1024, 'x');
+    big.size = big.content.size();
+    std::vector<pdf::PDFMcpResourceDefinition> resources;
+    resources.push_back(big);
+    std::shared_ptr<const pdf::PDFMcpCatalog> catalog = std::make_shared<const pdf::PDFMcpCatalog>(1, std::vector<pdf::PDFMcpToolDefinition>(), std::move(resources),
+                                                                                                   std::vector<pdf::PDFMcpResourceTemplateDefinition>(), std::vector<pdf::PDFMcpPromptDefinition>());
+    McpSingleThreadRun run(McpServerHelper::createConfig(), catalog);
+    QVERIFY(run.isListening);
+
+    QTcpSocket* socket = run.open(1);
+    QVERIFY(socket);
+    const QByteArray body = R"({"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"pdf4qt://docs/huge.md",)" + McpServerHelper::modernMeta() + "}}";
+    socket->write(McpServerHelper::createRawPost(run.port, body, McpServerHelper::modernHeaders("resources/read", "pdf4qt://docs/huge.md")));
+    QVERIFY(McpTestHelper::waitFor([&]() { socket->readAll(); return socket->state() == QAbstractSocket::UnconnectedState; }, 10000));
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.shared->connectionCount.load() == 0; }, 5000));
+}
+
+void McpTest::coveragePortProbe()
+{
+    // Follow-up 47: the probe of a port in use - nothing listens (refused; the
+    // refusal of a loopback port takes about 2 s on Windows), a foreign answer
+    // longer than a head without its end, a foreign server, which closes at
+    // once, a second start; a server stopped while it probes
+    {
+        QTcpServer free;
+        QVERIFY(free.listen(QHostAddress::LocalHost, 0));
+        const quint16 port = free.serverPort();
+        free.close();
+
+        pdf::PDFMcpPortProbe probe;
+        QSignalSpy finished(&probe, &pdf::PDFMcpPortProbe::finished);
+        probe.start(port, 10000 * McpTestHelper::factor());
+        probe.start(port, 10);
+        QVERIFY(finished.wait(10000 * McpTestHelper::factor()));
+        QCOMPARE(probe.getResult(), pdf::PDFMcpPortProbe::Result::Unreachable);
+    }
+
+    {
+        QTcpServer foreign;
+        QVERIFY(foreign.listen(QHostAddress::LocalHost, 0));
+        QObject::connect(&foreign, &QTcpServer::newConnection, &foreign, [&foreign]()
+        {
+            while (QTcpSocket* socket = foreign.nextPendingConnection())
+            {
+                socket->write(QByteArray(pdf::PDFMcpLimits::MAXIMUM_HEADER_SIZE + 100, 'x'));
+            }
+        });
+        pdf::PDFMcpPortProbe probe;
+        QSignalSpy finished(&probe, &pdf::PDFMcpPortProbe::finished);
+        probe.start(foreign.serverPort(), 5000 * McpTestHelper::factor());
+        QVERIFY(finished.wait(5000 * McpTestHelper::factor()));
+        QCOMPARE(probe.getResult(), pdf::PDFMcpPortProbe::Result::OtherProgram);
+    }
+
+    {
+        QTcpServer closing;
+        QVERIFY(closing.listen(QHostAddress::LocalHost, 0));
+        QObject::connect(&closing, &QTcpServer::newConnection, &closing, [&closing]()
+        {
+            while (QTcpSocket* socket = closing.nextPendingConnection())
+            {
+                socket->close();
+                socket->deleteLater();
+            }
+        });
+        pdf::PDFMcpPortProbe probe;
+        QSignalSpy finished(&probe, &pdf::PDFMcpPortProbe::finished);
+        probe.start(closing.serverPort(), 5000 * McpTestHelper::factor());
+        QVERIFY(finished.wait(5000 * McpTestHelper::factor()));
+        QCOMPARE(probe.getResult(), pdf::PDFMcpPortProbe::Result::OtherProgram);
+        QVERIFY(probe.getServerHeader().isEmpty());
+    }
+
+    {
+        // A silent listener on the port: the server probes it and is stopped meanwhile
+        QTcpServer silent;
+        QVERIFY(silent.listen(QHostAddress::LocalHost, 0));
+        pdftest::FakeMcpHost host;
+        pdf::PDFMcpServer server(&host);
+        pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+        config.port = silent.serverPort();
+        config.portProbeTimeout = 60000;
+        QVERIFY(server.start(config));
+        QVERIFY(!server.start(config));
+        QVERIFY(McpTestHelper::waitFor([&]() { return silent.hasPendingConnections() || silent.waitForNewConnection(10); }, 5000));
+        QCOMPARE(server.getState(), pdf::PDFMcpServerState::Starting);
+        server.stop();
+        QCOMPARE(server.getState(), pdf::PDFMcpServerState::Stopped);
+    }
+}
+
+void McpTest::coverageJsonEdges()
+{
+    // Follow-up 47 (pdfmcpjson.cpp): the remaining edges of the JSON layer
+    using Flag = pdf::PDFMcpJson::SanitizeFlag;
+    using Codes = pdf::PDFMcpErrorCodes;
+
+    // Objects nested too deeply (arrays in jsonLayer)
+    QByteArray deep;
+    for (int i = 0; i <= pdf::PDFMcpLimits::MAXIMUM_JSON_DEPTH; ++i)
+    {
+        deep += "{\"a\":";
+    }
+    deep += "1" + QByteArray(pdf::PDFMcpLimits::MAXIMUM_JSON_DEPTH + 1, '}');
+    QCOMPARE(McpTestHelper::scan(deep).errorCode, Codes::INVALID_REQUEST);
+
+    // Sanitizing at the limit of the length: every kind of a replaced character
+    const qsizetype limit = 2;
+    const QString high = QString(u"ab") + QChar(0xD800) + u'c';
+    const QString low = QString(u"ab") + QChar(0xDC00) + u'c';
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(high, Flag::None, limit), QStringLiteral("ab"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(low, Flag::None, limit), QStringLiteral("ab"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("ab\rc"), Flag::KeepNewlines, limit), QStringLiteral("ab"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("ab\rc"), Flag::None, limit), QStringLiteral("ab"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("ab\tc"), Flag::None, limit), QStringLiteral("ab"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("ab\r"), Flag::KeepNewlines), QStringLiteral("ab\n"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("a\r\nb\rc"), Flag::KeepNewlines), QStringLiteral("a\nb\nc"));
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QString(u"ab") + QChar(0xD83D) + QChar(0xDE00), Flag::None, 3), QStringLiteral("ab"));
+
+    // The reader: the type of nothing, a required choice, an optional
+    // rectangle, an item, which is an object
+    pdf::PDFMcpJsonReader reader(QJsonObject({ { QStringLiteral("o"), QJsonObject({ { QStringLiteral("x"), 1 } }) } }), QStringLiteral("args"));
+    QVERIFY(!reader.getEnum(QLatin1StringView("missing"), { QStringLiteral("a") }, true));
+    QVERIFY(!reader.getRect(QLatin1StringView("missing"), false));
+    pdf::PDFMcpJsonReader itemReader = reader.item(QJsonObject({ { QStringLiteral("y"), true } }), QStringLiteral("args.items[0]"));
+    QCOMPARE(itemReader.getBool(QLatin1StringView("y"), true), std::optional<bool>(true));
+    reader.item(QJsonValue(QJsonValue::Undefined), QStringLiteral("args.items[1]"));
+    QVERIFY(reader.getErrorText().contains(QStringLiteral("args.missing: is required")));
+    QVERIFY2(reader.getErrorText().contains(QStringLiteral("args.items[1]: expected an object, got nothing")), qPrintable(reader.getErrorText()));
+
+    // The writer: the escapes of the control characters, an undefined value,
+    // no raw members
+    pdf::PDFMcpJsonWriter writer;
+    writer.beginObject();
+    writer.writeMember(QLatin1StringView("s"), QStringView(u"\b\f\r\t\n\x01"));
+    writer.key(QLatin1StringView("u"));
+    writer.writeQJson(QJsonValue(QJsonValue::Undefined));
+    writer.writeRawMembers(QByteArrayView());
+    writer.endObject();
+    QCOMPARE(writer.take(), QByteArray(R"({"s":"\b\f\r\t\n\u0001","u":null})"));
+    QCOMPARE(pdf::PDFMcpJsonWriter::formatNumber(std::numeric_limits<double>::infinity()), QByteArray("null"));
+
+    // More of the writer: every kind of a QJsonValue, characters of three and
+    // four bytes in UTF-8 (a surrogate pair), a lone surrogate
+    pdf::PDFMcpJsonWriter values;
+    values.writeQJson(QJsonArray({ true, QStringLiteral("t"), QJsonArray({ 1 }), QJsonValue(), 1.5, QJsonObject({ { QStringLiteral("k"), false } }) }));
+    QCOMPARE(values.take(), QByteArray(R"([true,"t",[1],null,1.5,{"k":false}])"));
+    QCOMPARE(pdf::PDFMcpJsonWriter::quote(QString(QChar(0x20AC)) + QChar(0xD83D) + QChar(0xDE00)), QByteArray("\"\xE2\x82\xAC\xF0\x9F\x98\x80\""));
+
+    // More of the reader: has, a valid choice, a rectangle out of range
+    pdf::PDFMcpJsonReader more(QJsonObject({ { QStringLiteral("e"), QStringLiteral("b") },
+                                             { QStringLiteral("r"), QJsonObject({ { QStringLiteral("left"), 0 }, { QStringLiteral("bottom"), 0 }, { QStringLiteral("right"), 1.0e12 }, { QStringLiteral("top"), 1 } }) } }));
+    QVERIFY(more.has(QLatin1StringView("e")));
+    QVERIFY(!more.has(QLatin1StringView("x")));
+    QCOMPARE(more.getEnum(QLatin1StringView("e"), { QStringLiteral("a"), QStringLiteral("b") }, true), std::optional<QString>(QStringLiteral("b")));
+    QVERIFY(!more.getRect(QLatin1StringView("r"), true));
+
+    // Sanitizing of a plain character at the limit
+    QCOMPARE(pdf::PDFMcpJson::sanitizeString(QStringLiteral("abc"), Flag::None, 2), QStringLiteral("ab"));
+}
+
+void McpTest::coverageProtocolEdges()
+{
+    // Follow-up 47: the refusals of the tasks methods, a declined task, a
+    // task ended by a protocol error, a waiting task of a disconnected
+    // assistant, coalesced updates of a legacy session, keep-alives of a call
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.taskCreationDelay = 100;
+    config.keepAliveInterval = 200;
+    config.resourceUpdateInterval = 300;
+    McpServerFixture fixture(config, McpServerHelper::createCatalog(1, 0, { QStringLiteral("slowerror") }));
+    QVERIFY(fixture.isRunning);
+    fixture.host.setHandler([](const std::shared_ptr<pdf::PDFMcpCall>& call)
+    {
+        if (call->getRequest().name == QLatin1String("slowerror"))
+        {
+            QTimer::singleShot(400, qApp, [call]() { call->finish(pdf::PDFMcpCallResult::createError(pdf::PDFMcpErrorCodes::INVALID_PARAMS, QStringLiteral("Bad"))); });
+            return;
+        }
+        McpServerHelper::handle(call);
+    });
+
+    // tasks/update and tasks/cancel without the extension, of an unknown task, without inputResponses
+    pdftest::McpTestClient plain = fixture.client();
+    for (const char* method : { "tasks/update", "tasks/cancel" })
+    {
+        QCOMPARE(McpServerHelper::getErrorCode(plain.request(QString::fromLatin1(method), QJsonObject({ { QStringLiteral("taskId"), QStringLiteral("x") } }))), pdf::PDFMcpErrorCodes::MISSING_CLIENT_CAPABILITY);
+    }
+    const QJsonObject tasksCapabilities({ { QStringLiteral("elicitation"), QJsonObject() }, { QStringLiteral("extensions"), QJsonObject({ { QStringLiteral("io.modelcontextprotocol/tasks"), QJsonObject() } }) } });
+    pdftest::McpTestClient client = fixture.client();
+    client.setCapabilities(tasksCapabilities);
+    client.setInputRetryRounds(0);
+    for (const char* method : { "tasks/update", "tasks/cancel" })
+    {
+        QCOMPARE(McpServerHelper::getErrorCode(client.request(QString::fromLatin1(method), QJsonObject({ { QStringLiteral("taskId"), QStringLiteral("x") }, { QStringLiteral("inputResponses"), QJsonObject() } }))), pdf::PDFMcpErrorCodes::INVALID_PARAMS);
+    }
+
+    const auto waitStatus = [&](const QString& taskId, const QString& status)
+    {
+        return McpTestHelper::waitFor([&]()
+        {
+            QTest::qWait(100);
+            return client.request(QStringLiteral("tasks/get"), QJsonObject({ { QStringLiteral("taskId"), taskId } })).value(QStringLiteral("result")).toObject().value(QStringLiteral("status")).toString() == status;
+        }, 5000);
+    };
+
+    // A declined question ends the task with the text of the decline
+    const QString declinedId = client.callTool(QStringLiteral("askslow"), QJsonObject()).value(QStringLiteral("result")).toObject().value(QStringLiteral("taskId")).toString();
+    QVERIFY(waitStatus(declinedId, QStringLiteral("input_required")));
+    QCOMPARE(McpServerHelper::getErrorCode(client.request(QStringLiteral("tasks/update"), QJsonObject({ { QStringLiteral("taskId"), declinedId }, { QStringLiteral("inputResponses"), 5 } }))), pdf::PDFMcpErrorCodes::INVALID_PARAMS);
+    const QJsonObject decline({ { QStringLiteral("pdf4qt.choice#1"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("decline") } }) } });
+    QVERIFY(client.request(QStringLiteral("tasks/update"), QJsonObject({ { QStringLiteral("taskId"), declinedId }, { QStringLiteral("inputResponses"), decline } })).contains(QStringLiteral("result")));
+    const QJsonObject declined = client.pollTask(declinedId).value(QStringLiteral("result")).toObject();
+    QCOMPARE(declined.value(QStringLiteral("status")).toString(), QStringLiteral("completed"));
+    QVERIFY(declined.value(QStringLiteral("result")).toObject().value(QStringLiteral("isError")).toBool());
+
+    // A protocol error of a task: failed with the error
+    const QString failedId = client.callTool(QStringLiteral("slowerror"), QJsonObject()).value(QStringLiteral("result")).toObject().value(QStringLiteral("taskId")).toString();
+    QVERIFY(!failedId.isEmpty());
+    const QJsonObject failed = client.pollTask(failedId).value(QStringLiteral("result")).toObject();
+    QCOMPARE(failed.value(QStringLiteral("status")).toString(), QStringLiteral("failed"));
+    QCOMPARE(failed.value(QStringLiteral("error")).toObject().value(QStringLiteral("code")).toInt(), pdf::PDFMcpErrorCodes::INVALID_PARAMS);
+
+    // A legacy session: two updates within the interval - the second is sent later
+    pdftest::McpTestClient legacy = fixture.client(pdftest::McpTestEra::Legacy20251125);
+    QVERIFY(!legacy.initialize().isEmpty());
+    QVERIFY(legacy.request(QStringLiteral("resources/subscribe"), QJsonObject({ { QStringLiteral("uri"), QStringLiteral("pdf4qt://documents/ABC/info") } })).contains(QStringLiteral("result")));
+    std::unique_ptr<pdftest::McpTestStream> stream = legacy.openGetStream();
+    QVERIFY(stream && stream->waitForComments(1, 5000));
+    fixture.server->notifyResourceUpdated(QStringLiteral("pdf4qt://documents/ABC"));
+    fixture.server->notifyResourceUpdated(QStringLiteral("pdf4qt://documents/ABC"));
+    QVERIFY(stream->waitForMessages(2, 5000));
+
+    // A call kept waiting gets keep-alive comments
+    std::unique_ptr<pdftest::McpTestStream> slow = legacy.openStream(legacy.createRequest(QStringLiteral("tools/call"), QJsonObject({ { QStringLiteral("name"), QStringLiteral("slow") }, { QStringLiteral("arguments"), QJsonObject() } })));
+    QVERIFY(slow && slow->waitForComments(2, 5000));
+
+    // A task waiting for input ends, when its assistant is disconnected (and
+    // the calls and the streams of the legacy session)
+    const QString waitingId = client.callTool(QStringLiteral("askslow"), QJsonObject()).value(QStringLiteral("result")).toObject().value(QStringLiteral("taskId")).toString();
+    QVERIFY(waitStatus(waitingId, QStringLiteral("input_required")));
+    const size_t canceled = fixture.host.canceledCalls.size();
+    fixture.server->disconnectAll();
+    QVERIFY(fixture.waitEvent(pdf::PDFMcpAssistantEvent::Kind::Disconnected));
+    QVERIFY(fixture.waitCanceled(canceled + 1));
+    const QJsonObject afterDisconnect = client.request(QStringLiteral("tasks/get"), QJsonObject({ { QStringLiteral("taskId"), waitingId } }));
+    QVERIFY(afterDisconnect.value(QStringLiteral("result")).toObject().value(QStringLiteral("status")).toString() != QLatin1String("input_required"));
+}
+
+void McpTest::coverageInputAnyValues()
+{
+    // Follow-up 47: answers of a question, whose allowed values are "any"
+    // (strings sanitized, booleans and finite numbers kept, any other value
+    // refuses the whole answer), and a list of values for every property
+    McpServerFixture fixture(McpServerHelper::createConfig(), McpServerHelper::createCatalog(1, 0, { QStringLiteral("askany") }));
+    QVERIFY(fixture.isRunning);
+    fixture.host.setHandler([](const std::shared_ptr<pdf::PDFMcpCall>& call)
+    {
+        const pdf::PDFMcpCallRequest& request = call->getRequest();
+        if (request.name != QLatin1String("askany"))
+        {
+            McpServerHelper::handle(call);
+            return;
+        }
+        if (request.inputResponses.contains(QStringLiteral("k")))
+        {
+            call->finish(McpServerHelper::createText(QString::fromUtf8(QJsonDocument(request.inputResponses).toJson(QJsonDocument::Compact))));
+            return;
+        }
+
+        pdf::PDFMcpInputRequests requests;
+        pdf::PDFMcpInputRequest any;
+        any.key = QStringLiteral("k");
+        any.message = QStringLiteral("any");
+        any.requestedSchema = R"({"type":"object","properties":{"text":{"type":"string"}}})";
+        pdf::PDFMcpInputRequest list = any;
+        list.key = QStringLiteral("l");
+        list.message = QStringLiteral("list");
+        requests.requests = { any, list };
+        requests.allowedValues = QJsonDocument::fromJson(R"({"k":{"text":"any","flag":"any","n":"any","bad":"any"},"l":["x","y"]})").object();
+        call->requestInput(std::move(requests));
+    });
+
+    pdftest::McpTestClient client = fixture.client();
+    client.setCapabilities(QJsonObject({ { QStringLiteral("elicitation"), QJsonObject() } }));
+    int round = 0;
+    client.setElicitationResponder([&round](const QJsonObject& params) -> QJsonObject
+    {
+        QJsonObject content;
+        if (params.value(QStringLiteral("message")).toString() == QLatin1String("list"))
+        {
+            content.insert(QStringLiteral("choice"), QStringLiteral("x"));
+        }
+        else
+        {
+            ++round;
+            content.insert(QStringLiteral("text"), QString(QStringLiteral("a")) + QChar(0x202E) + QStringLiteral("b"));
+            content.insert(QStringLiteral("flag"), true);
+            content.insert(QStringLiteral("n"), 2);
+            if (round == 1)
+            {
+                content.insert(QStringLiteral("bad"), QJsonObject());
+            }
+        }
+        return QJsonObject({ { QStringLiteral("action"), QStringLiteral("accept") }, { QStringLiteral("content"), content } });
+    });
+
+    const QString text = McpServerHelper::getText(client.callTool(QStringLiteral("askany"), QJsonObject()));
+    QCOMPARE(round, 2);
+    QVERIFY2(text.contains(QStringLiteral("\"text\":\"ab\"")), qPrintable(text));
+    QVERIFY(text.contains(QStringLiteral("\"flag\":true")));
+    QVERIFY(text.contains(QStringLiteral("\"n\":2")));
+    QVERIFY(text.contains(QStringLiteral("\"choice\":\"x\"")));
+}
+
+void McpTest::coverageDispatcherEdges()
+{
+    // Follow-up 47: a dispatcher without a catalog and after its shutdown, a
+    // legacy GET stream of another protocol version, a response of a client
+    // to an unknown session, prompts/get with arguments, which are not an
+    // object, the list_changed of the prompts on a listen stream
+    {
+        std::shared_ptr<pdf::PDFMcpServerShared> shared = std::make_shared<pdf::PDFMcpServerShared>(McpServerHelper::createConfig());
+        pdf::PDFMcpDispatcher dispatcher(shared, nullptr);
+        QVERIFY(shared->getCatalog() == nullptr || shared->getCatalog()->getTools().empty());
+        dispatcher.shutdown();
+    }
+    {
+        McpDispatcherHarness harness(McpServerHelper::createConfig());
+        harness.dispatcher->shutdown();
+        QCOMPARE(harness.request("POST", "127.0.0.1:4321").status, 503);
+    }
+
+    McpServerFixture fixture;
+    QVERIFY(fixture.isRunning);
+    pdftest::McpTestClient legacy = fixture.client(pdftest::McpTestEra::Legacy20251125);
+    QVERIFY(!legacy.initialize().isEmpty());
+    const pdftest::McpTestResponse mismatch = legacy.sendRaw(legacy.createHttpRequest("GET", QJsonObject(), { { "Accept", "text/event-stream" }, { "MCP-Protocol-Version", "2025-06-18" } }));
+    QCOMPARE(mismatch.status, 400);
+
+    pdftest::McpTestClient client = fixture.client();
+    const QJsonObject response({ { QStringLiteral("jsonrpc"), QStringLiteral("2.0") }, { QStringLiteral("id"), 1 }, { QStringLiteral("result"), QJsonObject() } });
+    QCOMPARE(client.post(QJsonDocument(response).toJson(QJsonDocument::Compact), { { "Mcp-Session-Id", "AAAAAAAAAAAAAAAAAAAAAAAAAA" } }).status, 404);
+
+    const QJsonObject arrayArguments = client.request(QStringLiteral("prompts/get"), QJsonObject({ { QStringLiteral("name"), QStringLiteral("summarize-document") }, { QStringLiteral("arguments"), QJsonArray({ 1 }) } }),
+                                                      { { "Mcp-Name", "summarize-document" } });
+    QCOMPARE(McpServerHelper::getErrorCode(arrayArguments), pdf::PDFMcpErrorCodes::INVALID_PARAMS);
+
+    std::unique_ptr<pdftest::McpTestStream> listen = client.openStream(client.createRequest(QStringLiteral("subscriptions/listen"),
+        QJsonObject({ { QStringLiteral("notifications"), QJsonObject({ { QStringLiteral("promptsListChanged"), true } }) } })));
+    QVERIFY(listen && listen->waitForMessages(1, 5000));
+    const std::shared_ptr<const pdf::PDFMcpCatalog> base = McpServerHelper::createCatalog();
+    fixture.server->publishCatalog(std::make_shared<const pdf::PDFMcpCatalog>(2, base->getTools(), base->getResources(), base->getTemplates(), std::vector<pdf::PDFMcpPromptDefinition>()));
+    QVERIFY(listen->waitForMessages(2, 5000));
+    QCOMPARE(listen->messages().back().value(QStringLiteral("method")).toString(), QStringLiteral("notifications/prompts/list_changed"));
+}
+
+void McpTest::coverageSchemaEdges()
+{
+    // Follow-up 47 (pdfmcpschema.cpp): the keywords of the writer, a replaced
+    // and a removed property, every refused document of fromQJson, the errors
+    // of every type
+    using B = pdf::PDFMcpSchemaBuilder;
+    pdf::PDFMcpSchema schema = B::object(QStringLiteral("o"));
+    schema.addProperty(QStringLiteral("a"), B::string(QStringLiteral("first"), 4), true);
+    schema.addProperty(QStringLiteral("a"), B::string(QStringLiteral("a"), 4).setPattern(QStringLiteral("^x+$")).setTitle(QStringLiteral("A")).setReadOnly(true).setWriteOnly(true), true);
+    schema.addProperty(QStringLiteral("b"), B::array(QStringLiteral("b"), B::integer(QStringLiteral("i"), 0, 9), 2, 3).setUniqueItems(true));
+    schema.addProperty(QStringLiteral("c"), B::boolean(QStringLiteral("c")), true);
+    schema.addProperty(QStringLiteral("n"), B::outputNumber(QStringLiteral("n")));
+    schema.addProperty(QStringLiteral("k"), B::outputInteger(QStringLiteral("k")));
+    QCOMPARE(schema.getProperties().size(), size_t(5));
+    QCOMPARE(schema.findProperty(QStringLiteral("a"))->getDescription(), QStringLiteral("a"));
+    schema.findProperty(QStringLiteral("a"))->setDescription(QStringLiteral("text"));
+    QVERIFY(!schema.findProperty(QStringLiteral("missing")));
+
+    const QByteArray json = schema.toJson();
+    for (const char* keyword : { "\"title\":\"A\"", "\"pattern\":\"^x+$\"", "\"uniqueItems\":true", "\"readOnly\":true", "\"writeOnly\":true" })
+    {
+        QVERIFY2(json.contains(keyword), keyword);
+    }
+    QString error;
+    const std::optional<pdf::PDFMcpSchema> back = pdf::PDFMcpSchema::fromQJson(schema.toQJson(), &error);
+    QVERIFY2(back, qPrintable(error));
+    QCOMPARE(back->findProperty(QStringLiteral("a"))->getTitle(), QStringLiteral("A"));
+
+    QStringList errors;
+    const auto check = [&](const QJsonObject& value, const QString& message)
+    {
+        errors.clear();
+        const bool isValid = schema.validate(value, QStringLiteral("args"), &errors);
+        return !isValid && errors.join(QStringLiteral("\n")).contains(message);
+    };
+    const QJsonObject valid({ { QStringLiteral("a"), QStringLiteral("xx") }, { QStringLiteral("c"), true } });
+    QVERIFY(schema.validate(valid, QStringLiteral("args"), &errors));
+    QJsonObject value = valid;
+    value.insert(QStringLiteral("b"), 5);
+    QVERIFY(check(value, QStringLiteral("args.b: expected an array")));
+    value.insert(QStringLiteral("b"), QJsonArray({ 1 }));
+    QVERIFY(check(value, QStringLiteral("args.b: needs at least 2 items")));
+    value = valid;
+    value.insert(QStringLiteral("a"), QStringLiteral("xxxxx"));
+    QVERIFY(check(value, QStringLiteral("args.a: is longer than 4 characters")));
+    value.insert(QStringLiteral("a"), QStringLiteral("yy"));
+    QVERIFY(check(value, QStringLiteral("does not match the pattern")));
+    value = valid;
+    value.insert(QStringLiteral("n"), QStringLiteral("x"));
+    QVERIFY(check(value, QStringLiteral("args.n: expected a number")));
+    value = valid;
+    value.insert(QStringLiteral("k"), QStringLiteral("x"));
+    QVERIFY(check(value, QStringLiteral("args.k: expected an integer")));
+    value = valid;
+    value.insert(QStringLiteral("c"), 1);
+    QVERIFY(check(value, QStringLiteral("args.c: expected a boolean")));
+
+    schema.removeProperty(QStringLiteral("c"));
+    QVERIFY(!schema.findProperty(QStringLiteral("c")));
+    QVERIFY(!schema.getRequired().contains(QStringLiteral("c")));
+    schema.removeProperty(QStringLiteral("missing"));
+
+    // Refused documents
+    const char* refused[] = {
+        R"({"type":"string","enum":["a",1]})",
+        R"({"type":"string","pattern":"("})",
+        R"({"type":"array","items":{"type":"unknown"}})",
+        R"({"type":"object","additionalProperties":"no"})",
+        R"({"type":"object","properties":{"a":{"type":"x"}}})"
+    };
+    for (const char* text : refused)
+    {
+        QVERIFY2(!pdf::PDFMcpSchema::fromQJson(QJsonDocument::fromJson(text).object(), &error), text);
+        QVERIFY(!error.isEmpty());
+    }
+}
+
+void McpTest::coverageLibraryUnits()
+{
+    // Follow-up 47: the small classes of the library at their edges
+
+    // The subscriptions of a stream
+    pdf::PDFMcpSubscriptions subscriptions;
+    QVERIFY(!subscriptions.add(QStringLiteral("http://x")));
+    QVERIFY(!subscriptions.add(QStringLiteral("pdf4qt://a b")));
+    QVERIFY(subscriptions.add(QStringLiteral("pdf4qt://documents/A")));
+    QVERIFY(subscriptions.add(QStringLiteral("pdf4qt://documents/A")));
+    for (int i = 1; i < pdf::PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM; ++i)
+    {
+        QVERIFY(subscriptions.add(QStringLiteral("pdf4qt://documents/B%1").arg(i)));
+    }
+    QVERIFY(!subscriptions.add(QStringLiteral("pdf4qt://documents/C")));
+    QCOMPARE(subscriptions.update(QStringLiteral("pdf4qt://documents/A"), 1000, 250), QStringList({ QStringLiteral("pdf4qt://documents/A") }));
+    QVERIFY(subscriptions.update(QStringLiteral("pdf4qt://documents/A"), 1100, 250).isEmpty());
+    QVERIFY(subscriptions.takeDue(1200, 250).isEmpty());
+    QVERIFY(subscriptions.hasPending());
+    QCOMPARE(subscriptions.takeDue(1300, 250), QStringList({ QStringLiteral("pdf4qt://documents/A") }));
+    QVERIFY(subscriptions.remove(QStringLiteral("pdf4qt://documents/A")));
+    QVERIFY(!subscriptions.remove(QStringLiteral("pdf4qt://documents/A")));
+    QString error;
+    QVERIFY(!pdf::PDFMcpSubscriptionFilter::parse(QJsonObject({ { QStringLiteral("resourceSubscriptions"), 5 } }), &error));
+    QVERIFY(error.contains(QStringLiteral("resourceSubscriptions")));
+    QVERIFY(!pdf::PDFMcpSubscriptionFilter::parse(QJsonObject({ { QStringLiteral("taskIds"), QStringLiteral("x") } }), &error));
+    QVERIFY(error.contains(QStringLiteral("taskIds")));
+    QVERIFY(!pdf::PDFMcpSubscriptionFilter::parse(QJsonObject({ { QStringLiteral("toolsListChanged"), 1 } }), nullptr));
+
+    // The connections of the remote addresses of the link
+    pdf::PDFMcpDispatcherLink link;
+    QVERIFY(link.acquireAddress(QStringLiteral("10.0.0.1"), 1));
+    QVERIFY(!link.acquireAddress(QStringLiteral("10.0.0.1"), 1));
+    QVERIFY(!link.acquireAddress(QStringLiteral("10.0.0.2"), 0));
+    link.releaseAddress(QStringLiteral("10.0.0.1"));
+    link.releaseAddress(QStringLiteral("10.0.0.9"));
+    QVERIFY(link.acquireAddress(QStringLiteral("10.0.0.1"), 1));
+    QVERIFY(!link.evictIdleConnection());
+    QCOMPARE(link.getPendingEvictions(), 0);
+
+    // A full rate limiter forgets the oldest keys; the throttle forgets old failures
+    pdf::PDFMcpRateLimiter limiter(2, 1);
+    qint64 retryAfter = 0;
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS + 10; ++i)
+    {
+        const QString key = QStringLiteral("key-%1").arg(i);
+        QVERIFY(limiter.allow(key, i, &retryAfter));
+        QVERIFY(limiter.allow(key, i, &retryAfter));
+    }
+    QVERIFY(limiter.getKeyCount() <= pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS);
+    QVERIFY(limiter.allow(QStringLiteral("key-0"), pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS, &retryAfter));
+    pdf::PDFMcpAuthorizationThrottle throttle;
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS + 10; ++i)
+    {
+        throttle.recordFailure(QStringLiteral("10.2.%1.%2").arg(i / 256).arg(i % 256), i < 10 ? 0 : pdf::PDFMcpLimits::AUTHORIZATION_BLOCK_TIME + i);
+    }
+    QVERIFY(throttle.getAddressCount() <= pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS);
+
+    // A sealed state: a short key, signed payloads, which are not a state
+    const QByteArray key = "short key";
+    pdf::PDFMcpRequestState state(key);
+    QByteArray paddedKey = key;
+    paddedKey.append(QByteArray(32 - key.size(), '\0'));
+    const auto sign = [&paddedKey](const QByteArray& payload)
+    {
+        return payload + '.' + pdf::PDFMcpJson::toBase64Url(QMessageAuthenticationCode::hash(payload, paddedKey, QCryptographicHash::Sha256));
+    };
+    pdf::PDFMcpRequestStateData data;
+    data.assistantKey = QStringLiteral("a");
+    data.method = QStringLiteral("tools/call");
+    data.expiresAt = 1000;
+    const QByteArray sealed = state.seal(data);
+    QCOMPARE(state.unseal(sealed, 0, QStringLiteral("a"), QStringLiteral("tools/call"), QString(), QByteArray(), nullptr), pdf::PDFMcpRequestStateResult::Valid);
+    for (const QByteArray& payload : { QByteArray("A"), pdf::PDFMcpJson::toBase64Url("[1]"), pdf::PDFMcpJson::toBase64Url(R"({"v":99})") })
+    {
+        QCOMPARE(state.unseal(sign(payload), 0, QStringLiteral("a"), QStringLiteral("tools/call"), QString(), QByteArray(), nullptr), pdf::PDFMcpRequestStateResult::Malformed);
+    }
+
+    // Protocol names, call results, the default sink of a call
+    QCOMPARE(pdf::PDFMcpProtocol::getVersion(pdf::PDFMcpEra::Modern), QStringLiteral("2026-07-28"));
+    QVERIFY(pdf::PDFMcpCallResult::createError(pdf::PDFMcpErrorCodes::INVALID_PARAMS, QStringLiteral("x")).toQJson().isEmpty());
+    QVERIFY(McpServerHelper::createText(QString()).getFirstText().isEmpty());
+    pdf::PDFMcpContentBuilder noText;
+    noText.addResourceLink(QStringLiteral("pdf4qt://docs/a.md"), QStringLiteral("a.md"), QString(), QString(), 12);
+    const pdf::PDFMcpCallResult linkResult = noText.createCallResult(false);
+    QVERIFY(linkResult.getFirstText().isEmpty());
+    QVERIFY(linkResult.result.contains("\"size\":12"));
+    pdf::PDFMcpCallSink sink;
+    pdf::PDFMcpCallRequest callRequest;
+    std::shared_ptr<pdf::PDFMcpCall> call = pdf::PDFMcpCall::create(callRequest);
+    sink.processCall(call);
+    sink.processCall(nullptr);
+    call->cancel(pdf::PDFMcpCancelReason::None);
+    QVERIFY(!call->isCanceled());
+
+    // The annotations of a tool with a title, a failed task
+    pdf::PDFMcpToolAnnotations annotations;
+    annotations.title = QStringLiteral("Tool");
+    pdf::PDFMcpJsonWriter annotationsWriter;
+    annotations.write(annotationsWriter);
+    QVERIFY(annotationsWriter.take().contains("\"title\":\"Tool\""));
+    pdf::PDFMcpTask task;
+    task.status = pdf::PDFMcpTask::Status::Failed;
+    QCOMPARE(pdf::PDFMcpTask::getStatusName(task.status), QLatin1StringView("failed"));
+    pdf::PDFMcpJsonWriter taskWriter;
+    taskWriter.beginObject();
+    task.writeMembers(taskWriter, 1000, 1000);
+    taskWriter.endObject();
+    QVERIFY(taskWriter.take().contains("\"error\":{\"code\":-32603"));
+
+    // Assistants, sessions and the parser outside of their states
+    pdf::PDFMcpAssistantRegistry assistants;
+    QVERIFY(!assistants.touch(pdf::PDFMcpAssistantInfo(), 0));
+    QCOMPARE(assistants.getStreamCount(QStringLiteral("unknown")), 0);
+    QCOMPARE(assistants.createEvent(QStringLiteral("unknown"), pdf::PDFMcpAssistantEvent::Kind::Disconnected).key, QStringLiteral("unknown"));
+    pdf::PDFMcpSessionRegistry sessions;
+    QVERIFY(!pdf::PDFMcpSessionRegistry::isValidSessionId("abcdefghijklmnopqrstuvwxyz"));
+    QVERIFY(!sessions.remove(QStringLiteral("s:unknown")));
+    QCOMPARE(pdf::PDFMcpHttpParser().getMissingBodySize(), qsizetype(0));
+
+    // The HTTP status of every error code (plan 1.4)
+    using Codes = pdf::PDFMcpErrorCodes;
+    const std::pair<int, int> statuses[] = {
+        { Codes::PARSE_ERROR, 400 }, { Codes::INVALID_REQUEST, 400 }, { Codes::HEADER_MISMATCH, 400 }, { Codes::MISSING_CLIENT_CAPABILITY, 400 },
+        { Codes::UNSUPPORTED_PROTOCOL_VERSION, 400 }, { Codes::METHOD_NOT_FOUND, 404 }, { Codes::RATE_LIMITED, 429 }, { Codes::SERVER_STOPPING, 503 },
+        { Codes::INVALID_PARAMS, 200 }, { Codes::INTERNAL_ERROR, 200 }, { Codes::RESOURCE_NOT_FOUND_LEGACY, 200 }
+    };
+    for (const auto& status : statuses)
+    {
+        QCOMPARE(Codes::getHttpStatus(status.first), status.second);
+    }
 }
 
 void McpTest::conformance_data()
@@ -5563,6 +6897,28 @@ public:
         QCOMPARE(McpServerHelper::getErrorCode(response.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
     }
 
+    static void errorIdOmitted(McpServerFixture& fixture)
+    {
+        // JSONRPCErrorResponse { id?: RequestId } of both schemas: an error, whose
+        // request id could not be read, has no id (owner 2026-10-27, follow-up 31)
+        pdftest::McpTestClient client = fixture.client();
+        QJsonObject request = client.createRequest(QStringLiteral("tools/list"));
+        request.insert(QStringLiteral("id"), QJsonValue(true));
+        const pdftest::McpTestResponse modern = client.post(QJsonDocument(request).toJson(QJsonDocument::Compact));
+        QCOMPARE(McpServerHelper::getErrorCode(modern.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
+        QVERIFY(!modern.json().contains(QStringLiteral("id")));
+        const pdftest::McpTestResponse parse = client.post("{");
+        QCOMPARE(McpServerHelper::getErrorCode(parse.json()), pdf::PDFMcpErrorCodes::PARSE_ERROR);
+        QVERIFY(!parse.json().contains(QStringLiteral("id")));
+
+        pdftest::McpTestClient legacy = fixture.client(pdftest::McpTestEra::Legacy20250618);
+        QVERIFY(!legacy.initialize().isEmpty());
+        const pdftest::McpTestResponse legacyError = legacy.post(R"({"jsonrpc":"2.0","id":{},"method":"ping"})");
+        QCOMPARE(McpServerHelper::getErrorCode(legacyError.json()), pdf::PDFMcpErrorCodes::INVALID_REQUEST);
+        QVERIFY(!legacyError.json().contains(QStringLiteral("id")));
+        QVERIFY(!legacyError.body.contains("null"));
+    }
+
     static void discoverImplemented(McpServerFixture& fixture)
     {
         // "Servers MUST implement server/discover"
@@ -5755,6 +7111,7 @@ const std::vector<McpConformanceRow>& McpConformance::getRows()
         { "legacy-list-changed", "Legacy list_changed on the GET stream of the session", &McpConformanceChecks::legacyListChanged },
         { "jsonrpc-id-echoed", "The response id equals the request id", &McpConformanceChecks::idsEchoed },
         { "jsonrpc-id-not-null", "A null id is refused (-32600)", &McpConformanceChecks::idNotNull },
+        { "jsonrpc-error-id-omitted", "An error of an unreadable request id omits the id (both eras)", &McpConformanceChecks::errorIdOmitted },
         { "discover-implemented", "server/discover is implemented", &McpConformanceChecks::discoverImplemented },
         { "sse-keep-alive", "Keep-alive comments and X-Accel-Buffering: no on a stream", &McpConformanceChecks::keepAliveComments },
         { "modern-no-client-responses", "A JSON-RPC response of a modern client is refused (400)", &McpConformanceChecks::modernNoClientResponses },

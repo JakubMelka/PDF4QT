@@ -509,6 +509,22 @@ void PDFMcpDispatcher::handleMaintenance()
         }
     }
 
+    // Legacy sessions, which got no message after their initialize, end after
+    // 10 s (follow-up 36: a token holder cannot hold every session slot by
+    // initialize alone)
+    for (const QString& key : m_sessions.getUnusedSessions(now, PDFMcpLimits::UNUSED_SESSION_TIME))
+    {
+        bool hasCall = false;
+        for (const auto& item : m_calls)
+        {
+            hasCall = hasCall || item.second->request.client.sessionKey == key;
+        }
+        if (!hasCall)
+        {
+            endSession(key, PDFMcpAssistantEvent::Kind::SessionEnded);
+        }
+    }
+
     // Modern assistants idle for 30 minutes [D2]
     const std::vector<PDFMcpAssistantEvent> idle = m_assistants->removeIdle(now, PDFMcpLimits::ASSISTANT_IDLE_TIME);
     for (const PDFMcpAssistantEvent& event : idle)

@@ -200,6 +200,11 @@ std::vector<PDFMcpResourceDefinition> PDFAppMcpDocumentResources::createListed(c
         return resources;
     }
 
+    // The catalog is shared by every assistant: with Read documents = Ask the
+    // documents are listed without their titles (a file name is document data,
+    // which an assistant gets only after its read approval - owner decision
+    // 2026-10-27, item 27; the completion withholds them too)
+    const bool isTitleListed = host->getPermissions().get(PDFAppMcpPermissionKind::Read) == PDFAppMcpPermission::Allow;
     for (const PDFAppDocument* document : host->getResolver().getDocuments())
     {
         if (!document || !document->isReady())
@@ -207,7 +212,7 @@ std::vector<PDFMcpResourceDefinition> PDFAppMcpDocumentResources::createListed(c
             continue;
         }
 
-        const QString title = PDFAppMcpReadSupport::sanitizeName(document->getTitle(), 128);
+        const QString title = isTitleListed ? PDFAppMcpReadSupport::sanitizeName(document->getTitle(), 128) : getGenericTitle(document->getId());
         const std::pair<const char*, const char*> parts[] = { { "info", "information" }, { "outline", "outline" }, { "annotations", "annotations" } };
         for (const auto& part : parts)
         {
@@ -555,9 +560,30 @@ PDFAppMcpDocumentWatcher::PDFAppMcpDocumentWatcher(PDFAppMcpHost* host) :
     }
     connectWindow();
 
-    for (const PDFMcpResourceDefinition& resource : PDFAppMcpDocumentResources::createListed(host))
+    // A catalog built for another reason (the permissions: the titles listed or
+    // not) is the listing compared with the next change of the documents
+    if (host)
+    {
+        connect(host, &PDFAppMcpHost::catalogChanged, this, &PDFAppMcpDocumentWatcher::onCatalogChanged);
+    }
+    updateListedKeys();
+}
+
+void PDFAppMcpDocumentWatcher::updateListedKeys()
+{
+    m_listedKeys.clear();
+    for (const PDFMcpResourceDefinition& resource : PDFAppMcpDocumentResources::createListed(m_host))
     {
         m_listedKeys.insert(resource.uri + QLatin1Char('\n') + resource.title);
+    }
+}
+
+void PDFAppMcpDocumentWatcher::onCatalogChanged(quint64 generation)
+{
+    Q_UNUSED(generation);
+    if (m_host && !m_host->isShutDown())
+    {
+        updateListedKeys();
     }
 }
 
@@ -648,6 +674,11 @@ void PDFAppMcpDocumentWatcher::onCurrentTabChanged(int index)
 {
     Q_UNUSED(index);
     notifyUpdated(PDFAppMcpDocumentResources::getStateUri());
+}
+
+QString PDFAppMcpDocumentResources::getGenericTitle(const QString& documentId)
+{
+    return QStringLiteral("Open document %1").arg(documentId);
 }
 
 QString PDFAppMcpDocumentResources::getDeniedText()

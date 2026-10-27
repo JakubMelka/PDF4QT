@@ -111,6 +111,11 @@ public:
     static constexpr int MAXIMUM_LISTEN_STREAMS = 32;
     static constexpr int MAXIMUM_LEGACY_SESSIONS = 64;
 
+    /// Legacy initialize of one address (a new session each): a burst of 16,
+    /// then 2 per second - 429 beyond it (follow-up 36)
+    static constexpr int INITIALIZE_BURST = 16;
+    static constexpr int INITIALIZE_RATE = 2;
+
     /// Most connected assistants (modern keys and legacy sessions together); a
     /// modern request of a new key beyond it is refused (429), so a client cannot
     /// create unlimited identities by clientInfo.name - each with its own limits
@@ -145,6 +150,15 @@ public:
 
     /// A legacy session without a request ends after this time
     static constexpr qint64 SESSION_IDLE_TIME = qint64(30) * 60 * 1000;
+
+    /// A legacy session, which got no message after its initialize (neither
+    /// notifications/initialized nor a request, a GET stream or an answer), ends
+    /// after this time (follow-up 36). Together with the rate of initialize one
+    /// address holds at most INITIALIZE_BURST + INITIALIZE_RATE * (10 + 1 s of
+    /// the maintenance) = 38 such sessions - always fewer than
+    /// MAXIMUM_LEGACY_SESSIONS, so a flood of unused sessions never takes the
+    /// last slot of a client, which initializes properly (asserted below).
+    static constexpr qint64 UNUSED_SESSION_TIME = 10000;
 
     /// A sealed requestState of MRTR expires after this time
     static constexpr qint64 REQUEST_STATE_LIFETIME = qint64(5) * 60 * 1000;
@@ -186,6 +200,9 @@ public:
     static constexpr qint64 TOOLS_LIST_TTL = 60000;
     static constexpr qint64 STATIC_LIST_TTL = 3600000;
 };
+
+static_assert(PDFMcpLimits::INITIALIZE_BURST + PDFMcpLimits::INITIALIZE_RATE * (PDFMcpLimits::UNUSED_SESSION_TIME / 1000 + 1) < PDFMcpLimits::MAXIMUM_LEGACY_SESSIONS,
+              "Unused legacy sessions of one address must not fill every session slot");
 
 }   // namespace pdf
 

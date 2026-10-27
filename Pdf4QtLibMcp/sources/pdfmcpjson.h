@@ -61,7 +61,7 @@ enum class PDFMcpRequestIdKind
     None,       ///< No id (a notification, or no request at all)
     String,     ///< A string of at most PDFMcpLimits::MAXIMUM_ID_LENGTH characters
     Integer,    ///< An integer -?(0|[1-9][0-9]{0,18}), which fits qint64
-    Invalid     ///< Any other id: null, bool, object, array, fraction, exponent, huge (-32600, id null)
+    Invalid     ///< Any other id: null, bool, object, array, fraction, exponent, huge (-32600 without an id)
 };
 
 /// Id of a JSON-RPC request: echoed exactly in the response (a string by its

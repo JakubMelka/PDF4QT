@@ -125,8 +125,15 @@ private:
     using BaseClass = QObject;
 
 public:
-    /// No answer within 2 minutes = denied (955:150808)
+    /// No answer within 2 minutes = denied (955:150808); the time counts from the
+    /// moment the dialog of the request appears (item 38)
     static constexpr int DEFAULT_TIMEOUT = 120000;
+
+    /// A request, whose dialog has not appeared yet (behind other requests of its
+    /// tab, in a tab, which is not shown, or behind a modal dialog of the
+    /// application - plan 2.5), is denied after 10 minutes of waiting (the
+    /// overall bound of the queue; its dialog has then its whole DEFAULT_TIMEOUT)
+    static constexpr int DEFAULT_QUEUE_TIMEOUT = 600000;
 
     /// The buttons ignore input for 1 s after the dialog appears
     static constexpr int DEFAULT_INPUT_DELAY = 1000;
@@ -158,6 +165,20 @@ public:
 
     void setTimeout(int timeout) { m_timeout = qMax(0, timeout); }
     int getTimeout() const { return m_timeout; }
+
+    void setQueueTimeout(int timeout) { m_queueTimeout = qMax(0, timeout); }
+    int getQueueTimeout() const { return m_queueTimeout; }
+
+    /// Remaining time of a waiting request in ms (its dialog shown: of the
+    /// DEFAULT_TIMEOUT, otherwise of the DEFAULT_QUEUE_TIMEOUT; -1 = no such request)
+    qint64 getRemainingTime(quint64 confirmationId) const;
+
+    /// The dialog of the request has appeared (its timeout runs)
+    bool isShown(quint64 confirmationId) const;
+
+    /// No new dialog appears while a modal dialog of the application is open:
+    /// a request waits for it (plan 2.5 - a first read with Ask, files.open)
+    bool isWaitingForModalDialog() const { return m_isWaitingForModal; }
 
     void setInputDelay(int delay) { m_inputDelay = qMax(0, delay); }
     int getInputDelay() const { return m_inputDelay; }
@@ -200,7 +221,9 @@ private:
     {
     public:
         std::shared_ptr<PDFAppMcpConfirmation> confirmation;
-        qint64 shownAt = 0;
+        qint64 queuedAt = 0;        ///< The request came (the overall bound of the queue)
+        qint64 shownAt = 0;         ///< Its dialog appeared first (valid when isShown)
+        bool isShown = false;
         bool hasDocument = false;
         bool isPreview = false;
     };
@@ -227,6 +250,8 @@ private:
     bool isDocumentShortcutBlocked() const;
     void showDialogEntry(Entry& entry, PDFAppTab* tab, int index, int count);
     void closeDialog();
+    void restoreFocus(QWidget* tab);
+    void onFocusWindowChanged();
     void showPreview(Entry& entry, PDFAppDocumentTab* tab);
     void closePreview();
     void updateStatusItems(PDFAppMainWindow* window, PDFAppTab* currentTab);
@@ -241,6 +266,9 @@ private:
     std::vector<Entry> m_entries;
     std::function<qint64()> m_clock;
     int m_timeout = DEFAULT_TIMEOUT;
+    int m_queueTimeout = DEFAULT_QUEUE_TIMEOUT;
+    bool m_isWaitingForModal = false;   ///< A dialog waits for a modal dialog of the application to close
+    QPointer<QWidget> m_focusBeforeDialog;  ///< The focused widget of the tab before the dialog took the focus
     int m_inputDelay = DEFAULT_INPUT_DELAY;
     int m_notificationTimeout = DEFAULT_NOTIFICATION_TIMEOUT;
     QPointer<QTimer> m_tickTimer;

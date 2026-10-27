@@ -224,6 +224,12 @@ PDFMcpConnection::PDFMcpConnection(std::shared_ptr<PDFMcpServerShared> shared, Q
 
 PDFMcpConnection::~PDFMcpConnection()
 {
+    if (m_shared && m_shared->link)
+    {
+        // Under the mutex of the link: no eviction is posted to it any more
+        m_shared->link->removeConnection(this);
+    }
+
     if (m_exchange)
     {
         m_exchange->markClosed();
@@ -279,7 +285,7 @@ bool PDFMcpConnection::start(qintptr socketDescriptor)
     m_timer->setSingleShot(true);
     connect(m_timer, &QTimer::timeout, this, &PDFMcpConnection::onTimeout);
 
-    if (count > PDFMcpLimits::MAXIMUM_CONNECTIONS || m_shared->isStopping())
+    if (m_shared->isStopping() || !m_shared->link)
     {
         respondAndClose(PDFMcpHttpResponse::createJsonRpcError(503, PDFMcpErrorCodes::SERVER_STOPPING, QStringLiteral("The MCP server of PDF4QT is not available")));
         return true;
@@ -287,13 +293,26 @@ bool PDFMcpConnection::start(qintptr socketDescriptor)
 
     if (m_isRemote)
     {
-        m_isAddressCounted = m_shared->link && m_shared->link->acquireAddress(m_peerAddress, PDFMcpLimits::MAXIMUM_CONNECTIONS_PER_REMOTE_ADDRESS);
+        m_isAddressCounted = m_shared->link->acquireAddress(m_peerAddress, PDFMcpLimits::MAXIMUM_CONNECTIONS_PER_REMOTE_ADDRESS);
         if (!m_isAddressCounted)
         {
             respondAndClose(PDFMcpHttpResponse::createJsonRpcError(503, PDFMcpErrorCodes::SERVER_STOPPING, QStringLiteral("Too many connections from this address")));
             return true;
         }
     }
+
+    // At the limit the oldest connection, which has not completed a request,
+    // is evicted (follow-up 22: idle connections - a slow or missing head -
+    // cannot hold every slot); the chosen connections, which are still closing,
+    // do not count. Only without such a connection the new one is refused.
+    if (count - m_shared->link->getPendingEvictions() > PDFMcpLimits::MAXIMUM_CONNECTIONS && !m_shared->link->evictIdleConnection())
+    {
+        respondAndClose(PDFMcpHttpResponse::createJsonRpcError(503, PDFMcpErrorCodes::SERVER_STOPPING, QStringLiteral("The MCP server of PDF4QT is not available")));
+        return true;
+    }
+
+    m_isIdle = true;
+    m_shared->link->addIdleConnection(this);
 
     m_parser = PDFMcpHttpParser();
     startTimer(m_shared->getConfig().headerTimeout);
@@ -304,6 +323,31 @@ bool PDFMcpConnection::start(qintptr socketDescriptor)
         processInput();
     }
     return true;
+}
+
+bool PDFMcpConnection::leaveIdle()
+{
+    if (!m_isIdle)
+    {
+        return false;
+    }
+
+    m_isIdle = false;
+    return m_shared->link && m_shared->link->leaveIdleConnection(this);
+}
+
+void PDFMcpConnection::evict()
+{
+    // A connection closing already (also one evicted by processInput, when its
+    // head was completed after the choice) has nothing to do. A chosen
+    // connection never dispatches a request (processInput evicts it first).
+    if (!m_socket || m_state == State::Closing)
+    {
+        return;
+    }
+
+    m_isIdle = false;
+    respondAndClose(PDFMcpHttpResponse::createJsonRpcError(503, PDFMcpErrorCodes::SERVER_STOPPING, QStringLiteral("Too many connections; this connection sent no request")));
 }
 
 void PDFMcpConnection::startTimer(int timeout)
@@ -392,12 +436,25 @@ void PDFMcpConnection::processInput()
             }
 
             case PDFMcpHttpParser::Status::RequestComplete:
+                if (leaveIdle())
+                {
+                    // Chosen for the eviction before its head was complete
+                    evict();
+                    return;
+                }
                 dispatchRequest();
                 return;
 
             case PDFMcpHttpParser::Status::NeedMoreData:
                 if (!wasHeadComplete && m_parser.isHeadComplete())
                 {
+                    // A request in progress is never evicted
+                    if (leaveIdle())
+                    {
+                        evict();
+                        return;
+                    }
+
                     // A client without the token never makes the server buffer a
                     // large body (8 MiB x 64 connections): it is answered (401 /
                     // 429 by the dispatcher) right after its head
@@ -534,6 +591,7 @@ void PDFMcpConnection::respondAndClose(const PDFMcpHttpResponse& response)
         return;
     }
 
+    leaveIdle();
     PDFMcpHttpResponse closingResponse = response;
     closingResponse.closeConnection = true;
     m_state = State::Closing;
@@ -547,6 +605,7 @@ void PDFMcpConnection::respondAndClose(const PDFMcpHttpResponse& response)
 
 void PDFMcpConnection::startClosing()
 {
+    leaveIdle();
     m_state = State::Closing;
     if (m_timer)
     {

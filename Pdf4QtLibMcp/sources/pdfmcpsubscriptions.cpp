@@ -27,6 +27,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSet>
 
 namespace pdf
 {
@@ -91,14 +92,22 @@ std::optional<PDFMcpSubscriptionFilter> PDFMcpSubscriptionFilter::parse(const QJ
             return std::nullopt;
         }
 
-        // Invalid URIs are omitted from the acknowledged subset (not an error)
+        // Invalid URIs are omitted from the acknowledged subset (not an error);
+        // duplicates are found by a set (a list of 100 000 items is linear -
+        // follow-up 23), the rest of a full list is not read
         const QJsonArray array = resources.toArray();
+        QSet<QString> accepted;
         for (const QJsonValue& item : array)
         {
-            const QString uri = item.toString();
-            if (item.isString() && PDFMcpSubscriptions::isValidUri(uri) && !filter.resourceSubscriptions.contains(uri) &&
-                filter.resourceSubscriptions.size() < PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM)
+            if (filter.resourceSubscriptions.size() >= PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM)
             {
+                break;
+            }
+
+            const QString uri = item.toString();
+            if (item.isString() && !accepted.contains(uri) && PDFMcpSubscriptions::isValidUri(uri))
+            {
+                accepted.insert(uri);
                 filter.resourceSubscriptions.append(uri);
             }
         }
@@ -118,12 +127,18 @@ std::optional<PDFMcpSubscriptionFilter> PDFMcpSubscriptionFilter::parse(const QJ
 
         filter.hasTaskIds = true;
         const QJsonArray array = tasks.toArray();
+        QSet<QString> accepted;
         for (const QJsonValue& item : array)
         {
-            const QString taskId = item.toString();
-            if (item.isString() && !taskId.isEmpty() && taskId.size() <= 64 && !filter.taskIds.contains(taskId) &&
-                filter.taskIds.size() < PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM)
+            if (filter.taskIds.size() >= PDFMcpLimits::MAXIMUM_SUBSCRIPTIONS_PER_STREAM)
             {
+                break;
+            }
+
+            const QString taskId = item.toString();
+            if (item.isString() && !taskId.isEmpty() && taskId.size() <= 64 && !accepted.contains(taskId))
+            {
+                accepted.insert(taskId);
                 filter.taskIds.append(taskId);
             }
         }

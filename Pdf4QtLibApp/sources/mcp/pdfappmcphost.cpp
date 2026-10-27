@@ -570,7 +570,11 @@ quint64 PDFAppMcpHost::requestConfirmation(std::shared_ptr<PDFAppMcpConfirmation
     }
     else if (m_isShutDown)
     {
-        QMetaObject::invokeMethod(this, &PDFAppMcpHost::resolveConfirmation, Qt::QueuedConnection, id, PDFAppMcpDecision::DeniedStopped);
+        // A host shut down already (also by a slot of the signal above) is deleted
+        // by its controller before the event loop runs again: a queued decision
+        // would be dropped and the receiver, which keeps itself alive while it
+        // waits, would never end - the request ends now (review RT7, item 45)
+        resolveConfirmation(id, PDFAppMcpDecision::DeniedStopped);
     }
     else if (m_confirmationProvider)
     {

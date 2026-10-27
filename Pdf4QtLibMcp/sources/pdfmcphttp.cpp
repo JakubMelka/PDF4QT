@@ -83,8 +83,6 @@ PDFMcpHttpResponse PDFMcpHttpResponse::createJsonRpcError(int status, int code, 
     PDFMcpJsonWriter writer;
     writer.beginObject();
     writer.writeMember(QLatin1StringView("jsonrpc"), QLatin1StringView("2.0"));
-    writer.key(QLatin1StringView("id"));
-    writer.writeNull();
     writer.key(QLatin1StringView("error"));
     writer.beginObject();
     writer.writeMember(QLatin1StringView("code"), code);

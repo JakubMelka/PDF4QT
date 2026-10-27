@@ -48,6 +48,7 @@
 #include <QVBoxLayout>
 
 #include <cmath>
+#include <limits>
 
 namespace pdf
 {
@@ -612,7 +613,7 @@ void PDFAppMcpConfirmDialog::addReadBody()
         {
             PDFLabel* pages = Helper::createLabel(PDFThemeFonts::Role::Small, PDFThemeColors::TextTertiary, rowWidget, false);
             const PDFInteger pageCount = document->getPageCount();
-            pages->setText(pageCount == 1 ? tr("1 page") : tr("%1 pages").arg(PDFAppLocale::formatNumber(pageCount)));
+            pages->setText(pageCount == 1 ? tr("1 page") : tr("%Ln pages", nullptr, int(qBound(PDFInteger(0), pageCount, PDFInteger(std::numeric_limits<int>::max())))));
             lineLayout->addWidget(pages);
         }
         textLayout->addLayout(lineLayout);

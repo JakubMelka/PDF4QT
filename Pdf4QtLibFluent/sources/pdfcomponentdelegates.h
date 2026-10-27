@@ -26,6 +26,7 @@
 #include "pdffluentglobal.h"
 #include "pdfaccenthue.h"
 #include "pdfcomponentpainter.h"
+#include "pdfwatchedpointer.h"
 
 #include <QHash>
 #include <QKeySequence>
@@ -340,8 +341,8 @@ private:
     /// A watched view and its watched viewport
     struct WatchedView
     {
-        QPointer<QAbstractItemView> view;
-        QPointer<QWidget> viewport;
+        PDFWatchedPointer<QAbstractItemView> view;
+        PDFWatchedPointer<QWidget> viewport;
         QPointer<QHeaderView> header;
         QMetaObject::Connection headerConnection;
         bool isHoverSet = false;    ///< The delegate has set Qt::WA_Hover of the viewport
@@ -383,8 +384,8 @@ private:
     };
 
     std::vector<WatchedView> m_views;
-    QPointer<QAbstractItemView> m_trackedView;
-    QPointer<QWidget> m_trackedViewport;
+    PDFWatchedPointer<QAbstractItemView> m_trackedView;
+    PDFWatchedPointer<QWidget> m_trackedViewport;
     QPointer<QAbstractItemView> m_lastActionView;
     QPersistentModelIndex m_hoverIndex;
     int m_hoverAction = -1;

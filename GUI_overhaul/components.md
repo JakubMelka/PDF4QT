@@ -204,6 +204,7 @@ Sloupec **Použití** je počet instancí na deseti stránkách s obrazovkami (b
 | 50 | Certificate row | `145:2929` | 8 | 17 | S+ | řádek `PDFTreeView` s pěti sloupci; geometrie k ověření |
 | 51 | Color button | `156:4239` | 5 | 21 | W | `PDFColorButton` |
 | 52 | Color palette popover | `156:4240` | – | 0 | W | `PDFColorPalette`; vzorky jsou kulaté `PDFColorSwatch`, šest v řadě |
+| 52a | Color picker | `1294:1695` | 3 | 0 | W | `PDFColorPickerDialog` (dialog „More colors…“, nový 2026-10-27 ve fix wave kroku 7); varianty State = Default / Eyedropper unavailable / Invalid hex |
 
 ### 3.4 Okno dokumentu
 
@@ -347,6 +348,7 @@ Quick action tile, Folder card a Resource card mají jeden recept barev odstínu
 | `PDFStrengthMeter` | úroveň, podrobnost, 20 buněk, čtyři kritéria | `setLevel`, `setDetail`, `setDetailVisible`, `setCriteriaVisible`, splněná kritéria |
 | `PDFColorButton` | vzorek, název, šipka | `setColor`, `setColorName`; otevírá `PDFColorPalette`. Má stav Disabled (výplň `bg/muted`, název `text/disabled`, šipka `icon/disabled`). |
 | `PDFColorPalette` | Suggested, Recently used, odkaz „More colors…“ | `setSuggestedColors`, `setRecentColors`, signály `colorSelected`, `moreColorsRequested`; okno typu popover se stínem. Vzorky jsou `PDFColorSwatch` (kulaté, 28×28), dvě mřížky po šesti v řadě s mezerou 8, vnitřní šířka 208; vybraná barva je vybraný vzorek. Jen tam, kde panel nemá místo na řadu vzorků. |
+| `PDFColorPickerDialog` | karta `PDFMessageBox` bez odznaku 400 široká: plocha sytosti a jasu `PDFColorArea` 354 × 176, řádek odstínu (srovnání `PDFColorComparison` 40 × 28, `PDFHueSlider`, kapátko `PDFIconButton` 28 „crosshair“), pole Hex a R / G / B (`PDFSpinBox` 72), chyba Hex, Cancel / OK | `getColor`, `setColor`, signál `colorSelected` (OK, pak accept); `PDFColorPalette::selectColor` vrací barvu dialogu cestou vzorku (poslední barvy, `colorSelected` řádku i tlačítka); kapátko jen kde jde číst obrazovku (ne Wayland, ne při chybě, test `setScreenColorReader`); obrázky barev nikdy neukážou barvu úniku. Bez alfy (anotace mají vlastní krytí). Aplikace ho otevírá přes `PDFAppColorPicker`. Geometrie v `PDFComponentPainter::ColorPickerMetrics`; R / G / B 72 místo původních 64 (text „255“ se šipkami se do 64 nevešel, Figma upravena). |
 | `PDFToolBarField` | hodnota a tlumená přípona („308 / 1592“) | potomek `PDFLineEdit`: `setSuffix`, `setSuffixVisible`; nejmenší šířka 64. Má stav Disabled bez krytí (výplň `bg/muted`, hodnota i přípona `text/disabled`). |
 | `PDFDocumentTabBar` | taby dokumentů | potomek `QTabBar`: `setTabLocked`, `setTabUnsaved`, `setTabProgress`, `setTabClosable` na tab. Tab je vysoký 32 i bez křížku. Zámek je jantarový ve všech stavech, tečka neuložených změn má barvu popisku tabu. |
 

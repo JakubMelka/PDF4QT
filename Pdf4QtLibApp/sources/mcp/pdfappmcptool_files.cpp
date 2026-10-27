@@ -25,6 +25,7 @@
 #include "pdfappmcpchange.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcpjob.h"
+#include "pdfappmcpreadsupport.h"
 #include "pdfappmcptoolset.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -116,6 +117,93 @@ public:
         builder.setStructuredContent(structured);
         return builder.createCallResult(false);
     }
+
+    /// files.open of a file open already: its tab is activated (and its page
+    /// shown), the result names the document (plan 3.9; Read only)
+    static void activateOpenDocument(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call, PDFAppDocument* document, int page, bool activate)
+    {
+        const QString actionId = QStringLiteral("files.open");
+        if (!host || !call || call->isFinished())
+        {
+            return;
+        }
+
+        PDFAppMainWindow* window = host->getResolver().getWindow();
+        PDFAppDocumentTab* tab = document ? host->getResolver().findTab(document) : nullptr;
+        QPointer<PDFAppDocument> documentGuard(document);
+        QPointer<PDFAppMcpHost> hostGuard(host);
+        if (window && tab && activate)
+        {
+            window->activateTab(tab);
+        }
+        if (!hostGuard || call->isFinished())
+        {
+            return;
+        }
+        if (tab && documentGuard && documentGuard->isReady() && page >= 1 && page <= documentGuard->getPageCount())
+        {
+            if (PDFAppDocumentView* view = tab->getView())
+            {
+                view->goToPage(page - 1);
+            }
+        }
+        if (!hostGuard || call->isFinished())
+        {
+            return;
+        }
+        if (!documentGuard)
+        {
+            host->finishWithError(call, actionId, nullptr, QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
+            return;
+        }
+        host->recordActivity(call, actionId, documentGuard, QJsonObject(), PDFMcpActivityStatus::Ok);
+        call->finish(createOpenResult(documentGuard));
+    }
+};
+
+/// files.open of a file open already with Read documents = Ask: the tab is
+/// activated after the read approval of the assistant [D2] - one approval per
+/// assistant, shared with the other reads (owner decision 2026-10-27, item 26)
+class PDFAppMcpOpenActivation : public PDFAppMcpDeferredRead
+{
+public:
+    PDFAppMcpOpenActivation(PDFAppDocument* document, int page, bool activate) :
+        m_document(document),
+        m_page(page),
+        m_activate(activate)
+    {
+
+    }
+
+    virtual void proceed(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call) override
+    {
+        if (!m_document)
+        {
+            // Closed while the question waited
+            if (host)
+            {
+                host->finishWithError(call, QStringLiteral("files.open"), nullptr, QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
+            }
+            return;
+        }
+        PDFAppMcpFilesToolHelper::activateOpenDocument(host, call, m_document, m_page, m_activate);
+    }
+
+    virtual void refuse(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call, PDFAppMcpDecision decision) override
+    {
+        Q_UNUSED(host);
+
+        // The row of the question shows the decision already
+        if (call && !call->isFinished())
+        {
+            call->finish(PDFMcpCallResult::createToolError(PDFAppMcpReadSupport::getReadRefusedText(decision)));
+        }
+    }
+
+private:
+    QPointer<PDFAppDocument> m_document;
+    int m_page = 0;
+    bool m_activate = true;
 };
 
 int PDFAppMcpFilesToolHelper::s_passwordTimeout = PDFAppMcpFilesTool::DEFAULT_PASSWORD_TIMEOUT;
@@ -798,38 +886,25 @@ void PDFAppMcpFilesTool::handle(const PDFAppMcpToolInvocation& invocation)
         const int page = arguments.value(QStringLiteral("page")).toInt(0);
         const bool activate = arguments.value(QStringLiteral("activate")).toBool(true);
 
-        // A file open already: Read only, no question (plan 3.9)
+        // A file open already: Read only (plan 3.9) - with Read documents = Ask the
+        // read approval of the assistant [D2] first, as every read (item 26)
         PDFAppDocumentRegistry* registry = context ? context->getDocumentRegistry() : nullptr;
         if (PDFAppDocument* document = registry ? registry->findByCanonicalPath(path) : nullptr)
         {
-            if (host->getPolicy().evaluate(PDFAppMcpPermissionKind::Read, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+            std::shared_ptr<PDFAppMcpOpenActivation> continuation = std::make_shared<PDFAppMcpOpenActivation>(document, page, activate);
+            switch (PDFAppMcpReadSupport::checkRead(host, call, actionId, document, continuation))
             {
-                host->finishWithError(call, actionId, document, QStringLiteral("The user does not allow assistants to read documents (Read documents is set to Deny in PDF4QT)."),
-                                      PDFMcpActivityStatus::DeniedUser);
-                return;
+                case PDFAppMcpReadAccess::Denied:
+                    host->finishWithError(call, actionId, document, QStringLiteral("The user does not allow assistants to read documents (Read documents is set to Deny in PDF4QT)."),
+                                          PDFMcpActivityStatus::DeniedUser);
+                    return;
+                case PDFAppMcpReadAccess::Asked:
+                    return;
+                case PDFAppMcpReadAccess::Allowed:
+                    break;
             }
 
-            PDFAppMainWindow* window = host->getResolver().getWindow();
-            PDFAppDocumentTab* tab = host->getResolver().findTab(document);
-            QPointer<PDFAppDocument> documentGuard(document);
-            if (window && tab && activate)
-            {
-                window->activateTab(tab);
-            }
-            if (tab && documentGuard && documentGuard->isReady() && page >= 1 && page <= documentGuard->getPageCount())
-            {
-                if (PDFAppDocumentView* view = tab->getView())
-                {
-                    view->goToPage(page - 1);
-                }
-            }
-            if (!documentGuard)
-            {
-                host->finishWithError(call, actionId, nullptr, QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
-                return;
-            }
-            host->recordActivity(call, actionId, documentGuard, QJsonObject(), PDFMcpActivityStatus::Ok);
-            call->finish(PDFAppMcpFilesToolHelper::createOpenResult(documentGuard));
+            PDFAppMcpFilesToolHelper::activateOpenDocument(host, call, document, page, activate);
             return;
         }
 

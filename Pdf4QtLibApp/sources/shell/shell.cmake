@@ -25,6 +25,8 @@
 # pages. Paths are relative to the directory of Pdf4QtLibApp.
 
 set(PDF4QT_LIBAPP_SHELL_SOURCES
+    sources/shell/pdfappcolorpicker.cpp
+    sources/shell/pdfappcolorpicker.h
     sources/shell/pdfapphistory.cpp
     sources/shell/pdfapphistory.h
     sources/shell/pdfappmainwindow.cpp

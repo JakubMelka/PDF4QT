@@ -161,6 +161,20 @@ std::vector<QString> PDFMcpSessionRegistry::getIdleSessions(qint64 now, qint64 i
     return keys;
 }
 
+std::vector<QString> PDFMcpSessionRegistry::getUnusedSessions(qint64 now, qint64 unusedTime) const
+{
+    std::vector<QString> keys;
+    for (const auto& item : m_sessions)
+    {
+        const PDFMcpSession& session = *item.second;
+        if (!session.isInitialized && !session.isUsed && !session.stream && now - session.createdAt >= unusedTime)
+        {
+            keys.push_back(item.first);
+        }
+    }
+    return keys;
+}
+
 std::vector<QString> PDFMcpSessionRegistry::getKeys() const
 {
     std::vector<QString> keys;

@@ -26,7 +26,9 @@
 
 #include <QtTest>
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <limits>
 
 /// Samples of the tests: one annotation of every edited kind on one page
@@ -126,6 +128,25 @@ public:
         return pdf::PDFAnnotationPropertyEditor::read(builder.getStorage(), annotation);
     }
 
+    /// Decoded content and the blend mode of the graphic state PDF4QTBlendMode of the
+    /// normal appearance stream of the annotation (empty without the state)
+    std::pair<QByteArray, QByteArray> getAppearanceBlendMode(pdf::PDFObjectReference annotation) const
+    {
+        const pdf::PDFObjectStorage* storage = builder.getStorage();
+        const pdf::PDFDictionary* appearance = storage->getDictionaryFromObject(get(annotation, "AP"));
+        const pdf::PDFObject normal = appearance ? storage->getObject(appearance->get("N")) : pdf::PDFObject();
+        const pdf::PDFStream* stream = normal.isStream() ? normal.getStream() : nullptr;
+        if (!stream)
+        {
+            return {};
+        }
+        const pdf::PDFDictionary* resources = storage->getDictionaryFromObject(stream->getDictionary()->get("Resources"));
+        const pdf::PDFDictionary* graphicStates = resources ? storage->getDictionaryFromObject(resources->get("ExtGState")) : nullptr;
+        const pdf::PDFDictionary* graphicState = graphicStates ? storage->getDictionaryFromObject(graphicStates->get("PDF4QTBlendMode")) : nullptr;
+        const pdf::PDFObject blendMode = graphicState ? storage->getObject(graphicState->get("BM")) : pdf::PDFObject();
+        return { storage->getDecodedStream(stream), blendMode.isName() ? blendMode.getString() : QByteArray() };
+    }
+
     /// The entry of the annotation of the builder
     pdf::PDFObject get(pdf::PDFObjectReference annotation, const char* key) const
     {
@@ -149,6 +170,7 @@ private slots:
     void hostileDictionaries();
     void linkProperties();
     void helpers();
+    void blendMode();
 };
 
 void AnnotationPropertiesTest::readEachType()
@@ -187,7 +209,7 @@ void AnnotationPropertiesTest::readEachType()
     QVERIFY(samples.read(samples.polygon).supportedFields.testFlag(P::InteriorColor));
     QVERIFY(!samples.read(samples.ink).supportedFields.testFlag(P::InteriorColor));
     QVERIFY(samples.read(samples.ink).supportedFields.testFlag(P::Border));
-    QCOMPARE(samples.read(samples.highlight).supportedFields, P::Fields(P::Author | P::Subject | P::Contents | P::Opacity | P::Flags | P::Color));
+    QCOMPARE(samples.read(samples.highlight).supportedFields, P::Fields(P::Author | P::Subject | P::Contents | P::Opacity | P::BlendMode | P::Flags | P::Color));
     QCOMPARE(samples.read(samples.caret).type, pdf::AnnotationType::Caret);
 
     const P freeText = samples.read(samples.freeText);
@@ -746,6 +768,212 @@ void AnnotationPropertiesTest::helpers()
     style.textAlignment = pdf::TextAlignment(Qt::AlignRight | Qt::AlignBottom);
     QCOMPARE(E::boundFreeTextStyle(style).fontFamily, style.fontFamily);
     QCOMPARE(E::boundFreeTextStyle(style).textAlignment, pdf::TextAlignment(Qt::AlignRight | Qt::AlignTop));
+}
+
+void AnnotationPropertiesTest::blendMode()
+{
+    using P = pdf::PDFAnnotationProperties;
+    using E = pdf::PDFAnnotationPropertyEditor;
+
+    AnnotationPropertiesTestSamples samples;
+
+    // The offered modes: Normal and the separable modes the viewer draws
+    const std::vector<pdf::BlendMode> offered = E::getOfferedBlendModes();
+    const std::pair<pdf::BlendMode, QByteArray> offeredNames[] = {
+        { pdf::BlendMode::Normal, "Normal" }, { pdf::BlendMode::Multiply, "Multiply" }, { pdf::BlendMode::Screen, "Screen" },
+        { pdf::BlendMode::Overlay, "Overlay" }, { pdf::BlendMode::Darken, "Darken" }, { pdf::BlendMode::Lighten, "Lighten" },
+        { pdf::BlendMode::ColorDodge, "ColorDodge" }, { pdf::BlendMode::ColorBurn, "ColorBurn" }, { pdf::BlendMode::HardLight, "HardLight" },
+        { pdf::BlendMode::SoftLight, "SoftLight" }, { pdf::BlendMode::Difference, "Difference" }, { pdf::BlendMode::Exclusion, "Exclusion" }
+    };
+    QCOMPARE(offered.size(), std::size(offeredNames));
+    for (size_t i = 0; i < offered.size(); ++i)
+    {
+        QCOMPARE(offered[i], offeredNames[i].first);
+        QVERIFY(E::isBlendModeOffered(offeredNames[i].second));
+        QCOMPARE(E::getBlendMode(offeredNames[i].second), offeredNames[i].first);
+        QCOMPARE(E::getBlendModeName(offeredNames[i].first), offeredNames[i].second);
+    }
+    QCOMPARE(E::getBlendMode("Unknown"), pdf::BlendMode::Invalid);
+    for (const char* name : { "Hue", "Saturation", "Color", "Luminosity", "Compatible" })
+    {
+        QVERIFY(!E::isBlendModeOffered(name));
+    }
+    QVERIFY(E::isBlendModeOffered("Multiply"));
+    QVERIFY(!E::isBlendModeOffered("Unknown"));
+    QVERIFY(!E::isBlendModeOffered(QByteArray()));
+
+    // Markup annotations have the blend mode, a link and a popup not
+    QVERIFY(E::getSupportedFields(pdf::AnnotationType::Square, false).testFlag(P::BlendMode));
+    QVERIFY(!E::getSupportedFields(pdf::AnnotationType::Link, false).testFlag(P::BlendMode));
+    QVERIFY(!samples.read(samples.popup).supportedFields.testFlag(P::BlendMode));
+
+    // Read: no entry is Normal, a highlight without BM is Multiply (O20)
+    QCOMPARE(samples.read(samples.square).blendMode, QByteArray("Normal"));
+    QCOMPARE(samples.read(samples.highlight).blendMode, QByteArray("Multiply"));
+    pdf::PDFObjectFactory removeFactory;
+    removeFactory.beginDictionary();
+    removeFactory.beginDictionaryItem("BM");
+    removeFactory << pdf::PDFObject();
+    removeFactory.endDictionaryItem();
+    removeFactory.endDictionary();
+    samples.merge(samples.highlight, removeFactory.takeObject());
+    QVERIFY(samples.get(samples.highlight, "BM").isNull());
+    QCOMPARE(samples.read(samples.highlight).blendMode, QByteArray("Multiply"));
+    QCOMPARE(P().blendMode, QByteArray("Normal"));
+
+    // Every offered mode is written and read back; the appearance stream sets the mode
+    // (readers ignoring BM of the annotation), Normal writes no graphic state
+    for (const auto& [mode, name] : offeredNames)
+    {
+        P square = samples.read(samples.square);
+        square.blendMode = name;
+        QVERIFY(E::write(&samples.builder, samples.square, square, P::BlendMode));
+        QCOMPARE(samples.read(samples.square).blendMode, square.blendMode);
+        QCOMPARE(samples.get(samples.square, "BM").getString(), square.blendMode);
+        const std::pair<QByteArray, QByteArray> appearance = samples.getAppearanceBlendMode(samples.square);
+        QVERIFY(!appearance.first.isEmpty());
+        QCOMPARE(appearance.first.startsWith("q /PDF4QTBlendMode gs"), mode != pdf::BlendMode::Normal);
+        QCOMPARE(appearance.second, mode != pdf::BlendMode::Normal ? square.blendMode : QByteArray());
+    }
+
+    // The change mask writes only the blend mode
+    P original = samples.read(samples.circle);
+    P changed = original;
+    changed.blendMode = "Screen";
+    QCOMPARE(E::getChangedFields(original, changed), P::Fields(P::BlendMode));
+    changed.contents = QStringLiteral("Not written");
+    changed.opacity = 0.2;
+    QVERIFY(E::write(&samples.builder, samples.circle, changed, P::BlendMode));
+    P result = samples.read(samples.circle);
+    QCOMPARE(result.blendMode, QByteArray("Screen"));
+    QCOMPARE(result.contents, original.contents);
+    QCOMPARE(result.opacity, original.opacity);
+    QCOMPARE(result.color, original.color);
+    QCOMPARE(result.interiorColor, original.interiorColor);
+
+    // The appearance keeps the mode also when it is created again for another change
+    changed = result;
+    changed.color = QColor(Qt::darkGreen);
+    QVERIFY(E::write(&samples.builder, samples.circle, changed, P::Color));
+    QCOMPARE(samples.getAppearanceBlendMode(samples.circle).second, QByteArray("Screen"));
+
+    // A highlight written with Normal stays Normal (an explicit entry)
+    P highlight = samples.read(samples.highlight);
+    highlight.blendMode = "Normal";
+    QVERIFY(E::write(&samples.builder, samples.highlight, highlight, P::BlendMode));
+    QCOMPARE(samples.read(samples.highlight).blendMode, QByteArray("Normal"));
+    QCOMPARE(samples.get(samples.highlight, "BM").getString(), QByteArray("Normal"));
+
+    // Hostile BM values of the document
+    struct HostileCase
+    {
+        pdf::PDFObject value;
+        QByteArray expected;
+    };
+    pdf::PDFObjectFactory arrayFactory;
+    arrayFactory.beginArray();
+    arrayFactory << pdf::WrapName("Unknown") << pdf::WrapName("Hue") << pdf::WrapName("Multiply");
+    arrayFactory.endArray();
+    pdf::PDFObjectFactory unrecognizedFactory;
+    unrecognizedFactory.beginArray();
+    unrecognizedFactory << pdf::WrapName("Unknown") << pdf::PDFInteger(5) << QStringLiteral("Multiply");
+    unrecognizedFactory.endArray();
+    pdf::PDFObjectFactory skippedFactory;
+    skippedFactory.beginArray();
+    skippedFactory << pdf::PDFInteger(1) << pdf::WrapName("Darken") << pdf::WrapName("Screen");
+    skippedFactory.endArray();
+    const pdf::PDFObjectReference nameReference = samples.builder.addObject(pdf::PDFObject::createName("Lighten"));
+    const HostileCase cases[] = {
+        { arrayFactory.takeObject(), QByteArray("Hue") },                     // the first recognized name wins, also one not drawn
+        { unrecognizedFactory.takeObject(), QByteArray("Normal") },          // no recognized name: Normal
+        { skippedFactory.takeObject(), QByteArray("Darken") },               // other items are skipped
+        { pdf::PDFObject::createInteger(5), QByteArray("Normal") },          // a wrong type
+        { pdf::PDFObject::createString("Multiply"), QByteArray("Normal") },  // a string is not a name
+        { pdf::PDFObject::createReference(nameReference), QByteArray("Lighten") },
+        { pdf::PDFObject::createName("Unknown"), QByteArray("Unknown") },    // an unknown name is shown and kept
+        { pdf::PDFObject::createName("Bad#Name"), QByteArray("Normal") },    // not a valid name
+        { pdf::PDFObject::createName(QByteArray(200, 'M')), QByteArray("Normal") },
+        { pdf::PDFObject::createName("Compatible"), QByteArray("Compatible") },
+    };
+    for (const HostileCase& testCase : cases)
+    {
+        pdf::PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("BM");
+        factory << testCase.value;
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        samples.merge(samples.polygon, factory.takeObject());
+        QCOMPARE(samples.read(samples.polygon).blendMode, testCase.expected);
+    }
+    QVERIFY(E::readBlendMode(nullptr, pdf::PDFObject::createName("Multiply")).isEmpty());
+
+    // A highlight with a hostile entry is Normal (the entry exists)
+    pdf::PDFObjectFactory highlightFactory;
+    highlightFactory.beginDictionary();
+    highlightFactory.beginDictionaryItem("BM");
+    highlightFactory << pdf::PDFInteger(7);
+    highlightFactory.endDictionaryItem();
+    highlightFactory.endDictionary();
+    samples.merge(samples.highlight, highlightFactory.takeObject());
+    QCOMPARE(samples.read(samples.highlight).blendMode, QByteArray("Normal"));
+
+    // A mode the viewer does not draw is kept, unless another is written
+    pdf::PDFObjectFactory hueFactory;
+    hueFactory.beginDictionary();
+    hueFactory.beginDictionaryItem("BM");
+    hueFactory << pdf::WrapName("Hue");
+    hueFactory.endDictionaryItem();
+    hueFactory.endDictionary();
+    samples.merge(samples.ink, hueFactory.takeObject());
+    original = samples.read(samples.ink);
+    QCOMPARE(original.blendMode, QByteArray("Hue"));
+    changed = original;
+    changed.contents = QStringLiteral("Changed");
+    QCOMPARE(E::getChangedFields(original, changed), P::Fields(P::Contents));
+    QVERIFY(E::write(&samples.builder, samples.ink, changed, E::getChangedFields(original, changed)));
+    QCOMPARE(samples.get(samples.ink, "BM").getString(), QByteArray("Hue"));
+    QCOMPARE(samples.read(samples.ink).contents, QStringLiteral("Changed"));
+
+    // An unknown name and a Compatible entry write no graphic state; an unknown name given
+    // by the caller is never written (alone nothing is written)
+    pdf::PDFObjectFactory unknownFactory;
+    unknownFactory.beginDictionary();
+    unknownFactory.beginDictionaryItem("BM");
+    unknownFactory << pdf::WrapName("Unknown");
+    unknownFactory.endDictionaryItem();
+    unknownFactory.endDictionary();
+    samples.merge(samples.square, unknownFactory.takeObject());
+    P square = samples.read(samples.square);
+    QCOMPARE(square.blendMode, QByteArray("Unknown"));
+    square.color = QColor(Qt::cyan);
+    QVERIFY(E::write(&samples.builder, samples.square, square, P::Color));
+    QVERIFY(samples.getAppearanceBlendMode(samples.square).second.isEmpty());
+    square.blendMode = "Compatible";
+    QVERIFY(E::write(&samples.builder, samples.square, square, P::BlendMode));
+    QCOMPARE(samples.get(samples.square, "BM").getString(), QByteArray("Compatible"));
+    QVERIFY(samples.getAppearanceBlendMode(samples.square).second.isEmpty());
+    square.blendMode = "Another";
+    QVERIFY(!E::write(&samples.builder, samples.square, square, P::BlendMode));
+    QCOMPARE(samples.get(samples.square, "BM").getString(), QByteArray("Compatible"));
+    square.contents = QStringLiteral("Only the text");
+    QVERIFY(E::write(&samples.builder, samples.square, square, P::BlendMode | P::Contents));
+    QCOMPARE(samples.get(samples.square, "BM").getString(), QByteArray("Compatible"));
+    QCOMPARE(samples.read(samples.square).contents, QStringLiteral("Only the text"));
+
+    // Caller values are bounded: an empty or invalid name is Normal
+    square.blendMode = QByteArray();
+    QCOMPARE(E::bound(square).blendMode, QByteArray("Normal"));
+    square.blendMode = "Multi ply";
+    QCOMPARE(E::bound(square).blendMode, QByteArray("Normal"));
+
+    // The built document parses the written mode
+    square.blendMode = "Difference";
+    QVERIFY(E::write(&samples.builder, samples.square, square, P::BlendMode));
+    pdf::PDFDocument document = samples.builder.build();
+    const pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(&document.getStorage(), samples.square);
+    QVERIFY(annotation);
+    QCOMPARE(annotation->getBlendMode(), pdf::BlendMode::Difference);
 }
 
 QTEST_MAIN(AnnotationPropertiesTest)

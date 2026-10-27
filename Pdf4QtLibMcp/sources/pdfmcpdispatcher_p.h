@@ -94,6 +94,12 @@ public:
     bool isEliciting = false;
 
     qint64 cancelDeadline = 0;          ///< A call canceled by the server is answered by an error after this time
+
+    // Input of a task (tasks extension): "Each request key in inputRequests MUST
+    // be unique over the lifetime of a single task" - the keys of the host get
+    // the suffix of their round (follow-up 32)
+    int taskInputRound = 0;
+    std::map<QString, QString> taskInputKeys;   ///< Key of the client -> key of the host (the current round)
 };
 
 /// A listen stream of the modern era (subscriptions/listen)

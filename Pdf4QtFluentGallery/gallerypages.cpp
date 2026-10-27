@@ -793,6 +793,17 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
     sidebarPrototype->setProperty(Properties::SIDEBAR_TAB, true);
     sidebarPrototype->hide();
 
+    // Action tiles with the color bar of the Annotate panel (Color bar of 190:740,
+    // 877:10157) and the target of the color row (1295:31357)
+    const pdf::PDFThemeColors lightColors;
+    QToolButton* yellowBarPrototype = new QToolButton(prototypeBar);
+    yellowBarPrototype->setProperty(Properties::COLOR_BAR, lightColors.getColor(pdf::PDFThemeColors::AnnotationYellow));
+    QToolButton* targetPrototype = new QToolButton(prototypeBar);
+    targetPrototype->setProperty(Properties::COLOR_BAR, lightColors.getColor(pdf::PDFThemeColors::AnnotationBlue));
+    targetPrototype->setProperty(Properties::EDIT_TARGET, true);
+    QToolButton* whiteBarPrototype = new QToolButton(prototypeBar);
+    whiteBarPrototype->setProperty(Properties::COLOR_BAR, lightColors.getColor(pdf::PDFThemeColors::AnnotationWhite));
+
     auto toolSpecimen = [&builder, style](const QString& caption, const QString& node, const char* iconName, const QString& text, Qt::ToolButtonStyle buttonStyle, StateFlags flags,
                                            QStyleOptionToolButton::ToolButtonFeatures features, QStyle::SubControls activeSubControls, QToolButton* prototype, int iconExtent, qreal radius)
     {
@@ -848,6 +859,11 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
     toolSpecimen(QStringLiteral("Menu button / open"), QStringLiteral("607:1187"), "file", QStringLiteral("File"), Qt::ToolButtonTextBesideIcon, On, none, {}, toolbarPrototype, 18, 10.0);
     toolSpecimen(QStringLiteral("Action tile / Default"), QStringLiteral("607:1201"), "highlighter", QStringLiteral("Highlight"), Qt::ToolButtonTextUnderIcon, Default, none, {}, toolbarPrototype, 18, 10.0);
     toolSpecimen(QStringLiteral("Action tile / Active"), QStringLiteral("607:1194"), "highlighter", QStringLiteral("Highlight"), Qt::ToolButtonTextUnderIcon, On, none, {}, toolbarPrototype, 18, 10.0);
+    toolSpecimen(QStringLiteral("Action tile / Color bar, Active"), QStringLiteral("877:10161"), "highlighter", QStringLiteral("Highlight"), Qt::ToolButtonTextUnderIcon, On, none, {}, yellowBarPrototype, 18, 10.0);
+    toolSpecimen(QStringLiteral("Action tile / Color bar, edit target"), QStringLiteral("1295:31362"), "underline", QStringLiteral("Underline"), Qt::ToolButtonTextUnderIcon, Default, none, {}, targetPrototype, 18, 10.0);
+    toolSpecimen(QStringLiteral("Action tile / Color bar, edit target, Hover"), QStringLiteral("1295:31306"), "underline", QStringLiteral("Underline"), Qt::ToolButtonTextUnderIcon, Hover, none, QStyle::SC_ToolButton, targetPrototype, 18, 10.0);
+    toolSpecimen(QStringLiteral("Action tile / Color bar white (outline)"), QStringLiteral("190:740"), "highlighter", QStringLiteral("Highlight"), Qt::ToolButtonTextUnderIcon, Default, none, {}, whiteBarPrototype, 18, 10.0);
+    toolSpecimen(QStringLiteral("Action tile / Color bar, Disabled"), QStringLiteral("190:740"), "highlighter", QStringLiteral("Highlight"), Qt::ToolButtonTextUnderIcon, Disabled, none, {}, yellowBarPrototype, 18, 10.0);
     toolSpecimen(QStringLiteral("Sidebar tab / Default"), QStringLiteral("607:1207"), "pages", QString(), Qt::ToolButtonIconOnly, Default, none, {}, sidebarPrototype, 18, 8.0);
     toolSpecimen(QStringLiteral("Sidebar tab / Selected"), QStringLiteral("607:1207"), "pages", QString(), Qt::ToolButtonIconOnly, On, none, {}, sidebarPrototype, 18, 8.0);
     toolSpecimen(QStringLiteral("Sidebar tab / Hover"), QStringLiteral("607:1213"), "pages", QString(), Qt::ToolButtonIconOnly, Hover, none, QStyle::SC_ToolButton, sidebarPrototype, 18, 8.0);
@@ -944,6 +960,17 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
     tile->setCheckable(true);
     tile->setAutoRaise(true);
     builder.live(QStringLiteral("Action tile (checkable)"), tile, QStringLiteral("607:1201"));
+
+    QToolButton* colorTile = new QToolButton(builder.page());
+    colorTile->setObjectName(QStringLiteral("colorBarTile"));
+    colorTile->setIcon(GalleryHelper::icon("underline"));
+    colorTile->setText(QStringLiteral("Underline"));
+    colorTile->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    colorTile->setCheckable(true);
+    colorTile->setFixedSize(88, 56);
+    colorTile->setProperty(Properties::COLOR_BAR, lightColors.getColor(pdf::PDFThemeColors::AnnotationBlue));
+    colorTile->setProperty(Properties::EDIT_TARGET, true);
+    builder.live(QStringLiteral("Action tile with the color bar, edit target"), colorTile, QStringLiteral("1295:31362"));
 
     QToolButton* framed = new QToolButton(builder.page());
     framed->setIcon(GalleryHelper::icon("folder-open"));

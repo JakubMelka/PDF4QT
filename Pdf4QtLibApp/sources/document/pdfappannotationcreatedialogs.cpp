@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappannotationcreatedialogs.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotationcreator.h"
 #include "pdfappannotationoperations.h"
 #include "pdfappcommentpopup.h"
@@ -255,6 +256,8 @@ PDFAppTextBoxPopup::PDFAppTextBoxPopup(QWidget* parent) :
     connect(m_textColorRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppTextBoxPopup::onValueChanged);
     connect(m_borderWidthSpin.data(), &QSpinBox::valueChanged, this, &PDFAppTextBoxPopup::onValueChanged);
     connect(m_borderColorRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppTextBoxPopup::onValueChanged);
+    PDFAppColorPicker::attach(m_textColorRow.data());
+    PDFAppColorPicker::attach(m_borderColorRow.data());
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppTextBoxPopup::update));
 
     retranslate();

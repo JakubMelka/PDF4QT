@@ -33,6 +33,8 @@ endif()
 add_library(Pdf4QtLibFluent SHARED
     sources/pdfaccenthue.cpp
     sources/pdfaccenthue.h
+    sources/pdfcolorpickerdialog.cpp
+    sources/pdfcolorpickerdialog.h
     sources/pdfcomponentassistants.cpp
     sources/pdfcomponentassistants.h
     sources/pdfcomponentbadges.cpp
@@ -48,6 +50,7 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfcomponentpainterassistants.cpp
     sources/pdfcomponentpainterbadges.cpp
     sources/pdfcomponentpaintercards.cpp
+    sources/pdfcomponentpaintercolorpicker.cpp
     sources/pdfcomponentpainterdelegates.cpp
     sources/pdfcomponentpainterpanels.cpp
     sources/pdfcomponentpainterwindow.cpp
@@ -81,6 +84,7 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfthememanager.h
     sources/pdftooltip.cpp
     sources/pdftooltip.h
+    sources/pdfwatchedpointer.h
     sources/pdfwidgetstyle.cpp
     sources/pdfwidgetstyle.h
     sources/pdfwidgetstylebuttons.cpp

@@ -127,7 +127,25 @@ public:
         return !handler || handler->getMode() == EncryptionMode::None || handler->isAllowed(permission);
     }
 
-    static QString getEncryptionMethod(const PDFSecurityHandler* handler)
+    /// The crypt filter of the streams of an encryption of version 4 is RC4 (/CFM
+    /// /V2): V 4 is RC4 or AES-128 by its crypt filters (ISO 32000-2 7.6.5)
+    static bool isRC4CryptFilter(const PDFDocument* document)
+    {
+        const PDFDictionary* trailer = document ? document->getTrailerDictionary() : nullptr;
+        const PDFDictionary* encrypt = trailer ? document->getDictionaryFromObject(trailer->get("Encrypt")) : nullptr;
+        const PDFDictionary* filters = encrypt ? document->getDictionaryFromObject(encrypt->get("CF")) : nullptr;
+        if (!filters)
+        {
+            return false;
+        }
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        const QByteArray filterName = loader.readNameFromDictionary(encrypt, "StmF");
+        const PDFDictionary* filter = filterName.isEmpty() ? nullptr : document->getDictionaryFromObject(filters->get(filterName));
+        return filter && loader.readNameFromDictionary(filter, "CFM") == "V2";
+    }
+
+    static QString getEncryptionMethod(const PDFDocument* document, const PDFSecurityHandler* handler)
     {
         switch (handler->getMode())
         {
@@ -149,7 +167,7 @@ public:
             case 3:
                 return QStringLiteral("RC4");
             case 4:
-                return QStringLiteral("AES 128-bit");
+                return isRC4CryptFilter(document) ? QStringLiteral("RC4") : QStringLiteral("AES 128-bit");
             case 5:
                 return QStringLiteral("AES 256-bit");
             default:
@@ -459,7 +477,7 @@ QByteArray PDFAppMcpDocumentReader::getInfo(const PDFAppDocument* document)
     {
         writer.key(QLatin1StringView("encryption"));
         writer.beginObject();
-        writer.writeMember(QLatin1StringView("method"), Helper::getEncryptionMethod(handler));
+        writer.writeMember(QLatin1StringView("method"), Helper::getEncryptionMethod(pdfDocument.data(), handler));
         writer.key(QLatin1StringView("permissions"));
         writer.beginObject();
         using Permission = PDFSecurityHandler::Permission;
@@ -727,7 +745,7 @@ QByteArray PDFAppMcpDocumentReader::getAnnotations(const PDFAppMcpDocumentHeader
     writer.beginArray();
 
     const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
-    PDFDocumentDataLoaderDecorator loader(document);
+    PDFDocumentDataLoaderDecorator loader(document ? &document->getStorage() : nullptr);   // (no document: never used)
     qint64 index = 0;
     int written = 0;
     bool hasMore = false;
@@ -902,7 +920,7 @@ QByteArray PDFAppMcpDocumentReader::getFormFields(const PDFAppMcpDocumentHeader&
     }
 
     const QSet<QString> nameFilter(names.cbegin(), names.cend());
-    PDFDocumentDataLoaderDecorator loader(document);
+    PDFDocumentDataLoaderDecorator loader(document ? &document->getStorage() : nullptr);   // (no document: never used)
 
     writer.key(QLatin1StringView("fields"));
     writer.beginArray();

@@ -124,6 +124,10 @@ public:
 
     /// Text of a read refused by the permission Deny
     static QString getDeniedText();
+
+    /// Title of a listed document while Read documents is Ask: "Open document
+    /// <id>" without its file name (owner decision 2026-10-27, item 27)
+    static QString getGenericTitle(const QString& documentId);
 };
 
 /// Watches the open documents for the resources (plan 4.2): a document opened,
@@ -163,7 +167,9 @@ private:
     void onRegistryDocumentChanged(pdf::PDFAppDocument* document);
     void onDocumentContentChanged(const pdf::PDFModifiedDocument& modified);
     void onCurrentTabChanged(int index);
+    void onCatalogChanged(quint64 generation);
     void onRebuildTimer();
+    void updateListedKeys();
     void scheduleRebuild();
     void notifyUpdated(const QString& uri);
 

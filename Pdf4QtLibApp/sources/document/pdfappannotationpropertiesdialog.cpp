@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappannotationpropertiesdialog.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotationcontroller.h"
 #include "pdfappannotationinfo.h"
 #include "pdfappannotationoperations.h"
@@ -484,6 +485,52 @@ QString PDFAppAnnotationPropertiesDialog::getBorderStyleName(AnnotationBorderSty
     return tr("Solid");
 }
 
+QString PDFAppAnnotationPropertiesDialog::getBlendModeName(const QByteArray& name)
+{
+    switch (PDFAnnotationPropertyEditor::getBlendMode(name))
+    {
+        case BlendMode::Normal:
+            return tr("Normal");
+        case BlendMode::Multiply:
+            return tr("Multiply");
+        case BlendMode::Screen:
+            return tr("Screen");
+        case BlendMode::Overlay:
+            return tr("Overlay");
+        case BlendMode::Darken:
+            return tr("Darken");
+        case BlendMode::Lighten:
+            return tr("Lighten");
+        case BlendMode::ColorDodge:
+            return tr("Color dodge");
+        case BlendMode::ColorBurn:
+            return tr("Color burn");
+        case BlendMode::HardLight:
+            return tr("Hard light");
+        case BlendMode::SoftLight:
+            return tr("Soft light");
+        case BlendMode::Difference:
+            return tr("Difference");
+        case BlendMode::Exclusion:
+            return tr("Exclusion");
+        case BlendMode::Hue:
+            return tr("%1 (not displayed)").arg(tr("Hue"));
+        case BlendMode::Saturation:
+            return tr("%1 (not displayed)").arg(tr("Saturation"));
+        case BlendMode::Color:
+            return tr("%1 (not displayed)").arg(tr("Color"));
+        case BlendMode::Luminosity:
+            return tr("%1 (not displayed)").arg(tr("Luminosity"));
+        case BlendMode::Compatible:
+            return tr("%1 (not displayed)").arg(tr("Compatible"));
+        default:
+            break;
+    }
+
+    // An unknown name of the document (a PDF name: printable ASCII, bounded by the editor)
+    return tr("%1 (not displayed)").arg(QString::fromLatin1(name));
+}
+
 void PDFAppAnnotationPropertiesDialog::createContent()
 {
     // The sections scroll in a low window (the minimal window 720 x 480)
@@ -566,6 +613,7 @@ PDFColorSwatchRow* PDFAppAnnotationPropertiesDialog::createSwatchRow(const QStri
     options.setFlag(PDFColorSwatchRow::Option::White, hasWhite);
     row->setOptions(options);
     row->setColor(color);
+    PDFAppColorPicker::attach(row);
     return row;
 }
 
@@ -870,6 +918,32 @@ void PDFAppAnnotationPropertiesDialog::createAppearanceSection(QVBoxLayout* layo
         row->addWidget(m_opacitySpinBox);
         connect(m_opacitySlider.data(), &QSlider::valueChanged, this, &PDFAppAnnotationPropertiesDialog::onOpacitySliderChanged);
         connect(m_opacitySpinBox.data(), &PDFSpinBox::valueChanged, this, &PDFAppAnnotationPropertiesDialog::onOpacitySpinBoxChanged);
+    }
+
+    // Blend mode 1296:31359 (owner 2026-10-27): Normal and the modes the viewer draws; a
+    // mode of the document, which it does not draw, stays as an item, until another is picked
+    if (fields.testFlag(F::BlendMode))
+    {
+        m_blendModeComboBox = new PDFComboBox(this);
+        m_blendModeComboBox->setObjectName(QStringLiteral("propertiesBlendMode"));
+        m_blendModeComboBox->setAccessibleName(tr("Blend mode"));
+        for (const BlendMode mode : PDFAnnotationPropertyEditor::getOfferedBlendModes())
+        {
+            const QByteArray name = PDFAnnotationPropertyEditor::getBlendModeName(mode);
+            m_blendModeComboBox->addItem(getBlendModeName(name), QString::fromLatin1(name));
+        }
+        for (const QByteArray& name : { m_original.blendMode, m_shown.blendMode })
+        {
+            if (m_blendModeComboBox->findData(QString::fromLatin1(name)) < 0)
+            {
+                m_blendModeComboBox->addItem(getBlendModeName(name), QString::fromLatin1(name));
+            }
+        }
+        m_blendModeComboBox->setCurrentIndex(qMax(0, m_blendModeComboBox->findData(QString::fromLatin1(m_shown.blendMode))));
+        m_blendModeComboBox->setFixedWidth(220);
+        QHBoxLayout* row = createRow(section, tr("Blend mode"));
+        row->addWidget(m_blendModeComboBox);
+        row->addStretch(1);
     }
 
     // Border / Line: the width and the style
@@ -1200,6 +1274,7 @@ void PDFAppAnnotationPropertiesDialog::updateEnabledState()
     H::setEditable(m_fillRow, fields.testFlag(F::InteriorColor));
     H::setEditable(m_opacitySlider, fields.testFlag(F::Opacity));
     H::setEditable(m_opacitySpinBox, fields.testFlag(F::Opacity));
+    H::setEditable(m_blendModeComboBox, fields.testFlag(F::BlendMode));
     H::setEditable(m_borderWidthSpinBox, fields.testFlag(F::Border));
     H::setEditable(m_borderStyleComboBox, fields.testFlag(F::Border));
     H::setEditable(m_lineStartComboBox, fields.testFlag(F::LineEndings));
@@ -1352,6 +1427,10 @@ PDFAnnotationProperties PDFAppAnnotationPropertiesDialog::getEditedProperties() 
     if (m_opacitySpinBox)
     {
         properties.opacity = m_opacitySpinBox->value() == qRound(m_original.opacity * 100.0) ? m_original.opacity : m_opacitySpinBox->value() / 100.0;
+    }
+    if (m_blendModeComboBox)
+    {
+        properties.blendMode = m_blendModeComboBox->currentData().toString().toLatin1();
     }
     if (m_borderWidthSpinBox)
     {

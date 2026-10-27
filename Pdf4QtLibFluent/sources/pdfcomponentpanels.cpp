@@ -2940,6 +2940,33 @@ void PDFColorPalette::addRecentColor(const Entry& entry)
     setRecentColors(colors);
 }
 
+void PDFColorPalette::selectColor(const QColor& color)
+{
+    if (!color.isValid())
+    {
+        return;
+    }
+
+    // The state is changed first, the signal is the last (its slot may delete the palette)
+    const QColor selected = color;
+    m_currentColor = selected;
+    QPointer<PDFColorPalette> guard(this);
+    addRecentColor(Entry{ selected, getColorName(selected) });
+    if (!guard || !updateSelection())
+    {
+        return;
+    }
+
+    if (isPopup() && isVisible())
+    {
+        close();
+    }
+    if (guard)
+    {
+        Q_EMIT colorSelected(selected);
+    }
+}
+
 void PDFColorPalette::setCurrentColor(const QColor& color)
 {
     if (!PDFColorPaletteHelper::isSameColor(m_currentColor, color))

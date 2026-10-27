@@ -76,6 +76,16 @@ public:
     static constexpr int TOOL_BUTTON_TEXT_ICON = 18;
     static constexpr int SIDEBAR_TAB = 32;
 
+    /// Color bar of the Action tile 190:740 (property Color bar): 18 x 3, radius
+    /// 1.5, centered right below the icon
+    static constexpr int ACTION_TILE_COLOR_BAR_WIDTH = 18;
+    static constexpr int ACTION_TILE_COLOR_BAR_HEIGHT = 3;
+    static constexpr qreal ACTION_TILE_COLOR_BAR_RADIUS = 1.5;
+
+    /// A color bar with a lower contrast ratio against the fill of the tile gets
+    /// the outline border/strong (white on accent/neutral/bg)
+    static constexpr qreal ACTION_TILE_COLOR_BAR_MINIMUM_CONTRAST = 1.3;
+
 private:
     enum class ButtonKind
     {
@@ -102,6 +112,15 @@ private:
     void drawToolButton(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const;
     void drawToolButtonLabel(const QStyleOptionToolButton* option, QPainter* painter, const QWidget* widget) const;
     static void drawToolButtonGlyph(QPainter* painter, const QRectF& iconRect, const QStyleOptionToolButton* option, bool hasArrow, Color iconColor, const PDFStyleState& state);
+
+    /// Draws the color bar of an Action tile (property colorBar) centered in the
+    /// row \p row (its top is the bottom of the icon)
+    static void drawToolButtonColorBar(QPainter* painter, const QRectF& row, const QWidget* widget, const PDFStyleState& state);
+
+    /// Contrast ratio of two colors (WCAG 2.x, 1 … 21)
+    static qreal getContrastRatio(const QColor& first, const QColor& second);
+    static qreal getRelativeLuminance(const QColor& color);
+    static qreal getLinearChannel(qreal value);
     void drawToolBar(const QStyleOption* option, QPainter* painter, const QWidget* widget) const;
     void drawArrow(QStyle::PrimitiveElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const;
     QSize getButtonSize(const QStyleOptionButton* option, const QWidget* widget) const;
@@ -973,6 +992,12 @@ void PDFWidgetStyleButtons::drawToolButton(const QStyleOptionToolButton* option,
             PDFStylePainter::fill(painter, rect, radii, Color::AccentNeutralBg);
             PDFWidgetStyleImpl::drawStateOverlay(painter, rect, radii, state);
         }
+
+        // The target of an editor beside the tile (1295:31357): 1 px border/strong inside
+        if (state.enabled && PDFWidgetStyleProperties::isSet(widget, PDFWidgetStyleProperties::EDIT_TARGET))
+        {
+            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderStrong);
+        }
     }
     else
     {
@@ -1065,6 +1090,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
             const qreal top = rect.top() + 10.0 + qMax(0.0, (rect.height() - 18.0 - contentHeight) / 2.0);
 
             drawToolButtonGlyph(painter, QRectF(rect.left() + (rect.width() - TOOL_BUTTON_TEXT_ICON) / 2.0, top, TOOL_BUTTON_TEXT_ICON, TOOL_BUTTON_TEXT_ICON), option, hasArrow, iconColor, state);
+            drawToolButtonColorBar(painter, QRectF(rect.left(), top + TOOL_BUTTON_TEXT_ICON, rect.width(), ACTION_TILE_COLOR_BAR_HEIGHT), widget, state);
 
             const QRectF textRect(rect.left() + 2.0, top + TOOL_BUTTON_TEXT_ICON + 5.0, rect.width() - 4.0, textHeight);
             const QString text = PDFWidgetStyleImpl::getElidedText(option->text, font, textRect.width());
@@ -1138,6 +1164,68 @@ void PDFWidgetStyleButtons::drawToolButtonGlyph(QPainter* painter, const QRectF&
     {
         PDFWidgetStyleImpl::drawIcon(painter, iconRect, option->icon, PDFWidgetStyleImpl::color(iconColor), state);
     }
+}
+
+void PDFWidgetStyleButtons::drawToolButtonColorBar(QPainter* painter, const QRectF& row, const QWidget* widget, const PDFStyleState& state)
+{
+    const QVariant value = widget ? widget->property(PDFWidgetStyleProperties::COLOR_BAR) : QVariant();
+    if (!painter || value.typeId() != QMetaType::QColor)
+    {
+        return;
+    }
+
+    const QColor barColor = value.value<QColor>();
+    if (!barColor.isValid())
+    {
+        return;
+    }
+
+    // A canonical annotation color (the light-theme value of a token, as the
+    // color rows report it) is drawn as the token of the current theme
+    QColor color = barColor;
+    static const PDFThemeColors light;
+    for (int token = PDFThemeColors::AnnotationYellow; token <= PDFThemeColors::AnnotationWhite; ++token)
+    {
+        if (light.getColor(static_cast<Color>(token)).rgb() == barColor.rgb())
+        {
+            color = PDFWidgetStyleImpl::color(static_cast<Color>(token));
+            break;
+        }
+    }
+    color.setAlpha(255);
+
+    const QRectF barRect(qRound(row.left() + (row.width() - ACTION_TILE_COLOR_BAR_WIDTH) / 2.0), qRound(row.top()), ACTION_TILE_COLOR_BAR_WIDTH, ACTION_TILE_COLOR_BAR_HEIGHT);
+    const Radii radii(ACTION_TILE_COLOR_BAR_RADIUS);
+    if (!state.enabled)
+    {
+        PDFStylePainter::fill(painter, barRect, radii, Color::IconDisabled);
+        return;
+    }
+
+    // A color, which cannot be told from the fill of the tile, gets an outline
+    const QColor background = PDFWidgetStyleImpl::color(state.on ? Color::BgSurface : Color::AccentNeutralBg);
+    if (getContrastRatio(color, background) < ACTION_TILE_COLOR_BAR_MINIMUM_CONTRAST)
+    {
+        PDFStylePainter::fill(painter, barRect.adjusted(-1.0, -1.0, 1.0, 1.0), radii.adjusted(-1.0), Color::BorderStrong);
+    }
+    PDFStylePainter::fill(painter, barRect, radii, color);
+}
+
+qreal PDFWidgetStyleButtons::getContrastRatio(const QColor& first, const QColor& second)
+{
+    const qreal a = getRelativeLuminance(first);
+    const qreal b = getRelativeLuminance(second);
+    return (qMax(a, b) + 0.05) / (qMin(a, b) + 0.05);
+}
+
+qreal PDFWidgetStyleButtons::getRelativeLuminance(const QColor& color)
+{
+    return 0.2126 * getLinearChannel(color.redF()) + 0.7152 * getLinearChannel(color.greenF()) + 0.0722 * getLinearChannel(color.blueF());
+}
+
+qreal PDFWidgetStyleButtons::getLinearChannel(qreal value)
+{
+    return value <= 0.04045 ? value / 12.92 : qPow((value + 0.055) / 1.055, 2.4);
 }
 
 void PDFWidgetStyleButtons::drawToolBar(const QStyleOption* option, QPainter* painter, const QWidget* widget) const

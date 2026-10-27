@@ -33,7 +33,8 @@ When a permission is **Ask**, the tab of the document shows the question of the 
 - One request asks only once, also when it needs more permissions.
 - Overwriting the original file is always confirmed, also when **Open and save files** is Allow. A request, which came while a dialog of PDF4QT was open, is confirmed too.
 - No button is preselected: **Enter** does nothing, **Esc** denies, and the buttons ignore clicks for a second after the question appears – a question, which comes while you type, is never answered by accident.
-- Without an answer within 2 minutes, the request is denied automatically.
+- Without an answer within 2 minutes after the question appears, the request is denied automatically. A request, which waits behind other questions of its tab, in a tab you do not show, or behind another dialog of PDF4QT, is denied after 10 minutes of waiting.
+- While another dialog of PDF4QT is open, the question of an assistant, which wants to read your documents or open a file, appears after you close the dialog.
 - At most 16 requests of assistants can wait in one tab; more are refused until you answer.
 
 After an assistant changed a document – also with **Allow** – a bar over the page says what it did, for example *Claude Code added 3 highlights and 1 note*. **Show Changes** selects the new annotations in the Notes panel, **Undo** removes the whole change in one step. Nothing is saved to the file until you or the assistant save it.

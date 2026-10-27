@@ -843,7 +843,7 @@ bool PDFWidgetStyleImpl::eventFilter(QObject* watched, QEvent* event)
 {
     // The column of the shortcuts of a menu is measured again after a change of its
     // actions (texts, shortcuts, visibility), of its font or of its style
-    if (watched && watched == m_menuShortcutColumnMenu.data())
+    if (m_menuShortcutColumnMenu.isObject(watched))
     {
         switch (event->type())
         {

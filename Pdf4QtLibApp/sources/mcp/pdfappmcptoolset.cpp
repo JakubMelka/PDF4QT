@@ -800,7 +800,7 @@ public:
             item.addProperty(QStringLiteral("icon"), B::enumeration(QStringLiteral("Icon of a note"), PDFAppMcpToolSet::getNoteIcons()));
             item.addProperty(QStringLiteral("stamp"), B::enumeration(QStringLiteral("Standard stamp"), PDFAppMcpToolSet::getStampNames()));
             item.addProperty(QStringLiteral("fontSize"), B::number(QStringLiteral("Font size of a text_box"), 4.0, 144.0));
-            item.addProperty(QStringLiteral("url"), B::string(QStringLiteral("link: an https address"), PDFAppMcpToolSet::MAXIMUM_URL_LENGTH));
+            item.addProperty(QStringLiteral("url"), B::string(QStringLiteral("link: an http, https or mailto address"), PDFAppMcpToolSet::MAXIMUM_URL_LENGTH));
             item.addProperty(QStringLiteral("targetPage"), page(QStringLiteral("link: the target page from 1 (instead of url)")));
 
             PDFMcpSchema input = B::object();

@@ -58,10 +58,10 @@ class PDFPlainTextEdit;
 class PDFSegmentedControl;
 class PDFSpinBox;
 
-/// Properties dialog of an annotation (Figma 1022:20233, 600 x 675, variants 1027:21823,
+/// Properties dialog of an annotation (Figma 1022:20233, 600 x 719, variants 1027:21823,
 /// the link 1171:28262): Comment (author, subject, text) - Description of a link,
-/// Destination of a link, Appearance (color, fill, opacity, border and the parts of
-/// the type), Behavior (the flags). A dialog of the design on PDFMessageBox: modal
+/// Destination of a link, Appearance (color, fill, opacity, blend mode, border and the
+/// parts of the type), Behavior (the flags). A dialog of the design on PDFMessageBox: modal
 /// over the scrim of the body of the window; Apply = one undo step through the
 /// controller (only the changed properties are written - PDFAnnotationPropertyEditor).
 ///
@@ -124,6 +124,10 @@ public:
     /// Name of a line ending and of a border style
     static QString getLineEndingName(AnnotationLineEnding lineEnding);
     static QString getBorderStyleName(AnnotationBorderStyle style);
+
+    /// Name of a blend mode of BM; a mode, which the viewer does not draw (Hue, ...,
+    /// Compatible, an unknown name), is marked "(not displayed)"
+    static QString getBlendModeName(const QByteArray& name);
 
     /// The scrolled body of a dialog of the design takes the height of its content,
     /// at most the height, which fits into the window (the minimal window scrolls)
@@ -201,6 +205,7 @@ private:
     QPointer<PDFColorSwatchRow> m_fillRow;
     QPointer<QSlider> m_opacitySlider;
     QPointer<PDFSpinBox> m_opacitySpinBox;
+    QPointer<PDFComboBox> m_blendModeComboBox;
     QPointer<PDFDoubleSpinBox> m_borderWidthSpinBox;
     QPointer<PDFComboBox> m_borderStyleComboBox;
     QPointer<PDFComboBox> m_lineStartComboBox;

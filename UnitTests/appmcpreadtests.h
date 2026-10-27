@@ -61,10 +61,12 @@
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttextindex.h"
 #include "pdfexception.h"
+#include "pdfform.h"
 #include "pdfmcpcatalog.h"
 #include "pdfmcperrorcodes.h"
 #include "pdfmcpjson.h"
 #include "pdfmcprepository.h"
+#include "pdfsecurityhandler.h"
 
 #include <QBuffer>
 #include <QDir>
@@ -77,8 +79,11 @@
 
 #include <atomic>
 #include <functional>
+#include <limits>
+#include <map>
 #include <optional>
 #include <stdexcept>
+#include <tuple>
 
 // moc does not read the raw string literals of the tests
 #ifndef Q_MOC_RUN
@@ -2704,6 +2709,462 @@ public:
                 QVERIFY(pdftest::AppMcpFixture::waitResult(started, 30000));
             }
         }
+    }
+
+    // Fix wave FW7-H, item 47: the readers of hostile and unusual documents
+    // (built in the memory, called directly - the branches, which the samples
+    // of the fixture never reach)
+
+    static pdf::PDFObject pdfName(const char* value) { return pdf::PDFObject::createName(QByteArray(value)); }
+    static pdf::PDFObject pdfText(const QString& value) { return pdf::PDFObjectFactory::createTextString(value); }
+    static pdf::PDFObject pdfReference(pdf::PDFObjectReference value) { return pdf::PDFObject::createReference(value); }
+    static pdf::PDFObject pdfInteger(qint64 value) { return pdf::PDFObject::createInteger(value); }
+
+    static pdf::PDFObject pdfArray(std::initializer_list<pdf::PDFObject> items)
+    {
+        pdf::PDFArrayBuilder builder;
+        for (const pdf::PDFObject& item : items)
+        {
+            builder.appendItem(item);
+        }
+        return pdf::PDFObject::createArray(std::move(builder));
+    }
+
+    static pdf::PDFObject pdfDictionary(std::initializer_list<std::pair<const char*, pdf::PDFObject>> entries)
+    {
+        pdf::PDFDictionaryBuilder builder;
+        for (const auto& entry : entries)
+        {
+            builder.setEntry(pdf::PDFInplaceOrMemoryString(entry.first), entry.second);
+        }
+        return pdf::PDFObject::createDictionary(std::move(builder));
+    }
+
+    static QJsonObject parseObject(const QByteArray& data)
+    {
+        return QJsonDocument::fromJson(data).object();
+    }
+
+    static void readerPagesAndOutline()
+    {
+        // Pages of every rotation, indices out of range, the next page
+        pdf::PDFDocumentBuilder builder;
+        std::vector<pdf::PDFObjectReference> pages;
+        for (int rotation : { 0, 90, 180, 270 })
+        {
+            const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+            builder.mergeTo(page, pdfDictionary({ { "Rotate", pdfInteger(rotation) } }));
+            pages.push_back(page);
+        }
+
+        // The outline: a page, a named destination (name tree), a missing name, a
+        // page number of a GoTo, a number out of range, GoToR, URI, nested items
+        auto item = [&builder](const QString& title, std::initializer_list<std::pair<const char*, pdf::PDFObject>> entries)
+        {
+            pdf::PDFDictionaryBuilder dictionary;
+            dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Title"), pdfText(title));
+            for (const auto& entry : entries)
+            {
+                dictionary.setEntry(pdf::PDFInplaceOrMemoryString(entry.first), entry.second);
+            }
+            return builder.addObject(pdf::PDFObject::createDictionary(std::move(dictionary)));
+        };
+        const pdf::PDFObjectReference root = builder.addObject(pdf::PDFObject());
+        std::vector<pdf::PDFObjectReference> items;
+        items.push_back(item(QStringLiteral("Page two"), { { "Dest", pdfArray({ pdfReference(pages[1]), pdfName("XYZ"), pdf::PDFObject(), pdf::PDFObject(), pdf::PDFObject() }) } }));
+        items.push_back(item(QStringLiteral("Named"), { { "Dest", pdf::PDFObject::createString(QByteArray("chapter")) } }));
+        items.push_back(item(QStringLiteral("Missing name"), { { "Dest", pdf::PDFObject::createString(QByteArray("nothing")) } }));
+        items.push_back(item(QStringLiteral("Number"), { { "A", pdfDictionary({ { "S", pdfName("GoTo") }, { "D", pdfArray({ pdfInteger(1), pdfName("Fit") }) } }) } }));
+        items.push_back(item(QStringLiteral("Out of range"), { { "A", pdfDictionary({ { "S", pdfName("GoTo") }, { "D", pdfArray({ pdfInteger(99), pdfName("Fit") }) } }) } }));
+        items.push_back(item(QStringLiteral("Remote"), { { "A", pdfDictionary({ { "S", pdfName("GoToR") }, { "F", pdf::PDFObject::createString(QByteArray("other.pdf")) },
+                                                                                 { "D", pdfArray({ pdfInteger(0), pdfName("Fit") }) } }) } }));
+        items.push_back(item(QStringLiteral("Web"), { { "A", pdfDictionary({ { "S", pdfName("URI") }, { "URI", pdf::PDFObject::createString(QByteArray("https://example.com")) } }) },
+                                                    { "F", pdfInteger(3) } }));
+        const pdf::PDFObjectReference child = item(QStringLiteral("Child"), { { "Dest", pdfArray({ pdfReference(pages[3]), pdfName("Fit") }) } });
+        const pdf::PDFObjectReference grandChild = item(QStringLiteral("Grandchild"), { { "Dest", pdfArray({ pdfReference(pages[2]), pdfName("Fit") }) } });
+        items.push_back(item(QStringLiteral("Parent"), { { "First", pdfReference(child) }, { "Last", pdfReference(child) }, { "Count", pdfInteger(2) } }));
+        builder.mergeTo(child, pdfDictionary({ { "Parent", pdfReference(items.back()) }, { "First", pdfReference(grandChild) }, { "Last", pdfReference(grandChild) }, { "Count", pdfInteger(1) } }));
+        builder.mergeTo(grandChild, pdfDictionary({ { "Parent", pdfReference(child) } }));
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            pdf::PDFDictionaryBuilder links;
+            links.setEntry(pdf::PDFInplaceOrMemoryString("Parent"), pdfReference(root));
+            if (i > 0)
+            {
+                links.setEntry(pdf::PDFInplaceOrMemoryString("Prev"), pdfReference(items[i - 1]));
+            }
+            if (i + 1 < items.size())
+            {
+                links.setEntry(pdf::PDFInplaceOrMemoryString("Next"), pdfReference(items[i + 1]));
+            }
+            builder.mergeTo(items[i], pdf::PDFObject::createDictionary(std::move(links)));
+        }
+        builder.setObject(root, pdfDictionary({ { "Type", pdfName("Outlines") }, { "First", pdfReference(items.front()) }, { "Last", pdfReference(items.back()) },
+                                                { "Count", pdfInteger(qint64(items.size())) } }));
+        const pdf::PDFObject chapter = pdfArray({ pdfReference(pages[2]), pdfName("Fit") });
+        builder.mergeTo(builder.getCatalogReference(), pdfDictionary({ { "Outlines", pdfReference(root) },
+                                                                       { "Names", pdfDictionary({ { "Dests", pdfDictionary({ { "Names", pdfArray({ pdf::PDFObject::createString(QByteArray("chapter")), chapter }) } }) } }) } }));
+        const pdf::PDFDocument document = builder.build();
+
+        pdf::PDFAppMcpDocumentHeader header;
+        header.documentId = QStringLiteral("doc");
+        header.title = QStringLiteral("Hostile");
+
+        const QJsonObject pagesResult = parseObject(pdf::PDFAppMcpDocumentReader::getPages(header, &document, { 0, 1, 2, 3, -1, 99 }, std::optional<pdf::PDFInteger>(5)));
+        const QJsonArray pageArray = pagesResult.value(QStringLiteral("pages")).toArray();
+        QCOMPARE(pageArray.size(), 4);
+        QCOMPARE(pageArray.at(1).toObject().value(QStringLiteral("rotation")).toInt(), 90);
+        QCOMPARE(pageArray.at(2).toObject().value(QStringLiteral("rotation")).toInt(), 180);
+        QCOMPARE(pageArray.at(3).toObject().value(QStringLiteral("rotation")).toInt(), 270);
+        QCOMPARE(pageArray.at(1).toObject().value(QStringLiteral("widthPt")).toDouble(), 400.0);
+        QCOMPARE(pagesResult.value(QStringLiteral("nextPage")).toInt(), 5);
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getPages(header, nullptr, { 0 }, std::nullopt)).value(QStringLiteral("pages")).toArray().isEmpty());
+        pdf::PDFAppMcpAnnotationQuery annotationQuery;
+        annotationQuery.pageIndices = { 0, 1 };
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getAnnotations(header, nullptr, annotationQuery)).value(QStringLiteral("annotations")).toArray().isEmpty());
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getAnnotations(header, &document, annotationQuery)).value(QStringLiteral("annotations")).toArray().isEmpty());
+
+        const QJsonArray outline = parseObject(pdf::PDFAppMcpDocumentReader::getOutline(header, &document, 256, 5000)).value(QStringLiteral("items")).toArray();
+        std::map<QString, int> outlinePages;
+        for (const QJsonValue& value : outline)
+        {
+            outlinePages[value.toObject().value(QStringLiteral("title")).toString()] = value.toObject().value(QStringLiteral("page")).toInt(0);
+        }
+        QCOMPARE(outlinePages[QStringLiteral("Page two")], 2);
+        QCOMPARE(outlinePages[QStringLiteral("Named")], 3);
+        QCOMPARE(outlinePages[QStringLiteral("Missing name")], 0);
+        QCOMPARE(outlinePages[QStringLiteral("Number")], 2);
+        QCOMPARE(outlinePages[QStringLiteral("Out of range")], 0);
+        QCOMPARE(outlinePages[QStringLiteral("Remote")], 0);
+        QCOMPARE(outlinePages[QStringLiteral("Web")], 0);
+        QCOMPARE(outlinePages[QStringLiteral("Grandchild")], 3);
+        for (const QJsonValue& value : outline)
+        {
+            if (value.toObject().value(QStringLiteral("title")).toString() == QLatin1String("Web"))
+            {
+                QVERIFY(value.toObject().value(QStringLiteral("bold")).toBool() && value.toObject().value(QStringLiteral("italic")).toBool());
+            }
+        }
+
+        // The limits of the depth and of the count
+        const QJsonObject limited = parseObject(pdf::PDFAppMcpDocumentReader::getOutline(header, &document, 1, 3));
+        QCOMPARE(limited.value(QStringLiteral("items")).toArray().size(), 3);
+        QVERIFY(limited.value(QStringLiteral("truncated")).toBool());
+        QCOMPARE(parseObject(pdf::PDFAppMcpDocumentReader::getOutline(header, &document, 1, 5000)).value(QStringLiteral("items")).toArray().size(), int(items.size()));
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getOutline(header, nullptr, 1, 1)).value(QStringLiteral("items")).toArray().isEmpty());
+
+        // Item ids
+        QVERIFY(pdf::PDFAppMcpDocumentReader::findOutlineItem(&document, QStringLiteral("1")));
+        QVERIFY(pdf::PDFAppMcpDocumentReader::findOutlineItem(&document, QStringLiteral("8.1.1")));
+        for (const QString& hostile : { QString(), QStringLiteral("0"), QStringLiteral("+1"), QStringLiteral("01"), QStringLiteral("9"), QStringLiteral("1.1"),
+                                        QStringLiteral("a"), QStringLiteral("1..2"), QStringLiteral("-1"), QString(300, QLatin1Char('1')), QStringLiteral("99999999999999999999") })
+        {
+            QVERIFY2(!pdf::PDFAppMcpDocumentReader::findOutlineItem(&document, hostile), qPrintable(hostile.left(40)));
+        }
+        QVERIFY(!pdf::PDFAppMcpDocumentReader::findOutlineItem(nullptr, QStringLiteral("1")));
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::getOutlineItemPage(nullptr, nullptr), pdf::PDFInteger(-1));
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::getOutlineItemPage(&document, nullptr), pdf::PDFInteger(-1));
+
+        // Colors and cursors
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({}), QString());
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ 0.0 }), QStringLiteral("#000000"));
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ 1.0, 0.0, 0.0 }), QStringLiteral("#ff0000"));
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ 0.0, 0.0, 0.0, 1.0 }), QStringLiteral("#000000"));
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ 1.0, 2.0, 3.0 }), QString());
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ std::numeric_limits<double>::quiet_NaN() }), QString());
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::formatColor({ 0.1, 0.2, 0.3, 0.4, 0.5 }), QString());
+        QCOMPARE(pdf::PDFAppMcpDocumentReader::parseCursor(pdf::PDFAppMcpDocumentReader::createCursor(42)), std::optional<qint64>(42));
+        for (const QString& hostile : { QString(), QString(65, QLatin1Char('a')), QStringLiteral("!!!"), QString::fromLatin1(pdf::PDFMcpJson::toBase64Url("b:12")),
+                                        QString::fromLatin1(pdf::PDFMcpJson::toBase64Url("a:1x")), QString::fromLatin1(pdf::PDFMcpJson::toBase64Url("a:999999999999")),
+                                        QString::fromLatin1(pdf::PDFMcpJson::toBase64Url("a:")) })
+        {
+            QVERIFY2(!pdf::PDFAppMcpDocumentReader::parseCursor(hostile), qPrintable(hostile));
+        }
+    }
+
+    static void readerFormFields()
+    {
+        // Every kind of field with its values, defaults, options and states; a
+        // widget group (kids without names), a nested field and a cycle of kids
+        pdf::PDFDocumentBuilder builder;
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 600));
+        std::vector<pdf::PDFObjectReference> fields;
+        int y = 560;
+        auto addField = [&](std::initializer_list<std::pair<const char*, pdf::PDFObject>> entries, bool withWidget = true)
+        {
+            pdf::PDFDictionaryBuilder dictionary;
+            for (const auto& entry : entries)
+            {
+                dictionary.setEntry(pdf::PDFInplaceOrMemoryString(entry.first), entry.second);
+            }
+            const pdf::PDFObjectReference field = builder.addObject(pdf::PDFObject::createDictionary(std::move(dictionary)));
+            if (withWidget)
+            {
+                builder.createFormFieldWidget(field, page, pdf::PDFObjectReference(), QRectF(30, y, 120, 20));
+                y -= 30;
+            }
+            fields.push_back(field);
+            return field;
+        };
+
+        const pdf::PDFObject states = pdfDictionary({ { "Yes", pdfInteger(0) }, { "Off", pdfInteger(0) } });
+        addField({ { "FT", pdfName("Tx") }, { "T", pdfText(QStringLiteral("name")) }, { "V", pdfText(QStringLiteral("Jane")) }, { "DV", pdfText(QStringLiteral("Default")) } });
+        const pdf::PDFObjectReference check = addField({ { "FT", pdfName("Btn") }, { "T", pdfText(QStringLiteral("agree")) }, { "V", pdfName("Yes") } });
+        const pdf::PDFObjectReference listMulti = addField({ { "FT", pdfName("Ch") }, { "T", pdfText(QStringLiteral("colors")) }, { "Ff", pdfInteger(1 << 21) },
+                                                             { "Opt", pdfArray({ pdfArray({ pdfText(QStringLiteral("r")), pdfText(QStringLiteral("Red")) }),
+                                                                                 pdfArray({ pdfText(QStringLiteral("g")), pdfText(QStringLiteral("Green")) }), pdfText(QStringLiteral("b")) }) },
+                                                             { "V", pdfArray({ pdfText(QStringLiteral("r")), pdfText(QStringLiteral("g")) }) } });
+        Q_UNUSED(listMulti);
+        addField({ { "FT", pdfName("Ch") }, { "T", pdfText(QStringLiteral("single")) }, { "Ff", pdfInteger(1 << 21) },
+                   { "Opt", pdfArray({ pdfText(QStringLiteral("a")), pdfText(QStringLiteral("b")) }) }, { "V", pdfText(QStringLiteral("b")) } });
+        addField({ { "FT", pdfName("Ch") }, { "T", pdfText(QStringLiteral("size")) }, { "Ff", pdfInteger(1 << 17) },
+                   { "Opt", pdfArray({ pdfText(QStringLiteral("S")), pdfText(QStringLiteral("M")) }) }, { "V", pdfText(QStringLiteral("M")) } });
+        addField({ { "FT", pdfName("Sig") }, { "T", pdfText(QStringLiteral("sig")) }, { "V", pdfDictionary({ { "Type", pdfName("Sig") } }) } });
+        addField({ { "FT", pdfName("Btn") }, { "T", pdfText(QStringLiteral("reset")) }, { "Ff", pdfInteger(1 << 16) } });
+
+        // The radio group: two nameless kids with their states
+        const pdf::PDFObjectReference radio = addField({ { "FT", pdfName("Btn") }, { "T", pdfText(QStringLiteral("choice")) }, { "Ff", pdfInteger(1 << 15) }, { "V", pdfName("Off") } }, false);
+        std::vector<pdf::PDFObject> kids;
+        for (const char* state : { "A", "B" })
+        {
+            const pdf::PDFObjectReference widget = builder.addObject(pdfDictionary({ { "Type", pdfName("Annot") }, { "Subtype", pdfName("Widget") }, { "Parent", pdfReference(radio) },
+                                                                                     { "Rect", pdfArray({ pdfInteger(30), pdfInteger(y), pdfInteger(50), pdfInteger(y + 20) }) },
+                                                                                     { "P", pdfReference(page) },
+                                                                                     { "AP", pdfDictionary({ { "N", pdfDictionary({ { state, pdfInteger(0) }, { "Off", pdfInteger(0) } }) } }) } }));
+            y -= 30;
+            kids.push_back(pdfReference(widget));
+        }
+        builder.mergeTo(radio, pdfDictionary({ { "Kids", pdfArray({ kids[0], kids[1] }) } }));
+
+        // A nested field and a field, which is its own kid
+        const pdf::PDFObjectReference parent = addField({ { "T", pdfText(QStringLiteral("parent")) } }, false);
+        const pdf::PDFObjectReference nested = addField({ { "FT", pdfName("Tx") }, { "T", pdfText(QStringLiteral("child")) }, { "Parent", pdfReference(parent) } });
+        fields.pop_back();
+        builder.mergeTo(parent, pdfDictionary({ { "Kids", pdfArray({ pdfReference(nested) }) } }));
+        const pdf::PDFObjectReference cycle = addField({ { "FT", pdfName("Tx") }, { "T", pdfText(QStringLiteral("cycle")) } }, false);
+        builder.mergeTo(cycle, pdfDictionary({ { "Kids", pdfArray({ pdfReference(cycle) }) } }));
+
+        // The appearance states of the check box
+        builder.setCatalogAcroForm(builder.createAcroForm(fields));
+        const pdf::PDFDocument withoutStates = builder.build();
+        const pdf::PDFForm form = pdf::PDFForm::parse(&withoutStates, withoutStates.getCatalog()->getFormObject());
+        for (const pdf::PDFFormFieldPointer& field : form.getFormFields())
+        {
+            if (field && field->getSelfReference() == check)
+            {
+                for (const pdf::PDFFormWidget& widget : field->getWidgets())
+                {
+                    builder.mergeTo(widget.getWidget(), pdfDictionary({ { "AP", pdfDictionary({ { "N", states } }) } }));
+                }
+            }
+        }
+        const pdf::PDFDocument document = builder.build();
+
+        pdf::PDFAppMcpDocumentHeader header;
+        const QJsonArray all = parseObject(pdf::PDFAppMcpDocumentReader::getFormFields(header, &document, QStringList(), true)).value(QStringLiteral("fields")).toArray();
+        std::map<QString, QJsonObject> byName;
+        for (const QJsonValue& value : all)
+        {
+            byName[value.toObject().value(QStringLiteral("name")).toString()] = value.toObject();
+        }
+        QCOMPARE(byName[QStringLiteral("name")].value(QStringLiteral("type")).toString(), QStringLiteral("text"));
+        QCOMPARE(byName[QStringLiteral("name")].value(QStringLiteral("value")).toString(), QStringLiteral("Jane"));
+        QCOMPARE(byName[QStringLiteral("name")].value(QStringLiteral("defaultValue")).toString(), QStringLiteral("Default"));
+        QCOMPARE(byName[QStringLiteral("agree")].value(QStringLiteral("type")).toString(), QStringLiteral("checkbox"));
+        QCOMPARE(byName[QStringLiteral("colors")].value(QStringLiteral("type")).toString(), QStringLiteral("list"));
+        QCOMPARE(byName[QStringLiteral("colors")].value(QStringLiteral("selected")).toArray().size(), 2);
+        QCOMPARE(byName[QStringLiteral("single")].value(QStringLiteral("selected")).toArray().size(), 1);
+        QCOMPARE(byName[QStringLiteral("size")].value(QStringLiteral("type")).toString(), QStringLiteral("combo"));
+        QCOMPARE(byName[QStringLiteral("sig")].value(QStringLiteral("type")).toString(), QStringLiteral("signature"));
+        QCOMPARE(byName[QStringLiteral("reset")].value(QStringLiteral("type")).toString(), QStringLiteral("button"));
+        QCOMPARE(byName[QStringLiteral("choice")].value(QStringLiteral("type")).toString(), QStringLiteral("radio"));
+        QVERIFY(byName.count(QStringLiteral("parent.child")) == 1);
+
+        // A filter by the names, without the values; no document
+        const QJsonArray filtered = parseObject(pdf::PDFAppMcpDocumentReader::getFormFields(header, &document, QStringList({ QStringLiteral("name") }), false)).value(QStringLiteral("fields")).toArray();
+        QCOMPARE(filtered.size(), 1);
+        QVERIFY(!filtered.at(0).toObject().contains(QStringLiteral("value")));
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getFormFields(header, nullptr, QStringList(), true)).value(QStringLiteral("fields")).toArray().isEmpty());
+    }
+
+    static void readerDocumentInfoVariants()
+    {
+        // The page layouts and modes of the catalog, and the encryption methods of
+        // documents with only an owner password (they open without a question)
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        const std::vector<std::tuple<const char*, const char*, const char*, const char*>> layouts = {
+            { "OneColumn", "OneColumn", "UseOutlines", "UseOutlines" },
+            { "TwoColumnLeft", "TwoColumnLeft", "UseThumbs", "UseThumbs" },
+            { "TwoColumnRight", "TwoColumnRight", "FullScreen", "FullScreen" },
+            { "TwoPageLeft", "TwoPageLeft", "UseOC", "UseOC" },
+            { "TwoPageRight", "TwoPageRight", "UseAttachments", "UseAttachments" },
+        };
+        const std::vector<std::pair<pdf::PDFSecurityHandlerFactory::Algorithm, QString>> algorithms = {
+            { pdf::PDFSecurityHandlerFactory::RC4, QStringLiteral("RC4") },
+            { pdf::PDFSecurityHandlerFactory::AES_128, QStringLiteral("AES 128-bit") },
+            { pdf::PDFSecurityHandlerFactory::AES_256, QStringLiteral("AES 256-bit") },
+        };
+
+        for (size_t i = 0; i < layouts.size(); ++i)
+        {
+            const auto& layout = layouts[i];
+            const bool isEncrypted = i < algorithms.size();
+            const pdf::PDFSecurityHandlerFactory::Algorithm algorithm = isEncrypted ? algorithms[i].first : pdf::PDFSecurityHandlerFactory::None;
+            auto modifier = [&layout, isEncrypted, algorithm](pdf::PDFDocumentBuilder& builder, const std::vector<pdf::PDFObjectReference>&)
+            {
+                builder.mergeTo(builder.getCatalogReference(), pdfDictionary({ { "PageLayout", pdfName(std::get<0>(layout)) }, { "PageMode", pdfName(std::get<2>(layout)) },
+                                                                               { "Lang", pdfText(QStringLiteral("cs-CZ")) } }));
+                if (isEncrypted)
+                {
+                    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+                    settings.algorithm = algorithm;
+                    settings.ownerPassword = pdftest::AppDocumentSamples::getOwnerPassword();
+                    settings.permissions = 0xFFFFFFFCu & ~0x0010u;
+                    builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+                }
+            };
+            pdf::PDFAppDocumentTab* tab = openReady(fixture, makeSample(fixture.folder(), QStringLiteral("layout-%1.pdf").arg(i), 1, modifier));
+            QVERIFY2(tab, std::get<0>(layout));
+            const QJsonObject info = parseObject(pdf::PDFAppMcpDocumentReader::getInfo(tab->getDocument()));
+            QCOMPARE(info.value(QStringLiteral("pageLayout")).toString(), QString::fromLatin1(std::get<1>(layout)));
+            QCOMPARE(info.value(QStringLiteral("pageMode")).toString(), QString::fromLatin1(std::get<3>(layout)));
+            QCOMPARE(info.value(QStringLiteral("language")).toString(), QStringLiteral("cs-CZ"));
+            if (isEncrypted)
+            {
+                const QJsonObject encryption = info.value(QStringLiteral("encryption")).toObject();
+                QCOMPARE(encryption.value(QStringLiteral("method")).toString(), algorithms[i].second);
+                QVERIFY(!encryption.value(QStringLiteral("permissions")).toObject().value(QStringLiteral("copy")).toBool());
+                QVERIFY(encryption.value(QStringLiteral("permissions")).toObject().value(QStringLiteral("print")).toBool());
+            }
+            else
+            {
+                QVERIFY(!info.contains(QStringLiteral("encryption")));
+            }
+            QVERIFY(fixture.window->closeTab(tab));
+        }
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getInfo(nullptr)).value(QStringLiteral("pageCount")).isUndefined());
+    }
+
+    static void readerAttachmentsAndSignatures()
+    {
+        // The attachments with their facts, the signatures pending while the
+        // verification runs and its results afterwards
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::attachments(fixture.folder()));
+        QVERIFY(tab);
+        const QJsonArray attachments = parseObject(pdf::PDFAppMcpDocumentReader::getAttachments(tab->getDocument())).value(QStringLiteral("attachments")).toArray();
+        QVERIFY(!attachments.isEmpty());
+        QVERIFY(attachments.at(0).toObject().contains(QStringLiteral("name")));
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getAttachments(nullptr)).value(QStringLiteral("attachments")).toArray().isEmpty());
+
+        pdf::PDFAppDocumentTab* signedTab = openReady(fixture, pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+        QVERIFY(signedTab);
+        pdf::PDFAppDocument* document = signedTab->getDocument();
+        if (document->getSignatureResults().empty())
+        {
+            const QJsonArray pending = parseObject(pdf::PDFAppMcpDocumentReader::getSignatures(document, true)).value(QStringLiteral("signatures")).toArray();
+            QVERIFY(!pending.isEmpty());
+            QCOMPARE(pending.at(0).toObject().value(QStringLiteral("status")).toString(), QStringLiteral("pending"));
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!document->getSignatureResults().empty(), 20000 * fixture.getTimeoutFactor());
+        const QJsonArray verified = parseObject(pdf::PDFAppMcpDocumentReader::getSignatures(document, false)).value(QStringLiteral("signatures")).toArray();
+        QVERIFY(!verified.isEmpty());
+        const QString status = verified.at(0).toObject().value(QStringLiteral("status")).toString();
+        QVERIFY2(status == QLatin1String("valid") || status == QLatin1String("invalid") || status == QLatin1String("unknown"), qPrintable(status));
+        QVERIFY(verified.at(0).toObject().contains(QStringLiteral("coversWholeDocument")));
+        QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getSignatures(nullptr, false)).value(QStringLiteral("signatures")).toArray().isEmpty());
+    }
+
+    static void readerTextTruncatedAndHostileFiles()
+    {
+        // get_text over the limit of the characters: truncated with the next page;
+        // files.open of a damaged PDF, of a file, which is not a PDF, of a folder
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        pdf::PDFAppDocumentTab* tab = openReady(fixture, makeSample(fixture.folder(), QStringLiteral("long.pdf"), 60));
+        QVERIFY(tab);
+        const QString id = tab->getDocument()->getId();
+        Result result = call(fixture, QStringLiteral("text"), args(QStringLiteral("get_text"), id, QStringLiteral(R"({"pages":"1-50","maxCharacters":1000})")));
+        QVERIFY2(isSuccess(result), qPrintable(describe(result)));
+        const QJsonObject text = actionObject(result, QStringLiteral("get_text"));
+        QVERIFY(!text.value(QStringLiteral("truncated")).toBool());
+        QVERIFY(text.value(QStringLiteral("nextPage")).toInt() > 1);
+        QVERIFY(text.value(QStringLiteral("pages")).toArray().size() < 50);
+
+        auto open = [&fixture](const QString& path)
+        {
+            QJsonObject arguments;
+            arguments.insert(QStringLiteral("action"), QStringLiteral("open"));
+            arguments.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), path } }));
+            return fixture.callTool(QStringLiteral("files"), arguments);
+        };
+        QFile damaged(QDir(fixture.folder()).filePath(QStringLiteral("damaged.pdf")));
+        QVERIFY(damaged.open(QIODevice::WriteOnly));
+        damaged.write(QByteArrayLiteral("%PDF-1.7 garbage without any object"));
+        damaged.close();
+        result = open(damaged.fileName());
+        QVERIFY2(isToolError(result), qPrintable(describe(result)));
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("failed")), qPrintable(describe(result)));
+
+        QFile notPdf(QDir(fixture.folder()).filePath(QStringLiteral("notes.pdf")));
+        QVERIFY(notPdf.open(QIODevice::WriteOnly));
+        notPdf.write(QByteArrayLiteral("just a text"));
+        notPdf.close();
+        result = open(notPdf.fileName());
+        QVERIFY2(isToolError(result) && result->getFirstText().contains(QStringLiteral("not a PDF")), qPrintable(describe(result)));
+        QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("folder.pdf")));
+        QVERIFY(isToolError(open(QDir(fixture.folder()).filePath(QStringLiteral("folder.pdf")))));
+        QVERIFY(isToolError(open(QDir(fixture.folder()).filePath(QStringLiteral("missing.pdf")))));
+        QVERIFY(isToolError(open(QStringLiteral("relative.pdf"))));
+    }
+
+    static void readerHostileReadArguments()
+    {
+        // Refused arguments of the read tools: execution errors with their texts,
+        // never a crash (pages and areas out of the page, labels, ids, routes)
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::pageLabels(fixture.folder()));
+        QVERIFY(tab);
+        const QString id = tab->getDocument()->getId();
+        const std::vector<std::tuple<const char*, const char*, const char*>> calls = {
+            { "render", "page", R"({"page":99})" },
+            { "render", "page", R"({"page":1,"pageLabel":"i"})" },
+            { "render", "page", R"({"pageLabel":"no such label"})" },
+            { "render", "page", R"({"page":1,"area":{"left":5000,"bottom":5000,"right":6000,"top":6000}})" },
+            { "render", "page", R"({"page":1,"area":{"left":100,"bottom":100,"right":50,"top":50}})" },
+            { "render", "page", R"({"page":1,"dpi":600,"area":{"left":0,"bottom":0,"right":0.001,"top":0.001}})" },
+            { "render", "overview", R"({"pages":"1-99"})" },
+            { "render", "overview", R"({"pages":"x"})" },
+            { "view", "go_to", R"({"page":99})" },
+            { "view", "go_to", R"({"pageLabel":"no such label"})" },
+            { "view", "go_to", R"({"outlineItem":"9.9"})" },
+            { "view", "go_to", R"({"namedDestination":"nothing"})" },
+            { "view", "go_to", R"({})" },
+            { "view", "show_area", R"({"page":99,"rect":{"left":0,"bottom":0,"right":10,"top":10}})" },
+            { "view", "show_area", R"({"page":1,"rect":{"left":9000,"bottom":9000,"right":9100,"top":9100}})" },
+            { "view", "show_search", R"({"query":"(","regularExpression":true})" },
+            { "view", "show_search", R"({"query":"a","regularExpression":true,"wildcards":true})" },
+            { "view", "navigate", R"({"route":"javascript:alert"})" },
+            { "view", "navigate", R"({"route":"/no/such/route/../x"})" },
+            { "document", "read_attachment", R"({"index":99})" },
+            { "document", "get_pages", R"({"pages":"0-5"})" },
+            { "document", "get_annotations", R"({"cursor":"!!!"})" },
+            { "document", "get_outline", R"({"maxDepth":1})" },
+            { "text", "get_text_in_area", R"({"page":99,"rect":{"left":0,"bottom":0,"right":10,"top":10}})" },
+            { "text", "search", R"({"query":"(","regularExpression":true})" },
+            { "text", "search", R"({"query":"a","pages":"99"})" },
+        };
+        int errors = 0;
+        for (const auto& item : calls)
+        {
+            const Result result = call(fixture, QString::fromLatin1(std::get<0>(item)), args(QString::fromLatin1(std::get<1>(item)), id, QString::fromLatin1(std::get<2>(item))));
+            QVERIFY2(result, std::get<2>(item));
+            errors += (isToolError(result) || result->kind == pdf::PDFMcpCallResult::Kind::Error) ? 1 : 0;
+        }
+        QVERIFY2(errors >= int(calls.size()) - 6, qPrintable(QString::number(errors)));
     }
 };
 

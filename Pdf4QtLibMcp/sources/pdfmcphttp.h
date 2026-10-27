@@ -73,7 +73,8 @@ public:
     QByteArray body;
     bool closeConnection = false;   ///< "Connection: close" and the socket is closed after the write
 
-    /// Response with a JSON-RPC error body {"jsonrpc":"2.0","id":null,"error":{code,message}}
+    /// Response with a JSON-RPC error body {"jsonrpc":"2.0","error":{code,message}}
+    /// (no id: the request was not read; the MCP schemas say "id?: RequestId")
     static PDFMcpHttpResponse createJsonRpcError(int status, int code, const QString& message);
 
     /// Serialized response: the status line, Server: PDF4QT/<version>,

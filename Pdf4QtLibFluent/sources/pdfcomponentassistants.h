@@ -28,6 +28,7 @@
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpainter.h"
 #include "pdfcomponentrows.h"
+#include "pdfwatchedpointer.h"
 
 #include <QLineEdit>     // QPointer<QLineEdit> of PDFPropertyRow (pdfcomponentrows.h) needs the class
 #include <QPointer>
@@ -135,7 +136,7 @@ private:
     PDFComponentPainter::State getState() const;
 
     PDFComponentPainter::AssistantRow m_row;
-    QPointer<PDFIconButton> m_disconnectButton;
+    PDFWatchedPointer<PDFIconButton> m_disconnectButton;  ///< Recognized by the event filter also in its destructor
     QString m_disconnectToolTip;
     bool m_isDisconnectToolTipSet = false;
     QString m_name;
@@ -309,7 +310,7 @@ private:
     QString m_copyToolTip;
     bool m_isCopyToolTipSet = false;
     QString m_forwardedName;
-    QPointer<PDFPlainTextEdit> m_editor;
+    PDFWatchedPointer<PDFPlainTextEdit> m_editor;  ///< Recognized by the event filter also in its destructor
     QPointer<QToolButton> m_copyButton;
 
     /// Height of the last width (a layout asks for the same width repeatedly)

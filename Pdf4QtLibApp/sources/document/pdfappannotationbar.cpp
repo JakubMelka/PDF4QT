@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappannotationbar.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotationcontroller.h"
 #include "pdfappannotationinfo.h"
 #include "pdfappannotationmenus.h"
@@ -182,6 +183,7 @@ void PDFAppAnnotationBar::createWidgets()
     m_swatchRow = new PDFColorSwatchRow(this);
     m_swatchRow->setObjectName(QStringLiteral("annotationBarSwatches"));
     connect(m_swatchRow.data(), &PDFColorSwatchRow::colorSelected, this, &PDFAppAnnotationBar::onColorSelected);
+    PDFAppColorPicker::attach(m_swatchRow.data());
     addWidget(m_swatchRow);
     setFoldableSwatchRow(m_swatchRow);
 

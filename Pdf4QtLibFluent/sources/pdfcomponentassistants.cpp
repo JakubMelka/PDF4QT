@@ -359,7 +359,7 @@ bool PDFAssistantRow::event(QEvent* event)
 
 bool PDFAssistantRow::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == m_disconnectButton.data() && (event->type() == QEvent::ShowToParent || event->type() == QEvent::HideToParent))
+    if (m_disconnectButton.isObject(watched) && (event->type() == QEvent::ShowToParent || event->type() == QEvent::HideToParent))
     {
         // The button shown or hidden (by the row or by the application) takes or frees its place
         updateGeometry();
@@ -877,7 +877,7 @@ void PDFCodeBox::showEvent(QShowEvent* event)
 
 bool PDFCodeBox::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == m_editor.data())
+    if (m_editor.isObject(watched))
     {
         switch (event->type())
         {

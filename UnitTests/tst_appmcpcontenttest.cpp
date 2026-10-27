@@ -27,6 +27,7 @@
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpclientnames.h"
 #include "pdfappmcpclientsetup.h"
+#include "pdfappmcpconfirmationui.h"
 #include "pdfappmcpcontent.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcpprompts.h"
@@ -1182,6 +1183,18 @@ void AppMcpContentTest::helpTopicsMatchCode()
 
     // The confirmation timeout of the docs and of the help is the limit of the contract
     QVERIFY(permissions->markdown.contains(QStringLiteral("2 minutes")));
+
+    // ... counted from the dialog, and the bound of the queue of the user interface (items 15, 38)
+    {
+        const QString queueBound = QStringLiteral("denied after %1 minutes of waiting").arg(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT / 60000);
+        const QString docs = QString::fromUtf8(pdf::PDFAppMcpContent::findStaticResource(QStringLiteral("pdf4qt://docs/permissions.md"))->content);
+        QCOMPARE(pdf::PDFAppMcpConfirmationUi::DEFAULT_TIMEOUT, 120000);
+        QVERIFY(permissions->markdown.contains(queueBound));
+        QVERIFY(docs.contains(queueBound));
+        QVERIFY(docs.contains(QStringLiteral("**2 minutes** from the moment the dialog appears")));
+        const QString errors = QString::fromUtf8(pdf::PDFAppMcpContent::findStaticResource(QStringLiteral("pdf4qt://docs/errors.md"))->content);
+        QVERIFY(errors.contains(QStringLiteral("at most %1 minutes waiting before it appears").arg(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT / 60000)));
+    }
 
     // The clients of the setup cards are listed with their texts
     for (pdf::PDFAppMcpSetupClient client : pdf::PDFAppMcpClientSetup::getTileClients())

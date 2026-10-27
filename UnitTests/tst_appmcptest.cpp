@@ -78,6 +78,21 @@ class AppMcpTestHelper
 public:
     AppMcpTestHelper() = delete;
 
+    /// A link of the folder \p link to the folder \p target: a junction on Windows
+    /// (no privilege needed), a symbolic link elsewhere. \returns false, when the
+    /// link cannot be created here.
+    static bool createDirectoryLink(const QString& target, const QString& link)
+    {
+#ifdef Q_OS_WIN
+        const int exitCode = QProcess::execute(QStringLiteral("cmd"), QStringList({ QStringLiteral("/c"), QStringLiteral("mklink"), QStringLiteral("/J"),
+                                                                                    QDir::toNativeSeparators(link), QDir::toNativeSeparators(target) }));
+        // (QFileInfo does not resolve a junction: its canonical path is the link)
+        return exitCode == 0 && QFileInfo(link).isJunction();
+#else
+        return QFile::link(target, link) && QFileInfo(link).canonicalFilePath() == QFileInfo(target).canonicalFilePath();
+#endif
+    }
+
     /// Every key of every object of a JSON value (recursively)
     static void collectKeywords(const QJsonValue& value, bool isPropertiesMap, QSet<QString>* keywords)
     {
@@ -186,6 +201,11 @@ private slots:
     void reviewSubscribeWithoutListing();
     void reviewStateWithoutReadHidesDocuments();
     void reviewConfirmationQueueLimit();
+    void fixOpenOfOpenFileAsksRead();
+    void fixListedTitlesWhileReadAsk();
+    void fixConfirmationAfterShutdown();
+    void fixJunctionsResolved();
+    void fixOwnerRequests();
 
     // Package B: the read tools, resources, prompts, completion (appmcpreadtests.h)
     void documentActions() { AppMcpReadTests::documentActions(); }
@@ -211,6 +231,12 @@ private slots:
     void jobCancelAndExceptions() { AppMcpReadTests::jobCancelAndExceptions(); }
     void denialAudit() { AppMcpReadTests::denialAudit(); }
     void activityRefusedWrite() { AppMcpReadTests::activityRefusedWrite(); }
+    void readerPagesAndOutline() { AppMcpReadTests::readerPagesAndOutline(); }
+    void readerFormFields() { AppMcpReadTests::readerFormFields(); }
+    void readerDocumentInfoVariants() { AppMcpReadTests::readerDocumentInfoVariants(); }
+    void readerAttachmentsAndSignatures() { AppMcpReadTests::readerAttachmentsAndSignatures(); }
+    void readerTextTruncatedAndHostileFiles() { AppMcpReadTests::readerTextTruncatedAndHostileFiles(); }
+    void readerHostileReadArguments() { AppMcpReadTests::readerHostileReadArguments(); }
 };
 
 void AppMcpTest::toolSetContract()
@@ -1492,6 +1518,31 @@ void AppMcpTest::reviewCatalogSaveCopyRecheckedAfterConfirmation()
     QVERIFY(result);
     QVERIFY(result->isError);
     QVERIFY2(result->getFirstText().contains(QStringLiteral("disconnected")), qPrintable(result->getFirstText()));
+
+    // A folder of the path replaced by a link to another folder while the
+    // confirmation waits: a removed folder alone fails at the write anyway - the
+    // link would be written through, only the check of the path refuses it
+    // (fix wave FW7-H, item 25: the revert of the fix passed the first part)
+    QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("linked")));
+    QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("elsewhere")));
+    saveCopy.insert(QStringLiteral("path"), fixture.path(QStringLiteral("linked/copy.pdf")));
+    call = fixture.startCall(QStringLiteral("review"), saveCopy);
+    QVERIFY(fixture.confirmDialog());
+    QVERIFY(QDir(fixture.path(QStringLiteral("linked"))).removeRecursively());
+    if (!AppMcpTestHelper::createDirectoryLink(fixture.path(QStringLiteral("elsewhere")), fixture.path(QStringLiteral("linked"))))
+    {
+        QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::DeniedUser));
+        QVERIFY(pdftest::AppMcpFixture::waitResult(call));
+        QSKIP("A link of a folder cannot be created here");
+    }
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result);
+    QVERIFY(result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("path: ")), qPrintable(result->getFirstText()));
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("elsewhere/copy.pdf"))));
+    QFile::remove(fixture.path(QStringLiteral("linked")));
+    QDir().rmdir(fixture.path(QStringLiteral("linked")));
 }
 
 void AppMcpTest::reviewIndexWaiterCanceled()
@@ -1695,6 +1746,274 @@ void AppMcpTest::reviewStateWithoutReadHidesDocuments()
     QVERIFY(!state.contains(QStringLiteral("documents")));
     QCOMPARE(state.value(QStringLiteral("activeRoute")).toString(), QStringLiteral("/document"));
     QVERIFY(!result->getFirstText().contains(id));
+}
+
+void AppMcpTest::fixOpenOfOpenFileAsksRead()
+{
+    // Fix wave FW7-H, item 26 (owner decision A): files.open of a file, which is
+    // open already, reads its document (id, title, pages) - with Read = Ask it
+    // asks the read approval of the assistant first, one approval shared with
+    // every other read; Deny refuses as before
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Already_Open.pdf"), 3));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    const QString id = tab->getDocument()->getId();
+
+    QJsonObject open;
+    open.insert(QStringLiteral("action"), QStringLiteral("open"));
+    open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), tab->getDocument()->getFilePath() }, { QStringLiteral("page"), 2 } }));
+
+    // Ask: the question of the read approval; Deny answers only this request
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("files"), open);
+    std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmDialog();
+    QVERIFY(confirmation);
+    QCOMPARE(confirmation->kind, pdf::PDFAppMcpConfirmationKind::ReadDocuments);
+    QCOMPARE(confirmation->actionId, QStringLiteral("files.open"));
+    QCOMPARE(confirmation->document.data(), tab->getDocument());
+    QVERIFY(!call->isFinished());
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::DeniedUser));
+    std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+    QVERIFY2(!result->getFirstText().contains(id), qPrintable(result->getFirstText()));
+    QVERIFY(!result->getFirstText().contains(QStringLiteral("Already_Open")));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedUser));
+
+    // Allow: the tab is activated at its page, the approval covers the next reads
+    call = fixture.startCall(QStringLiteral("files"), open);
+    QVERIFY(fixture.confirmDialog());
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY2(result && !result->isError, result ? qPrintable(result->getFirstText()) : "no result");
+    QCOMPARE(AppMcpTestHelper::structured(*result).value(QStringLiteral("open")).toObject().value(QStringLiteral("documentId")).toString(), id);
+    QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(1));
+    QVERIFY(fixture.host()->getPolicy().isReadApproved(call->getRequest().client.assistantKey));
+    const size_t shown = fixture.confirmations()->shown.size();
+    QVERIFY(!fixture.callTool(QStringLiteral("files"), open)->isError);
+    QVERIFY(!fixture.callTool(QStringLiteral("document"), AppMcpTestHelper::arguments(R"({"action":"get_info"})"))->isError);
+    QCOMPARE(fixture.confirmations()->shown.size(), shown);
+
+    // An approval of a read tool covers files.open of another assistant? No - its own
+    fixture.setClient(QStringLiteral("gemini-cli-mcp-client"));
+    call = fixture.startCall(QStringLiteral("files"), open);
+    QVERIFY(fixture.confirmDialog());
+    QCOMPARE(fixture.confirmations()->shown.size(), shown + 1);
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::DeniedTimeout));
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("2 minutes")), qPrintable(result->getFirstText()));
+
+    // Deny: refused at once without a question
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Deny));
+    result = fixture.callTool(QStringLiteral("files"), open);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("Deny")), qPrintable(result->getFirstText()));
+    QCOMPARE(fixture.confirmations()->shown.size(), shown + 1);
+
+    // The tab closed while the question waits: no activation of a closed document
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Ask));
+    fixture.setClient(QStringLiteral("codex-mcp-client"));
+    call = fixture.startCall(QStringLiteral("files"), open);
+    QVERIFY(fixture.confirmDialog());
+    QVERIFY(fixture.window->closeTab(tab));
+    pdftest::AppDocumentFixture::settle();
+    if (!call->isFinished())
+    {
+        fixture.answer(pdf::PDFAppMcpDecision::Allowed);
+    }
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+}
+
+void AppMcpTest::fixListedTitlesWhileReadAsk()
+{
+    // Fix wave FW7-H, item 27 (owner decision 2026-10-27): the catalog is shared
+    // by every assistant - with Read = Ask resources/list names the open documents
+    // without their titles (a file name is document data); Allow lists the titles
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = AppMcpReadTests::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Secret_Merger_Plan.pdf"), 1));
+    QVERIFY(tab);
+    const QString id = tab->getDocument()->getId();
+    const QString infoUri = pdf::PDFAppMcpDocumentResources::getDocumentPrefix(id) + QStringLiteral("info");
+    QTRY_VERIFY(fixture.host()->getCatalog()->findResource(infoUri));
+    QVERIFY(fixture.host()->getCatalog()->findResource(infoUri)->title.contains(QStringLiteral("Secret_Merger_Plan")));
+
+    auto isTitleListed = [&fixture]()
+    {
+        for (const pdf::PDFMcpResourceDefinition& resource : fixture.host()->getCatalog()->getResources())
+        {
+            if (resource.title.contains(QStringLiteral("Secret_Merger")) || resource.name.contains(QStringLiteral("Secret_Merger")) ||
+                resource.description.contains(QStringLiteral("Secret_Merger")))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // Ask: the generic names (a new catalog - list_changed), the ids stay listed
+    quint64 generation = fixture.host()->getCatalogGeneration();
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Ask));
+    QTRY_VERIFY(fixture.host()->getCatalogGeneration() > generation);
+    QVERIFY(!isTitleListed());
+    const pdf::PDFMcpResourceDefinition* info = fixture.host()->getCatalog()->findResource(infoUri);
+    QVERIFY(info);
+    QVERIFY2(info->title.startsWith(pdf::PDFAppMcpDocumentResources::getGenericTitle(id)), qPrintable(info->title));
+    QCOMPARE(pdf::PDFAppMcpDocumentResources::getGenericTitle(id), QStringLiteral("Open document %1").arg(id));
+
+    // The serialized listing of the server (both eras) has no title either
+    for (pdf::PDFMcpEra era : { pdf::PDFMcpEra::Modern, pdf::PDFMcpEra::Legacy20251125 })
+    {
+        const QByteArray listing = fixture.host()->getCatalog()->getResourcesJson(era);
+        QVERIFY(!listing.isEmpty());
+        QVERIFY(!listing.contains("Secret_Merger"));
+        QVERIFY(listing.contains(id.toUtf8()));
+    }
+
+    // A change of the document, which does not change the listing, publishes no
+    // catalog (the watcher follows the catalogs built for the permissions)
+    pdf::PDFAppMcpDocumentWatcher* watcher = pdf::PDFAppMcpDocumentWatcher::find(fixture.host());
+    QVERIFY(watcher);
+    generation = fixture.host()->getCatalogGeneration();
+    const int rebuilds = watcher->getRebuildCount();
+    tab->getDocument()->setLocked(true);
+    QTest::qWait(100);
+    QTRY_VERIFY(!watcher->isRebuildPending());
+    QCOMPARE(watcher->getRebuildCount(), rebuilds);
+    QCOMPARE(fixture.host()->getCatalogGeneration(), generation);
+    tab->getDocument()->setLocked(false);
+
+    // Completion withholds the titles and the ids before the approval
+    const QJsonObject completionRequest = AppMcpTestHelper::arguments(R"({"ref":{"type":"ref/prompt","name":"summarize-document"},"argument":{"name":"document","value":""}})");
+    pdf::PDFMcpCallRequest request = fixture.createRequest(QString(), QJsonObject());
+    request.kind = pdf::PDFMcpCallKind::Completion;
+    request.arguments = completionRequest;
+    std::shared_ptr<pdf::PDFMcpCall> completion = pdf::PDFMcpCall::create(request);
+    fixture.host()->handleCall(completion);
+    std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(completion);
+    QVERIFY(result);
+    QVERIFY(!QString::fromUtf8(result->result).contains(QStringLiteral("Secret_Merger")));
+
+    // Allow: the titles again
+    generation = fixture.host()->getCatalogGeneration();
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Allow));
+    QTRY_VERIFY(fixture.host()->getCatalogGeneration() > generation);
+    QVERIFY(isTitleListed());
+
+    // Deny: no document at all
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Deny));
+    QTRY_VERIFY(!fixture.host()->getCatalog()->findResource(infoUri));
+}
+
+/// Receiver of a confirmation of the test: records the decisions
+class AppMcpTestReceiver : public pdf::PDFAppMcpConfirmationReceiver
+{
+public:
+    virtual void confirmationFinished(quint64 confirmationId, pdf::PDFAppMcpDecision decision) override
+    {
+        Q_UNUSED(confirmationId);
+        decisions.push_back(decision);
+    }
+
+    std::vector<pdf::PDFAppMcpDecision> decisions;
+};
+
+void AppMcpTest::fixConfirmationAfterShutdown()
+{
+    // Fix wave FW7-H, item 45 (review RT7): a confirmation requested from a host,
+    // which is shut down already, was denied by a queued call - the controller
+    // deletes such a host before the event loop runs again, the decision was
+    // dropped and the receiver (kept alive by itself while it waits) never ended
+    pdftest::AppMcpFixture fixture;
+    pdf::PDFAppMcpHost* host = new pdf::PDFAppMcpHost(fixture.context.get());
+    QPointer<pdf::PDFAppMcpHost> hostGuard(host);
+    host->shutdown();
+
+    std::shared_ptr<AppMcpTestReceiver> receiver = std::make_shared<AppMcpTestReceiver>();
+    std::shared_ptr<pdf::PDFMcpCall> call = pdf::PDFMcpCall::create(fixture.createRequest(QStringLiteral("document"), AppMcpTestHelper::arguments(R"({"action":"get_info"})")));
+    std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = std::make_shared<pdf::PDFAppMcpConfirmation>();
+    confirmation->kind = pdf::PDFAppMcpConfirmationKind::ReadDocuments;
+    confirmation->permissions = pdf::PDFAppMcpPermissionKind::Read;
+    confirmation->call = call;
+    confirmation->receiver = receiver;
+    confirmation->receiverHolder = receiver;
+    std::weak_ptr<pdf::PDFAppMcpConfirmation> weakConfirmation = confirmation;
+
+    QVERIFY(host->requestConfirmation(confirmation) > 0);
+    QCOMPARE(receiver->decisions.size(), size_t(1));
+    QCOMPARE(receiver->decisions.front(), pdf::PDFAppMcpDecision::DeniedStopped);
+    QVERIFY(host->getPendingConfirmations().empty());
+    QVERIFY(!confirmation->receiverHolder);
+
+    // Deleted before the event loop: nothing is delivered twice, nothing leaks
+    delete host;
+    confirmation.reset();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!hostGuard);
+    QCOMPARE(receiver->decisions.size(), size_t(1));
+    QVERIFY(weakConfirmation.expired());
+}
+
+void AppMcpTest::fixJunctionsResolved()
+{
+    // Fix wave FW7-H: QFileInfo resolves symbolic links, not the junctions of NTFS
+    // (mklink /J needs no privilege) - the rules of the paths see the folder, to
+    // which a junction leads (a junction to the data of PDF4QT was not refused)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(QDir(directory.path()).mkpath(QStringLiteral("elsewhere")));
+    const QString elsewhere = QFileInfo(directory.filePath(QStringLiteral("elsewhere"))).canonicalFilePath();
+    if (!AppMcpTestHelper::createDirectoryLink(directory.filePath(QStringLiteral("elsewhere")), directory.filePath(QStringLiteral("linked"))))
+    {
+        QSKIP("A link of a folder cannot be created here");
+    }
+
+    QString error;
+    const QString checked = pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked/a.pdf")), true, &error);
+    QVERIFY2(!checked.isEmpty(), qPrintable(error));
+    QCOMPARE(QDir::fromNativeSeparators(checked).toLower(), (elsewhere + QStringLiteral("/a.pdf")).toLower());
+
+    // An existing file behind the junction, and a junction of a junction
+    QFile file(directory.filePath(QStringLiteral("elsewhere/b.pdf")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QByteArrayLiteral("%PDF-1.7 test"));
+    file.close();
+    QVERIFY(AppMcpTestHelper::createDirectoryLink(directory.filePath(QStringLiteral("linked")), directory.filePath(QStringLiteral("linked2"))));
+    const QString nested = pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked2/b.pdf")), true, &error);
+    QCOMPARE(QDir::fromNativeSeparators(nested).toLower(), (elsewhere + QStringLiteral("/b.pdf")).toLower());
+
+    // A junction without its target is refused
+    QVERIFY(QDir(directory.filePath(QStringLiteral("elsewhere"))).removeRecursively());
+    QVERIFY(pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked/a.pdf")), true, &error).isEmpty());
+}
+
+void AppMcpTest::fixOwnerRequests()
+{
+    // Fix wave FW7-H, item 47: the requests of other instances to the owner of
+    // the server (plan 2.6) - Show Other Window restores a minimized window,
+    // Disconnect of an unknown key and Disconnect All, each taken once
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.startServer());
+    pdf::PDFAppMcpController* controller = fixture.controller();
+    QTRY_VERIFY(controller->isOwner());
+    QSignalSpy showSpy(controller, &pdf::PDFAppMcpController::showWindowRequested);
+
+    fixture.window->showMinimized();
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFMcpRepository repository(fixture.context->getDatabase());
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::ShowWindow).isError());
+    QTRY_COMPARE(showSpy.count(), 1);
+    QTRY_VERIFY(!fixture.window->isMinimized());
+
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::Disconnect, QStringLiteral("a:0123456789abcdef0123456789abcdef")).isError());
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::DisconnectAll).isError());
+    QTRY_VERIFY(repository.takeRequests().empty());
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(controller->isRunning());
+    QCOMPARE(showSpy.count(), 1);
 }
 
 int main(int argc, char* argv[])

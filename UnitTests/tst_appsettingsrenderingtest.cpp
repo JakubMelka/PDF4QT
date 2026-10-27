@@ -32,6 +32,7 @@
 #include "appsettingsfixture.h"
 
 #include "pdfappcolormodepresets.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappcolormodepreview.h"
 #include "pdfappcolorprofiles.h"
 #include "pdfappcommand.h"
@@ -57,6 +58,9 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfcms.h"
+#include "pdfcolorpickerdialog.h"
+#include "pdfcomponentbuttons.h"
+#include "pdfcomponentpanels.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdfexecutionpolicy.h"
@@ -253,6 +257,7 @@ private Q_SLOTS:
     void openLists();
     void previewGeometry();
     void reviewBrowseUntrustedFolder();
+    void moreColorsDialog();
     void screenshots();
 };
 
@@ -1665,6 +1670,83 @@ void AppSettingsRenderingTest::reviewBrowseUntrustedFolder()
     RenderingTestHelper::click(fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl()->getBrowseButton());
     fixture.settle();
     QCOMPARE(start, folder);
+}
+
+void AppSettingsRenderingTest::moreColorsDialog()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    pdftest::AppSettingsFixture fixture;
+    QVERIFY(fixture.openSettings(QStringLiteral("color-modes")));
+    pdf::PDFAppColorModesSettingsSection* section = RenderingTestHelper::colorModes(fixture);
+    QVERIFY(section);
+    pdf::PDFColorButton* textButton = fixture.findRow(QStringLiteral("text-color"))->getControl()->getColorButton();
+    QVERIFY(textButton);
+    QVERIFY(pdf::PDFAppColorPicker::find(textButton));
+    QVERIFY(pdf::PDFAppColorPicker::find(fixture.findRow(QStringLiteral("page-color"))->getControl()->getColorButton()));
+
+    // The button → its palette → More colors… opens the dialog with the color of the setting
+    auto open = [&]() -> Dialog*
+    {
+        if (!textButton->showPalette())
+        {
+            return nullptr;
+        }
+        fixture.settle();
+        textButton->getPalette()->getMoreColorsLink()->click();
+        fixture.settle();
+        return pdf::PDFAppColorPicker::find(textButton)->getDialog();
+    };
+    QPointer<Dialog> dialog = open();
+    QVERIFY(dialog);
+    QVERIFY(!textButton->isPaletteVisible());
+    QCOMPARE(Dialog::getHexName(dialog->getCurrentColor()), fixture.settings().getString(pdf::PDFSettingKeys::colorModesTextColor()));
+    QCOMPARE(dialog->getScrimTarget(), fixture.window->getDialogHost());
+
+    // Cancel writes nothing
+    QSignalSpy changeSpy(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed);
+    QTest::keyClick(dialog->getHexField(), Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(dialog->getHexField(), QStringLiteral("#ABCDEF"));
+    dialog->getCancelButton()->click();
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(changeSpy.size(), 0);
+
+    // OK writes the color as a color of the palette (the preset becomes Custom…), the
+    // button shows it and the palette has it among the recent colors
+    dialog = open();
+    QVERIFY(dialog);
+    QTest::keyClick(dialog->getHexField(), Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(dialog->getHexField(), QStringLiteral("#123456"));
+    dialog->getOkButton()->click();
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::colorModesTextColor()), QStringLiteral("#123456"));
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::colorModesCustomPreset()), QStringLiteral("custom"));
+    QCOMPARE(textButton->getColor().rgb(), qRgb(0x12, 0x34, 0x56));
+    QCOMPARE(textButton->getPalette()->getRecentColors().front().color.rgb(), qRgb(0x12, 0x34, 0x56));
+    QCOMPARE(section->getPreview()->getTextColor(), QColor(QStringLiteral("#123456")));
+    const qsizetype writes = changeSpy.size();
+    QVERIFY(writes > 0);
+
+    // The same color again writes nothing new
+    changeSpy.clear();
+    dialog = open();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getCurrentColor().rgb(), qRgb(0x12, 0x34, 0x56));
+    dialog->getOkButton()->click();
+    fixture.settle();
+    QCOMPARE(changeSpy.size(), 0);
+
+    // A disabled button opens nothing; the window deleted with the dialog open
+    textButton->setEnabled(false);
+    QVERIFY(!pdf::PDFAppColorPicker::find(textButton)->openDialog());
+    textButton->setEnabled(true);
+    dialog = open();
+    QVERIFY(dialog);
+    delete fixture.window.data();
+    fixture.settle();
+    QVERIFY(!dialog);
 }
 
 void AppSettingsRenderingTest::screenshots()

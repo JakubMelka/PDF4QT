@@ -28,6 +28,7 @@
 #include "pdfthemecolors.h"
 #include "pdfthemefonts.h"
 #include "pdfwidgetstyleproperties.h"
+#include "pdfwatchedpointer.h"
 
 #include <QBasicTimer>
 #include <QElapsedTimer>
@@ -396,8 +397,9 @@ private:
     bool m_paletteGuard = false;
     const QEvent* m_forwardedMouseEvent = nullptr;
 
-    /// Column of the shortcuts of the last measured menu (getCachedMenuShortcutColumnWidth)
-    QPointer<const QMenu> m_menuShortcutColumnMenu;
+    /// Column of the shortcuts of the last measured menu (getCachedMenuShortcutColumnWidth);
+    /// the application filter compares it also with a menu in its destructor
+    PDFWatchedPointer<const QMenu> m_menuShortcutColumnMenu;
     int m_menuShortcutColumnWidth = -1;
     qsizetype m_menuShortcutColumnActions = -1;
 

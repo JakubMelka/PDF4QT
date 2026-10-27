@@ -23,6 +23,7 @@
 #include "pdfannotationproperties.h"
 #include "pdfdocumentbuilder.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -201,6 +202,64 @@ std::vector<QByteArray> PDFAnnotationPropertyEditor::getIconNames(AnnotationType
     return { };
 }
 
+std::vector<BlendMode> PDFAnnotationPropertyEditor::getOfferedBlendModes()
+{
+    std::vector<BlendMode> modes;
+    for (const BlendMode mode : PDFBlendModeInfo::getBlendModes())
+    {
+        if (PDFBlendModeInfo::isSupportedByQt(mode) && PDFBlendModeInfo::isSeparable(mode) && mode != BlendMode::Compatible)
+        {
+            modes.push_back(mode);
+        }
+    }
+    return modes;
+}
+
+bool PDFAnnotationPropertyEditor::isBlendModeOffered(const QByteArray& name)
+{
+    const BlendMode mode = PDFBlendModeInfo::getBlendMode(name);
+    const std::vector<BlendMode> modes = getOfferedBlendModes();
+    return std::find(modes.cbegin(), modes.cend(), mode) != modes.cend();
+}
+
+BlendMode PDFAnnotationPropertyEditor::getBlendMode(const QByteArray& name)
+{
+    return PDFBlendModeInfo::getBlendMode(name);
+}
+
+QByteArray PDFAnnotationPropertyEditor::getBlendModeName(BlendMode mode)
+{
+    return PDFBlendModeInfo::getBlendModeName(mode).toLatin1();
+}
+
+QByteArray PDFAnnotationPropertyEditor::readBlendMode(const PDFObjectStorage* storage, const PDFObject& object)
+{
+    if (!storage)
+    {
+        return QByteArray();
+    }
+
+    const PDFObject& value = storage->getObject(object);
+    if (value.isName())
+    {
+        return value.getString();
+    }
+
+    if (const PDFArray* array = value.isArray() ? value.getArray() : nullptr)
+    {
+        // PDF 1.4: the first blend mode of the array, which the reader recognizes
+        for (size_t i = 0; i < array->getCount(); ++i)
+        {
+            const PDFObject& item = storage->getObject(array->getItem(i));
+            if (item.isName() && PDFBlendModeInfo::getBlendMode(item.getString()) != BlendMode::Invalid)
+            {
+                return item.getString();
+            }
+        }
+    }
+    return QByteArray();
+}
+
 PDFAnnotationProperties::Fields PDFAnnotationPropertyEditor::getSupportedFields(AnnotationType type, bool hasCalloutLine)
 {
     using F = PDFAnnotationProperties;
@@ -252,8 +311,8 @@ PDFAnnotationProperties::Fields PDFAnnotationPropertyEditor::getSupportedFields(
             return F::Contents | F::Flags;
     }
 
-    // Every markup annotation has the comment and the opacity
-    return fields | F::Author | F::Subject | F::Contents | F::Opacity | F::Flags;
+    // Every markup annotation has the comment, the opacity and the blend mode
+    return fields | F::Author | F::Subject | F::Contents | F::Opacity | F::BlendMode | F::Flags;
 }
 
 PDFAnnotationProperties PDFAnnotationPropertyEditor::read(const PDFObjectStorage* storage, PDFObjectReference annotation)
@@ -277,6 +336,14 @@ PDFAnnotationProperties PDFAnnotationPropertyEditor::read(const PDFObjectStorage
     properties.color = readColor(loader.readNumberArrayFromDictionary(dictionary, "C"));
     properties.interiorColor = readColor(loader.readNumberArrayFromDictionary(dictionary, "IC"));
     properties.opacity = loader.readNumberFromDictionary(dictionary, "CA", 1.0);
+
+    // A highlight without BM is drawn by Multiply (PDFDocumentBuilder, O20), other
+    // annotations and a BM without a recognized mode by Normal
+    properties.blendMode = readBlendMode(storage, dictionary->get("BM"));
+    if (properties.blendMode.isEmpty())
+    {
+        properties.blendMode = properties.type == AnnotationType::Highlight && !dictionary->hasKey("BM") ? QByteArray("Multiply") : QByteArray("Normal");
+    }
     properties.flags = parsed->getFlags();
     properties.modifiedDate = parsed->getLastModifiedDateTime();
     if (const PDFMarkupAnnotation* markup = parsed->asMarkupAnnotation())
@@ -370,6 +437,10 @@ PDFAnnotationProperties PDFAnnotationPropertyEditor::bound(PDFAnnotationProperti
     properties.color = H::boundColor(properties.color);
     properties.interiorColor = H::boundColor(properties.interiorColor);
     properties.opacity = H::bound(properties.opacity, 0.0, 1.0, 1.0);
+    if (!isValidName(properties.blendMode))
+    {
+        properties.blendMode = "Normal";
+    }
     properties.borderWidth = H::bound(properties.borderWidth, 0.0, P::MAXIMUM_BORDER_WIDTH, 1.0);
 
     const int borderStyle = int(properties.borderStyle);
@@ -442,6 +513,7 @@ PDFAnnotationProperties::Fields PDFAnnotationPropertyEditor::getChangedFields(co
     fields.setFlag(F::Color, first.color != second.color);
     fields.setFlag(F::InteriorColor, first.interiorColor != second.interiorColor);
     fields.setFlag(F::Opacity, !qFuzzyCompare(1.0 + first.opacity, 1.0 + second.opacity));
+    fields.setFlag(F::BlendMode, first.blendMode != second.blendMode);
     fields.setFlag(F::Border, !qFuzzyCompare(1.0 + first.borderWidth, 1.0 + second.borderWidth) || first.borderStyle != second.borderStyle ||
                                   (first.borderStyle == AnnotationBorderStyle::Dashed && first.dashPattern != second.dashPattern));
     fields.setFlag(F::Flags, first.flags != second.flags);
@@ -472,15 +544,17 @@ bool PDFAnnotationPropertyEditor::write(PDFDocumentBuilder* builder, PDFObjectRe
         return false;
     }
 
-    // The fields, which the annotation of the document has (not the type given by the caller)
+    // The fields, which the annotation of the document has (not the type given by the caller);
+    // a blend mode, which is not a mode of ISO 32000-2, is never written
     const PDFAnnotationProperties current = read(builder->getStorage(), annotation);
+    const PDFAnnotationProperties value = bound(properties);
     fields &= current.supportedFields;
+    fields.setFlag(F::BlendMode, fields.testFlag(F::BlendMode) && PDFBlendModeInfo::getBlendMode(value.blendMode) != BlendMode::Invalid);
     if (fields == F::None)
     {
         return false;
     }
 
-    const PDFAnnotationProperties value = bound(properties);
     const PDFDictionary* dictionary = builder->getStorage()->getDictionaryFromObject(builder->getStorage()->getObjectByReference(annotation));
 
     PDFObjectFactory factory;
@@ -528,6 +602,13 @@ bool PDFAnnotationPropertyEditor::write(PDFDocumentBuilder* builder, PDFObjectRe
             factory << value.opacity;
             factory.endDictionaryItem();
         }
+    }
+    if (fields.testFlag(F::BlendMode))
+    {
+        // The appearance stream gets the mode too (PDFDocumentBuilder::updateAnnotationAppearanceStreams)
+        factory.beginDictionaryItem("BM");
+        factory << WrapName(value.blendMode);
+        factory.endDictionaryItem();
     }
     if (fields.testFlag(F::Border))
     {

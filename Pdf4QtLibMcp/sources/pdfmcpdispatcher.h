@@ -49,6 +49,7 @@ class QTimer;
 namespace pdf
 {
 
+class PDFMcpConnection;
 class PDFMcpDispatcher;
 class PDFMcpExchange;
 class PDFMcpHttpRequest;
@@ -91,6 +92,31 @@ public:
     bool acquireAddress(const QString& address, int limit);
     void releaseAddress(const QString& address);
 
+    // Connections, which have not completed a request (follow-up 22): at the
+    // limit of the connections a new connection evicts the oldest of them
+    // instead of being refused, so idle connections (a slow or missing head)
+    // cannot hold every slot. A connection with a request in progress, a
+    // stream or a completed request is never a candidate.
+
+    /// A new connection is a candidate (in the order of the calls)
+    void addIdleConnection(PDFMcpConnection* connection);
+
+    /// The connection completed the head of a request or closes: it is no
+    /// longer a candidate. true = it was chosen for the eviction before.
+    bool leaveIdleConnection(PDFMcpConnection* connection);
+
+    /// The destructor of the connection (it is forgotten; a chosen connection
+    /// frees its pending eviction)
+    void removeConnection(PDFMcpConnection* connection);
+
+    /// Chooses the oldest candidate and asks its thread to close it
+    /// (PDFMcpConnection::evict, queued); false = no candidate
+    bool evictIdleConnection();
+
+    /// Chosen connections, which have not been destroyed yet (their slots are
+    /// free for the limit)
+    int getPendingEvictions() const;
+
     /// Snapshot of the assistants (\p notify emits PDFMcpServer::assistantsChanged)
     void setAssistants(std::vector<PDFMcpAssistantInfo> assistants, bool notify);
     std::vector<PDFMcpAssistantInfo> getAssistants() const;
@@ -101,6 +127,8 @@ private:
     PDFMcpServer* m_server = nullptr;
     std::map<QString, int> m_addresses;
     std::vector<PDFMcpAssistantInfo> m_assistants;
+    std::vector<PDFMcpConnection*> m_idleConnections;      ///< Candidates, the oldest first
+    std::vector<PDFMcpConnection*> m_evictedConnections;   ///< Chosen, not destroyed yet
 };
 
 /// Dispatcher of the control thread (plan 1, 2.2): the protocol of both eras
@@ -308,6 +336,7 @@ private:
     PDFMcpTaskStore m_tasks;
     PDFMcpRateLimiter m_rateLimiter;
     PDFMcpRateLimiter m_completionLimiter;
+    PDFMcpRateLimiter m_initializeLimiter;      ///< Legacy initialize per address (follow-up 36)
     PDFMcpAuthorizationThrottle m_throttle;
     std::shared_ptr<const PDFMcpCatalog> m_catalog;
 

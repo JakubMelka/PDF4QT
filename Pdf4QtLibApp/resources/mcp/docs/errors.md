@@ -59,7 +59,7 @@ PDF4QT reports two kinds of errors:
 | Attachment content | 8 MiB |
 | Text resource of a document | 4194304 characters |
 | Waiting confirmations per tab | 16 |
-| Confirmation timeout | 2 minutes |
+| Confirmation timeout | 2 minutes from the moment the question appears; at most 10 minutes waiting before it appears |
 | Calls running at once | 16 per assistant |
 | Rate | 20 calls per second (short bursts up to 50) per assistant |
 

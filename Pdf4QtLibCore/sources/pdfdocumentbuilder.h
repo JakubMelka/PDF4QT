@@ -1681,6 +1681,15 @@ private:
     PDFFreeTextStyle createDefaultFreeTextStyle(TextAlignment alignment) const;
     bool updateHighlightAnnotationAppearanceStream(PDFObjectReference annotationReference,
                                                    const PDFHighlightAnnotation* annotation);
+
+    /// Name of the blend mode, which the appearance stream of the annotation must set:
+    /// BM of the annotation, a recognized mode other than Normal / Compatible; empty otherwise
+    QByteArray getAppearanceStreamBlendMode(PDFObjectReference annotationReference) const;
+
+    /// Puts the blend mode into an appearance stream drawn by QPdfWriter, which writes
+    /// no blend modes: an ExtGState with BM is set at the start of the content (for
+    /// readers, which ignore BM of the annotation; the highlight writes it itself)
+    void setAppearanceStreamBlendMode(PDFObjectReference formReference, PDFObjectReference resourcesReference, const QByteArray& blendModeName);
     QRectF resizeFreeTextRectangleToContents(QRectF rectangle,
                                              const QString& contents,
                                              const PDFFreeTextStyle& style,

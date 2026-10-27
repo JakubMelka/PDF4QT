@@ -21,12 +21,15 @@ With Read documents set to Ask, PDF4QT asks once per assistant: the first call, 
 - **Allow** applies to all open documents and to the documents opened later, until your client has not used PDF4QT for 30 minutes or the user disconnects it on the AI page.
 - **Deny** refuses only that call; the next call that reads asks again. Do not ask again and again – after a denial, ask the user in your conversation first.
 - `readApproved` of `application.get_state` says whether you have the approval.
+- `files.open` of a file, which is open already, reads its document: it asks for the approval too.
+- While Read documents is Ask, `resources/list` lists the open documents without their titles ("Open document <documentId>"); the titles are document data, which you get after the approval (`application.get_state`).
 
 ## Confirmations of changes
 
 With Edit documents or Open and save files set to Ask, every call that changes a document, opens or saves a file shows one dialog in the tab of the document – one dialog per call, also when the call needs both permissions. The dialog shows what you want to do (the rows of the changes, the quoted texts, the file and its path), the reason ("Asked because Edit documents is set to Ask") and a countdown.
 
-- The user has **2 minutes**. Without an answer, the request is denied automatically.
+- The user has **2 minutes** from the moment the dialog appears. Without an answer, the request is denied automatically. A request, whose dialog has not appeared yet – it waits behind other requests of its tab, in a tab the user does not show, or behind another dialog of PDF4QT – is denied after 10 minutes of waiting.
+- While another dialog of PDF4QT is open, the read approval and `files.open` wait until the user closes it; then the question appears.
 - More requests of one tab wait in a queue and are shown one after another ("1 of 3"). At most 16 requests can wait in one tab.
 - The dialog shows your texts exactly as plain text. Write them for the user.
 - Some confirmations are shown even with Allow: overwriting a file (`files.save`, `files.save_copy` with `overwrite`), and opening a file or creating a document while another dialog of PDF4QT was open ("Asked because a dialog was open when the request came").

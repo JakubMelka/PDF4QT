@@ -57,6 +57,7 @@ public:
     bool isRemote = false;
     QString logLevel;                       ///< logging/setLevel, empty = no notifications/message
     bool isInitialized = false;             ///< notifications/initialized arrived
+    bool isUsed = false;                    ///< Another message of the session arrived after initialize (a request, a GET stream, an answer)
     qint64 createdAt = 0;
     qint64 lastSeen = 0;
     std::shared_ptr<PDFMcpExchange> stream; ///< The GET stream (at most one)
@@ -99,6 +100,10 @@ public:
 
     /// Keys of the sessions idle for \p idleTime (no request, no GET stream)
     std::vector<QString> getIdleSessions(qint64 now, qint64 idleTime) const;
+
+    /// Keys of the sessions created \p unusedTime ago, which got no message
+    /// after their initialize (PDFMcpLimits::UNUSED_SESSION_TIME)
+    std::vector<QString> getUnusedSessions(qint64 now, qint64 unusedTime) const;
 
     /// Keys of every session
     std::vector<QString> getKeys() const;

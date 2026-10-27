@@ -521,7 +521,10 @@ void PDFAppMcpChangeJob::finish(PDFAppMcpHost* host)
             const auto keepAlive = shared_from_this();
             host->requestConfirmation(confirmation);
             m_context.activityId = confirmation->activityId;
-            if (!m_host)
+
+            // A host shut down meanwhile has denied the request at once: its row
+            // keeps the decision (never Waiting again)
+            if (!m_host || !getCall() || getCall()->isFinished())
             {
                 return;
             }

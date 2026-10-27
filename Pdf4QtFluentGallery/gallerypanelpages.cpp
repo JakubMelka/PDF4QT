@@ -25,6 +25,7 @@
 // Color button, Color palette popover, Signature card and Page selection.
 
 #include "gallerypages.h"
+#include "pdfcolorpickerdialog.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbuttons.h"
@@ -654,6 +655,80 @@ void GalleryPages::addFormsPanels(GalleryBuilder& builder)
     rightToLeftPalette->setLayoutDirection(Qt::RightToLeft);
     builder.live(QStringLiteral("Live right-to-left"), rightToLeftPalette);
     builder.note(QStringLiteral("The design keeps the colors inline in a panel, where there is room for them (a row of Color swatches); the popover of the Color button is for the other places. The popover is a translucent window of the style with the shadow 0 / 8 / 24."));
+
+    // Color picker: the dialog of "More colors…" and its parts
+    builder.block(QStringLiteral("Color picker (PDFColorPickerDialog) - More colors…: area, hue, comparison, eyedropper, Hex and R / G / B"), QStringLiteral("1294:1695"));
+    using Metrics = Painter::ColorPickerMetrics;
+    const int areaMargin = pdf::PDFColorArea::getMarkerMargin();
+    const QSize areaSize(354 + 2 * areaMargin, Metrics::AREA_HEIGHT + 2 * areaMargin);
+    const Painter::ColorArea blueArea{ 211.0, 0.96, 1.0 };
+    Helper::specimen(builder, QStringLiteral("Area (marker at #0A84FF)"), areaSize, GalleryPages::Default, QApplication::layoutDirection(),
+                     [blueArea, areaMargin](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintColorArea(&painter, rect.adjusted(areaMargin, areaMargin, -areaMargin, -areaMargin), blueArea, state);
+    }, QStringLiteral("1294:1539"));
+    const Painter::ColorArea grayArea{ 40.0, 0.3, 0.45 };
+    Helper::specimen(builder, QStringLiteral("Area focus"), areaSize, GalleryPages::Focus, QApplication::layoutDirection(),
+                     [grayArea, areaMargin](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintColorArea(&painter, rect.adjusted(areaMargin, areaMargin, -areaMargin, -areaMargin), grayArea, state);
+    });
+    builder.row();
+
+    struct HueState
+    {
+        const char* name;
+        int flags;
+    };
+    static constexpr HueState hueStates[] =
+    {
+        { "Hue slider", GalleryPages::Default },
+        { "Hover", GalleryPages::Hover },
+        { "Pressed", GalleryPages::Pressed | GalleryPages::Hover },
+        { "Focus", GalleryPages::Focus },
+        { "Disabled", GalleryPages::Disabled }
+    };
+    for (const HueState& hueState : hueStates)
+    {
+        Helper::specimen(builder, QString::fromLatin1(hueState.name), QSize(262, Metrics::SLIDER_HEIGHT), hueState.flags, QApplication::layoutDirection(),
+                         [](QPainter& painter, const QRectF& rect, const Painter::State& state)
+        {
+            Painter::paintHueSlider(&painter, rect, 211.0, state);
+        });
+    }
+    builder.row();
+
+    const Painter::ColorComparison comparison{ pdf::PDFStylePainter::color(Color::AnnotationYellow), pdf::PDFStylePainter::color(Color::AnnotationBlue) };
+    Helper::specimen(builder, QStringLiteral("Comparison"), QSize(Metrics::COMPARISON_WIDTH, Metrics::ROW_HEIGHT), GalleryPages::Default, QApplication::layoutDirection(),
+                     [comparison](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintColorComparison(&painter, rect, comparison, state);
+    }, QStringLiteral("1294:1543"));
+    const Painter::ColorComparison noColor{ QColor(), pdf::PDFStylePainter::color(Color::AnnotationBlue) };
+    Helper::specimen(builder, QStringLiteral("No current color"), QSize(Metrics::COMPARISON_WIDTH, Metrics::ROW_HEIGHT), GalleryPages::Default, QApplication::layoutDirection(),
+                     [noColor](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintColorComparison(&painter, rect, noColor, state);
+    });
+    Helper::specimen(builder, QStringLiteral("Right-to-left"), QSize(Metrics::COMPARISON_WIDTH, Metrics::ROW_HEIGHT), GalleryPages::Default, Qt::RightToLeft,
+                     [comparison](QPainter& painter, const QRectF& rect, const Painter::State& state)
+    {
+        Painter::paintColorComparison(&painter, rect, comparison, state);
+    });
+    builder.row();
+
+    // The dialog shown inside of the page (property "overlay"), as the message boxes of the page Dialogs
+    pdf::PDFColorPickerDialog* picker = new pdf::PDFColorPickerDialog(pdf::PDFStylePainter::color(Color::AnnotationYellow), builder.page());
+    picker->setWindowFlags(Qt::Widget);
+    picker->setProperty(pdf::PDFWidgetStyleProperties::OVERLAY, true);
+    picker->setColor(pdf::PDFStylePainter::color(Color::AnnotationBlue));
+    builder.live(QStringLiteral("Live (the yellow current color, the new blue one)"), picker, QStringLiteral("1294:1537"));
+    pdf::PDFColorPickerDialog* rightToLeftPicker = new pdf::PDFColorPickerDialog(QColor(), builder.page());
+    rightToLeftPicker->setWindowFlags(Qt::Widget);
+    rightToLeftPicker->setProperty(pdf::PDFWidgetStyleProperties::OVERLAY, true);
+    rightToLeftPicker->setLayoutDirection(Qt::RightToLeft);
+    builder.live(QStringLiteral("Live right-to-left, no current color"), rightToLeftPicker);
+    builder.note(QStringLiteral("More colors… of the palettes opens the dialog (the application connects moreColorsRequested). The area and the spectrum are not mirrored for right-to-left; the eyedropper is hidden, where the screen cannot be read."));
 }
 
 void GalleryPages::addPanelsPanels(GalleryBuilder& builder)

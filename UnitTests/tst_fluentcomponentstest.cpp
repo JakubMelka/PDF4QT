@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfaccenthue.h"
+#include "pdfcolorpickerdialog.h"
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
@@ -43,6 +44,7 @@
 #include "pdftooltip.h"
 #include "pdfwidgetstyle.h"
 #include "pdfwidgetstyleproperties.h"
+#include "pdfwatchedpointer.h"
 
 #include "gallerypages.h"
 
@@ -585,6 +587,16 @@ private slots:
     void colorSwatchRow();
     void colorSwatchRowPalette();
     void referencePointPicker();
+    void colorPickerPainter();
+    void colorPickerLayout();
+    void colorPickerSync();
+    void colorPickerHex();
+    void colorPickerKeyboard();
+    void colorPickerAccessibility();
+    void colorPickerEyedropper();
+    void colorPickerPixels();
+    void colorPickerLifetime();
+    void colorPaletteSelectColor();
     void signatureCard();
     void strengthMeter();
     void panelPixels_data();
@@ -615,6 +627,7 @@ private slots:
     void delegateDefensive();
     void delegateGallery();
     void delegateViewLifetime();
+    void watchedPointer();
     void delegateLostRelease();
     void treeViewLostRelease();
     void treeViewRowFocusAndSelection();
@@ -8675,6 +8688,972 @@ void FluentComponentsTest::referencePointPicker()
     QCOMPARE(picker->accessibleDescription(), Picker::getPointName(0));
 }
 
+/// Replaces the reader of the screen of the color picker for the lifetime of the guard
+class ColorPickerReaderGuard
+{
+public:
+    explicit ColorPickerReaderGuard(pdf::PDFColorPickerDialog::ScreenColorReader reader)
+    {
+        pdf::PDFColorPickerDialog::setScreenColorReader(std::move(reader));
+    }
+
+    ~ColorPickerReaderGuard()
+    {
+        pdf::PDFColorPickerDialog::setScreenColorReader(pdf::PDFColorPickerDialog::ScreenColorReader());
+    }
+
+    ColorPickerReaderGuard(const ColorPickerReaderGuard&) = delete;
+    ColorPickerReaderGuard& operator=(const ColorPickerReaderGuard&) = delete;
+
+    /// A screen, whose pixel at (x, y) is (x % 256, y % 256, 77)
+    static std::optional<QColor> gradient(const QPoint& position)
+    {
+        return QColor(qAbs(position.x()) % 256, qAbs(position.y()) % 256, 77);
+    }
+
+    /// A screen, which cannot be read (Wayland, a failed grab)
+    static std::optional<QColor> unreadable(const QPoint&)
+    {
+        return std::nullopt;
+    }
+};
+
+void FluentComponentsTest::colorPickerPainter()
+{
+    using Metrics = Painter::ColorPickerMetrics;
+
+    // The geometry of 1294:1695
+    QCOMPARE(Metrics::CARD_WIDTH, 400);
+    QCOMPARE(Metrics::AREA_HEIGHT, 176);
+    QCOMPARE(Metrics::ROW_HEIGHT, 28);
+    QCOMPARE(Metrics::COMPARISON_WIDTH, 40);
+    QCOMPARE(Metrics::SLIDER_THUMB, 14);
+
+    // The marker: saturation to the right, value to the top; bounded, non-finite values
+    const QRectF area(7.0, 7.0, 354.0, 176.0);
+    QCOMPARE(Painter::getColorAreaPoint(area, 0.0, 1.0), QPointF(7.0, 7.0));
+    QCOMPARE(Painter::getColorAreaPoint(area, 1.0, 0.0), QPointF(361.0, 183.0));
+    QCOMPARE(Painter::getColorAreaPoint(area, 5.0, -3.0), QPointF(361.0, 183.0));
+    QCOMPARE(Painter::getColorAreaPoint(area, qQNaN(), qInf()), QPointF(7.0, 183.0));
+    QCOMPARE(Painter::getColorAreaValues(area, QPointF(7.0 + 177.0, 7.0 + 44.0)), QPointF(0.5, 0.75));
+    QCOMPARE(Painter::getColorAreaValues(area, QPointF(-100.0, 1000.0)), QPointF(0.0, 0.0));
+    QCOMPARE(Painter::getColorAreaValues(area, QPointF(qQNaN(), 0.0)), QPointF(0.0, 1.0));
+    QCOMPARE(Painter::getColorAreaValues(QRectF(), QPointF(1.0, 1.0)), QPointF(0.0, 1.0));
+
+    // The hue slider: the thumb travels over the width without the thumb
+    const QRectF slider(0.0, 0.0, 273.0, 20.0);
+    QCOMPARE(Painter::getHueSliderThumbRect(slider, 0.0), QRectF(0.0, 3.0, 14.0, 14.0));
+    QCOMPARE(Painter::getHueSliderThumbRect(slider, 359.0), QRectF(259.0, 3.0, 14.0, 14.0));
+    QCOMPARE(Painter::getHueSliderThumbRect(slider, 1000.0), QRectF(259.0, 3.0, 14.0, 14.0));
+    QCOMPARE(Painter::getHueSliderThumbRect(slider, qQNaN()), QRectF(0.0, 3.0, 14.0, 14.0));
+    QVERIFY(Painter::getHueSliderThumbRect(QRectF(), 10.0).isNull());
+    QCOMPARE(Painter::getHueSliderValue(slider, 7.0), 0.0);
+    QCOMPARE(Painter::getHueSliderValue(slider, 266.0), 359.0);
+    QCOMPARE(Painter::getHueSliderValue(slider, 7.0 + 129.5), 179.5);
+    QCOMPARE(Painter::getHueSliderValue(slider, -50.0), 0.0);
+    QCOMPARE(Painter::getHueSliderValue(slider, qInf()), 0.0);
+    QCOMPARE(Painter::getHueSliderValue(QRectF(0.0, 0.0, 10.0, 20.0), 5.0), 0.0);
+
+    // Pixels of the area: the corners are white, the hue and black; the marker is white
+    const Painter::ColorArea blue{ 210.0, 1.0, 1.0 };
+    for (const qreal scale : { 1.0, 1.5, 2.0 })
+    {
+        const QImage image = render([&](QPainter& painter) { Painter::paintColorArea(&painter, area, blue, state(QStyle::State_None)); }, QSize(368, 190), scale);
+        QVERIFY2(isNear(pixel(image, 7.0 + 4.0, 7.0 + 4.0), QColor(246, 248, 249), 4), qPrintable(pixel(image, 7.0 + 4.0, 7.0 + 4.0).name(QColor::HexArgb)));
+        QVERIFY(isNear(pixel(image, 361.0 - 20.0, 7.0 + 20.0), QColor::fromHsvF(210.0f / 360.0f, 0.94f, 0.89f), 30));
+        QVERIFY(isNear(pixel(image, 7.0 + 14.0, 183.0 - 2.0), QColor(0, 0, 0), 12));
+        QVERIFY(isNear(pixel(image, 361.0 + 6.0, 7.0), QColor(255, 255, 255), 4));
+        QCOMPARE(countLeakPixels(image), 0);
+    }
+
+    // The hue slider: red at the ends, cyan in the middle, the thumb of Slider
+    for (const qreal scale : { 1.0, 1.5, 2.0 })
+    {
+        const QImage image = render([&](QPainter& painter) { Painter::paintHueSlider(&painter, slider, 0.0, state(QStyle::State_None)); }, slider.size().toSize(), scale);
+        QVERIFY(isNear(pixel(image, 30.0, 10.0), QColor::fromHsvF(float((30.0 - 7.0) / 259.0 * 359.0 / 360.0), 1.0f, 1.0f), 30));
+        QVERIFY(isNear(pixel(image, 7.0 + 129.5, 10.0), QColor::fromHsvF(179.5f / 360.0f, 1.0f, 1.0f), 30));
+        QCOMPARE(pixel(image, 7.0, 10.0), token(Color::BgSurface));
+        QVERIFY(isNear(pixel(image, 1.0, 10.0), token(Color::BgAccent), 40));
+        QCOMPARE(countLeakPixels(image), 0);
+    }
+
+    // The comparison chip: the current color at the leading side; no color is crossed
+    const Painter::ColorComparison comparison{ QColor(255, 214, 10), QColor(10, 132, 255) };
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        const QImage image = render([&](QPainter& painter) { Painter::paintColorComparison(&painter, QRectF(0.0, 0.0, 40.0, 28.0), comparison, state(QStyle::State_None, direction)); }, QSize(40, 28));
+        const QColor leading = pixel(image, direction == Qt::LeftToRight ? 10.0 : 30.0, 14.0);
+        const QColor trailing = pixel(image, direction == Qt::LeftToRight ? 30.0 : 10.0, 14.0);
+        QCOMPARE(leading, QColor(255, 214, 10));
+        QCOMPARE(trailing, QColor(10, 132, 255));
+    }
+    const QImage noColor = render([&](QPainter& painter) { Painter::paintColorComparison(&painter, QRectF(0.0, 0.0, 40.0, 28.0), Painter::ColorComparison{ QColor(), QColor(10, 132, 255) }, state(QStyle::State_None)); }, QSize(40, 28));
+    QVERIFY(countPixels(noColor, QRect(0, 0, 20, 28), token(Color::IconDanger), 60) > 5);
+
+    // Defensive: a null painter, empty and non-finite rectangles draw nothing
+    Painter::paintColorArea(nullptr, area, blue, state(QStyle::State_None));
+    Painter::paintHueSlider(nullptr, slider, 10.0, state(QStyle::State_None));
+    Painter::paintColorComparison(nullptr, QRectF(0.0, 0.0, 40.0, 28.0), comparison, state(QStyle::State_None));
+    const QImage empty = render([&](QPainter& painter)
+    {
+        Painter::paintColorArea(&painter, QRectF(), blue, state(QStyle::State_None));
+        Painter::paintColorArea(&painter, QRectF(0.0, 0.0, qInf(), 10.0), blue, state(QStyle::State_None));
+        Painter::paintHueSlider(&painter, QRectF(0.0, 0.0, qQNaN(), 20.0), 10.0, state(QStyle::State_None));
+        Painter::paintColorComparison(&painter, QRectF(0.0, 0.0, -40.0, 28.0), comparison, state(QStyle::State_None));
+    }, QSize(20, 20));
+    QCOMPARE(countPixels(empty, empty.rect(), token(Color::BgSurface), 0), 400);
+}
+
+void FluentComponentsTest::colorPickerLayout()
+{
+    using Metrics = Painter::ColorPickerMetrics;
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    QWidget host;
+    host.resize(900, 700);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    Dialog* dialog = new Dialog(QColor(255, 214, 10), &host);
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    QPointer<Dialog> guard(dialog);
+    dialog->show();
+    QVERIFY(QTest::qWaitForWindowExposed(dialog));
+    QApplication::processEvents();
+
+    // The card of 400 without the badge, the parts 23 / 21 from its edges (paddings inside of the border)
+    const QRect card = dialog->rect().marginsRemoved(dialog->getShadowMargins());
+    QCOMPARE(card.width(), Metrics::CARD_WIDTH);
+    QVERIFY(!dialog->isBadgeVisible());
+    QCOMPARE(dialog->getContentWidth(), 354);
+    QCOMPARE(dialog->windowTitle().isEmpty(), false);
+
+    pdf::PDFColorArea* area = dialog->getArea();
+    QWidget* place = dialog->findChild<QWidget*>(QStringLiteral("colorAreaPlace"));
+    QVERIFY(area && place);
+    const QRect placeRect(place->mapTo(dialog, QPoint(0, 0)), place->size());
+    QCOMPARE(placeRect.size(), QSize(354, Metrics::AREA_HEIGHT));
+    QCOMPARE(placeRect.left() - card.left(), 23);
+    QCOMPARE(area->geometry(), placeRect.marginsAdded(QMargins(7, 7, 7, 7)));
+    QCOMPARE(QRect(area->mapTo(dialog, area->getAreaRect().topLeft()), area->getAreaRect().size()), placeRect);
+
+    // The hue row: comparison 40 x 28, the slider, the eyedropper 28, gaps 12
+    QWidget* comparison = dialog->getComparison();
+    QWidget* slider = dialog->getHueSlider();
+    QWidget* eyedropper = dialog->getEyedropperButton();
+    QVERIFY(eyedropper->isVisible());
+    const QRect comparisonRect(comparison->mapTo(dialog, QPoint(0, 0)), comparison->size());
+    const QRect sliderRect(slider->mapTo(dialog, QPoint(0, 0)), slider->size());
+    const QRect eyedropperRect(eyedropper->mapTo(dialog, QPoint(0, 0)), eyedropper->size());
+    QCOMPARE(comparisonRect.size(), QSize(40, 28));
+    QCOMPARE(eyedropperRect.size(), QSize(28, 28));
+    QCOMPARE(sliderRect.height(), Metrics::SLIDER_HEIGHT);
+    QCOMPARE(comparisonRect.top() - placeRect.bottom() - 1, 14);
+    QCOMPARE(comparisonRect.left(), placeRect.left());
+    QCOMPARE(sliderRect.left() - comparisonRect.right() - 1, 12);
+    QCOMPARE(eyedropperRect.left() - sliderRect.right() - 1, 12);
+    QCOMPARE(eyedropperRect.right(), placeRect.right());
+    QCOMPARE(sliderRect.center().y(), comparisonRect.center().y());
+
+    // The fields: Hex the rest of the width, R / G / B 72, gaps 8, captions 6 above
+    QWidget* hex = dialog->getHexField();
+    const QRect hexRect(hex->mapTo(dialog, QPoint(0, 0)), hex->size());
+    QCOMPARE(hexRect.left(), placeRect.left());
+    QCOMPARE(hexRect.height(), 34);
+    int left = hexRect.right() + 1 + 8;
+    for (const Dialog::Channel channel : { Dialog::Channel::Red, Dialog::Channel::Green, Dialog::Channel::Blue })
+    {
+        QWidget* field = dialog->getChannelField(channel);
+        const QRect rect(field->mapTo(dialog, QPoint(0, 0)), field->size());
+        QCOMPARE(rect.left(), left);
+        QCOMPARE(rect.width(), Metrics::CHANNEL_WIDTH);
+        QCOMPARE(rect.top(), hexRect.top());
+        left = rect.right() + 1 + 8;
+    }
+    QCOMPARE(left - 8 - 1, placeRect.right());
+    QCOMPARE(hexRect.width(), 354 - 3 * 72 - 3 * 8);
+    QList<pdf::PDFLabel*> captions;
+    for (pdf::PDFLabel* label : dialog->findChildren<pdf::PDFLabel*>())
+    {
+        if (label->text() == QStringLiteral("Hex"))
+        {
+            captions << label;
+        }
+    }
+    QCOMPARE(captions.size(), 1);
+    QCOMPARE(hexRect.top() - (captions.front()->mapTo(dialog, QPoint(0, 0)).y() + captions.front()->height()), 6);
+    QCOMPARE(captions.front()->mapTo(dialog, QPoint(0, 0)).y() - comparisonRect.bottom() - 1, 14);
+    QVERIFY(dialog->getErrorLabel()->isHidden());
+
+    // The buttons: Cancel at the leading side, OK (Primary) at the trailing side
+    QCOMPARE(dialog->getActionButtons().size(), 2);
+    QCOMPARE(dialog->getActionButtons().front(), dialog->getCancelButton());
+    QCOMPARE(dialog->getActionButtons().back(), dialog->getOkButton());
+    QVERIFY(dialog->getOkButton()->isDefault());
+    QVERIFY(dialog->getOkButton()->mapTo(dialog, QPoint(0, 0)).x() > dialog->getCancelButton()->mapTo(dialog, QPoint(0, 0)).x());
+
+    // Invalid Hex: the error row 6 below the fields, the card grows and shrinks back
+    const int height = dialog->height();
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(hex, QStringLiteral("#12"));
+    QVERIFY(!dialog->getErrorLabel()->isHidden());
+    QTRY_VERIFY(dialog->height() > height);
+    const QRect errorRect(dialog->getErrorLabel()->mapTo(dialog, QPoint(0, 0)), dialog->getErrorLabel()->size());
+    QCOMPARE(errorRect.top() - hexRect.bottom() - 1, 6);
+    QCOMPARE(errorRect.height(), Metrics::ERROR_LINE);
+    QTest::keyClicks(hex, QStringLiteral("3456"));
+    QVERIFY(dialog->getErrorLabel()->isHidden());
+    QTRY_VERIFY2(dialog->height() == height, qPrintable(QStringLiteral("h %1 hint %2 min %3 max %4").arg(dialog->height()).arg(dialog->sizeHint().height()).arg(dialog->minimumHeight()).arg(dialog->maximumHeight())));
+
+    // Without a readable screen the slider takes the place of the eyedropper
+    {
+        ColorPickerReaderGuard unreadable(&ColorPickerReaderGuard::unreadable);
+        Dialog other(QColor(), &host);
+        other.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&other));
+        QVERIFY(!other.isEyedropperAvailable());
+        QVERIFY(other.getEyedropperButton()->isHidden());
+        QTRY_COMPARE(other.getHueSlider()->mapTo(&other, QPoint(other.getHueSlider()->width(), 0)).x() - 1,
+                     other.getArea()->mapTo(&other, other.getArea()->getAreaRect().topRight()).x());
+        QCOMPARE(other.getCurrentColor(), QColor());
+        QCOMPARE(other.getColor(), QColor(255, 255, 255));
+    }
+
+    dialog->reject();
+    QTRY_VERIFY(!guard);
+}
+
+void FluentComponentsTest::colorPickerSync()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    Dialog dialog(QColor(255, 214, 10, 100));
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+
+    pdf::PDFColorArea* area = dialog.getArea();
+    pdf::PDFHueSlider* slider = dialog.getHueSlider();
+    pdf::PDFLineEdit* hex = dialog.getHexField();
+    pdf::PDFSpinBox* red = dialog.getChannelField(Dialog::Channel::Red);
+    pdf::PDFSpinBox* green = dialog.getChannelField(Dialog::Channel::Green);
+    pdf::PDFSpinBox* blue = dialog.getChannelField(Dialog::Channel::Blue);
+    QCOMPARE(dialog.getChannelField(static_cast<Dialog::Channel>(7)), nullptr);
+
+    auto checkControls = [&](const QColor& expected)
+    {
+        QCOMPARE(dialog.getColor().rgb(), expected.rgb());
+        QCOMPARE(hex->text(), Dialog::getHexName(expected));
+        QCOMPARE(red->value(), expected.red());
+        QCOMPARE(green->value(), expected.green());
+        QCOMPARE(blue->value(), expected.blue());
+        QCOMPARE(dialog.getComparison()->getColor().rgb(), expected.rgb());
+        QCOMPARE(dialog.getComparison()->getCurrentColor(), QColor(255, 214, 10));
+        QVERIFY(dialog.isHexValid());
+        QVERIFY(dialog.getOkButton()->isEnabled());
+    };
+
+    // The current color without its alpha; the initial state
+    QCOMPARE(dialog.getCurrentColor(), QColor(255, 214, 10));
+    checkControls(QColor(255, 214, 10));
+    QCOMPARE(slider->value(), qRound(QColor(255, 214, 10).hsvHueF() * 360.0));
+
+    // Program: setColor (the alpha dropped, an invalid color ignored), nothing emitted
+    QSignalSpy selected(&dialog, &Dialog::colorSelected);
+    QSignalSpy hexEdits(hex, &QLineEdit::textEdited);
+    dialog.setColor(QColor(10, 132, 255, 20));
+    checkControls(QColor(10, 132, 255));
+    QCOMPARE(slider->value(), 210);
+    QVERIFY(qAbs(area->getSaturation() - 245.0 / 255.0) < 0.01);
+    QCOMPARE(area->getValue(), 1.0);
+    QVERIFY(qAbs(area->getHue() - 210.0) < 0.5);
+    dialog.setColor(QColor());
+    checkControls(QColor(10, 132, 255));
+
+    // The area by the mouse: the hue stays, the fields follow
+    QSignalSpy areaChanged(area, &pdf::PDFColorArea::saturationValueChanged);
+    const QRect areaRect = area->getAreaRect();
+    QTest::mouseClick(area, Qt::LeftButton, Qt::NoModifier, QPoint(areaRect.left() + areaRect.width() / 2, areaRect.top() + areaRect.height() / 4));
+    QCOMPARE(areaChanged.count(), 1);
+    QCOMPARE(slider->value(), 210);
+    const QColor fromArea = QColor::fromHsvF(210.0f / 360.0f, float(area->getSaturation()), float(area->getValue()));
+    checkControls(fromArea);
+    QVERIFY(qAbs(area->getSaturation() - 0.5) < 0.01);
+    QVERIFY(qAbs(area->getValue() - 0.75) < 0.01);
+
+    // A drag past the edges is bounded
+    QTest::mousePress(area, Qt::LeftButton, Qt::NoModifier, areaRect.center());
+    QMouseEvent drag(QEvent::MouseMove, QPointF(-50.0, -50.0), area->mapToGlobal(QPointF(-50.0, -50.0)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(area, &drag);
+    QCOMPARE(area->getSaturation(), 0.0);
+    QCOMPARE(area->getValue(), 1.0);
+    QTest::mouseRelease(area, Qt::LeftButton, Qt::NoModifier, QPoint(0, 0));
+    checkControls(QColor(255, 255, 255));
+
+    // The hue slider: the area takes the hue, the saturation / value stay
+    area->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(area, Qt::Key_End);
+    QTest::keyClick(area, Qt::Key_PageDown);
+    QTest::keyClick(area, Qt::Key_Up);
+    QCOMPARE(area->getSaturation(), 1.0);
+    QVERIFY(qAbs(area->getValue() - 0.01) < 1e-9);
+    for (int i = 0; i < 49; ++i)
+    {
+        QTest::keyClick(area, Qt::Key_Up);
+    }
+    QVERIFY(qAbs(area->getValue() - 0.5) < 1e-6);
+    slider->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(slider, Qt::Key_Home);
+    QCOMPARE(slider->value(), 0);
+    QCOMPARE(area->getHue(), 0.0);
+    QCOMPARE(dialog.getColor().green(), 0);
+    QCOMPARE(dialog.getColor().blue(), 0);
+    QVERIFY(qAbs(dialog.getColor().red() - 128) <= 1);
+    QCOMPARE(hex->text(), Dialog::getHexName(dialog.getColor()));
+    QCOMPARE(red->value(), dialog.getColor().red());
+
+    // A click on the slider moves the thumb to the pointer
+    QTest::mouseClick(slider, Qt::LeftButton, Qt::NoModifier, QPoint(slider->width() - 7, slider->height() / 2));
+    QCOMPARE(slider->value(), 359);
+    QVERIFY(!slider->isSliderDown());
+    QCOMPARE(area->getHue(), 359.0);
+
+    // The Hex field: typed, partial texts keep the last valid color, the text is never rewritten
+    hex->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    const QColor beforeTyping = dialog.getColor();
+    QTest::keyClicks(hex, QStringLiteral("#00ff8"));
+    QCOMPARE(hex->text(), QStringLiteral("#00ff8"));
+    QVERIFY(!dialog.isHexValid());
+    QCOMPARE(dialog.getColor(), beforeTyping);
+    QCOMPARE(red->value(), beforeTyping.red());
+    QTest::keyClicks(hex, QStringLiteral("0"));
+    QCOMPARE(hex->text(), QStringLiteral("#00ff80"));
+    QCOMPARE(dialog.getColor(), QColor(0, 255, 128));
+    QCOMPARE(red->value(), 0);
+    QCOMPARE(green->value(), 255);
+    QCOMPARE(blue->value(), 128);
+    QCOMPARE(slider->value(), 150);
+    QCOMPARE(area->getSaturation(), 1.0);
+    QCOMPARE(area->getValue(), 1.0);
+
+    // The channels: the arrows of a spin box; the Hex field follows and is valid again
+    red->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(red, Qt::Key_Up);
+    checkControls(QColor(1, 255, 128));
+    QTest::keyClick(blue, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(blue, QStringLiteral("255"));
+    checkControls(QColor(1, 255, 255));
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(hex, QStringLiteral("nonsense"));
+    QVERIFY(!dialog.isHexValid());
+    green->setValue(10);
+    checkControls(QColor(1, 10, 255));
+
+    // Gray keeps the hue, black keeps also the saturation (the marker does not jump)
+    slider->setValue(120);
+    dialog.setColor(QColor(90, 90, 90));
+    QCOMPARE(slider->value(), 120);
+    QCOMPARE(area->getHue(), 120.0);
+    QCOMPARE(area->getSaturation(), 0.0);
+    QCOMPARE(red->value(), 90);
+    dialog.setColor(QColor(0, 160, 80));
+    const qreal greenSaturation = area->getSaturation();
+    dialog.setColor(QColor(0, 0, 0));
+    QCOMPARE(area->getSaturation(), greenSaturation);
+    QCOMPARE(area->getValue(), 0.0);
+    QCOMPARE(slider->value(), 150);
+
+    // Nothing comes back to its source (no feedback) and nothing is selected
+    QCOMPARE(selected.count(), 0);
+    QVERIFY(hexEdits.count() > 0);
+    for (const QList<QVariant>& edit : std::as_const(hexEdits))
+    {
+        QVERIFY(edit.at(0).toString() != QStringLiteral("#00FF80"));
+    }
+
+    // Parts deleted by the application: the others keep working
+    delete dialog.getComparison();
+    delete dialog.getArea();
+    dialog.setColor(QColor(1, 2, 3));
+    QCOMPARE(hex->text(), QStringLiteral("#010203"));
+    slider->setValue(40);
+    QCOMPARE(dialog.getHueSlider()->value(), 40);
+    delete dialog.getHexField();
+    red->setValue(200);
+    QCOMPARE(dialog.getColor().red(), 200);
+}
+
+void FluentComponentsTest::colorPickerHex()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    // The syntax: #RRGGBB or RRGGBB, any case, white space around; nothing else
+    QCOMPARE(Dialog::parseHex(QStringLiteral("#0A84FF")), std::optional<QColor>(QColor(10, 132, 255)));
+    QCOMPARE(Dialog::parseHex(QStringLiteral("0a84ff")), std::optional<QColor>(QColor(10, 132, 255)));
+    QCOMPARE(Dialog::parseHex(QStringLiteral("  #a1B2c3\t")), std::optional<QColor>(QColor(0xA1, 0xB2, 0xC3)));
+    QCOMPARE(Dialog::parseHex(QStringLiteral("#000000")), std::optional<QColor>(QColor(0, 0, 0)));
+    QCOMPARE(Dialog::parseHex(QStringLiteral("FFFFFF")), std::optional<QColor>(QColor(255, 255, 255)));
+    const QStringList invalid =
+    {
+        QString(), QStringLiteral("#"), QStringLiteral("#12345"), QStringLiteral("#1234567"), QStringLiteral("##123456"),
+        QStringLiteral("#12 456"), QStringLiteral("#GGGGGG"), QStringLiteral("0x1234"), QStringLiteral("-12345"), QStringLiteral("+12345"),
+        QStringLiteral("#ABC"), QStringLiteral("rgb(1,2,3)"), QStringLiteral("red"),
+        QString::fromUtf16(u"#ＡＢＣＤＥＦ"),           // full-width letters
+        QString::fromUtf16(u"#١٢٣٤٥٦"),           // Arabic-Indic digits
+        QString::fromUtf16(u"#12345\u0000"), QStringLiteral("#1234") + QChar(0x202E) + QStringLiteral("56"), QString::fromUtf16(u"\U0001F600\U0001F600\U0001F600"),
+        QString(10000, QLatin1Char('A')), QString(QChar(0xD800)) + QStringLiteral("12345")
+    };
+    for (const QString& text : invalid)
+    {
+        QVERIFY2(!Dialog::parseHex(text).has_value(), qPrintable(text.left(20)));
+    }
+    QRandomGenerator random(7);
+    for (int i = 0; i < 2000; ++i)
+    {
+        QString text;
+        const int length = random.bounded(12);
+        for (int j = 0; j < length; ++j)
+        {
+            text += QChar(char16_t(random.bounded(0x30, 0x80)));
+        }
+        const std::optional<QColor> color = Dialog::parseHex(text);
+        if (color)
+        {
+            QCOMPARE(Dialog::getHexName(*color), (text.startsWith(QLatin1Char('#')) ? text : QLatin1Char('#') + text).toUpper());
+        }
+    }
+    QCOMPARE(Dialog::getHexName(QColor(10, 132, 255)), QStringLiteral("#0A84FF"));
+
+    // The field: an invalid text shows the error, disables OK, Enter does nothing
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    Dialog dialog(QColor(10, 132, 255));
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+    QSignalSpy selected(&dialog, &Dialog::colorSelected);
+    pdf::PDFLineEdit* hex = dialog.getHexField();
+    hex->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(hex, QStringLiteral("#0A84F"));
+    QVERIFY(!dialog.isHexValid());
+    QVERIFY(hex->isInvalid());
+    QVERIFY(!dialog.getOkButton()->isEnabled());
+    QVERIFY(!dialog.getErrorLabel()->isHidden());
+    QCOMPARE(dialog.getErrorLabel()->text(), QStringLiteral("Enter a color as #RRGGBB."));
+    QCOMPARE(hex->accessibleDescription(), QStringLiteral("Enter a color as #RRGGBB."));
+    QCOMPARE(dialog.getColor(), QColor(10, 132, 255));
+    QTest::keyClick(hex, Qt::Key_Return);
+    QTest::keyClick(hex, Qt::Key_Enter);
+    QCOMPARE(selected.count(), 0);
+    QVERIFY(dialog.isVisible());
+
+    // A pasted text is bounded, a hostile text is refused
+    hex->selectAll();
+    hex->insert(QString(5000, QLatin1Char('F')));
+    QCOMPARE(hex->text().size(), 32);
+    QVERIFY(!dialog.isHexValid());
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    hex->selectAll();
+    hex->insert(QStringLiteral("#12") + QChar(0x202E) + QStringLiteral("3456"));
+    QVERIFY(!dialog.isHexValid());
+
+    // Fixed: the error goes, OK takes the color
+    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(hex, QStringLiteral(" 123abc "));
+    QVERIFY(dialog.isHexValid());
+    QVERIFY(dialog.getErrorLabel()->isHidden());
+    QVERIFY(!hex->isInvalid());
+    QCOMPARE(dialog.getColor(), QColor(0x12, 0x3A, 0xBC));
+    QTest::keyClick(hex, Qt::Key_Return);
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.at(0).at(0).value<QColor>(), QColor(0x12, 0x3A, 0xBC));
+    QCOMPARE(dialog.result(), int(QDialog::Accepted));
+    QVERIFY(!dialog.isVisible());
+}
+
+void FluentComponentsTest::colorPickerKeyboard()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        Dialog dialog(QColor::fromHsvF(100.0f / 360.0f, 0.5f, 0.5f));
+        dialog.setLayoutDirection(direction);
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        dialog.activateWindow();
+        QVERIFY(QTest::qWaitForWindowActive(&dialog));
+
+        // The first focus is the area
+        pdf::PDFColorArea* area = dialog.getArea();
+        QTRY_COMPARE(QApplication::focusWidget(), static_cast<QWidget*>(area));
+
+        // The area: 1 %, Shift 10 %, not mirrored for right-to-left
+        const qreal saturation = area->getSaturation();
+        const qreal value = area->getValue();
+        QTest::keyClick(area, Qt::Key_Right);
+        QVERIFY(qAbs(area->getSaturation() - (saturation + 0.01)) < 1e-6);
+        QTest::keyClick(area, Qt::Key_Left, Qt::ShiftModifier);
+        QVERIFY(qAbs(area->getSaturation() - (saturation - 0.09)) < 1e-6);
+        QTest::keyClick(area, Qt::Key_Up, Qt::ShiftModifier);
+        QVERIFY(qAbs(area->getValue() - (value + 0.1)) < 1e-6);
+        QTest::keyClick(area, Qt::Key_Down);
+        QVERIFY(qAbs(area->getValue() - (value + 0.09)) < 1e-6);
+        QTest::keyClick(area, Qt::Key_Home);
+        QCOMPARE(area->getSaturation(), 0.0);
+        QTest::keyClick(area, Qt::Key_Left);
+        QCOMPARE(area->getSaturation(), 0.0);
+        QTest::keyClick(area, Qt::Key_PageUp);
+        QCOMPARE(area->getValue(), 1.0);
+        QCOMPARE(dialog.getColor(), QColor(255, 255, 255));
+
+        // The slider: 1°, Shift 10°, Home / End, not mirrored
+        QTest::keyClick(area, Qt::Key_Tab);
+        pdf::PDFHueSlider* slider = dialog.getHueSlider();
+        QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(slider));
+        QCOMPARE(slider->value(), 100);
+        QTest::keyClick(slider, Qt::Key_Right);
+        QCOMPARE(slider->value(), 101);
+        QTest::keyClick(slider, Qt::Key_Right, Qt::ShiftModifier);
+        QCOMPARE(slider->value(), 111);
+        QTest::keyClick(slider, Qt::Key_Down, Qt::ShiftModifier);
+        QCOMPARE(slider->value(), 101);
+        QTest::keyClick(slider, Qt::Key_Left);
+        QCOMPARE(slider->value(), 100);
+        QTest::keyClick(slider, Qt::Key_End);
+        QCOMPARE(slider->value(), 359);
+        QTest::keyClick(slider, Qt::Key_PageDown);
+        QCOMPARE(slider->value(), 349);
+        QCOMPARE(area->getHue(), 349.0);
+
+        // The order of Tab: eyedropper, Hex, R, G, B, Cancel, OK and Shift+Tab back
+        const QList<QWidget*> order =
+        {
+            dialog.getEyedropperButton(), dialog.getHexField(), dialog.getChannelField(Dialog::Channel::Red),
+            dialog.getChannelField(Dialog::Channel::Green), dialog.getChannelField(Dialog::Channel::Blue),
+            dialog.getCancelButton(), dialog.getOkButton()
+        };
+        for (QWidget* expected : order)
+        {
+            QTest::keyClick(QApplication::focusWidget(), Qt::Key_Tab);
+            QWidget* focused = QApplication::focusWidget();
+            QVERIFY2(focused == expected || (focused && expected->isAncestorOf(focused)), qPrintable(focused ? focused->objectName() : QStringLiteral("none")));
+        }
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_Backtab);
+        QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(dialog.getCancelButton()));
+
+        // Enter from the area is OK, Esc is Cancel
+        QSignalSpy selected(&dialog, &Dialog::colorSelected);
+        area->setFocus(Qt::TabFocusReason);
+        QTest::keyClick(area, Qt::Key_Return);
+        QCOMPARE(selected.count(), 1);
+        QCOMPARE(dialog.result(), int(QDialog::Accepted));
+        QVERIFY(!dialog.isVisible());
+
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        dialog.getHueSlider()->setFocus(Qt::TabFocusReason);
+        QTest::keyClick(dialog.getHueSlider(), Qt::Key_Escape);
+        QCOMPARE(selected.count(), 1);
+        QCOMPARE(dialog.result(), int(QDialog::Rejected));
+        QVERIFY(!dialog.isVisible());
+
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        QTest::mouseClick(dialog.getCancelButton(), Qt::LeftButton);
+        QCOMPARE(dialog.result(), int(QDialog::Rejected));
+        QCOMPARE(selected.count(), 1);
+    }
+}
+
+void FluentComponentsTest::colorPickerAccessibility()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    Dialog dialog(QColor(255, 214, 10));
+    dialog.setColor(QColor(10, 132, 255));
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+
+    QCOMPARE(dialog.accessibleName(), QStringLiteral("Choose a color"));
+    QCOMPARE(dialog.getArea()->accessibleName(), QStringLiteral("Saturation and brightness"));
+    QCOMPARE(dialog.getArea()->accessibleDescription(), QStringLiteral("Saturation 96 %, brightness 100 %"));
+
+    QAccessibleInterface* slider = QAccessible::queryAccessibleInterface(dialog.getHueSlider());
+    QVERIFY(slider);
+    QCOMPARE(slider->text(QAccessible::Name), QStringLiteral("Hue"));
+    QVERIFY(slider->valueInterface());
+    QCOMPARE(slider->valueInterface()->currentValue().toInt(), 210);
+    QCOMPARE(slider->valueInterface()->maximumValue().toInt(), 359);
+
+    QCOMPARE(dialog.getHexField()->accessibleName(), QStringLiteral("Hex color"));
+    QCOMPARE(dialog.getChannelField(Dialog::Channel::Red)->accessibleName(), QStringLiteral("Red"));
+    QCOMPARE(dialog.getChannelField(Dialog::Channel::Green)->accessibleName(), QStringLiteral("Green"));
+    QCOMPARE(dialog.getChannelField(Dialog::Channel::Blue)->accessibleName(), QStringLiteral("Blue"));
+    QCOMPARE(dialog.getEyedropperButton()->accessibleName(), QStringLiteral("Pick a color from the screen"));
+    QCOMPARE(dialog.getEyedropperButton()->toolTip(), QStringLiteral("Pick a color from the screen"));
+    QCOMPARE(dialog.getComparison()->accessibleName(), QStringLiteral("Current and new color"));
+    QCOMPARE(dialog.getComparison()->accessibleDescription(), QStringLiteral("Current color #FFD60A, new color #0A84FF"));
+    QCOMPARE(dialog.getComparison()->toolTip(), QStringLiteral("Current color: #FFD60A\nNew color: #0A84FF"));
+    QCOMPARE(dialog.getCancelButton()->text(), QStringLiteral("Cancel"));
+    QCOMPARE(dialog.getOkButton()->text(), QStringLiteral("OK"));
+
+    Dialog noCurrent{ QColor() };
+    QCOMPARE(noCurrent.getComparison()->accessibleDescription(), QStringLiteral("Current color No color, new color #FFFFFF"));
+
+    // A language change sets the texts again (a test translator)
+    class Translator : public QTranslator
+    {
+    public:
+        QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+        {
+            Q_UNUSED(disambiguation);
+            Q_UNUSED(n);
+            const QByteArray name(context);
+            if (name.startsWith("pdf::PDFColor") || name.startsWith("pdf::PDFHueSlider"))
+            {
+                return QStringLiteral("~") + QString::fromUtf8(sourceText);
+            }
+            return QString();
+        }
+        bool isEmpty() const override { return false; }
+    };
+    Translator translator;
+    QCoreApplication::installTranslator(&translator);
+    QApplication::processEvents();
+    QCOMPARE(dialog.getOkButton()->text(), QStringLiteral("~OK"));
+    QCOMPARE(dialog.getHueSlider()->accessibleName(), QStringLiteral("~Hue"));
+    QCOMPARE(dialog.getArea()->accessibleName(), QStringLiteral("~Saturation and brightness"));
+    QVERIFY(dialog.getComparison()->accessibleName().startsWith(QLatin1Char('~')));
+    QCoreApplication::removeTranslator(&translator);
+    QApplication::processEvents();
+    QCOMPARE(dialog.getOkButton()->text(), QStringLiteral("OK"));
+}
+
+void FluentComponentsTest::colorPickerEyedropper()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    // A readable screen: the button is shown; a click starts the picking, a move
+    // reads the screen, Esc gives the color back
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    QCOMPARE(Dialog::readScreenColor(QPoint(10, 20)), std::optional<QColor>(QColor(10, 20, 77)));
+    Dialog dialog(QColor(255, 214, 10));
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+    QVERIFY(dialog.isEyedropperAvailable());
+    QVERIFY(dialog.getEyedropperButton()->isVisible());
+    QCOMPARE(dialog.getEyedropperButton()->getIconName(), QStringLiteral("crosshair"));
+
+    auto move = [&](const QPoint& global)
+    {
+        QMouseEvent event(QEvent::MouseMove, QPointF(dialog.mapFromGlobal(global)), QPointF(global), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(&dialog, &event);
+    };
+    auto press = [&](const QPoint& global, Qt::MouseButton button)
+    {
+        QMouseEvent event(QEvent::MouseButtonPress, QPointF(dialog.mapFromGlobal(global)), QPointF(global), button, button, Qt::NoModifier);
+        QApplication::sendEvent(&dialog, &event);
+    };
+
+    QTest::mouseClick(dialog.getEyedropperButton(), Qt::LeftButton);
+    QVERIFY(dialog.isPicking());
+    move(QPoint(40, 50));
+    QCOMPARE(dialog.getColor(), QColor(40, 50, 77));
+    QCOMPARE(dialog.getHexField()->text(), QStringLiteral("#28324D"));
+    QTest::keyClick(&dialog, Qt::Key_Escape);
+    QVERIFY(!dialog.isPicking());
+    QVERIFY(dialog.isVisible());
+    QCOMPARE(dialog.getColor(), QColor(255, 214, 10));
+    QCOMPARE(dialog.getHexField()->text(), QStringLiteral("#FFD60A"));
+
+    // A click takes the color under the pointer
+    dialog.startPicking();
+    QVERIFY(dialog.isPicking());
+    move(QPoint(1, 2));
+    press(QPoint(100, 120), Qt::LeftButton);
+    QVERIFY(!dialog.isPicking());
+    QCOMPARE(dialog.getColor(), QColor(100, 120, 77));
+
+    // The right button and a hide cancel; Enter takes the previewed color
+    dialog.startPicking();
+    move(QPoint(3, 4));
+    press(QPoint(5, 6), Qt::RightButton);
+    QVERIFY(!dialog.isPicking());
+    QCOMPARE(dialog.getColor(), QColor(100, 120, 77));
+    dialog.startPicking();
+    move(QPoint(7, 8));
+    QTest::keyClick(&dialog, Qt::Key_Return);
+    QVERIFY(!dialog.isPicking());
+    QVERIFY(dialog.isVisible());
+    QCOMPARE(dialog.getColor(), QColor(7, 8, 77));
+    dialog.startPicking();
+    move(QPoint(9, 9));
+    dialog.hide();
+    QVERIFY(!dialog.isPicking());
+    QCOMPARE(dialog.getColor(), QColor(7, 8, 77));
+    dialog.startPicking();
+    QVERIFY(!dialog.isPicking());
+
+    // OK while picking takes the picked color
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+    QSignalSpy selected(&dialog, &Dialog::colorSelected);
+    dialog.startPicking();
+    move(QPoint(11, 12));
+    QMetaObject::invokeMethod(dialog.getOkButton(), "click");
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.at(0).at(0).value<QColor>(), QColor(11, 12, 77));
+    QVERIFY(!dialog.isPicking());
+
+    // Deleted while picking: the grabs end with it
+    {
+        Dialog* picking = new Dialog(QColor(1, 2, 3));
+        picking->show();
+        QVERIFY(QTest::qWaitForWindowExposed(picking));
+        picking->startPicking();
+        QVERIFY(picking->isPicking());
+        delete picking;
+        QCOMPARE(QWidget::mouseGrabber(), nullptr);
+        QCOMPARE(QWidget::keyboardGrabber(), nullptr);
+    }
+
+    // An unreadable screen: no button, nothing to start
+    ColorPickerReaderGuard unreadable(&ColorPickerReaderGuard::unreadable);
+    QVERIFY(!Dialog::readScreenColor(QPoint(1, 1)).has_value());
+    Dialog hidden(QColor(1, 2, 3));
+    hidden.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&hidden));
+    QVERIFY(!hidden.isEyedropperAvailable());
+    QVERIFY(hidden.getEyedropperButton()->isHidden());
+    hidden.startPicking();
+    QVERIFY(!hidden.isPicking());
+
+    // A reader giving an invalid color is unreadable too; the alpha of a read color is dropped
+    pdf::PDFColorPickerDialog::setScreenColorReader([](const QPoint&) { return std::optional<QColor>(QColor()); });
+    QVERIFY(!Dialog::readScreenColor(QPoint(1, 1)).has_value());
+    pdf::PDFColorPickerDialog::setScreenColorReader([](const QPoint&) { return std::optional<QColor>(QColor(1, 2, 3, 4)); });
+    QCOMPARE(Dialog::readScreenColor(QPoint(1, 1)), std::optional<QColor>(QColor(1, 2, 3)));
+}
+
+void FluentComponentsTest::colorPickerPixels()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+    using Scheme = pdf::PDFThemeColors::Scheme;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        Dialog dialog(QColor(255, 214, 10));
+        dialog.setWindowFlags(Qt::Widget);
+        dialog.setLayoutDirection(direction);
+        dialog.setColor(QColor(10, 132, 255));
+        dialog.resize(dialog.sizeHint());
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        QApplication::processEvents();
+
+        for (const Scheme scheme : { Scheme::Light, Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            for (const qreal scale : { 1.0, 1.5, 2.0 })
+            {
+                const QImage image = renderWidget(&dialog, scale);
+                {
+                    const QColor leak = pdf::PDFThemeColors::getLeakColor();
+                    QRect leakRect;
+                    for (int y = 0; y < image.height(); ++y)
+                    {
+                        for (int x = 0; x < image.width(); ++x)
+                        {
+                            if (isNear(image.pixelColor(x, y), leak, 3))
+                            {
+                                leakRect |= QRect(x, y, 1, 1);
+                            }
+                        }
+                    }
+                    QWidget* at = dialog.childAt(leakRect.center() / scale);
+                    QVERIFY2(leakRect.isEmpty(), qPrintable(QStringLiteral("%1 %2 %3 %4 %5").arg(leakRect.x()).arg(leakRect.y()).arg(leakRect.width()).arg(leakRect.height()).arg(at ? QString::fromLatin1(at->metaObject()->className()) + at->objectName() : QString())));
+                }
+
+                // The area: white at the top left, the hue at the top right, black at the bottom
+                pdf::PDFColorArea* area = dialog.getArea();
+                const QRect areaRect(area->mapTo(&dialog, area->getAreaRect().topLeft()), area->getAreaRect().size());
+                QVERIFY2(isNear(pixel(image, areaRect.left() + 4, areaRect.top() + 4), QColor(246, 248, 249), 8), qPrintable(pixel(image, areaRect.left() + 4, areaRect.top() + 4).name() + QStringLiteral(" %1 %2").arg(areaRect.x()).arg(areaRect.y())));
+                QVERIFY(isNear(pixel(image, areaRect.left() + 14, areaRect.bottom() - 3), QColor(0, 0, 0), 12));
+                QVERIFY(isNear(pixel(image, areaRect.right() - 30, areaRect.top() + 30), QColor::fromHsvF(210.0f / 360.0f, 0.92f, 0.83f), 40));
+
+                // The comparison: the current color at the leading side
+                QWidget* comparison = dialog.getComparison();
+                const QPoint comparisonOrigin = comparison->mapTo(&dialog, QPoint(0, 0));
+                const QColor leading = pixel(image, comparisonOrigin.x() + (direction == Qt::LeftToRight ? 10 : 30), comparisonOrigin.y() + 14);
+                const QColor trailing = pixel(image, comparisonOrigin.x() + (direction == Qt::LeftToRight ? 30 : 10), comparisonOrigin.y() + 14);
+                QCOMPARE(leading, QColor(255, 214, 10));
+                QCOMPARE(trailing, QColor(10, 132, 255));
+
+                // The slider is not mirrored: red at its left end, the thumb at 210°
+                pdf::PDFHueSlider* slider = dialog.getHueSlider();
+                const QPoint sliderOrigin = slider->mapTo(&dialog, QPoint(0, 0));
+                QVERIFY(isNear(pixel(image, sliderOrigin.x() + 7, sliderOrigin.y() + 10), QColor(255, 0, 0), 40));
+                const QRect thumb = slider->getThumbRect().translated(sliderOrigin);
+                QVERIFY(qAbs(thumb.left() - sliderOrigin.x() - qRound(210.0 / 359.0 * (slider->width() - 14))) <= 1);
+                QCOMPARE(pixel(image, thumb.center().x(), thumb.center().y()), token(Color::BgSurface));
+
+                // The OK button is the Primary button
+                QWidget* ok = dialog.getOkButton();
+                const QPoint okOrigin = ok->mapTo(&dialog, QPoint(0, 0));
+                QVERIFY(isNear(pixel(image, okOrigin.x() + 4, okOrigin.y() + ok->height() / 2), token(Color::BgAccent), 6));
+                if (direction == Qt::RightToLeft)
+                {
+                    QVERIFY(okOrigin.x() < dialog.getCancelButton()->mapTo(&dialog, QPoint(0, 0)).x());
+                }
+
+                // The invalid Hex: the border of the field and the message text/danger
+                if (scale == 1.0)
+                {
+                    pdf::PDFLineEdit* hex = dialog.getHexField();
+                    QTest::keyClick(hex, Qt::Key_A, Qt::ControlModifier);
+                    QTest::keyClicks(hex, QStringLiteral("#12"));
+                    QApplication::processEvents();
+                    const QImage invalid = renderWidget(&dialog, 1.0);
+                    const QRect hexRect(hex->mapTo(&dialog, QPoint(0, 0)), hex->size());
+                    QVERIFY(countPixels(invalid, QRect(hexRect.left(), hexRect.center().y() - 3, 3, 6), token(Color::TextDanger), 40) > 0);
+                    QWidget* error = dialog.getErrorLabel();
+                    QVERIFY(countPixels(invalid, QRect(error->mapTo(&dialog, QPoint(0, 0)), error->size()), token(Color::TextDanger), 60) > 10);
+                    QVERIFY(!isNear(pixel(invalid, okOrigin.x() + 4, okOrigin.y() + ok->height() / 2), token(Color::BgAccent), 6));
+                    QCOMPARE(countLeakPixels(invalid), 0);
+                    dialog.setColor(QColor(10, 132, 255));
+                    QApplication::processEvents();
+                }
+            }
+        }
+        pdf::PDFThemeManager::getInstance()->setScheme(Scheme::Light);
+    }
+}
+
+void FluentComponentsTest::colorPickerLifetime()
+{
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    ColorPickerReaderGuard reader(&ColorPickerReaderGuard::gradient);
+
+    // Deleted from its own colorSelected
+    {
+        Dialog* dialog = new Dialog(QColor(1, 2, 3));
+        QPointer<Dialog> guard(dialog);
+        dialog->show();
+        QVERIFY(QTest::qWaitForWindowExposed(dialog));
+        int count = 0;
+        QObject::connect(dialog, &Dialog::colorSelected, dialog, [&count, dialog](const QColor&) { ++count; delete dialog; });
+        QMetaObject::invokeMethod(dialog->getOkButton(), "click");
+        QCOMPARE(count, 1);
+        QVERIFY(!guard);
+    }
+
+    // Deleted later from colorSelected and from finished
+    {
+        Dialog* dialog = new Dialog(QColor(1, 2, 3));
+        QPointer<Dialog> guard(dialog);
+        dialog->show();
+        QVERIFY(QTest::qWaitForWindowExposed(dialog));
+        QObject::connect(dialog, &QDialog::finished, dialog, &QObject::deleteLater);
+        QTest::keyClick(dialog->getArea(), Qt::Key_Return);
+        QTRY_VERIFY(!guard);
+    }
+
+    // The parent deleted while the dialog is open: the dialog and its scrim go with it
+    {
+        QWidget* parent = new QWidget();
+        parent->resize(800, 600);
+        parent->show();
+        QVERIFY(QTest::qWaitForWindowExposed(parent));
+        Dialog* dialog = new Dialog(QColor(1, 2, 3), parent);
+        QPointer<Dialog> guard(dialog);
+        dialog->show();
+        QVERIFY(QTest::qWaitForWindowExposed(dialog));
+        QPointer<QWidget> scrim(dialog->getScrim());
+        QVERIFY(scrim);
+        dialog->startPicking();
+        delete parent;
+        QVERIFY(!guard);
+        QApplication::processEvents();
+        QVERIFY(!scrim);
+        QCOMPARE(QWidget::mouseGrabber(), nullptr);
+    }
+
+    // The area deleted from its own signal, the slider deleted from valueChanged
+    {
+        Dialog dialog(QColor(1, 2, 3));
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        pdf::PDFColorArea* area = dialog.getArea();
+        QObject::connect(area, &pdf::PDFColorArea::saturationValueChanged, area, [area]() { area->deleteLater(); });
+        QTest::mouseClick(area, Qt::LeftButton, Qt::NoModifier, area->getAreaRect().center());
+        QTRY_COMPARE(dialog.getArea(), nullptr);
+        pdf::PDFHueSlider* slider = dialog.getHueSlider();
+        QObject::connect(slider, &QAbstractSlider::valueChanged, slider, [slider]() { slider->deleteLater(); });
+        QTest::mousePress(slider, Qt::LeftButton, Qt::NoModifier, QPoint(slider->width() / 2, 10));
+        QTRY_COMPARE(dialog.getHueSlider(), nullptr);
+        dialog.setColor(QColor(200, 100, 50));
+        QCOMPARE(dialog.getHexField()->text(), QStringLiteral("#C86432"));
+
+        // The placeholder of the area deleted or moved to another widget
+        QWidget other;
+        QWidget* place = dialog.findChild<QWidget*>(QStringLiteral("colorAreaPlace"));
+        QVERIFY(place);
+        place->setParent(&other);
+        place->move(5, 5);
+        dialog.resize(dialog.width(), dialog.height() + 1);
+        delete place;
+        QApplication::processEvents();
+    }
+}
+
+void FluentComponentsTest::colorPaletteSelectColor()
+{
+    // The color of "More colors…" takes the path of a swatch: recent, current, colorSelected
+    pdf::PDFColorPalette palette;
+    QSignalSpy selected(&palette, &pdf::PDFColorPalette::colorSelected);
+    palette.selectColor(QColor());
+    QCOMPARE(selected.count(), 0);
+    palette.selectColor(QColor(0x12, 0x34, 0x56));
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.at(0).at(0).value<QColor>(), QColor(0x12, 0x34, 0x56));
+    QCOMPARE(palette.getCurrentColor(), QColor(0x12, 0x34, 0x56));
+    QCOMPARE(palette.getRecentColors().front().color, QColor(0x12, 0x34, 0x56));
+    QVERIFY(!palette.getRecentColors().front().name.isEmpty());
+
+    // A palette deleted from its own signal
+    pdf::PDFColorPalette* deleted = new pdf::PDFColorPalette();
+    QPointer<pdf::PDFColorPalette> guard(deleted);
+    QObject::connect(deleted, &pdf::PDFColorPalette::colorSelected, deleted, [deleted]() { delete deleted; });
+    deleted->selectColor(QColor(1, 1, 1));
+    QVERIFY(!guard);
+
+    // The row reports a custom color as it has been chosen (no swatch is selected)
+    pdf::PDFColorSwatchRow row;
+    QSignalSpy rowSelected(&row, &pdf::PDFColorSwatchRow::colorSelected);
+    row.getPalette()->selectColor(QColor(0x12, 0x34, 0x56));
+    QCOMPARE(rowSelected.count(), 1);
+    QCOMPARE(rowSelected.at(0).at(0).value<QColor>(), QColor(0x12, 0x34, 0x56));
+    QCOMPARE(row.getColor(), QColor(0x12, 0x34, 0x56));
+    for (int i = 0; i < row.getSwatchCount(); ++i)
+    {
+        QVERIFY(!row.getSwatch(i)->isChecked());
+    }
+
+    // The button takes the color and its name from the palette
+    pdf::PDFColorButton button(QColor(0, 0, 0), QStringLiteral("Black"));
+    QSignalSpy buttonSelected(&button, &pdf::PDFColorButton::colorSelected);
+    button.getPalette()->selectColor(QColor(0xAB, 0xCD, 0xEF));
+    QCOMPARE(buttonSelected.count(), 1);
+    QCOMPARE(button.getColor(), QColor(0xAB, 0xCD, 0xEF));
+    QVERIFY(button.getShownName() != QStringLiteral("Black"));
+}
+
 void FluentComponentsTest::signatureCard()
 {
     using Status = Painter::SignatureStatus;
@@ -11656,6 +12635,48 @@ public:
 
     static int width(const QStyleOptionViewItem& option, const QModelIndex& index) { return getItemWidth(option, index); }
 };
+
+void FluentComponentsTest::watchedPointer()
+{
+    // PDFWatchedPointer recognizes an object in its destructor by its address and
+    // never casts it: while ~QWidget runs (the signal destroyed of a widget, an
+    // event filter during the destruction) the object is no longer a QLineEdit, so
+    // data() is nullptr - QPointer<QLineEdit>::data() would cast it (UBSan vptr)
+    pdf::PDFWatchedPointer<QLineEdit> pointer;
+    QVERIFY(pointer.isNull());
+    QVERIFY(!pointer.data());
+    QVERIFY(!pointer.isObject(nullptr));
+
+    QWidget parent;
+    QLineEdit* edit = new QLineEdit(&parent);
+    pointer = edit;
+    QCOMPARE(pointer.data(), edit);
+    QCOMPARE(static_cast<QLineEdit*>(pointer), edit);
+    QVERIFY(pointer.isObject(edit));
+    QVERIFY(!pointer.isObject(&parent));
+
+    bool isRecognized = false;
+    bool isNotCast = false;
+    QObject::connect(edit, &QObject::destroyed, &parent, [&](QObject* object)
+    {
+        isRecognized = pointer.isObject(object);
+        isNotCast = !pointer.isNull() && !pointer.data();
+    });
+    delete edit;
+    QVERIFY(isRecognized);
+    QVERIFY(isNotCast);
+    QVERIFY(pointer.isNull());
+    QVERIFY(!pointer.data());
+
+    // Constructed from an object, a const class, cleared
+    QMenu menu;
+    pdf::PDFWatchedPointer<const QMenu> menuPointer(&menu);
+    QCOMPARE(menuPointer.data(), &menu);
+    QVERIFY(menuPointer.isObject(&menu));
+    menuPointer = nullptr;
+    QVERIFY(menuPointer.isNull());
+    QVERIFY(!menuPointer.isObject(&menu));
+}
 
 void FluentComponentsTest::delegateViewLifetime()
 {

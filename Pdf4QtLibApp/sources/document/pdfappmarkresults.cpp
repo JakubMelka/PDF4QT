@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmarkresults.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappannotatecommands.h"
 #include "pdfappannotationcontroller.h"
 #include "pdfappannotationcreator.h"
@@ -176,6 +177,7 @@ PDFAppMarkResultsMenu::PDFAppMarkResultsMenu(QWidget* parent) :
     colorsLayout->setContentsMargins(10, 2, 10, 6);
     m_colorRow = new PDFColorSwatchRow(colors);
     m_colorRow->setObjectName(QStringLiteral("markColors"));
+    PDFAppColorPicker::attach(m_colorRow.data())->setPopupRestored(true);
     colorsLayout->addWidget(m_colorRow);
     colorsLayout->addStretch(1);
     m_layout->addWidget(colors);

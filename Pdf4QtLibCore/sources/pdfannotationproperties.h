@@ -69,7 +69,8 @@ public:
         Caption             = 0x08000, ///< Cap, CP of a line
         HighlightMode       = 0x10000, ///< H of a link
         Destination         = 0x20000, ///< Dest of a link (a GoTo action A is replaced by Dest)
-        All                 = 0x3FFFF
+        BlendMode           = 0x40000, ///< BM (ISO 32000-2 Table 166) and the blend mode of the appearance stream
+        All                 = 0x7FFFF
     };
     Q_DECLARE_FLAGS(Fields, Field)
 
@@ -97,6 +98,8 @@ public:
     QColor color;                       ///< Invalid = no color
     QColor interiorColor;               ///< Invalid = no fill
     PDFReal opacity = 1.0;
+    QByteArray blendMode = "Normal";    ///< Name of BM: Normal, a mode of PDFAnnotationPropertyEditor::getOfferedBlendModes or a mode
+                                        ///< of the document, which the viewer does not draw (Hue, ..., Compatible, an unknown name)
     PDFReal borderWidth = 1.0;
     AnnotationBorderStyle borderStyle = AnnotationBorderStyle::Solid;
     std::vector<PDFReal> dashPattern;   ///< Dash pattern of the style Dashed (empty = [3])
@@ -168,6 +171,24 @@ public:
     /// Icon names of the type (sticky note icons, stamps, file attachment icons, sound
     /// icons); empty for a type without an icon
     static std::vector<QByteArray> getIconNames(AnnotationType type);
+
+    /// Blend modes offered by the properties dialog: Normal and the separable modes,
+    /// which the viewer draws (PDFBlendModeInfo::isSupportedByQt; Compatible is Normal)
+    static std::vector<BlendMode> getOfferedBlendModes();
+
+    /// The name is Normal or a mode of getOfferedBlendModes; a mode of the document,
+    /// which the viewer does not draw (Hue, Saturation, Color, Luminosity, Compatible,
+    /// an unknown name), is shown as it is and kept unless the user picks another mode
+    static bool isBlendModeOffered(const QByteArray& name);
+
+    /// Blend mode of a name of BM (an unknown name is BlendMode::Invalid) and the name of a mode
+    static BlendMode getBlendMode(const QByteArray& name);
+    static QByteArray getBlendModeName(BlendMode mode);
+
+    /// Name of the blend mode of the entry BM: a name, or the first recognized name of
+    /// an array (PDF 1.4 - a reader uses the first mode it knows, otherwise Normal);
+    /// an entry of another type or without a recognized name is empty
+    static QByteArray readBlendMode(const PDFObjectStorage* storage, const PDFObject& object);
 
 private:
     static PDFObject createColor(const QColor& color);

@@ -47,6 +47,49 @@ class PDFAppMcpArgumentsHelper
 public:
     PDFAppMcpArgumentsHelper() = delete;
 
+    /// The canonical path with the junctions of NTFS resolved: QFileInfo resolves
+    /// the symbolic links, not the junctions (mklink /J needs no privilege) - a
+    /// junction to the data of PDF4QT or to another folder would pass the rules
+    /// of the paths otherwise (fix wave FW7-H). An empty text for a junction
+    /// without a target or too many of them. Other systems: unchanged.
+    static QString resolveJunctions(const QString& canonicalPath)
+    {
+#ifdef Q_OS_WIN
+        QString current = canonicalPath;
+        for (int depth = 0; depth < 32; ++depth)
+        {
+            const QStringList parts = current.split(QLatin1Char('/'));
+            QString prefix = parts.value(0);
+            bool isReplaced = false;
+            for (qsizetype i = 1; i < parts.size() && !isReplaced; ++i)
+            {
+                prefix += QLatin1Char('/') + parts[i];
+                const QFileInfo info(prefix);
+                if (!info.isJunction())
+                {
+                    continue;
+                }
+
+                const QString target = QFileInfo(info.junctionTarget()).canonicalFilePath();
+                if (target.isEmpty())
+                {
+                    return QString();
+                }
+                const QStringList rest = parts.mid(i + 1);
+                current = rest.isEmpty() ? target : target + QLatin1Char('/') + rest.join(QLatin1Char('/'));
+                isReplaced = true;
+            }
+            if (!isReplaced)
+            {
+                return current;
+            }
+        }
+        return QString();
+#else
+        return canonicalPath;
+#endif
+    }
+
     static QColor getPaletteColor(const QString& name)
     {
         static constexpr PDFThemeColors::Color COLORS[] =
@@ -339,6 +382,7 @@ QString PDFAppMcpArguments::checkPath(const QString& path, bool requirePdfExtens
                 const QString folder = QFileInfo(info.absolutePath()).canonicalFilePath();
                 canonical = folder.isEmpty() ? QString() : (folder.endsWith(QLatin1Char('/')) ? folder : folder + QLatin1Char('/')) + fileName;
             }
+            canonical = canonical.isEmpty() ? QString() : PDFAppMcpArgumentsHelper::resolveJunctions(canonical);
 
             const QFileInfo canonicalInfo(canonical);
             if (canonical.isEmpty())

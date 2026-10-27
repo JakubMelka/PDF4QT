@@ -141,7 +141,9 @@ private:
 /// One TCP connection in an I/O thread (plan 2.2). It parses the requests by
 /// PDFMcpHttpParser (one at a time, a pipelined request waits for the response
 /// of the previous one), enforces the times of the head (408) and of the body,
-/// the connection limits (64 in total, 16 per remote address - 503) and the
+/// the connection limits (64 in total - at the limit the oldest connection,
+/// which has not completed a request, is evicted, 503 only without one; 16
+/// per remote address - 503) and the
 /// backpressure (more than 32 MiB unsent - closed), hands each request to the
 /// dispatcher of the run as a PDFMcpExchange and writes its response. A client,
 /// which closes the connection, closes its exchange - the dispatcher cancels the
@@ -163,6 +165,11 @@ public:
 
     /// New output of the current exchange (queued from any thread)
     void flushExchange();
+
+    /// The connection was chosen for the eviction at the limit of the
+    /// connections (PDFMcpDispatcherLink::evictIdleConnection, queued): it has
+    /// not completed a request - it gets 503 and closes (follow-up 22)
+    void evict();
 
 private:
     enum class State
@@ -186,6 +193,10 @@ private:
     void closeExchange();
     void writeOutput(const QByteArray& data);
     void startTimer(int timeout);
+
+    /// The connection is no longer a candidate of the eviction (the head of
+    /// its request is complete, or it closes); true = it was chosen before
+    bool leaveIdle();
 
     /// Time of the discarded input after a closing response, before the connection is closed (ms)
     static constexpr int LINGER_TIME = 1000;
@@ -211,6 +222,7 @@ private:
     bool m_isRemote = false;
     bool m_isCounted = false;
     bool m_isAddressCounted = false;
+    bool m_isIdle = false;              ///< A candidate of the eviction (PDFMcpDispatcherLink)
     bool m_hadRequest = false;
     bool m_closeAfterResponse = false;
     bool m_isLingering = false;

@@ -30,6 +30,7 @@
 #include "pdfappdocumentpanel.h"
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentstatusbar.h"
+#include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
@@ -53,6 +54,8 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfdrawwidget.h"
+#include "pdffluentwidgets.h"
 #include "pdfform.h"
 #include "pdfmessagebox.h"
 #include "pdfthemecolors.h"
@@ -74,6 +77,8 @@
 #include <QtTest>
 
 #include <filesystem>
+#include <mutex>
+#include <tuple>
 #include <system_error>
 
 // Package C of step 7 (edit tools, confirmations, commit): plan of step 7,
@@ -124,6 +129,52 @@ private slots:
     void dialogBlocksDocumentShortcuts();
     void languageChange();
     void httpEndToEnd();
+    void fixFocusBackAfterDialog();
+    void fixPageCountPlural();
+    void fixClientNamePercent();
+    void fixHostileEditArguments();
+    void fixMarkupQuoteFromTextIndex();
+    void fixDialogTextsEveryKind();
+    void fixGhostShapes();
+};
+
+/// Translator of the test: records the texts and the counts, translates nothing
+class McpEditRecordingTranslator : public QTranslator
+{
+public:
+    explicit McpEditRecordingTranslator(QObject* parent) :
+        QTranslator(parent)
+    {
+    }
+
+    virtual bool isEmpty() const override { return false; }
+
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        if (context && sourceText)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            records.emplace_back(QString::fromLatin1(context), QString::fromUtf8(sourceText), n);
+        }
+        return QString();
+    }
+
+    bool contains(const QString& context, const QString& sourceText, int n) const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        for (const auto& record : records)
+        {
+            if (std::get<0>(record) == context && std::get<1>(record) == sourceText && std::get<2>(record) == n)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    mutable std::mutex mutex;   ///< The workers translate too
+    mutable std::vector<std::tuple<QString, QString, int>> records;
 };
 
 /// Translator of the test: every text of the application is marked
@@ -877,23 +928,85 @@ void AppMcpEditTest::confirmationTimeoutAndQueue()
     H::saveScreenshot(dialog, QStringLiteral("mcp-confirm-queue"));
 
     // The countdown with the injected clock: 8 s later 1:52
+    const std::vector<quint64> ids = fixture.ui()->getWaitingIds();
+    QCOMPARE(dialog->getConfirmationId(), ids[0]);
     fixture.time += 8000;
     fixture.ui()->tick();
     QCOMPARE(dialog->getCountdownText(), QStringLiteral("Denied automatically in 1:52"));
 
-    // No answer in 2 min = denied (all three asked at the same time)
-    fixture.time += 120000;
+    // The 2 minutes count from the dialog of a request (item 38): the queued ones
+    // have not started theirs, they wait within the bound of the queue
+    QVERIFY(fixture.ui()->isShown(ids[0]));
+    QVERIFY(!fixture.ui()->isShown(ids[1]) && !fixture.ui()->isShown(ids[2]));
+    QCOMPARE(fixture.ui()->getRemainingTime(ids[1]), qint64(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT - 8000));
+
+    // The first answered after 108 s: the second appears with its whole 2 minutes
+    fixture.time += 100000;
     fixture.ui()->tick();
+    // (the calls reach the queue in the order of their workers: the call of a
+    // request is taken from its dialog)
+    const std::shared_ptr<pdf::PDFMcpCall> firstCall = dialog->getConfirmation()->call;
+    QVERIFY(firstCall && !firstCall->isFinished());
+    fixture.ui()->answer(ids[0], pdf::PDFAppMcpDecision::DeniedUser);
+    QVERIFY(H::isError(fixture.waitResult(firstCall)));
+    QTRY_VERIFY(fixture.ui()->getDialog() && fixture.ui()->getDialog()->getConfirmationId() == ids[1]);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getQueueText(), QStringLiteral("1 of 2"));
+    QCOMPARE(dialog->getCountdownText(), QStringLiteral("Denied automatically in 2:00"));
+    const std::shared_ptr<pdf::PDFMcpCall> secondCall = dialog->getConfirmation()->call;
+
+    // No answer in 2 min after its dialog appeared = denied
+    fixture.time += 119000;
+    fixture.ui()->tick();
+    QVERIFY(!secondCall->isFinished());
+    fixture.time += 2000;
+    fixture.ui()->tick();
+    std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(secondCall);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("2 minutes")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedTimeout));
+
+    // ... the third too: asked 229 s ago, its dialog has the whole time
+    QTRY_VERIFY(fixture.ui()->getDialog() && fixture.ui()->getDialog()->getConfirmationId() == ids[2]);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getCountdownText(), QStringLiteral("Denied automatically in 2:00"));
+    const std::shared_ptr<pdf::PDFMcpCall> thirdCall = dialog->getConfirmation()->call;
+    fixture.time += 121000;
+    fixture.ui()->tick();
+    result = fixture.waitResult(thirdCall);
+    QVERIFY(H::isError(result));
+    QVERIFY(fixture.ui()->getWaitingIds().empty());
     for (const std::shared_ptr<pdf::PDFMcpCall>& call : calls)
     {
-        const std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(call);
-        QVERIFY(H::isError(result));
-        QVERIFY2(H::text(result).contains(QStringLiteral("2 minutes")), qPrintable(H::text(result)));
+        QVERIFY(call->isFinished());
     }
-    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedTimeout));
-    QVERIFY(fixture.ui()->getWaitingIds().empty());
     pdftest::AppDocumentFixture::settle();
     QVERIFY(!fixture.ui()->getDialog());
+
+    // The overall bound of the queue: a request, whose dialog never appears (its
+    // tab is not shown), is denied after DEFAULT_QUEUE_TIMEOUT
+    pdf::PDFAppDocumentTab* other = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 1));
+    QVERIFY(other);
+    fixture.window->activateTab(other);
+    pdftest::AppDocumentFixture::settle();
+    QJsonObject arguments = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})");
+    arguments.insert(QStringLiteral("documentId"), tab->getDocument()->getId());
+    std::shared_ptr<pdf::PDFMcpCall> background = fixture.startCall(QStringLiteral("annotations"), arguments);
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(1), 10000);
+    const quint64 backgroundId = fixture.ui()->getWaitingIds().front();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!fixture.ui()->getDialog());
+    QVERIFY(!fixture.ui()->isShown(backgroundId));
+    fixture.time += pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT - 1000;
+    fixture.ui()->tick();
+    QVERIFY(!background->isFinished());
+    fixture.time += 2000;
+    fixture.ui()->tick();
+    QVERIFY(H::isError(fixture.waitResult(background)));
+    QVERIFY(background->isFinished());
+    QVERIFY(fixture.ui()->getWaitingIds().empty());
 }
 
 void AppMcpEditTest::confirmationReadAndBoth()
@@ -1093,7 +1206,8 @@ void AppMcpEditTest::statusItemsAndBanner()
     QTRY_VERIFY(fixture.ui()->findBanner(fixture.window->getHomeTab()) && fixture.ui()->findBanner(fixture.window->getHomeTab())->isVisible());
     pdf::PDFAppMcpWaitingBanner* banner = fixture.ui()->findBanner(fixture.window->getHomeTab());
     QCOMPARE(banner->getTitleText(), QStringLiteral("Claude Code is waiting for your confirmation \u00B7 Invoice.pdf"));
-    QVERIFY2(banner->getBodyText().startsWith(QStringLiteral("Claude Code asks to change Invoice.pdf. The request waits in its tab and is denied automatically in 2:00")), qPrintable(banner->getBodyText()));
+    // (its dialog has not appeared yet: the bound of the queue - items 15, 38)
+    QVERIFY2(banner->getBodyText().startsWith(QStringLiteral("Claude Code asks to change Invoice.pdf. The request waits in its tab and is denied automatically in 10:00")), qPrintable(banner->getBodyText()));
     // 967:12873: 62 high - the paddings 12 inside of the border around the monogram 36
     // of the assistant without a border and without the CLI badge (967:12874)
     QCOMPARE(banner->height(), 62);
@@ -1292,16 +1406,69 @@ void AppMcpEditTest::lockedBusyDialogOpen()
     QVERIFY(H::text(result).contains(QStringLiteral("dialog")));
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedDialog));
 
-    // ... an open request is always confirmed with the rule of the dialog
+    // ... an open request is always confirmed with the rule of the dialog; its
+    // question waits until the modal dialog closes (plan 2.5, items 15 / 38) and
+    // its 2 minutes start then
     std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("files"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("open") },
         { QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("other.pdf"), 1) } }) } }));
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(1), 10000);
+    pdftest::AppDocumentFixture::settle();
+    fixture.ui()->refresh();
+    QVERIFY(!fixture.ui()->getDialog());
+    QVERIFY(fixture.ui()->isWaitingForModalDialog());
+    QVERIFY(!fixture.ui()->isShown(fixture.ui()->getWaitingIds().front()));
+    fixture.time += 90000;
+    fixture.ui()->tick();
+    QVERIFY(!call->isFinished());
+    QVERIFY(!fixture.ui()->getDialog());
+
+    delete modal;
     pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
     QVERIFY(dialog);
+    QVERIFY(!fixture.ui()->isWaitingForModalDialog());
     QCOMPARE(dialog->getReasonText(), QStringLiteral("Asked because a dialog was open when the request came"));
     QVERIFY(dialog->getConfirmation()->isAfterDialog);
-    delete modal;
+    QCOMPARE(dialog->getCountdownText(), QStringLiteral("Denied automatically in 2:00"));
     fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::DeniedUser);
     QVERIFY(H::isError(fixture.waitResult(call)));
+
+    // A first read with Ask waits for the modal dialog too (plan 2.5)
+    fixture.setClient(QStringLiteral("gemini-cli-mcp-client"));
+    modal = new QDialog(fixture.window);
+    modal->setModal(true);
+    modal->show();
+    QTRY_VERIFY(QApplication::activeModalWidget() == modal);
+    call = fixture.startCall(QStringLiteral("document"), H::json(R"({"action":"get_info"})"));
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(1), 10000);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!fixture.ui()->getDialog());
+    QVERIFY(fixture.ui()->isWaitingForModalDialog());
+    fixture.time += 300000;
+    fixture.ui()->tick();
+    QVERIFY(!call->isFinished());
+    delete modal;
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getConfirmation()->kind, pdf::PDFAppMcpConfirmationKind::ReadDocuments);
+    QCOMPARE(dialog->getCountdownText(), QStringLiteral("Denied automatically in 2:00"));
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    std::optional<pdf::PDFMcpCallResult> readResult = fixture.waitResult(call);
+    QVERIFY2(!H::isError(readResult), qPrintable(H::text(readResult)));
+
+    // ... within the bound of the queue: a modal dialog, which stays open, denies it
+    fixture.setClient(QStringLiteral("codex-mcp-client"));
+    modal = new QDialog(fixture.window);
+    modal->setModal(true);
+    modal->show();
+    QTRY_VERIFY(QApplication::activeModalWidget() == modal);
+    call = fixture.startCall(QStringLiteral("document"), H::json(R"({"action":"get_info"})"));
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(1), 10000);
+    fixture.time += pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT + 1000;
+    fixture.ui()->tick();
+    readResult = fixture.waitResult(call);
+    QVERIFY(H::isError(readResult));
+    QVERIFY2(H::text(readResult).contains(QStringLiteral("2 minutes")), qPrintable(H::text(readResult)));
+    delete modal;
 }
 
 void AppMcpEditTest::signedDocumentWarning()
@@ -1774,6 +1941,15 @@ void AppMcpEditTest::filesRules()
     {
         QVERIFY2(pdf::PDFAppMcpFilesTool::checkFilePath(path, Access::Open, fixture.context.get(), &error).isEmpty(), qPrintable(path.left(80)));
         QVERIFY2(!error.isEmpty(), qPrintable(path.left(80)));
+    }
+
+    // A path of another computer is refused by its name, before anything is resolved
+    // on the disk (review RT7: the check of the canonical path alone must not be the
+    // only one, it touches the network)
+    for (const QString& path : { QStringLiteral("\\\\server\\share\\file.pdf"), QStringLiteral("//server/share/file.pdf") })
+    {
+        QVERIFY(pdf::PDFAppMcpFilesTool::checkFilePath(path, Access::Open, fixture.context.get(), &error).isEmpty());
+        QVERIFY2(error.contains(QStringLiteral("paths of devices and of network locations are refused")), qPrintable(error));
     }
 
     // Writes: .pdf only, not into a folder, not a folder
@@ -2612,6 +2788,408 @@ void AppMcpEditTest::httpEndToEnd()
         QCOMPARE(asked, 1);
         QCOMPARE(H::fieldValue(formTab->getDocument()->getDocument().data(), choice), QString::fromLatin1(eraCase.value));
     }
+}
+
+void AppMcpEditTest::fixFocusBackAfterDialog()
+{
+    // Fix wave FW7-H, item 39: the focus went to the next widget of the chain when
+    // the dialog closed - it goes back to the widget of the tab, which had it
+    // before the dialog, else to the canvas
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("focus.pdf"), 1));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QWidget* canvas = tab->getView()->getPdfWidget();
+    QVERIFY(canvas);
+    auto isCanvasFocused = [canvas]()
+    {
+        QWidget* focus = QApplication::focusWidget();
+        return focus && (focus == canvas || canvas->isAncestorOf(focus));
+    };
+    canvas->setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(isCanvasFocused());
+
+    // The canvas: Esc denies, the focus is back on the canvas
+    const QJsonObject add = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})");
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"), add);
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QTRY_VERIFY(QApplication::focusWidget() && (QApplication::focusWidget() == dialog || dialog->isAncestorOf(QApplication::focusWidget())));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+    QVERIFY(H::isError(fixture.waitResult(call)));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY2(isCanvasFocused(), QApplication::focusWidget() ? qPrintable(QApplication::focusWidget()->metaObject()->className()) : "none");
+
+    // Another widget of the tab (the search field of the toolbar): two dialogs one
+    // after another, answered by the mouse - the focus goes back to the field
+    QWidget* field = tab->getView()->getToolbar() ? static_cast<QWidget*>(tab->getView()->getToolbar()->getSearchField()) : nullptr;
+    QVERIFY(field && field->isVisible());
+    field->setFocus(Qt::OtherFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), field);
+    std::shared_ptr<pdf::PDFMcpCall> first = fixture.startCall(QStringLiteral("annotations"), add);
+    std::shared_ptr<pdf::PDFMcpCall> second = fixture.startCall(QStringLiteral("annotations"), add);
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(2), 10000);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
+    QVERIFY(H::isError(fixture.waitResult(first)));
+    QTRY_VERIFY(fixture.ui()->getDialog() && fixture.ui()->getDialog() != dialog && fixture.ui()->getDialog()->isVisible());
+    dialog = fixture.ui()->getDialog();
+    QTRY_VERIFY(QApplication::focusWidget() && (QApplication::focusWidget() == dialog || dialog->isAncestorOf(QApplication::focusWidget())));
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    QVERIFY(!H::isError(fixture.waitResult(second)));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(QApplication::focusWidget(), field);
+
+    // A widget, which is gone: the canvas
+    field->setFocus(Qt::OtherFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), field);
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    field->hide();
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::DeniedUser);
+    QVERIFY(H::isError(fixture.waitResult(call)));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(isCanvasFocused());
+    field->show();
+}
+
+void AppMcpEditTest::fixPageCountPlural()
+{
+    // Fix wave FW7-H, item 39: "%1 pages" of the read approval was formatted by
+    // .arg - a translation had no plural forms; %Ln with the count
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Three_Pages.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentTab* single = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("One_Page.pdf"), 1));
+    QVERIFY(single);
+
+    McpEditRecordingTranslator* translator = new McpEditRecordingTranslator(fixture.window);
+    QCoreApplication::installTranslator(translator);
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("document"), H::json(R"({"action":"get_info"})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(translator->contains(QStringLiteral("pdf::PDFAppMcpConfirmDialog"), QStringLiteral("%Ln pages"), 3));
+    QVERIFY(translator->contains(QStringLiteral("pdf::PDFAppMcpConfirmDialog"), QStringLiteral("1 page"), -1));
+    QVERIFY(!translator->contains(QStringLiteral("pdf::PDFAppMcpConfirmDialog"), QStringLiteral("%1 pages"), -1));
+    bool hasPages = false;
+    for (QLabel* label : dialog->findChildren<QLabel*>())
+    {
+        hasPages = hasPages || label->text() == QStringLiteral("3 pages");
+    }
+    QVERIFY(hasPages);
+    QCoreApplication::removeTranslator(translator);
+    delete translator;
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::DeniedUser);
+    QVERIFY(H::isError(fixture.waitResult(call)));
+}
+
+void AppMcpEditTest::fixClientNamePercent()
+{
+    // Fix wave FW7-H, item 18: a self-reported client name with placeholders is
+    // written as it is into the undo texts, the activity, the dialog and the
+    // notification bar - nothing is substituted into or after it
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("percent.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QString name = QStringLiteral("Evil %1 %2 %n %L1 %Ln 100%");
+    fixture.setClient(name);
+
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"),
+        H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}},{"type":"note","page":1,"point":{"x":150,"y":300}}]}})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getTitleText(), QStringLiteral("%1 wants to change percent.pdf").arg(name));
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(call);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), name + QStringLiteral(" added 2 notes"));
+    QTRY_VERIFY(fixture.ui()->findNotificationBar(document));
+    QCOMPARE(fixture.ui()->findNotificationBar(document)->getMessage(), name + QStringLiteral(" added 2 notes"));
+
+    // Changed and deleted: "%1 changed %n annotations" with the name last
+    QStringList ids;
+    for (const QJsonValue& value : H::structured(result).value(QStringLiteral("add")).toObject().value(QStringLiteral("created")).toArray())
+    {
+        ids << value.toObject().value(QStringLiteral("id")).toString();
+    }
+    QCOMPARE(ids.size(), 2);
+    QJsonObject remove = H::json(R"({"action":"delete","delete":{}})");
+    remove.insert(QStringLiteral("delete"), QJsonObject({ { QStringLiteral("ids"), QJsonArray::fromStringList(ids) } }));
+    call = fixture.startCall(QStringLiteral("annotations"), remove);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    result = fixture.waitResult(call);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), name + QStringLiteral(" deleted 2 annotations"));
+
+    // The activity names the client as it is
+    bool isNamed = false;
+    for (const pdf::PDFMcpActivityRow& row : fixture.activity())
+    {
+        isNamed = isNamed || row.client == name;
+    }
+    QVERIFY(isNamed);
+}
+
+void AppMcpEditTest::fixHostileEditArguments()
+{
+    // Fix wave FW7-H, item 47: every refusal of the arguments of outline and forms
+    // is an execution error of the call, nothing is changed
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* outlineTab = fixture.openReady(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    QVERIFY(outlineTab);
+    pdf::PDFAppDocument* outlineDocument = outlineTab->getDocument();
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(outlineDocument);
+
+    const char* outlineCalls[] = {
+        R"({"action":"add","add":{"title":"   ","page":1}})",
+        R"({"action":"add","add":{"title":"No target"}})",
+        R"({"action":"add","add":{"title":"Far","page":99}})",
+        R"({"action":"add","add":{"title":"Label","pageLabel":"no such label"}})",
+        R"({"action":"add","add":{"title":"Parent","page":1,"parent":"abc"}})",
+        R"({"action":"add","add":{"title":"Parent","page":1,"parent":"99"}})",
+        R"({"action":"update","update":{"newTitle":"Nobody"}})",
+        R"({"action":"update","update":{"item":"1","newTitle":"   "}})",
+        R"({"action":"update","update":{"title":"No such title","newTitle":"X"}})",
+        R"({"action":"update","update":{"item":"1","page":99}})",
+        R"({"action":"update","update":{"item":"9.9"}})",
+        R"({"action":"move","move":{"item":"2","parent":"2.1"}})",
+        R"({"action":"move","move":{"item":"99"}})",
+        R"({"action":"move","move":{"item":"x"}})",
+        R"({"action":"delete","delete":{"items":["0"]}})",
+        R"({"action":"delete","delete":{"items":["99"]}})",
+        R"({"action":"replace","replace":{"items":[{"title":"A","level":2,"page":1}]}})",
+        R"({"action":"replace","replace":{"items":[{"title":"A","level":1,"page":1},{"title":"B","level":3,"page":1}]}})",
+        R"({"action":"replace","replace":{"items":[{"title":"A","level":1,"page":99}]}})",
+        R"({"action":"replace","replace":{"items":[{"title":"A","level":1,"pageLabel":"no such label"}]}})",
+    };
+    for (const char* text : outlineCalls)
+    {
+        QJsonObject arguments = H::json(text);
+        QVERIFY2(!arguments.isEmpty(), text);
+        arguments.insert(QStringLiteral("documentId"), outlineDocument->getId());
+        const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("outline"), arguments);
+        QVERIFY2(result, text);
+        QVERIFY2(H::isError(result), qPrintable(QString::fromLatin1(text) + QStringLiteral(" -> ") + H::text(result)));
+    }
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(outlineDocument), undoBefore);
+
+    // Forms: every value of one call refused or unchanged, the errors named
+    pdf::PDFAppDocumentTab* formTab = fixture.openReady(pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(formTab);
+    pdf::PDFAppDocument* formDocument = formTab->getDocument();
+    const int formUndoBefore = pdftest::AppDocumentFixture::undoCount(formDocument);
+    // (one call per value: a refused value of a call refuses the whole call)
+    const char* values[] = {
+        R"({"name":"fixed","value":"x"})", R"({"name":"agree","value":"text for a check box"})",
+        R"({"name":"agree","checked":false})", R"({"name":"choice","value":"Nope"})", R"({"name":"colors","selected":["Red","Purple"]})",
+        R"({"name":"colors","value":"Red"})", R"({"name":"reset","value":"x"})", R"({"name":"nonexistent","value":"x"})", R"({"name":"name"})",
+        R"({"name":"name","value":"a","checked":true})", R"({"name":"name","value":"John"})", R"({"name":"fruit","value":"Apple"})",
+        R"({"name":"secret","value":"password"})", R"({"name":"choice","checked":true})", R"({"name":"fruit","selected":["Apple"]})",
+        R"({"name":"name","selected":["x"]})" };
+    int refused = 0;
+    for (const char* value : values)
+    {
+        QJsonObject setValues = H::json(R"({"action":"set_values","set_values":{}})");
+        setValues.insert(QStringLiteral("set_values"), QJsonObject({ { QStringLiteral("values"), QJsonArray({ H::json(value) }) } }));
+        setValues.insert(QStringLiteral("documentId"), formDocument->getId());
+        const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("forms"), setValues);
+        QVERIFY2(result, value);
+        const QJsonObject output = H::structured(result).value(QStringLiteral("set_values")).toObject();
+        const bool isRefused = H::isError(result) || !output.value(QStringLiteral("errors")).toArray().isEmpty();
+        const bool isUnchanged = !output.value(QStringLiteral("unchanged")).toArray().isEmpty();
+        QVERIFY2(isRefused || isUnchanged || output.value(QStringLiteral("changed")).toArray().isEmpty(), qPrintable(QString::fromLatin1(value) + QStringLiteral(" -> ") + H::text(result)));
+        refused += isRefused ? 1 : 0;
+    }
+    QVERIFY2(refused >= 10, qPrintable(QString::number(refused)));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(formDocument), formUndoBefore);
+
+    // Reset of the fields at their defaults: nothing to do, no undo step
+    QJsonObject reset = H::json(R"({"action":"reset","reset":{"names":["name","nonexistent"]}})");
+    reset.insert(QStringLiteral("documentId"), formDocument->getId());
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("forms"), reset);
+    QVERIFY(result);
+    reset = H::json(R"({"action":"reset","reset":{"names":["required"]}})");
+    reset.insert(QStringLiteral("documentId"), formDocument->getId());
+    result = fixture.callTool(QStringLiteral("forms"), reset);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QVERIFY(!H::structured(result).value(QStringLiteral("reset")).toObject().value(QStringLiteral("reset")).toBool());
+}
+
+void AppMcpEditTest::fixMarkupQuoteFromTextIndex()
+{
+    // Fix wave FW7-H, item 47: a markup over the text of an indexed document
+    // quotes the text in its row (the quote bounded with an ellipsis)
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("quote.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    // The text index of the tab (built by a search)
+    QJsonObject search = H::json(R"({"action":"search","search":{"query":"alpha"}})");
+    search.insert(QStringLiteral("documentId"), document->getId());
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("text"), search);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QTRY_VERIFY(document->getTextIndex());
+
+    // The whole page and a small area: the rows quote the text under the quads
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"),
+        H::json(R"({"action":"add","add":{"items":[{"type":"highlight","page":1,"quads":[[0,400,300,400,0,0,300,0]]},{"type":"underline","page":1,"quads":[[0,2,1,2,0,1,1,1]]}]}})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    const QString rows = QString::fromUtf8(QJsonDocument(dialog->getConfirmation()->details.value(QStringLiteral("rows")).toArray()).toJson(QJsonDocument::Compact));
+    QVERIFY2(rows.contains(QChar(0x201C)) && rows.contains(QStringLiteral("alpha")), qPrintable(rows));
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    QVERIFY(!H::isError(fixture.waitResult(call)));
+}
+
+void AppMcpEditTest::fixDialogTextsEveryKind()
+{
+    // Fix wave FW7-H, item 47: the dialog and the waiting banner of every kind of
+    // request, with the variants of their rows (more rows than shown, facts,
+    // overwrite, signatures, a remote assistant)
+    McpEditFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Kinds.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QJsonArray rows;
+    for (int i = 0; i < pdf::PDFAppMcpConfirmDialog::MAXIMUM_ROWS + 3; ++i)
+    {
+        rows.append(QJsonObject({ { QStringLiteral("text"), QStringLiteral("Add %1 notes").arg(i + 2) }, { QStringLiteral("page"), QStringLiteral("Page 1") },
+                                  { QStringLiteral("detail"), QStringLiteral("“quoted”") }, { QStringLiteral("icon"), QStringLiteral("note") } }));
+    }
+    QJsonArray facts;
+    facts.append(QJsonObject({ { QStringLiteral("key"), QStringLiteral("Signatures") }, { QStringLiteral("value"), QStringLiteral("2 kept") } }));
+
+    const pdf::PDFAppMcpConfirmationKind kinds[] = { pdf::PDFAppMcpConfirmationKind::ReadDocuments, pdf::PDFAppMcpConfirmationKind::Change, pdf::PDFAppMcpConfirmationKind::Save,
+                                                     pdf::PDFAppMcpConfirmationKind::SaveCopy, pdf::PDFAppMcpConfirmationKind::Open, pdf::PDFAppMcpConfirmationKind::Close };
+    QSet<QString> titles;
+    QSet<QString> bodies;
+    for (pdf::PDFAppMcpConfirmationKind kind : kinds)
+    {
+        for (int variant = 0; variant < 2; ++variant)
+        {
+            std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = std::make_shared<pdf::PDFAppMcpConfirmation>();
+            confirmation->id = quint64(100 + int(kind) * 2 + variant);
+            confirmation->kind = kind;
+            confirmation->clientName = variant ? QString() : QStringLiteral("Codex CLI");
+            confirmation->clientNameRaw = variant ? QStringLiteral("unknown-client") : QStringLiteral("codex-mcp-client");
+            confirmation->isRemote = variant == 1;
+            confirmation->remoteAddress = QStringLiteral("192.168.1.57");
+            confirmation->document = (kind == pdf::PDFAppMcpConfirmationKind::Change && variant == 1) ? nullptr : document;
+            confirmation->permissions = variant ? pdf::PDFAppMcpPermissionKinds(pdf::PDFAppMcpPermissionKind::Read | pdf::PDFAppMcpPermissionKind::Edit | pdf::PDFAppMcpPermissionKind::Files)
+                                                : pdf::PDFAppMcpPermissionKinds(pdf::PDFAppMcpPermissionKind::Files);
+            confirmation->isAlwaysConfirmed = kind == pdf::PDFAppMcpConfirmationKind::Save;
+            confirmation->isAfterDialog = kind == pdf::PDFAppMcpConfirmationKind::Open && variant == 1;
+            confirmation->details.insert(QStringLiteral("rows"), rows);
+            confirmation->details.insert(QStringLiteral("changeCount"), variant ? 1 : 9);
+            confirmation->details.insert(QStringLiteral("signatureCount"), variant ? 1 : 3);
+            confirmation->details.insert(QStringLiteral("isAnnotationChange"), variant == 0);
+            confirmation->details.insert(QStringLiteral("path"), fixture.path(variant ? QStringLiteral("copy.pdf") : QStringLiteral("a/very/long/folder/name/of/the/user/Kinds copy.pdf")));
+            confirmation->details.insert(QStringLiteral("overwrite"), variant == 1);
+            confirmation->details.insert(QStringLiteral("unsaved"), variant ? QString() : QStringLiteral("3 changes"));
+            confirmation->details.insert(QStringLiteral("content"), QStringLiteral("Kinds.pdf with 3 changes"));
+            confirmation->details.insert(QStringLiteral("facts"), facts);
+            confirmation->details.insert(QStringLiteral("tool"), variant ? QString() : QStringLiteral("review.statistics"));
+
+            pdf::PDFAppMcpConfirmDialog dialog(confirmation, &fixture.host()->getResolver(), nullptr);
+            dialog.setQueuePosition(variant, 3);
+            dialog.setRemainingTime(65000);
+            QVERIFY(!dialog.getTitleText().isEmpty());
+            QCOMPARE(dialog.getTitleText(), pdf::PDFAppMcpConfirmDialog::createTitle(*confirmation));
+            QVERIFY(!dialog.getReasonText().isEmpty());
+            QCOMPARE(dialog.getCountdownText(), QStringLiteral("Denied automatically in 1:05"));
+            titles.insert(dialog.getTitleText());
+
+            pdf::PDFAppMcpWaitingBanner banner(nullptr);
+            banner.setConfirmation(confirmation);
+            banner.setRemainingTime(65000);
+            QVERIFY2(banner.getBodyText().contains(QStringLiteral("1:05")), qPrintable(banner.getBodyText()));
+            bodies.insert(banner.getBodyText());
+            QVERIFY(!banner.getTitleText().isEmpty());
+        }
+    }
+    QVERIFY2(titles.size() >= 7, qPrintable(QStringList(titles.values()).join(QStringLiteral(" | "))));
+    QVERIFY2(bodies.size() >= 7, qPrintable(QStringList(bodies.values()).join(QStringLiteral(" | "))));
+}
+
+void AppMcpEditTest::fixGhostShapes()
+{
+    // Fix wave FW7-H, item 47: every shape of the ghosts of Show on Page is drawn
+    // on its page (and round trips through the details of the confirmation)
+    std::vector<pdf::PDFAppMcpGhost> ghosts;
+    auto add = [&ghosts](pdf::PDFAppMcpGhost::Shape shape, const QPolygonF& points, const std::vector<QPolygonF>& strokes = std::vector<QPolygonF>())
+    {
+        pdf::PDFAppMcpGhost ghost;
+        ghost.pageIndex = 0;
+        ghost.shape = shape;
+        ghost.points = points;
+        ghost.strokes = strokes;
+        ghost.color = QColor(0, 0, 255);
+        ghosts.push_back(ghost);
+    };
+    add(pdf::PDFAppMcpGhost::Shape::Quads, QPolygonF({ QPointF(10, 190), QPointF(60, 190), QPointF(10, 170), QPointF(60, 170) }));
+    add(pdf::PDFAppMcpGhost::Shape::Ellipse, QPolygonF({ QPointF(70, 150), QPointF(120, 190) }));
+    add(pdf::PDFAppMcpGhost::Shape::Note, QPolygonF({ QPointF(130, 190) }));
+    add(pdf::PDFAppMcpGhost::Shape::Polyline, QPolygonF({ QPointF(10, 100), QPointF(60, 140), QPointF(110, 100) }));
+    add(pdf::PDFAppMcpGhost::Shape::Polygon, QPolygonF({ QPointF(130, 100), QPointF(180, 140), QPointF(190, 100) }));
+    add(pdf::PDFAppMcpGhost::Shape::Ink, QPolygonF(), { QPolygonF({ QPointF(10, 20), QPointF(60, 60), QPointF(110, 20) }), QPolygonF() });
+    add(pdf::PDFAppMcpGhost::Shape::Polyline, QPolygonF());
+
+    for (const pdf::PDFAppMcpGhost& ghost : ghosts)
+    {
+        const std::optional<pdf::PDFAppMcpGhost> copy = pdf::PDFAppMcpGhost::fromJson(ghost.toJson());
+        QVERIFY(copy || ghost.points.isEmpty());
+    }
+
+    pdf::PDFAppMcpGhostOverlay overlay;
+    overlay.setGhosts(ghosts);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        overlay.drawGhosts(&painter, 0, QTransform(1, 0, 0, -1, 0, 200));
+    }
+    auto isPainted = [&image](const QRect& area)
+    {
+        for (int y = area.top(); y <= area.bottom(); ++y)
+        {
+            for (int x = area.left(); x <= area.right(); ++x)
+            {
+                if (image.pixelColor(x, y) != QColor(Qt::white))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    QVERIFY(isPainted(QRect(10, 10, 50, 20)));    // quads
+    QVERIFY(isPainted(QRect(70, 10, 50, 40)));    // ellipse
+    QVERIFY(isPainted(QRect(10, 60, 100, 40)));   // polyline
+    QVERIFY(isPainted(QRect(130, 60, 60, 40)));   // polygon
+    QVERIFY(isPainted(QRect(10, 140, 100, 40)));  // ink
+    QVERIFY(!isPainted(QRect(195, 195, 4, 4)));
 }
 
 int main(int argc, char* argv[])

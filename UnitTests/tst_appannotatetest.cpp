@@ -36,6 +36,7 @@
 #include "pdfappannotationcreator.h"
 #include "pdfappannotationstylestorage.h"
 #include "pdfappannotationtoolbar.h"
+#include "pdfappcolorpicker.h"
 #include "pdfappcommand.h"
 #include "pdfappcommentpopup.h"
 #include "pdfappcontext.h"
@@ -67,11 +68,13 @@
 #include "pdfutils.h"
 #include "pdfwidgettool.h"
 
+#include "pdfcolorpickerdialog.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
+#include "pdfwidgetstyleproperties.h"
 
 #include <QAction>
 #include <QCheckBox>
@@ -434,6 +437,12 @@ private slots:
     void reviewStyleReloadOnce();
     void reviewLastMarkupOfStartedTool();
     void reviewCommentCountCached();
+    void panelColorTargets();
+    void panelColorTargetsLocked();
+    void panelColorTargetsThemes();
+    void panelColorTargetsDeletion();
+    void moreColorsDialog();
+    void moreColorsDialogDeletion();
     void screenshots();
 };
 
@@ -3018,6 +3027,537 @@ void AppAnnotateTest::reviewIconsAndHelp()
     QVERIFY(topic);
     QVERIFY(topic->related.contains(QStringLiteral("/help/edit-annotations")));
     QVERIFY(topic->markdown.contains(QStringLiteral("](/help/edit-annotations)")));
+}
+
+void AppAnnotateTest::panelColorTargets()
+{
+    // Owner 2026-10-27: every markup tool keeps its own color; each tile shows it
+    // as its color bar, the color row edits the color of the target tile and its
+    // caption names it; the hover (after the intent) and the focus choose the target
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ColorTargets.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    using Panel = pdf::PDFAppAnnotatePanel;
+    const char* colorBar = pdf::PDFWidgetStyleProperties::COLOR_BAR;
+    const char* editTarget = pdf::PDFWidgetStyleProperties::EDIT_TARGET;
+
+    // The last used markup is Underline: the default target is its (checked) tile
+    pdf::PDFAppAnnotationToolSettings::setLastMarkupType(fixture.context.get(), pdf::AnnotationType::Underline);
+    pdftest::AppDocumentFixture::settle();
+    Panel* panel = qobject_cast<Panel*>(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    QToolButton* highlight = panel->getMarkupTile(Kind::Highlight);
+    QToolButton* underline = panel->getMarkupTile(Kind::Underline);
+    QToolButton* strikeout = panel->getMarkupTile(Kind::Strikeout);
+    QToolButton* squiggly = panel->getMarkupTile(Kind::Squiggly);
+    QToolButton* comment = panel->getMarkupTile(Kind::HighlightComment);
+    QVERIFY(highlight && underline && strikeout && squiggly && comment);
+    QVERIFY(!panel->getMarkupTile(Kind::Rectangle));
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+    QCOMPARE(panel->getColorMarkupType(), pdf::AnnotationType::Underline);
+    QCOMPARE(panel->getColorCaption()->text(), QStringLiteral("Underline color"));
+    QCOMPARE(panel->getColorRow()->accessibleName(), QStringLiteral("Color of Underline"));
+    QCOMPARE(panel->getColorRow()->getColor().rgb(), pdf::PDFAppAnnotationToolSettings::getMarkupColor(pdf::AnnotationType::Underline).rgb());
+
+    // The first focus of the opened panel (Highlight) is no choice of the user
+    QVERIFY(underline->isChecked());
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+
+    // Every tile shows the color of its own tool (Highlight and comment the one of Highlight)
+    for (Kind kind : { Kind::Highlight, Kind::Underline, Kind::Strikeout, Kind::Squiggly, Kind::HighlightComment })
+    {
+        QToolButton* tile = panel->getMarkupTile(kind);
+        QCOMPARE(tile->property(colorBar).value<QColor>().rgb(), creator->getColor(kind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb());
+        QVERIFY(tile->accessibleDescription().startsWith(QStringLiteral("Color: ")));
+        QVERIFY(!tile->property(editTarget).toBool());
+    }
+    QCOMPARE(underline->accessibleDescription(), QStringLiteral("Color: Blue"));
+    QCOMPARE(highlight->accessibleDescription(), QStringLiteral("Color: Yellow"));
+
+    // The pointer only crosses Strikeout: no switch (the hover intent is canceled)
+    auto enter = [](QWidget* widget)
+    {
+        QEnterEvent event(QPointF(5, 5), QPointF(5, 5), QPointF(widget->mapToGlobal(QPoint(5, 5))));
+        QApplication::sendEvent(widget, &event);
+    };
+    auto leave = [](QWidget* widget)
+    {
+        QEvent event(QEvent::Leave);
+        QApplication::sendEvent(widget, &event);
+    };
+    enter(strikeout);
+    QVERIFY(panel->isHoverIntentPending());
+    leave(strikeout);
+    QVERIFY(!panel->isHoverIntentPending());
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+
+    // The pointer rests on Squiggly: it becomes the target after the intent, not at once
+    QElapsedTimer elapsed;
+    elapsed.start();
+    enter(squiggly);
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+    QTRY_COMPARE(panel->getColorTargetKind(), Kind::Squiggly);
+    QVERIFY(elapsed.elapsed() >= Panel::HOVER_INTENT_DELAY - 20);
+    QCOMPARE(panel->getColorCaption()->text(), QStringLiteral("Squiggly color"));
+    QCOMPARE(panel->getColorRow()->accessibleName(), QStringLiteral("Color of Squiggly"));
+    QCOMPARE(panel->getColorRow()->getColor().rgb(), creator->getColor(Kind::Squiggly, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb());
+    QVERIFY(squiggly->property(editTarget).toBool());
+    QVERIFY(!underline->property(editTarget).toBool());
+
+    // Sticky: leaving the tile for the color row keeps the target
+    leave(squiggly);
+    enter(panel->getColorRow());
+    enter(panel->getColorRow()->getSwatch(3));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), Kind::Squiggly);
+
+    // A swatch changes only the color of the target tool, its bar at once, the panel stays open
+    const QColor before[] = { creator->getColor(Kind::Highlight, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke),
+                              creator->getColor(Kind::Underline, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke),
+                              creator->getColor(Kind::Strikeout, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke) };
+    const QColor pink = panel->getColorRow()->getEntry(3).canonicalColor;
+    panel->getColorRow()->getSwatch(3)->click();
+    QCOMPARE(squiggly->property(colorBar).value<QColor>().rgb(), pink.rgb());
+    QVERIFY(panel->isVisible());
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getMarkupColor(pdf::AnnotationType::Squiggly).rgb(), pink.rgb());
+    QCOMPARE(creator->getColor(Kind::Highlight, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), before[0].rgb());
+    QCOMPARE(creator->getColor(Kind::Underline, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), before[1].rgb());
+    QCOMPARE(creator->getColor(Kind::Strikeout, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), before[2].rgb());
+    QCOMPARE(underline->property(colorBar).value<QColor>().rgb(), before[1].rgb());
+    QCOMPARE(squiggly->accessibleDescription(), QStringLiteral("Color: Pink"));
+
+    // The bar is drawn: the pixel below the icon is the color of the token
+    {
+        const QImage image = H::render(squiggly);
+        QCOMPARE(H::pixel(image, QPoint(squiggly->width() / 2, 30)).rgb(), H::token(pdf::PDFThemeColors::AnnotationPink).rgb());
+        QCOMPARE(H::pixel(H::render(underline), QPoint(underline->width() / 2, 30)).rgb(), H::token(pdf::PDFThemeColors::AnnotationBlue).rgb());
+    }
+
+    // The keyboard: the focus moved by an arrow makes the focused tile the target
+    highlight->setFocus(Qt::TabFocusReason);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), Kind::Squiggly);
+    QTest::keyClick(highlight, Qt::Key_Right);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(underline->hasFocus());
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+    QVERIFY(!underline->property(editTarget).toBool());   // the checked tile shows no outline
+    QTest::keyClick(underline, Qt::Key_Right);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), Kind::Strikeout);
+    QCOMPARE(panel->getColorCaption()->text(), QStringLiteral("Strikeout color"));
+
+    // Highlight and comment shares the color of Highlight
+    enter(comment);
+    QTRY_COMPARE(panel->getColorTargetKind(), Kind::HighlightComment);
+    QCOMPARE(panel->getColorCaption()->text(), QStringLiteral("Highlight color"));
+    const QColor green = panel->getColorRow()->getEntry(6).canonicalColor;
+    panel->getColorRow()->getSwatch(6)->click();
+    QCOMPARE(comment->property(colorBar).value<QColor>().rgb(), green.rgb());
+    QCOMPARE(highlight->property(colorBar).value<QColor>().rgb(), green.rgb());
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getMarkupColor(pdf::AnnotationType::Highlight).rgb(), green.rgb());
+    QCOMPARE(pdf::PDFAppAnnotationToolSettings::getMarkupColor(pdf::AnnotationType::Squiggly).rgb(), pink.rgb());
+    leave(comment);
+
+    // Another instance changes the style of Underline: the bars follow
+    QJsonObject value;
+    value.insert(QStringLiteral("strokeColor"), QStringLiteral("#af52de"));
+    value.insert(QStringLiteral("penWidth"), 1.0);
+    QVERIFY(!fixture.context->getAnnotationStyleStorage()->getRepository().setValue(pdf::PDFAppAnnotationToolSettings::getMarkupStyleId(pdf::AnnotationType::Underline), value).isError());
+    QTRY_COMPARE(underline->property(colorBar).value<QColor>().rgb(), QColor(0xaf, 0x52, 0xde).rgb());
+
+    // The panel closes: the next opening starts at the checked tile again
+    panel->close();
+    pdftest::AppDocumentFixture::settle();
+    panel = qobject_cast<Panel*>(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), Kind::Underline);
+    QCOMPARE(panel->getColorRow()->getColor().rgb(), QColor(0xaf, 0x52, 0xde).rgb());
+    panel->close();
+    pdftest::AppDocumentFixture::settle();
+
+    // Starting a tool uses its own color: Squiggly pink, Highlight green
+    QVERIFY(creator->startTool(Kind::Squiggly));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(creator->getToolBar()->getColorRow()->getColor().rgb(), pink.rgb());
+    creator->endTool();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(H::selectAllText(tab));
+    QVERIFY(creator->markTextSelection(pdf::AnnotationType::Squiggly));
+    QCOMPARE(H::strokeRgb(H::annotation(document, H::lastAnnotation(document, 0))), pink.rgb());
+    QVERIFY(H::selectAllText(tab));
+    QVERIFY(creator->markTextSelection(pdf::AnnotationType::Highlight));
+    QCOMPARE(H::strokeRgb(H::annotation(document, H::lastAnnotation(document, 0))), green.rgb());
+}
+
+void AppAnnotateTest::panelColorTargetsLocked()
+{
+    // A locked document: no target outline, the hover chooses nothing, the bars are disabled
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ColorLocked.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    pdf::PDFAppAnnotatePanel* panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    QToolButton* underline = panel->getMarkupTile(Kind::Underline);
+
+    tab->getDocument()->setLocked(true);
+    pdftest::AppDocumentFixture::settle();
+    panel->updateState();
+    QVERIFY(!underline->isEnabled());
+    QVERIFY(!panel->getColorRow()->isEnabled());
+    QEnterEvent event(QPointF(5, 5), QPointF(5, 5), QPointF(underline->mapToGlobal(QPoint(5, 5))));
+    QApplication::sendEvent(underline, &event);
+    QVERIFY(!panel->isHoverIntentPending());
+    QCOMPARE(panel->getColorTargetKind(), Kind::Highlight);
+    for (Kind kind : { Kind::Highlight, Kind::Underline, Kind::Strikeout, Kind::Squiggly, Kind::HighlightComment })
+    {
+        QVERIFY(!panel->getMarkupTile(kind)->property(pdf::PDFWidgetStyleProperties::EDIT_TARGET).toBool());
+    }
+
+    // A disabled tile draws its bar in icon/disabled
+    const QImage image = H::render(underline);
+    QCOMPARE(H::pixel(image, QPoint(underline->width() / 2, 30)).rgb(), H::token(pdf::PDFThemeColors::IconDisabled).rgb());
+    panel->close();
+}
+
+void AppAnnotateTest::panelColorTargetsThemes()
+{
+    // Both themes at 1 / 1.5 / 2, right-to-left: the bar of the canonical color is the
+    // token of the theme, the target outline border/strong, no leak color
+    for (Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        QApplication::setLayoutDirection(direction);
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ColorThemes.pdf"), 1));
+        QVERIFY(tab);
+        for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            pdftest::AppDocumentFixture::settle();
+            pdf::PDFAppAnnotatePanel* panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(tab->getView()->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+            QVERIFY(panel);
+            pdftest::AppDocumentFixture::settle();
+            QCOMPARE(panel->layoutDirection(), direction);
+            QToolButton* underline = panel->getMarkupTile(Kind::Underline);
+            QEnterEvent event(QPointF(5, 5), QPointF(5, 5), QPointF(underline->mapToGlobal(QPoint(5, 5))));
+            QApplication::sendEvent(underline, &event);
+            QTRY_COMPARE(panel->getColorTargetKind(), Kind::Underline);
+            QEvent leaveEvent(QEvent::Leave);
+            QApplication::sendEvent(underline, &leaveEvent);
+
+            for (qreal ratio : { 1.0, 1.5, 2.0 })
+            {
+                const QImage image = H::render(underline, ratio);
+                QCOMPARE(H::countLeakPixels(H::render(panel, ratio)), 0);
+                QCOMPARE(H::pixel(image, QPoint(underline->width() / 2, 30)).rgb(), H::token(pdf::PDFThemeColors::AnnotationBlue).rgb());
+                QCOMPARE(H::pixel(image, QPoint(underline->width() / 2, 0)).rgb(), H::token(pdf::PDFThemeColors::BorderStrong).rgb());
+                const QImage highlightImage = H::render(panel->getMarkupTile(Kind::Highlight), ratio);
+                QCOMPARE(H::pixel(highlightImage, QPoint(panel->getMarkupTile(Kind::Highlight)->width() / 2, 30)).rgb(), H::token(pdf::PDFThemeColors::AnnotationYellow).rgb());
+            }
+
+            const QString folder = qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS");
+            if (!folder.isEmpty())
+            {
+                const QString name = QStringLiteral("annotate-panel-color-target-%1-%2").arg(scheme == pdf::PDFThemeColors::Scheme::Light ? QStringLiteral("light") : QStringLiteral("dark"),
+                                                                                             direction == Qt::LeftToRight ? QStringLiteral("ltr") : QStringLiteral("rtl"));
+                H::save(folder, name + QStringLiteral("-1x"), H::render(panel, 1.0));
+                H::save(folder, name + QStringLiteral("-2x"), H::render(panel, 2.0));
+            }
+            panel->close();
+            pdftest::AppDocumentFixture::settle();
+        }
+        pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    }
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+}
+
+void AppAnnotateTest::panelColorTargetsDeletion()
+{
+    // The tab or the window deleted while the hover intent of a tile is pending
+    for (int deleteWindow = 0; deleteWindow < 2; ++deleteWindow)
+    {
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("ColorDeletion.pdf"), 1));
+        QVERIFY(tab);
+        QPointer<pdf::PDFAppAnnotatePanel> panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(tab->getView()->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+        QVERIFY(panel);
+        pdftest::AppDocumentFixture::settle();
+        QToolButton* squiggly = panel->getMarkupTile(Kind::Squiggly);
+        QEnterEvent event(QPointF(5, 5), QPointF(5, 5), QPointF(squiggly->mapToGlobal(QPoint(5, 5))));
+        QApplication::sendEvent(squiggly, &event);
+        QVERIFY(panel->isHoverIntentPending());
+
+        if (deleteWindow)
+        {
+            delete fixture.window.data();
+        }
+        else
+        {
+            delete tab;
+        }
+        QTest::qWait(pdf::PDFAppAnnotatePanel::HOVER_INTENT_DELAY * 2);
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(!panel || !panel->isVisible());
+    }
+}
+
+/// "More colors…" of a color row: the palette, its link and the dialog Color picker
+class AppAnnotateMoreColorsHelper
+{
+public:
+    AppAnnotateMoreColorsHelper() = delete;
+
+    /// Opens the palette of the row, activates More colors… and returns the dialog
+    static pdf::PDFColorPickerDialog* open(pdf::PDFColorSwatchRow* row)
+    {
+        if (!row || !row->showPalette())
+        {
+            return nullptr;
+        }
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFColorPalette* palette = row->getPalette();
+        if (!palette || !palette->getMoreColorsLink())
+        {
+            return nullptr;
+        }
+        palette->getMoreColorsLink()->click();
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFAppColorPicker* picker = pdf::PDFAppColorPicker::find(row);
+        return picker ? picker->getDialog() : nullptr;
+    }
+
+    /// Types the hexadecimal color into the dialog
+    static void type(pdf::PDFColorPickerDialog* dialog, const QString& hex)
+    {
+        QTest::keyClick(dialog->getHexField(), Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClicks(dialog->getHexField(), hex);
+    }
+};
+
+void AppAnnotateTest::moreColorsDialog()
+{
+    using MoreColors = AppAnnotateMoreColorsHelper;
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("MoreColors.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QRgb custom = qRgb(0x12, 0x34, 0x56);
+
+    // The tool bar of a shape: More → the palette → More colors… opens the dialog
+    // with the color of the row over the body of the window
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    pdf::PDFColorSwatchRow* row = creator->getToolBar()->getColorRow();
+    QVERIFY(pdf::PDFAppColorPicker::find(row));
+    QPointer<Dialog> dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(dialog->getCurrentColor().rgb(), row->getColor().rgb());
+    QCOMPARE(dialog->getScrimTarget(), fixture.window->getDialogHost());
+    QVERIFY(dialog->getScrim() && dialog->getScrim()->isVisible());
+    QVERIFY(pdf::PDFAppColorPicker::find(row)->openDialog());
+    QCOMPARE(pdf::PDFAppColorPicker::find(row)->getDialog(), dialog.data());
+
+    const QString folder = qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS");
+    if (!folder.isEmpty())
+    {
+        for (pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+        {
+            pdf::PDFThemeManager::getInstance()->setScheme(scheme);
+            pdftest::AppDocumentFixture::settle();
+            const QString suffix = scheme == pdf::PDFThemeColors::Scheme::Light ? QStringLiteral("light") : QStringLiteral("dark");
+            H::save(folder, QStringLiteral("more-colors-dialog-%1-1x").arg(suffix), H::renderWindowWithPopups(fixture.window, { dialog.data() }, 1.0));
+            H::save(folder, QStringLiteral("more-colors-dialog-%1-2x").arg(suffix), H::renderWindowWithPopups(fixture.window, { dialog.data() }, 2.0));
+            H::save(folder, QStringLiteral("more-colors-dialog-only-%1-2x").arg(suffix), H::render(dialog.data(), 2.0));
+        }
+        pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+        pdftest::AppDocumentFixture::settle();
+    }
+
+    // OK: the path of a swatch - the row, the stored style, a recent color of the palette
+    MoreColors::type(dialog, QStringLiteral("#123456"));
+    dialog->getOkButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QCOMPARE(row->getColor().rgb(), custom);
+    QCOMPARE(pdf::PDFAnnotationStyleSettings::getStyle(pdf::PDFAnnotationStyleSettings::STYLE_SHAPE, pdf::PDFAnnotationStyle()).strokeColor.rgb(), custom);
+    QCOMPARE(creator->getColor(Kind::Rectangle, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), custom);
+    QCOMPARE(row->getPalette()->getRecentColors().front().color.rgb(), custom);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    QVERIFY(H::pickRectangle(view, 0, QRectF(40, 100, 80, 60)));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(H::strokeRgb(H::annotation(document, H::lastAnnotation(document, 0))), custom);
+
+    // Cancel and Esc change nothing
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    row = creator->getToolBar()->getColorRow();
+    dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getCurrentColor().rgb(), custom);
+    MoreColors::type(dialog, QStringLiteral("#ABCDEF"));
+    dialog->getCancelButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    MoreColors::type(dialog, QStringLiteral("#ABCDEF"));
+    QTest::keyClick(dialog->getArea(), Qt::Key_Escape);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QCOMPARE(row->getColor().rgb(), custom);
+    QCOMPARE(pdf::PDFAnnotationStyleSettings::getStyle(pdf::PDFAnnotationStyleSettings::STYLE_SHAPE, pdf::PDFAnnotationStyle()).strokeColor.rgb(), custom);
+    creator->endTool();
+
+    // The text box popup: the border color; the popup stays open for the text
+    QVERIFY(creator->startTool(Kind::TextBox));
+    QVERIFY(H::pickRectangle(view, 0, QRectF(40, 250, 150, 40)));
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFAppTextBoxPopup* popup = creator->getTextBoxPopup();
+    QVERIFY(popup && popup->isVisible());
+    QVERIFY(pdf::PDFAppColorPicker::find(popup->getTextColorRow()));
+    dialog = MoreColors::open(popup->getBorderColorRow());
+    QVERIFY(dialog);
+    QVERIFY(!dialog->getCurrentColor().isValid());
+    MoreColors::type(dialog, QStringLiteral("#204060"));
+    dialog->getOkButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(popup->isVisible());
+    QCOMPARE(popup->getBorderColorRow()->getColor().rgb(), qRgb(0x20, 0x40, 0x60));
+    QTest::keyClicks(popup->getTextEdit(), QStringLiteral("Hello"));
+    popup->getBorderWidthSpin()->setValue(2);
+    QTest::keyClick(popup->getTextEdit(), Qt::Key_Return, Qt::ControlModifier);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    QCOMPARE(H::strokeRgb(H::annotation(document, H::lastAnnotation(document, 0))), qRgb(0x20, 0x40, 0x60));
+
+    // The Annotate panel: the color of its target tool; the panel closes for the dialog
+    pdf::PDFAppAnnotatePanel* panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    const Kind targetKind = panel->getColorTargetKind();
+    dialog = MoreColors::open(panel->getColorRow());
+    QVERIFY(dialog);
+    QVERIFY(!panel->isVisible());
+    MoreColors::type(dialog, QStringLiteral("#336699"));
+    dialog->getOkButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QCOMPARE(creator->getColor(targetKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), qRgb(0x33, 0x66, 0x99));
+    QVERIFY(!panel->isVisible());
+
+    // Mark as annotations: the menu hides while the dialog is open and comes back
+    // with the color, which its button applies
+    QVERIFY(H::search(tab, QStringLiteral("alpha")));
+    pdf::PDFAppMarkResults* markResults = H::markResults(tab);
+    markResults->openMenu(view->getToolbar()->getSearchField());
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFAppMarkResultsMenu* menu = markResults->getMenu();
+    QVERIFY(menu && menu->isVisible());
+    dialog = MoreColors::open(menu->getColorRow());
+    QVERIFY(dialog);
+    QVERIFY(!menu->isVisible());
+    MoreColors::type(dialog, QStringLiteral("#654321"));
+    dialog->getOkButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(menu->isVisible());
+    QCOMPARE(menu->getColorRow()->getColor().rgb(), qRgb(0x65, 0x43, 0x21));
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+    menu->getApplyButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+    bool isMarked = false;
+    for (int page = 0; page < 2; ++page)
+    {
+        isMarked = isMarked || (H::annotationCount(document, page) > 0 && H::strokeRgb(H::annotation(document, H::lastAnnotation(document, page))) == qRgb(0x65, 0x43, 0x21));
+    }
+    QVERIFY(isMarked);
+    markResults->openMenu(view->getToolbar()->getSearchField());
+    pdftest::AppDocumentFixture::settle();
+    dialog = MoreColors::open(menu->getColorRow());
+    QVERIFY(dialog);
+    dialog->getCancelButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(menu->isVisible());
+    menu->close();
+    pdftest::AppDocumentFixture::settle();
+
+    // The lock while the dialog is open: no color reaches the locked document
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    row = creator->getToolBar()->getColorRow();
+    dialog = MoreColors::open(row);
+    QVERIFY(dialog);
+    const QRgb lockedBefore = creator->getColor(Kind::Rectangle, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb();
+    const int undoLocked = pdftest::AppDocumentFixture::undoCount(document);
+    MoreColors::type(dialog, QStringLiteral("#FF00AA"));
+    document->setLocked(true);
+    pdftest::AppDocumentFixture::settle();
+    QTRY_VERIFY(!dialog);
+    QCOMPARE(creator->getColor(Kind::Rectangle, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), lockedBefore);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoLocked);
+    document->setLocked(false);
+    pdftest::AppDocumentFixture::settle();
+    creator->endTool();
+
+    // A disabled row opens nothing
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    row = creator->getToolBar()->getColorRow();
+    row->setEnabled(false);
+    QVERIFY(!pdf::PDFAppColorPicker::find(row)->openDialog());
+    row->setEnabled(true);
+    creator->endTool();
+}
+
+void AppAnnotateTest::moreColorsDialogDeletion()
+{
+    using MoreColors = AppAnnotateMoreColorsHelper;
+    using Dialog = pdf::PDFColorPickerDialog;
+
+    // The tab or the window deleted with the dialog open; the tab deleted from the
+    // chosen color (the slot of the row)
+    for (int variant = 0; variant < 3; ++variant)
+    {
+        pdftest::AppDocumentFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("MoreColorsDeletion.pdf"), 1));
+        QVERIFY(tab);
+        pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+        QVERIFY(creator->startTool(Kind::Rectangle));
+        pdf::PDFColorSwatchRow* row = creator->getToolBar()->getColorRow();
+        QPointer<Dialog> dialog = MoreColors::open(row);
+        QVERIFY(dialog);
+        QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+        QPointer<QWidget> scrim(dialog->getScrim());
+
+        switch (variant)
+        {
+            case 0:
+                delete tab;
+                break;
+            case 1:
+                delete fixture.window.data();
+                break;
+            default:
+                QObject::connect(row, &pdf::PDFColorSwatchRow::colorSelected, tab, [tab]() { delete tab; });
+                MoreColors::type(dialog, QStringLiteral("#010203"));
+                dialog->getOkButton()->click();
+                break;
+        }
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(!tabGuard);
+        QVERIFY(!dialog);
+        QVERIFY(!scrim || !scrim->isVisible());
+        pdftest::AppDocumentFixture::settle();
+    }
 }
 
 void AppAnnotateTest::screenshots()

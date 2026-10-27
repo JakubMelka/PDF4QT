@@ -268,7 +268,16 @@ void PDFMcpDispatcher::handleInitialize(Request& request)
     const std::optional<PDFMcpEra> requestedEra = PDFMcpProtocol::getEra(versionValue.toString());
     const PDFMcpEra era = (requestedEra && *requestedEra != PDFMcpEra::Modern) ? *requestedEra : PDFMcpEra::Legacy20251125;
 
+    // Each initialize is a new session: rate-limited per address, so a client
+    // cannot open the 64 sessions at once (follow-up 36)
     const qint64 now = PDFMcpClock::now();
+    qint64 retryAfter = 0;
+    if (!m_initializeLimiter.allow(request.exchange->getPeerAddress(), now, &retryAfter))
+    {
+        respondRateLimited(request, retryAfter);
+        return;
+    }
+
     const QByteArray sessionId = PDFMcpSessionRegistry::createSessionId();
     PDFMcpSession* session = m_sessions.create(sessionId, now);
     if (!session)
@@ -327,6 +336,7 @@ void PDFMcpDispatcher::handleLegacy(Request& request, PDFMcpSession* session)
     }
 
     session->lastSeen = PDFMcpClock::now();
+    session->isUsed = session->isUsed || request.method != QLatin1String("notifications/initialized");
     request.client = session->createClientContext();
 
     const QJsonValue progressToken = request.meta.value(QStringLiteral("progressToken"));
@@ -1081,7 +1091,19 @@ void PDFMcpDispatcher::handleTaskUpdate(const Request& request)
 
     PendingCall* pending = findPending(task->callId);
     bool isDeclined = false;
-    const QJsonObject accepted = filterInputResponses(responsesValue.toObject(), task->allowedValues, &isDeclined);
+    const QJsonObject acceptedOfClient = filterInputResponses(responsesValue.toObject(), task->allowedValues, &isDeclined);
+
+    // The keys of the round of the client back to the keys of the host
+    // (follow-up 32); a key of an older round is not outstanding any more
+    QJsonObject accepted;
+    for (auto it = acceptedOfClient.begin(); pending && it != acceptedOfClient.end(); ++it)
+    {
+        const auto keyIt = pending->taskInputKeys.find(it.key());
+        if (keyIt != pending->taskInputKeys.cend())
+        {
+            accepted.insert(keyIt->second, it.value());
+        }
+    }
     if (!pending)
     {
         task->status = PDFMcpTask::Status::Failed;

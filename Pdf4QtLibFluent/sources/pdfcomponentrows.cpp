@@ -1702,7 +1702,7 @@ bool PDFPropertyRow::event(QEvent* event)
 
 bool PDFPropertyRow::eventFilter(QObject* watched, QEvent* event)
 {
-    const bool isEditingWidget = watched && (watched == m_editor.data() || watched == m_confirmButton.data() || watched == m_cancelButton.data());
+    const bool isEditingWidget = m_editor.isObject(watched) || m_confirmButton.isObject(watched) || m_cancelButton.isObject(watched);
     if (!isEditingWidget || !m_isEditing)
     {
         return BaseClass::eventFilter(watched, event);
@@ -1710,9 +1710,10 @@ bool PDFPropertyRow::eventFilter(QObject* watched, QEvent* event)
 
     // A widget being deleted (the destructor of QWidget takes its focus away,
     // while the pointers to it are still set) is only QWidget now: nothing of it
-    // is called, the editing ends by the event ChildRemoved after its deletion
-    if ((watched == m_editor.data() && !qobject_cast<QLineEdit*>(watched)) ||
-        (watched != m_editor.data() && !qobject_cast<PDFIconButton*>(watched)))
+    // is called and it is never cast to its class (only the addresses are
+    // compared), the editing ends by the event ChildRemoved after its deletion
+    if ((m_editor.isObject(watched) && !qobject_cast<QLineEdit*>(watched)) ||
+        (!m_editor.isObject(watched) && !qobject_cast<PDFIconButton*>(watched)))
     {
         return BaseClass::eventFilter(watched, event);
     }
@@ -1735,7 +1736,7 @@ bool PDFPropertyRow::eventFilter(QObject* watched, QEvent* event)
                 event->accept();
                 if (event->type() == QEvent::KeyPress && !keyEvent->isAutoRepeat())
                 {
-                    if (isEscape || watched == m_cancelButton.data())
+                    if (isEscape || m_cancelButton.isObject(watched))
                     {
                         cancelEditing();
                     }

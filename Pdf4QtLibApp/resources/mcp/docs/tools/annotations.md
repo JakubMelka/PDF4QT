@@ -45,7 +45,7 @@ Add annotations (one undo step).
 | `items[].icon` | string, one of `comment`, `key`, `note`, `help`, `new_paragraph`, `paragraph`, `insert` | no | Icon of a note |
 | `items[].stamp` | string, one of `approved`, `experimental`, `not_approved`, `as_is`, `expired`, `not_for_public_release`, `confidential`, `final`, `sold`, `departmental`, `for_comment`, `top_secret`, `draft`, `for_public_release` | no | Standard stamp |
 | `items[].fontSize` | number, 4–144 | no | Font size of a text_box |
-| `items[].url` | string, at most 2048 characters | no | link: an https address |
+| `items[].url` | string, at most 2048 characters | no | link: an http, https or mailto address |
 | `items[].targetPage` | integer, ≥ 1 | no | link: the target page from 1 (instead of url) |
 
 ### Result of `add`

@@ -133,6 +133,8 @@ private slots:
     void pushButtonPixels();
     void fieldPixels();
     void indicatorPixels();
+    void actionTileColorBar_data();
+    void actionTileColorBar();
     void subControlRects();
     void rightToLeft();
     void nullSafety();
@@ -1123,6 +1125,99 @@ void WidgetStyleTest::pushButtonPixels()
     image = draw(secondary, enabled | QStyle::State_On);
     QVERIFY(isNear(pixel(image, 0, 18), token(pdf::PDFThemeColors::BorderFocus)));
     QVERIFY(isNear(pixel(image, 74, 18), blend(token(pdf::PDFThemeColors::BgAccentSubtle), token(pdf::PDFThemeColors::BgSurface))));
+}
+
+void WidgetStyleTest::actionTileColorBar_data()
+{
+    QTest::addColumn<QString>("theme");
+    QTest::addColumn<qreal>("scale");
+
+    QTest::newRow("light 1x") << QStringLiteral("light") << 1.0;
+    QTest::newRow("light 1.5x") << QStringLiteral("light") << 1.5;
+    QTest::newRow("light 2x") << QStringLiteral("light") << 2.0;
+    QTest::newRow("dark 1x") << QStringLiteral("dark") << 1.0;
+    QTest::newRow("dark 1.5x") << QStringLiteral("dark") << 1.5;
+    QTest::newRow("dark 2x") << QStringLiteral("dark") << 2.0;
+}
+
+void WidgetStyleTest::actionTileColorBar()
+{
+    // Color bar of the Action tile 190:740 (property colorBar): 18 x 3 centered
+    // right below the icon (877:10161), the target outline (property editTarget,
+    // 1295:31357) 1 px border/strong inside of the tile
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QSize size(88, 56);
+    const pdf::PDFThemeColors light;
+    QToolButton holder;
+    auto draw = [this, size, scale, &holder](QStyle::State state, Qt::LayoutDirection direction)
+    {
+        QStyleOptionToolButton option;
+        option.rect = QRect(QPoint(0, 0), size);
+        option.state = state;
+        option.direction = direction;
+        option.icon = pdf::PDFThemeIcons::getIcon(QStringLiteral("underline"));
+        option.iconSize = QSize(18, 18);
+        option.text = QStringLiteral("Underline");
+        option.toolButtonStyle = Qt::ToolButtonTextUnderIcon;
+        option.subControls = QStyle::SC_ToolButton;
+        option.state |= QStyle::State_AutoRaise;
+        return render([this, &option, &holder](QPainter& painter) { m_style->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, &holder); }, size, scale);
+    };
+    const QStyle::State enabled = QStyle::State_Enabled | QStyle::State_Active;
+
+    // No bar without the property (the fill of the tile below the icon)
+    QImage image = draw(enabled, Qt::LeftToRight);
+    QVERIFY(isNear(pixel(image, 44, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+    QVERIFY(isNear(pixel(image, 44, 0), token(pdf::PDFThemeColors::AccentNeutralBg)));
+
+    // A canonical annotation color is drawn as the token of the theme, centered
+    for (Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, light.getColor(pdf::PDFThemeColors::AnnotationBlue));
+        image = draw(enabled, direction);
+        for (int x : { 37, 44, 50 })
+        {
+            QVERIFY2(isNear(pixel(image, x, 30), token(pdf::PDFThemeColors::AnnotationBlue)), qPrintable(QString::number(x)));
+        }
+        QVERIFY(isNear(pixel(image, 33, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+        QVERIFY(isNear(pixel(image, 54, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+        QVERIFY(isNear(pixel(image, 44, 34), token(pdf::PDFThemeColors::AccentNeutralBg)));
+        QCOMPARE(countLeakPixels(image), 0);
+    }
+
+    // A custom color as it is, also on the checked tile
+    holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, QColor(0x12, 0x34, 0x56));
+    QVERIFY(isNear(pixel(draw(enabled, Qt::LeftToRight), 44, 30), QColor(0x12, 0x34, 0x56)));
+    QVERIFY(isNear(pixel(draw(enabled | QStyle::State_On, Qt::LeftToRight), 44, 30), QColor(0x12, 0x34, 0x56)));
+
+    // White on the neutral fill of the light theme cannot be told: it gets the outline border/strong
+    holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, light.getColor(pdf::PDFThemeColors::AnnotationWhite));
+    image = draw(enabled, Qt::LeftToRight);
+    QVERIFY(isNear(pixel(image, 44, 30), token(pdf::PDFThemeColors::AnnotationWhite)));
+    const bool hasOutline = pdf::PDFThemeManager::getInstance()->getTheme().getScheme() == pdf::PDFThemeColors::Scheme::Light;
+    QVERIFY(isNear(pixel(image, 34, 30), token(hasOutline ? pdf::PDFThemeColors::BorderStrong : pdf::PDFThemeColors::AccentNeutralBg)));
+
+    // A disabled tile draws the bar in icon/disabled; an invalid color draws no bar
+    holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, light.getColor(pdf::PDFThemeColors::AnnotationYellow));
+    QVERIFY(isNear(pixel(draw(QStyle::State_Active, Qt::LeftToRight), 44, 30), token(pdf::PDFThemeColors::IconDisabled)));
+    holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, QColor());
+    QVERIFY(isNear(pixel(draw(enabled, Qt::LeftToRight), 44, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+    holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, QStringLiteral("#ff0000"));
+    QVERIFY(isNear(pixel(draw(enabled, Qt::LeftToRight), 44, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+
+    // The target of an editor: 1 px border/strong inside, not on a disabled tile
+    holder.setProperty(pdf::PDFWidgetStyleProperties::EDIT_TARGET, true);
+    image = draw(enabled, Qt::LeftToRight);
+    QVERIFY(isNear(pixel(image, 44, 0), token(pdf::PDFThemeColors::BorderStrong)));
+    QVERIFY(isNear(pixel(image, 0, 28), token(pdf::PDFThemeColors::BorderStrong)));
+    QVERIFY(isNear(pixel(image, 44, 1), token(pdf::PDFThemeColors::AccentNeutralBg)) || scale > 1.0);
+    QVERIFY(isNear(pixel(draw(QStyle::State_Active, Qt::LeftToRight), 44, 0), token(pdf::PDFThemeColors::AccentNeutralBg)));
+    holder.setProperty(pdf::PDFWidgetStyleProperties::EDIT_TARGET, QVariant());
+
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
 }
 
 void WidgetStyleTest::fieldPixels()
