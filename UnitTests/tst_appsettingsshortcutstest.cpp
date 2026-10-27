@@ -374,6 +374,7 @@ private Q_SLOTS:
     void storageExportKeepsExistingFile();
     void storageFilterOfRebuiltRows();
     void storageImportSecurity();
+    void importWeakensMcp();
     void reviewImportTrustCheckedAtAccept();
     void storageBackupFolder();
 
@@ -1715,6 +1716,148 @@ void AppSettingsShortcutsTest::storageImportSecurity()
     QTest::mouseClick(dialog->getActionButton(), Qt::LeftButton);
     fixture.settle();
     QCOMPARE(int(trusted.getCertificates().size()), 1);
+}
+
+void AppSettingsShortcutsTest::importWeakensMcp()
+{
+    // Owner 2026-10-26 (Q4 of step 7): the import confirmation lists also the AI
+    // settings the backup weakens - a permission Deny → Ask → Allow, remote
+    // connections off → on, the access token on → off - as "old → new" rows with the
+    // titles of the definitions; a stronger or equal backup lists nothing, hostile
+    // values of the backup are the defaults of the definitions
+    using Keys = pdf::PDFSettingKeys;
+    using Values = pdf::PDFSettingValues;
+    using Section = pdf::PDFAppStorageSettingsSection;
+
+    QTemporaryDir backups;
+    StorageFixture fixture;
+    pdf::PDFDatabase* database = fixture.context->getDatabase();
+    pdf::PDFDatabaseConnection* connection = database->getConnection();
+
+    const auto setMcp = [&](const QString& read, const QString& edit, const QString& files, bool allowRemote, bool requireToken)
+    {
+        return !fixture.settings().setValues({ { Keys::mcpPermissionRead(), read }, { Keys::mcpPermissionEdit(), edit },
+                                               { Keys::mcpPermissionFiles(), files }, { Keys::mcpAllowRemote(), allowRemote },
+                                               { Keys::mcpRequireToken(), requireToken } }).isError();
+    };
+    const auto exportBackup = [&](const QString& name)
+    {
+        const QString path = QDir(backups.path()).filePath(name + QStringLiteral(".pdf4qt-backup"));
+        return database->exportBackup(path).isError() ? QString() : path;
+    };
+    const auto weakened = [&](const QString& path)
+    {
+        QStringList rows;
+        const pdf::PDFDatabaseBackup backup = pdf::PDFDatabaseBackup::read(path);
+        for (const pdf::PDFAppStorageDialog::Fact& fact : Section::getWeakenedSettings(fixture.context.get(), backup))
+        {
+            rows << fact.key + QStringLiteral(": ") + fact.value;
+        }
+        return rows;
+    };
+    const QString deny = Values::permissionDeny();
+    const QString ask = Values::permissionAsk();
+    const QString allow = Values::permissionAllow();
+
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    const QString strongPath = exportBackup(QStringLiteral("strong"));
+    QVERIFY(setMcp(allow, ask, allow, true, false));
+    const QString weakPath = exportBackup(QStringLiteral("weak"));
+    QVERIFY(setMcp(ask, ask, ask, false, true));
+    const QString askPath = exportBackup(QStringLiteral("ask"));
+
+    // Hostile values of the backup: an option of another case, a number, a long
+    // text, a blob, a text of a bool, a float - each one the default of its definition
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    pdf::PDFDatabaseStatement hostile(connection,
+        "INSERT OR REPLACE INTO setting(key, value, modified) VALUES "
+        "('mcp.permissionRead', 'ALLOW', 0), ('mcp.permissionEdit', 42, 0), ('mcp.permissionFiles', zeroblob(5000), 0), "
+        "('mcp.allowRemote', 'garbage', 0), ('mcp.requireToken', 0.5, 0)");
+    QVERIFY(hostile.execute());
+    const QString hostilePath = exportBackup(QStringLiteral("hostile"));
+    pdf::PDFDatabaseStatement hostileLong(connection, "UPDATE setting SET value = printf('%.3000c', 'a') WHERE key = 'mcp.permissionRead'");
+    QVERIFY(hostileLong.execute());
+    const QString longPath = exportBackup(QStringLiteral("long"));
+    for (const QString& path : { strongPath, weakPath, askPath, hostilePath, longPath })
+    {
+        QVERIFY(!path.isEmpty());
+    }
+
+    // The current state: everything strong
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    const QString arrow = QString::fromUtf8(" → ");
+    QCOMPARE(weakened(weakPath), QStringList({ QStringLiteral("Read documents: Deny") + arrow + QStringLiteral("Allow"),
+                                               QStringLiteral("Edit documents: Deny") + arrow + QStringLiteral("Ask"),
+                                               QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Allow"),
+                                               QStringLiteral("Allow remote connections: Off") + arrow + QStringLiteral("On"),
+                                               QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") }));
+    QCOMPARE(weakened(askPath), QStringList({ QStringLiteral("Read documents: Deny") + arrow + QStringLiteral("Ask"),
+                                              QStringLiteral("Edit documents: Deny") + arrow + QStringLiteral("Ask"),
+                                              QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Ask") }));
+    QVERIFY(weakened(strongPath).isEmpty());
+
+    // Hostile values: the defaults (Read = Allow, Edit = Files = Ask, remote off,
+    // token on), bounded texts of the options
+    const QStringList hostileRows = { QStringLiteral("Read documents: Deny") + arrow + QStringLiteral("Allow"),
+                                      QStringLiteral("Edit documents: Deny") + arrow + QStringLiteral("Ask"),
+                                      QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Ask") };
+    QCOMPARE(weakened(hostilePath), hostileRows);
+    QCOMPARE(weakened(longPath), hostileRows);
+
+    // Ask everywhere: only the steps to Allow and the switches are weaker
+    QVERIFY(setMcp(ask, ask, ask, false, true));
+    QCOMPARE(weakened(weakPath), QStringList({ QStringLiteral("Read documents: Ask") + arrow + QStringLiteral("Allow"),
+                                               QStringLiteral("Open and save files: Ask") + arrow + QStringLiteral("Allow"),
+                                               QStringLiteral("Allow remote connections: Off") + arrow + QStringLiteral("On"),
+                                               QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") }));
+    QVERIFY(weakened(askPath).isEmpty());
+    QVERIFY(weakened(strongPath).isEmpty());
+
+    // The weakest state: no backup weakens it
+    QVERIFY(setMcp(allow, allow, allow, true, false));
+    for (const QString& path : { strongPath, weakPath, askPath, hostilePath, longPath })
+    {
+        QVERIFY2(weakened(path).isEmpty(), qPrintable(path));
+    }
+
+    // Hostile current values are the defaults too (Read = Allow)
+    pdf::PDFDatabaseStatement hostileCurrent(connection,
+        "INSERT OR REPLACE INTO setting(key, value, modified) VALUES ('mcp.permissionRead', 'nonsense', 0), ('mcp.permissionEdit', x'00', 0), "
+        "('mcp.permissionFiles', 'deny', 0), ('mcp.allowRemote', 0, 0), ('mcp.requireToken', 1, 0)");
+    QVERIFY(hostileCurrent.execute());
+    QCOMPARE(weakened(weakPath), QStringList({ QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Allow"),
+                                               QStringLiteral("Allow remote connections: Off") + arrow + QStringLiteral("On"),
+                                               QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") }));
+
+    // The confirmation of the import lists the rows
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    QString chosen = weakPath;
+    pdf::PDFAppFileDialogs::setOpenBackupHandler([&](QWidget*, const QString&) { return chosen; });
+    ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->importSettings();
+    fixture.settle();
+    pdf::PDFAppStorageDialog* dialog = ShortcutsTestHelper::storageDialog();
+    QVERIFY(dialog);
+    const pdf::PDFKeyValueList* list = dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("weakenedSettings"));
+    QVERIFY(list);
+    QCOMPARE(list->getRowCount(), 5);
+    QCOMPARE(list->getKey(0), QStringLiteral("Read documents"));
+    QCOMPARE(list->getValue(0), QStringLiteral("Deny") + arrow + QStringLiteral("Allow"));
+    QCOMPARE(list->getKey(4), QStringLiteral("Require access token"));
+    QCOMPARE(list->getValue(4), QStringLiteral("On") + arrow + QStringLiteral("Off"));
+    ShortcutsTestHelper::saveShot(QStringLiteral("settings-storage-import-ai"), dialog);
+    dialog->reject();
+    fixture.settle();
+
+    // A backup equal to the current state: no rows
+    chosen = strongPath;
+    ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->importSettings();
+    fixture.settle();
+    dialog = ShortcutsTestHelper::storageDialog();
+    QVERIFY(dialog);
+    QVERIFY(!dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("weakenedSettings")));
+    dialog->reject();
+    fixture.settle();
+    pdf::PDFAppFileDialogs::setOpenBackupHandler(pdf::PDFAppFileDialogs::FolderHandler());
 }
 
 void AppSettingsShortcutsTest::reviewImportTrustCheckedAtAccept()

@@ -61,8 +61,9 @@ public:
     /// Place of an item
     enum class Area
     {
-        Leading,    ///< After the message (left in left-to-right)
-        Trailing    ///< At the trailing edge (right in left-to-right), in the order of adding
+        Leading,        ///< After the message (left in left-to-right)
+        Trailing,       ///< At the trailing edge (right in left-to-right), in the order of adding
+        TrailingFirst   ///< The first trailing item after the page item, before the other trailing items (the waiting item of an assistant 955:151949)
     };
 
     explicit PDFAppDocumentStatusBar(QWidget* parent = nullptr);

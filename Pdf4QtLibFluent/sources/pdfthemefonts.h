@@ -73,6 +73,14 @@ public:
 
     /// Returns the font of the given weight and size in pixels
     static QFont getFont(QFont::Weight weight, int pixelSize);
+
+    /// Returns the family of the monospaced font (JetBrains Mono of the library,
+    /// owner decision Q5 of step 7: addresses, commands and code boxes of the
+    /// page AI); the fixed font of the system, when the bundled font is missing
+    static QString getMonospaceFamily();
+
+    /// Returns the monospaced font of the given weight and size in pixels
+    static QFont getMonospaceFont(QFont::Weight weight, int pixelSize);
 };
 
 }   // namespace pdf

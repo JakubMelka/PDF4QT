@@ -42,7 +42,7 @@ class PDFAppContext;
 class PDFWhatsNewCatalog;
 
 /// Third-party library, which the application PDF4QT links (or bundles, as the
-/// font Inter), as the table Third-party libraries of About (110:2158) shows it
+/// fonts Inter and JetBrains Mono), as the table Third-party libraries of About (110:2158) shows it
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppThirdPartyLibrary
 {
 public:

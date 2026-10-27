@@ -665,6 +665,7 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
     if (view && m_connectedView != view)
     {
         connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppThumbnailsPanel::onCurrentPageChanged);
+        connect(view, &QObject::destroyed, this, &PDFAppThumbnailsPanel::onConnectedViewDestroyed);
     }
     m_connectedDocument = document;
     m_connectedView = view;
@@ -712,6 +713,15 @@ void PDFAppThumbnailsPanel::onDocumentChanged(const PDFModifiedDocument& modifie
     {
         selectPages(selection);
     }
+}
+
+void PDFAppThumbnailsPanel::onConnectedViewDestroyed()
+{
+    // QWidget emits destroyed before it deletes its children (also this panel) and a
+    // QPointer is cleared only in ~QObject: the dying view is forgotten here, so the
+    // destructor of the panel never calls into it (CLAUDE.md, a slot of destroyed only
+    // forgets the pointer)
+    m_connectedView = nullptr;
 }
 
 void PDFAppThumbnailsPanel::onDocumentDestroyed()

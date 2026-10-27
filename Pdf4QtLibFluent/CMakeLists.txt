@@ -33,6 +33,8 @@ endif()
 add_library(Pdf4QtLibFluent SHARED
     sources/pdfaccenthue.cpp
     sources/pdfaccenthue.h
+    sources/pdfcomponentassistants.cpp
+    sources/pdfcomponentassistants.h
     sources/pdfcomponentbadges.cpp
     sources/pdfcomponentbadges.h
     sources/pdfcomponentbuttons.cpp
@@ -43,6 +45,7 @@ add_library(Pdf4QtLibFluent SHARED
     sources/pdfcomponentdelegates.h
     sources/pdfcomponentpainter.cpp
     sources/pdfcomponentpainter.h
+    sources/pdfcomponentpainterassistants.cpp
     sources/pdfcomponentpainterbadges.cpp
     sources/pdfcomponentpaintercards.cpp
     sources/pdfcomponentpainterdelegates.cpp

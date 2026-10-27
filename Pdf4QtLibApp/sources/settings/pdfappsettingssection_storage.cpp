@@ -102,22 +102,54 @@ public:
         return false;
     }
 
-    /// Value of a setting, whose weaker value is \p weakValue (getWeakenedSettings)
+    /// A setting and its weaker values (getWeakenedSettings): a Bool setting is
+    /// weaker with \p weakValue, an Option setting with a value later in
+    /// \p strengthOrder (from the strongest value to the weakest one)
     struct SecurityRule
     {
         QString key;
         bool weakValue = false;
+        QStringList strengthOrder;
     };
 
-    /// Security and signature settings and their weaker values (owner 2026-10-25, Q7)
+    /// Security, signature and AI settings and their weaker values (owner
+    /// 2026-10-25, Q7; the AI settings of owner 2026-10-26, Q4 of step 7)
     static std::vector<SecurityRule> getSecurityRules()
     {
-        return { { PDFSettingKeys::securityOpenLinks(), true },          // documents open web links
-                 { PDFSettingKeys::securityLaunchFiles(), true },        // documents start programs
-                 { PDFSettingKeys::signaturesVerify(), false },          // signatures not verified
-                 { PDFSettingKeys::signaturesStrict(), false },          // warnings are no errors
-                 { PDFSettingKeys::signaturesIgnoreExpiration(), true }, // expired certificates pass
-                 { PDFSettingKeys::signaturesUseSystemStore(), true } }; // more trusted roots
+        const QStringList permissionOrder = { PDFSettingValues::permissionDeny(), PDFSettingValues::permissionAsk(), PDFSettingValues::permissionAllow() };
+        return { { PDFSettingKeys::securityOpenLinks(), true, QStringList() },          // documents open web links
+                 { PDFSettingKeys::securityLaunchFiles(), true, QStringList() },        // documents start programs
+                 { PDFSettingKeys::signaturesVerify(), false, QStringList() },          // signatures not verified
+                 { PDFSettingKeys::signaturesStrict(), false, QStringList() },          // warnings are no errors
+                 { PDFSettingKeys::signaturesIgnoreExpiration(), true, QStringList() }, // expired certificates pass
+                 { PDFSettingKeys::signaturesUseSystemStore(), true, QStringList() },   // more trusted roots
+                 { PDFSettingKeys::mcpPermissionRead(), false, permissionOrder },       // Deny < Ask < Allow
+                 { PDFSettingKeys::mcpPermissionEdit(), false, permissionOrder },
+                 { PDFSettingKeys::mcpPermissionFiles(), false, permissionOrder },
+                 { PDFSettingKeys::mcpAllowRemote(), true, QStringList() },             // other computers connect
+                 { PDFSettingKeys::mcpRequireToken(), false, QStringList() } };         // no access token
+    }
+
+    /// The imported value of a rule is weaker than the current one (both values
+    /// validated by the definition: an unknown value is the default)
+    static bool isWeakened(const SecurityRule& rule, const PDFSettingDefinition& definition, const QVariant& currentValue, const QVariant& importedValue)
+    {
+        switch (definition.getType())
+        {
+            case PDFSettingDefinition::Type::Bool:
+                return rule.strengthOrder.isEmpty() && currentValue.toBool() != rule.weakValue && importedValue.toBool() == rule.weakValue;
+
+            case PDFSettingDefinition::Type::Option:
+            {
+                const qsizetype currentIndex = rule.strengthOrder.indexOf(currentValue.toString());
+                const qsizetype importedIndex = rule.strengthOrder.indexOf(importedValue.toString());
+                return currentIndex >= 0 && importedIndex >= 0 && importedIndex > currentIndex;
+            }
+
+            default:
+                break;
+        }
+        return false;
     }
 
     /// Order of the rows of the other database files: by the schema version
@@ -618,14 +650,14 @@ std::vector<PDFAppStorageDialog::Fact> PDFAppStorageSettingsSection::getWeakened
     for (const PDFAppStorageSettingsSectionHelper::SecurityRule& rule : PDFAppStorageSettingsSectionHelper::getSecurityRules())
     {
         const PDFSettingDefinition* definition = context->getSettingRegistry()->findDefinition(rule.key);
-        if (!definition || definition->getType() != PDFSettingDefinition::Type::Bool)
+        if (!definition)
         {
             continue;
         }
 
-        const QVariant currentValue = settings.getValue(rule.key);
+        const QVariant currentValue = definition->validate(settings.getValue(rule.key));
         const QVariant importedValue = definition->validate(backup.getSecuritySetting(rule.key));
-        if (currentValue.toBool() != rule.weakValue && importedValue.toBool() == rule.weakValue)
+        if (PDFAppStorageSettingsSectionHelper::isWeakened(rule, *definition, currentValue, importedValue))
         {
             facts.push_back({ definition->getTitle(), QString::fromUtf8("%1 → %2").arg(PDFAppSettingControl::formatValue(*definition, currentValue),
                                                                                        PDFAppSettingControl::formatValue(*definition, importedValue)), false });

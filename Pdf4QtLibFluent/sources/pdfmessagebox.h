@@ -28,6 +28,7 @@
 
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QPointer>
 
 class QAbstractButton;
@@ -116,6 +117,11 @@ public:
     bool isBadgeVisible() const;
     void setBadgeVisible(bool isVisible);
 
+    /// Vertical alignment of the badge beside the title and the text: centered
+    /// by default, Qt::AlignTop for a head, whose items start at the top (the
+    /// message box Create a new access token? 941:7796)
+    void setBadgeAlignment(Qt::Alignment alignment);
+
     /// Icon of the design drawn in the badge instead of the icon of its kind, in
     /// the colors of the kind (the external link of the question, whether a web
     /// link is opened); empty = the icon of the kind
@@ -140,6 +146,36 @@ public:
 
     /// Returns the buttons of the own row in the order of the row
     QList<QPushButton*> getActionButtons() const;
+
+    /// Adds a widget to the leading side of the own row of the buttons, before
+    /// the stretch (the countdown of a confirmation of an assistant, 958:28030);
+    /// the widget becomes a child of the message box. Null is ignored.
+    void addActionWidget(QWidget* widget);
+
+    /// Replaces the head (the badge, the title and the text) by an own widget (the
+    /// head of a confirmation of an assistant: its monogram, the title, the origin
+    /// and the position in the queue); the title and the text given to the
+    /// constructor stay the accessible name and description. Null gives the head
+    /// of the message box back.
+    void setHeadWidget(QWidget* widget);
+    QWidget* getHeadWidget() const { return m_headWidget.data(); }
+
+    /// No button is the default button (the confirmations of an assistant,
+    /// 955:150808 / 958:28030 - a request, which arrives while the user types,
+    /// is never approved by accident): no button has the first focus and so no
+    /// focus ring, Enter does nothing, Escape rejects; a Primary button keeps its
+    /// look. Tab still reaches the buttons.
+    bool isNoDefaultButton() const { return m_isNoDefaultButton; }
+    void setNoDefaultButton(bool isNoDefaultButton);
+
+    /// The buttons of the message box ignore the mouse and the keys for \p delay
+    /// milliseconds after the message box is shown (0 = no delay, the default);
+    /// Escape still rejects
+    int getInputDelay() const { return m_inputDelay; }
+    void setInputDelay(int delay);
+
+    /// The input delay after the show has not passed yet: the buttons ignore input
+    bool isInputBlocked() const;
 
     /// Width of the card (without the shadow) - 0: the card follows its content.
     /// A card of a fixed width wraps the texts and its height follows the content.
@@ -196,8 +232,15 @@ protected:
     virtual void hideEvent(QHideEvent* event) override;
     virtual void keyPressEvent(QKeyEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    /// No default button: the push buttons lose the default and auto default
+    /// state, the message box itself takes the focus
+    void clearDefaultButtons();
+
+    /// The buttons ignore the input of the delay (an event filter on each button)
+    void watchButtonsInput();
     void updateMargins();
     void updateSizeConstraint();
     void moveOverParent();
@@ -219,6 +262,7 @@ private:
     static constexpr int PADDING_V = 20;
     static constexpr int BORDER = 1;
     static constexpr int TEXT_LINE_HEIGHT = 16;
+    static constexpr int TEXT_MINIMUM_WIDTH = 336;
     static constexpr int DETAILS_LINE_HEIGHT = 15;
     static constexpr qreal CARD_RADIUS = 16.0;
 
@@ -242,6 +286,13 @@ private:
     QDialogButtonBox::StandardButton m_clickedStandardButton = QDialogButtonBox::NoButton;
     QPointer<QWidget> m_scrim;
     QPointer<QWidget> m_scrimTarget;
+    QPointer<QHBoxLayout> m_headLayout;
+    QPointer<QWidget> m_headWidget;
+    QElapsedTimer m_shownTimer;
+    int m_inputDelay = 0;
+    bool m_isNoDefaultButton = false;
+    bool m_hasOwnHead = false;
+    bool m_isBadgeVisibleBeforeHead = true;
 };
 
 }   // namespace pdf

@@ -911,7 +911,7 @@ void AppInfoPagesTest::libraries()
     }
 
     // The libraries, which Pdf4QtLibCore and Pdf4QtLibApp link on every platform
-    for (const char* name : { "Qt", "FreeType", "OpenSSL", "Little CMS", "zlib", "libjpeg-turbo", "OpenJPEG", "Blend2D", "Clipper2", "SQLite", "Inter" })
+    for (const char* name : { "Qt", "FreeType", "OpenSSL", "Little CMS", "zlib", "libjpeg-turbo", "OpenJPEG", "Blend2D", "Clipper2", "SQLite", "Inter", "JetBrains Mono" })
     {
         QVERIFY2(names.contains(QString::fromLatin1(name)), name);
     }
@@ -1068,6 +1068,34 @@ void AppInfoPagesTest::fontVersion()
         const QString result = pdf::PDFAppAboutInfo::getFontVersion(damaged);
         QVERIFY(result.size() <= 32);
     }
+
+    // JetBrains Mono (owner decision Q5 of step 7): the version of the row of
+    // the table is read from the name table of the bundled file
+    QFile monospaceFile(QStringLiteral(":/pdf4qtfluent/fonts/JetBrainsMono-Regular.ttf"));
+    QVERIFY(monospaceFile.open(QFile::ReadOnly));
+    const QString monospaceVersion = pdf::PDFAppAboutInfo::getFontVersion(monospaceFile.readAll());
+    QVERIFY(!monospaceVersion.isEmpty());
+    QVERIFY(monospaceVersion.front().isDigit());
+    QVERIFY2(QVersionNumber::fromString(monospaceVersion) >= QVersionNumber(2, 304), qPrintable(monospaceVersion));
+
+    bool found = false;
+    for (const pdf::PDFAppThirdPartyLibrary& library : pdf::PDFAppAboutInfo::getLibraries())
+    {
+        if (library.name == QLatin1String("JetBrains Mono"))
+        {
+            QVERIFY(!found);
+            found = true;
+            QCOMPARE(library.version, monospaceVersion);
+            QCOMPARE(library.license, QStringLiteral("OFL-1.1"));
+            QCOMPARE(library.homepage, QUrl(QStringLiteral("https://github.com/JetBrains/JetBrainsMono")));
+            QVERIFY(!library.purpose.isEmpty());
+        }
+        else if (library.name == QLatin1String("Inter"))
+        {
+            QCOMPARE(library.version, version);
+        }
+    }
+    QVERIFY(found);
 }
 
 void AppInfoPagesTest::fontVersionRecords_data()

@@ -546,7 +546,10 @@ PDFAppRouteTable PDFAppRouteTable::createDefault()
     tool.parameters[QStringLiteral("toolId")] = Values::slug();
     table.addDefaultEntry(tool);
 
-    table.addDefaultEntry(createEntry(QStringLiteral("/ai"), Tab::Home, Nav::Ai, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "AI")));
+    // AI: the anchors of the rows of Connection / Permissions (/ai#read-documents, step 7)
+    PDFAppRouteEntry ai = createEntry(QStringLiteral("/ai"), Tab::Home, Nav::Ai, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "AI"));
+    ai.isFragmentAllowed = true;
+    table.addDefaultEntry(ai);
     table.addDefaultEntry(createEntry(QStringLiteral("/whats-new"), Tab::Home, Nav::WhatsNew, Subject::Page, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "What's New")));
 
     PDFAppRouteEntry whatsNewVersion = createEntry(QStringLiteral("/whats-new/{version}"), Tab::Home, Nav::WhatsNew, Subject::Version, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "What's New"));

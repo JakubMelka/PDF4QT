@@ -32,6 +32,7 @@
 #include "applocaleguard.h"
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
+#include "pdfappaipage.h"
 #include "pdfappcontext.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfappmainwindow.h"
@@ -41,6 +42,7 @@
 #include "pdfappsearchengine.h"
 #include "pdfappsearchpage.h"
 #include "pdfappsearchwidgets.h"
+#include "pdfappsettingrow.h"
 #include "pdfapptab.h"
 #include "pdfappworkspace.h"
 #include "pdfdatabase.h"
@@ -362,6 +364,7 @@ private slots:
     // Engine
     void groups();
     void engineGroups();
+    void engineAiRows();
     void engineRanking();
     void engineEmptyAndHostile_data();
     void engineEmptyAndHostile();
@@ -942,6 +945,65 @@ void AppSearchTest::engineGroups()
     QVERIFY(loaded.recentFiles.empty());
 }
 
+void AppSearchTest::engineAiRows()
+{
+    // The rows of Connection and Permissions of the page AI (step 7, review RQ7):
+    // found as settings, each leads to /ai#<anchor>, which the page shows
+    pdf::PDFAppCommandRegistry commands;
+    pdf::PDFAppCommands::registerBuiltinCommands(&commands);
+    pdf::PDFSettingRegistry settings;
+    pdf::PDFSettingDefinitions::registerBuiltinDefinitions(&settings);
+    const pdf::PDFAppSearchData data = SearchTestHelper::createData(&commands, &settings);
+    const pdf::PDFAppSearchEngine engine;
+
+    struct Row
+    {
+        QString text;
+        QString anchor;
+        QString subtitle;
+    };
+    const std::vector<Row> rows = {
+        { QStringLiteral("port"), QStringLiteral("port"), QStringLiteral("AI › Connection") },
+        { QStringLiteral("network access"), QStringLiteral("network-access"), QStringLiteral("AI › Connection") },
+        { QStringLiteral("require access token"), QStringLiteral("require-access-token"), QStringLiteral("AI › Connection") },
+        { QStringLiteral("access token"), QStringLiteral("access-token"), QStringLiteral("AI › Connection") },
+        { QStringLiteral("start with pdf4qt"), QStringLiteral("start-with-pdf4qt"), QStringLiteral("AI › Connection") },
+        { QStringLiteral("read documents"), QStringLiteral("read-documents"), QStringLiteral("AI › Permissions") },
+        { QStringLiteral("edit documents"), QStringLiteral("edit-documents"), QStringLiteral("AI › Permissions") },
+        { QStringLiteral("open and save files"), QStringLiteral("open-and-save-files"), QStringLiteral("AI › Permissions") }
+    };
+
+    for (const Row& row : rows)
+    {
+        const pdf::PDFAppSearchResults results = engine.search(row.text, data);
+        const pdf::PDFAppSearchResult* result = results.findResult(pdf::PDFAppSearchGroup::Settings, QStringLiteral("ai.") + row.anchor);
+        QVERIFY2(result, qPrintable(row.text));
+        QCOMPARE(result->route.toString(), QStringLiteral("/ai#") + row.anchor);
+        QCOMPARE(result->subtitle, row.subtitle);
+        QCOMPARE(result->action, pdf::PDFAppSearchResult::Action::Navigate);
+        QVERIFY(!result->title.isEmpty());
+    }
+
+    // Keywords: "mcp" and "assistant" find the rows, a permission by its states
+    QCOMPARE(engine.search(QStringLiteral("mcp port"), data).findResult(pdf::PDFAppSearchGroup::Settings, QStringLiteral("ai.port")) != nullptr, true);
+    QVERIFY(engine.search(QStringLiteral("assistant permission"), data).getCount(pdf::PDFAppSearchGroup::Settings) >= 3);
+
+    // Without the registry of the settings nothing of the page AI is found
+    pdf::PDFAppSearchData empty;
+    QCOMPARE(engine.search(QStringLiteral("edit documents"), empty).getCount(pdf::PDFAppSearchGroup::Settings), 0);
+
+    // Every route opens the page AI with its row highlighted (never Page Not Found)
+    SearchFixture fixture;
+    for (const Row& row : rows)
+    {
+        fixture.navigate(QStringLiteral("/ai#") + row.anchor);
+        pdf::PDFAppAiPage* page = qobject_cast<pdf::PDFAppAiPage*>(fixture.currentPage());
+        QVERIFY2(page, qPrintable(row.anchor));
+        QVERIFY2(page->findSettingRow(row.anchor), qPrintable(row.anchor));
+        QTRY_VERIFY2(page->findSettingRow(row.anchor)->isHighlighted(), qPrintable(row.anchor));
+    }
+}
+
 void AppSearchTest::engineRanking()
 {
     pdf::PDFAppSearchData data = SearchTestHelper::createData(nullptr, nullptr);
@@ -1433,6 +1495,7 @@ void AppSearchTest::pageActivation_data()
 
     QTest::newRow("tool") << "merge" << int(pdf::PDFAppSearchGroup::Tools) << "pages.merge";
     QTest::newRow("setting") << "color scheme" << int(pdf::PDFAppSearchGroup::Settings) << pdf::PDFSettingKeys::colorScheme();
+    QTest::newRow("ai") << "edit documents" << int(pdf::PDFAppSearchGroup::Settings) << "ai.edit-documents";
     QTest::newRow("help") << "portable" << int(pdf::PDFAppSearchGroup::Help) << "/help/portable-mode";
     QTest::newRow("video") << pdf::PDFSupportVideoCatalog::getVideos().front().getTitle() << int(pdf::PDFAppSearchGroup::Help)
                            << QStringLiteral("video:%1").arg(pdf::PDFSupportVideoCatalog::getVideos().front().getId());

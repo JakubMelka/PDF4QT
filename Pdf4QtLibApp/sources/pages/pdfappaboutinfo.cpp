@@ -43,6 +43,21 @@ public:
     /// Resource of the bundled font Inter (Pdf4QtLibFluent/resources/fluent.qrc)
     static constexpr const char* INTER_RESOURCE = ":/pdf4qtfluent/fonts/Inter-Regular.ttf";
 
+    /// Resource of the bundled monospaced font JetBrains Mono (owner decision Q5 of step 7)
+    static constexpr const char* JETBRAINS_MONO_RESOURCE = ":/pdf4qtfluent/fonts/JetBrainsMono-Regular.ttf";
+
+    /// Version of a font of the resources from its name table (empty, when it cannot be read)
+    static QString readResourceFontVersion(const char* resource)
+    {
+        QFile fontFile(QString::fromLatin1(resource));
+        QByteArray fontData;
+        if (fontFile.open(QFile::ReadOnly))
+        {
+            fontData = fontFile.readAll();
+        }
+        return PDFAppAboutInfo::getFontVersion(fontData);
+    }
+
     /// Longest version text taken from a font
     static constexpr int MAXIMUM_FONT_VERSION_LENGTH = 32;
 
@@ -299,21 +314,22 @@ std::vector<PDFAppThirdPartyLibrary> PDFAppAboutInfo::getLibraries()
 {
     std::vector<PDFAppThirdPartyLibrary> libraries = getLinkedLibraries();
 
-    // The font of the user interface is a part of Pdf4QtLibFluent
-    QFile fontFile(QString::fromLatin1(PDFAppAboutInfoHelper::INTER_RESOURCE));
-    QByteArray fontData;
-    if (fontFile.open(QFile::ReadOnly))
-    {
-        fontData = fontFile.readAll();
-    }
-
+    // The fonts of the user interface are a part of Pdf4QtLibFluent
     PDFAppThirdPartyLibrary inter;
     inter.name = QStringLiteral("Inter");
-    inter.version = getFontVersion(fontData);
+    inter.version = PDFAppAboutInfoHelper::readResourceFontVersion(PDFAppAboutInfoHelper::INTER_RESOURCE);
     inter.purpose = tr("Font of the user interface");
     inter.license = QStringLiteral("OFL-1.1");
     inter.homepage = QUrl(QStringLiteral("https://rsms.me/inter/"));
     libraries.push_back(inter);
+
+    PDFAppThirdPartyLibrary jetBrainsMono;
+    jetBrainsMono.name = QStringLiteral("JetBrains Mono");
+    jetBrainsMono.version = PDFAppAboutInfoHelper::readResourceFontVersion(PDFAppAboutInfoHelper::JETBRAINS_MONO_RESOURCE);
+    jetBrainsMono.purpose = tr("Monospaced font of addresses, commands and code");
+    jetBrainsMono.license = QStringLiteral("OFL-1.1");
+    jetBrainsMono.homepage = QUrl(QStringLiteral("https://github.com/JetBrains/JetBrainsMono"));
+    libraries.push_back(jetBrainsMono);
     return libraries;
 }
 

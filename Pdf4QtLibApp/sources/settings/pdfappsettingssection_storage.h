@@ -249,7 +249,11 @@ public:
     /// facts "title: old → new" (owner 2026-10-25, Q7). Weaker = web links or program
     /// launches allowed, where they were not; signature verification or strict mode
     /// turned off; expired certificates ignored; the system certificate store trusted
-    /// (more trusted roots). A value the backup does not store is its default.
+    /// (more trusted roots); the AI settings of owner 2026-10-26 (Q4 of step 7): a
+    /// permission of the assistants (Read / Edit / Files) going from Deny to Ask or
+    /// Allow, or from Ask to Allow, remote connections turned on, the access token no
+    /// longer required. A value the backup does not store, or does not store validly
+    /// (a wrong type, an unknown option), is its default.
     static std::vector<PDFAppStorageDialog::Fact> getWeakenedSettings(PDFAppContext* context, const PDFDatabaseBackup& backup);
 
 protected:

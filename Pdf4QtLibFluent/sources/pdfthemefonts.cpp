@@ -22,6 +22,7 @@
 
 #include "pdfthemefonts.h"
 
+#include <QFile>
 #include <QFontDatabase>
 #include <QGuiApplication>
 
@@ -42,10 +43,27 @@ public:
 
     static State s_state;
     static QString s_family;
+    static QString s_monospaceFamily;   ///< Empty = the fixed font of the system
+
+    /// Loads one file of a font of the resources, returns its family (empty on a failure)
+    static QString loadFile(const QString& fileName);
 };
 
 PDFThemeFontsHelper::State PDFThemeFontsHelper::s_state = PDFThemeFontsHelper::State::NotLoaded;
 QString PDFThemeFontsHelper::s_family = QStringLiteral("Inter");
+QString PDFThemeFontsHelper::s_monospaceFamily;
+
+QString PDFThemeFontsHelper::loadFile(const QString& fileName)
+{
+    const int id = QFontDatabase::addApplicationFont(fileName);
+    if (id < 0)
+    {
+        return QString();
+    }
+
+    const QStringList families = QFontDatabase::applicationFontFamilies(id);
+    return families.isEmpty() ? QString() : families.front();
+}
 
 bool PDFThemeFonts::loadFonts()
 {
@@ -86,6 +104,15 @@ bool PDFThemeFonts::loadFonts()
     if (!family.isEmpty())
     {
         PDFThemeFontsHelper::s_family = family;
+    }
+
+    // JetBrains Mono (owner decision Q5 of step 7, the static file of the
+    // release, SIL OFL 1.1): its absence does not fail the fonts of the user
+    // interface, the monospaced texts take the fixed font of the system then
+    const QString monospaceFile = QStringLiteral(":/pdf4qtfluent/fonts/JetBrainsMono-Regular.ttf");
+    if (QFile::exists(monospaceFile))
+    {
+        PDFThemeFontsHelper::s_monospaceFamily = PDFThemeFontsHelper::loadFile(monospaceFile);
     }
 
     PDFThemeFontsHelper::s_state = ok ? PDFThemeFontsHelper::State::Loaded : PDFThemeFontsHelper::State::Failed;
@@ -137,6 +164,30 @@ QFont PDFThemeFonts::getFont(Role role)
     }
 
     return getFont(QFont::Normal, 13);
+}
+
+QString PDFThemeFonts::getMonospaceFamily()
+{
+    loadFonts();
+    if (!PDFThemeFontsHelper::s_monospaceFamily.isEmpty())
+    {
+        return PDFThemeFontsHelper::s_monospaceFamily;
+    }
+    return QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+}
+
+QFont PDFThemeFonts::getMonospaceFont(QFont::Weight weight, int pixelSize)
+{
+    QFont font(getMonospaceFamily());
+    font.setStyleHint(QFont::Monospace);
+    font.setFixedPitch(true);
+    font.setPixelSize(pixelSize);
+    font.setWeight(weight);
+    font.setStyleStrategy(QFont::PreferAntialias);
+
+    // As the fonts of the user interface: without hinting
+    font.setHintingPreference(QFont::PreferNoHinting);
+    return font;
 }
 
 QFont PDFThemeFonts::getFont(QFont::Weight weight, int pixelSize)

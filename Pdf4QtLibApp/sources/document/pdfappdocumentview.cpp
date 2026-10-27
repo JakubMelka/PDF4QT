@@ -585,12 +585,26 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
         signatures = m_document->getSignatureResults();
     }
 
+    // Each manager notifies the application (the draw space, the view): a slot may
+    // delete the view with its tab or window (UnitTestsAppMcpLifetime)
     QPointer<PDFAppDocumentView> guard(this);
     m_cmsManager->setDocument(modified.getDocument());
-    m_pdfWidget->setDocument(modified, std::move(signatures));
-    m_annotationManager->setDocument(modified);
-    m_formManager->setDocument(modified);
-    m_toolManager->setDocument(modified);
+    if (guard)
+    {
+        m_pdfWidget->setDocument(modified, std::move(signatures));
+    }
+    if (guard)
+    {
+        m_annotationManager->setDocument(modified);
+    }
+    if (guard)
+    {
+        m_formManager->setDocument(modified);
+    }
+    if (guard)
+    {
+        m_toolManager->setDocument(modified);
+    }
     if (!guard)
     {
         return;

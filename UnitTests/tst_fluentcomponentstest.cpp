@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfaccenthue.h"
+#include "pdfcomponentassistants.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
@@ -53,7 +54,9 @@
 #include <QElapsedTimer>
 #include <QRandomGenerator>
 #include <QClipboard>
+#include <QTextBlock>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QCommonStyle>
 #include <QContextMenuEvent>
 #include <QDialog>
@@ -68,6 +71,7 @@
 #include <QMetaEnum>
 #include <QPainter>
 #include <QPixmapCache>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
@@ -672,6 +676,21 @@ private slots:
     // Step 6: the icon chooser and the Tool row without the star of the collections editor (283:1888)
     void iconChoice();
     void toolRowWithoutStar();
+
+    // Step 7: the frames of the page AI (653:5231) - status badge with the dot,
+    // assistant avatar, client row, activity row, assistant tile, code box
+    void statusBadgeDot_data();
+    void statusBadgeDot();
+    void assistantAvatar_data();
+    void assistantAvatar();
+    void assistantRow_data();
+    void assistantRow();
+    void activityRow_data();
+    void activityRow();
+    void assistantTile_data();
+    void assistantTile();
+    void codeBox_data();
+    void codeBox();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -2775,7 +2794,7 @@ void FluentComponentsTest::galleryPages()
 {
     // The pages of the components exist, each component has its samples with
     // the nodes of the design, no page shows the leak color
-    const QStringList expected = { QStringLiteral("19-shell-home"), QStringLiteral("20-catalog"), QStringLiteral("21-forms"), QStringLiteral("22-document"), QStringLiteral("23-panels") };
+    const QStringList expected = { QStringLiteral("19-shell-home"), QStringLiteral("20-catalog"), QStringLiteral("21-forms"), QStringLiteral("22-document"), QStringLiteral("23-panels"), QStringLiteral("24-ai") };
 
     for (const QString& theme : { QStringLiteral("light"), QStringLiteral("dark") })
     {
@@ -14662,6 +14681,17 @@ void FluentComponentsTest::pageElementPixels()
     QVERIFY(isNear(pixel(image, 50, 30), surface));
     QVERIFY(isNear(pixel(image, 0, 0), token(Color::BgCanvas)));
 
+    // Another radius (the callouts of the page AI 8, the signature warning 10): the
+    // pixel at (2, 2) is outside of a corner of 12, the pixel at (3, 3) inside of a corner of 8
+    const auto cornerPixel = [&](qreal radius, int x) {
+        const QImage corner = render([&](QPainter& painter) { painter.fillRect(QRectF(0, 0, 100, 60), token(Color::BgCanvas)); Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), std::nullopt, radius); }, QSize(100, 60), scale);
+        return pixel(corner, x, x);
+    };
+    QVERIFY(isNear(cornerPixel(12.0, 2), token(Color::BgCanvas)));
+    QVERIFY(isNear(cornerPixel(8.0, 3), surface));
+    QVERIFY(isNear(cornerPixel(0.0, 0), cornerPixel(-5.0, 0)));
+    QVERIFY(isNear(cornerPixel(0.0, 0), cornerPixel(qQNaN(), 0)));
+
     // The widgets draw their painter functions (children: a window has the background bg/canvas)
     QWidget holder;
     pdf::PDFIconBadge iconBadge(QStringLiteral("download"), 40, 20, &holder);
@@ -14689,6 +14719,14 @@ void FluentComponentsTest::pageElementPixels()
     tintedCard.resize(100, 60);
     difference = describeDifference(renderWidget(&tintedCard, scale), renderInWidget([&](QPainter& painter) { Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), pdf::PDFAccentHue::Green); }, QSize(100, 60), scale), 3);
     QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(tintedCard.getRadius(), Painter::TINTED_CARD_RADIUS);
+    tintedCard.setRadius(8.0);
+    QCOMPARE(tintedCard.getRadius(), 8.0);
+    difference = describeDifference(renderWidget(&tintedCard, scale), renderInWidget([&](QPainter& painter) { Painter::paintTintedCard(&painter, QRectF(0, 0, 100, 60), pdf::PDFAccentHue::Green, 8.0); }, QSize(100, 60), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    tintedCard.setRadius(qQNaN());
+    QCOMPARE(tintedCard.getRadius(), 0.0);
+    tintedCard.setRadius(Painter::TINTED_CARD_RADIUS);
 
     // No leak color in any of them
     for (QWidget* widget : std::initializer_list<QWidget*>{ &iconBadge, &statusBadge, &factPill, &avatarWidget, &statusRow, &tintedCard })
@@ -15156,6 +15194,85 @@ void FluentComponentsTest::messageBoxInitialFocus()
         box.show();
         QVERIFY(QTest::qWaitForWindowExposed(&box));
         QCOMPARE(box.focusWidget(), static_cast<QWidget*>(box.getButtonBox()->button(QDialogButtonBox::Cancel)));
+    }
+
+    // No default button and the input delay (the confirmations of an assistant,
+    // 955:150808 / 958:28030): no button has the first focus (no focus ring),
+    // Enter does nothing, Escape rejects, the buttons ignore the input of the
+    // delay; the countdown at the leading side of the row; an own head
+    {
+        QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Question, QStringLiteral("Allow the change?"), QStringLiteral("Text"),
+                                                                  QDialogButtonBox::NoButton, &host);
+        box->setNoDefaultButton(true);
+        box->setInputDelay(300);
+        QVERIFY(box->isNoDefaultButton());
+        QCOMPARE(box->getInputDelay(), 300);
+        QPushButton* deny = box->addActionButton(QStringLiteral("Deny"), Position::Trailing, false);
+        QPushButton* allow = box->addActionButton(QStringLiteral("Allow"), Position::Trailing, true);
+        QLabel* countdown = new QLabel(QStringLiteral("Denied automatically in 1:52"));
+        box->addActionWidget(countdown);
+        box->addActionWidget(nullptr);
+        QWidget* head = new QWidget();
+        head->setMinimumSize(100, 30);
+        box->setHeadWidget(head);
+        QCOMPARE(box->getHeadWidget(), head);
+        QSignalSpy allowSpy(allow, &QPushButton::clicked);
+        QSignalSpy rejectedSpy(box.data(), &QDialog::rejected);
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+
+        QVERIFY(!allow->isDefault());
+        QVERIFY(!deny->isDefault());
+        QVERIFY(!allow->autoDefault());
+        QVERIFY(!qobject_cast<QAbstractButton*>(box->focusWidget()));
+        QVERIFY(countdown->geometry().right() < deny->geometry().left());
+        QVERIFY(deny->geometry().right() < allow->geometry().left());
+        QVERIFY(head->isVisible());
+
+        // The input of the delay is dropped
+        QVERIFY(box->isInputBlocked());
+        QTest::mouseClick(allow, Qt::LeftButton);
+        QTest::keyClick(allow, Qt::Key_Space);
+        QCOMPARE(allowSpy.count(), 0);
+        QTRY_VERIFY_WITH_TIMEOUT(!box->isInputBlocked(), 5000);
+
+        // Enter does nothing (also on a focused button)
+        QTest::keyClick(box.data(), Qt::Key_Return);
+        allow->setFocus();
+        QTest::keyClick(allow, Qt::Key_Enter);
+        QCOMPARE(allowSpy.count(), 0);
+        QVERIFY(box->isVisible());
+
+        QTest::mouseClick(allow, Qt::LeftButton);
+        QCOMPARE(allowSpy.count(), 1);
+
+        // Escape rejects (also during the delay)
+        box->hide();
+        box->show();
+        QVERIFY(QTest::qWaitForWindowExposed(box.data()));
+        QVERIFY(box->isInputBlocked());
+        QTest::keyClick(box.data(), Qt::Key_Escape);
+        QCOMPARE(rejectedSpy.count(), 1);
+
+        // The own head removed: the title and the badge are shown again
+        QVERIFY(!box->isBadgeVisible());
+        box->setHeadWidget(nullptr);
+        QVERIFY(!box->getHeadWidget());
+        QVERIFY(box->isBadgeVisible());
+
+        // A head deleted by the application: null gives the head back too; a
+        // badge hidden by the application stays hidden
+        QWidget* secondHead = new QWidget();
+        box->setHeadWidget(secondHead);
+        QVERIFY(!box->isBadgeVisible());
+        delete secondHead;
+        box->setHeadWidget(nullptr);
+        QVERIFY(box->isBadgeVisible());
+        box->setBadgeVisible(false);
+        box->setHeadWidget(new QWidget());
+        box->setHeadWidget(nullptr);
+        QVERIFY(!box->isBadgeVisible());
+        delete box.data();
     }
 }
 
@@ -15801,6 +15918,960 @@ void FluentComponentsTest::toolRowWithoutStar()
     QCOMPARE(minimumWithStar - toolRow.minimumSizeHint().width(), 38);
     toolRow.setStarVisible(true);
     QVERIFY(!toolRow.isStarVisible());
+}
+
+// ------------------------------------------------- step 7: the page AI
+
+/// Samples of the frames of the page AI shared by the tests
+class AssistantSamples
+{
+public:
+    AssistantSamples() = delete;
+
+    static Painter::AssistantAvatar claude(int extent = 32, int fontSize = 12) { return Painter::AssistantAvatar{ QStringLiteral("Cl"), pdf::PDFAccentHue::Amber, extent, fontSize, true }; }
+
+    static Painter::AssistantRow localRow()
+    {
+        return Painter::AssistantRow{ QStringLiteral("Claude Code"), QStringLiteral("This computer · connected at 14:02"), QString(), claude(), true, true };
+    }
+
+    static Painter::AssistantRow remoteRow()
+    {
+        return Painter::AssistantRow{ QStringLiteral("Codex CLI"), QStringLiteral("192.168.1.57 · connected at 16:05"), QStringLiteral("Remote"),
+                                      Painter::AssistantAvatar{ QStringLiteral("Cx"), pdf::PDFAccentHue::Green, 32, 12, true }, true, true };
+    }
+
+    static Painter::ActivityRow waiting()
+    {
+        return Painter::ActivityRow{ QStringLiteral("Open document"), QStringLiteral("16:44"), QStringLiteral("Claude Code · Q3_Forecast.pdf"),
+                                     QStringLiteral("Waiting for your confirmation · "), QStringLiteral("Show"), QStringLiteral("hourglass"),
+                                     pdf::PDFAccentHue::Amber, Painter::ActivityStatusTone::Secondary };
+    }
+
+    static Painter::ActivityRow done()
+    {
+        return Painter::ActivityRow{ QStringLiteral("Read text"), QStringLiteral("16:42"), QStringLiteral("Claude Code · Project_Report.pdf · pages 1–12"),
+                                     QString(), QString(), QStringLiteral("check"), pdf::PDFAccentHue::Green, Painter::ActivityStatusTone::Muted };
+    }
+
+    static Painter::ActivityRow failed()
+    {
+        return Painter::ActivityRow{ QStringLiteral("Add 3 highlights"), QStringLiteral("16:31"), QStringLiteral("Claude Code · Project_Report.pdf"),
+                                     QStringLiteral("Failed · The document changed in the meantime"), QString(), QStringLiteral("alert-circle"), pdf::PDFAccentHue::Red,
+                                     Painter::ActivityStatusTone::Danger };
+    }
+
+    static Painter::ActivityRow otherWindow()
+    {
+        return Painter::ActivityRow{ QStringLiteral("Open document"), QStringLiteral("16:44"), QStringLiteral("Claude Code · Q3_Forecast.pdf"),
+                                     QStringLiteral("Waiting for confirmation in the other PDF4QT window"), QString(), QStringLiteral("hourglass"),
+                                     pdf::PDFAccentHue::Amber, Painter::ActivityStatusTone::Secondary };
+    }
+
+    static Painter::AssistantTile claudeTile()
+    {
+        return Painter::AssistantTile{ QStringLiteral("Claude"), QStringLiteral("Anthropic"), Painter::AssistantAvatar{ QStringLiteral("Cl"), pdf::PDFAccentHue::Amber, 36, 13, false } };
+    }
+
+    static Painter::AssistantTile otherTile()
+    {
+        return Painter::AssistantTile{ QStringLiteral("Other client"), QStringLiteral("Any MCP client"), Painter::AssistantAvatar{ QString(), pdf::PDFAccentHue::Teal, 36, 13, false } };
+    }
+
+    static QString command() { return QStringLiteral("claude mcp add --transport http pdf4qt http://127.0.0.1:8765/mcp --header \"Authorization: Bearer q7LmT4…x2Vd\""); }
+
+    static QString configuration()
+    {
+        return QStringLiteral("{\n  \"mcpServers\": {\n    \"pdf4qt\": {\n      \"type\": \"http\",\n      \"url\": \"http://127.0.0.1:8765/mcp\",\n      \"headers\": {\n"
+                              "        \"Authorization\": \"Bearer q7LmT4…x2Vd\"\n      }\n    }\n  }\n}");
+    }
+
+    /// Hostile texts: empty, 10 kB, bidirectional controls, control characters
+    static QStringList hostileTexts()
+    {
+        return { QString(), QString(10000, QLatin1Char('W')), QString(QChar(0x202E)) + QStringLiteral("gnp.exe") + QChar(0x202C) + QStringLiteral(" ") + QChar(0x2067) + QStringLiteral("abc") + QChar(0x2069), QStringLiteral("a\nb\r\nc\td\x01"),
+                 QString(5000, QChar(0x05D0)) + QStringLiteral(" mixed"), QStringLiteral("<b>rich</b> & \"quoted\"") };
+    }
+
+    static bool isTheme(const QString& theme, qreal scale) { return theme == QStringLiteral("light") && qFuzzyCompare(scale, 1.0); }
+};
+
+void FluentComponentsTest::statusBadgeDot_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::statusBadgeDot()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // badge-Running 653:5453: border 1, padding 8, the dot 6, gap 6, text, padding 10 (76 x 21 in Figma)
+    const Painter::StatusBadge running{ QStringLiteral("Running"), QString(), pdf::PDFAccentHue::Green, true, std::nullopt };
+    const QSize size = Painter::getStatusBadgeSize(running);
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionSemiBold);
+    QCOMPARE(size, QSize(1 + 8 + 6 + 6 + qCeil(pdf::PDFStylePainter::textWidth(running.text, font)) + 10 + 1, 21));
+    QVERIFY2(qAbs(size.width() - 76) <= 1, qPrintable(QString::number(size.width())));
+
+    // The icon variant keeps its geometry (icon 12, gap 5)
+    Painter::StatusBadge iconBadge = running;
+    iconBadge.dot = false;
+    iconBadge.iconName = QStringLiteral("check");
+    QCOMPARE(Painter::getStatusBadgeSize(iconBadge).width(), size.width() + 5);
+
+    QImage image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(size)), running, state(QStyle::State_None)); }, size, scale);
+    const QColor greenFill = blend(token(Color::AccentGreenBg), surface);
+    QVERIFY(isNear(pixel(image, 11.5, 10), token(Color::AccentGreenIcon), 12));
+    QVERIFY(isNear(pixel(image, 17, 10), greenFill));
+    QVERIFY(isNear(pixel(image, size.width() / 2, 0), blend(token(Color::AccentGreenBorder), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(21, 3, size.width() - 32, 15), greenFill), token(Color::AccentGreenIcon), greenFill));
+
+    // Right-to-left: the dot at the trailing side of the box
+    image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(size)), running, state(QStyle::State_None, Qt::RightToLeft)); }, size, scale);
+    QVERIFY(isNear(pixel(image, size.width() - 12.5, 10), token(Color::AccentGreenIcon), 12));
+    QVERIFY(isNear(pixel(image, 11.5, 10), greenFill, 3) || colorDistance(pixel(image, 11.5, 10), token(Color::AccentGreenIcon)) < colorDistance(pixel(image, 11.5, 10), greenFill));
+
+    // "Could not start" 955:148639: the label text/danger, the dot accent/red/icon
+    Painter::StatusBadge failed{ QStringLiteral("Could not start"), QString(), pdf::PDFAccentHue::Red, true, Color::TextDanger };
+    const QSize failedSize = Painter::getStatusBadgeSize(failed);
+    QVERIFY2(qAbs(failedSize.width() - 112) <= 1, qPrintable(QString::number(failedSize.width())));
+    image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(failedSize)), failed, state(QStyle::State_None)); }, failedSize, scale);
+    const QColor redFill = blend(token(Color::AccentRedBg), surface);
+    QVERIFY(isNear(pixel(image, 11.5, 10), token(Color::AccentRedIcon), 12));
+    const QColor dangerInk = strongestInk(image, QRect(21, 3, failedSize.width() - 32, 15), redFill);
+    if (colorDistance(token(Color::TextDanger), token(Color::AccentRedIcon)) > 40)
+    {
+        QVERIFY(isCloser(dangerInk, token(Color::TextDanger), token(Color::AccentRedIcon)));
+    }
+
+    // Disabled: the dot icon/disabled, the text text/disabled
+    image = render([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(size)), running, Painter::State(QStyle::State_None)); }, size, scale);
+    QVERIFY(isNear(pixel(image, 11.5, 10), token(Color::IconDisabled), 12));
+
+    // The widget draws the painter function, no leak color
+    QWidget holder;
+    pdf::PDFStatusBadge badge(QStringLiteral("Running"), QString(), pdf::PDFAccentHue::Green, &holder);
+    badge.setDotVisible(true);
+    badge.resize(badge.sizeHint());
+    QCOMPARE(badge.sizeHint(), size);
+    const QString difference = describeDifference(renderWidget(&badge, scale), renderInWidget([&](QPainter& painter) { Painter::paintStatusBadge(&painter, QRectF(QPointF(0, 0), QSizeF(size)), running, state(QStyle::State_None)); }, size, scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(countLeakPixels(renderWidget(&badge, scale)), 0);
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    // The widget: setBadge keeps the dot and the color of the text, invalid colors are reset
+    QVERIFY(badge.isDotVisible());
+    badge.setTextColor(Color::TextDanger);
+    QCOMPARE(badge.getTextColor(), std::optional<Color>(Color::TextDanger));
+    badge.setBadge(QStringLiteral("Stopped"), QStringLiteral("check"), pdf::PDFAccentHue::Neutral);
+    QVERIFY(badge.isDotVisible());
+    QCOMPARE(badge.getTextColor(), std::optional<Color>(Color::TextDanger));
+    QCOMPARE(badge.accessibleName(), QStringLiteral("Stopped"));
+    badge.setTextColor(static_cast<Color>(-7));
+    QVERIFY(!badge.getTextColor().has_value());
+    badge.setTextColor(static_cast<Color>(100000));
+    QVERIFY(!badge.getTextColor().has_value());
+    const int dotWidth = badge.sizeHint().width();
+    badge.setDotVisible(false);
+    QCOMPARE(badge.sizeHint().width(), dotWidth + 5);
+    badge.setDotVisible(false);
+    QVERIFY(!badge.isDotVisible());
+
+    // Hostile badges draw nothing outside and no leak color
+    image = render([&](QPainter& painter)
+    {
+        Painter::StatusBadge hostile{ QString(10000, QLatin1Char('x')), QString(), static_cast<pdf::PDFAccentHue>(77), true, static_cast<Color>(-1) };
+        Painter::paintStatusBadge(nullptr, QRectF(0, 0, 50, 21), hostile, state(QStyle::State_None));
+        Painter::paintStatusBadge(&painter, QRectF(0, 0, std::numeric_limits<qreal>::quiet_NaN(), 21), hostile, state(QStyle::State_None));
+        Painter::paintStatusBadge(&painter, QRectF(0, 0, 3, 21), hostile, state(QStyle::State_None));
+        Painter::paintStatusBadge(&painter, QRectF(0, 0, 80, 21), hostile, state(QStyle::State_None));
+    }, QSize(80, 21), 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+}
+
+void FluentComponentsTest::assistantAvatar_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::assistantAvatar()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // Sizes: the CLI badge 16 at (20, 20) of 32 and (22, 22) of 36 reaches out of the circle
+    QCOMPARE(Painter::getAssistantAvatarSize(AssistantSamples::claude()), QSize(36, 36));
+    QCOMPARE(Painter::getAssistantAvatarSize(AssistantSamples::claude(36, 13)), QSize(38, 38));
+    Painter::AssistantAvatar plain = AssistantSamples::claude();
+    plain.commandLine = false;
+    QCOMPARE(Painter::getAssistantAvatarSize(plain), QSize(32, 32));
+    QCOMPARE(Painter::getAssistantAvatarSize(Painter::AssistantAvatar{ QString(), pdf::PDFAccentHue::Teal, -5, 12, true }), QSize(0, 0));
+    QCOMPARE(Painter::getAssistantAvatarSize(Painter::AssistantAvatar{ QString(), pdf::PDFAccentHue::Teal, 100000, 12, false }), QSize(1024, 1024));
+
+    // Client avatar 955:143479: the circle accent/amber/bg without a border, the
+    // monogram accent/amber/icon, the badge bg/surface + border/default with terminal icon/muted
+    const Painter::AssistantAvatar avatar = AssistantSamples::claude();
+    QImage image = render([&](QPainter& painter) { Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 36, 36), avatar, state(QStyle::State_None)); }, QSize(36, 36), scale);
+    const QColor amberFill = blend(token(Color::AccentAmberBg), surface);
+    QVERIFY(isNear(pixel(image, 3, 16), amberFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(9, 9, 14, 12), amberFill), token(Color::AccentAmberIcon), amberFill));
+    QVERIFY(isNear(pixel(image, 20, 28), token(Color::BorderDefault), 25));
+    QVERIFY(isNear(pixel(image, 28, 21), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(24, 24, 8, 8), surface), token(Color::IconMuted), surface));
+    QVERIFY(isNear(pixel(image, 1, 34), surface));
+
+    // Right-to-left: the circle at the trailing (right) side, the badge at its left bottom
+    image = render([&](QPainter& painter) { Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 36, 36), avatar, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(36, 36), scale);
+    QVERIFY(isNear(pixel(image, 6, 16), amberFill));
+    QVERIFY(isNear(pixel(image, 8, 21), surface));
+    QVERIFY(isNear(pixel(image, 15, 28), token(Color::BorderDefault), 25));
+
+    // An unknown client: the icon mcp in Teal, 18 of 36
+    const Painter::AssistantAvatar unknown{ QString(), pdf::PDFAccentHue::Teal, 36, 13, false };
+    image = render([&](QPainter& painter) { Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 36, 36), unknown, state(QStyle::State_None)); }, QSize(36, 36), scale);
+    const QColor tealFill = blend(token(Color::AccentTealBg), surface);
+    QVERIFY(isNear(pixel(image, 5, 18), tealFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(9, 9, 18, 18), tealFill), token(Color::AccentTealIcon), tealFill));
+
+    // Disabled: the monogram icon/disabled... text/disabled
+    image = render([&](QPainter& painter) { Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 36, 36), avatar, Painter::State(QStyle::State_None)); }, QSize(36, 36), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(9, 9, 14, 12), amberFill), token(Color::TextDisabled), token(Color::AccentAmberIcon)));
+
+    // The widget: its size, the painter function, no leak color
+    QWidget holder;
+    pdf::PDFAssistantAvatar widget(avatar, &holder);
+    QCOMPARE(widget.sizeHint(), QSize(36, 36));
+    widget.resize(widget.sizeHint());
+    const QString difference = describeDifference(renderWidget(&widget, scale), renderInWidget([&](QPainter& painter) { Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 36, 36), avatar, state(QStyle::State_None)); }, QSize(36, 36), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(countLeakPixels(renderWidget(&widget, scale)), 0);
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    QVERIFY(widget.testAttribute(Qt::WA_TransparentForMouseEvents));
+    QCOMPARE(widget.focusPolicy(), Qt::NoFocus);
+    widget.setAvatar(Painter::AssistantAvatar{ QStringLiteral("Gemini"), static_cast<pdf::PDFAccentHue>(42), -3, -3, false });
+    QCOMPARE(widget.getAvatar().hue, pdf::PDFAccentHue::Neutral);
+    QCOMPARE(widget.getAvatar().extent, 0);
+    QCOMPARE(widget.getAvatar().fontPixelSize, 1);
+    QCOMPARE(widget.sizeHint(), QSize(0, 0));
+
+    // Hostile avatars
+    image = render([&](QPainter& painter)
+    {
+        for (const QString& text : AssistantSamples::hostileTexts())
+        {
+            Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 40, 40), Painter::AssistantAvatar{ text, static_cast<pdf::PDFAccentHue>(-2), 36, 100000, true }, state(QStyle::State_None));
+        }
+        Painter::paintAssistantAvatar(nullptr, QRectF(0, 0, 40, 40), avatar, state(QStyle::State_None));
+        Painter::paintAssistantAvatar(&painter, QRectF(), avatar, state(QStyle::State_None));
+        Painter::paintAssistantAvatar(&painter, QRectF(0, 0, std::numeric_limits<qreal>::infinity(), 10), avatar, state(QStyle::State_None));
+        Painter::paintAssistantAvatar(&painter, QRectF(0, 0, 3, 3), avatar, state(QStyle::State_None));
+    }, QSize(40, 40), 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+}
+
+void FluentComponentsTest::assistantRow_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::assistantRow()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // Client row 653:5591: 48 high (52 with the tag), the button 28 at 284 / 10 of 322
+    const Painter::AssistantRow local = AssistantSamples::localRow();
+    const Painter::AssistantRow remote = AssistantSamples::remoteRow();
+    QCOMPARE(Painter::getAssistantRowMinimumSize(local).height(), 48);
+    QCOMPARE(Painter::getAssistantRowMinimumSize(remote).height(), 52);
+    QCOMPARE(Painter::getAssistantRowSize(local).height(), 48);
+    QCOMPARE(Painter::getAssistantRowDisconnectRect(QRectF(0, 0, 322, 48), local, state(QStyle::State_None)), QRectF(284, 10, 28, 28));
+    QCOMPARE(Painter::getAssistantRowDisconnectRect(QRectF(0, 0, 322, 52), remote, state(QStyle::State_None)), QRectF(284, 12, 28, 28));
+    QCOMPARE(Painter::getAssistantRowDisconnectRect(QRectF(0, 0, 322, 48), local, state(QStyle::State_None, Qt::RightToLeft)), QRectF(10, 10, 28, 28));
+    const QFont nameFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold);
+    const QFont metaFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    QCOMPARE(Painter::getAssistantRowSize(local).width(), 10 + 32 + 12 + qCeil(pdf::PDFStylePainter::textWidth(local.meta, metaFont)) + 12 + 28 + 10);
+
+    QImage image = render([&](QPainter& painter) { Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 48), local, state(QStyle::State_None)); }, QSize(322, 48), scale);
+    const QColor amberFill = blend(token(Color::AccentAmberBg), surface);
+    QVERIFY(isNear(pixel(image, 13, 24), amberFill));
+    QVERIFY(isNear(pixel(image, 5, 24), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(54, 8, 60, 16), surface), token(Color::TextPrimary), token(Color::TextMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(54, 26, 150, 13), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(290, 16, 16, 16), surface), token(Color::IconMuted), surface));
+    QVERIFY(isNear(pixel(image, 300, 3), surface));
+
+    // The tag 8 px after the name, its border border/default
+    image = render([&](QPainter& painter) { Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 52), remote, state(QStyle::State_None)); }, QSize(322, 52), scale);
+    const int tagLeft = 54 + qCeil(pdf::PDFStylePainter::textWidth(remote.name, nameFont)) + 8;
+    const QSize tagSize = Painter::getTagSize(Painter::Tag{ QStringLiteral("Remote") });
+    QVERIFY(isNear(pixel(image, tagLeft + tagSize.width() / 2.0, 8), blend(token(Color::BorderDefault), surface), 40));
+    QVERIFY(isCloser(strongestInk(image, QRect(tagLeft + 6, 10, tagSize.width() - 12, 17), token(Color::BgSubtle)), token(Color::TextSecondary), token(Color::BgSubtle)));
+
+    // Right-to-left: the avatar at the right edge, the button at the left one
+    image = render([&](QPainter& painter) { Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 48), local, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(322, 48), scale);
+    QVERIFY(isNear(pixel(image, 322 - 14, 24), amberFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(16, 16, 16, 16), surface), token(Color::IconMuted), surface));
+
+    // Disabled: the texts text/disabled
+    image = render([&](QPainter& painter) { Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 48), local, Painter::State(QStyle::State_None)); }, QSize(322, 48), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(54, 8, 60, 16), surface), token(Color::TextDisabled), token(Color::TextPrimary)));
+
+    // The widget with its nested button draws the painter function
+    QWidget holder;
+    pdf::PDFAssistantRow row(remote, &holder);
+    row.resize(322, row.sizeHint().height());
+    QCOMPARE(row.height(), 52);
+    QString difference = describeDifference(renderWidget(&row, scale), renderInWidget([&](QPainter& painter) { Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 52), remote, state(QStyle::State_None)); }, QSize(322, 52), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(row.getDisconnectButton()->geometry(), QRect(284, 12, 28, 28));
+    QCOMPARE(countLeakPixels(renderWidget(&row, scale)), 0);
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    // Not focusable itself, the nested button is the stop of Tab; accessibility
+    QCOMPARE(row.focusPolicy(), Qt::NoFocus);
+    QCOMPARE(row.getDisconnectButton()->focusPolicy(), Qt::TabFocus);
+    QCOMPARE(row.accessibleName(), QStringLiteral("Codex CLI"));
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("192.168.1.57 · connected at 16:05, Remote"));
+    QCOMPARE(row.getDisconnectButton()->toolTip(), QStringLiteral("Disconnect"));
+    QCOMPARE(row.getDisconnectButton()->accessibleName(), QStringLiteral("Disconnect"));
+    QCOMPARE(row.getDisconnectButton()->accessibleDescription(), QStringLiteral("Codex CLI"));
+    QCOMPARE(row.getDisconnectButton()->getIconName(), QStringLiteral("unplug"));
+    row.setDisconnectToolTip(QStringLiteral("Disconnect Codex CLI"));
+    QCOMPARE(row.getDisconnectButton()->toolTip(), QStringLiteral("Disconnect Codex CLI"));
+    QCOMPARE(row.getDisconnectToolTip(), QStringLiteral("Disconnect Codex CLI"));
+    row.setAccessibleName(QStringLiteral("Own name"));
+    row.setRow(local);
+    QCOMPARE(row.accessibleName(), QStringLiteral("Own name"));
+    QCOMPARE(row.accessibleDescription(), QStringLiteral("This computer · connected at 14:02"));
+    QVERIFY(row.getRow().tag.isEmpty());
+
+    // Right-to-left places the button at the left edge
+    row.resize(322, 48);
+    row.setLayoutDirection(Qt::RightToLeft);
+    renderWidget(&row, 1.0);
+    QCOMPARE(row.getDisconnectButton()->geometry(), QRect(10, 10, 28, 28));
+    row.setLayoutDirection(Qt::LeftToRight);
+
+    // The button hidden or deleted frees its place
+    const int minimumWidth = row.minimumSizeHint().width();
+    row.setDisconnectVisible(false);
+    QVERIFY(!row.isDisconnectVisible());
+    QCOMPARE(row.minimumSizeHint().width(), minimumWidth - 40);
+    row.setDisconnectVisible(true);
+    QVERIFY(row.isDisconnectVisible());
+    QCOMPARE(row.minimumSizeHint().width(), minimumWidth);
+    row.getDisconnectButton()->hide();
+    QVERIFY(!row.isDisconnectVisible());
+    row.getDisconnectButton()->show();
+    delete row.getDisconnectButton();
+    QVERIFY(!row.getDisconnectButton());
+    QVERIFY(!row.isDisconnectVisible());
+    QCOMPARE(row.minimumSizeHint().width(), minimumWidth - 40);
+    row.setDisconnectVisible(true);
+    row.setDisconnectToolTip(QStringLiteral("Again"));
+    QCOMPARE(countLeakPixels(renderWidget(&row, 1.0)), 0);
+
+    // disconnectClicked from the nested button, also when its slot deletes the row
+    QWidget window;
+    window.resize(400, 120);
+    QPointer<pdf::PDFAssistantRow> clickedRow = new pdf::PDFAssistantRow(local, &window);
+    clickedRow->setGeometry(0, 0, 322, 48);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QSignalSpy disconnectSpy(clickedRow.data(), &pdf::PDFAssistantRow::disconnectClicked);
+    QTest::mouseClick(clickedRow->getDisconnectButton(), Qt::LeftButton);
+    QCOMPARE(disconnectSpy.count(), 1);
+    clickedRow->getDisconnectButton()->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(clickedRow->getDisconnectButton(), Qt::Key_Space);
+    QCOMPARE(disconnectSpy.count(), 2);
+    connect(clickedRow.data(), &pdf::PDFAssistantRow::disconnectClicked, clickedRow.data(), [&clickedRow]() { delete clickedRow.data(); });
+    QTest::mouseClick(clickedRow->getDisconnectButton(), Qt::LeftButton);
+    QVERIFY(!clickedRow);
+
+    // A click on the row itself is not an activation, the row is no stop of Tab
+    pdf::PDFAssistantRow* textRow = new pdf::PDFAssistantRow(local, &window);
+    textRow->setGeometry(0, 50, 322, 48);
+    textRow->show();
+    QSignalSpy textSpy(textRow, &pdf::PDFAssistantRow::disconnectClicked);
+    QTest::mouseClick(textRow, Qt::LeftButton, Qt::NoModifier, QPoint(100, 24));
+    QCOMPARE(textSpy.count(), 0);
+
+    // Hostile rows
+    const QImage hostileImage = render([&](QPainter& painter)
+    {
+        for (const QString& text : AssistantSamples::hostileTexts())
+        {
+            Painter::AssistantRow hostile{ text, text, text, Painter::AssistantAvatar{ text, static_cast<pdf::PDFAccentHue>(99), 32, 12, true }, true, true };
+            Painter::paintAssistantRow(&painter, QRectF(0, 0, 322, 48), hostile, state(QStyle::State_None));
+            Painter::paintAssistantRow(&painter, QRectF(0, 0, 30, 48), hostile, state(QStyle::State_None, Qt::RightToLeft));
+            QVERIFY(Painter::getAssistantRowSize(hostile).width() > 0);
+            textRow->setRow(hostile);
+        }
+        Painter::paintAssistantRow(nullptr, QRectF(0, 0, 322, 48), local, state(QStyle::State_None));
+        Painter::paintAssistantRow(&painter, QRectF(), local, state(QStyle::State_None));
+        Painter::paintAssistantRow(&painter, QRectF(0, 0, std::numeric_limits<qreal>::quiet_NaN(), 48), local, state(QStyle::State_None));
+    }, QSize(322, 48), 1.0);
+    QCOMPARE(countLeakPixels(hostileImage), 0);
+    QCOMPARE(countLeakPixels(renderWidget(textRow, 1.0)), 0);
+}
+
+void FluentComponentsTest::activityRow_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::activityRow()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // Heights of 653:5612: 47 without a status, 62 with one line, 75 with two lines (322 wide)
+    const Painter::ActivityRow waiting = AssistantSamples::waiting();
+    QCOMPARE(Painter::getActivityRowHeight(AssistantSamples::done(), 322), 47);
+    QCOMPARE(Painter::getActivityRowHeight(waiting, 322), 62);
+    QCOMPARE(Painter::getActivityRowHeight(AssistantSamples::failed(), 322), 62);
+    QCOMPARE(Painter::getActivityRowHeight(AssistantSamples::otherWindow(), 322), 75);
+    QCOMPARE(Painter::getActivityRowSize(waiting), QSize(322, 62));
+    QVERIFY(Painter::getActivityRowHeight(waiting, 120) > 62);
+    QCOMPARE(Painter::getActivityRowHeight(waiting, -5), Painter::getActivityRowHeight(waiting, 0));
+    QVERIFY(Painter::getActivityRowMinimumSize(waiting).width() < 200);
+
+    // Waiting 955:147547: the circle accent/amber/bg at 10 / 19, the title, the time, the meta and the status with the link
+    QImage image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_None)); }, QSize(322, 62), scale);
+    const QColor amberFill = blend(token(Color::AccentAmberBg), surface);
+    QVERIFY(isNear(pixel(image, 12.5, 31), amberFill));
+    QVERIFY(isNear(pixel(image, 5, 31), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(16, 25, 12, 12), amberFill), token(Color::AccentAmberIcon), amberFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 8, 90, 16), surface), token(Color::TextPrimary), token(Color::TextMuted)));
+    const QFont small = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    const int timeWidth = qCeil(pdf::PDFStylePainter::textWidth(waiting.time, small));
+    QVERIFY(isCloser(strongestInk(image, QRect(312 - timeWidth, 9, timeWidth, 14), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 26, 150, 13), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+    const int statusWidth = qCeil(pdf::PDFStylePainter::textWidth(waiting.status, small));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 41, statusWidth - 12, 13), surface), token(Color::TextSecondary), token(Color::TextAccent)));
+    QVERIFY(isCloser(strongestInk(image, QRect(44 + statusWidth + 1, 41, 24, 13), surface), token(Color::TextAccent), token(Color::TextSecondary)));
+
+    // Failed: the status text/danger, the circle accent/red
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), AssistantSamples::failed(), state(QStyle::State_None)); }, QSize(322, 62), scale);
+    QVERIFY(isNear(pixel(image, 12.5, 31), blend(token(Color::AccentRedBg), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 41, 200, 13), surface), token(Color::TextDanger), token(Color::TextMuted)));
+
+    // Two lines of the status (955:147695): the second line at 54
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 75), AssistantSamples::otherWindow(), state(QStyle::State_None)); }, QSize(322, 75), scale);
+    QVERIFY(colorDistance(strongestInk(image, QRect(44, 54, 100, 13), surface), surface) > 60);
+
+    // States of a clickable row (not in Figma): hover, press, the focus ring inside
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_MouseOver)); }, QSize(322, 62), scale);
+    QVERIFY(isNear(pixel(image, 300, 4), blend(token(Color::BgHover), surface)));
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_MouseOver | QStyle::State_Sunken)); }, QSize(322, 62), scale);
+    QVERIFY(isNear(pixel(image, 300, 4), blend(token(Color::BgPressed), surface)));
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_HasFocus)); }, QSize(322, 62), scale);
+    QVERIFY(isNear(pixel(image, 0.5, 31), token(Color::BorderFocus), 30));
+    QVERIFY(isNear(pixel(image, 300, 4), surface));
+
+    // Disabled and right-to-left
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, Painter::State(QStyle::State_None)); }, QSize(322, 62), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 8, 90, 16), surface), token(Color::TextDisabled), token(Color::TextPrimary)));
+    image = render([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_None, Qt::RightToLeft)); }, QSize(322, 62), scale);
+    QVERIFY(isNear(pixel(image, 322 - 13.5, 31), amberFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(10, 9, timeWidth, 14), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+
+    // The widget draws the painter function (clickable and not)
+    QWidget holder;
+    pdf::PDFActivityRow row(waiting, &holder);
+    row.resize(322, row.heightForWidth(322));
+    QCOMPARE(row.height(), 62);
+    QString difference = describeDifference(renderWidget(&row, scale), renderInWidget([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_None)); }, QSize(322, 62), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    row.setClickable(true);
+    difference = describeDifference(renderWidget(&row, scale), renderInWidget([&](QPainter& painter) { Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_None)); }, QSize(322, 62), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(countLeakPixels(renderWidget(&row, scale)), 0);
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    // A row, which is not clickable, is a text: no focus, the mouse passes, no signal
+    QWidget window;
+    window.resize(400, 300);
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFActivityRow* textRow = new pdf::PDFActivityRow(AssistantSamples::done(), &window);
+    pdf::PDFActivityRow* linkRow = new pdf::PDFActivityRow(waiting, &window);
+    layout->addWidget(textRow);
+    layout->addWidget(linkRow);
+    layout->addStretch(1);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QVERIFY(!textRow->isClickable());
+    QCOMPARE(textRow->focusPolicy(), Qt::NoFocus);
+    QVERIFY(textRow->testAttribute(Qt::WA_TransparentForMouseEvents));
+    QCOMPARE(textRow->height(), 47);
+    QAccessibleInterface* textAccessible = QAccessible::queryAccessibleInterface(textRow);
+    QCOMPARE(textAccessible->role(), QAccessible::StaticText);
+    QCOMPARE(textAccessible->text(QAccessible::Name), QStringLiteral("Read text"));
+    QCOMPARE(textAccessible->text(QAccessible::Description), QStringLiteral("16:42, Claude Code · Project_Report.pdf · pages 1–12"));
+    QSignalSpy textClicked(textRow, &QAbstractButton::clicked);
+    QTest::mouseClick(window.windowHandle(), Qt::LeftButton, Qt::NoModifier, textRow->geometry().center());
+    QCOMPARE(textClicked.count(), 0);
+
+    // The clickable row: a link with the focus, Enter and Space, a click
+    linkRow->setClickable(true);
+    QCOMPARE(linkRow->focusPolicy(), Qt::StrongFocus);
+    QVERIFY(!linkRow->testAttribute(Qt::WA_TransparentForMouseEvents));
+    QAccessibleInterface* linkAccessible = QAccessible::queryAccessibleInterface(linkRow);
+    QCOMPARE(linkAccessible->role(), QAccessible::Button);
+    QCOMPARE(linkAccessible->text(QAccessible::Name), QStringLiteral("Open document"));
+    QCOMPARE(linkAccessible->text(QAccessible::Description), QStringLiteral("16:44, Claude Code · Q3_Forecast.pdf, Waiting for your confirmation · Show"));
+    QSignalSpy linkClicked(linkRow, &QAbstractButton::clicked);
+    QTest::mouseClick(linkRow, Qt::LeftButton);
+    QCOMPARE(linkClicked.count(), 1);
+    linkRow->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(linkRow, Qt::Key_Return);
+    QTest::keyClick(linkRow, Qt::Key_Space);
+    QCOMPARE(linkClicked.count(), 3);
+    QVERIFY(linkRow->getComponentState().hasFocusRing());
+
+    // Stops being clickable: the focus goes away, no more signals
+    linkRow->setClickable(false);
+    QVERIFY(!linkRow->hasFocus());
+    QTest::keyClick(linkRow, Qt::Key_Return);
+    QCOMPARE(linkClicked.count(), 3);
+    linkRow->setClickable(true);
+
+    // The row deleted from its own signal
+    QPointer<pdf::PDFActivityRow> guard = linkRow;
+    connect(linkRow, &QAbstractButton::clicked, linkRow, [&guard]() { delete guard.data(); });
+    QTest::mouseClick(linkRow, Qt::LeftButton);
+    QVERIFY(!guard);
+
+    // The setters, the cached height and the description set by the application
+    pdf::PDFActivityRow details;
+    details.setRow(AssistantSamples::done());
+    QCOMPARE(details.heightForWidth(322), 47);
+    details.setRow(AssistantSamples::otherWindow());
+    QCOMPARE(details.heightForWidth(322), 75);
+    QCOMPARE(details.getRow().title, QStringLiteral("Open document"));
+    details.setAccessibleDescription(QStringLiteral("Own description"));
+    details.setRow(waiting);
+    QCOMPARE(details.accessibleDescription(), QStringLiteral("Own description"));
+    details.setRow(Painter::ActivityRow{ QStringLiteral("T"), QString(), QString(), QString(), QString(), QString(), static_cast<pdf::PDFAccentHue>(-1), static_cast<Painter::ActivityStatusTone>(77) });
+    QCOMPARE(details.getRow().hue, pdf::PDFAccentHue::Neutral);
+    QCOMPARE(details.getRow().statusTone, Painter::ActivityStatusTone::Muted);
+    QCOMPARE(Painter::normalized(static_cast<Painter::ActivityStatusTone>(-3)), Painter::ActivityStatusTone::Muted);
+
+    // Hostile rows: at most four lines of the status, no leak color
+    const QString longStatus = QString(10000, QLatin1Char('x'));
+    const Painter::ActivityRow longRow{ longStatus, longStatus, longStatus, longStatus, longStatus, QStringLiteral("no-such-icon"), pdf::PDFAccentHue::Blue, Painter::ActivityStatusTone::Danger };
+    QCOMPARE(Painter::getActivityRowHeight(longRow, 322), 8 + 16 + 2 + 13 + 2 + 4 * 13 + 8);
+    const QImage hostileImage = render([&](QPainter& painter)
+    {
+        for (const QString& text : AssistantSamples::hostileTexts())
+        {
+            const Painter::ActivityRow hostile{ text, text, text, text, text, text, pdf::PDFAccentHue::Red, Painter::ActivityStatusTone::Secondary };
+            Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 120), hostile, state(QStyle::State_None));
+            Painter::paintActivityRow(&painter, QRectF(0, 0, 20, 120), hostile, state(QStyle::State_None, Qt::RightToLeft));
+            details.setRow(hostile);
+            QVERIFY(details.heightForWidth(100) >= 47);
+        }
+        Painter::paintActivityRow(&painter, QRectF(0, 0, 322, 120), longRow, state(QStyle::State_None));
+        Painter::paintActivityRow(nullptr, QRectF(0, 0, 322, 62), waiting, state(QStyle::State_None));
+        Painter::paintActivityRow(&painter, QRectF(), waiting, state(QStyle::State_None));
+        Painter::paintActivityRow(&painter, QRectF(0, 0, std::numeric_limits<qreal>::quiet_NaN(), 62), waiting, state(QStyle::State_None));
+    }, QSize(322, 120), 1.0);
+    QCOMPARE(countLeakPixels(hostileImage), 0);
+}
+
+void FluentComponentsTest::assistantTile_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::assistantTile()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // Assistant tile 653:5691: 184 x 66, the logo 36 at 15, the texts at 63, the check 16 at 15 from the trailing edge
+    const Painter::AssistantTile claude = AssistantSamples::claudeTile();
+    QCOMPARE(Painter::getAssistantTileSize(claude), QSize(184, 66));
+    QCOMPARE(Painter::getAssistantTileMinimumSize(claude), QSize(2 * 15 + 36 + 12 + 60 + 12 + 16, 66));
+
+    // Unselected: bg/surface with border/default
+    const QRectF tileRect(0, 0, 184, 66);
+    QImage image = render([&](QPainter& painter) { painter.fillRect(tileRect, token(Color::BgCanvas)); Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_None)); }, QSize(184, 66), scale);
+    const QColor amberFill = blend(token(Color::AccentAmberBg), surface);
+    QVERIFY(isNear(pixel(image, 92, 0), blend(token(Color::BorderDefault), surface), 8));
+    QVERIFY(isNear(pixel(image, 120, 5), surface));
+    QVERIFY(isNear(pixel(image, 17.5, 33), amberFill));
+    QVERIFY(isCloser(strongestInk(image, QRect(63, 17, 50, 16), surface), token(Color::TextPrimary), token(Color::TextMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(63, 35, 50, 13), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+    QVERIFY(isNear(pixel(image, 160, 33), surface));
+
+    // Selected: bg/accent-subtle over bg/surface, the border border/focus, the check icon/accent
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_On)); }, QSize(184, 66), scale);
+    const QColor selectedFill = blend(token(Color::BgAccentSubtle), surface);
+    QVERIFY(isNear(pixel(image, 120, 5), selectedFill));
+    QVERIFY(isNear(pixel(image, 92, 0), blend(token(Color::BorderFocus), selectedFill), 30));
+    QVERIFY(isCloser(strongestInk(image, QRect(153, 25, 16, 16), selectedFill), token(Color::IconAccent), selectedFill));
+
+    // Hover and press of an unselected tile (not in Figma): bg/hover / bg/pressed, border/strong
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_MouseOver)); }, QSize(184, 66), scale);
+    QVERIFY(isNear(pixel(image, 120, 5), blend(token(Color::BgHover), surface)));
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_MouseOver | QStyle::State_Sunken)); }, QSize(184, 66), scale);
+    QVERIFY(isNear(pixel(image, 120, 5), blend(token(Color::BgPressed), surface)));
+
+    // The vendor of the selected Other client wraps to two lines (955:149394), unselected one line
+    const Painter::AssistantTile other = AssistantSamples::otherTile();
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, other, state(QStyle::State_On)); }, QSize(184, 66), scale);
+    QVERIFY(colorDistance(strongestInk(image, QRect(63, 42, 40, 12), selectedFill), selectedFill) > 60);
+    QVERIFY(isCloser(strongestInk(image, QRect(25, 24, 18, 18), blend(token(Color::AccentTealBg), selectedFill)), token(Color::AccentTealIcon), selectedFill));
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, other, state(QStyle::State_None)); }, QSize(184, 66), scale);
+    QVERIFY(colorDistance(strongestInk(image, QRect(63, 50, 100, 10), surface), surface) < 20);
+
+    // Disabled selected: border/strong and text/disabled; right-to-left: the logo at the right, the check at the left
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, Painter::State(QStyle::State_On)); }, QSize(184, 66), scale);
+    QVERIFY(isNear(pixel(image, 92, 0), blend(token(Color::BorderStrong), selectedFill), 30));
+    QVERIFY(isCloser(strongestInk(image, QRect(63, 17, 50, 16), selectedFill), token(Color::TextDisabled), token(Color::TextPrimary)));
+    image = render([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_On, Qt::RightToLeft)); }, QSize(184, 66), scale);
+    QVERIFY(isNear(pixel(image, 184 - 17.5, 33), blend(token(Color::AccentAmberBg), selectedFill)));
+    QVERIFY(isCloser(strongestInk(image, QRect(15, 25, 16, 16), selectedFill), token(Color::IconAccent), selectedFill));
+
+    // The widget draws the painter function in each selection
+    QWidget holder;
+    pdf::PDFAssistantTile tile(claude, &holder);
+    tile.resize(184, 66);
+    QString difference = describeDifference(renderWidget(&tile, scale), renderInWidget([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_None)); }, QSize(184, 66), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    tile.setSelected(true);
+    difference = describeDifference(renderWidget(&tile, scale), renderInWidget([&](QPainter& painter) { Painter::paintAssistantTile(&painter, tileRect, claude, state(QStyle::State_On)); }, QSize(184, 66), scale), 3);
+    QVERIFY2(difference.isEmpty(), qPrintable(difference));
+    QCOMPARE(countLeakPixels(renderWidget(&tile, scale)), 0);
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    // A static choice of an exclusive group: a click on the selected tile does
+    // nothing, the arrows move the selection, the accessible role RadioButton
+    QWidget window;
+    QHBoxLayout* layout = new QHBoxLayout(&window);
+    layout->setSpacing(12);
+    QButtonGroup group;
+    QList<pdf::PDFAssistantTile*> tiles;
+    for (const Painter::AssistantTile& content : { claude, Painter::AssistantTile{ QStringLiteral("Codex"), QStringLiteral("OpenAI"), Painter::AssistantAvatar{ QStringLiteral("Cx"), pdf::PDFAccentHue::Green, 36, 13, false } }, other })
+    {
+        pdf::PDFAssistantTile* item = new pdf::PDFAssistantTile(content, &window);
+        group.addButton(item);
+        layout->addWidget(item);
+        tiles << item;
+    }
+    window.resize(3 * 184 + 50, 100);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QCOMPARE(tiles.at(0)->height(), 66);
+    QCOMPARE(tiles.at(0)->getSelectionBehavior(), pdf::PDFComponentButton::SelectionBehavior::ExclusiveStatic);
+    QCOMPARE(tiles.at(0)->getFocusRingRadius(), 12.0);
+    QCOMPARE(tiles.at(0)->sizePolicy().horizontalPolicy(), QSizePolicy::Expanding);
+    QCOMPARE(tiles.at(0)->minimumSizeHint().width(), 166);
+    QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(tiles.at(0));
+    QCOMPARE(accessible->role(), QAccessible::RadioButton);
+    QCOMPARE(accessible->text(QAccessible::Name), QStringLiteral("Claude"));
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("Anthropic"));
+
+    tiles.at(0)->setSelected(true);
+    QSignalSpy firstClicked(tiles.at(0), &QAbstractButton::clicked);
+    QTest::mouseClick(tiles.at(0), Qt::LeftButton);
+    QCOMPARE(firstClicked.count(), 0);
+    QTest::mouseClick(tiles.at(2), Qt::LeftButton);
+    QVERIFY(tiles.at(2)->isSelected());
+    QVERIFY(!tiles.at(0)->isSelected());
+    tiles.at(1)->setSelected(true);
+    tiles.at(1)->setFocus(Qt::TabFocusReason);
+    QTest::keyClick(tiles.at(1), Qt::Key_Right);
+    QTRY_VERIFY(tiles.at(2)->hasFocus());
+    QVERIFY(tiles.at(2)->isSelected());
+    QTest::keyClick(tiles.at(2), Qt::Key_Left);
+    QTRY_VERIFY(tiles.at(1)->hasFocus());
+    QVERIFY(tiles.at(1)->isSelected());
+    tiles.at(1)->setSelected(false);
+    QCOMPARE(group.checkedButton(), nullptr);
+
+    // A tile deleted from its own signal
+    QPointer<pdf::PDFAssistantTile> guard = tiles.at(0);
+    connect(tiles.at(0), &QAbstractButton::toggled, tiles.at(0), [&guard](bool isChecked) { if (isChecked) { guard->deleteLater(); } });
+    QTest::mouseClick(tiles.at(0), Qt::LeftButton);
+    QTRY_VERIFY(!guard);
+
+    // The setters and the description
+    pdf::PDFAssistantTile details;
+    details.setTile(Painter::AssistantTile{ QStringLiteral("Name & Co"), QStringLiteral("Vendor"), Painter::AssistantAvatar{ QStringLiteral("N"), static_cast<pdf::PDFAccentHue>(55), 36, 13, false } });
+    QCOMPARE(details.getTile().name, QStringLiteral("Name & Co"));
+    QCOMPARE(details.getTile().logo.hue, pdf::PDFAccentHue::Neutral);
+    QCOMPARE(details.shortcut(), QKeySequence());
+    QCOMPARE(details.accessibleDescription(), QStringLiteral("Vendor"));
+
+    // Hostile tiles
+    const QImage hostileImage = render([&](QPainter& painter)
+    {
+        for (const QString& text : AssistantSamples::hostileTexts())
+        {
+            const Painter::AssistantTile hostile{ text, text, Painter::AssistantAvatar{ text, static_cast<pdf::PDFAccentHue>(-9), 36, 13, true } };
+            Painter::paintAssistantTile(&painter, tileRect, hostile, state(QStyle::State_On));
+            Painter::paintAssistantTile(&painter, QRectF(0, 0, 30, 66), hostile, state(QStyle::State_None, Qt::RightToLeft));
+            details.setTile(hostile);
+        }
+        Painter::paintAssistantTile(nullptr, tileRect, claude, state(QStyle::State_None));
+        Painter::paintAssistantTile(&painter, QRectF(), claude, state(QStyle::State_None));
+        Painter::paintAssistantTile(&painter, QRectF(0, 0, std::numeric_limits<qreal>::quiet_NaN(), 66), claude, state(QStyle::State_None));
+    }, QSize(184, 66), 1.0);
+    QCOMPARE(countLeakPixels(hostileImage), 0);
+}
+
+void FluentComponentsTest::codeBox_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::codeBox()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    const QColor subtle = token(Color::BgSubtle);
+    auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other) { return colorDistance(color, expected) < colorDistance(color, other); };
+
+    // Code 653:5754 (1098 x 46): the text at 15 / 14, 1030 wide, the copy 36 at 1057 / 5
+    const Painter::CodeBox command{ AssistantSamples::command(), true, true };
+    QCOMPARE(Painter::getCodeBoxHeight(command, 1098), 46);
+    QCOMPARE(Painter::getCodeBoxTextRect(QRectF(0, 0, 1098, 46), command, state(QStyle::State_None)), QRectF(15, 14, 1030, 18));
+    QCOMPARE(Painter::getCodeBoxButtonRect(QRectF(0, 0, 1098, 46), state(QStyle::State_None)), QRectF(1057, 5, 36, 36));
+    QCOMPARE(Painter::getCodeBoxButtonRect(QRectF(0, 0, 1098, 46), state(QStyle::State_None, Qt::RightToLeft)), QRectF(5, 5, 36, 36));
+    QCOMPARE(Painter::getCodeBoxLineHeight(), 18);
+
+    // Code 955:149431 (520 x 208): 11 lines of 18 from the top, the copy at the top
+    const Painter::CodeBox configuration{ AssistantSamples::configuration(), true, true };
+    QCOMPARE(Painter::getCodeBoxLineCount(configuration, 452), 11);
+    QCOMPARE(Painter::getCodeBoxHeight(configuration, 520), 208);
+    QCOMPARE(Painter::getCodeBoxTextRect(QRectF(0, 0, 520, 208), configuration, state(QStyle::State_None)), QRectF(15, 5, 452, 198));
+
+    // A long command wraps at the page of 720 x 480 (the column ~560), at any character
+    const int narrowLines = Painter::getCodeBoxLineCount(command, 560 - 15 - 12 - 36 - 5);
+    QVERIFY(narrowLines >= 2);
+    QCOMPARE(Painter::getCodeBoxHeight(command, 560), 10 + narrowLines * 18);
+    const Painter::CodeBox unbroken{ QString(300, QLatin1Char('q')), true, true };
+    QVERIFY(Painter::getCodeBoxLineCount(unbroken, 200) >= 300 * 6 / 200);
+    QCOMPARE(Painter::getCodeBoxHeight(Painter::CodeBox{ QString(), true, true }, 300), 46);
+    QCOMPARE(Painter::getCodeBoxLineCount(Painter::CodeBox{ QStringLiteral("\n\n\n"), true, true }, 300), 4);
+    QCOMPARE(Painter::getCodeBoxMinimumSize(command), QSize(15 + 40 + 12 + 36 + 5, 46));
+    QVERIFY(Painter::getCodeBoxSize(command).width() <= 1166);
+    QCOMPARE(Painter::getCodeBoxSize(Painter::CodeBox{ QString(100000, QLatin1Char('x')), true, true }).width(), 1166);
+
+    // The frame bg/subtle with border/default, the text text/primary, the copy icon/default
+    QImage image = render([&](QPainter& painter) { Painter::paintCodeBox(&painter, QRectF(0, 0, 520, 46), Painter::CodeBox{ QStringLiteral("claude mcp list"), true, true }, state(QStyle::State_None)); }, QSize(520, 46), scale);
+    QVERIFY(isNear(pixel(image, 8, 23), subtle));
+    QVERIFY(isNear(pixel(image, 260, 0), blend(token(Color::BorderDefault), surface), 8));
+    QVERIFY(isNear(pixel(image, 300, 23), subtle));
+    QVERIFY(isCloser(strongestInk(image, QRect(15, 14, 100, 18), subtle), token(Color::TextPrimary), subtle));
+    QVERIFY(isCloser(strongestInk(image, QRect(487, 13, 20, 20), subtle), token(Color::IconDefault), subtle));
+
+    // The focus of the text: the ring inside; right-to-left: the copy at the left
+    image = render([&](QPainter& painter) { Painter::paintCodeBox(&painter, QRectF(0, 0, 520, 46), Painter::CodeBox{ QStringLiteral("claude mcp list"), true, true }, state(QStyle::State_HasFocus, Qt::RightToLeft)); }, QSize(520, 46), scale);
+    QVERIFY(isNear(pixel(image, 0.5, 23), token(Color::BorderFocus), 30));
+    QVERIFY(isCloser(strongestInk(image, QRect(13, 13, 20, 20), subtle), token(Color::IconDefault), subtle));
+    QVERIFY(isCloser(strongestInk(image, QRect(400, 14, 100, 18), subtle), token(Color::TextPrimary), subtle));
+
+    // Disabled: the text text/disabled
+    image = render([&](QPainter& painter) { Painter::paintCodeBox(&painter, QRectF(0, 0, 520, 46), Painter::CodeBox{ QStringLiteral("claude mcp list"), true, true }, Painter::State(QStyle::State_None)); }, QSize(520, 46), scale);
+    QVERIFY(isCloser(strongestInk(image, QRect(15, 14, 100, 18), subtle), token(Color::TextDisabled), token(Color::TextPrimary)));
+
+    // The widget: the frame of the painter, its own text and button, no leak color
+    QWidget holder;
+    pdf::PDFCodeBox box(QStringLiteral("claude mcp list"), &holder);
+    box.resize(520, box.heightForWidth(520));
+    QCOMPARE(box.height(), 46);
+    QPlainTextEdit* editor = box.findChild<QPlainTextEdit*>(QStringLiteral("codeText"));
+    QVERIFY(editor);
+    const QImage widgetImage = renderWidget(&box, scale);
+    QCOMPARE(editor->geometry(), QRect(15, 14, 452, 19));
+    QCOMPARE(box.getCopyButton()->geometry(), QRect(479, 5, 36, 36));
+    QCOMPARE(countLeakPixels(widgetImage), 0);
+    QVERIFY(isNear(pixel(widgetImage, 8, 23), subtle));
+    QVERIFY(isNear(pixel(widgetImage, 260, 0), blend(token(Color::BorderDefault), surface), 8));
+    QVERIFY(isCloser(strongestInk(widgetImage, QRect(15, 14, 100, 18), subtle), token(Color::TextPrimary), subtle));
+    QVERIFY(isCloser(strongestInk(widgetImage, QRect(487, 13, 20, 20), subtle), token(Color::IconDefault), subtle));
+
+    if (!AssistantSamples::isTheme(theme, scale))
+    {
+        return;
+    }
+
+    // The text: plain, read only, selectable by the mouse and the keyboard, the monospaced font
+    QVERIFY(editor->isReadOnly());
+    QVERIFY(editor->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard));
+    QVERIFY(editor->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+    QCOMPARE(editor->font().family(), pdf::PDFThemeFonts::getMonospaceFamily());
+    box.setMonospace(false);
+    QVERIFY(!box.isMonospace());
+    QCOMPARE(editor->font().family(), pdf::PDFThemeFonts::getFamily());
+    box.setMonospace(true);
+    box.setText(QStringLiteral("<b>rich</b> & text"));
+    QCOMPARE(editor->toPlainText(), QStringLiteral("<b>rich</b> & text"));
+    QCOMPARE(box.getText(), QStringLiteral("<b>rich</b> & text"));
+
+    // The copy: the copy text, the shown text without it; the tooltip "Copy"
+    QWidget window;
+    window.resize(700, 400);
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    pdf::PDFCodeBox* commandBox = new pdf::PDFCodeBox(QStringLiteral("claude mcp add … q7LmT4…x2Vd"), &window);
+    pdf::PDFCodeBox* jsonBox = new pdf::PDFCodeBox(AssistantSamples::configuration(), &window);
+    commandBox->setAccessibleName(QStringLiteral("Setup command"));
+    layout->addWidget(commandBox);
+    layout->addWidget(jsonBox);
+    layout->addStretch(1);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QCOMPARE(commandBox->getCopyButton()->toolTip(), QStringLiteral("Copy"));
+    QCOMPARE(commandBox->getCopyButton()->accessibleName(), QStringLiteral("Copy"));
+    commandBox->setCopyToolTip(QStringLiteral("Copy command"));
+    QCOMPARE(commandBox->getCopyToolTip(), QStringLiteral("Copy command"));
+    QCOMPARE(commandBox->getCopyButton()->toolTip(), QStringLiteral("Copy command"));
+    QCOMPARE(commandBox->getCopyText(), commandBox->getText());
+    commandBox->setCopyText(QStringLiteral("claude mcp add --header \"Authorization: Bearer q7LmT4kR9wPz2Vd\""));
+    QSignalSpy copiedSpy(commandBox, &pdf::PDFCodeBox::copied);
+    QTest::mouseClick(commandBox->getCopyButton(), Qt::LeftButton);
+    QCOMPARE(copiedSpy.count(), 1);
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("claude mcp add --header \"Authorization: Bearer q7LmT4kR9wPz2Vd\""));
+    jsonBox->copy();
+    QCOMPARE(QGuiApplication::clipboard()->text(), AssistantSamples::configuration());
+
+    // The height follows the width, the editor shows all lines and never scrolls
+    QCOMPARE(jsonBox->height(), jsonBox->heightForWidth(jsonBox->width()));
+    QPlainTextEdit* jsonEditor = jsonBox->findChild<QPlainTextEdit*>(QStringLiteral("codeText"));
+    int editorLines = 0;
+    for (QTextBlock block = jsonEditor->document()->begin(); block.isValid(); block = block.next())
+    {
+        editorLines += block.layout() ? block.layout()->lineCount() : 0;
+    }
+    QCOMPARE(editorLines, 11);
+    QCOMPARE(jsonEditor->verticalScrollBar()->maximum(), 0);
+    commandBox->setText(QString(400, QLatin1Char('x')));
+    window.resize(400, 600);
+    QTRY_COMPARE(commandBox->height(), commandBox->heightForWidth(commandBox->width()));
+    QPlainTextEdit* commandEditor = commandBox->findChild<QPlainTextEdit*>(QStringLiteral("codeText"));
+    QTRY_COMPARE(commandEditor->verticalScrollBar()->maximum(), 0);
+    int commandLines = 0;
+    for (QTextBlock block = commandEditor->document()->begin(); block.isValid(); block = block.next())
+    {
+        commandLines += block.layout() ? block.layout()->lineCount() : 0;
+    }
+    QCOMPARE(commandLines, Painter::getCodeBoxLineCount(Painter::CodeBox{ commandBox->getText(), true, true }, commandEditor->viewport()->width()));
+    QCOMPARE(commandEditor->horizontalScrollBar()->maximum(), 0);
+
+    // The keyboard: the text takes the focus, Ctrl+A and Shift+End select, the box shows the ring
+    commandEditor->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(commandEditor->hasFocus());
+    QCOMPARE(commandEditor->accessibleName(), QStringLiteral("Setup command"));
+    commandBox->setAccessibleName(QStringLiteral("Changed name"));
+    commandBox->getCopyButton()->setFocus(Qt::TabFocusReason);
+    commandEditor->setFocus(Qt::TabFocusReason);
+    QTRY_COMPARE(commandEditor->accessibleName(), QStringLiteral("Changed name"));
+    commandEditor->setAccessibleName(QStringLiteral("Own name of the text"));
+    commandBox->setAccessibleName(QStringLiteral("Third name"));
+    commandBox->getCopyButton()->setFocus(Qt::TabFocusReason);
+    commandEditor->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(commandEditor->hasFocus());
+    QCOMPARE(commandEditor->accessibleName(), QStringLiteral("Own name of the text"));
+    QTest::keyClick(commandEditor, Qt::Key_Home, Qt::ControlModifier);
+    QTest::keyClick(commandEditor, Qt::Key_Right, Qt::ShiftModifier);
+    QTest::keyClick(commandEditor, Qt::Key_Right, Qt::ShiftModifier);
+    QCOMPARE(commandEditor->textCursor().selectedText(), QStringLiteral("xx"));
+    QTest::keyClick(commandEditor, Qt::Key_A, Qt::ControlModifier);
+    QCOMPARE(commandEditor->textCursor().selectedText(), commandBox->getText());
+    QCOMPARE(commandEditor->toPlainText(), commandBox->getText());
+    const QImage focusImage = renderWidget(commandBox, 1.0);
+    QVERIFY(isNear(pixel(focusImage, 0.5, 20), token(Color::BorderFocus), 30));
+    QTest::keyClick(commandEditor, Qt::Key_Tab);
+    QTRY_VERIFY(!commandEditor->hasFocus());
+
+    // The box deleted from its own signal
+    QPointer<pdf::PDFCodeBox> guard = jsonBox;
+    connect(jsonBox, &pdf::PDFCodeBox::copied, jsonBox, [&guard]() { delete guard.data(); });
+    QTest::mouseClick(jsonBox->getCopyButton(), Qt::LeftButton);
+    QVERIFY(!guard);
+
+    // The text and the button deleted by the application: the box draws the text itself
+    delete commandEditor;
+    QCOMPARE(countLeakPixels(renderWidget(commandBox, 1.0)), 0);
+    QVERIFY(colorDistance(strongestInk(renderWidget(commandBox, 1.0), QRect(15, 5, 100, 18), subtle), subtle) > 60);
+    commandBox->setText(QStringLiteral("after"));
+    commandBox->setMonospace(false);
+    delete commandBox->getCopyButton();
+    QVERIFY(!commandBox->getCopyButton());
+    commandBox->setCopyToolTip(QStringLiteral("x"));
+    commandBox->copy();
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("claude mcp add --header \"Authorization: Bearer q7LmT4kR9wPz2Vd\""));
+    commandBox->resize(300, 100);
+    QCOMPARE(countLeakPixels(renderWidget(commandBox, 1.0)), 0);
+
+    // Hostile texts
+    const QImage hostileImage = render([&](QPainter& painter)
+    {
+        for (const QString& text : AssistantSamples::hostileTexts())
+        {
+            Painter::paintCodeBox(&painter, QRectF(0, 0, 300, 200), Painter::CodeBox{ text, true, true }, state(QStyle::State_None));
+            Painter::paintCodeBox(&painter, QRectF(0, 0, 20, 200), Painter::CodeBox{ text, false, true }, state(QStyle::State_None, Qt::RightToLeft));
+            box.setText(text);
+            QVERIFY(box.heightForWidth(300) >= 46);
+            QVERIFY(box.heightForWidth(-10) >= 46);
+        }
+        Painter::paintCodeBox(nullptr, QRectF(0, 0, 300, 46), command, state(QStyle::State_None));
+        Painter::paintCodeBox(&painter, QRectF(), command, state(QStyle::State_None));
+        Painter::paintCodeBox(&painter, QRectF(0, 0, std::numeric_limits<qreal>::quiet_NaN(), 46), command, state(QStyle::State_None));
+    }, QSize(300, 200), 1.0);
+    QCOMPARE(countLeakPixels(hostileImage), 0);
+    QCOMPARE(Painter::getCodeBoxLineCount(command, std::numeric_limits<qreal>::quiet_NaN()), 1);
 }
 
 QTEST_MAIN(FluentComponentsTest)

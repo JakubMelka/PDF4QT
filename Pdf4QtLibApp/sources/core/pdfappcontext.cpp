@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappcontext.h"
+#include "pdfappmcpcontroller.h"
 #include "pdfappannotationstylestorage.h"
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
@@ -72,6 +73,11 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
     }
 }
 
+PDFAppMcpController* PDFAppContext::getMcpController() const
+{
+    return m_mcpController;
+}
+
 PDFAppContext::~PDFAppContext()
 {
     close();
@@ -120,10 +126,25 @@ void PDFAppContext::open(PDFDatabaseOptions options)
 
     // The language before the windows exist (no LanguageChange to rebuild them)
     applyLanguage();
+
+    // The MCP server (step 7): started here when mcp.startWithApp is on
+    m_mcpController = new PDFAppMcpController(this, this);
+    m_mcpController->initialize();
 }
 
 void PDFAppContext::close()
 {
+    // The MCP server first (plan of step 7, 2.6): the server stops, the pending
+    // confirmations are denied, the jobs end, the host is destroyed and the row
+    // of the server is released - while the database is still open
+    if (m_mcpController)
+    {
+        PDFAppMcpController* controller = m_mcpController;
+        m_mcpController = nullptr;
+        controller->shutdown();
+        delete controller;
+    }
+
     // The storage of the annotation styles is removed before the database closes
     // (the engine falls back to its default storage)
     if (m_annotationStyleStorage)

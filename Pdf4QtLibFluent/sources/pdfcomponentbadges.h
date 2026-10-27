@@ -113,12 +113,21 @@ public:
     explicit PDFStatusBadge(QWidget* parent = nullptr);
     explicit PDFStatusBadge(const QString& text, const QString& iconName, PDFAccentHue hue, QWidget* parent = nullptr);
 
-    /// Sets the whole badge at once (one new geometry and one repaint)
+    /// Sets the whole badge at once (one new geometry and one repaint); the dot
+    /// and the color of the text are kept
     void setBadge(const QString& text, const QString& iconName, PDFAccentHue hue);
 
     const QString& getText() const { return m_badge.text; }
     const QString& getIconName() const { return m_badge.iconName; }
     PDFAccentHue getHue() const { return m_badge.hue; }
+
+    /// The dot of 6 px instead of the icon (the status badges of the page AI)
+    bool isDotVisible() const { return m_badge.dot; }
+    void setDotVisible(bool isVisible);
+
+    /// Color of the label (std::nullopt: the icon color of the hue; an invalid value resets it)
+    std::optional<PDFThemeColors::Color> getTextColor() const { return m_badge.textColor; }
+    void setTextColor(std::optional<PDFThemeColors::Color> color);
 
     const PDFComponentPainter::StatusBadge& getBadge() const { return m_badge; }
 
@@ -271,11 +280,17 @@ public:
     std::optional<PDFAccentHue> getHue() const { return m_hue; }
     void setHue(std::optional<PDFAccentHue> hue);
 
+    /// Radius of the corners (PDFComponentPainter::TINTED_CARD_RADIUS by default;
+    /// a callout of the page AI has 8); a negative or NaN radius is 0
+    qreal getRadius() const { return m_radius; }
+    void setRadius(qreal radius);
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
 
 private:
     std::optional<PDFAccentHue> m_hue;
+    qreal m_radius = PDFComponentPainter::TINTED_CARD_RADIUS;
 };
 
 }   // namespace pdf

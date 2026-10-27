@@ -25,6 +25,7 @@
 #include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappsettingssection.h"
+#include "pdfsettingdefinitions.h"
 #include "pdfsupportvideocatalog.h"
 
 #include "pdfdocumenttoolcatalog.h"
@@ -526,6 +527,77 @@ void PDFAppSettingSearchProvider::search(const PDFSearchQuery& query, const PDFA
         result.iconName = QStringLiteral("settings");
         result.action = PDFAppSearchResult::Action::Navigate;
         result.route = PDFAppRoutes::settings(QStringLiteral("storage"), QString::fromLatin1(row.anchor));
+        result.score = match->score;
+        result.order = order++;
+        results.push_back(std::move(result));
+    }
+
+    // The rows of Connection and Permissions of the page AI (step 7): the
+    // settings mcp.* are not in Settings, their rows lead to /ai#<anchor>
+    struct AiRow
+    {
+        const char* anchor;
+        QString (*key)();       ///< Setting of the row (nullptr = a row of the page itself)
+        const char* title;      ///< Title of a row of the page itself (pdf::PDFAppAiPage)
+        const char* group;      ///< Card of the row (pdf::PDFAppAiPage)
+        const char* keywords;
+    };
+    static constexpr AiRow aiRows[] =
+    {
+        { "port", &PDFSettingKeys::mcpPort, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Connection"), "ai assistant mcp server port address" },
+        { "network-access", nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Network access"), QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Connection"), "ai assistant mcp server remote connections network computer" },
+        { "require-access-token", &PDFSettingKeys::mcpRequireToken, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Connection"), "ai assistant mcp server token password" },
+        { "access-token", nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Access token"), QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Connection"), "ai assistant mcp server token password copy new" },
+        { "start-with-pdf4qt", &PDFSettingKeys::mcpStartWithApp, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Connection"), "ai assistant mcp server start automatically" },
+        { "read-documents", &PDFSettingKeys::mcpPermissionRead, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Permissions"), "ai assistant mcp permission allow ask deny read" },
+        { "edit-documents", &PDFSettingKeys::mcpPermissionEdit, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Permissions"), "ai assistant mcp permission allow ask deny edit annotations" },
+        { "open-and-save-files", &PDFSettingKeys::mcpPermissionFiles, nullptr, QT_TRANSLATE_NOOP("pdf::PDFAppAiPage", "Permissions"), "ai assistant mcp permission allow ask deny open save files" }
+    };
+
+    const QString aiTitle = PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "AI"));
+    for (const AiRow& row : aiRows)
+    {
+        QString title;
+        QString titleSource;
+        if (row.key)
+        {
+            const PDFSettingDefinition* definition = data.settingRegistry->findDefinition(row.key());
+            if (!definition)
+            {
+                continue;
+            }
+            title = definition->getTitle();
+            titleSource = QString::fromUtf8(definition->getTitleSource());
+        }
+        else
+        {
+            title = QCoreApplication::translate("pdf::PDFAppAiPage", row.title);
+            titleSource = QString::fromUtf8(row.title);
+        }
+
+        const QString groupTitle = QCoreApplication::translate("pdf::PDFAppAiPage", row.group);
+        QStringList keywords = QString::fromLatin1(row.keywords).split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        keywords << aiTitle << groupTitle;
+        const std::vector<PDFSearchField> fields = {
+            PDFAppSearchEngineHelper::title(PDFAppSearchEngineHelper::withSource(title, titleSource)),
+            PDFAppSearchEngineHelper::keywords(keywords)
+        };
+        const std::optional<PDFSearchFieldMatch> match = query.match(fields);
+        if (!match)
+        {
+            ++order;
+            continue;
+        }
+
+        // "AI › Permissions"
+        PDFAppSearchResult result;
+        result.group = PDFAppSearchGroup::Settings;
+        result.key = QStringLiteral("ai.") + QString::fromLatin1(row.anchor);
+        result.title = title;
+        result.subtitle = PDFAppSearchEngineHelper::translate(QT_TRANSLATE_NOOP("pdf::PDFAppSearchEngine", "%1 › %2")).arg(aiTitle, groupTitle);
+        result.iconName = QStringLiteral("mcp");
+        result.action = PDFAppSearchResult::Action::Navigate;
+        result.route = PDFAppRoute::create({ QStringLiteral("ai") }, QList<PDFAppRoute::QueryItem>(), QString::fromLatin1(row.anchor));
         result.score = match->score;
         result.order = order++;
         results.push_back(std::move(result));

@@ -202,8 +202,17 @@ public:
     /// later insert of an AUTOINCREMENT table fail with SQLITE_FULL)
     static int normalizeSequences(sqlite3* handle);
 
-    /// Removes the state of the running instances from a copy (export / import)
+    /// Removes the state of the running instances and the rows of the secret settings
+    /// (PDFDatabaseBackup::getPrivateSettingKeys) from a copy (export / import)
     static int clearRuntimeState(sqlite3* handle);
+
+    /// Removes the rows of the secret settings from \p handle (also a key stored
+    /// with another type than a text - the rows of a backup are untrusted)
+    static int removePrivateSettings(sqlite3* handle);
+
+    /// Copies the rows of the secret settings of \p source into \p target, whose
+    /// rows of these keys are removed first (an import keeps the current token)
+    static int copyPrivateSettings(sqlite3* source, sqlite3* target);
 
     /// Changes the page size of the memory copy to the page size of \p target (a
     /// database in the WAL mode cannot change its page size by the backup API)
@@ -1145,8 +1154,87 @@ int PDFDatabaseHelper::clearRuntimeState(sqlite3* handle)
     }
     if (result == SQLITE_OK)
     {
+        result = removePrivateSettings(handle);
+    }
+    if (result == SQLITE_OK)
+    {
         result = execute(handle, "DELETE FROM change_log");
     }
+    return result;
+}
+
+int PDFDatabaseHelper::removePrivateSettings(sqlite3* handle)
+{
+    sqlite3_stmt* statement = nullptr;
+    int result = sqlite3_prepare_v2(handle, "DELETE FROM setting WHERE CAST(key AS TEXT) = ?1", -1, &statement, nullptr);
+    for (const QString& key : PDFDatabaseBackup::getPrivateSettingKeys())
+    {
+        if (result != SQLITE_OK)
+        {
+            break;
+        }
+
+        const QByteArray keyData = key.toUtf8();
+        sqlite3_reset(statement);
+        sqlite3_bind_text(statement, 1, keyData.constData(), int(keyData.size()), SQLITE_TRANSIENT);
+        const int stepResult = sqlite3_step(statement);
+        result = (stepResult == SQLITE_DONE) ? SQLITE_OK : stepResult;
+    }
+    sqlite3_finalize(statement);
+    return result;
+}
+
+int PDFDatabaseHelper::copyPrivateSettings(sqlite3* source, sqlite3* target)
+{
+    int result = removePrivateSettings(target);
+
+    sqlite3_stmt* select = nullptr;
+    sqlite3_stmt* insert = nullptr;
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_prepare_v2(source, "SELECT key, value, modified FROM setting WHERE key = ?1", -1, &select, nullptr);
+    }
+    if (result == SQLITE_OK)
+    {
+        result = sqlite3_prepare_v2(target, "INSERT INTO setting(key, value, modified) VALUES (?1, ?2, ?3)", -1, &insert, nullptr);
+    }
+
+    for (const QString& key : PDFDatabaseBackup::getPrivateSettingKeys())
+    {
+        if (result != SQLITE_OK)
+        {
+            break;
+        }
+
+        const QByteArray keyData = key.toUtf8();
+        sqlite3_reset(select);
+        sqlite3_bind_text(select, 1, keyData.constData(), int(keyData.size()), SQLITE_TRANSIENT);
+        const int stepResult = sqlite3_step(select);
+        if (stepResult == SQLITE_DONE)
+        {
+            // The open database has no row: the imported content has none either
+            continue;
+        }
+        if (stepResult != SQLITE_ROW)
+        {
+            result = stepResult;
+            break;
+        }
+
+        sqlite3_reset(insert);
+        for (int i = 0; i < 3 && result == SQLITE_OK; ++i)
+        {
+            result = sqlite3_bind_value(insert, i + 1, sqlite3_column_value(select, i));
+        }
+        if (result == SQLITE_OK)
+        {
+            const int insertResult = sqlite3_step(insert);
+            result = (insertResult == SQLITE_DONE) ? SQLITE_OK : insertResult;
+        }
+    }
+
+    sqlite3_finalize(select);
+    sqlite3_finalize(insert);
     return result;
 }
 
@@ -1619,7 +1707,14 @@ QString PDFDatabaseBackup::getErrorText() const
 QStringList PDFDatabaseBackup::getSecuritySettingKeys()
 {
     return { PDFSettingKeys::securityOpenLinks(), PDFSettingKeys::securityLaunchFiles(), PDFSettingKeys::signaturesVerify(),
-             PDFSettingKeys::signaturesStrict(), PDFSettingKeys::signaturesIgnoreExpiration(), PDFSettingKeys::signaturesUseSystemStore() };
+             PDFSettingKeys::signaturesStrict(), PDFSettingKeys::signaturesIgnoreExpiration(), PDFSettingKeys::signaturesUseSystemStore(),
+             PDFSettingKeys::mcpPermissionRead(), PDFSettingKeys::mcpPermissionEdit(), PDFSettingKeys::mcpPermissionFiles(),
+             PDFSettingKeys::mcpAllowRemote(), PDFSettingKeys::mcpRequireToken() };
+}
+
+QStringList PDFDatabaseBackup::getPrivateSettingKeys()
+{
+    return { PDFSettingKeys::mcpToken() };
 }
 
 QVariant PDFDatabaseBackup::getSecuritySetting(const QString& key) const
@@ -3018,9 +3113,9 @@ PDFDatabaseError PDFDatabase::exportBackup(const QString& filePath)
     error = PDFDatabaseError::fromHandle(result == SQLITE_OK ? nullptr : source, result);
     closeHandle(source);
 
-    // The state of the running instances is not a part of the backup; the time of
-    // the export is (the import dialog shows it). VACUUM removes the deleted rows
-    // from the file.
+    // The state of the running instances and the secret settings (the MCP access
+    // token) are not a part of the backup; the time of the export is (the import
+    // dialog shows it). VACUUM removes the deleted rows from the file.
     if (!error.isError())
     {
         result = PDFDatabaseHelper::clearRuntimeState(copy);
@@ -3169,6 +3264,13 @@ PDFDatabaseError PDFDatabase::importBackup(const PDFDatabaseBackup& backup, PDFD
             {
                 result = PDFDatabaseHelper::copyTableRows(target, copy, table);
             }
+        }
+
+        // The secret settings (the MCP access token) of the open database stay, the
+        // rows of the backup were removed by clearRuntimeState (owner 2026-10-26, Q4)
+        if (result == SQLITE_OK)
+        {
+            result = PDFDatabaseHelper::copyPrivateSettings(target, copy);
         }
         if (result == SQLITE_OK)
         {

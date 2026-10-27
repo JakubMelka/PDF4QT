@@ -2,6 +2,7 @@
     <qresource prefix="/">
         <file>help/ai-assistant.md</file>
         <file>help/ai-permissions.md</file>
+        <file>help/ai-tools.md</file>
         <file>help/annotations.md</file>
         <file>help/bookmarks.md</file>
         <file>help/color-management.md</file>

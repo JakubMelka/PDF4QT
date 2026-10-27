@@ -56,6 +56,10 @@ public:
     static constexpr int STATUS_ICON = 12;
     static constexpr int STATUS_GAP = 5;
 
+    // Status badge with the dot (badge-Running 653:5453): the dot 6 at 1 + 8, gap 6
+    static constexpr int STATUS_DOT = 6;
+    static constexpr int STATUS_DOT_GAP = 6;
+
     // Fact pill: border 1, paddings 9 / 11 inside of it, icon 13, gap 6, height 25
     // (pill-Open source 111:2227: the icon at 10, the label 12 px before the end)
     static constexpr int PILL_HEIGHT = 25;
@@ -159,7 +163,8 @@ QSize PDFComponentPainter::getStatusBadgeSize(const StatusBadge& badge)
 {
     using Helper = PDFComponentBadgePainterHelper;
     const int textWidth = Helper::textWidth(badge.text, Helper::statusFont());
-    return QSize(2 * Helper::STATUS_BORDER + Helper::STATUS_LEADING + Helper::STATUS_ICON + Helper::STATUS_GAP + textWidth + Helper::STATUS_TRAILING, Helper::STATUS_HEIGHT);
+    const int markWidth = badge.dot ? Helper::STATUS_DOT + Helper::STATUS_DOT_GAP : Helper::STATUS_ICON + Helper::STATUS_GAP;
+    return QSize(2 * Helper::STATUS_BORDER + Helper::STATUS_LEADING + markWidth + textWidth + Helper::STATUS_TRAILING, Helper::STATUS_HEIGHT);
 }
 
 void PDFComponentPainter::paintStatusBadge(QPainter* painter, const QRectF& rect, const StatusBadge& badge, const State& state)
@@ -184,17 +189,29 @@ void PDFComponentPainter::paintStatusBadge(QPainter* painter, const QRectF& rect
     PDFStylePainter::strokeInside(painter, rect, radii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Border), 1.0);
 
     const Color color = PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Icon);
-    const qreal iconLeft = rect.left() + Helper::STATUS_BORDER + Helper::STATUS_LEADING;
-    const QRectF iconRect = Helper::line(rect, iconLeft, Helper::STATUS_ICON, Helper::STATUS_ICON);
-    if (!badge.iconName.isEmpty())
+    const Color textColor = (badge.textColor.has_value() && Helper::isValidColor(*badge.textColor)) ? *badge.textColor : color;
+    const qreal markLeft = rect.left() + Helper::STATUS_BORDER + Helper::STATUS_LEADING;
+    qreal textLeft = 0.0;
+    if (badge.dot)
     {
-        PDFStylePainter::icon(painter, state.visualRect(rect, iconRect), badge.iconName, Helper::icon(state, color));
+        // The dot of 6 px centered vertically (y 7.5 of the badge 21)
+        const QRectF dotRect(markLeft, rect.top() + (rect.height() - Helper::STATUS_DOT) / 2.0, Helper::STATUS_DOT, Helper::STATUS_DOT);
+        PDFStylePainter::fillEllipse(painter, state.visualRect(rect, dotRect), PDFStylePainter::color(Helper::icon(state, color)));
+        textLeft = dotRect.right() + Helper::STATUS_DOT_GAP;
+    }
+    else
+    {
+        const QRectF iconRect = Helper::line(rect, markLeft, Helper::STATUS_ICON, Helper::STATUS_ICON);
+        if (!badge.iconName.isEmpty())
+        {
+            PDFStylePainter::icon(painter, state.visualRect(rect, iconRect), badge.iconName, Helper::icon(state, color));
+        }
+        textLeft = iconRect.right() + Helper::STATUS_GAP;
     }
 
-    const qreal textLeft = iconRect.right() + Helper::STATUS_GAP;
     const qreal textWidth = rect.right() - Helper::STATUS_BORDER - Helper::STATUS_TRAILING - textLeft;
     drawElidedText(painter, state, state.visualRect(rect, QRectF(textLeft, rect.top(), qMax<qreal>(0.0, textWidth), rect.height())), badge.text, Helper::statusFont(),
-                   Helper::text(state, color));
+                   Helper::text(state, textColor));
 }
 
 QSize PDFComponentPainter::getFactPillSize(const FactPill& pill)
@@ -331,12 +348,17 @@ void PDFComponentPainter::paintStatusRow(QPainter* painter, const QRectF& rect, 
 
 void PDFComponentPainter::paintTintedCard(QPainter* painter, const QRectF& rect, std::optional<PDFAccentHue> hue)
 {
+    paintTintedCard(painter, rect, hue, TINTED_CARD_RADIUS);
+}
+
+void PDFComponentPainter::paintTintedCard(QPainter* painter, const QRectF& rect, std::optional<PDFAccentHue> hue, qreal radius)
+{
     if (!painter || !PDFComponentBadgePainterHelper::isDrawable(rect))
     {
         return;
     }
 
-    const PDFStylePainter::Radii radii(TINTED_CARD_RADIUS);
+    const PDFStylePainter::Radii radii(radius > 0.0 ? radius : 0.0);
     const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
     if (hue.has_value())

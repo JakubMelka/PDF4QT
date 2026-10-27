@@ -170,6 +170,11 @@ public:
     PDFAppFooter* getFooter() const { return m_footer; }
     PDFAppScrollArea* getPageScrollArea() const { return m_pageScrollArea; }
 
+    /// Adds a widget above the header of the workspace with the paddings of the
+    /// workspace (the waiting banner of an assistant 967:12873 - the header moves
+    /// below it); the widget keeps its own visibility (a hidden one takes no space)
+    void insertTopWidget(QWidget* widget);
+
     /// Part of the horizontal paddings of the workspace, which lies inside of the
     /// page scroll area: the width of the overlay scroll bar (it lies over the
     /// right padding, the page keeps the width of the frames), 0 without it
@@ -211,6 +216,7 @@ private:
     QPointer<PDFAppFooter> m_footer;
     QPointer<QWidget> m_pageArea;
     QPointer<QVBoxLayout> m_pageLayout;
+    QPointer<QVBoxLayout> m_workspaceLayout;
     QPointer<PDFAppScrollArea> m_pageScrollArea;
     QPointer<QBoxLayout> m_pageScrollRow;
     QPointer<PDFAppPage> m_scrolledPage;

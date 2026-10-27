@@ -123,7 +123,8 @@ public:
         Slider,         ///< Integer / Real with Control::Slider: slider and the value text
         TextField,      ///< String: text field
         Color,          ///< String with Control::Color: color button, "#RRGGBB"
-        Path            ///< String with Control::Path: text field and Browse… of a folder
+        Path,           ///< String with Control::Path: text field and Browse… of a folder
+        Segmented       ///< Option with Control::Segmented: segmented control of the options (fixed 240 x 32, segments 80 - 955:143435)
     };
 
     /// Rest after an edit of a spin box, slider or text field, before it is written
@@ -135,6 +136,8 @@ public:
     static constexpr int SLIDER_WIDTH = 180;
     static constexpr int SLIDER_SPACING = 12;
     static constexpr int PATH_SPACING = 8;
+    static constexpr int SEGMENTED_WIDTH = 240;
+    static constexpr int SEGMENTED_HEIGHT = 32;
 
     /// Longest text of a stored option shown as "… (not available)"
     static constexpr int MAXIMUM_OPTION_TEXT = 64;
@@ -172,6 +175,7 @@ public:
     QSlider* getSlider() const;
     PDFLineEdit* getLineEdit() const;
     PDFColorButton* getColorButton() const;
+    PDFSegmentedControl* getSegmentedControl() const;
 
     /// Value text of the slider ("0.75")
     PDFLabel* getValueLabel() const { return m_valueLabel; }
@@ -240,6 +244,7 @@ private:
 
     void onCheckBoxToggled(bool checked);
     void onComboBoxActivated(int index);
+    void onSegmentChanged(int index);
 
     /// Writes the item of a combo box browsed by the arrows (Enter)
     void commitBrowsedValue();
@@ -259,6 +264,7 @@ private:
     QPointer<PDFLabel> m_valueLabel;
     QPointer<QPushButton> m_browseButton;
     QTimer m_writeTimer;
+    QStringList m_segmentIds;   ///< Option ids of the segments of Kind::Segmented
     bool m_hasPendingValue = false;
     bool m_isNotAvailableShown = false;
     bool m_isBrowsing = false;

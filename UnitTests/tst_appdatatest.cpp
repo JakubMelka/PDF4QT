@@ -48,6 +48,8 @@
 #include "pdfapptoolstate.h"
 #include "pdfdocumenttoolsuggestions.h"
 #include "pdfworkspacerepository.h"
+#include "pdfmcprepository.h"
+#include "pdfmcpassistants.h"
 #include "pdfdocumenttoolusage.h"
 #include "pdftoolparameterrepository.h"
 #include "testdocumenttool.h"
@@ -59,6 +61,8 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainter>
 #include <QProcess>
 #include <QSet>
@@ -472,6 +476,10 @@ public:
         {
             return runToolUsage(arguments[2], arguments[3].toInt());
         }
+        if (arguments.size() >= 4 && arguments[1] == QLatin1String("--appdata-mcp-claim"))
+        {
+            return runMcpClaim(arguments[2], arguments[3]);
+        }
         if (arguments.size() >= 2 && arguments[1] == QLatin1String("--appdata-exit"))
         {
             return 0;
@@ -542,6 +550,36 @@ public:
         }
         database.close();
         return 0;
+    }
+
+    /// Claims the row of the MCP server (step 7) and keeps it alive for a while:
+    /// exit 0 = claimed, 6 = another live owner. The row is not released (the
+    /// owner "crashes").
+    static int runMcpClaim(const QString& databasePath, const QString& instance)
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        if (database.getState().mode != pdf::PDFDatabaseStorageMode::Disk)
+        {
+            return 3;
+        }
+
+        pdf::PDFMcpRepository repository(&database);
+        bool claimed = false;
+        if (repository.claimServer(instance, QCoreApplication::applicationPid(), 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError())
+        {
+            database.close();
+            return 4;
+        }
+
+        // The winner lives with its heartbeat, so the other process sees a live owner
+        for (int i = 0; claimed && i < 30 * AppDataTestHelper::getTimeoutFactor(); ++i)
+        {
+            repository.heartbeat(instance);
+            QThread::msleep(100);
+        }
+        database.close();
+        return claimed ? 0 : 6;
     }
 
     static int runThumbnailCrash(const QString& databasePath, const QString& path)
@@ -615,6 +653,10 @@ private slots:
     void toolUsageRecording();
     void toolUsageTwoProcesses();
     void toolParameterValues();
+    void mcpRepository();
+    void mcpHostileRows();
+    void mcpTwoProcesses();
+    void mcpStaleWaitingRows();
     void schemaMigration();
     void notificationsOfAnotherConnection();
     void notificationsOfAnotherProcess();
@@ -5209,6 +5251,361 @@ void AppDataTest::toolParameterValues()
     QCOMPARE(none.getValues(toolId, definitions), defaults);
     QVERIFY(none.setValues(toolId, definitions, values).isError());
     QVERIFY(none.clearValues(toolId).isError());
+}
+
+void AppDataTest::mcpRepository()
+{
+    // Storage of the MCP server (step 7, plan 6): the row of the owner, the
+    // clients, the activity and the requests of other instances
+    DataFixture fixture;
+    pdf::PDFDatabaseNotifier notifier(fixture.database.get());
+    notifier.setPollInterval(20);
+    QSignalSpy spy(&notifier, &pdf::PDFDatabaseNotifier::changed);
+
+    const qint64 pid = QCoreApplication::applicationPid();
+    pdf::PDFMcpRepository repository(fixture.database.get());
+    repository.setCurrentTime(1000000);
+    QVERIFY(!repository.getServer().exists);
+
+    // Claim, state, heartbeat (not logged), release
+    bool claimed = false;
+    QVERIFY(!repository.claimServer(QStringLiteral("first"), pid, 8765, pdf::PDFMcpServerRowState::Starting, QStringLiteral("http://127.0.0.1:8765/mcp"), &claimed).isError());
+    QVERIFY(claimed);
+    pdf::PDFMcpServerRow row = repository.getServer();
+    QVERIFY(row.exists);
+    QCOMPARE(row.instance, QStringLiteral("first"));
+    QCOMPARE(row.pid, pid);
+    QCOMPARE(row.port, 8765);
+    QCOMPARE(row.state, pdf::PDFMcpServerRowState::Starting);
+    QCOMPARE(row.address, QStringLiteral("http://127.0.0.1:8765/mcp"));
+    QCOMPARE(row.heartbeat, qint64(1000000));
+    QVERIFY(row.isAlive(1000000 + pdf::PDFMcpRepository::STALE_TIME, pdf::PDFMcpRepository::STALE_TIME));
+    QVERIFY(!row.isAlive(1000001 + pdf::PDFMcpRepository::STALE_TIME, pdf::PDFMcpRepository::STALE_TIME));
+    QTRY_VERIFY(!spy.isEmpty());
+    QCOMPARE(spy.last().value(0).toString(), pdf::PDFMcpRepository::getServerTopic());
+
+    QVERIFY(!repository.setServerState(QStringLiteral("first"), pdf::PDFMcpServerRowState::Running, 9000, QStringLiteral("http://192.168.1.24:9000/mcp")).isError());
+    QCOMPARE(repository.getServer().state, pdf::PDFMcpServerRowState::Running);
+    QCOMPARE(repository.getServer().port, 9000);
+    QVERIFY(repository.setServerState(QStringLiteral("first"), pdf::PDFMcpServerRowState::Running, 70000, QString()).isError());
+
+    // Another live instance cannot claim it; the owner itself can
+    pdf::PDFMcpRepository other(fixture.database.get());
+    other.setCurrentTime(1005000);
+    QVERIFY(!other.claimServer(QStringLiteral("second"), pid, 8766, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(!claimed);
+    QVERIFY(!repository.claimServer(QStringLiteral("first"), pid, 9000, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+
+    // The heartbeat of the owner only; it is not a change of the notifier
+    QTest::qWait(100);
+    spy.clear();
+    repository.setCurrentTime(1008000);
+    bool isOwner = false;
+    QVERIFY(!repository.heartbeat(QStringLiteral("first"), &isOwner).isError());
+    QVERIFY(isOwner);
+    QCOMPARE(repository.getServer().heartbeat, qint64(1008000));
+    QVERIFY(!other.heartbeat(QStringLiteral("second"), &isOwner).isError());
+    QVERIFY(!isOwner);
+    QTest::qWait(200);
+    QVERIFY(spy.isEmpty());
+
+    // A stale heartbeat (also of a process, which runs) frees the row and drops the clients
+    pdf::PDFMcpClientRow client;
+    client.key = QStringLiteral("a:0123456789abcdef0123456789abcdef");
+    client.name = QStringLiteral("Claude Code");
+    client.address = QStringLiteral("127.0.0.1");
+    client.connected = 1008000;
+    QVERIFY(!repository.upsertClient(client).isError());
+    other.setCurrentTime(1008000 + pdf::PDFMcpRepository::STALE_TIME + 1);
+    QVERIFY(!other.claimServer(QStringLiteral("second"), pid, 8766, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    QCOMPARE(repository.getServer().instance, QStringLiteral("second"));
+    QVERIFY(repository.getClients().empty());
+    QVERIFY(!repository.heartbeat(QStringLiteral("first"), &isOwner).isError());
+    QVERIFY(!isOwner);
+
+    // Release: only the owner, the clients are deleted
+    QVERIFY(!other.upsertClient(client).isError());
+    QVERIFY(!repository.releaseServer(QStringLiteral("first")).isError());
+    QCOMPARE(repository.getServer().state, pdf::PDFMcpServerRowState::Running);
+    QCOMPARE(repository.getClients().size(), size_t(1));
+    QVERIFY(!other.releaseServer(QStringLiteral("second")).isError());
+    QCOMPARE(repository.getServer().state, pdf::PDFMcpServerRowState::Stopped);
+    QVERIFY(repository.getClients().empty());
+    QVERIFY(!repository.claimServer(QStringLiteral("first"), pid, 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    QVERIFY(repository.claimServer(QString(), pid, 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(repository.claimServer(QStringLiteral("x"), pid, -1, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+
+    // Clients: upsert, order, removal; invalid keys refused
+    pdf::PDFMcpClientRow second = client;
+    second.key = QStringLiteral("s:ffffffffffffffffffffffffffffffff");
+    second.name = QStringLiteral("Codex CLI");
+    second.connected = 5;
+    QVERIFY(!repository.upsertClient(client).isError());
+    QVERIFY(!repository.upsertClient(second).isError());
+    client.name = QStringLiteral("Claude Code 2");
+    QVERIFY(!repository.upsertClient(client).isError());
+    std::vector<pdf::PDFMcpClientRow> clients = repository.getClients();
+    QCOMPARE(clients.size(), size_t(2));
+    QCOMPARE(clients[0].key, second.key);
+    QCOMPARE(clients[1].name, QStringLiteral("Claude Code 2"));
+    pdf::PDFMcpClientRow invalid = client;
+    invalid.key = QStringLiteral("raw-token");
+    QVERIFY(repository.upsertClient(invalid).isError());
+    QVERIFY(!repository.removeClient(second.key).isError());
+    QCOMPARE(repository.getClients().size(), size_t(1));
+    QVERIFY(!repository.clearClients().isError());
+    QVERIFY(repository.getClients().empty());
+
+    // Activity: a batch, the newest first, a status change, Clear keeps waiting rows
+    std::vector<pdf::PDFMcpActivityRow> rows;
+    for (int i = 0; i < 3; ++i)
+    {
+        pdf::PDFMcpActivityRow activity;
+        activity.time = 1000000 + i;
+        activity.client = QStringLiteral("Claude Code");
+        activity.action = QStringLiteral("text.get_text");
+        activity.document = QStringLiteral("Report.pdf");
+        activity.detail = QJsonObject({ { QStringLiteral("pages"), QStringLiteral("1–2") } });
+        activity.status = i == 2 ? pdf::PDFMcpActivityStatus::Waiting : pdf::PDFMcpActivityStatus::Ok;
+        rows.push_back(activity);
+    }
+    std::vector<qint64> ids;
+    QVERIFY(!repository.addActivity(rows, &ids).isError());
+    QCOMPARE(ids.size(), size_t(3));
+    std::vector<pdf::PDFMcpActivityRow> read = repository.getActivity(10);
+    QCOMPARE(read.size(), size_t(3));
+    QCOMPARE(read.front().id, ids.back());
+    QCOMPARE(read.front().status, pdf::PDFMcpActivityStatus::Waiting);
+    QCOMPARE(read.back().detail.value(QStringLiteral("pages")).toString(), QStringLiteral("1–2"));
+    QVERIFY(!repository.updateActivity(ids.back(), pdf::PDFMcpActivityStatus::Allowed, QJsonObject({ { QStringLiteral("count"), 3 } })).isError());
+    QCOMPARE(repository.getActivity(1).front().status, pdf::PDFMcpActivityStatus::Allowed);
+    QCOMPARE(repository.getActivity(1).front().detail.value(QStringLiteral("count")).toInt(), 3);
+    QVERIFY(!repository.updateActivity(ids.back(), pdf::PDFMcpActivityStatus::Waiting).isError());
+    QVERIFY(!repository.clearActivity().isError());
+    QCOMPARE(repository.getActivity(10).size(), size_t(1));
+    QVERIFY(repository.getActivity(0).empty());
+
+    pdf::PDFMcpActivityRow invalidActivity = rows.front();
+    invalidActivity.action = QStringLiteral("DROP TABLE");
+    QVERIFY(repository.addActivity({ invalidActivity }).isError());
+
+    // A detail is bounded to 4 KiB
+    QJsonObject bigDetail;
+    for (int i = 0; i < 100; ++i)
+    {
+        bigDetail.insert(QStringLiteral("key%1").arg(i, 3, 10, QLatin1Char('0')), QString(500, QLatin1Char('x')));
+    }
+    QVERIFY(QJsonDocument(pdf::PDFMcpRepository::boundDetail(bigDetail)).toJson(QJsonDocument::Compact).size() <= pdf::PDFMcpRepository::MAXIMUM_DETAIL_SIZE);
+
+    // Trim: 500 rows, 30 days
+    std::vector<pdf::PDFMcpActivityRow> many(600, rows.front());
+    for (size_t i = 0; i < many.size(); ++i)
+    {
+        many[i].time = 2000000 + qint64(i);
+    }
+    repository.setCurrentTime(2000000 + 600);
+    QVERIFY(!repository.addActivity(many).isError());
+    QCOMPARE(repository.getActivity(1000).size(), size_t(pdf::PDFMcpRepository::MAXIMUM_ACTIVITY_ROWS));
+    repository.setCurrentTime(2000000 + pdf::PDFMcpRepository::MAXIMUM_ACTIVITY_AGE + 1000);
+    QVERIFY(!repository.addActivity({ rows.front() }).isError());
+    std::vector<pdf::PDFMcpActivityRow> remaining = repository.getActivity(1000);
+    for (const pdf::PDFMcpActivityRow& activity : remaining)
+    {
+        QVERIFY(activity.status == pdf::PDFMcpActivityStatus::Waiting || activity.time >= 2000000 + 1000);
+    }
+
+    // Requests: posted, taken once, old ones dropped
+    repository.setCurrentTime(3000000);
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::Disconnect, client.key).isError());
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::DisconnectAll).isError());
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::ShowWindow).isError());
+    QVERIFY(repository.postRequest(pdf::PDFMcpRequestKind::Disconnect, QStringLiteral("bad")).isError());
+    repository.setCurrentTime(3000000 - pdf::PDFMcpRepository::REQUEST_LIFETIME - 1);
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::ShowWindow).isError());
+    repository.setCurrentTime(3000010);
+    const std::vector<pdf::PDFMcpRequestRow> requests = repository.takeRequests();
+    QCOMPARE(requests.size(), size_t(3));
+    QCOMPARE(requests[0].kind, pdf::PDFMcpRequestKind::Disconnect);
+    QCOMPARE(requests[0].key, client.key);
+    QCOMPARE(requests[1].kind, pdf::PDFMcpRequestKind::DisconnectAll);
+    QCOMPARE(requests[2].kind, pdf::PDFMcpRequestKind::ShowWindow);
+    QVERIFY(repository.takeRequests().empty());
+
+    // Names
+    QCOMPARE(pdf::PDFMcpRepository::getStatusFromName(QStringLiteral("denied_timeout")), pdf::PDFMcpActivityStatus::DeniedTimeout);
+    QCOMPARE(pdf::PDFMcpRepository::getStatusFromName(QStringLiteral("whatever")), pdf::PDFMcpActivityStatus::Failed);
+    QCOMPARE(pdf::PDFMcpRepository::getStatusName(pdf::PDFMcpActivityStatus::DeniedDialog), QStringLiteral("denied_dialog"));
+    QCOMPARE(pdf::PDFMcpRepository::getStateFromName(QStringLiteral("whatever")), pdf::PDFMcpServerRowState::Stopped);
+
+    // No database
+    pdf::PDFMcpRepository none(nullptr);
+    QVERIFY(!none.getServer().exists);
+    QVERIFY(none.getClients().empty());
+    QVERIFY(none.addActivity({ rows.front() }).isError());
+    QVERIFY(none.takeRequests().empty());
+}
+
+void AppDataTest::mcpHostileRows()
+{
+    // Rows of another version or of a hostile writer are bounded and sanitized
+    DataFixture fixture;
+    pdf::PDFMcpRepository repository(fixture.database.get());
+    repository.setCurrentTime(5000000);
+
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO mcp_server(id, instance, pid, port, state, address, heartbeat) VALUES (1, x'00ff', 'pid', 999999, 'exploded', "
+        "'http://evil' || char(8238) || '/mcp' || hex(zeroblob(2000)), 'now')"));
+    pdf::PDFMcpServerRow row = repository.getServer();
+    QVERIFY(row.exists);
+    QVERIFY(row.instance.isEmpty());
+    QCOMPARE(row.pid, qint64(0));
+    QCOMPARE(row.port, 0);
+    QCOMPARE(row.state, pdf::PDFMcpServerRowState::Stopped);
+    QVERIFY(row.address.size() <= pdf::PDFMcpRepository::MAXIMUM_ADDRESS_LENGTH);
+    QVERIFY(!row.address.contains(QChar(0x202E)));
+    QCOMPARE(row.heartbeat, qint64(0));
+    bool claimed = false;
+    QVERIFY(!repository.claimServer(QStringLiteral("mine"), QCoreApplication::applicationPid(), 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO mcp_client(session, name, address, connected) VALUES "
+        "('raw-token-abc', 'x', 'y', 1), "
+        "('a:0123456789abcdef0123456789abcdef', 'Evil' || char(8238) || char(7) || hex(zeroblob(500)), 42, 'yesterday'), "
+        "('s:00000000000000000000000000000000', NULL, NULL, -5), "
+        "(x'61', 'blob key', '', 1)"));
+    const std::vector<pdf::PDFMcpClientRow> clients = repository.getClients();
+    QCOMPARE(clients.size(), size_t(2));
+    for (const pdf::PDFMcpClientRow& client : clients)
+    {
+        QVERIFY(pdf::PDFMcpAssistantRegistry::isValidKey(client.key));
+        QVERIFY(client.name.size() <= pdf::PDFMcpRepository::MAXIMUM_NAME_LENGTH);
+        QVERIFY(!client.name.isEmpty());
+        QVERIFY(!client.name.contains(QChar(0x202E)));
+        QVERIFY(client.connected >= 0);
+    }
+
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO mcp_activity(time, client, action, document, detail, status) VALUES "
+        "('soon', 'C', 'text.get_text', 'D', '{\"pages\":\"1\"}', 'ok'), "
+        "(5, 'C', 'DROP TABLE x', 'D', 'not json', 'exploded'), "
+        "(6, x'00', NULL, NULL, '[1,2]', x'00'), "
+        "(7, 'C', 'files.save', 'D' || char(8238), '{\"reason\":' || quote(hex(zeroblob(3000))) || '}', 'denied_user')"));
+    const std::vector<pdf::PDFMcpActivityRow> activity = repository.getActivity(100);
+    QCOMPARE(activity.size(), size_t(4));
+    for (const pdf::PDFMcpActivityRow& item : activity)
+    {
+        QVERIFY(item.action.isEmpty() || pdf::PDFMcpRepository::isValidAction(item.action));
+        QVERIFY(!item.document.contains(QChar(0x202E)));
+        QVERIFY(QJsonDocument(item.detail).toJson(QJsonDocument::Compact).size() <= pdf::PDFMcpRepository::MAXIMUM_DETAIL_SIZE);
+    }
+    QCOMPARE(activity.back().status, pdf::PDFMcpActivityStatus::Ok);  // the text time sorts last
+    bool hasFailed = false;
+    for (const pdf::PDFMcpActivityRow& item : activity)
+    {
+        hasFailed = hasFailed || item.status == pdf::PDFMcpActivityStatus::Failed;
+    }
+    QVERIFY(hasFailed);
+
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(),
+        "INSERT INTO mcp_request(kind, session, created) VALUES "
+        "('format-disk', NULL, 5000000), ('disconnect', 'raw', 5000000), ('disconnect-all', NULL, 'now'), "
+        "('show-window', NULL, 99999999999), ('disconnect-all', NULL, 5000000)"));
+    const std::vector<pdf::PDFMcpRequestRow> requests = repository.takeRequests();
+    QCOMPARE(requests.size(), size_t(1));
+    QCOMPARE(requests.front().kind, pdf::PDFMcpRequestKind::DisconnectAll);
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM mcp_request"), qint64(0));
+}
+
+void AppDataTest::mcpTwoProcesses()
+{
+    // Two processes claim the row of the server at once: one wins (the other
+    // sees a live owner); after both ended the row of a process, which does not
+    // run, is stale and claimed again
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    {
+        pdf::PDFDatabase database;
+        database.open(AppDataTestHelper::createFileOptions(databasePath));
+        QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+        database.close();
+    }
+
+    const int factor = AppDataTestHelper::getTimeoutFactor();
+    for (int round = 0; round < 3; ++round)
+    {
+        QProcess first;
+        QProcess second;
+        first.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-mcp-claim"), databasePath, QStringLiteral("first-%1").arg(round) });
+        second.start(QCoreApplication::applicationFilePath(), { QStringLiteral("--appdata-mcp-claim"), databasePath, QStringLiteral("second-%1").arg(round) });
+        QVERIFY(first.waitForFinished(30000 * factor));
+        QVERIFY(second.waitForFinished(30000 * factor));
+        QCOMPARE(first.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(second.exitStatus(), QProcess::NormalExit);
+
+        // 0 = claimed, 6 = another live owner
+        const QList<int> codes = { first.exitCode(), second.exitCode() };
+        QVERIFY2(codes.contains(0) && codes.contains(6), qPrintable(QStringLiteral("%1 %2").arg(codes[0]).arg(codes[1])));
+    }
+
+    // The owner ended without a release: its process does not run, the row is free
+    pdf::PDFDatabase database;
+    database.open(AppDataTestHelper::createFileOptions(databasePath));
+    pdf::PDFMcpRepository repository(&database);
+    const pdf::PDFMcpServerRow row = repository.getServer();
+    QVERIFY(row.instance.startsWith(QStringLiteral("first-")) || row.instance.startsWith(QStringLiteral("second-")));
+    QVERIFY(!pdf::PDFAppProcessInfo::isProcessRunning(row.pid));
+    bool claimed = false;
+    QVERIFY(!repository.claimServer(QStringLiteral("test"), QCoreApplication::applicationPid(), 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+
+    // The heartbeat decides for a process, which runs: fresh = alive, older than 10 s = stale
+    pdf::PDFMcpRepository later(&database);
+    later.setCurrentTime(repository.getServer().heartbeat + pdf::PDFMcpRepository::STALE_TIME - 1);
+    QVERIFY(!later.claimServer(QStringLiteral("later"), QCoreApplication::applicationPid(), 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(!claimed);
+    later.setCurrentTime(repository.getServer().heartbeat + pdf::PDFMcpRepository::STALE_TIME + 1);
+    QVERIFY(!later.claimServer(QStringLiteral("later"), QCoreApplication::applicationPid(), 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    database.close();
+}
+
+void AppDataTest::mcpStaleWaitingRows()
+{
+    // Review RW7-0: only the owner asks the user, so the waiting rows of an owner,
+    // which is gone (a crash), never get their answer - a new owner ends them
+    // (they would wait forever, kept by Clear and by the trim); the owner itself
+    // keeps its own waiting rows when it claims the row again
+    DataFixture fixture;
+    const qint64 pid = QCoreApplication::applicationPid();
+    pdf::PDFMcpRepository repository(fixture.database.get());
+    repository.setCurrentTime(1000000);
+    bool claimed = false;
+    QVERIFY(!repository.claimServer(QStringLiteral("crashed"), pid, 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+
+    pdf::PDFMcpActivityRow activity;
+    activity.time = 1000000;
+    activity.client = QStringLiteral("Claude Code");
+    activity.action = QStringLiteral("annotations.add");
+    activity.status = pdf::PDFMcpActivityStatus::Waiting;
+    QVERIFY(!repository.addActivity({ activity }).isError());
+
+    QVERIFY(!repository.claimServer(QStringLiteral("crashed"), pid, 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    QCOMPARE(repository.getActivity(10).front().status, pdf::PDFMcpActivityStatus::Waiting);
+
+    pdf::PDFMcpRepository next(fixture.database.get());
+    next.setCurrentTime(1000000 + pdf::PDFMcpRepository::STALE_TIME + 1);
+    QVERIFY(!next.claimServer(QStringLiteral("next"), pid, 8765, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    const std::vector<pdf::PDFMcpActivityRow> rows = next.getActivity(10);
+    QCOMPARE(rows.size(), size_t(1));
+    QCOMPARE(rows.front().status, pdf::PDFMcpActivityStatus::DeniedStopped);
 }
 
 int main(int argc, char* argv[])

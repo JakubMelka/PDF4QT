@@ -254,6 +254,28 @@ bool AppSettingsFixture::setControlValue(pdf::PDFAppSettingRow* row, const QVari
             Q_EMIT button->colorSelected(color);
             break;
         }
+
+        case Kind::Segmented:
+        {
+            // A click on the segment of the option (the page AI, step 7)
+            pdf::PDFSegmentedControl* segmented = control->getSegmentedControl();
+            const std::vector<pdf::PDFSettingOption> options = control->getDefinition().getOptions();
+            int index = -1;
+            for (size_t i = 0; i < options.size(); ++i)
+            {
+                if (options[i].id == value.toString())
+                {
+                    index = int(i);
+                }
+            }
+            const QList<QAbstractButton*> buttons = segmented->findChildren<QAbstractButton*>();
+            if (index < 0 || index >= buttons.size())
+            {
+                return false;
+            }
+            QTest::mouseClick(buttons[index], Qt::LeftButton);
+            break;
+        }
     }
 
     settle();

@@ -85,3 +85,34 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Today:** the tools of the new application (`PDFDocumentToolPageSelection`, step 6 package D) check the characters, at most one '-' per part and 10 digits per number before they call it, and check the result against the pages of the document.
 - **Also (review RS6):** `getTotalLength` sums by `std::accumulate(..., 0, ...)` - the accumulator is an `int`, so a set longer than 2^31 values has a wrong (truncated) length, and `unfold` allocates that length but writes every value (heap overflow: "1-4294967302" has the length 6, unfold writes 4294967302 values - reproduced as a crash). Callers comparing lengths (`pdfdocumentmanipulator.cpp`, `pdfsignaturehandler.cpp`) get wrong answers for such sets. Step 6 code compares the sets instead (`PDFDocumentToolParameterHelper::parsePages`).
 - **Fix:** the bounds check of the documentation inside of `parse` (an error for a number outside of `first` .. `last`, at most one '-' per part), `PDFInteger(0)` as the initial value of `getTotalLength` with a saturated sum, `unfold` refusing a set longer than a limit, tests with the hostile ranges of `UnitTestsDocumentTool::pageSelection`.
+
+### 13. MCP server: no TLS in the remote mode
+
+- **Where:** `Pdf4QtLibMcp` (`PDFMcpListener`, `PDFMcpConnection`), the remote mode of the AI page (step 7, plan chapter 7).
+- **Attack:** with "Allow connections from other computers" the requests, the results (document text, rendered pages) and the access token travel as plain HTTP; anyone on the network path reads them and can replay the token.
+- **Today:** the AI page shows the warning row and the remote note; the token is always required in the remote mode.
+- **Fix:** `QSslServer` with a certificate of the user (or a generated self-signed one with its fingerprint shown for pinning), the token only over TLS.
+
+### 14. `PDFJsonHelper` used for untrusted input
+
+- **Where:** `PDFJsonHelper` (`pdfjsonhelper.h`, Core) and its callers outside of the MCP server.
+- **Problem:** the helper is tolerant by design (wrong types become defaults, numbers are read through doubles); the MCP server reads untrusted JSON only by the strict `PDFMcpJsonReader` (plan 2.2), but other places may parse files or messages of other processes by the tolerant helper.
+- **Fix:** an audit of the callers; untrusted input by a strict reader (types, ranges, lengths, exact integers), the tolerant helper only for own outputs.
+
+### 15. MCP Host allowlist without network change notifications
+
+- **Where:** `PDFMcpDispatcher::refreshAllowedHosts` (remote mode).
+- **Problem:** the allowed `Host` values of the remote mode are the addresses of the interfaces at the start; `QNetworkInformation` is unavailable on some Linux desktops, so a new address is learned only on a miss (refreshed at most once per second). A request to a new address arriving within that second is refused (403), and an address removed from the computer stays allowed until the next refresh.
+- **Fix:** refresh on `QNetworkInformation` changes where the backend exists, and on a timer otherwise.
+
+### 16. Clipboard history of copied MCP tokens
+
+- **Where:** the AI page (*Copy* of the access token, *Copy Command* / *Copy Configuration* with the token).
+- **Problem:** Windows clipboard history (Win+V), cloud clipboard sync and clipboard managers of Linux desktops keep the copied token after the user pasted it.
+- **Fix:** mark the copied data as excluded from the history (`ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory` = 0 on Windows, `x-kde-passwordManagerHint` on KDE), clear the clipboard after a while if it still holds the token.
+
+### 17. Shell history of MCP setup commands
+
+- **Where:** the setup cards of the AI page (`claude mcp add ... --header "Authorization: Bearer <token>"`, `gemini mcp add ...`).
+- **Problem:** a command pasted into a shell with the token stays in the shell history file (bash, PowerShell PSReadLine) readable by other programs of the user.
+- **Fix:** commands, which read the token from an environment variable or a file, or a note to prefix the command by a space (bash `HISTCONTROL=ignorespace`); the help topic already warns (plan 4.5).

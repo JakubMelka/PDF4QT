@@ -122,6 +122,7 @@ private slots:
     void systemColorScheme();
     void leakPalette();
     void fonts();
+    void monospaceFont();
     void icons();
     void pixelMetrics_data();
     void pixelMetrics();
@@ -535,6 +536,39 @@ void WidgetStyleTest::fonts()
     const QString sample = QStringLiteral("Browse Files");
     QVERIFY(pdf::PDFStylePainter::textWidth(sample, pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodySemiBold)) >
             pdf::PDFStylePainter::textWidth(sample, pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body)));
+}
+
+void WidgetStyleTest::monospaceFont()
+{
+    // JetBrains Mono of the library (owner decision Q5 of step 7) - the bundled
+    // static Regular file of the release with its license
+    QVERIFY(QFile::exists(QStringLiteral(":/pdf4qtfluent/fonts/JetBrainsMono-Regular.ttf")));
+    QVERIFY(QFile::exists(QStringLiteral(":/pdf4qtfluent/fonts/JetBrainsMono-LICENSE.txt")));
+
+    QVERIFY(pdf::PDFThemeFonts::loadFonts());
+    QCOMPARE(pdf::PDFThemeFonts::getMonospaceFamily(), QStringLiteral("JetBrains Mono"));
+
+    for (int pixelSize : { 12, 13 })
+    {
+        const QFont font = pdf::PDFThemeFonts::getMonospaceFont(QFont::Normal, pixelSize);
+        QCOMPARE(font.pixelSize(), pixelSize);
+        QCOMPARE(font.weight(), QFont::Normal);
+
+        const QFontInfo info(font);
+        QCOMPARE(info.family(), QStringLiteral("JetBrains Mono"));
+        QVERIFY(info.fixedPitch());
+
+        // Fixed pitch: every character has the same advance
+        const QFontMetricsF metrics(font);
+        QCOMPARE(metrics.horizontalAdvance(QStringLiteral("iiiiiiiiii")), metrics.horizontalAdvance(QStringLiteral("WWWWWWWWWW")));
+        QCOMPARE(metrics.horizontalAdvance(QStringLiteral("http://127.0.0.1:")), metrics.horizontalAdvance(QStringLiteral("MMMMMMMMMMMMMMMMM")));
+    }
+
+    // The font of the user interface stays Inter
+    QCOMPARE(pdf::PDFThemeFonts::getFamily(), QStringLiteral("Inter"));
+    QCOMPARE(QFontInfo(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body)).family(), QStringLiteral("Inter"));
+    QVERIFY(!QFontInfo(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Body)).fixedPitch());
+    QCOMPARE(QApplication::font().family(), QStringLiteral("Inter"));
 }
 
 void WidgetStyleTest::icons()

@@ -143,7 +143,7 @@ void PDFAppSettingRow::init(const QString& title, const QString& description, co
     // control-wrap 146:3355: 260 wide, the control at its leading edge
     m_controlWrap = new QWidget(this);
     m_controlWrap->setObjectName(QStringLiteral("controlWrap"));
-    m_controlWrap->setFixedWidth(CONTROL_WRAP_WIDTH);
+    m_controlWrap->setFixedWidth(m_controlWrapWidth);
     m_controlLayout = new QHBoxLayout(m_controlWrap);
     m_controlLayout->setContentsMargins(0, 0, 0, 0);
     m_controlLayout->setSpacing(0);
@@ -351,11 +351,21 @@ void PDFAppSettingRow::setHighlighted(bool highlighted)
 
 void PDFAppSettingRow::setDividerVisible(bool visible)
 {
+    visible = visible && !m_isDividerSuppressed;
     if (m_isDividerVisible != visible)
     {
         m_isDividerVisible = visible;
         updateMargins();
         update();
+    }
+}
+
+void PDFAppSettingRow::setDividerSuppressed(bool suppressed)
+{
+    m_isDividerSuppressed = suppressed;
+    if (suppressed)
+    {
+        setDividerVisible(false);
     }
 }
 
@@ -399,6 +409,25 @@ void PDFAppSettingRow::resizeEvent(QResizeEvent* event)
     updateArrangement(event->size().width());
 }
 
+void PDFAppSettingRow::setControlWrapWidth(int width)
+{
+    m_controlWrapWidth = qBound(0, width, 1024);
+    if (!m_controlWrap)
+    {
+        return;
+    }
+
+    if (m_isStacked)
+    {
+        m_controlWrap->setMinimumWidth(0);
+        m_controlWrap->setMaximumWidth(m_controlWrapWidth);
+    }
+    else
+    {
+        m_controlWrap->setFixedWidth(m_controlWrapWidth);
+    }
+}
+
 void PDFAppSettingRow::updateArrangement(int width)
 {
     const bool isStacked = width < STACK_THRESHOLD;
@@ -415,11 +444,11 @@ void PDFAppSettingRow::updateArrangement(int width)
     if (isStacked)
     {
         m_controlWrap->setMinimumWidth(0);
-        m_controlWrap->setMaximumWidth(CONTROL_WRAP_WIDTH);
+        m_controlWrap->setMaximumWidth(m_controlWrapWidth);
     }
     else
     {
-        m_controlWrap->setFixedWidth(CONTROL_WRAP_WIDTH);
+        m_controlWrap->setFixedWidth(m_controlWrapWidth);
     }
 }
 

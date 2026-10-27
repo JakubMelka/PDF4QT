@@ -76,6 +76,46 @@ public:
     QPolygonF quadrilaterals;
 };
 
+/// One annotation of PDFAppAnnotationOperations::createAnnotations (the tool
+/// annotations.add of the MCP of step 7, package C): the kind, its page, its
+/// geometry in the page space and its data
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppAnnotationItem
+{
+public:
+    enum class Kind
+    {
+        TextMarkup,     ///< markupType of quadrilaterals
+        StickyNote,     ///< icon at point (the top-left corner of the icon)
+        FreeText,       ///< data.contents in rectangle, fontSize
+        Square,         ///< rectangle
+        Circle,         ///< ellipse in rectangle
+        Line,           ///< points (2)
+        Arrow,          ///< points (2), an open arrow at the end
+        Polygon,        ///< points (3 and more)
+        Polyline,       ///< points (2 and more)
+        Ink,            ///< strokes
+        Stamp,          ///< stamp in rectangle
+        WebLink,        ///< url in rectangle
+        PageLink        ///< targetPageIndex in rectangle
+    };
+
+    Kind kind = Kind::TextMarkup;
+    PDFInteger pageIndex = -1;
+    AnnotationType markupType = AnnotationType::Highlight;
+    QPolygonF quadrilaterals;
+    QRectF rectangle;
+    QPointF point;
+    QPolygonF points;
+    std::vector<QPolygonF> strokes;
+    TextAnnotationIcon icon = TextAnnotationIcon::Comment;
+    Stamp stamp = Stamp::Approved;
+    PDFReal fontSize = 12.0;
+    QString url;
+    PDFInteger targetPageIndex = -1;
+    QString name;               ///< Unique name of the annotation (NM), empty = none
+    PDFAppNewAnnotation data;
+};
+
 /// Widget-free operations on the annotations and the outline (step 4 plan 3.1):
 /// a document and arguments in, the changed document out. The user interface of
 /// the packages A / B / C and the MCP of step 7 (change source Mcp) use the same
@@ -182,6 +222,27 @@ public:
     /// The type is a text markup created by the operations (Highlight, Underline,
     /// Squiggly, StrikeOut)
     static bool isTextMarkupType(AnnotationType type);
+
+    // ------------------------------------------------- MCP (step 7, package C)
+
+    /// Most points of a shape, of a stroke of an ink, most strokes of an ink
+    static constexpr int MAXIMUM_SHAPE_POINTS = 2000;
+    static constexpr int MAXIMUM_INK_STROKES = 50;
+
+    /// Creates the annotations of every kind of PDFAppAnnotationItem (shapes -
+    /// Square, Circle, Line with the arrow ending, Polygon, PolyLine, Ink - and
+    /// stamps with their appearance streams, text markups, notes, text boxes,
+    /// links) as one change (one undo step). An invalid item (a page, which does
+    /// not exist, a degenerate geometry, a refused link) refuses the whole change
+    /// (nullopt) and \p invalidIndex (may be nullptr) gets its index. \p created
+    /// (may be nullptr) gets the reference of every item in their order. A
+    /// canceled \p control (may be nullptr) gives nullopt. Thread safe (a worker
+    /// builds the document of a snapshot).
+    static PDFAppAnnotationResult createAnnotations(const PDFDocumentPointer& document,
+                                                    const std::vector<PDFAppAnnotationItem>& items,
+                                                    const PDFOperationControl* control,
+                                                    std::vector<PDFObjectReference>* created,
+                                                    int* invalidIndex);
 
     // ------------------------------------------------- editing (package B)
 

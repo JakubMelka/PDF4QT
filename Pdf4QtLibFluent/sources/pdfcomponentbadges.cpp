@@ -208,6 +208,31 @@ void PDFStatusBadge::setBadge(const QString& text, const QString& iconName, PDFA
     update();
 }
 
+void PDFStatusBadge::setDotVisible(bool isVisible)
+{
+    if (m_badge.dot != isVisible)
+    {
+        m_badge.dot = isVisible;
+        updateGeometry();
+        update();
+    }
+}
+
+void PDFStatusBadge::setTextColor(std::optional<PDFThemeColors::Color> color)
+{
+    // An invalid token would be drawn in the leak color
+    if (color.has_value() && (static_cast<int>(*color) < 0 || static_cast<int>(*color) >= static_cast<int>(PDFThemeColors::ColorCount)))
+    {
+        color = std::nullopt;
+    }
+
+    if (m_badge.textColor != color)
+    {
+        m_badge.textColor = color;
+        update();
+    }
+}
+
 QSize PDFStatusBadge::sizeHint() const
 {
     return PDFComponentPainter::getStatusBadgeSize(m_badge);
@@ -533,12 +558,23 @@ void PDFTintedCard::setHue(std::optional<PDFAccentHue> hue)
     }
 }
 
+void PDFTintedCard::setRadius(qreal radius)
+{
+    // NaN fails the comparison: 0
+    const qreal validRadius = radius > 0.0 ? radius : 0.0;
+    if (!qFuzzyCompare(m_radius + 1.0, validRadius + 1.0))
+    {
+        m_radius = validRadius;
+        update();
+    }
+}
+
 void PDFTintedCard::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
     QPainter painter(this);
-    PDFComponentPainter::paintTintedCard(&painter, QRectF(rect()), m_hue);
+    PDFComponentPainter::paintTintedCard(&painter, QRectF(rect()), m_hue, m_radius);
 }
 
 }   // namespace pdf

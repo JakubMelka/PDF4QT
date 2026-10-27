@@ -157,6 +157,7 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     QHBoxLayout* headLayout = new QHBoxLayout();
     headLayout->setContentsMargins(0, 0, 0, 0);
     headLayout->setSpacing(12);
+    m_headLayout = headLayout;
     PDFMessageBoxBadge* badgeWidget = new PDFMessageBoxBadge(badge, this);
     badgeWidget->setAccessibleName(getBadgeName(badge));
     headLayout->addWidget(badgeWidget, 0, Qt::AlignVCenter);
@@ -173,7 +174,7 @@ PDFMessageBox::PDFMessageBox(PDFThemeIcons::Badge badge, const QString& title, c
     // The text has the lines of the design (Regular 12 in lines of 16 px)
     m_textLabel->setLineHeight(TEXT_LINE_HEIGHT);
     m_textLabel->setWordWrap(true);
-    m_textLabel->setMinimumWidth(336);
+    m_textLabel->setMinimumWidth(TEXT_MINIMUM_WIDTH);
     m_textLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_textLabel->setVisible(!text.isEmpty());
 
@@ -327,6 +328,14 @@ void PDFMessageBox::setBadgeVisible(bool isVisible)
     }
 }
 
+void PDFMessageBox::setBadgeAlignment(Qt::Alignment alignment)
+{
+    if (m_headLayout && m_badgeWidget)
+    {
+        m_headLayout->setAlignment(m_badgeWidget, alignment & Qt::AlignVertical_Mask);
+    }
+}
+
 QString PDFMessageBox::getBadgeIconName() const
 {
     const PDFMessageBoxBadge* badge = dynamic_cast<const PDFMessageBoxBadge*>(m_badgeWidget.data());
@@ -386,7 +395,11 @@ QPushButton* PDFMessageBox::addActionButton(const QString& text, ActionPosition 
     if (isPrimary)
     {
         PDFWidgetStyleProperties::set(button, PDFWidgetStyleProperties::PRIMARY);
-        button->setDefault(true);
+        button->setDefault(!m_isNoDefaultButton);
+    }
+    if (m_inputDelay > 0)
+    {
+        button->installEventFilter(this);
     }
 
     // The own row replaces the buttons of the platform
@@ -417,6 +430,178 @@ QPushButton* PDFMessageBox::addActionButton(const QString& text, ActionPosition 
 
     m_actionButtons.append(button);
     return button;
+}
+
+void PDFMessageBox::addActionWidget(QWidget* widget)
+{
+    if (!widget || !m_actionsLayout)
+    {
+        return;
+    }
+
+    // Before the stretch (after the check box, the leading buttons and the
+    // widgets added before)
+    widget->setParent(this);
+    int stretchIndex = m_actionsLayout->count();
+    for (int i = 0; i < m_actionsLayout->count(); ++i)
+    {
+        if (m_actionsLayout->itemAt(i)->spacerItem())
+        {
+            stretchIndex = i;
+            break;
+        }
+    }
+    m_actionsLayout->insertWidget(stretchIndex, widget);
+}
+
+void PDFMessageBox::setHeadWidget(QWidget* widget)
+{
+    // An own head deleted by the application leaves the null pointer: null still
+    // gives the head of the message box back
+    const bool hasOwnHead = widget != nullptr;
+    if ((m_headWidget.data() == widget && m_hasOwnHead == hasOwnHead) || !m_headLayout)
+    {
+        return;
+    }
+
+    if (QWidget* oldWidget = m_headWidget.data())
+    {
+        m_headLayout->removeWidget(oldWidget);
+        oldWidget->hide();
+        oldWidget->deleteLater();
+    }
+
+    if (hasOwnHead && !m_hasOwnHead)
+    {
+        // The badge comes back as it was (a dialog of the design has none)
+        m_isBadgeVisibleBeforeHead = m_badgeWidget && !m_badgeWidget->isHidden();
+    }
+
+    m_headWidget = widget;
+    if (m_titleLabel)
+    {
+        m_titleLabel->setVisible(!hasOwnHead);
+    }
+    if (m_textLabel)
+    {
+        m_textLabel->setVisible(!hasOwnHead && !m_textLabel->text().isEmpty());
+
+        // The text label must not keep the card at its minimal width with an own head
+        m_textLabel->setMinimumWidth(hasOwnHead ? 0 : TEXT_MINIMUM_WIDTH);
+    }
+    if (m_badgeWidget)
+    {
+        m_badgeWidget->setVisible(hasOwnHead ? false : m_isBadgeVisibleBeforeHead);
+    }
+    m_hasOwnHead = hasOwnHead;
+
+    // The column of the hidden title and text keeps no share of the width: the
+    // stretch of an empty item still counts in the box layout, the own head would
+    // get only the trailing half of the row
+    for (int i = 0; i < m_headLayout->count(); ++i)
+    {
+        QLayoutItem* item = m_headLayout->itemAt(i);
+        if (item && item->layout())
+        {
+            m_headLayout->setStretch(i, hasOwnHead ? 0 : 1);
+        }
+    }
+
+    if (widget)
+    {
+        widget->setParent(this);
+        m_headLayout->addWidget(widget, 1);
+        widget->show();
+    }
+}
+
+void PDFMessageBox::setNoDefaultButton(bool isNoDefaultButton)
+{
+    if (m_isNoDefaultButton == isNoDefaultButton)
+    {
+        return;
+    }
+
+    m_isNoDefaultButton = isNoDefaultButton;
+    if (m_isNoDefaultButton)
+    {
+        clearDefaultButtons();
+    }
+}
+
+void PDFMessageBox::clearDefaultButtons()
+{
+    for (QPushButton* button : findChildren<QPushButton*>())
+    {
+        button->setDefault(false);
+        button->setAutoDefault(false);
+    }
+
+    // No button has the first focus (no focus ring): the card itself takes it,
+    // so Escape still reaches the message box
+    QWidget* focus = focusWidget();
+    if (!focus || focus == this || qobject_cast<QAbstractButton*>(focus))
+    {
+        setFocus(Qt::OtherFocusReason);
+    }
+}
+
+void PDFMessageBox::setInputDelay(int delay)
+{
+    m_inputDelay = qBound(0, delay, 60000);
+    if (m_inputDelay > 0)
+    {
+        watchButtonsInput();
+    }
+}
+
+bool PDFMessageBox::isInputBlocked() const
+{
+    return m_inputDelay > 0 && (!m_shownTimer.isValid() || m_shownTimer.elapsed() < m_inputDelay);
+}
+
+void PDFMessageBox::watchButtonsInput()
+{
+    // Installed again for each button (a filter installed twice acts once)
+    for (QAbstractButton* button : findChildren<QAbstractButton*>())
+    {
+        button->installEventFilter(this);
+    }
+}
+
+bool PDFMessageBox::eventFilter(QObject* watched, QEvent* event)
+{
+    if (m_inputDelay > 0 && isInputBlocked() && qobject_cast<QAbstractButton*>(watched))
+    {
+        switch (event->type())
+        {
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+            case QEvent::MouseButtonDblClick:
+            case QEvent::KeyPress:
+            case QEvent::KeyRelease:
+            case QEvent::Shortcut:
+            case QEvent::ShortcutOverride:
+                // The input of the delay is dropped (a release after it ends does
+                // not click: the button has not been pressed)
+                if (event->type() == QEvent::KeyPress)
+                {
+                    // Escape still rejects the message box
+                    const QKeyEvent* keyEvent = static_cast<const QKeyEvent*>(event);
+                    if (keyEvent->key() == Qt::Key_Escape)
+                    {
+                        return QDialog::eventFilter(watched, event);
+                    }
+                }
+                event->accept();
+                return true;
+
+            default:
+                break;
+        }
+    }
+
+    return QDialog::eventFilter(watched, event);
 }
 
 QList<QPushButton*> PDFMessageBox::getActionButtons() const
@@ -663,7 +848,20 @@ void PDFMessageBox::showEvent(QShowEvent* event)
         // Not for a window restored by the system: the focus stays, where the user has left it
         m_clickedButton = nullptr;
         m_clickedStandardButton = QDialogButtonBox::NoButton;
-        ensureDefaultButton();
+        m_shownTimer.start();
+        if (m_inputDelay > 0)
+        {
+            watchButtonsInput();
+        }
+
+        if (m_isNoDefaultButton)
+        {
+            clearDefaultButtons();
+        }
+        else
+        {
+            ensureDefaultButton();
+        }
     }
 
     QDialog::showEvent(event);
@@ -698,6 +896,13 @@ void PDFMessageBox::keyPressEvent(QKeyEvent* event)
         }
 
         QGuiApplication::clipboard()->setText(text);
+        event->accept();
+        return;
+    }
+
+    if (m_isNoDefaultButton && (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return))
+    {
+        // Enter does nothing without a default button
         event->accept();
         return;
     }

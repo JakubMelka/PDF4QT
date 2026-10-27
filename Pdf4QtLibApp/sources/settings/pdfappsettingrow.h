@@ -104,6 +104,11 @@ public:
     QWidget* getControlWrap() const { return m_controlWrap; }
     QWidget* getControlWidget() const { return m_controlWidget; }
 
+    /// Width of the control wrap (CONTROL_WRAP_WIDTH; the rows of the page AI
+    /// have the control column 320 of 653:5475)
+    int getControlWrapWidth() const { return m_controlWrapWidth; }
+    void setControlWrapWidth(int width);
+
     /// Places the widget into the control wrap (the row takes it over, a previous
     /// widget of a custom row is deleted)
     void setControlWidget(QWidget* widget);
@@ -160,6 +165,11 @@ public:
     bool isDividerVisible() const { return m_isDividerVisible; }
     void setDividerVisible(bool visible);
 
+    /// The row never has the divider (the flat warning row of the page AI
+    /// 653:6658 directly below the row above it)
+    bool isDividerSuppressed() const { return m_isDividerSuppressed; }
+    void setDividerSuppressed(bool suppressed);
+
     /// The control is below the texts (a narrow row)
     bool isStacked() const { return m_isStacked; }
 
@@ -192,8 +202,10 @@ private:
     QPointer<QWidget> m_blockWidget;
     QMargins m_padding = QMargins(PADDING_HORIZONTAL, PADDING_VERTICAL, PADDING_HORIZONTAL, PADDING_VERTICAL);
     QTimer m_highlightTimer;
+    int m_controlWrapWidth = CONTROL_WRAP_WIDTH;
     bool m_isHighlighted = false;
     bool m_isDividerVisible = false;
+    bool m_isDividerSuppressed = false;
     bool m_isStacked = false;
 };
 

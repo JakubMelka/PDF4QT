@@ -341,12 +341,20 @@ public:
     /// What's New 103:1951; a frame of Main page): a pill of the background and
     /// the border of the hue, the icon 12 and the text Semi Bold 11 in the icon
     /// color of the hue; paddings 3 / 10 / 3 / 8 inside of the border, gap 5,
-    /// height 21. Announced as a text.
+    /// height 21. The variant with the dot (the badges of the server card of the
+    /// page AI, 653:5453 Running, 653:6609 Remote access, 653:6036 Stopped) has a
+    /// dot of 6 px in the icon color of the hue instead of the icon and the gap 6.
+    /// Announced as a text.
     struct StatusBadge
     {
         QString text;
         QString iconName = QStringLiteral("check");
         PDFAccentHue hue = PDFAccentHue::Green;
+        bool dot = false;   ///< The dot of 6 px instead of the icon (gap 6)
+
+        /// Color of the label (the icon color of the hue by default; "Could not
+        /// start" 955:148639 has text/danger). An invalid value is the default.
+        std::optional<PDFThemeColors::Color> textColor;
     };
 
     /// Returns the size of the badge (its text is not elided)
@@ -426,6 +434,11 @@ public:
     /// of the hue, radius 12. Without a hue it is the plain card bg/surface with
     /// border/default.
     static void paintTintedCard(QPainter* painter, const QRectF& rect, std::optional<PDFAccentHue> hue);
+
+    /// Draws the tinted card with another radius (the callouts of the page AI
+    /// 940:136797 / 955:148979 have 8, the signature warning 958:27533 has 10);
+    /// a negative or NaN radius is 0
+    static void paintTintedCard(QPainter* painter, const QRectF& rect, std::optional<PDFAccentHue> hue, qreal radius);
 
     /// Radius of a tinted card
     static constexpr qreal TINTED_CARD_RADIUS = 12.0;
@@ -2094,6 +2107,192 @@ public:
     /// to the whole group; the hover and the press of the buttons are given by
     /// \p WindowControls::hovered and \p WindowControls::pressed.
     static void paintWindowControls(QPainter* painter, const QRectF& rect, const WindowControls& controls, const State& state);
+
+    // ================================================ page AI (step 7)
+    //
+    // Frames of the page AI of Main page (653:5231 and its states), which are not
+    // components of Figma: the avatar of an assistant, the client row, the
+    // activity row, the assistant tile and the code box of the setup card
+    // (pdfcomponentpainterassistants.cpp, widgets in pdfcomponentassistants.h).
+
+    // -------------------------------------------------------- Assistant avatar
+
+    /// Content of the avatar of an AI assistant (client avatar 955:143479, the
+    /// monogram 955:147882 of the dialogs, the logo of an assistant tile): a circle
+    /// accent/<hue>/bg without a border, the monogram Bold accent/<hue>/icon (at
+    /// most three characters, data) or, without a monogram, the icon mcp of half of
+    /// the extent. A command line client has the CLI badge 955:143481: 16 px at
+    /// (20, 20) of the avatar 32 ((22, 22) of 36), bg/surface with border/default,
+    /// radius 8 and the icon terminal 10 icon/muted; it reaches out of the circle,
+    /// so the size of the avatar includes it (32 -> 36, 36 -> 38). The circle lies
+    /// at the leading top corner of the size, the badge at its trailing bottom.
+    struct AssistantAvatar
+    {
+        QString monogram;
+        PDFAccentHue hue = PDFAccentHue::Teal;  ///< Teal is the hue of an unknown client (Other client 653:5723)
+        int extent = 32;                        ///< Diameter of the circle (32 rows, 36 dialogs and tiles)
+        int fontPixelSize = 12;                 ///< Bold 12 in 32, Bold 13 in 36
+        bool commandLine = false;               ///< The CLI badge (terminal)
+    };
+
+    /// Returns the size of the avatar: the circle and the CLI badge reaching out of it
+    static QSize getAssistantAvatarSize(const AssistantAvatar& avatar);
+
+    /// Returns the rectangle of the circle of the avatar drawn into the rectangle
+    /// (at its leading top corner, mirrored for right-to-left)
+    static QRectF getAssistantAvatarCircle(const QRectF& rect, const AssistantAvatar& avatar, const State& state);
+
+    /// Draws the avatar into the rectangle (the circle at its leading top corner)
+    static void paintAssistantAvatar(QPainter* painter, const QRectF& rect, const AssistantAvatar& avatar, const State& state);
+
+    // -------------------------------------------------------------- Client row
+
+    /// Content of a connected assistant (client row 653:5591, remote 653:6767): the
+    /// avatar 32, the name Semi Bold 13 text/primary (data) with an optional Tag
+    /// ("Remote", gap 8), the meta text Regular 11 text/muted (data) and the
+    /// disconnect Icon button 28 (icon unplug) at the trailing side; paddings
+    /// 10 / 8, gap 12, 48 high (52 with the tag). No states of the row itself.
+    struct AssistantRow
+    {
+        QString name;
+        QString meta;
+        QString tag;                ///< Text of the tag (empty: no tag)
+        AssistantAvatar avatar;
+        bool paintNested = true;    ///< Draw the disconnect button (false: a widget has the real button, its place is kept)
+        bool disconnectVisible = true;  ///< The disconnect button has its place
+    };
+
+    /// Returns the size of the row (the texts are not elided)
+    static QSize getAssistantRowSize(const AssistantRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided, the tag is not)
+    static QSize getAssistantRowMinimumSize(const AssistantRow& row);
+
+    /// Returns the rectangle of the disconnect button in the row (mirrored for right-to-left)
+    static QRectF getAssistantRowDisconnectRect(const QRectF& rect, const AssistantRow& row, const State& state);
+
+    /// Draws the row into the rectangle
+    static void paintAssistantRow(QPainter* painter, const QRectF& rect, const AssistantRow& row, const State& state);
+
+    // ------------------------------------------------------------ Activity row
+
+    /// Tone of the status of an activity row
+    enum class ActivityStatusTone
+    {
+        Secondary,  ///< text/secondary (waiting)
+        Muted,      ///< text/muted (allowed, denied, timeout, locked)
+        Danger      ///< text/danger (failed)
+    };
+
+    /// Content of an item of the recent activity (activity rows 955:147547 …):
+    /// the status circle 24 accent/<hue>/bg with the icon 12 accent/<hue>/icon, the
+    /// title Semi Bold 13 text/primary (elided) with the time Regular 11 text/muted
+    /// (gap 8), the meta text Regular 11 text/muted (data, elided) and the status
+    /// Regular 11, which wraps, followed by the inline link text Semi Bold 11
+    /// text/accent ("Waiting for your confirmation · " + "Show"); paddings 10 / 8,
+    /// gap 10, radius 8. 47 high without a status, 62 with one line of the status,
+    /// 75 with two lines (lines of 13, at most four lines, the last one elided).
+    /// A clickable row has the overlays bg/hover / bg/pressed and the focus ring
+    /// inside (the states of the other rows; Figma has none).
+    struct ActivityRow
+    {
+        QString title;
+        QString time;
+        QString meta;
+        QString status;
+        QString linkText;
+        QString iconName = QStringLiteral("check");
+        PDFAccentHue hue = PDFAccentHue::Green;
+        ActivityStatusTone statusTone = ActivityStatusTone::Muted;
+    };
+
+    /// Returns the valid tone (an invalid value is Muted)
+    static ActivityStatusTone normalized(ActivityStatusTone tone);
+
+    /// Returns the height of the row of the width (the status wraps)
+    static int getActivityRowHeight(const ActivityRow& row, int width);
+
+    /// Returns the size of the row of the default width (322)
+    static QSize getActivityRowSize(const ActivityRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided, the status wraps)
+    static QSize getActivityRowMinimumSize(const ActivityRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintActivityRow(QPainter* painter, const QRectF& rect, const ActivityRow& row, const State& state);
+
+    // ---------------------------------------------------------- Assistant tile
+
+    /// Content of a tile of the assistants (assistant tiles 653:5691 …, 184.33 x 66,
+    /// six tiles share 1166 with the gap 12): padding 14 inside of the border 1,
+    /// the logo 36 (monogram Bold 13 or the icon mcp 18 in Teal), gap 12, the name
+    /// Semi Bold 13 text/primary and the vendor Regular 11 text/muted (data), which
+    /// wraps to two lines (lines of 13). Unselected bg/surface with border/default;
+    /// selected (State_On / State_Selected) bg/surface with bg/accent-subtle over
+    /// it, the border border/focus and the check 16 icon/accent at the trailing
+    /// side. Hover and press of an unselected tile lay bg/hover / bg/pressed over
+    /// it with border/strong (the states of the cards; Figma has none). The focus
+    /// ring lies outside (radius 12) and replaces the border of an unselected tile.
+    /// The height is 66 in each state (the text block is centered).
+    struct AssistantTile
+    {
+        QString name;
+        QString vendor;
+        AssistantAvatar logo{ QString(), PDFAccentHue::Teal, 36, 13, false };
+    };
+
+    /// Returns the size of the tile (184 x 66)
+    static QSize getAssistantTileSize(const AssistantTile& tile);
+
+    /// Returns the minimal size of the tile: the logo, the check and 60 px of the texts
+    static QSize getAssistantTileMinimumSize(const AssistantTile& tile);
+
+    /// Draws the tile into the rectangle
+    static void paintAssistantTile(QPainter* painter, const QRectF& rect, const AssistantTile& tile, const State& state);
+
+    // ---------------------------------------------------------------- Code box
+
+    /// Content of a code box of the setup card (653:5754 one line, 653:5781 Inter,
+    /// 955:149431 the JSON of 11 lines): bg/subtle with border/default, radius 8,
+    /// paddings 14 / 4 / 4 / 4 inside of the border, gap 12; the text Regular 12 in
+    /// lines of 18 px text/primary - JetBrains Mono (\p monospace) or Inter -,
+    /// which wraps at any character (commands are long, never a horizontal
+    /// scroll); the copy Toolbar button 36 (icon copy 20) at the top of the trailing
+    /// side. A text shorter than the button is centered on it (46 high for one line).
+    struct CodeBox
+    {
+        QString text;
+        bool monospace = true;
+        bool paintNested = true;    ///< Draw the text and the copy button (false: a widget has real children, their places are kept)
+    };
+
+    /// Returns the font of the text of a code box
+    static QFont getCodeBoxFont(bool monospace);
+
+    /// Returns the height of a line of the text of a code box (18)
+    static int getCodeBoxLineHeight();
+
+    /// Returns the number of the lines of the text wrapped at the width of the text
+    static int getCodeBoxLineCount(const CodeBox& box, qreal textWidth);
+
+    /// Returns the height of the code box of the width (the text wraps)
+    static int getCodeBoxHeight(const CodeBox& box, int width);
+
+    /// Returns the size of the code box: the width of its longest line (at most
+    /// 1166), the height of that width
+    static QSize getCodeBoxSize(const CodeBox& box);
+
+    /// Returns the minimal size of the code box (40 px of the text and the button)
+    static QSize getCodeBoxMinimumSize(const CodeBox& box);
+
+    /// Returns the rectangle of the text of the code box (mirrored for right-to-left)
+    static QRectF getCodeBoxTextRect(const QRectF& rect, const CodeBox& box, const State& state);
+
+    /// Returns the rectangle of the copy button of the code box (mirrored for right-to-left)
+    static QRectF getCodeBoxButtonRect(const QRectF& rect, const State& state);
+
+    /// Draws the code box into the rectangle (the focus ring of State_HasFocus inside)
+    static void paintCodeBox(QPainter* painter, const QRectF& rect, const CodeBox& box, const State& state);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(PDFComponentPainter::StrengthCriteria)

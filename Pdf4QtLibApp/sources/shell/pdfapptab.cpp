@@ -170,6 +170,7 @@ PDFAppWorkspaceTab::PDFAppWorkspaceTab(PDFAppTabKind kind, PDFAppContext* contex
     workspace->setObjectName(QStringLiteral("workspace"));
     PDFWidgetStyleProperties::set(workspace, PDFWidgetStyleProperties::CANVAS);
     QVBoxLayout* workspaceLayout = new QVBoxLayout(workspace);
+    m_workspaceLayout = workspaceLayout;
     workspaceLayout->setContentsMargins(0, PADDING, 0, isHome ? 0 : PADDING);
     workspaceLayout->setSpacing(24);
     layout->addWidget(workspace, 1);
@@ -246,6 +247,19 @@ PDFAppWorkspaceTab::~PDFAppWorkspaceTab()
     {
         disconnect(page, &PDFAppPage::aboutToBeDestroyed, this, &PDFAppWorkspaceTab::onPageAboutToBeDestroyed);
     }
+}
+
+void PDFAppWorkspaceTab::insertTopWidget(QWidget* widget)
+{
+    if (!widget || !m_workspaceLayout)
+    {
+        return;
+    }
+
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setContentsMargins(PADDING, 0, PADDING, 0);
+    row->addWidget(widget);
+    m_workspaceLayout->insertLayout(0, row);
 }
 
 void PDFAppWorkspaceTab::setNavItem(PDFAppNavItem item)

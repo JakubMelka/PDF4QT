@@ -228,6 +228,9 @@ private:
     static void addFormsDelegates(GalleryBuilder& builder);
     static void addDocumentDelegates(GalleryBuilder& builder);
     static void addPanelsDelegates(GalleryBuilder& builder);
+
+    // Frames of the page AI of step 7 (galleryaipages.cpp)
+    static Page createAiPage(QWidget* parent);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(GalleryPages::StateFlags)

@@ -97,6 +97,24 @@ void PDFAppDocumentStatusBar::addItem(QWidget* item, Area area)
         }
         m_layout->insertWidget(stretchIndex, item);
     }
+    else if (area == Area::TrailingFirst)
+    {
+        // After the stretch and the page item
+        int index = m_layout->count();
+        for (int i = 0; i < m_layout->count(); ++i)
+        {
+            if (m_layout->itemAt(i) && m_layout->itemAt(i)->spacerItem())
+            {
+                index = i + 1;
+                break;
+            }
+        }
+        if (m_pageItem && m_layout->indexOf(m_pageItem.data()) >= index)
+        {
+            index = m_layout->indexOf(m_pageItem.data()) + 1;
+        }
+        m_layout->insertWidget(qMin(index, m_layout->count()), item);
+    }
     else
     {
         m_layout->addWidget(item);

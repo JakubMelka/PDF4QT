@@ -278,6 +278,7 @@ protected:
 private:
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onDocumentDestroyed();
+    void onConnectedViewDestroyed();
     void onCurrentPageChanged(PDFInteger pageIndex);
     void onViewClicked(const QModelIndex& index);
     void onViewActivated(const QModelIndex& index);

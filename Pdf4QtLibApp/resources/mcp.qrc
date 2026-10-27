@@ -1,0 +1,35 @@
+<RCC>
+    <qresource prefix="/">
+        <file>mcp/docs/index.md</file>
+        <file>mcp/docs/getting-started.md</file>
+        <file>mcp/docs/documents-and-pages.md</file>
+        <file>mcp/docs/text-and-search.md</file>
+        <file>mcp/docs/rendering.md</file>
+        <file>mcp/docs/annotations.md</file>
+        <file>mcp/docs/forms.md</file>
+        <file>mcp/docs/outline.md</file>
+        <file>mcp/docs/files.md</file>
+        <file>mcp/docs/permissions.md</file>
+        <file>mcp/docs/security.md</file>
+        <file>mcp/docs/errors.md</file>
+        <file>mcp/docs/tools/application.md</file>
+        <file>mcp/docs/tools/document.md</file>
+        <file>mcp/docs/tools/text.md</file>
+        <file>mcp/docs/tools/render.md</file>
+        <file>mcp/docs/tools/view.md</file>
+        <file>mcp/docs/tools/annotations.md</file>
+        <file>mcp/docs/tools/forms.md</file>
+        <file>mcp/docs/tools/outline.md</file>
+        <file>mcp/docs/tools/files.md</file>
+        <file>mcp/skills/pdf4qt-documents/SKILL.md</file>
+        <file>mcp/skills/pdf4qt-review/SKILL.md</file>
+        <file>mcp/skills/pdf4qt-research/SKILL.md</file>
+        <file>mcp/skills/pdf4qt-forms/SKILL.md</file>
+        <file>mcp/workflows/summarize-document.md</file>
+        <file>mcp/workflows/review-and-comment.md</file>
+        <file>mcp/workflows/find-and-highlight.md</file>
+        <file>mcp/workflows/fill-form.md</file>
+        <file>mcp/workflows/build-outline.md</file>
+        <file>mcp/workflows/cite-sources.md</file>
+    </qresource>
+</RCC>

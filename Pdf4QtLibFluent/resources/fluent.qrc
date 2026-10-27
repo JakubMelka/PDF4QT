@@ -5,6 +5,8 @@
         <file>fonts/Inter-SemiBold.ttf</file>
         <file>fonts/Inter-Bold.ttf</file>
         <file>fonts/Inter-LICENSE.txt</file>
+        <file>fonts/JetBrainsMono-Regular.ttf</file>
+        <file>fonts/JetBrainsMono-LICENSE.txt</file>
         <file>logo/pdf4qt-logo.svg</file>
         <file>icons/accessibility.svg</file>
         <file>icons/actual-size.svg</file>
@@ -382,7 +384,9 @@
         <file>icons/ungroup.svg</file>
         <file>icons/units.svg</file>
         <file>icons/unlock.svg</file>
+        <file>icons/unplug.svg</file>
         <file>icons/user.svg</file>
+        <file>icons/user-x.svg</file>
         <file>icons/vector-shape.svg</file>
         <file>icons/view-split.svg</file>
         <file>icons/volume-2.svg</file>

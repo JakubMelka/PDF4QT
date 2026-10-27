@@ -733,6 +733,7 @@ private Q_SLOTS:
     void backupImportBusy();
     void backupCertificatesAndSecurity();
     void backupHostileSequences();
+    void backupTokenExcluded();
 
 private:
     QString createPath(const QString& name);
@@ -4246,7 +4247,9 @@ void AppStorageTest::backupCertificatesAndSecurity()
     QCOMPARE(pdf::PDFDatabaseBackup::MAXIMUM_SIZE, qint64(128) * 1024 * 1024);
     QCOMPARE(pdf::PDFDatabaseBackup::getSecuritySettingKeys(),
              QStringList({ QStringLiteral("security.openLinks"), QStringLiteral("security.launchFiles"), QStringLiteral("signatures.verify"),
-                           QStringLiteral("signatures.strict"), QStringLiteral("signatures.ignoreExpiration"), QStringLiteral("signatures.useSystemStore") }));
+                           QStringLiteral("signatures.strict"), QStringLiteral("signatures.ignoreExpiration"), QStringLiteral("signatures.useSystemStore"),
+                           QStringLiteral("mcp.permissionRead"), QStringLiteral("mcp.permissionEdit"), QStringLiteral("mcp.permissionFiles"),
+                           QStringLiteral("mcp.allowRemote"), QStringLiteral("mcp.requireToken") }));
 
     const QString backupPath = QDir(createFolder(QStringLiteral("backup-security-files"))).filePath(QStringLiteral("s.pdf4qt-backup"));
     {
@@ -4355,6 +4358,101 @@ void AppStorageTest::backupHostileSequences()
     QVERIFY(AppStorageTestHelper::queryInteger(&target, "SELECT MAX(seq) FROM change_log") > changeLogSequence);
     QVERIFY(AppStorageTestHelper::execute(&target, "INSERT INTO recent_file(path, name, folder, last_opened) VALUES ('/after.pdf', 'a', '/', 1)"));
     QCOMPARE(AppStorageTestHelper::getSettingText(&target, "test.after"), QStringLiteral("1"));
+}
+
+void AppStorageTest::backupTokenExcluded()
+{
+    // Owner 2026-10-26 (Q4 of step 7): the access token of the MCP server is a secret
+    // - an export omits its row (no trace in the file), an import keeps the token of
+    // the open database and ignores a token of the backup (an older or hostile
+    // backup may have one); the rest of the settings is imported
+    QCOMPARE(pdf::PDFDatabaseBackup::getPrivateSettingKeys(), QStringList({ QStringLiteral("mcp.token") }));
+
+    const QString folder = createFolder(QStringLiteral("backup-token-files"));
+    const QString exportedPath = QDir(folder).filePath(QStringLiteral("exported.pdf4qt-backup"));
+    const QString hostilePath = QDir(folder).filePath(QStringLiteral("hostile.pdf4qt-backup"));
+    const QByteArray sourceToken = "SOURCE-TOKEN-6f1e2d3c4b5a69788796a5b4c3d2e1f0";
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-token-source"))));
+        QVERIFY(AppStorageTestHelper::execute(&source,
+            "INSERT INTO setting(key, value, modified) VALUES ('mcp.token', 'SOURCE-TOKEN-6f1e2d3c4b5a69788796a5b4c3d2e1f0', 1);"
+            "INSERT INTO setting(key, value, modified) VALUES ('mcp.port', 9123, 1);"
+            "INSERT INTO setting(key, value, modified) VALUES ('mcp.permissionEdit', 'allow', 1);"
+            "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 1);"));
+        QVERIFY(!source.exportBackup(exportedPath).isError());
+
+        // The open database keeps its token
+        QCOMPARE(AppStorageTestHelper::getSettingText(&source, "mcp.token"), QString::fromLatin1(sourceToken));
+    }
+
+    // The exported file: no row of the token, no bytes of it (VACUUM), the other settings
+    {
+        QFile file(exportedPath);
+        QVERIFY(file.open(QFile::ReadOnly));
+        const QByteArray data = file.readAll();
+        QVERIFY(!data.isEmpty());
+        QVERIFY(!data.contains(sourceToken));
+        QVERIFY(!data.contains("SOURCE-TOKEN"));
+    }
+    sqlite3* handle = pdf::PDFDatabase::openFileConnection(exportedPath, true, 5000, nullptr);
+    QVERIFY(handle);
+    QCOMPARE(pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'mcp.token'", -1), qint64(0));
+    QCOMPARE(pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT value FROM setting WHERE key = 'mcp.port'", -1), qint64(9123));
+    pdf::PDFDatabase::closeHandle(handle);
+
+    // A hostile backup: a token as a text and a second one under a key stored as a blob
+    QVERIFY(QFile::copy(exportedPath, hostilePath));
+    QVERIFY(AppStorageTestHelper::executeOnFile(hostilePath,
+        "INSERT INTO setting(key, value, modified) VALUES ('mcp.token', 'HOSTILE-TOKEN', 2);"
+        "INSERT INTO setting(key, value, modified) VALUES (CAST('mcp.token' AS BLOB), 'HOSTILE-BLOB-TOKEN', 2);"));
+    const pdf::PDFDatabaseBackup exported = pdf::PDFDatabaseBackup::read(exportedPath);
+    QVERIFY2(exported.isValid(), qPrintable(exported.getDetail()));
+    const pdf::PDFDatabaseBackup hostile = pdf::PDFDatabaseBackup::read(hostilePath);
+    QVERIFY2(hostile.isValid(), qPrintable(hostile.getDetail()));
+
+    // A database with its own token keeps it (also the time of its row) for both backups
+    pdf::PDFDatabase target;
+    target.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-token-target"))));
+    QVERIFY(AppStorageTestHelper::execute(&target,
+        "INSERT INTO setting(key, value, modified) VALUES ('mcp.token', 'CURRENT-TOKEN', 77);"
+        "INSERT INTO setting(key, value, modified) VALUES ('mcp.port', 9999, 1);"));
+    for (const pdf::PDFDatabaseBackup* backup : { &exported, &hostile })
+    {
+        const pdf::PDFDatabaseError error = target.importBackup(*backup, pdf::PDFDatabaseImportCertificates::KeepCurrent);
+        QVERIFY2(!error.isError(), qPrintable(error.toString()));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "mcp.token"), QStringLiteral("CURRENT-TOKEN"));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT modified FROM setting WHERE key = 'mcp.token'"), qint64(77));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'mcp.token'"), qint64(1));
+
+        // The rest of the settings is the backup
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "mcp.port"), QStringLiteral("9123"));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "mcp.permissionEdit"), QStringLiteral("allow"));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "appearance.colorScheme"), QStringLiteral("dark"));
+    }
+
+    // A database without a token stays without one (FromBackup changes nothing of it)
+    pdf::PDFDatabase empty;
+    empty.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-token-empty"))));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&empty, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'mcp.token'"), qint64(0));
+    for (const pdf::PDFDatabaseBackup* backup : { &exported, &hostile })
+    {
+        const pdf::PDFDatabaseError error = empty.importBackup(*backup, pdf::PDFDatabaseImportCertificates::FromBackup);
+        QVERIFY2(!error.isError(), qPrintable(error.toString()));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&empty, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'mcp.token'"), qint64(0));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&empty, "mcp.port"), QStringLiteral("9123"));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&empty, "appearance.colorScheme"), QStringLiteral("dark"));
+    }
+
+    // An export of the imported database has no token either; later writes of the
+    // token work (the row is a normal setting)
+    QVERIFY(AppStorageTestHelper::execute(&empty, "INSERT INTO setting(key, value, modified) VALUES ('mcp.token', 'NEW-TOKEN', 3)"));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&empty, "mcp.token"), QStringLiteral("NEW-TOKEN"));
+    const QString secondPath = QDir(folder).filePath(QStringLiteral("second.pdf4qt-backup"));
+    QVERIFY(!empty.exportBackup(secondPath).isError());
+    QFile second(secondPath);
+    QVERIFY(second.open(QFile::ReadOnly));
+    QVERIFY(!second.readAll().contains("NEW-TOKEN"));
 }
 
 int main(int argc, char* argv[])

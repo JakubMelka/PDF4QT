@@ -51,6 +51,7 @@ namespace pdf
 {
 
 class PDFAppAnnotationStyleStorage;
+class PDFAppMcpController;
 
 /// Context of the running application: the storage, its notifier, the registries
 /// of the settings and of the commands, the command line and the server of the
@@ -110,6 +111,11 @@ public:
     /// PDFAnnotationStyleSettings of the engine while the database is open
     /// (nullptr when it is closed)
     PDFAppAnnotationStyleStorage* getAnnotationStyleStorage() const { return m_annotationStyleStorage.get(); }
+
+    /// The controller of the MCP server (step 7): created by open, shut down and
+    /// destroyed by close before the services and the database (the quit order
+    /// of plan 2.6); nullptr when the storage is not open
+    PDFAppMcpController* getMcpController() const;
 
     /// Applies the author of new annotations (annotations.authorMode and
     /// annotations.customAuthorName) to PDFAuthorSettings of the engine; called at
@@ -185,6 +191,7 @@ private:
     QPointer<PDFAppDocumentRegistry> m_documentRegistry;
     QPointer<PDFAppTranslator> m_translator;
     QPointer<PDFAppMinuteTicker> m_minuteTicker;
+    QPointer<PDFAppMcpController> m_mcpController;
     std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
     bool m_isPagesEnabled = true;
 };

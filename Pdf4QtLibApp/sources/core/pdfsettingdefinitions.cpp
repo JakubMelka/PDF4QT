@@ -655,13 +655,13 @@ void PDFSettingDefinitions::registerAi(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::mcpToken(), QString(), 256)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Access token")));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::mcpPermissionRead(), PDFSettingValues::permissionAllow(), permissions)
-                      .setAnchor(QStringLiteral("read-documents"))
+                      .setAnchor(QStringLiteral("read-documents")).setControl(PDFSettingDefinition::Control::Segmented)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Read documents")));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::mcpPermissionEdit(), PDFSettingValues::permissionAsk(), permissions)
-                      .setAnchor(QStringLiteral("edit-documents"))
+                      .setAnchor(QStringLiteral("edit-documents")).setControl(PDFSettingDefinition::Control::Segmented)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Edit documents")));
     add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::mcpPermissionFiles(), PDFSettingValues::permissionAsk(), permissions)
-                      .setAnchor(QStringLiteral("open-and-save-files"))
+                      .setAnchor(QStringLiteral("open-and-save-files")).setControl(PDFSettingDefinition::Control::Segmented)
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Open and save files")));
 }
 

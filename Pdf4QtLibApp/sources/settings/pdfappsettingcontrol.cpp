@@ -182,7 +182,7 @@ PDFAppSettingControl::Kind PDFAppSettingControl::getKind(const PDFSettingDefinit
         case Type::Bool:
             return Kind::CheckBox;
         case Type::Option:
-            return Kind::ComboBox;
+            return definition.getControl() == Control::Segmented ? Kind::Segmented : Kind::ComboBox;
         case Type::Integer:
             return definition.getControl() == Control::Slider ? Kind::Slider : Kind::SpinBox;
         case Type::Real:
@@ -230,6 +230,11 @@ PDFLineEdit* PDFAppSettingControl::getLineEdit() const
 PDFColorButton* PDFAppSettingControl::getColorButton() const
 {
     return qobject_cast<PDFColorButton*>(m_editor.data());
+}
+
+PDFSegmentedControl* PDFAppSettingControl::getSegmentedControl() const
+{
+    return qobject_cast<PDFSegmentedControl*>(m_editor.data());
 }
 
 void PDFAppSettingControl::createControl(QWidget* parent)
@@ -322,6 +327,23 @@ void PDFAppSettingControl::createControl(QWidget* parent)
         case Kind::Path:
             createPath(parent);
             break;
+
+        case Kind::Segmented:
+        {
+            // permission-mode 955:143435: 240 x 32, three segments of 80 (the
+            // control divides its fixed width equally)
+            PDFSegmentedControl* segmented = new PDFSegmentedControl(parent);
+            for (const PDFSettingOption& option : m_definition.getOptions())
+            {
+                m_segmentIds << option.id;
+                segmented->addSegment(option.getTitle());
+            }
+            segmented->setFixedSize(SEGMENTED_WIDTH, SEGMENTED_HEIGHT);
+            connect(segmented, &PDFSegmentedControl::currentIndexChanged, this, &PDFAppSettingControl::onSegmentChanged);
+            m_editor = segmented;
+            m_widget = segmented;
+            break;
+        }
     }
 
     if (m_editor)
@@ -500,6 +522,17 @@ QVariant PDFAppSettingControl::getShownValue() const
             }
             return QVariant(button->getColor().name(QColor::HexRgb).toUpper());
         }
+
+        case Kind::Segmented:
+        {
+            PDFSegmentedControl* segmented = getSegmentedControl();
+            const int index = segmented ? segmented->getCurrentIndex() : -1;
+            if (index < 0 || index >= m_segmentIds.size())
+            {
+                return QVariant();
+            }
+            return QVariant(m_segmentIds[index]);
+        }
     }
     return QVariant();
 }
@@ -644,6 +677,19 @@ void PDFAppSettingControl::showValue(const QVariant& value, const QVariant& stor
                 button->setColor(color);
             }
             break;
+
+        case Kind::Segmented:
+            if (PDFSegmentedControl* segmented = getSegmentedControl())
+            {
+                // The value is valid (a hostile stored option is the default)
+                const int index = int(m_segmentIds.indexOf(value.toString()));
+                if (index >= 0 && segmented->getCurrentIndex() != index)
+                {
+                    const QSignalBlocker blocker(segmented);
+                    segmented->setCurrentIndex(index);
+                }
+            }
+            break;
     }
 }
 
@@ -746,6 +792,19 @@ void PDFAppSettingControl::onComboBoxActivated(int index)
 
     // Written from the event loop: the slots of valueWritten may delete the combo
     // box, which is emitting its signals (Qt does not survive it)
+    setPending();
+    queueWrite();
+}
+
+void PDFAppSettingControl::onSegmentChanged(int index)
+{
+    if (index < 0 || index >= m_segmentIds.size())
+    {
+        return;
+    }
+
+    // Written from the event loop: the slots of valueWritten may delete the
+    // segmented control, whose button is emitting its signals
     setPending();
     queueWrite();
 }

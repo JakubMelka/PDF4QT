@@ -571,7 +571,8 @@ const std::vector<GalleryPages::PageEntry>& GalleryPages::getPageEntries()
         { "20-catalog", &GalleryPages::createCatalogPage },
         { "21-forms", &GalleryPages::createFormsPage },
         { "22-document", &GalleryPages::createDocumentPage },
-        { "23-panels", &GalleryPages::createPanelsPage }
+        { "23-panels", &GalleryPages::createPanelsPage },
+        { "24-ai", &GalleryPages::createAiPage }
     };
     return entries;
 }

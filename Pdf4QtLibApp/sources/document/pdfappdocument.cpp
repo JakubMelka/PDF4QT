@@ -485,8 +485,12 @@ PDFAppDocumentOperation* PDFAppDocument::beginOperation(PDFAppDocumentOperationK
     m_operations.emplace_back(operation);
     connect(operation, &PDFAppDocumentOperation::finished, this, &PDFAppDocument::onOperationFinished);
     connect(operation, &PDFAppDocumentOperation::progressChanged, this, &PDFAppDocument::operationProgressChanged);
+
+    // A slot may close the tab (the document and its operation): nullptr then, never
+    // a dangling pointer (UnitTestsAppMcpLifetime)
+    QPointer<PDFAppDocumentOperation> guard(operation);
     Q_EMIT operationsChanged();
-    return operation;
+    return guard.data();
 }
 
 std::vector<PDFAppDocumentOperation*> PDFAppDocument::getOperations() const

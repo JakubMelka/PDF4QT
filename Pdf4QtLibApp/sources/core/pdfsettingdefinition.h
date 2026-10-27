@@ -100,7 +100,8 @@ public:
         Default,    ///< The control of the type
         Slider,     ///< Slider with the value text (Integer, Real)
         Color,      ///< Color button, the value is "#RRGGBB" (String)
-        Path        ///< Text field with the button Browse… of a folder (String)
+        Path,       ///< Text field with the button Browse… of a folder (String)
+        Segmented   ///< Segmented control of the options (Option, a few short titles; the permissions of the page AI 955:143435)
     };
 
     /// Translation context of the texts of the definitions

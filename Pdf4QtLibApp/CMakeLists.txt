@@ -42,6 +42,8 @@ set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfdatabasestatement.h
     sources/storage/pdfdocumenttoolusage.cpp
     sources/storage/pdfdocumenttoolusage.h
+    sources/storage/pdfmcprepository.cpp
+    sources/storage/pdfmcprepository.h
     sources/storage/pdfrecentrepository.cpp
     sources/storage/pdfrecentrepository.h
     sources/storage/pdfrepositoryhelper.cpp
@@ -128,6 +130,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/sources/settings/settings.cmake)
 # PDF4QT_LIBAPP_TOOLS_SOURCES
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources/tools/tools.cmake)
 
+# The MCP server and the AI page (step 7): the controller, the host, the tools,
+# the confirmations and the page add their files to PDF4QT_LIBAPP_MCP_SOURCES
+include(${CMAKE_CURRENT_SOURCE_DIR}/sources/mcp/mcp.cmake)
+
 add_library(Pdf4QtLibApp SHARED
     sources/pdfappglobal.h
     ${PDF4QT_LIBAPP_STORAGE_SOURCES}
@@ -137,6 +143,7 @@ add_library(Pdf4QtLibApp SHARED
     ${PDF4QT_LIBAPP_DOCUMENT_SOURCES}
     ${PDF4QT_LIBAPP_SETTINGS_SOURCES}
     ${PDF4QT_LIBAPP_TOOLS_SOURCES}
+    ${PDF4QT_LIBAPP_MCP_SOURCES}
 )
 
 include(GenerateExportHeader)
@@ -147,6 +154,9 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibApp
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibapp_export.h")
 
 target_link_libraries(Pdf4QtLibApp PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibFluent)
+
+# The MCP server (step 7): public, the headers of the host and the controller use it
+target_link_libraries(Pdf4QtLibApp PUBLIC Pdf4QtLibMcp)
 target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Svg)
 
 # The document tab (step 3): printing, speech and the workers of the search,
@@ -183,7 +193,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/pages
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/document
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/settings
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/tools)
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/tools
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/mcp)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 set_target_properties(Pdf4QtLibApp PROPERTIES

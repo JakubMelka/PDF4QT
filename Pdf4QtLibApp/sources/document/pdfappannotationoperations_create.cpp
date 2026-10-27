@@ -746,4 +746,328 @@ bool PDFAppAnnotationOperations::isWebLinkAllowed(const QString& url)
     return false;
 }
 
+// ------------------------------------------------- MCP (step 7, package C)
+
+/// Creation of the annotations of the assistants (annotations.add): every kind
+/// in one modifier, every geometry bounded as the creation tools bound it
+class PDFAppAnnotationOperationsMcpHelper
+{
+public:
+    PDFAppAnnotationOperationsMcpHelper() = delete;
+
+    using Helper = PDFAppAnnotationOperationsCreateHelper;
+
+    /// Interval of the cancellation checks
+    static constexpr size_t CANCEL_CHECK_INTERVAL = 16;
+
+    /// Smallest and largest font size of a text box
+    static constexpr PDFReal MINIMUM_FONT_SIZE = 4.0;
+    static constexpr PDFReal MAXIMUM_FONT_SIZE = 144.0;
+
+    /// Points with finite coordinates, \p minimum to \p maximum of them, with an
+    /// extent (else an empty polygon)
+    static QPolygonF getPoints(const QPolygonF& points, int minimum, int maximum)
+    {
+        if (points.size() < minimum || points.size() > maximum)
+        {
+            return QPolygonF();
+        }
+        for (const QPointF& point : points)
+        {
+            if (!Helper::isFinite(point))
+            {
+                return QPolygonF();
+            }
+        }
+
+        // A shape of one point repeated has no extent
+        const QRectF bounds = points.boundingRect();
+        if (bounds.width() <= 0.0 && bounds.height() <= 0.0)
+        {
+            return QPolygonF();
+        }
+        return points;
+    }
+
+    /// Bounding rectangle of a line shape with the room of its border and endings
+    static QRectF getShapeRect(const QPolygonF& points, PDFReal penWidth)
+    {
+        const PDFReal margin = penWidth * 2.0 + 8.0;
+        return points.boundingRect().adjusted(-margin, -margin, margin, margin);
+    }
+
+    static void setCommonData(PDFDocumentBuilder* builder, PDFObjectReference annotation, const PDFAppAnnotationItem& item)
+    {
+        const PDFReal opacity = Helper::getOpacity(item.data.opacity);
+        if (opacity < 1.0)
+        {
+            builder->setAnnotationOpacity(annotation, opacity);
+        }
+
+        if (!item.name.isEmpty())
+        {
+            // The unique name of the annotation (NM, ISO 32000-2 Table 166)
+            PDFObjectFactory factory;
+            factory.beginDictionary();
+            factory.beginDictionaryItem("NM");
+            factory << item.name.left(128);
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            builder->mergeTo(annotation, factory.takeObject());
+        }
+    }
+
+    /// Creates one annotation, an invalid reference for an invalid item
+    static PDFObjectReference create(PDFDocumentBuilder* builder, const PDFDocument* document, const PDFAppAnnotationItem& item)
+    {
+        const PDFPage* page = Helper::getPage(document, item.pageIndex);
+        if (!page)
+        {
+            return PDFObjectReference();
+        }
+
+        const PDFObjectReference pageReference = page->getPageReference();
+        const QString author = Helper::getAuthor(item.data);
+        const QString contents = Helper::getContents(item.data);
+        const PDFReal penWidth = Helper::getPenWidth(item.data.penWidth);
+        const QColor fillColor = item.data.fillColor.isValid() ? Helper::getColor(item.data.fillColor, QColor()) : QColor();
+
+        PDFObjectReference annotation;
+        switch (item.kind)
+        {
+            case PDFAppAnnotationItem::Kind::TextMarkup:
+            {
+                const QPolygonF quadrilaterals = Helper::getQuadrilaterals(item.quadrilaterals);
+                if (!PDFAppAnnotationOperations::isTextMarkupType(item.markupType) || quadrilaterals.isEmpty())
+                {
+                    return PDFObjectReference();
+                }
+                annotation = Helper::createTextMarkup(builder, pageReference, item.markupType, quadrilaterals,
+                                                      Helper::getColor(item.data.color, Helper::getDefaultMarkupColor(item.markupType)),
+                                                      author, contents, 1.0);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::StickyNote:
+            {
+                if (!Helper::isFinite(item.point))
+                {
+                    return PDFObjectReference();
+                }
+                const QRectF rectangle(item.point.x(), item.point.y() - Helper::STICKY_NOTE_SIZE, Helper::STICKY_NOTE_SIZE, Helper::STICKY_NOTE_SIZE);
+                annotation = builder->createAnnotationText(pageReference, rectangle, item.icon, author, QString(), contents, false);
+                builder->setAnnotationColor(annotation, Helper::getColor(item.data.color, QColor(Qt::yellow)));
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::FreeText:
+            {
+                const std::optional<QRectF> area = Helper::getRectangle(item.rectangle);
+                if (!area || contents.trimmed().isEmpty())
+                {
+                    return PDFObjectReference();
+                }
+                PDFFreeTextStyle style;
+                style.fontSize = std::isfinite(item.fontSize) ? qBound(MINIMUM_FONT_SIZE, item.fontSize, MAXIMUM_FONT_SIZE) : 12.0;
+                style.textColor = QColor(Qt::black);
+                annotation = builder->createAnnotationFreeText(pageReference, *area, author, QString(), contents, style, false);
+                const PDFReal borderWidth = item.data.color.isValid() ? penWidth : 0.0;
+                if (borderWidth > 0.0)
+                {
+                    builder->setAnnotationColor(annotation, Helper::getColor(item.data.color, QColor(Qt::black)));
+                }
+                builder->setAnnotationBorder(annotation, 0.0, 0.0, borderWidth);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::Square:
+            case PDFAppAnnotationItem::Kind::Circle:
+            {
+                const std::optional<QRectF> area = Helper::getRectangle(item.rectangle);
+                if (!area)
+                {
+                    return PDFObjectReference();
+                }
+                const QColor strokeColor = Helper::getColor(item.data.color, QColor(Qt::red));
+                annotation = item.kind == PDFAppAnnotationItem::Kind::Square ? builder->createAnnotationSquare(pageReference, *area, penWidth, fillColor, strokeColor, author, QString(), contents)
+                                                                             : builder->createAnnotationCircle(pageReference, *area, penWidth, fillColor, strokeColor, author, QString(), contents);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::Line:
+            case PDFAppAnnotationItem::Kind::Arrow:
+            {
+                const QPolygonF points = getPoints(item.points, 2, 2);
+                if (points.isEmpty())
+                {
+                    return PDFObjectReference();
+                }
+                const AnnotationLineEnding ending = item.kind == PDFAppAnnotationItem::Kind::Arrow ? AnnotationLineEnding::OpenArrow : AnnotationLineEnding::None;
+                annotation = builder->createAnnotationLine(pageReference, getShapeRect(points, penWidth), points[0], points[1], penWidth, fillColor,
+                                                           Helper::getColor(item.data.color, QColor(Qt::red)), author, QString(), contents,
+                                                           AnnotationLineEnding::None, ending);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::Polygon:
+            case PDFAppAnnotationItem::Kind::Polyline:
+            {
+                const bool isPolygon = item.kind == PDFAppAnnotationItem::Kind::Polygon;
+                const QPolygonF points = getPoints(item.points, isPolygon ? 3 : 2, PDFAppAnnotationOperations::MAXIMUM_SHAPE_POINTS);
+                if (points.isEmpty())
+                {
+                    return PDFObjectReference();
+                }
+                const QColor strokeColor = Helper::getColor(item.data.color, QColor(Qt::red));
+                annotation = isPolygon ? builder->createAnnotationPolygon(pageReference, points, penWidth, fillColor, strokeColor, author, QString(), contents)
+                                       : builder->createAnnotationPolyline(pageReference, points, penWidth, fillColor, strokeColor, author, QString(), contents,
+                                                                           AnnotationLineEnding::None, AnnotationLineEnding::None);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::Ink:
+            {
+                if (item.strokes.empty() || int(item.strokes.size()) > PDFAppAnnotationOperations::MAXIMUM_INK_STROKES)
+                {
+                    return PDFObjectReference();
+                }
+                Polygons strokes;
+                for (const QPolygonF& stroke : item.strokes)
+                {
+                    const QPolygonF points = getPoints(stroke, 2, PDFAppAnnotationOperations::MAXIMUM_SHAPE_POINTS);
+                    if (points.isEmpty())
+                    {
+                        return PDFObjectReference();
+                    }
+                    strokes.push_back(points);
+                }
+                annotation = builder->createAnnotationInk(pageReference, strokes, qMax(penWidth, 0.5), Helper::getColor(item.data.color, QColor(Qt::red)), author, QString(), contents);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::Stamp:
+            {
+                const std::optional<QRectF> area = Helper::getRectangle(item.rectangle);
+                if (!area)
+                {
+                    return PDFObjectReference();
+                }
+                annotation = builder->createAnnotationStamp(pageReference, *area, item.stamp, author, QString(), contents);
+                if (item.data.color.isValid())
+                {
+                    builder->setAnnotationColor(annotation, Helper::getColor(item.data.color, QColor(Qt::red)));
+                }
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::WebLink:
+            {
+                const std::optional<QRectF> area = Helper::getRectangle(item.rectangle);
+                const QString link = item.url.trimmed();
+                if (!area || !PDFAppAnnotationOperations::isWebLinkAllowed(link))
+                {
+                    return PDFObjectReference();
+                }
+
+                // ISO 32000-2 12.6.4.8: the URI is 7-bit ASCII (as createWebLink)
+                bool isAscii = true;
+                for (const QChar character : link)
+                {
+                    isAscii = isAscii && character.unicode() < 0x80;
+                }
+                const QString storedLink = isAscii ? link : QString::fromLatin1(QUrl(link, QUrl::StrictMode).toEncoded(QUrl::FullyEncoded));
+                if (storedLink.isEmpty())
+                {
+                    return PDFObjectReference();
+                }
+                annotation = builder->createAnnotationLink(pageReference, *area, storedLink, LinkHighlightMode::Invert);
+                break;
+            }
+
+            case PDFAppAnnotationItem::Kind::PageLink:
+            {
+                const std::optional<QRectF> area = Helper::getRectangle(item.rectangle);
+                const PDFPage* targetPage = Helper::getPage(document, item.targetPageIndex);
+                if (!area || !targetPage)
+                {
+                    return PDFObjectReference();
+                }
+                const PDFObjectReference action = builder->createActionGoTo(PDFDestination::createFit(targetPage->getPageReference()));
+                annotation = builder->createAnnotationLink(pageReference, *area, action, LinkHighlightMode::Invert);
+                break;
+            }
+        }
+
+        if (!annotation.isValid())
+        {
+            return PDFObjectReference();
+        }
+
+        setCommonData(builder, annotation, item);
+        builder->updateAnnotationAppearanceStreams(annotation);
+        return annotation;
+    }
+};
+
+PDFAppAnnotationResult PDFAppAnnotationOperations::createAnnotations(const PDFDocumentPointer& document,
+                                                                     const std::vector<PDFAppAnnotationItem>& items,
+                                                                     const PDFOperationControl* control,
+                                                                     std::vector<PDFObjectReference>* created,
+                                                                     int* invalidIndex)
+{
+    using Helper = PDFAppAnnotationOperationsCreateHelper;
+    using McpHelper = PDFAppAnnotationOperationsMcpHelper;
+
+    if (created)
+    {
+        created->clear();
+    }
+    if (invalidIndex)
+    {
+        *invalidIndex = -1;
+    }
+    if (document.isNull() || items.empty() || items.size() > MAXIMUM_CREATED_ANNOTATIONS)
+    {
+        return std::nullopt;
+    }
+
+    try
+    {
+        PDFDocumentModifier modifier(document.data());
+        PDFDocumentBuilder* builder = modifier.getBuilder();
+
+        std::vector<PDFObjectReference> references;
+        references.reserve(items.size());
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            if (i % McpHelper::CANCEL_CHECK_INTERVAL == 0 && PDFOperationControl::isOperationCancelled(control))
+            {
+                return std::nullopt;
+            }
+
+            const PDFObjectReference annotation = McpHelper::create(builder, document.data(), items[i]);
+            if (!annotation.isValid())
+            {
+                if (invalidIndex)
+                {
+                    *invalidIndex = int(i);
+                }
+                return std::nullopt;
+            }
+            references.push_back(annotation);
+        }
+
+        PDFAppAnnotationResult result = Helper::finalize(modifier);
+        if (result && created)
+        {
+            *created = std::move(references);
+        }
+        return result;
+    }
+    catch (const PDFException&)
+    {
+        return std::nullopt;
+    }
+}
+
 }   // namespace pdf

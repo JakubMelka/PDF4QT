@@ -486,6 +486,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # The pages of the gallery are compiled into the test, which checks them for leaks of the palette
     add_executable(UnitTestsWidgetStyle
         tst_widgetstyletest.cpp
+        ../Pdf4QtFluentGallery/galleryaipages.cpp
         ../Pdf4QtFluentGallery/gallerycardpages.cpp
         ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
         ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
@@ -515,6 +516,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # every variant of the components
     add_executable(UnitTestsFluentComponents
         tst_fluentcomponentstest.cpp
+        ../Pdf4QtFluentGallery/galleryaipages.cpp
         ../Pdf4QtFluentGallery/gallerycardpages.cpp
         ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
         ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
@@ -559,6 +561,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_executable(UnitTestsFluentLifetime
             tst_fluentlifetimetest.cpp
             "${PDF4QT_FLUENT_CLASSES_HEADER}"
+            ../Pdf4QtFluentGallery/galleryaipages.cpp
             ../Pdf4QtFluentGallery/gallerycardpages.cpp
             ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
             ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
@@ -864,6 +867,57 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         )
         add_test(UnitTests${PDF4QT_TOOLS_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_TOOLS_TEST}")
         set_tests_properties(UnitTests${PDF4QT_TOOLS_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+endif()
+
+# The MCP server (step 7). UnitTestsMcp: Pdf4QtLibMcp alone (QCoreApplication,
+# the fake host, the scripted client of both eras - wave 0 and package A).
+add_executable(UnitTestsMcp
+    tst_mcptest.cpp
+    mcptestclient.cpp
+    mcptestclient.h
+    fakemcphost.h
+)
+target_link_libraries(UnitTestsMcp PRIVATE Pdf4QtLibMcp Pdf4QtLibCore Qt6::Core Qt6::Network Qt6::Test)
+set_target_properties(UnitTestsMcp PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsMcp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsMcp")
+
+# The MCP server in the application (step 7): wave 0 and package B in
+# UnitTestsAppMcp, package C in UnitTestsAppMcpEdit, package E in UnitTestsAppAi,
+# package D in UnitTestsAppMcpContent, all with the fixture appmcpfixture (the
+# fixture of the document tab with the controller, the host and the client)
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    foreach(PDF4QT_MCP_TEST
+            AppMcp
+            AppMcpEdit
+            AppAi
+            AppMcpContent
+            AppMcpLifetime)
+        string(TOLOWER "${PDF4QT_MCP_TEST}" PDF4QT_MCP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_MCP_TEST}
+            tst_${PDF4QT_MCP_TEST_FILE}test.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+            appmcpfixture.cpp
+            appmcpfixture.h
+            mcptestclient.cpp
+            mcptestclient.h
+            testdocumenttool.h
+        )
+        target_link_libraries(UnitTests${PDF4QT_MCP_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        set_target_properties(UnitTests${PDF4QT_MCP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_MCP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_MCP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_MCP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
 endif()
 
