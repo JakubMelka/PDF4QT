@@ -261,6 +261,8 @@ QString PDFAppMcpReadSupport::getReadRefusedText(PDFAppMcpDecision decision)
     {
         case PDFAppMcpDecision::DeniedTimeout:
             return QStringLiteral("The user did not answer the request to read the documents within 2 minutes. Ask the user before trying again.");
+        case PDFAppMcpDecision::DeniedQueueTimeout:
+            return QStringLiteral("The request to read the documents waited in PDF4QT for 10 minutes without being shown to the user (other requests or a dialog were open). Ask the user before trying again.");
         case PDFAppMcpDecision::Unavailable:
             return QStringLiteral("PDF4QT cannot ask the user to approve reading the documents now. Ask the user to set Read documents to Allow on the AI page of PDF4QT.");
         case PDFAppMcpDecision::DeniedStopped:

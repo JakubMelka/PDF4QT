@@ -43,7 +43,7 @@ Open a file (an open file is only activated).
 | `pageCount` | integer |  |
 | `state` | string, one of `ready`, `loading`, `password_required`, `failed` |  |
 
-An open file is only activated (Read documents is enough). The call waits until the document is ready; a document with a password waits up to 2 minutes for the user to type it.
+An open file is only activated (Read documents is enough). The call waits until the document is ready (the reading at most 2 minutes, then `state: loading`); a document with a password waits up to 2 minutes from its password screen for the user to type it.
 
 ### Examples of `open`
 

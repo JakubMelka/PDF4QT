@@ -146,6 +146,7 @@ QString PDFAppMcpController::createNewToken()
 PDFMcpServerConfig PDFAppMcpController::createConfig() const
 {
     PDFMcpServerConfig config;
+    config.portProbeTimeout = m_portProbeTimeout;
     if (!m_context || !m_context->getDatabase())
     {
         return config;
@@ -178,12 +179,13 @@ bool PDFAppMcpController::start()
         return false;
     }
 
-    // A token is generated, when it is required and missing
+    // A missing token is generated, also when it is not required (the default of
+    // the local mode, owner 2026-10-28): Require access token turned on later
+    // works at once with the token the page already shows and copies
     if (m_context && m_context->getDatabase())
     {
         const PDFSettingsRepository settings = m_context->getSettings();
-        const bool requireToken = settings.getBool(PDFSettingKeys::mcpRequireToken()) || settings.getBool(PDFSettingKeys::mcpAllowRemote());
-        if (requireToken && settings.getString(PDFSettingKeys::mcpToken()).isEmpty())
+        if (settings.getString(PDFSettingKeys::mcpToken()).isEmpty())
         {
             QPointer<PDFAppMcpController> self(this);
             m_context->getSettings().setValue(PDFSettingKeys::mcpToken(), generateToken());
@@ -426,6 +428,11 @@ void PDFAppMcpController::setHeartbeatInterval(int interval)
     }
 }
 
+void PDFAppMcpController::setPortProbeTimeout(int timeout)
+{
+    m_portProbeTimeout = qMax(1, timeout);
+}
+
 QString PDFAppMcpController::findNetworkAddress()
 {
     const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
@@ -612,6 +619,16 @@ void PDFAppMcpController::onServerStateChanged()
         if (self)
         {
             processRequests();
+        }
+
+        // A change of the connection while the server was starting (Require
+        // access token, the port, the bind mode or the token - also written by
+        // another instance) found no running server: the server, which listens
+        // with an older configuration than the settings, restarts (review RTOK -
+        // Require access token turned on during the start ran without the token)
+        if (self)
+        {
+            applyConnection();
         }
     }
     else if (m_server->getState() != PDFMcpServerState::Running && m_server->getState() != PDFMcpServerState::Stopping && m_isOwner)

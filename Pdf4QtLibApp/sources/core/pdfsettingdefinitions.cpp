@@ -631,8 +631,9 @@ void PDFSettingDefinitions::registerDocument(PDFSettingRegistry* registry)
 
 void PDFSettingDefinitions::registerAi(PDFSettingRegistry* registry)
 {
-    // Page AI (newapp_mcp.md 1): token required, this computer only, port 8765,
-    // permissions Read = Allow, Edit = Ask, Files = Ask, not started with PDF4QT
+    // Page AI (newapp_mcp.md 1): this computer only, port 8765, no access token
+    // (owner 2026-10-28 - the remote mode forces it), permissions Read = Allow,
+    // Edit = Ask, Files = Ask, not started with PDF4QT
     const std::vector<PDFSettingOption> permissions =
     {
         { PDFSettingValues::permissionAllow(), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Allow")), false },
@@ -646,7 +647,7 @@ void PDFSettingDefinitions::registerAi(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::mcpAllowRemote(), false)
                       .setAnchor(QStringLiteral("allow-remote-connections"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Allow remote connections")));
-    add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::mcpRequireToken(), true)
+    add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::mcpRequireToken(), false)
                       .setAnchor(QStringLiteral("require-access-token"))
                       .setTitle(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Require access token")));
     add(registry, PDFSettingDefinition::createBool(PDFSettingKeys::mcpStartWithApp(), false)

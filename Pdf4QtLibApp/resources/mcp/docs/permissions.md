@@ -45,6 +45,7 @@ Every denial is an error result with a text written for you. The user sees the s
 | --- | --- |
 | The user denied the request | You did not do it because the user denied it. Do not repeat the call unless the user asks you to. |
 | No answer within 2 minutes | The request expired. Ask the user whether to try again. |
+| Not shown within 10 minutes | The question never appeared to the user (other questions, a hidden tab or another dialog of PDF4QT). Ask the user whether to try again. |
 | The document is locked in PDF4QT | The user locked the document against changes; the user can unlock it or work on a copy (Edit a Copy). |
 | A tool or a save is running on the document | Try again when it has finished. |
 | A dialog of PDF4QT is open | Changes are refused while the user works in a dialog; try again after the user closes it. |
@@ -55,6 +56,6 @@ Every denial is an error result with a text written for you. The user sees the s
 
 ## Who you are
 
-PDF4QT knows your client by the access token, the name your client reports (`clientInfo`) and the network address. Your annotations get your client's name as the author, and the dialogs name you ("Claude Code wants to …"). The user can disconnect you on the AI page: running calls end, the read approval is forgotten. A new access token disconnects every assistant for good.
+PDF4QT knows your client by the access token (when the user requires one - by default it is not required on this computer), the name your client reports (`clientInfo`) and the network address. Your annotations get your client's name as the author, and the dialogs name you ("Claude Code wants to …"). The user can disconnect you on the AI page: running calls end, the read approval is forgotten. With the token required, a new access token disconnects every assistant for good.
 
 See also pdf4qt://docs/errors.md and pdf4qt://help/ai-permissions.md (what the user reads).

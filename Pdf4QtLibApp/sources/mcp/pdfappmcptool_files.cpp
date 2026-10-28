@@ -614,8 +614,10 @@ private:
     std::shared_ptr<PDFAppMcpFileRequest> m_holder;
 };
 
-/// Waits for the document of files.open: ready, the password typed (2 min),
-/// failed or closed; a child of the host
+/// Waits for the document of files.open: ready, the password typed (2 min from
+/// the password screen of the tab, not from the request - the reading of a large
+/// file does not shorten the time of the user), failed or closed; the reading
+/// itself is bounded by DEFAULT_LOADING_TIMEOUT; a child of the host
 class PDFAppMcpOpenWaiter : public QObject
 {
 public:
@@ -627,7 +629,14 @@ public:
         m_timer = new QTimer(this);
         m_timer->setSingleShot(true);
         connect(m_timer, &QTimer::timeout, this, &PDFAppMcpOpenWaiter::onTimeout);
-        m_timer->start(qMax(1, PDFAppMcpFilesTool::getPasswordTimeout()));
+        m_timer->start(PDFAppMcpFilesTool::DEFAULT_LOADING_TIMEOUT);
+
+        // A call canceled while the file is read or the password screen waits ends
+        // at once (nobody else answers it; every cancellation has its activity row)
+        m_cancelTimer = new QTimer(this);
+        m_cancelTimer->setInterval(CANCEL_CHECK_INTERVAL);
+        connect(m_cancelTimer, &QTimer::timeout, this, &PDFAppMcpOpenWaiter::onCancelCheck);
+        m_cancelTimer->start();
 
         PDFAppContext* context = host ? host->getContext() : nullptr;
         m_registry = context ? context->getDocumentRegistry() : nullptr;
@@ -684,6 +693,13 @@ private:
         }
         else if (state == PDFAppDocumentState::PasswordRequired && m_request->m_call)
         {
+            // The time of the user starts with the password screen (once: a wrong
+            // password typed keeps the state and the time)
+            if (!m_isWaitingForPassword && m_timer)
+            {
+                m_isWaitingForPassword = true;
+                m_timer->start(qMax(1, PDFAppMcpFilesTool::getPasswordTimeout()));
+            }
             m_request->m_call->reportProgress(50.0, 100.0, QStringLiteral("Waiting for the password in PDF4QT"));
         }
     }
@@ -709,12 +725,34 @@ private:
         end(m_document.data(), true);
     }
 
+    void onCancelCheck()
+    {
+        const std::shared_ptr<PDFMcpCall> call = m_request ? m_request->m_call : nullptr;
+        if (!call || call->isFinished())
+        {
+            // Answered elsewhere: nothing waits any more
+            end(nullptr, false);
+            return;
+        }
+
+        if (call->isCanceled())
+        {
+            std::shared_ptr<PDFAppMcpFileRequest> request = std::move(m_request);
+            end(nullptr, false);
+            request->fail(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
+        }
+    }
+
     void end(PDFAppDocument* document, bool isTimeout)
     {
         std::shared_ptr<PDFAppMcpFileRequest> request = std::move(m_request);
         if (m_timer)
         {
             m_timer->stop();
+        }
+        if (m_cancelTimer)
+        {
+            m_cancelTimer->stop();
         }
         if (request)
         {
@@ -727,8 +765,13 @@ private:
     QString m_canonicalPath;
     QPointer<PDFAppDocumentRegistry> m_registry;
     QPointer<PDFAppDocument> m_document;
+    /// Interval of the check of a canceled call (as PDFAppMcpTextIndexWaiter)
+    static constexpr int CANCEL_CHECK_INTERVAL = 250;
+
     QPointer<QTimer> m_timer;
+    QPointer<QTimer> m_cancelTimer;
     bool m_hasDocument = false;
+    bool m_isWaitingForPassword = false;
 };
 
 void PDFAppMcpFileWriteJob::finish(PDFAppMcpHost* host)

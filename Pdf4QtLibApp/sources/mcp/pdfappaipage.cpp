@@ -318,8 +318,31 @@ void PDFAppAiNewTokenDialog::setClientNames(const QStringList& names)
     }
 }
 
-QString PDFAppAiNewTokenDialog::getBodyText(const QStringList& names)
+void PDFAppAiNewTokenDialog::setTokenRequired(bool isTokenRequired)
 {
+    if (m_isTokenRequired != isTokenRequired)
+    {
+        m_isTokenRequired = isTokenRequired;
+        updateTexts();
+    }
+}
+
+QString PDFAppAiNewTokenDialog::getBodyText(const QStringList& names, bool isTokenRequired)
+{
+    if (!isTokenRequired)
+    {
+        // Require access token is off (the default of the local mode, owner
+        // 2026-10-28): the assistants connect without the token, the new one is
+        // used only after the option is turned on
+        if (names.isEmpty())
+        {
+            return tr("Require access token is off, so assistants connect without a token. The new token is used once you turn the option on – the commands on this page are updated then.");
+        }
+
+        return tr("Require access token is off, so assistants connect without a token: all connected assistants are disconnected (%1) and can connect again at once. The new token is used once you turn the option on.")
+                .arg(names.join(QStringLiteral(", ")));
+    }
+
     if (names.isEmpty())
     {
         // 955:150878: the variant without connected assistants
@@ -333,7 +356,7 @@ QString PDFAppAiNewTokenDialog::getBodyText(const QStringList& names)
 void PDFAppAiNewTokenDialog::updateTexts()
 {
     setTitle(tr("Create a new access token?"));
-    setText(getBodyText(m_clientNames));
+    setText(getBodyText(m_clientNames, m_isTokenRequired));
     if (m_createButton)
     {
         m_createButton->setText(tr("Create New Token"));
@@ -361,9 +384,10 @@ PDFAppAiPage::PDFAppAiPage(PDFAppContext* context, QWidget* parent) :
 {
     setObjectName(QStringLiteral("aiPage"));
 
-    // A required token is generated, so the setup commands can show it (the
-    // controller does the same at the start of the server)
-    if (context && context->getDatabase() && isTokenRequired() && context->getSettings().getString(PDFSettingKeys::mcpToken()).isEmpty())
+    // A missing token is generated, also when it is not required, so the token
+    // row and the setup commands show it at once when Require access token is
+    // turned on (the controller does the same at the start of the server)
+    if (context && context->getDatabase() && context->getSettings().getString(PDFSettingKeys::mcpToken()).isEmpty())
     {
         context->getSettings().setValue(PDFSettingKeys::mcpToken(), PDFAppMcpController::generateToken());
     }
@@ -1322,6 +1346,12 @@ void PDFAppAiPage::updateConnection()
     {
         m_newTokenButton->setEnabled(hasDatabase && m_controller);
     }
+
+    // An open box Create a new access token? follows Require access token
+    if (m_newTokenDialog)
+    {
+        m_newTokenDialog->setTokenRequired(isTokenRequired());
+    }
 }
 
 void PDFAppAiPage::updateAssistants()
@@ -1990,6 +2020,7 @@ bool PDFAppAiPage::openNewTokenDialog()
         names << PDFAppMcpClientNames::sanitizeName(client.name);
     }
     dialog->setClientNames(names);
+    dialog->setTokenRequired(isTokenRequired());
     connect(dialog, &QDialog::finished, this, &PDFAppAiPage::onNewTokenFinished);
     m_newTokenDialog = dialog;
     dialog->open();

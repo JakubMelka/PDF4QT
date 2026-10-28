@@ -513,6 +513,7 @@ PDFMcpActivityStatus PDFAppMcpHost::getActivityStatus(PDFAppMcpDecision decision
         case PDFAppMcpDecision::DeniedUser:
             return PDFMcpActivityStatus::DeniedUser;
         case PDFAppMcpDecision::DeniedTimeout:
+        case PDFAppMcpDecision::DeniedQueueTimeout:
             return PDFMcpActivityStatus::DeniedTimeout;
         case PDFAppMcpDecision::DeniedClosed:
             return PDFMcpActivityStatus::DeniedClosed;
@@ -601,7 +602,10 @@ void PDFAppMcpHost::resolveConfirmation(quint64 confirmationId, PDFAppMcpDecisio
 
     if (m_activityLog && confirmation->activityId > 0)
     {
-        m_activityLog->update(confirmation->activityId, getActivityStatus(decision));
+        // The bound of the queue is told apart from the 2 minutes of a shown
+        // dialog by the reason of the row (no new stored status - item 59)
+        const QJsonObject detail = decision == PDFAppMcpDecision::DeniedQueueTimeout ? QJsonObject({ { QStringLiteral("reason"), PDFAppMcpActivity::getQueueTimeoutReason() } }) : QJsonObject();
+        m_activityLog->update(confirmation->activityId, getActivityStatus(decision), detail);
     }
 
     if (decision == PDFAppMcpDecision::Allowed && confirmation->permissions.testFlag(PDFAppMcpPermissionKind::Read))

@@ -188,6 +188,10 @@ QString PDFAppMcpActivity::getStatusText(PDFMcpActivityStatus status, const QStr
         case PDFMcpActivityStatus::DeniedUser:
             return tr("Denied by you");
         case PDFMcpActivityStatus::DeniedTimeout:
+            if (detail.value(QStringLiteral("reason")).toString() == getQueueTimeoutReason())
+            {
+                return tr("Denied automatically · not shown within 10 min");
+            }
             return tr("Denied automatically · no answer in 2 min");
         case PDFMcpActivityStatus::DeniedClosed:
             return tr("Denied · the tab was closed");

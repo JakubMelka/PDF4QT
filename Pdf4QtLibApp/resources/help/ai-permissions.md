@@ -45,6 +45,12 @@ After an assistant changed a document – also with **Allow** – a bar over the
 - While a save, a print or a tool runs on the document, changes are refused.
 - While a dialog of PDF4QT is open, changes are refused; requests to read wait until you close the dialog.
 
+## The access token
+
+By default, the server needs no access token: it accepts connections only from this computer, checks the address of every request and refuses every request of a web page in a browser, and changes of documents and files are Ask by default.
+
+The token protects PDF4QT against other user accounts on the same computer. On a computer shared by more users, turn on **Require access token** on the page [AI](/ai) and set up your assistants again. With **Allow remote connections**, the token is always required.
+
 ## Recent activity
 
 The page AI lists what the assistants did. The status of a request is one of:
@@ -57,6 +63,7 @@ The page AI lists what the assistants did. The status of a request is one of:
 | Allowed by you | You allowed the request |
 | Denied by you | You denied the request |
 | Denied automatically · no answer in 2 min | Nobody answered the question in time |
+| Denied automatically · not shown within 10 min | The question waited 10 minutes and never appeared (other questions of its tab, a tab you did not show, or another dialog of PDF4QT) |
 | Denied · the tab was closed | The tab of the document was closed while the question waited |
 | Denied · the document is locked | The document is locked in PDF4QT |
 | Denied · a tool is running on the document | A save, a print or a tool ran on the document |

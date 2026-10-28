@@ -1778,6 +1778,15 @@ void AppSettingsShortcutsTest::importWeakensMcp()
     pdf::PDFDatabaseStatement hostileLong(connection, "UPDATE setting SET value = printf('%.3000c', 'a') WHERE key = 'mcp.permissionRead'");
     QVERIFY(hostileLong.execute());
     const QString longPath = exportBackup(QStringLiteral("long"));
+
+    // A backup without the stored value of Require access token (a backup of the
+    // default state): the default, off since owner 2026-10-28
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    pdf::PDFDatabaseStatement missingToken(connection, "DELETE FROM setting WHERE key = 'mcp.requireToken'");
+    QVERIFY(missingToken.execute());
+    QVERIFY(!fixture.settings().getBool(Keys::mcpRequireToken()));
+    const QString missingTokenPath = exportBackup(QStringLiteral("missing-token"));
+    QVERIFY(!missingTokenPath.isEmpty());
     for (const QString& path : { strongPath, weakPath, askPath, hostilePath, longPath })
     {
         QVERIFY(!path.isEmpty());
@@ -1797,12 +1806,15 @@ void AppSettingsShortcutsTest::importWeakensMcp()
     QVERIFY(weakened(strongPath).isEmpty());
 
     // Hostile values: the defaults (Read = Allow, Edit = Files = Ask, remote off,
-    // token on), bounded texts of the options
+    // token off - owner 2026-10-28), bounded texts of the options; on → off of the
+    // token stays a weakening
     const QStringList hostileRows = { QStringLiteral("Read documents: Deny") + arrow + QStringLiteral("Allow"),
                                       QStringLiteral("Edit documents: Deny") + arrow + QStringLiteral("Ask"),
-                                      QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Ask") };
+                                      QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Ask"),
+                                      QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") };
     QCOMPARE(weakened(hostilePath), hostileRows);
     QCOMPARE(weakened(longPath), hostileRows);
+    QCOMPARE(weakened(missingTokenPath), QStringList({ QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") }));
 
     // Ask everywhere: only the steps to Allow and the switches are weaker
     QVERIFY(setMcp(ask, ask, ask, false, true));

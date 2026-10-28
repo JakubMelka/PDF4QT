@@ -812,8 +812,10 @@ pdf::PDFAppDocumentTab* AppDocumentFixture::open(const QString& filePath, int pa
         }
         if (found->getDocument()->getState() != pdf::PDFAppDocumentState::Loading)
         {
+            // The events may delete the tab or the window (lifetime tests)
+            QPointer<pdf::PDFAppDocumentTab> guard(found);
             settle();
-            return found;
+            return guard.data();
         }
         QTest::qWait(5);
     }

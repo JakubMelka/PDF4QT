@@ -1202,8 +1202,16 @@ void PDFWidgetStyleButtons::drawToolButtonColorBar(QPainter* painter, const QRec
         return;
     }
 
-    // A color, which cannot be told from the fill of the tile, gets an outline
-    const QColor background = PDFWidgetStyleImpl::color(state.on ? Color::BgSurface : Color::AccentNeutralBg);
+    // A color, which cannot be told from the fill of the tile (drawToolButton:
+    // bg/accent-subtle of a checked tile, accent/neutral/bg at rest - a translucent
+    // fill lies over the bg/surface of the panel of the tiles), gets an outline
+    const Color fill = state.on ? (state.hover ? Color::BgAccentSubtleHover : Color::BgAccentSubtle) : Color::AccentNeutralBg;
+    const QColor fillColor = PDFWidgetStyleImpl::color(fill);
+    const QColor surface = PDFWidgetStyleImpl::color(Color::BgSurface);
+    const qreal alpha = fillColor.alphaF();
+    const QColor background = QColor::fromRgbF(float(fillColor.redF() * alpha + surface.redF() * (1.0 - alpha)),
+                                               float(fillColor.greenF() * alpha + surface.greenF() * (1.0 - alpha)),
+                                               float(fillColor.blueF() * alpha + surface.blueF() * (1.0 - alpha)));
     if (getContrastRatio(color, background) < ACTION_TILE_COLOR_BAR_MINIMUM_CONTRAST)
     {
         PDFStylePainter::fill(painter, barRect.adjusted(-1.0, -1.0, 1.0, 1.0), radii.adjusted(-1.0), Color::BorderStrong);

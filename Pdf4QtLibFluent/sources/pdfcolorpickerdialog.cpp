@@ -95,6 +95,22 @@ public:
         return color;
     }
 
+    /// The eyedropper is offered: the reader of the test reads the screen, or the
+    /// platform gives pictures of the screen. The screen itself is not read before
+    /// the user starts the eyedropper (macOS asks for the permission of the screen
+    /// recording at a grab, a grab costs time at each opening of the dialog);
+    /// a screen, which gives no picture then, hides the eyedropper (startPicking).
+    static bool isScreenReadable()
+    {
+        if (getReader())
+        {
+            return PDFColorPickerDialog::readScreenColor(QCursor::pos()).has_value();
+        }
+
+        const QString platform = QGuiApplication::platformName();
+        return platform != QLatin1String("minimal") && !platform.startsWith(QLatin1String("wayland"), Qt::CaseInsensitive) && QGuiApplication::primaryScreen() != nullptr;
+    }
+
     /// Interval of the reading of the position of the pointer while the
     /// eyedropper picks (the pointer outside of the windows of the application
     /// sends no moves, as QColorDialog does it on Windows)
@@ -709,8 +725,9 @@ PDFColorPickerDialog::PDFColorPickerDialog(const QColor& currentColor, QWidget* 
 
     retranslate();
 
-    // The eyedropper is shown only, where the screen can be read
-    m_isEyedropperAvailable = readScreenColor(QCursor::pos()).has_value();
+    // The eyedropper is shown only, where the screen can be read (the screen is
+    // not read before the user starts the eyedropper)
+    m_isEyedropperAvailable = Helper::isScreenReadable();
     eyedropper->setVisible(m_isEyedropperAvailable);
 
     setRgbColor(m_currentColor.isValid() ? m_currentColor : QColor(255, 255, 255), Source::Program);
@@ -1039,6 +1056,19 @@ void PDFColorPickerDialog::startPicking()
         return;
     }
 
+    // The first reading of the screen: a screen, which gives no picture (a
+    // refused permission, a platform without pictures of the screen), hides the
+    // eyedropper and nothing is grabbed
+    if (!readScreenColor(QCursor::pos()).has_value())
+    {
+        m_isEyedropperAvailable = false;
+        if (PDFIconButton* eyedropper = m_eyedropper.data())
+        {
+            eyedropper->setVisible(false);
+        }
+        return;
+    }
+
     // The dialog takes the pointer and the keys: a move reads the screen, a
     // click takes the color, Esc gives the color before the picking back
     m_stateBeforePicking = getState();
@@ -1247,6 +1277,19 @@ void PDFColorPickerDialog::changeEvent(QEvent* event)
         default:
             break;
     }
+}
+
+bool PDFColorPickerDialog::event(QEvent* event)
+{
+    // A modal window opened by the application meanwhile blocks the dialog: Qt
+    // gives a blocked window no input, so the grabs of the eyedropper would keep
+    // the pointer and the keys from the modal window (X11 keeps the activation
+    // while the keyboard is grabbed) - the picking ends without a color
+    if (event->type() == QEvent::WindowBlocked && m_isPicking)
+    {
+        stopPicking(false);
+    }
+    return BaseClass::event(event);
 }
 
 bool PDFColorPickerDialog::eventFilter(QObject* watched, QEvent* event)

@@ -392,8 +392,8 @@ void PDFComponentPainter::paintColorComparison(QPainter* painter, const QRectF& 
 
         // The current color at the leading side, the new one at the trailing side
         const qreal half = rect.width() / 2.0;
-        const QRectF leading = state.visualRect(rect, QRectF(0.0, 0.0, half, rect.height()));
-        const QRectF trailing = state.visualRect(rect, QRectF(half, 0.0, rect.width() - half, rect.height()));
+        const QRectF leading = state.visualRect(rect, QRectF(rect.left(), rect.top(), half, rect.height()));
+        const QRectF trailing = state.visualRect(rect, QRectF(rect.left() + half, rect.top(), rect.width() - half, rect.height()));
 
         if (content.current.isValid())
         {

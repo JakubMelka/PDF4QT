@@ -1193,6 +1193,53 @@ void WidgetStyleTest::actionTileColorBar()
     QVERIFY(isNear(pixel(draw(enabled, Qt::LeftToRight), 44, 30), QColor(0x12, 0x34, 0x56)));
     QVERIFY(isNear(pixel(draw(enabled | QStyle::State_On, Qt::LeftToRight), 44, 30), QColor(0x12, 0x34, 0x56)));
 
+    // The outline compares the bar with the fill of the tile: bg/accent-subtle of a
+    // checked tile (also hovered), accent/neutral/bg at rest - a gray, which cannot
+    // be told from the fill of the checked tile, but from bg/surface
+    auto luminance = [](const QColor& color)
+    {
+        auto channel = [](qreal value) { return value <= 0.04045 ? value / 12.92 : qPow((value + 0.055) / 1.055, 2.4); };
+        return 0.2126 * channel(color.redF()) + 0.7152 * channel(color.greenF()) + 0.0722 * channel(color.blueF());
+    };
+    auto contrast = [&luminance](const QColor& first, const QColor& second)
+    {
+        const qreal a = luminance(first);
+        const qreal b = luminance(second);
+        return (qMax(a, b) + 0.05) / (qMin(a, b) + 0.05);
+    };
+    for (const QStyle::State checkedState : { enabled | QStyle::State_On, enabled | QStyle::State_On | QStyle::State_MouseOver })
+    {
+        const QColor fill = blend(token(checkedState.testFlag(QStyle::State_MouseOver) ? pdf::PDFThemeColors::BgAccentSubtleHover : pdf::PDFThemeColors::BgAccentSubtle),
+                                  token(pdf::PDFThemeColors::BgSurface));
+        QColor gray;
+        for (int level = 0; level < 256 && !gray.isValid(); ++level)
+        {
+            const QColor candidate(level, level, level);
+            if (contrast(candidate, fill) < 1.28 && contrast(candidate, token(pdf::PDFThemeColors::BgSurface)) > 1.32)
+            {
+                gray = candidate;
+            }
+        }
+        if (gray.isValid())
+        {
+            holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, gray);
+            const QImage checked = draw(checkedState, Qt::LeftToRight);
+            QVERIFY(isNear(pixel(checked, 44, 30), gray));
+            // (the translucent fill of a checked tile lies over nothing in the image: the color only)
+            QColor outline = pixel(checked, 34, 30);
+            outline.setAlpha(255);
+            QVERIFY2(isNear(outline, token(pdf::PDFThemeColors::BorderStrong), 10), qPrintable(gray.name() + QStringLiteral(" ") + outline.name()));
+            if (contrast(gray, token(pdf::PDFThemeColors::AccentNeutralBg)) > 1.32)
+            {
+                QVERIFY(isNear(pixel(draw(enabled, Qt::LeftToRight), 34, 30), token(pdf::PDFThemeColors::AccentNeutralBg)));
+            }
+        }
+        else
+        {
+            QVERIFY(pdf::PDFThemeManager::getInstance()->getTheme().getScheme() == pdf::PDFThemeColors::Scheme::Dark);
+        }
+    }
+
     // White on the neutral fill of the light theme cannot be told: it gets the outline border/strong
     holder.setProperty(pdf::PDFWidgetStyleProperties::COLOR_BAR, light.getColor(pdf::PDFThemeColors::AnnotationWhite));
     image = draw(enabled, Qt::LeftToRight);

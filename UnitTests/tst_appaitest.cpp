@@ -87,9 +87,12 @@ private slots:
     void pageStatePortInUsePdf4Qt();
     void settingsRowsApply();
     void remoteForcesToken();
+    void defaultLocalWithoutToken();
+    void reviewConnectionChangedWhileStarting();
     void newTokenDialog();
     void assistantsList();
     void assistantsFromServer();
+    void reviewStaleClientRowsRemoved();
     void assistantsOtherInstance();
     void activityList();
     void activityShowReopensDialog();
@@ -290,7 +293,9 @@ public:
 
     static int timeout(int milliseconds)
     {
-        return milliseconds * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+        // PDF4QT_TEST_TIMEOUT_FACTOR, 20 under valgrind (the probe of the fixture is
+        // multiplied by the same factor)
+        return milliseconds * pdftest::AppDocumentFixture::getTimeoutFactor();
     }
 };
 
@@ -425,8 +430,10 @@ void AppAiTest::pageStates()
 void AppAiTest::figmaGeometry()
 {
     // Review RF7: the server card, the remote warning row, the callouts, the setup
-    // steps and the new token dialog against their frames
+    // steps and the new token dialog against their frames (the frames show the
+    // token required - not the default of the local mode, owner 2026-10-28)
     pdftest::AppMcpFixture fixture;
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
     pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
     QVERIFY(page);
     const pdf::PDFThemeManager* theme = pdf::PDFThemeManager::getInstance();
@@ -715,9 +722,132 @@ void AppAiTest::remoteForcesToken()
     QVERIFY(!page->getSetup().copyText.contains(QStringLiteral("Authorization")));
 }
 
+void AppAiTest::defaultLocalWithoutToken()
+{
+    // Owner 2026-10-28: the local mode requires no access token by default (the
+    // server listens on the loopback only, checks Host and refuses every Origin
+    // without the token). A token exists anyway, so Require access token turned
+    // on later works at once; the remote mode still forces it
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(!AppAiTestHelper::settings(fixture).getBool(pdf::PDFSettingKeys::mcpRequireToken()));
+    QVERIFY(!fixture.controller()->createConfig().isTokenRequired());
+    pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
+    QVERIFY(page);
+
+    // Review RTOK: Create a new access token? does not tell to set the assistants
+    // up again with the new token while none is required (they connect without
+    // it); the open box follows Require access token
+    QVERIFY(page->openNewTokenDialog());
+    QPointer<pdf::PDFAppAiNewTokenDialog> tokenDialog = page->getNewTokenDialog();
+    QTRY_VERIFY(tokenDialog && tokenDialog->isVisible());
+    QVERIFY(!tokenDialog->isTokenRequired());
+    QCOMPARE(tokenDialog->accessibleDescription(), pdf::PDFAppAiNewTokenDialog::getBodyText(QStringList(), false));
+    QVERIFY(tokenDialog->accessibleDescription().startsWith(QStringLiteral("Require access token is off")));
+    QVERIFY(!tokenDialog->accessibleDescription().contains(QStringLiteral("Set up your assistants")));
+    QVERIFY(pdf::PDFAppAiNewTokenDialog::getBodyText({ QStringLiteral("Claude Code") }, false).contains(QStringLiteral("(Claude Code) and can connect again at once")));
+    QVERIFY(!pdf::PDFAppAiNewTokenDialog::getBodyText({ QStringLiteral("Claude Code") }, false).contains(QStringLiteral("setup command")));
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
+    QTRY_VERIFY(tokenDialog->isTokenRequired());
+    QCOMPARE(tokenDialog->accessibleDescription(), pdf::PDFAppAiNewTokenDialog::getBodyText(QStringList(), true));
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), false).isError());
+    QTRY_VERIFY(!tokenDialog->isTokenRequired());
+    tokenDialog->getCancelButton()->click();
+    QTRY_VERIFY(!page->getNewTokenDialog());
+
+    QVERIFY(fixture.startServer());
+    QTRY_COMPARE(page->getShownState(), pdf::PDFAppAiPage::ShownState::Running);
+    QVERIFY(!fixture.controller()->getServer()->getConfig().isTokenRequired());
+
+    const QString token = fixture.controller()->getToken();
+    QCOMPARE(token.size(), 43);
+    QTRY_COMPARE(page->getTokenField()->text(), token);
+    QVERIFY(page->getCopyTokenButton()->isEnabled());
+    QCheckBox* require = page->findSettingRow(QStringLiteral("require-access-token"))->getControl()->getCheckBox();
+    QVERIFY(require && !require->isChecked() && require->isEnabled());
+
+    // The setup texts have no header and no token
+    QTRY_VERIFY(!page->getSetup().copyText.isEmpty());
+    QVERIFY(!page->getSetup().copyText.contains(QStringLiteral("Authorization")));
+    QVERIFY(!page->getSetup().copyText.contains(token));
+    QVERIFY(!page->getSetup().containsToken);
+
+    // A request without Authorization passes, a client set up with a token (also
+    // an old one) passes too, a browser page (Origin) is refused
+    pdftest::McpTestClient client(fixture.port());
+    QVERIFY(!client.discover().isEmpty());
+    QCOMPARE(client.lastResponse().status, 200);
+    client.setToken(token.toLatin1());
+    QVERIFY(!client.discover().isEmpty());
+    client.setToken(QByteArrayLiteral("an-old-token"));
+    QVERIFY(!client.discover().isEmpty());
+    client.setToken(QByteArray());
+    client.setExtraHeaders({ qMakePair(QByteArray("Origin"), QByteArray("http://127.0.0.1:3000")) });
+    QVERIFY(client.discover().isEmpty());
+    QCOMPARE(client.lastResponse().status, 403);
+    client.setExtraHeaders({});
+
+    // Require access token turned on: the server restarts with the same token,
+    // the setup texts get it, a request without it is refused
+    require->click();
+    QTRY_VERIFY(AppAiTestHelper::settings(fixture).getBool(pdf::PDFSettingKeys::mcpRequireToken()));
+    QTRY_VERIFY_WITH_TIMEOUT(fixture.controller()->isRunning() && fixture.controller()->getServer()->getConfig().isTokenRequired(), AppAiTestHelper::timeout(10000));
+    QCOMPARE(fixture.controller()->getToken(), token);
+    QTRY_VERIFY(page->getSetup().copyText.contains(token));
+    pdftest::McpTestClient strict(fixture.port());
+    QVERIFY(strict.discover().isEmpty());
+    QCOMPARE(strict.lastResponse().status, 401);
+    strict.setToken(token.toLatin1());
+    QVERIFY(!strict.discover().isEmpty());
+
+    // Off again; the remote mode forces the token also with the option off
+    require->click();
+    QTRY_VERIFY(!AppAiTestHelper::settings(fixture).getBool(pdf::PDFSettingKeys::mcpRequireToken()));
+    QTRY_VERIFY_WITH_TIMEOUT(fixture.controller()->isRunning() && !fixture.controller()->getServer()->getConfig().isTokenRequired(), AppAiTestHelper::timeout(10000));
+    fixture.controller()->stop();
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpAllowRemote(), true).isError());
+    QVERIFY(fixture.controller()->createConfig().isTokenRequired());
+    QTRY_VERIFY(page->getSetup().copyText.contains(token));
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpAllowRemote(), false).isError());
+}
+
+void AppAiTest::reviewConnectionChangedWhileStarting()
+{
+    // Review RTOK: a change of the connection (Require access token - also of
+    // another instance) while the server starts found no running server, so the
+    // server ran without the token while the page showed it required. The server,
+    // which comes up with an older configuration than the settings, restarts
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.startServer());
+    pdf::PDFAppMcpController* controller = fixture.controller();
+    QVERIFY(!controller->getServer()->getConfig().isTokenRequired());
+
+    controller->stop();
+    QVERIFY(controller->start());
+    QCOMPARE(controller->getServer()->getState(), pdf::PDFMcpServerState::Starting);
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
+    QTRY_VERIFY_WITH_TIMEOUT(controller->isRunning() && controller->getServer()->getConfig().isTokenRequired(), AppAiTestHelper::timeout(10000));
+    pdftest::McpTestClient client(fixture.port());
+    QVERIFY(client.discover().isEmpty());
+    QCOMPARE(client.lastResponse().status, 401);
+    client.setToken(controller->getToken().toLatin1());
+    QVERIFY(!client.discover().isEmpty());
+
+    // Off again during a start: the server follows too, the restart settles
+    controller->stop();
+    QVERIFY(controller->start());
+    QCOMPARE(controller->getServer()->getState(), pdf::PDFMcpServerState::Starting);
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), false).isError());
+    QTRY_VERIFY_WITH_TIMEOUT(controller->isRunning() && !controller->getServer()->getConfig().isTokenRequired(), AppAiTestHelper::timeout(10000));
+    QVERIFY(controller->isOwner());
+    pdftest::McpTestClient open(fixture.port());
+    QVERIFY(!open.discover().isEmpty());
+}
+
 void AppAiTest::newTokenDialog()
 {
+    // The setup texts with the token (Require access token on)
     pdftest::AppMcpFixture fixture;
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
     pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
     QVERIFY(page);
     QVERIFY(fixture.startServer());
@@ -847,6 +977,24 @@ void AppAiTest::assistantsFromServer()
     client->listTools();
     QTRY_COMPARE_WITH_TIMEOUT(page->getAssistantRows().size(), 1, AppAiTestHelper::timeout(10000));
     fixture.controller()->stop();
+    QTRY_VERIFY(AppAiTestHelper::repository(fixture).getClients().empty());
+    QTRY_VERIFY(page->getAssistantRows().isEmpty());
+}
+
+void AppAiTest::reviewStaleClientRowsRemoved()
+{
+    // Review RFW7-M (coverage of PDFAppMcpController::syncClients): the rows
+    // mcp_client of an owner, which ended without removing them (a crash), are
+    // removed by the next owner - its server has no such assistants
+    pdftest::AppMcpFixture fixture;
+    pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
+    QVERIFY(page);
+    QVERIFY(!AppAiTestHelper::repository(fixture).upsertClient(AppAiTestHelper::client(QStringLiteral("a:00000000000000000000000000000002"), QStringLiteral("Claude Code"))).isError());
+    QVERIFY(!AppAiTestHelper::repository(fixture).upsertClient(AppAiTestHelper::client(QStringLiteral("a:00000000000000000000000000000003"), QStringLiteral("Codex CLI"))).isError());
+    QCOMPARE(AppAiTestHelper::repository(fixture).getClients().size(), size_t(2));
+
+    QVERIFY(fixture.startServer());
+    QTRY_VERIFY(fixture.controller()->isOwner());
     QTRY_VERIFY(AppAiTestHelper::repository(fixture).getClients().empty());
     QTRY_VERIFY(page->getAssistantRows().isEmpty());
 }
@@ -1012,7 +1160,10 @@ void AppAiTest::activityHostileRows()
 
 void AppAiTest::setupCards()
 {
+    // The variants with the token (Require access token on - not the default of
+    // the local mode, owner 2026-10-28)
     pdftest::AppMcpFixture fixture;
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
     pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
     QVERIFY(page);
     QVERIFY(fixture.startServer());

@@ -23,11 +23,17 @@ http://127.0.0.1:8765/mcp
 ## Connect an assistant
 
 1. Start the server on the page AI.
-2. In **Connect an assistant**, choose your assistant. PDF4QT prepares the command or the configuration for it, with the address and the access token.
+2. In **Connect an assistant**, choose your assistant. PDF4QT prepares the command or the configuration for it, with the address (and the access token, when **Require access token** is on).
 3. Copy the command and run it in a terminal (or put the configuration into the file of your client).
 4. Open a document in PDF4QT and ask the assistant about it.
 
-For Claude Code the command looks like this (the token is your own):
+For Claude Code the command looks like this:
+
+```
+claude mcp add --transport http pdf4qt http://127.0.0.1:8765/mcp
+```
+
+With **Require access token** on, it also carries your token:
 
 ```
 claude mcp add --transport http pdf4qt http://127.0.0.1:8765/mcp --header "Authorization: Bearer <token>"
@@ -43,17 +49,17 @@ The page has a setup for each of these clients:
 | Gemini CLI | A command for the terminal; `gemini mcp list` then shows the server |
 | GitHub Copilot | An entry of `mcp.json` of Visual Studio Code (MCP: Open User Configuration) |
 | Cursor | An entry of `~/.cursor/mcp.json` |
-| Other client | The address, the header with the token, and a JSON configuration for any other MCP client |
+| Other client | The address, the header with the token (when it is required), and a JSON configuration for any other MCP client |
 
 > [!WARNING] The access token is a password
-> The commands and configurations contain your access token. A command you run stays in the shell history of your terminal, and a configuration file stays on the disk. Do not share them. When a token may have leaked, create a new one: the old one stops working at once.
+> With **Require access token** on, the commands and configurations contain your access token. A command you run stays in the shell history of your terminal, and a configuration file stays on the disk. Do not share them. When a token may have leaked, create a new one: the old one stops working at once.
 
 ## Other MCP clients
 
 Any client, which supports MCP over Streamable HTTP, can connect. Choose **Other client**:
 
 1. Add a server of type Streamable HTTP (called “http” in some clients) with the address of the server.
-2. Let the client send the header `Authorization: Bearer <token>` with every request (leave it out when **Require access token** is off).
+2. When **Require access token** is on, let the client send the header `Authorization: Bearer <token>` with every request.
 3. Or add the JSON configuration of the page to the MCP configuration file of the client; the key names differ between clients.
 
 PDF4QT understands the protocol versions 2026-07-28, 2025-11-25 and 2025-06-18, so also older clients work. Clients, which cannot ask you to choose a document, get a list of the open documents to choose from.
@@ -64,8 +70,10 @@ PDF4QT understands the protocol versions 2026-07-28, 2025-11-25 and 2025-06-18, 
 | --- | --- | --- |
 | Port | 8765 | The port of the server (1024–65535) |
 | Network access | This computer only | **Allow remote connections** lets other computers of your network connect |
-| Require access token | On | Every request must carry the access token; with remote connections it is always on |
+| Require access token | Off | Every request must carry the access token; with remote connections it is always on |
 | Access token | – | A new token disconnects all assistants; they need the new command |
+
+Without the token, only programs of this computer reach the server, and web pages in a browser are always refused. Turn the token on when other people use this computer with their own accounts – see [Permissions of assistants](/help/ai-permissions).
 
 A change of the connection restarts a running server. When another program uses the port, the page AI says so; choose another port and set up your assistants again.
 
@@ -81,6 +89,6 @@ A change of the connection restarts a running server. When another program uses 
 
 - **Disconnect** ends the session of one assistant: its running requests are canceled and its read approval is forgotten. The assistant can connect again with its next request.
 - **Disconnect All** does it for all assistants.
-- To block an assistant for good, create a new access token: every assistant with the old token is refused.
+- To block an assistant for good, turn on **Require access token** and create a new access token: every assistant without the new token is refused.
 
 **Recent activity** lists the last requests of the assistants and how they ended; **Clear** empties the list. The meaning of the states is in [Permissions of assistants](/help/ai-permissions).

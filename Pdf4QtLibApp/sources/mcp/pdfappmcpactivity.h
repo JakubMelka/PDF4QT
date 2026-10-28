@@ -66,6 +66,11 @@ public:
     /// \p isOtherInstance: a waiting row of another PDF4QT window.
     static QString getStatusText(PDFMcpActivityStatus status, const QString& client, const QJsonObject& detail, bool isOtherInstance = false);
 
+    /// The detail "reason" of a row denied by the bound of the queue of the
+    /// confirmations (DeniedTimeout of a request, whose dialog never appeared
+    /// within 10 minutes - item 59)
+    static QString getQueueTimeoutReason() { return QStringLiteral("queue"); }
+
     /// Pages "1–12, 15" of page numbers
     static QString formatPages(const std::set<int>& pages);
 

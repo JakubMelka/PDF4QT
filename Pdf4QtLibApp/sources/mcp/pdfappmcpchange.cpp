@@ -344,6 +344,8 @@ QString PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision decision)
             return QString();
         case PDFAppMcpDecision::DeniedTimeout:
             return QStringLiteral("The user did not answer the confirmation in PDF4QT within 2 minutes. Ask the user before trying again.");
+        case PDFAppMcpDecision::DeniedQueueTimeout:
+            return QStringLiteral("The confirmation waited in PDF4QT for 10 minutes without being shown to the user (other requests or a dialog were open, or the tab of the document was not shown). Ask the user before trying again.");
         case PDFAppMcpDecision::Unavailable:
             return QStringLiteral("PDF4QT cannot ask the user for the confirmation now. Ask the user to allow the change on the AI page of PDF4QT.");
         case PDFAppMcpDecision::DeniedClosed:

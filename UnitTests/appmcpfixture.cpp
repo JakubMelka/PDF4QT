@@ -80,6 +80,12 @@ bool TestConfirmationProvider::answer(pdf::PDFAppMcpDecision decision)
 AppMcpFixture::AppMcpFixture(QSize size) :
     AppDocumentFixture(size)
 {
+    // The probe of a port in use asks the other server over the loopback: under
+    // valgrind its answer takes longer than the 500 ms of the product
+    if (controller())
+    {
+        controller()->setPortProbeTimeout(pdf::PDFMcpLimits::PORT_PROBE_TIMEOUT * getTimeoutFactor());
+    }
     if (host())
     {
         m_provider = std::make_unique<TestConfirmationProvider>(host());
@@ -198,8 +204,15 @@ pdf::PDFMcpCallRequest AppMcpFixture::createRequest(const QString& toolName, con
     request.client.clientCapabilities = m_capabilities;
     request.client.clientName = m_clientName;
     request.client.remoteAddress = QStringLiteral("127.0.0.1");
-    request.client.assistantKey = pdf::PDFMcpAssistantRegistry::createModernKey(controller() ? controller()->getToken().toLatin1() : QByteArray(),
-                                                                               m_clientName, request.client.remoteAddress);
+    // The key of the server (pdfmcpdispatcher_protocol.cpp): the token only, when
+    // it is required (not by default in the local mode - owner 2026-10-28)
+    QByteArray keyToken;
+    if (controller())
+    {
+        const pdf::PDFMcpServerConfig config = controller()->createConfig();
+        keyToken = config.isTokenRequired() ? config.token : QByteArray();
+    }
+    request.client.assistantKey = pdf::PDFMcpAssistantRegistry::createModernKey(keyToken, m_clientName, request.client.remoteAddress);
     request.id = pdf::PDFMcpRequestId::createInteger(1);
     request.receivedAt = QDateTime::currentMSecsSinceEpoch();
     return request;

@@ -178,6 +178,8 @@ private slots:
     void toolSetPermissionsFilter();
     void catalogToolBridge();
     void catalogToolBridgeConfirmations();
+    void reviewCatalogToolOutcomes();
+    void reviewLargeDocumentReads();
     void hostCallRules();
     void readApproval();
     void controllerOwnership();
@@ -205,6 +207,7 @@ private slots:
     void fixListedTitlesWhileReadAsk();
     void fixConfirmationAfterShutdown();
     void fixJunctionsResolved();
+    void reviewMountPointFolder();
     void fixOwnerRequests();
 
     // Package B: the read tools, resources, prompts, completion (appmcpreadtests.h)
@@ -651,6 +654,129 @@ void AppMcpTest::catalogToolBridgeConfirmations()
     QVERIFY(result && result->isError);
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
     document->setLocked(false);
+}
+
+void AppMcpTest::reviewCatalogToolOutcomes()
+{
+    // Review RFW7-M (coverage of the bridge of the catalog tools): every outcome
+    // of a run - a failed tool, save_copy without its path, an unknown document,
+    // a document busy at the call, a document locked or busy while the question
+    // waits - is an execution error with its own text and activity status, and
+    // nothing is committed
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("outcomes.pdf"), 2));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdf::PDFAppDocument* document = tab->getDocument();
+    AppMcpTestHelper::ToolRegistration registration;
+    fixture.host()->checkToolRegistry();
+    QVERIFY(fixture.host()->getCatalog()->findTool(u"review"));
+
+    // The tool fails: its message, the status Failed
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"fail"}})"));
+    QVERIFY(result && result->isError);
+    QCOMPARE(result->getFirstText(), QStringLiteral("Failed on purpose"));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Failed));
+
+    // Nothing to do: a result without a change
+    result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"nothing"}})"));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(AppMcpTestHelper::structured(*result).value(QStringLiteral("statistics")).toObject().value(QStringLiteral("status")).toString(), QStringLiteral("nothing-to-do"));
+
+    // save_copy needs its path
+    result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","result":"save_copy","statistics":{"mode":"title","title":"Copy"}})"));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("save_copy needs an absolute path")), qPrintable(result->getFirstText()));
+
+    // An unknown document
+    QJsonObject unknown = AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"count"}})");
+    unknown.insert(QStringLiteral("documentId"), QStringLiteral("zzzzzzzzzzzz"));
+    result = fixture.callTool(QStringLiteral("review"), unknown);
+    QVERIFY(result && result->isError);
+
+    // A document busy at the call (a save runs)
+    {
+        QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Save, QStringLiteral("Saving"), true);
+        QVERIFY(operation);
+        result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"title","title":"Busy"}})"));
+        QVERIFY(result && result->isError);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("busy")), qPrintable(result->getFirstText()));
+        QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedBusy));
+        operation->finish();
+    }
+    QTRY_VERIFY(!document->isBlockedByOperation());
+
+    // Edit = Ask: the document locked while the question waits - allowed, but refused
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"title","title":"LockedMeanwhile"}})"));
+    QVERIFY(fixture.confirmDialog());
+    document->setLocked(true);
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("locked")), qPrintable(result->getFirstText()));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
+    document->setLocked(false);
+
+    // ... and busy while the question waits: the commit is refused
+    call = fixture.startCall(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"title","title":"BusyMeanwhile"}})"));
+    QVERIFY(fixture.confirmDialog());
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Save, QStringLiteral("Saving"), true);
+    QVERIFY(operation);
+    QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("busy")), qPrintable(result->getFirstText()));
+    operation->finish();
+
+    // Nothing of it was committed
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    QVERIFY(document->getDocument()->getInfo()->title != QStringLiteral("LockedMeanwhile"));
+}
+
+void AppMcpTest::reviewLargeDocumentReads()
+{
+    // Review RFW7-M (coverage of the document tool): get_pages of more than 2000
+    // pages gives the first 2000 with nextPage, get_annotations of more than 50
+    // pages runs in a worker - the same rows as a direct read of a few pages
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::annotatedLarge(fixture.folder(), pdf::PDFAppMcpToolSet::MAXIMUM_PAGES_PER_CALL + 5, 1));
+    QVERIFY(tab);
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->isReady(), 60000);
+    const QString id = tab->getDocument()->getId();
+
+    QJsonObject pages = AppMcpTestHelper::arguments(R"({"action":"get_pages"})");
+    pages.insert(QStringLiteral("documentId"), id);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("document"), pages);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject pagesObject = AppMcpTestHelper::structured(*result).value(QStringLiteral("get_pages")).toObject();
+    QCOMPARE(pagesObject.value(QStringLiteral("pages")).toArray().size(), qsizetype(pdf::PDFAppMcpToolSet::MAXIMUM_PAGES_PER_CALL));
+    QCOMPARE(pagesObject.value(QStringLiteral("nextPage")).toInteger(), qint64(pdf::PDFAppMcpToolSet::MAXIMUM_PAGES_PER_CALL + 1));
+
+    // Annotations of every page: the worker, at most maxResults rows with a cursor
+    QJsonObject annotations = AppMcpTestHelper::arguments(R"({"action":"get_annotations","get_annotations":{"maxResults":20}})");
+    annotations.insert(QStringLiteral("documentId"), id);
+    result = fixture.callTool(QStringLiteral("document"), annotations);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject annotationsObject = AppMcpTestHelper::structured(*result).value(QStringLiteral("get_annotations")).toObject();
+    const QJsonArray rows = annotationsObject.value(QStringLiteral("annotations")).toArray();
+    QCOMPARE(rows.size(), qsizetype(20));
+    QVERIFY(!annotationsObject.value(QStringLiteral("nextCursor")).toString().isEmpty());
+
+    // ... the same first rows as a direct read of the first pages
+    QJsonObject direct = AppMcpTestHelper::arguments(R"({"action":"get_annotations","get_annotations":{"pages":"1-20","maxResults":20}})");
+    direct.insert(QStringLiteral("documentId"), id);
+    result = fixture.callTool(QStringLiteral("document"), direct);
+    QVERIFY(result && !result->isError);
+    const QJsonArray directRows = AppMcpTestHelper::structured(*result).value(QStringLiteral("get_annotations")).toObject().value(QStringLiteral("annotations")).toArray();
+    QCOMPARE(directRows.size(), qsizetype(20));
+    QCOMPARE(directRows.first().toObject().value(QStringLiteral("id")), rows.first().toObject().value(QStringLiteral("id")));
+    QCOMPARE(directRows.last().toObject().value(QStringLiteral("id")), rows.last().toObject().value(QStringLiteral("id")));
 }
 
 void AppMcpTest::hostCallRules()
@@ -1988,6 +2114,44 @@ void AppMcpTest::fixJunctionsResolved()
     // A junction without its target is refused
     QVERIFY(QDir(directory.filePath(QStringLiteral("elsewhere"))).removeRecursively());
     QVERIFY(pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked/a.pdf")), true, &error).isEmpty());
+}
+
+void AppMcpTest::reviewMountPointFolder()
+{
+    // Review RFW7-M: a volume mounted into a folder without a drive letter is a
+    // junction, whose target Qt gives as the folder itself - the resolution of
+    // the junctions ran out of its depth and refused every file of the volume.
+    // A junction to itself stands for it (a volume needs an administrator); a
+    // cycle of two junctions is still refused.
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString mount = directory.filePath(QStringLiteral("mount"));
+    if (!AppMcpTestHelper::createDirectoryLink(mount, mount))
+    {
+        QSKIP("A link of a folder to itself cannot be created here");
+    }
+#ifndef Q_OS_WIN
+    QSKIP("Junctions of NTFS only");
+#endif
+    QCOMPARE(QFileInfo(QFileInfo(mount).junctionTarget()).canonicalFilePath().toLower(), QFileInfo(mount).canonicalFilePath().toLower());
+
+    QString error;
+    const QString checked = pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("mount/report.pdf")), true, &error);
+    QVERIFY2(!checked.isEmpty(), qPrintable(error));
+    QCOMPARE(QDir::fromNativeSeparators(checked).toLower(), (QFileInfo(mount).canonicalFilePath() + QStringLiteral("/report.pdf")).toLower());
+
+    // A cycle: a -> b -> a
+    QVERIFY(QDir(directory.path()).mkpath(QStringLiteral("b")));
+    QVERIFY(AppMcpTestHelper::createDirectoryLink(directory.filePath(QStringLiteral("b")), directory.filePath(QStringLiteral("a"))));
+    QVERIFY(QDir(directory.filePath(QStringLiteral("b"))).removeRecursively());
+    QVERIFY(AppMcpTestHelper::createDirectoryLink(directory.filePath(QStringLiteral("a")), directory.filePath(QStringLiteral("b"))));
+    QVERIFY(pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("a/report.pdf")), true, &error).isEmpty());
+
+    // The junctions themselves are removed (never their targets)
+    for (const QString& name : { QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("mount") })
+    {
+        QVERIFY(QDir(directory.path()).rmdir(name));
+    }
 }
 
 void AppMcpTest::fixOwnerRequests()

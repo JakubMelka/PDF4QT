@@ -93,8 +93,14 @@ public:
     void setClientNames(const QStringList& names);
     const QStringList& getClientNames() const { return m_clientNames; }
 
+    /// The token is required (Require access token or the remote mode). Without
+    /// it the assistants connect without any token (the default of the local mode,
+    /// owner 2026-10-28): the text does not tell to set them up again
+    void setTokenRequired(bool isTokenRequired);
+    bool isTokenRequired() const { return m_isTokenRequired; }
+
     /// Text of the box for the names (tests)
-    static QString getBodyText(const QStringList& names);
+    static QString getBodyText(const QStringList& names, bool isTokenRequired = true);
 
     QPushButton* getCreateButton() const { return m_createButton; }
     QPushButton* getCancelButton() const { return m_cancelButton; }
@@ -106,6 +112,7 @@ private:
     void updateTexts();
 
     QStringList m_clientNames;
+    bool m_isTokenRequired = true;
     QPointer<QPushButton> m_createButton;
     QPointer<QPushButton> m_cancelButton;
 };

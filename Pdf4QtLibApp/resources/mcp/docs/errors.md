@@ -18,6 +18,7 @@ PDF4QT reports two kinds of errors:
 | "The document needs a password …" | The user must type it in PDF4QT | Ask the user to type it in PDF4QT; never ask for the password itself |
 | "The user denied …" | The user said no in PDF4QT | Tell the user; do not repeat the call |
 | "The user did not answer … within 2 minutes" | The confirmation expired | Ask the user whether to try again |
+| "The confirmation waited in PDF4QT for 10 minutes without being shown …" | The question never appeared (other questions, a hidden tab or another dialog of PDF4QT) | Ask the user whether to try again |
 | "The user does not allow …" | The permission is Deny | Tell the user; the permission can be changed on the AI page |
 | "PDF4QT cannot ask the user …" | No confirmation can be shown right now | Ask the user to allow the action on the AI page, or try later |
 | "The document is locked in PDF4QT …" | The user locked the document | Ask the user to unlock it or to use Edit a Copy |
@@ -43,7 +44,7 @@ PDF4QT reports two kinds of errors:
 | -32601 / HTTP 404 | The method is not implemented by PDF4QT | Do not use it |
 | -31001 / HTTP 429 | Too many calls; `data.retryAfterMs` says how long to wait | Wait, then send fewer calls |
 | -31002 / HTTP 503 | The server is stopping | Wait until the user starts it again |
-| HTTP 401 | The access token is missing or wrong | The user must set up the client again with the current token (AI page of PDF4QT) |
+| HTTP 401 | The access token is missing or wrong (the user turned on Require access token; it is off by default on this computer and always on with remote connections) | The user must set up the client again with the current token (AI page of PDF4QT) |
 | HTTP 403 | The request came from a browser page or an unknown host | Connect directly, not through a browser |
 | HTTP 404 with a session id | The session ended (30 minutes idle, disconnected, a new token, a restart) | Initialize a new session |
 
@@ -60,6 +61,7 @@ PDF4QT reports two kinds of errors:
 | Text resource of a document | 4194304 characters |
 | Waiting confirmations per tab | 16 |
 | Confirmation timeout | 2 minutes from the moment the question appears; at most 10 minutes waiting before it appears |
+| Wait of `files.open` | 2 minutes for the reading of the file, then 2 minutes from the password screen for the password |
 | Calls running at once | 16 per assistant |
 | Rate | 20 calls per second (short bursts up to 50) per assistant |
 

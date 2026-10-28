@@ -1169,14 +1169,15 @@ std::vector<McpLifetimeStep> McpLifetimeHelper::scenario(const QString& name, Mc
         });
         steps.push_back([](McpLifetimeRun& run)
         {
-            // A second document opened and closed: the list changes
-            pdf::PDFAppDocumentTab* second = H::openReady(*run.fixture, pdftest::AppDocumentSamples::simple(run.fixture->folder(), QStringLiteral("second.pdf"), 1));
+            // A second document opened and closed: the list changes (the wait for
+            // the stream runs the events - the tab may be deleted meanwhile)
+            QPointer<pdf::PDFAppDocumentTab> second = H::openReady(*run.fixture, pdftest::AppDocumentSamples::simple(run.fixture->folder(), QStringLiteral("second.pdf"), 1));
             if (!second || !run.window)
             {
                 return false;
             }
             const bool isListed = !run.streams.empty() && H::waitStream(run.streams.front().get(), QStringLiteral("notifications/resources/list_changed"));
-            return isListed && run.window && run.window->closeTab(second);
+            return isListed && run.window && second && run.window->closeTab(second.data());
         });
         steps.push_back([](McpLifetimeRun& run)
         {

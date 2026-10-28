@@ -23,7 +23,7 @@ PDF documents come from anywhere. Their text, annotations, metadata, form values
 - Every read and change is listed on the AI page (Recent activity).
 - Locked documents are never changed. Passwords are typed only in PDF4QT; you never receive them.
 - PDF4QT runs no JavaScript of a document for assistants and opens nothing embedded in a document.
-- The access token protects the server; it is never part of a result. Two clients with the same token, name and address count as one assistant – the token is what PDF4QT trusts, not the name a client reports.
+- The server accepts connections from this computer only (unless the user allows remote connections), checks the Host header and refuses every request of a web page (Origin) without the token. The access token is off by default on this computer and always on with remote connections; it is never part of a result. Two clients with the same token (or both without it), name and address count as one assistant – the name a client reports is not proof of who it is.
 - The server does not encrypt its traffic. With remote connections allowed, it is meant for a trusted network only.
 
 ## Example

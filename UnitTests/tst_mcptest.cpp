@@ -215,6 +215,13 @@ public:
         return pdftest::McpTestClient::getTimeoutFactor();
     }
 
+    /// Moves the clock of the server back by more than one request takes (1 s
+    /// multiplied by the factor): a rate limit sees no time between the requests
+    static void stepClockBack()
+    {
+        pdf::PDFMcpClock::setOffset(pdf::PDFMcpClock::getOffset() - qint64(1000) * factor());
+    }
+
     static bool waitFor(const std::function<bool()>& condition, int timeout)
     {
         QElapsedTimer timer;
@@ -261,7 +268,9 @@ public:
         icon.source = QStringLiteral("data:image/png;base64,AAAA");
         icon.sizes = QStringList({ QStringLiteral("48x48") });
         config.serverInfo.icons.push_back(icon);
-        config.headerTimeout = 2000;
+        // A head is complete within 2 s; multiplied by the factor - under valgrind the
+        // 16 clients of loadManyClients write their heads later (408 otherwise)
+        config.headerTimeout = 2000 * McpTestHelper::factor();
         return config;
     }
 
@@ -1306,6 +1315,7 @@ private slots:
     // Fix wave FW7-L (follow-ups of step 7)
     void fixConnectionEviction();
     void fixConnectionEvictionRefused();
+    void reviewUnauthorizedClosesConnection();
     void fixSubscriptionFilterLinear();
     void fixTaskInputKeysUnique();
     void fixLegacyInitializeLimits();
@@ -2927,6 +2937,31 @@ void McpTest::authHostOrigin()
     QList<QPair<QByteArray, QByteArray>> localOrigin = headers;
     localOrigin.append(qMakePair(QByteArray("Origin"), QByteArray("http://127.0.0.1:3000")));
     QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openFixture.port(), discover, localOrigin, false)).status, 403);
+
+    // The default of the application (owner 2026-10-28: no token in the local
+    // mode). A client set up while the token was required still sends it: the
+    // header is ignored - the current token, an old or wrong one, another scheme
+    // or a repeated header pass, because nothing is required (refusing a wrong
+    // token would only break old configurations), and they are no failures of
+    // the throttle. A browser page stays refused: every Origin is 403 also with
+    // the valid token, the Origin rule needs the token required
+    const quint16 openPort = openFixture.port();
+    QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, headers, true)).status, 200);
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_AUTHORIZATION_FAILURES + 2; ++i)
+    {
+        QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, wrong, false)).status, 200);
+    }
+    QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, basic, false)).status, 200);
+    QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, repeated, true)).status, 200);
+    QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, headers, false)).status, 200);
+    QCOMPARE(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, localOrigin, true)).status, 403);
+    for (const QByteArray& origin : { QByteArray("http://localhost"), QByteArray("https://[::1]:8443"), QByteArray("http://evil.example"), QByteArray("null") })
+    {
+        QList<QPair<QByteArray, QByteArray>> withOrigin = headers;
+        withOrigin.append(qMakePair(QByteArray("Origin"), QByteArray(origin)));
+        QVERIFY2(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, withOrigin, true)).status == 403, origin.constData());
+        QVERIFY2(openFixture.raw(McpServerHelper::createRawPost(openPort, discover, withOrigin, false)).status == 403, origin.constData());
+    }
 }
 
 void McpTest::remoteHosts()
@@ -4137,13 +4172,17 @@ void McpTest::rateLimits()
     }
     QVERIFY(throttle.getAddressCount() <= pdf::PDFMcpLimits::MAXIMUM_RATE_LIMIT_KEYS);
 
-    // Over HTTP: 429 with -31001, retryAfterMs and Retry-After
+    // Over HTTP: 429 with -31001, retryAfterMs and Retry-After. The bucket refills
+    // by 20 per second, a request under valgrind takes longer than 50 ms: the clock
+    // of the server goes back by more than one request takes before each request,
+    // so the bucket never refills during the loop (McpTestHelper::stepClockBack)
     McpServerFixture fixture;
     QVERIFY(fixture.isRunning);
     pdftest::McpTestClient client = fixture.client();
     bool isLimited = false;
     for (int i = 0; i < 300 && !isLimited; ++i)
     {
+        McpTestHelper::stepClockBack();
         const QJsonObject response = client.listTools();
         if (client.lastResponse().status == 429)
         {
@@ -4153,6 +4192,7 @@ void McpTest::rateLimits()
             QVERIFY(!client.lastResponse().header("Retry-After").isEmpty());
         }
     }
+    pdf::PDFMcpClock::setOffset(0);
     QVERIFY(isLimited);
 
     // Another assistant is not limited; at most 16 calls in flight per assistant
@@ -4173,9 +4213,11 @@ void McpTest::rateLimits()
     bool isCompletionLimited = false;
     for (int i = 0; i < 60 && !isCompletionLimited; ++i)
     {
+        McpTestHelper::stepClockBack();
         completion.request(QStringLiteral("completion/complete"), params);
         isCompletionLimited = completion.lastResponse().status == 429;
     }
+    pdf::PDFMcpClock::setOffset(0);
     QVERIFY(isCompletionLimited);
 }
 
@@ -4302,6 +4344,11 @@ public:
                     }
                     else
                     {
+                        if (failures == 0)
+                        {
+                            // The first unexpected response is printed by the test
+                            firstFailure = QStringLiteral("%1 %2 (id %3)").arg(response.status).arg(QString::fromUtf8(response.body.left(300))).arg(request.item.id);
+                        }
                         ++failures;
                     }
                 }
@@ -4345,6 +4392,7 @@ public:
     std::atomic<bool> isStoppedEarly = false;
     std::atomic<int> busy = 0;
     std::atomic<int> abandoned = 0;
+    QString firstFailure;   ///< Written by the thread of the worker, read after it ended
 
     /// The test stops the server (503 is final then)
     void setStopping() { m_isStopping.store(true); }
@@ -4424,8 +4472,13 @@ void McpTest::loadManyClients()
         int unfinished = 0;
         int stoppedEarly = 0;
         int busy = 0;
+        QString firstFailure;
         for (const auto& worker : workers)
         {
+            if (firstFailure.isEmpty())
+            {
+                firstFailure = worker->firstFailure;
+            }
             matched += worker->matched;
             canceled += worker->canceled;
             stopped += worker->stopped;
@@ -4438,7 +4491,7 @@ void McpTest::loadManyClients()
         }
         qInfo("loadManyClients phase %d: %d matched, %d canceled, %d stopped, %d closed, %d limited, %d busy, %d failures, %d unfinished, %lld ms",
               phase, matched, canceled, stopped, closed, limited, busy, failures, unfinished, timer.elapsed());
-        QCOMPARE(failures, 0);
+        QVERIFY2(failures == 0, qPrintable(QStringLiteral("%1 failures, the first: %2").arg(failures).arg(firstFailure)));
         QCOMPARE(unfinished, 0);
         if (phase == 0)
         {
@@ -5652,6 +5705,49 @@ void McpTest::fixConnectionEvictionRefused()
     }
     QVERIFY(run.requestOk(kept.front(), "kept-0"));
     QVERIFY(run.requestOk(kept.back(), "kept-" + QByteArray::number(pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS - 1)));
+}
+
+void McpTest::reviewUnauthorizedClosesConnection()
+{
+    // Review RFW7-M: a request without the valid token got a kept-alive 401 /
+    // 429 - its connection had completed a request, so it was never a candidate
+    // of the eviction: a local process without the token held every slot by 64
+    // connections, each sending a bad request now and then, and the assistant
+    // with the token got 503. The connection is closed after 401 / 429.
+    pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
+    config.headerTimeout = 120000;
+    McpSingleThreadRun run(config);
+    QVERIFY(run.isListening);
+
+    QByteArray unauthorized = McpServerHelper::createRawPost(run.port, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":{" + McpServerHelper::modernMeta() + "}}",
+                                                             McpServerHelper::modernHeaders("server/discover"), false);
+    unauthorized.replace("Connection: close\r\n", "");
+    std::vector<QTcpSocket*> sockets;
+    for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_CONNECTIONS; ++i)
+    {
+        // (the answered connections close meanwhile: no wait for the count)
+        QTcpSocket* socket = run.open(0);
+        QVERIFY(socket);
+        socket->write(unauthorized);
+        QByteArray data;
+        const pdftest::McpTestResponse response = McpSingleThreadRun::read(socket, &data);
+        QVERIFY2(response.status == 401 || response.status == 429, qPrintable(QString::number(response.status)));
+        QCOMPARE(response.header("Connection").toLower(), QByteArray("close"));
+        sockets.push_back(socket);
+    }
+
+    // The server closes them: their slots are free
+    QVERIFY(McpTestHelper::waitFor([&]() { return run.shared->connectionCount.load() == 0; }, 10000));
+    for (QTcpSocket* socket : sockets)
+    {
+        QVERIFY(McpTestHelper::waitFor([socket]() { socket->readAll(); return socket->state() == QAbstractSocket::UnconnectedState; }, 5000));
+    }
+
+    // The assistant with the token is served (the valid token passes the block
+    // of the local mode, follow-up 21)
+    QTcpSocket* assistant = run.open(1);
+    QVERIFY(assistant);
+    QVERIFY(run.requestOk(assistant));
 }
 
 void McpTest::fixSubscriptionFilterLinear()

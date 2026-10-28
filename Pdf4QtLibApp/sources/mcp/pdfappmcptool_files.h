@@ -50,8 +50,13 @@ public:
         Write       ///< A new or existing .pdf file in an existing folder
     };
 
-    /// Longest wait of open for the password typed in the tab (2 min)
+    /// Longest wait of open for the password typed in the tab (2 min from the
+    /// password screen)
     static constexpr int DEFAULT_PASSWORD_TIMEOUT = 120000;
+
+    /// Longest wait of open for the reading of the file (until the document is
+    /// ready, needs its password or failed; then the state loading is answered)
+    static constexpr int DEFAULT_LOADING_TIMEOUT = 120000;
 
     virtual QString getToolName() const override { return QStringLiteral("files"); }
     virtual void handle(const PDFAppMcpToolInvocation& invocation) override;

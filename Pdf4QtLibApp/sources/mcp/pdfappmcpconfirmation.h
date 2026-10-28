@@ -57,6 +57,7 @@ enum class PDFAppMcpDecision
     Allowed,            ///< The user allowed it (activity "allowed")
     DeniedUser,         ///< The user denied it (activity "denied_user")
     DeniedTimeout,      ///< No answer in 2 minutes (activity "denied_timeout")
+    DeniedQueueTimeout, ///< Its dialog did not appear within 10 minutes of waiting - other requests, a hidden tab, a modal dialog (activity "denied_timeout" with the detail reason "queue", item 59)
     DeniedClosed,       ///< The tab was closed (activity "denied_closed")
     DeniedDisconnected, ///< The assistant was disconnected (activity "denied_disconnected")
     DeniedStopped,      ///< The server stopped (activity "denied_stopped")

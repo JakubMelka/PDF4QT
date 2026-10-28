@@ -247,7 +247,17 @@ int McpTestClient::getTimeoutFactor()
 {
     bool ok = false;
     const int factor = qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR", &ok);
-    return ok && factor > 0 ? qMin(factor, 1000) : 1;
+    if (ok && factor > 0)
+    {
+        return qMin(factor, 1000);
+    }
+
+    // Under valgrind without the variable (vg-run.py): 20, as AppDocumentFixture
+    if (qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")))
+    {
+        return 20;
+    }
+    return 1;
 }
 
 McpTestResponse McpTestClient::parseResponse(const QByteArray& data, bool isClosed)

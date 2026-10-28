@@ -56,6 +56,7 @@
 #include <QElapsedTimer>
 #include <QRandomGenerator>
 #include <QClipboard>
+#include <QCursor>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -910,6 +911,21 @@ void FluentComponentsTest::cleanup()
 {
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     QApplication::setLayoutDirection(Qt::LeftToRight);
+
+    // A test, which has moved the pointer (QTest::mouseMove), leaves it far from
+    // the windows of the next test: a window shown under the pointer is hovered,
+    // so a widget would not draw as its painter without a state (the order of the
+    // functions must not matter - the whole executable in one process)
+    QCursor::setPos(QPoint(-20000, -20000));
+
+    // The keyboard modality of the style (the focus ring of a focused widget after
+    // a key) is ended by a press, as the user does it with the mouse: a widget
+    // focused by the next test does not show the ring of the keys of this one
+    QWidget pointerTarget;
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&pointerTarget, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(&pointerTarget, &release);
 }
 
 void FluentComponentsTest::sizes()
@@ -8786,6 +8802,16 @@ void FluentComponentsTest::colorPickerPainter()
         const QColor trailing = pixel(image, direction == Qt::LeftToRight ? 30.0 : 10.0, 14.0);
         QCOMPARE(leading, QColor(255, 214, 10));
         QCOMPARE(trailing, QColor(10, 132, 255));
+
+        // A chip, which does not start at the origin (the sample of the gallery):
+        // the halves are split at its center, the whole chip is filled
+        const QImage offset = render([&](QPainter& painter) { Painter::paintColorComparison(&painter, QRectF(4.0, 4.0, 40.0, 28.0), comparison, state(QStyle::State_None, direction)); }, QSize(48, 36));
+        QCOMPARE(pixel(offset, direction == Qt::LeftToRight ? 14.0 : 34.0, 18.0), QColor(255, 214, 10));
+        QCOMPARE(pixel(offset, direction == Qt::LeftToRight ? 22.0 : 26.0, 18.0), QColor(255, 214, 10));
+        QCOMPARE(pixel(offset, direction == Qt::LeftToRight ? 26.0 : 22.0, 18.0), QColor(10, 132, 255));
+        QCOMPARE(pixel(offset, direction == Qt::LeftToRight ? 41.0 : 7.0, 18.0), QColor(10, 132, 255));
+        QCOMPARE(pixel(offset, 2.0, 18.0), token(Color::BgSurface));
+        QCOMPARE(pixel(offset, 46.0, 18.0), token(Color::BgSurface));
     }
     const QImage noColor = render([&](QPainter& painter) { Painter::paintColorComparison(&painter, QRectF(0.0, 0.0, 40.0, 28.0), Painter::ColorComparison{ QColor(), QColor(10, 132, 255) }, state(QStyle::State_None)); }, QSize(40, 28));
     QVERIFY(countPixels(noColor, QRect(0, 0, 20, 28), token(Color::IconDanger), 60) > 5);
@@ -9408,6 +9434,41 @@ void FluentComponentsTest::colorPickerEyedropper()
     QCOMPARE(selected.count(), 1);
     QCOMPARE(selected.at(0).at(0).value<QColor>(), QColor(11, 12, 77));
     QVERIFY(!dialog.isPicking());
+
+    // A modal window opened meanwhile blocks the dialog: the picking ends without
+    // a color (a blocked window gets no input, its grabs would keep the pointer)
+    {
+        Dialog blocked(QColor(21, 22, 23));
+        blocked.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&blocked));
+        blocked.startPicking();
+        QVERIFY(blocked.isPicking());
+        QEvent windowBlocked(QEvent::WindowBlocked);
+        QApplication::sendEvent(&blocked, &windowBlocked);
+        QVERIFY(!blocked.isPicking());
+        QCOMPARE(blocked.getColor(), QColor(21, 22, 23));
+        QVERIFY(blocked.isVisible());
+    }
+
+    // The screen is read only, when the picking starts: a screen, which gives no
+    // picture then (a refused permission), hides the eyedropper and picks nothing
+    {
+        Dialog refused(QColor(31, 32, 33));
+        refused.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&refused));
+        QVERIFY(refused.isEyedropperAvailable());
+        int reads = 0;
+        pdf::PDFColorPickerDialog::setScreenColorReader([&reads](const QPoint&) { ++reads; return std::optional<QColor>(); });
+        refused.startPicking();
+        QCOMPARE(reads, 1);
+        QVERIFY(!refused.isPicking());
+        QVERIFY(!refused.isEyedropperAvailable());
+        QVERIFY(refused.getEyedropperButton()->isHidden());
+        QCOMPARE(QWidget::mouseGrabber(), nullptr);
+        refused.startPicking();
+        QCOMPARE(reads, 1);
+        pdf::PDFColorPickerDialog::setScreenColorReader(&ColorPickerReaderGuard::gradient);
+    }
 
     // Deleted while picking: the grabs end with it
     {

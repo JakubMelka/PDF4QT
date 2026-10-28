@@ -231,7 +231,7 @@ public:
     /// Next id of a request
     qint64 nextId() { return ++m_id; }
 
-    /// Time limit factor of the tests (PDF4QT_TEST_TIMEOUT_FACTOR, 1 by default)
+    /// Time limit factor of the tests (PDF4QT_TEST_TIMEOUT_FACTOR, 20 under valgrind, 1 by default)
     static int getTimeoutFactor();
 
     /// Parses an HTTP response (also a partial one: isComplete false)

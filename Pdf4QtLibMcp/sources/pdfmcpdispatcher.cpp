@@ -388,8 +388,8 @@ bool PDFMcpDispatcher::checkAuthorization(const std::shared_ptr<PDFMcpExchange>&
         data.beginObject();
         data.writeMember(QLatin1StringView("retryAfterMs"), retryAfter);
         data.endObject();
-        respondError(exchange, 429, PDFMcpRequestId(), PDFMcpErrorCodes::RATE_LIMITED, QStringLiteral("Too many failed authorizations; try again later"),
-                     data.take(), { { QByteArrayLiteral("Retry-After"), QByteArray::number((retryAfter + 999) / 1000) } });
+        respondUnauthorized(exchange, 429, PDFMcpErrorCodes::RATE_LIMITED, QStringLiteral("Too many failed authorizations; try again later"),
+                            data.take(), { { QByteArrayLiteral("Retry-After"), QByteArray::number((retryAfter + 999) / 1000) } });
         return false;
     }
 
@@ -398,9 +398,9 @@ bool PDFMcpDispatcher::checkAuthorization(const std::shared_ptr<PDFMcpExchange>&
         m_throttle.recordFailure(address, now);
 
         // No resource_metadata: clients configured with a static header never start OAuth
-        respondError(exchange, 401, PDFMcpRequestId(), PDFMcpErrorCodes::INVALID_REQUEST,
-                     QStringLiteral("Unauthorized: PDF4QT requires its access token (Authorization: Bearer <token>)"), QByteArray(),
-                     { { QByteArrayLiteral("WWW-Authenticate"), QByteArrayLiteral("Bearer realm=\"pdf4qt\"") } });
+        respondUnauthorized(exchange, 401, PDFMcpErrorCodes::INVALID_REQUEST,
+                            QStringLiteral("Unauthorized: PDF4QT requires its access token (Authorization: Bearer <token>)"), QByteArrayView(),
+                            { { QByteArrayLiteral("WWW-Authenticate"), QByteArrayLiteral("Bearer realm=\"pdf4qt\"") } });
         return false;
     }
     return true;
@@ -1011,6 +1011,18 @@ void PDFMcpDispatcher::respondError(const std::shared_ptr<PDFMcpExchange>& excha
                                     QByteArray data, std::vector<std::pair<QByteArray, QByteArray>> headers)
 {
     respondJson(exchange, status, createErrorMessage(id, code, message, data), std::move(headers));
+}
+
+void PDFMcpDispatcher::respondUnauthorized(const std::shared_ptr<PDFMcpExchange>& exchange, int status, int code, const QString& message, QByteArrayView data,
+                                           std::vector<std::pair<QByteArray, QByteArray>> headers)
+{
+    PDFMcpHttpResponse response;
+    response.status = status;
+    response.headers = std::move(headers);
+    response.headers.emplace_back(QByteArrayLiteral("Content-Type"), QByteArrayLiteral("application/json"));
+    response.body = createErrorMessage(PDFMcpRequestId(), code, message, data);
+    response.closeConnection = true;
+    exchange->respond(std::move(response));
 }
 
 void PDFMcpDispatcher::respondRequestError(const Request& request, int code, const QString& message, QByteArray data, int status)

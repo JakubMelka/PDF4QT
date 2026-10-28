@@ -136,6 +136,10 @@ public:
     /// Interval of the heartbeat (tests; PDFMcpRepository::HEARTBEAT_INTERVAL by default)
     void setHeartbeatInterval(int interval);
 
+    /// Time limit of the probe of a port in use for the next starts (tests - the
+    /// slowdown of valgrind; PDFMcpLimits::PORT_PROBE_TIMEOUT by default)
+    void setPortProbeTimeout(int timeout);
+
     /// Address of the network shown in the remote mode: the first up, running,
     /// non-loopback, non-link-local IPv4 of a non-virtual interface (empty = none)
     static QString findNetworkAddress();
@@ -184,6 +188,7 @@ private:
     bool m_isOwner = false;
     bool m_isShutDown = false;
     bool m_isInitialized = false;
+    int m_portProbeTimeout = PDFMcpLimits::PORT_PROBE_TIMEOUT;
     PDFMcpServerRow m_lastRow;
 };
 

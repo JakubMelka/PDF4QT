@@ -403,8 +403,11 @@ QString PDFAppAnnotatePanel::getColorName(const QColor& color)
 
 void PDFAppAnnotatePanel::hideEvent(QHideEvent* event)
 {
-    // The next opening starts at the checked tile again
-    resetColorTarget();
+    // A pending hover intent ends with the panel. The target itself stays until
+    // the next opening (updateState): "More colors…" of the color row hides the
+    // panel and the color chosen in its dialog belongs to the target tile.
+    m_hoverIntentTimer->stop();
+    m_pendingTargetKind = PDFAppAnnotationToolKind::None;
     BaseClass::hideEvent(event);
 }
 
@@ -461,6 +464,13 @@ bool PDFAppAnnotatePanel::eventFilter(QObject* watched, QEvent* event)
 
 void PDFAppAnnotatePanel::updateState()
 {
+    // A hidden panel reads its state, when it opens (a closed panel does not
+    // follow the creator): the opening starts at the checked tile again
+    if (!isVisible())
+    {
+        resetColorTarget();
+    }
+
     BaseClass::updateState();
 
     // The active tile is the active markup tool, else the last used markup type

@@ -70,7 +70,20 @@ public:
                     continue;
                 }
 
-                const QString target = QFileInfo(info.junctionTarget()).canonicalFilePath();
+                // A mount point of a volume is a junction too: Qt gives its first
+                // mount path - the drive of the volume, or the folder itself for a
+                // volume without a drive letter - or "Volume{...}", which does not
+                // exist, without one. The folder is the root of the volume then, not
+                // a way to another place (only an administrator mounts a volume; a
+                // junction to itself or to nothing reaches nothing either; review
+                // RFW7-M - every file on such a volume was refused)
+                const QString rawTarget = info.junctionTarget();
+                const QString target = QFileInfo(rawTarget).canonicalFilePath();
+                const bool isVolumeName = target.isEmpty() && QFileInfo(rawTarget).fileName().startsWith(QLatin1String("Volume{"), Qt::CaseInsensitive);
+                if (isVolumeName || target.compare(prefix, Qt::CaseInsensitive) == 0)
+                {
+                    continue;
+                }
                 if (target.isEmpty())
                 {
                     return QString();

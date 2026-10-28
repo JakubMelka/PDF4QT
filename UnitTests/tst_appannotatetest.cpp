@@ -3456,6 +3456,37 @@ void AppAnnotateTest::moreColorsDialog()
     QCOMPARE(creator->getColor(targetKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), qRgb(0x33, 0x66, 0x99));
     QVERIFY(!panel->isVisible());
 
+    // A hovered tile stays the target, while the panel is hidden for the dialog
+    // (the color does not go to the checked tile); the next opening starts at the
+    // checked tile again
+    panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), targetKind);
+    const Kind hoveredKind = targetKind == Kind::Underline ? Kind::Squiggly : Kind::Underline;
+    QToolButton* hoveredTile = panel->getMarkupTile(hoveredKind);
+    QVERIFY(hoveredTile);
+    QEnterEvent enter(QPointF(5, 5), QPointF(5, 5), QPointF(hoveredTile->mapToGlobal(QPoint(5, 5))));
+    QApplication::sendEvent(hoveredTile, &enter);
+    QTRY_COMPARE(panel->getColorTargetKind(), hoveredKind);
+    const QRgb checkedBefore = creator->getColor(targetKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb();
+    dialog = MoreColors::open(panel->getColorRow());
+    QVERIFY(dialog);
+    QVERIFY(!panel->isVisible());
+    QCOMPARE(dialog->getCurrentColor().rgb(), creator->getColor(hoveredKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb());
+    MoreColors::type(dialog, QStringLiteral("#996633"));
+    dialog->getOkButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QCOMPARE(creator->getColor(hoveredKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), qRgb(0x99, 0x66, 0x33));
+    QCOMPARE(creator->getColor(targetKind, pdf::PDFAppAnnotationCreator::ColorTarget::Stroke).rgb(), checkedBefore);
+    panel = qobject_cast<pdf::PDFAppAnnotatePanel*>(view->getToolbar()->openPanel(pdf::PDFAppDocumentToolbar::Panel::Annotate));
+    QVERIFY(panel);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(panel->getColorTargetKind(), targetKind);
+    panel->close();
+    pdftest::AppDocumentFixture::settle();
+
     // Mark as annotations: the menu hides while the dialog is open and comes back
     // with the color, which its button applies
     QVERIFY(H::search(tab, QStringLiteral("alpha")));

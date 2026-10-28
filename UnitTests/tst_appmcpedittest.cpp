@@ -28,12 +28,14 @@
 #include "pdfappannotationoperations.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanel.h"
+#include "pdfappdocumentregistry.h"
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
+#include "pdfappmcpactivity.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcpconfirmationui.h"
@@ -95,6 +97,7 @@ private slots:
     void annotationsAddEveryType();
     void annotationsUpdateDeleteReply();
     void annotationsHostile();
+    void reviewAnnotationEdgeArguments();
     void annotationOperationsHostile();
     void confirmationDialogs();
     void confirmationTimeoutAndQueue();
@@ -116,6 +119,8 @@ private slots:
     void filesRules();
     void filesOpen();
     void filesSave();
+    void reviewFilesSaveRefusals();
+    void reviewChangeRefusedAfterConfirmation();
     void filesSaveCopy();
     void filesPathLinksAndFolders();
     void filesSaveCopyTargetAppeared();
@@ -708,6 +713,95 @@ void AppMcpEditTest::annotationsUpdateDeleteReply()
     QVERIFY(H::isOnPage(document->getDocument().data(), locked));
 }
 
+void AppMcpEditTest::reviewAnnotationEdgeArguments()
+{
+    // Review RFW7-M (coverage of the annotations tool): the fill color, width and
+    // opacity of an update are written; arguments, which the schema accepts but
+    // the tool cannot use, are execution errors naming their path, and nothing
+    // is committed
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const pdf::PDFObjectReference square = H::findBySubject(document->getDocument().data(), QStringLiteral("square"));
+    const pdf::PDFObjectReference text = H::findBySubject(document->getDocument().data(), QStringLiteral("text"));
+    QVERIFY(square.isValid() && text.isValid());
+
+    auto update = [&](const QJsonObject& changes)
+    {
+        QJsonObject item = changes;
+        item.insert(QStringLiteral("id"), H::formatId(square));
+        QJsonObject arguments({ { QStringLiteral("action"), QStringLiteral("update") } });
+        arguments.insert(QStringLiteral("update"), QJsonObject({ { QStringLiteral("items"), QJsonArray({ item }) } }));
+        return fixture.callTool(QStringLiteral("annotations"), arguments);
+    };
+
+    // fillColor, width and opacity
+    std::optional<pdf::PDFMcpCallResult> result = update(H::json(R"({"fillColor":"#FF0000","width":3,"opacity":0.5})"));
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    const int undoSteps = pdftest::AppDocumentFixture::undoCount(document);
+    QCOMPARE(undoSteps, 1);
+    {
+        const pdf::PDFDocument* pdfDocument = document->getDocument().data();
+        const pdf::PDFDictionary* dictionary = pdfDocument->getDictionaryFromObject(pdfDocument->getObjectByReference(square));
+        QVERIFY(dictionary);
+        pdf::PDFDocumentDataLoaderDecorator loader(pdfDocument);
+        QCOMPARE(loader.readNumberFromDictionary(dictionary, "CA", 1.0), 0.5);
+        const std::vector<pdf::PDFReal> fill = loader.readNumberArrayFromDictionary(dictionary, "IC");
+        QCOMPARE(fill.size(), size_t(3));
+        QCOMPARE(fill[0], 1.0);
+    }
+
+    // Values the tool cannot use
+    struct Case
+    {
+        const char* arguments;
+        const char* message;
+    };
+    const Case updateCases[] =
+    {
+        { R"({"fillColor":"no such color"})", "items[0].fillColor" },
+        { R"({"rect":{"left":10,"bottom":10,"right":10,"top":50}})", "items[0].rect" },
+        { R"({})", "nothing to change" },
+    };
+    for (const Case& item : updateCases)
+    {
+        result = update(H::json(item.arguments));
+        QVERIFY2(H::isError(result), item.arguments);
+        QVERIFY2(H::text(result).contains(QString::fromLatin1(item.message)), qPrintable(H::text(result)));
+    }
+
+    // reply: an empty text, an annotation, which does not exist
+    QJsonObject reply({ { QStringLiteral("action"), QStringLiteral("reply") } });
+    reply.insert(QStringLiteral("reply"), QJsonObject({ { QStringLiteral("id"), H::formatId(text) }, { QStringLiteral("contents"), QStringLiteral("   ") } }));
+    result = fixture.callTool(QStringLiteral("annotations"), reply);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("the text of the reply is empty")), qPrintable(H::text(result)));
+    reply.insert(QStringLiteral("reply"), QJsonObject({ { QStringLiteral("id"), H::formatId(pdf::PDFObjectReference(99999, 0)) }, { QStringLiteral("contents"), QStringLiteral("Hello") } }));
+    result = fixture.callTool(QStringLiteral("annotations"), reply);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("does not exist")), qPrintable(H::text(result)));
+
+    // add: a note without its point, an ink without strokes, a
+    // link to a page, which does not exist
+    const Case addCases[] =
+    {
+        { R"({"action":"add","add":{"items":[{"type":"note","page":1}]}})", "note needs point" },
+        { R"({"action":"add","add":{"items":[{"type":"ink","page":1}]}})", "ink needs strokes" },
+        { R"({"action":"add","add":{"items":[{"type":"link","page":1,"rect":{"left":30,"bottom":10,"right":100,"top":30},"targetPage":99}]}})", "page 99 does not exist" },
+    };
+    for (const Case& item : addCases)
+    {
+        result = fixture.callTool(QStringLiteral("annotations"), H::json(item.arguments));
+        QVERIFY2(H::isError(result), item.arguments);
+        QVERIFY2(H::text(result).contains(QString::fromLatin1(item.message)), qPrintable(H::text(result)));
+    }
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoSteps);
+}
+
 void AppMcpEditTest::annotationsHostile()
 {
     using H = AppMcpEditTestHelper;
@@ -1004,9 +1098,25 @@ void AppMcpEditTest::confirmationTimeoutAndQueue()
     QVERIFY(!background->isFinished());
     fixture.time += 2000;
     fixture.ui()->tick();
-    QVERIFY(H::isError(fixture.waitResult(background)));
+    result = fixture.waitResult(background);
+    QVERIFY(H::isError(result));
     QVERIFY(background->isFinished());
     QVERIFY(fixture.ui()->getWaitingIds().empty());
+
+    // ... with its own texts: never "within 2 minutes" of a shown dialog (item 59)
+    QVERIFY2(!H::text(result).contains(QStringLiteral("2 minutes")), qPrintable(H::text(result)));
+    QVERIFY2(H::text(result).contains(QStringLiteral("10 minutes without being shown")), qPrintable(H::text(result)));
+    pdftest::AppDocumentFixture::settle();
+    bool hasQueueRow = false;
+    for (const pdf::PDFMcpActivityRow& row : fixture.activity())
+    {
+        if (row.status == pdf::PDFMcpActivityStatus::DeniedTimeout && row.detail.value(QStringLiteral("reason")).toString() == pdf::PDFAppMcpActivity::getQueueTimeoutReason())
+        {
+            hasQueueRow = true;
+            QCOMPARE(pdf::PDFAppMcpActivity::getStatusText(row.status, row.client, row.detail), QStringLiteral("Denied automatically · not shown within 10 min"));
+        }
+    }
+    QVERIFY(hasQueueRow);
 }
 
 void AppMcpEditTest::confirmationReadAndBoth()
@@ -1467,7 +1577,9 @@ void AppMcpEditTest::lockedBusyDialogOpen()
     fixture.ui()->tick();
     readResult = fixture.waitResult(call);
     QVERIFY(H::isError(readResult));
-    QVERIFY2(H::text(readResult).contains(QStringLiteral("2 minutes")), qPrintable(H::text(readResult)));
+    // (its own text: the dialog never appeared - item 59)
+    QVERIFY2(H::text(readResult).contains(QStringLiteral("10 minutes without being shown")), qPrintable(H::text(readResult)));
+    QVERIFY2(!H::text(readResult).contains(QStringLiteral("2 minutes")), qPrintable(H::text(readResult)));
     delete modal;
 }
 
@@ -2017,17 +2129,164 @@ void AppMcpEditTest::filesOpen()
     QCOMPARE(fixture.window->getCurrentTab(), current);
 
     // A password: the call waits for the password screen of the tab (here no
-    // password is typed - password_required)
-    pdf::PDFAppMcpFilesTool::setPasswordTimeout(300);
+    // password is typed - password_required). The time of the user starts with
+    // the password screen, not with the request: the reading of the file (longer
+    // than 1 ms, seconds under valgrind) never answers "loading" (VG7)
+    pdf::PDFAppMcpFilesTool::setPasswordTimeout(1);
     open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), pdftest::AppDocumentSamples::userPassword(fixture.folder()) } }));
     result = fixture.callTool(QStringLiteral("files"), open);
     pdf::PDFAppMcpFilesTool::setPasswordTimeout(pdf::PDFAppMcpFilesTool::DEFAULT_PASSWORD_TIMEOUT);
     QVERIFY(H::isError(result));
     QVERIFY2(H::text(result).contains(QStringLiteral("password_required")), qPrintable(H::text(result)));
+    QVERIFY2(H::text(result).contains(QStringLiteral("within 2 minutes")), qPrintable(H::text(result)));
+
+    // A call canceled while the password screen waits ends at once with its
+    // activity row - not after the 2 minutes of the user (review RVG7)
+    const QString passwordCopy = QDir(fixture.folder()).filePath(QStringLiteral("password-cancel.pdf"));
+    QVERIFY(QFile::copy(pdftest::AppDocumentSamples::userPassword(fixture.folder()), passwordCopy));
+    open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), passwordCopy } }));
+    call = fixture.startCall(QStringLiteral("files"), open);
+    QVERIFY(call);
+    auto isPasswordScreen = [&fixture, &passwordCopy]()
+    {
+        pdf::PDFAppDocument* document = fixture.context->getDocumentRegistry()->findByCanonicalPath(QFileInfo(passwordCopy).canonicalFilePath());
+        return document && document->getState() == pdf::PDFAppDocumentState::PasswordRequired;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(isPasswordScreen(), 30000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!call->isFinished());
+    call->cancel(pdf::PDFMcpCancelReason::StreamClosed);
+    result = fixture.waitResult(call, 5000);
+    QVERIFY(call->isFinished());
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("canceled")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Canceled));
 
     // Refused paths
     open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), QStringLiteral("\\\\server\\share\\a.pdf") } }));
     QVERIFY(H::isError(fixture.callTool(QStringLiteral("files"), open)));
+}
+
+void AppMcpEditTest::reviewFilesSaveRefusals()
+{
+    // Review RFW7-M (coverage of the files tool): save_copy of a relative path,
+    // save of a file, which cannot be written, and a save confirmed while the
+    // document was locked or became busy - errors with their activity status,
+    // nothing written
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    const QString path = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Refusals.pdf"), 1);
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(path);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(!H::isError(fixture.callTool(QStringLiteral("annotations"), H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})"))));
+    QVERIFY(document->isModified());
+    const QByteArray original = [&path]() { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }();
+    QVERIFY(!original.isEmpty());
+
+    // save_copy: a relative path
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("files"), H::json(R"({"action":"save_copy","save_copy":{"path":"copy.pdf"}})"));
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).startsWith(QStringLiteral("path: ")), qPrintable(H::text(result)));
+
+    // save: a read-only file
+    const QFileDevice::Permissions permissions = QFile::permissions(path);
+    QVERIFY(QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::ReadUser));
+    result = fixture.callTool(QStringLiteral("files"), H::json(R"({"action":"save"})"));
+    QVERIFY(QFile::setPermissions(path, permissions));
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("cannot be written")), qPrintable(H::text(result)));
+
+    // save confirmed after the document was locked meanwhile
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("files"), H::json(R"({"action":"save"})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    document->setLocked(true);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("locked")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
+    document->setLocked(false);
+
+    // ... and after an operation started meanwhile
+    call = fixture.startCall(QStringLiteral("files"), H::json(R"({"action":"save"})"));
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Edit, QStringLiteral("Test"), true);
+    QVERIFY(operation);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedBusy));
+    operation->finish();
+
+    // Nothing was written
+    QVERIFY(document->isModified());
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), original);
+}
+
+void AppMcpEditTest::reviewChangeRefusedAfterConfirmation()
+{
+    // Review RFW7-M (coverage of PDFAppMcpChangeJob::proceed / commitChange): a
+    // change allowed by the user, while the document became locked, changed and
+    // busy, or only busy, is refused with its status - nothing is committed
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Refused.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QJsonObject add = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})");
+
+    // Locked meanwhile
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"), add);
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    document->setLocked(true);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("locked")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
+    document->setLocked(false);
+
+    // Changed by the user and busy meanwhile: no new build on the current version
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(document->getDocument(), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                             QStringLiteral("User change"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Edit, QStringLiteral("Test"), true);
+    QVERIFY(operation);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedBusy));
+    operation->finish();
+    QTRY_VERIFY(!document->isBlockedByOperation());
+
+    // Only busy meanwhile: the commit is refused
+    const int undoSteps = pdftest::AppDocumentFixture::undoCount(document);
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Edit, QStringLiteral("Test"), true);
+    QVERIFY(operation);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    operation->finish();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoSteps);
 }
 
 void AppMcpEditTest::filesSave()
@@ -2834,13 +3093,22 @@ void AppMcpEditTest::fixFocusBackAfterDialog()
     QTRY_COMPARE_WITH_TIMEOUT(fixture.ui()->getWaitingIds().size(), size_t(2), 10000);
     dialog = fixture.waitDialog();
     QVERIFY(dialog);
+    // The workers finish the builds of the two changes in any order, the dialog of
+    // the oldest waiting confirmation comes first: the call of a dialog is taken
+    // from its confirmation (the test denied the dialog of the second call and
+    // waited for the first one, which waited for its own dialog)
+    const std::shared_ptr<pdf::PDFMcpCall> deniedCall = dialog->getConfirmation()->call;
+    QVERIFY(deniedCall == first || deniedCall == second);
+    const std::shared_ptr<pdf::PDFMcpCall> allowedCall = deniedCall == first ? second : first;
     QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
-    QVERIFY(H::isError(fixture.waitResult(first)));
+    QVERIFY(H::isError(fixture.waitResult(deniedCall)));
+    QVERIFY(!allowedCall->isFinished());
     QTRY_VERIFY(fixture.ui()->getDialog() && fixture.ui()->getDialog() != dialog && fixture.ui()->getDialog()->isVisible());
     dialog = fixture.ui()->getDialog();
+    QVERIFY(dialog->getConfirmation()->call == allowedCall);
     QTRY_VERIFY(QApplication::focusWidget() && (QApplication::focusWidget() == dialog || dialog->isAncestorOf(QApplication::focusWidget())));
     QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
-    QVERIFY(!H::isError(fixture.waitResult(second)));
+    QVERIFY(!H::isError(fixture.waitResult(allowedCall)));
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(QApplication::focusWidget(), field);
 

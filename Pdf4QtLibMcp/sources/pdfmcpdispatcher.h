@@ -264,6 +264,12 @@ private:
     void respondResult(const Request& request, QByteArray result, QByteArrayView cacheMembers = QByteArrayView());
     void respondRateLimited(const Request& request, qint64 retryAfter);
 
+    /// 401 / 429 of a request without the valid token: the connection is closed
+    /// after it (a kept-alive connection without the token would never be a
+    /// candidate of the eviction at the limit of the connections - follow-up 22)
+    void respondUnauthorized(const std::shared_ptr<PDFMcpExchange>& exchange, int status, int code, const QString& message, QByteArrayView data,
+                             std::vector<std::pair<QByteArray, QByteArray>> headers);
+
     QByteArray createResultMessage(const PDFMcpRequestId& id, QByteArrayView result) const;
     static QByteArray createErrorMessage(const PDFMcpRequestId& id, int code, const QString& message, QByteArrayView data);
     QByteArray appendResultMembers(QByteArrayView result, PDFMcpEra era, QByteArrayView cacheMembers) const;

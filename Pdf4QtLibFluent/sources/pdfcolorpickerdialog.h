@@ -232,7 +232,10 @@ public:
     bool isPicking() const { return m_isPicking; }
 
     /// Starts the eyedropper (nothing, when it is not available): the pointer
-    /// reads the screen, a click takes the color, Esc gives the color back
+    /// reads the screen, a click takes the color, Esc gives the color back. The
+    /// screen is read first here (never at the opening of the dialog); a screen,
+    /// which gives no picture, hides the eyedropper. A modal window opened
+    /// meanwhile (WindowBlocked), the deactivation and the hide end the picking.
     void startPicking();
 
     /// Stops the eyedropper, \p keepColor takes the picked color
@@ -274,6 +277,7 @@ protected:
     virtual void hideEvent(QHideEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
+    virtual bool event(QEvent* event) override;
 
 private:
     /// Source of a change of the color (the control, which is not updated)

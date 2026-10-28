@@ -1167,7 +1167,7 @@ void AppStorageTest::settingDefinitions()
 
     // Defaults of newapp_mcp.md 1
     QCOMPARE(registry.findDefinition("mcp.port")->getDefaultValue(), QVariant(qint64(8765)));
-    QCOMPARE(registry.findDefinition("mcp.requireToken")->getDefaultValue(), QVariant(true));
+    QCOMPARE(registry.findDefinition("mcp.requireToken")->getDefaultValue(), QVariant(false));     // owner 2026-10-28
     QCOMPARE(registry.findDefinition("mcp.allowRemote")->getDefaultValue(), QVariant(false));
     QCOMPARE(registry.findDefinition("mcp.startWithApp")->getDefaultValue(), QVariant(false));
     QCOMPARE(registry.findDefinition("mcp.permissionRead")->getDefaultValue(), QVariant(QStringLiteral("allow")));

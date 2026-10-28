@@ -25,13 +25,16 @@
 #include "pdfappcontext.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfappmcpactivity.h"
+#include "pdfappmcpchange.h"
 #include "pdfappmcpclientnames.h"
 #include "pdfappmcpclientsetup.h"
 #include "pdfappmcpconfirmationui.h"
 #include "pdfappmcpcontent.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcpprompts.h"
+#include "pdfappmcpreadsupport.h"
 #include "pdfappmcpresources.h"
+#include "pdfappmcptool_files.h"
 #include "pdfappmcptoolset.h"
 #include "pdfsettingdefinition.h"
 #include "pdfsettingdefinitions.h"
@@ -1133,8 +1136,11 @@ void AppMcpContentTest::helpTopicsMatchCode()
     QVERIFY(assistant->markdown.contains(QStringLiteral("(%1–%2)").arg(port->getMinimum().toInt()).arg(port->getMaximum().toInt())));
     QVERIFY(assistant->markdown.contains(QStringLiteral("http://127.0.0.1:%1/mcp").arg(port->getDefaultValue().toInt())));
     const pdf::PDFSettingDefinition* requireToken = registry->findDefinition(pdf::PDFSettingKeys::mcpRequireToken());
-    QVERIFY(requireToken && requireToken->getDefaultValue().toBool());
-    QVERIFY(assistant->markdown.contains(QStringLiteral("| %1 | On |").arg(requireToken->getTitle())));
+    // Off by default in the local mode (owner 2026-10-28); the permissions topic
+    // tells to turn it on on a computer shared by more users
+    QVERIFY(requireToken && !requireToken->getDefaultValue().toBool());
+    QVERIFY(assistant->markdown.contains(QStringLiteral("| %1 | Off |").arg(requireToken->getTitle())));
+    QVERIFY(permissions->markdown.contains(QStringLiteral("On a computer shared by more users, turn on **%1**").arg(requireToken->getTitle())));
     const pdf::PDFSettingDefinition* startWithApp = registry->findDefinition(pdf::PDFSettingKeys::mcpStartWithApp());
     QVERIFY(startWithApp && !startWithApp->getDefaultValue().toBool());
     QVERIFY(assistant->markdown.contains(QStringLiteral("**%1** starts it with the application (off by default)").arg(startWithApp->getTitle())));
@@ -1194,6 +1200,28 @@ void AppMcpContentTest::helpTopicsMatchCode()
         QVERIFY(docs.contains(QStringLiteral("**2 minutes** from the moment the dialog appears")));
         const QString errors = QString::fromUtf8(pdf::PDFAppMcpContent::findStaticResource(QStringLiteral("pdf4qt://docs/errors.md"))->content);
         QVERIFY(errors.contains(QStringLiteral("at most %1 minutes waiting before it appears").arg(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT / 60000)));
+
+        // The two waits of files.open: the reading of the file, then the password
+        // screen (review RVG7)
+        QVERIFY(errors.contains(QStringLiteral("%1 minutes for the reading of the file, then %2 minutes from the password screen")
+                                    .arg(pdf::PDFAppMcpFilesTool::DEFAULT_LOADING_TIMEOUT / 60000).arg(pdf::PDFAppMcpFilesTool::DEFAULT_PASSWORD_TIMEOUT / 60000)));
+        const QString filesDocs = QString::fromUtf8(pdf::PDFAppMcpContent::findStaticResource(QStringLiteral("pdf4qt://docs/files.md"))->content);
+        QVERIFY(filesDocs.contains(QStringLiteral("The reading of the file waits at most %1 minutes").arg(pdf::PDFAppMcpFilesTool::DEFAULT_LOADING_TIMEOUT / 60000)));
+
+        // A request denied by the bound of the queue never says "within 2
+        // minutes": its own status (the reason "queue") and its own error (item 59)
+        const QJsonObject queueDetail({ { QStringLiteral("reason"), pdf::PDFAppMcpActivity::getQueueTimeoutReason() } });
+        const QString queueStatus = pdf::PDFAppMcpActivity::getStatusText(pdf::PDFMcpActivityStatus::DeniedTimeout, QStringLiteral("Claude Code"), queueDetail);
+        QVERIFY(queueStatus.contains(QStringLiteral("%1 min").arg(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT / 60000)));
+        QVERIFY(!queueStatus.contains(QStringLiteral("2 min")));
+        QVERIFY2(permissions->markdown.contains(queueStatus), qPrintable(queueStatus));
+        for (const QString& text : { pdf::PDFAppMcpChangeJob::getDecisionText(pdf::PDFAppMcpDecision::DeniedQueueTimeout),
+                                     pdf::PDFAppMcpReadSupport::getReadRefusedText(pdf::PDFAppMcpDecision::DeniedQueueTimeout) })
+        {
+            QVERIFY2(!text.contains(QStringLiteral("2 minutes")), qPrintable(text));
+            QVERIFY2(text.contains(QStringLiteral("%1 minutes").arg(pdf::PDFAppMcpConfirmationUi::DEFAULT_QUEUE_TIMEOUT / 60000)), qPrintable(text));
+        }
+        QVERIFY(errors.contains(pdf::PDFAppMcpChangeJob::getDecisionText(pdf::PDFAppMcpDecision::DeniedQueueTimeout).section(QStringLiteral(" without being shown"), 0, 0)));
     }
 
     // The clients of the setup cards are listed with their texts
@@ -1204,6 +1232,16 @@ void AppMcpContentTest::helpTopicsMatchCode()
     QVERIFY(assistant->markdown.contains(QStringLiteral("Claude Desktop")));
     QVERIFY(assistant->markdown.contains(pdf::PDFAppMcpClientSetup::create(pdf::PDFAppMcpSetupClient::ClaudeCode, QStringLiteral("http://127.0.0.1:8765/mcp"), QStringLiteral("TOKEN"))
                                              .copyText.replace(QStringLiteral("TOKEN"), QStringLiteral("<token>"))));
+    {
+        // ... and the command without the token (the default of the local mode) as a line of its own
+        const QString command = pdf::PDFAppMcpClientSetup::create(pdf::PDFAppMcpSetupClient::ClaudeCode, QStringLiteral("http://127.0.0.1:8765/mcp"), QString()).copyText;
+        bool hasCommandLine = false;
+        for (const QString& line : assistant->markdown.split(QLatin1Char('\n')))
+        {
+            hasCommandLine = hasCommandLine || line.trimmed() == command;
+        }
+        QVERIFY2(hasCommandLine, qPrintable(command));
+    }
     QVERIFY(assistant->markdown.contains(QStringLiteral("shell history")));
 
     // ai-tools: every tool of phase 1 is described by its title

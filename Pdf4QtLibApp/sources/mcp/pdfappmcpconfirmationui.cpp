@@ -474,20 +474,22 @@ void PDFAppMcpConfirmationUi::answer(quint64 confirmationId, PDFAppMcpDecision d
 
 void PDFAppMcpConfirmationUi::tick()
 {
-    std::vector<quint64> expired;
+    std::vector<std::pair<quint64, PDFAppMcpDecision>> expired;
     for (const Entry& entry : m_entries)
     {
         if (getRemainingTime(entry) <= 0)
         {
-            expired.push_back(entry.confirmation->id);
+            // A shown dialog without an answer in 2 min (activity "Denied
+            // automatically · no answer in 2 min"); a request, whose dialog has
+            // not appeared within the 10 min of the queue, has its own text (item 59)
+            expired.emplace_back(entry.confirmation->id, entry.isShown ? PDFAppMcpDecision::DeniedTimeout : PDFAppMcpDecision::DeniedQueueTimeout);
         }
     }
 
     QPointer<PDFAppMcpConfirmationUi> guard(this);
-    for (quint64 id : expired)
+    for (const auto& [id, decision] : expired)
     {
-        // No answer in 2 min = denied (activity "Denied automatically · no answer in 2 min")
-        answer(id, PDFAppMcpDecision::DeniedTimeout);
+        answer(id, decision);
         if (!guard)
         {
             return;
