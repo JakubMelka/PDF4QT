@@ -63,7 +63,7 @@ void PDFAppMcpRenderTool::handle(const PDFAppMcpToolInvocation& invocation)
     {
         // Without page and pageLabel the page shown in the tab is rendered
         PDFAppDocumentTab* tab = host->getResolver().findTab(document);
-        const PDFInteger currentPage = tab && tab->getView() ? tab->getView()->getCurrentPageIndex() : 0;
+        const PDFInteger currentPage = tab && tab->getView() ? tab->getView()->getDisplayedPageIndex() : 0;
         const std::optional<qint64> page = reader.getInteger(QLatin1StringView("page"), 1, 1000000000, false);
         const QString pageLabel = reader.getString(QLatin1StringView("pageLabel"), 256, false, PDFMcpJson::SanitizeFlag::None).value_or(QString());
         PDFInteger pageIndex = -1;

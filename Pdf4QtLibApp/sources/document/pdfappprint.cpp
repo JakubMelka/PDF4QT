@@ -842,7 +842,7 @@ void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPag
         cmsSettings = cmsManager->getSettings();
     }
 
-    PDFAppPrintDialog* dialog = new PDFAppPrintDialog(document, qMax<PDFInteger>(0, view->getCurrentPageIndex()), initialPages, cmsSettings, m_tab->window());
+    PDFAppPrintDialog* dialog = new PDFAppPrintDialog(document, qMax<PDFInteger>(0, view->getDisplayedPageIndex()), initialPages, cmsSettings, m_tab->window());
     PDFAppMainWindow::prepareDialog(dialog, m_tab);
     dialog->setCopies(copies);
     connect(dialog, &QDialog::finished, this, &PDFAppPrintController::onDialogFinished);

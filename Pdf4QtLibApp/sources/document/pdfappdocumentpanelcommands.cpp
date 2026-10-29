@@ -105,7 +105,7 @@ bool PDFAppDocumentPanelCommandHandler::isEnabled(const QString& commandId) cons
     if (commandId == PDFAppCommands::rotatePagesLeft() || commandId == PDFAppCommands::rotatePagesRight())
     {
         // A locked document is not changed (also not by a running operation)
-        return !document->isLocked() && !document->isBlockedByOperation() && document->getPageCount() > 0;
+        return document->isEditable() && !document->isBlockedByOperation() && document->getPageCount() > 0;
     }
     return false;
 }
@@ -114,7 +114,7 @@ bool PDFAppDocumentPanelCommandHandler::rotatePages(const std::vector<PDFInteger
 {
     PDFAppDocument* document = getDocument();
     PDFDocumentPointer current = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
-    if (!current || document->isLocked() || document->isBlockedByOperation())
+    if (!current || !document->isEditable() || document->isBlockedByOperation())
     {
         return false;
     }

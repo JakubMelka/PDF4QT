@@ -254,6 +254,18 @@ PDFAppHitTestResult PDFAppWindowFrame::hitTest(const QPoint& windowPosition) con
     return PDFAppHitTest::hitTest(input);
 }
 
+bool PDFAppWindowFrame::isNativeNormalState() const
+{
+#if defined(Q_OS_WIN)
+    if (m_mode == Mode::Windows && m_window && m_window->internalWinId())
+    {
+        const HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
+        return !IsZoomed(hwnd) && !IsIconic(hwnd);
+    }
+#endif
+    return true;
+}
+
 void PDFAppWindowFrame::startSystemMove()
 {
     if (!m_window || (m_mode != Mode::Client && m_mode != Mode::MacOS))

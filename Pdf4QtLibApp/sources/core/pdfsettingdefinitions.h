@@ -61,6 +61,9 @@ public:
     // key, owner 2026-10-25)
     static QString storageBackupFolder() { return QStringLiteral("storage.backupFolder"); }
 
+    // The geometry of the main window, PDFAppWindowGeometry (a state key, owner 2026-10-29)
+    static QString windowGeometry() { return QStringLiteral("window.geometry"); }
+
     // Panel My Bookmarks of the document
     static QString bookmarksAutoGenerate() { return QStringLiteral("bookmarks.autoGenerate"); }
 

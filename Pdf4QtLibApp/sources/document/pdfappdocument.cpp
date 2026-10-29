@@ -318,7 +318,13 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.version = m_version;
     snapshot.originalData = m_originalData;
     snapshot.filePath = m_filePath;
+    snapshot.isPagedXFA = m_isPagedXFA;
     return snapshot;
+}
+
+QString PDFAppDocument::getPagedXFARefusalText()
+{
+    return tr("The pages of this XFA form are shown as laid out. The document cannot be changed.");
 }
 
 bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source)
@@ -329,7 +335,9 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
 bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey)
 {
     const PDFDocumentPointer newDocument = modified;
-    if (!isReady() || newDocument.isNull() || expectedVersion != m_version || m_isLocked || isBlockedByOperation())
+    // A display version of an XFA form (step 8) is never changed: every change of
+    // the user, of a panel or of an assistant ends here at the latest
+    if (!isReady() || newDocument.isNull() || expectedVersion != m_version || m_isLocked || m_isPagedXFA || isBlockedByOperation())
     {
         return false;
     }
@@ -610,7 +618,7 @@ bool PDFAppDocument::setLoadingFromMemory(const QString& title, const QString& o
     return true;
 }
 
-void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected)
+void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA)
 {
     if (document.isNull())
     {
@@ -626,6 +634,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_originalData = std::move(originalData);
     m_isPasswordProtected = isPasswordProtected;
     m_isPasswordWrong = false;
+    m_isPagedXFA = isPagedXFA;
     m_isCopy = isFromMemory;
     if (!isFromMemory)
     {
@@ -644,7 +653,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     }
 }
 
-void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected)
+void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA)
 {
     if (!isReady() || document.isNull())
     {
@@ -652,9 +661,10 @@ void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool i
     }
 
     // The reload replaces the document and its history (decision D3), the view
-    // keeps its page and zoom
+    // keeps its page and zoom; the file of an XFA form is paged again
     m_originalData = std::move(data);
     m_isPasswordProtected = isPasswordProtected;
+    m_isPagedXFA = isPagedXFA;
     m_undoStack->clear();
     setDocument(std::move(document), PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset | PDFModifiedDocument::PreserveView), true);
 }
@@ -698,6 +708,10 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     m_originFilePath = source->getOriginFilePath();
     m_isCopy = true;
     m_originalData = source->getOriginalData();
+    // A copy of a display version of an XFA form is a display version too: its
+    // file is written from the original bytes (the command Edit a Copy is off for
+    // it, a copy may still be made by the lock popover of a locked document)
+    m_isPagedXFA = source->isPagedXFA();
     m_isPasswordProtected = false;
     m_isPasswordWrong = false;
     m_isLocked = false;

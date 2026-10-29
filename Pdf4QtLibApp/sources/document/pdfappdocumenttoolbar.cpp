@@ -280,7 +280,7 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     {
         connect(view, &PDFAppDocumentView::commandStatesChanged, this, &PDFAppDocumentToolbar::updateState);
         connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppDocumentToolbar::onViewChanged);
-        connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
+        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentToolbar::onViewChanged);
 
         // The tooltips show the shortcuts of the user: the view keeps them and it
         // updates the tooltips after a notification of the database
@@ -949,7 +949,7 @@ void PDFAppDocumentToolbar::updatePageField()
 
     const PDFAppDocumentView* view = m_view.data();
     const PDFInteger pageCount = view ? view->getPageCount() : 0;
-    const PDFInteger pageIndex = view ? view->getCurrentPageIndex() : -1;
+    const PDFInteger pageIndex = view ? view->getDisplayedPageIndex() : -1;
     if (pageCount <= 0 || pageIndex < 0)
     {
         m_pageField->setText(QString());

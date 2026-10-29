@@ -26,6 +26,7 @@
 #include "pdfparser.h"
 #include "pdfsecurityhandler.h"
 #include "pdfutils.h"
+#include "pdfthreadannotations.h"
 
 #include <zlib.h>
 
@@ -740,11 +741,15 @@ PDFStreamFilterStorage::PDFStreamFilterStorage()
     m_abbreviations["RL"] = "RunLengthDecode";
     m_abbreviations["CCF"] = "CCITFaxDecode";
     m_abbreviations["DCT"] = "DCTDecode";
+
+    // The guard of the static instance synchronizes by a futex (see getInstance)
+    PDFThreadAnnotations::happensBefore(this);
 }
 
 const PDFStreamFilterStorage* PDFStreamFilterStorage::getInstance()
 {
     static PDFStreamFilterStorage instance;
+    PDFThreadAnnotations::happensAfter(&instance);
     return &instance;
 }
 

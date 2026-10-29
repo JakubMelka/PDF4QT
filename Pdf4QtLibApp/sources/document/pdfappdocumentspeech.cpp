@@ -690,7 +690,7 @@ void PDFAppDocumentSpeechController::stop()
 
 void PDFAppDocumentSpeechController::startReading()
 {
-    const PDFInteger startPage = m_view ? qMax(PDFInteger(0), m_view->getCurrentPageIndex()) : 0;
+    const PDFInteger startPage = m_view ? qMax(PDFInteger(0), m_view->getDisplayedPageIndex()) : 0;
     m_blocks.clear();
     m_blockIndex = -1;
     m_currentPage = startPage - 1;

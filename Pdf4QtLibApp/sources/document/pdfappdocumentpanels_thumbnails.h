@@ -201,6 +201,10 @@ public:
     void setItemSize(const QSize& size);
     QSize getItemSize() const { return m_itemSize; }
 
+    /// A press or a release of the right button is handled: the page under it is
+    /// selected for the context menu, the canvas does not go to it
+    bool isContextClick() const { return m_isContextClick; }
+
 Q_SIGNALS:
     /// The context menu of the selection is requested at the global position
     void contextMenuRequested(const QPoint& globalPosition);
@@ -208,6 +212,8 @@ Q_SIGNALS:
 protected:
     virtual void resizeEvent(QResizeEvent* event) override;
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
     virtual void updateGeometries() override;
 
 private:
@@ -215,6 +221,7 @@ private:
 
     QSize m_itemSize;
     bool m_isUpdatingMargins = false;
+    bool m_isContextClick = false;
 };
 
 /// Thumbnails panel (sidebar of pdf4qt-document 193:756, selection 266:12502):
@@ -222,7 +229,13 @@ private:
 /// size slider (thumbnail-size 193:921, 84 px) and the sync toggle
 /// (thumbnail-sync 193:925, icon locate: the thumbnails follow the current page),
 /// the grid of PDFThumbnailDelegate. A click goes to the page, Ctrl / Shift select
-/// more pages (PDFAppDocumentView::getSelectedPages). The context menu 266:12848:
+/// more pages (PDFAppDocumentView::getSelectedPages). The sync never moves the one
+/// page chosen by the user (a click, the keys, the right button), while it is seen in
+/// the canvas (the right page of a row of two pages, a page below the current page):
+/// the selection follows the canvas, when its page has left the canvas; the view shows
+/// the chosen page as the page for the user (PDFAppDocumentView::getDisplayedPageIndex).
+/// A page selected by the sync follows every change of the current page. The context
+/// menu 266:12848:
 /// Rotate Left / Right (the commands pages.rotateLeft / pages.rotateRight - one
 /// undo step), Insert Pages…, Move to…, Extract to New Document, Remove Pages
 /// (routes of the tools /document/{id}/tool/{toolId}, Page Not Found in phase 1).
@@ -263,8 +276,17 @@ public:
     int getSlotWidth() const { return m_slotWidth; }
     void setSlotWidth(int width);
 
-    /// Creates the context menu of the selection (deleted, when it is closed)
+    /// Creates the context menu of the selection (deleted, when it is closed); its
+    /// commands act on the pages selected now (getContextPages)
     QMenu* createContextMenu();
+
+    /// Pages of the last context menu (indices of the version, for which it was opened)
+    const std::vector<PDFInteger>& getContextPages() const { return m_contextPages; }
+
+    /// Pages of the last context menu in the current version of the document: a page
+    /// is found by its reference (a new version may have inserted or removed pages
+    /// before it while the menu was open), a removed page is left out
+    std::vector<PDFInteger> getCurrentContextPages() const;
 
     PDFAppThumbnailListView* getListView() const { return m_view; }
     PDFAppThumbnailsModel* getModel() const { return m_model; }
@@ -280,6 +302,10 @@ private:
     void onDocumentDestroyed();
     void onConnectedViewDestroyed();
     void onCurrentPageChanged(PDFInteger pageIndex);
+    void onCanvasViewChanged();
+    void updateShownSelectedPage();
+    /// The one selected page (-1 for no page or more pages), cheap for a range of pages
+    PDFInteger getSingleSelectedPage() const;
     void onViewClicked(const QModelIndex& index);
     void onViewActivated(const QModelIndex& index);
     void scheduleGoToPage(PDFInteger pageIndex);
@@ -292,16 +318,16 @@ private:
     void onSyncToggled(bool checked);
     void onRotateLeft();
     void onRotateRight();
+    void rotateContextPages(bool isRight);
     void onInsertPages();
     void onMovePages();
     void onExtractPages();
     void onRemovePages();
-    void applyDocument();
+    void applyDocument(bool isNewVersion);
     void updateViewSelection();
     void updatePictureSize();
     void syncToCurrentPage(bool force);
     void openTool(const QString& toolId);
-    void executeCommand(const QString& commandId);
 
     QPointer<PDFAppThumbnailListView> m_view;
     QPointer<PDFAppThumbnailsModel> m_model;
@@ -315,7 +341,12 @@ private:
     bool m_isSyncing = false;
     bool m_isSelectionChangePending = false;
     bool m_isUserSelectionPending = false;
+    PDFInteger m_userSelectedPage = -1;      ///< The one page chosen by the user (-1: none, more pages, a page of the sync)
     PDFInteger m_pendingPageIndex = -1;
+    PDFInteger m_lastCurrentPageIndex = -1;  ///< Current page of the canvas last seen (the selection follows its changes)
+    PDFInteger m_shownSelectedPage = -1;     ///< The page chosen by the user, when it was seen in the canvas at the last check (-1 otherwise)
+    std::vector<PDFInteger> m_contextPages;
+    std::vector<PDFObjectReference> m_contextPageReferences;  ///< The pages of m_contextPages (their version may be older)
     int m_slotWidth = DEFAULT_SLOT_WIDTH;
 };
 

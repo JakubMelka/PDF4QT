@@ -79,7 +79,7 @@ PDFAppDocumentTab::PDFAppDocumentTab(PDFAppContext* context, QWidget* parent) :
     m_view = new PDFAppDocumentView(context, m_stack);
     m_view->setDocument(m_document);
     m_stack->addWidget(m_view);
-    connect(m_view.data(), &PDFAppDocumentView::currentPageChanged, this, &PDFAppDocumentTab::onCurrentPageChanged);
+    connect(m_view.data(), &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentTab::onCurrentPageChanged);
 
     // The other pages of the tab (properties, Page Not Found)
     m_pageArea = new QWidget(m_stack);
@@ -488,6 +488,7 @@ void PDFAppDocumentTab::showLockPopover(const QRect& anchor)
     m_lockPopover = new PDFAppLockPopover(this);
     connect(m_lockPopover.data(), &PDFAppLockPopover::unlockRequested, this, &PDFAppDocumentTab::onUnlockRequested);
     connect(m_lockPopover.data(), &PDFAppLockPopover::editCopyRequested, this, &PDFAppDocumentTab::onEditCopyRequested);
+    m_lockPopover->setPagedXFA(m_document->isPagedXFA());
     m_lockPopover->showBelow(anchor);
 }
 
@@ -501,6 +502,11 @@ void PDFAppDocumentTab::onUnlockRequested()
 
 void PDFAppDocumentTab::onEditCopyRequested()
 {
+    // A display version of an XFA form (step 8) has no editable copy
+    if (m_document && m_document->isPagedXFA())
+    {
+        return;
+    }
     Q_EMIT editCopyRequested();
 }
 
@@ -673,7 +679,7 @@ void PDFAppDocumentTab::writeReadingState()
 
     // The last page shown, Finished at the last page; the state of the view
     const PDFInteger pageCount = m_document->getPageCount();
-    const PDFInteger pageIndex = m_view->getCurrentPageIndex();
+    const PDFInteger pageIndex = m_view->getDisplayedPageIndex();
     if (pageIndex >= 0 && pageCount > 0)
     {
         const PDFInteger maximumPage = PDFRecentRepository::MAXIMUM_PAGE;

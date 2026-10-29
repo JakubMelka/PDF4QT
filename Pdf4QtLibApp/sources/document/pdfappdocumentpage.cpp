@@ -57,7 +57,7 @@ PDFAppDocumentPage::PDFAppDocumentPage(PDFAppContext* context, QWidget* parent) 
         }
         if (PDFAppDocumentView* view = m_tab->getView())
         {
-            connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppDocumentPage::onViewChanged);
+            connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppDocumentPage::onViewChanged);
             connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentPage::onViewChanged);
         }
         if (PDFAppDocumentSearchCommandHandler* search = PDFAppDocumentSearchCommandHandler::findHandler(m_tab))
@@ -170,7 +170,7 @@ PDFAppRoute PDFAppDocumentPage::getCurrentRoute() const
     }
 
     QList<PDFAppRoute::QueryItem> query;
-    const PDFInteger pageIndex = view->getCurrentPageIndex();
+    const PDFInteger pageIndex = view->getDisplayedPageIndex();
     if (pageIndex >= 0 && pageIndex < document->getPageCount())
     {
         query.append(PDFAppRoute::QueryItem(QStringLiteral("page"), QString::number(pageIndex + 1)));

@@ -93,7 +93,7 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
     result.isIncremental = request.isIncremental;
     result.requestedFilePath = request.filePath;
 
-    if (request.document.isNull() || request.filePath.isEmpty())
+    if (request.document.isNull() || request.filePath.isEmpty() || (request.isOriginalData && request.originalData.isEmpty()))
     {
         result.errorMessage = tr("There is no document to save.");
         return result;
@@ -105,6 +105,14 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
         // original data of the document (the next incremental save, the automatic
         // refresh compares the file with them)
         QByteArray data;
+        if (request.isOriginalData)
+        {
+            // The shown document is a display version (the paged layout of an XFA
+            // form): the file keeps the original PDF, byte for byte
+            result.isIncremental = false;
+            data = request.originalData;
+        }
+        else
         {
             QBuffer buffer(&data);
             if (!buffer.open(QIODevice::WriteOnly))
@@ -395,7 +403,9 @@ void PDFAppDocumentSaver::start(bool isSaveAs)
     }
 
     const PDFDocumentPointer pdfDocument = document->getDocument();
-    const int signatureCount = !document->getOriginalData().isEmpty() ? PDFAppDocumentFileWriter::getSignatureCount(pdfDocument.data()) : 0;
+    // A display version of an XFA form is written from its original bytes, which
+    // keep its signatures (step 8): no incremental update, no question
+    const int signatureCount = !document->getOriginalData().isEmpty() && !document->isPagedXFA() ? PDFAppDocumentFileWriter::getSignatureCount(pdfDocument.data()) : 0;
     const bool isIncremental = signatureCount > 0;
 
     if (isSaveAs || document->getFilePath().isEmpty())
@@ -474,7 +484,8 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     request.document = snapshot.document;
     request.originalData = snapshot.originalData;
     request.filePath = filePath;
-    request.isIncremental = isIncremental;
+    request.isIncremental = isIncremental && !snapshot.isPagedXFA;
+    request.isOriginalData = snapshot.isPagedXFA;
     request.version = snapshot.version;
     request.markSourceFilePath = document->getOriginFilePath();
 
@@ -701,7 +712,7 @@ void PDFAppDocumentSaver::onErrorDialogSaveAs()
     }
 
     const PDFAppDocument* document = getDocument();
-    const bool isIncremental = document && !document->getOriginalData().isEmpty() && PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()) > 0;
+    const bool isIncremental = document && !document->isPagedXFA() && !document->getOriginalData().isEmpty() && PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()) > 0;
     chooseFileAndWrite(isIncremental);
 }
 

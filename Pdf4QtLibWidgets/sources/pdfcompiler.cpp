@@ -24,6 +24,7 @@
 #include "pdfcms.h"
 #include "pdfprogress.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfthreadannotations.h"
 #include "pdftextlayoutgenerator.h"
 #include "pdfdrawspacecontroller.h"
 
@@ -62,6 +63,7 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
             // step - no wake up can be lost (otherwise stop() could wait forever).
             // The timeout is just a safety net, the loop checks everything again.
             m_waitCondition->wait(locker.mutex(), QDeadlineTimer(500));
+            PDFThreadAnnotations::happensAfter(locker.mutex()); // relocked inside of Qt
             continue;
         }
 

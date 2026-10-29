@@ -75,6 +75,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttoolsuggestions.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
+    sources/pdfthreadannotations.cpp
+    sources/pdfthreadannotations.h
     sources/pdffile.cpp
     sources/pdffile.h
     sources/pdfform.cpp

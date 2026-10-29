@@ -75,6 +75,7 @@ public:
         PDFDocumentPointer document;    ///< Document of Changed
         QByteArray data;                ///< Bytes of the file (Changed, PasswordRequired)
         bool isPasswordProtected = false;
+        bool isPagedXFA = false;        ///< \p document is the paged layout of the XFA form of the file (step 8)
         QString errorMessage;           ///< Error of Failed
     };
 

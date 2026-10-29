@@ -68,6 +68,8 @@
 #include "pdfwidgetstyle.h"
 #include "pdfwidgettool.h"
 
+#include <map>
+
 #include <QClipboard>
 #include <QElapsedTimer>
 #include <QListView>
@@ -351,6 +353,7 @@ private slots:
     void copyAll();
     void pageDeletion();
     void minimalWindowAndDirection();
+    void shrinkAndGrow();
 
     // Links and actions
     void urlRules();
@@ -1333,6 +1336,79 @@ void AppDocumentPropertiesTest::minimalWindowAndDirection()
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
     fixture.settle();
     QCOMPARE(PropertiesTestHelper::countLeakPixels(PropertiesTestHelper::render(fixture.window)), 0);
+}
+
+void AppDocumentPropertiesTest::shrinkAndGrow()
+{
+    // Every section built in a wide window, then the window resized down and up
+    // again: the columns of the groups stack, when the window shrinks, and go back
+    // to a row, any number of times; never a horizontal scroll bar, no column
+    // narrower than its content (a page built wide kept the minimum of its row)
+    pdftest::AppDocumentFixture fixture(QSize(1440, 900));
+    pdf::PDFAppDocumentTab* tab = fixture.open(PropertiesTestHelper::infoDocument(fixture.folder(), QStringLiteral("Resize.pdf"), true));
+    QVERIFY(tab);
+    for (const QString& section : pdf::PDFAppDocumentPropertiesPage::getSectionIds())
+    {
+        fixture.window->resize(1440, 900);
+        fixture.settle();
+        pdf::PDFAppDocumentPropertiesPage* page = PropertiesTestHelper::showProperties(fixture, tab, section);
+        QVERIFY(page);
+        QScrollArea* area = page->findChild<QScrollArea*>(QStringLiteral("propertiesScrollArea"));
+        QVERIFY(area);
+
+        std::map<int, QList<bool>> statesOfWidth;
+        for (const int width : { 1440, 800, 720, 1440, 800, 1100, 720, 1440 })
+        {
+            fixture.window->resize(width, 700);
+            for (int i = 0; i < 4; ++i)
+            {
+                fixture.settle();
+            }
+            QCOMPARE(fixture.window->width(), width);
+            QCOMPARE(tab->getPage(), page);
+
+            const QString message = section + QStringLiteral(" at ") + QString::number(width) + QStringLiteral(": ");
+            QVERIFY2(area->horizontalScrollBar()->maximum() == 0, qPrintable(message + QStringLiteral("horizontal scroll range %1").arg(area->horizontalScrollBar()->maximum())));
+
+            QList<bool> states;
+            for (pdf::PDFAppColumns* columns : page->findChildren<pdf::PDFAppColumns*>())
+            {
+                if (!columns->isVisibleTo(page))
+                {
+                    continue;
+                }
+                states.append(columns->isStacked());
+                QVERIFY2(columns->isStacked() == columns->isStackedAt(columns->width()), qPrintable(message + QStringLiteral("the state does not follow the width")));
+                QVERIFY2(columns->width() <= area->viewport()->width(), qPrintable(message + QStringLiteral("columns wider than the viewport")));
+                for (int i = 0; i < columns->getColumnCount(); ++i)
+                {
+                    QWidget* column = columns->getColumn(i);
+                    QVERIFY2(column->width() >= column->minimumSizeHint().width(), qPrintable(message + QStringLiteral("a column narrower than its content")));
+                    QVERIFY2(column->width() == (columns->isStacked() ? columns->width() : (columns->width() - pdf::PDFAppColumns::GAP) / 2) ||
+                             (!columns->isStacked() && i == 1 && column->width() == columns->width() - pdf::PDFAppColumns::GAP - columns->getColumn(0)->width()),
+                             qPrintable(message + QStringLiteral("column %1 is %2 px of %3").arg(i).arg(column->width()).arg(columns->width())));
+                }
+                if (width == 1440)
+                {
+                    QVERIFY2(!columns->isStacked(), qPrintable(message + QStringLiteral("stacked in the wide window")));
+                }
+                if (width == 720)
+                {
+                    QVERIFY2(columns->isStacked(), qPrintable(message + QStringLiteral("a row in the minimal window")));
+                }
+            }
+
+            auto it = statesOfWidth.find(width);
+            if (it == statesOfWidth.end())
+            {
+                statesOfWidth[width] = states;
+            }
+            else
+            {
+                QVERIFY2(it->second == states, qPrintable(message + QStringLiteral("another arrangement than before at this width")));
+            }
+        }
+    }
 }
 
 void AppDocumentPropertiesTest::urlRules()

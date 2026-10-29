@@ -98,6 +98,11 @@ private slots:
     void activityShowReopensDialog();
     void activityHostileRows();
     void setupCards();
+    void setupCardReservedHeight_data();
+    void setupCardReservedHeight();
+    void setupCardReservedHeightRecomputed();
+    void setupNoteCentered_data();
+    void setupNoteCentered();
     void startWithApp();
     void heartbeatStale();
     void showOtherWindow();
@@ -1227,6 +1232,459 @@ void AppAiTest::setupCards()
     page->getTile(pdf::PDFAppMcpSetupClient::ClaudeCode)->click();
     QTRY_VERIFY(!page->getSetup().copyText.contains(QStringLiteral("Authorization")));
     QTRY_VERIFY(!page->getCodeBoxes().front()->getText().contains(QStringLiteral("Authorization")));
+}
+
+/// A translator of the test: the setup texts of the clients twice as long
+class AppAiSetupTestTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        const QByteArray contextName(context ? context : "");
+        if (contextName == "pdf::PDFAppMcpClientSetup" && sourceText)
+        {
+            const QString text = QString::fromUtf8(sourceText);
+            return text + QStringLiteral(" ") + text;
+        }
+        return QString();
+    }
+
+    virtual bool isEmpty() const override { return false; }
+};
+
+/// Geometry of the setup card of Connect an assistant (owner 2026-10-29)
+class AppAiSetupGeometry
+{
+public:
+    QRect card;             ///< The setup card in the page
+    QRect section;          ///< Connect an assistant in the page
+    int pageHeight = 0;     ///< Height of the page (everything below the card)
+    int titleTop = 0;       ///< The title in the card (the content at the top)
+    int actionsGap = 0;     ///< From the steps to the buttons (no stretched gap)
+    int natural = 0;        ///< Height of the shown setup at the width of the card
+
+    bool isSamePlace(const AppAiSetupGeometry& other) const
+    {
+        return card == other.card && section == other.section && pageHeight == other.pageHeight && titleTop == other.titleTop && actionsGap == other.actionsGap;
+    }
+
+    /// The same card and the same space below it (the server card above it may
+    /// change with the state of the server)
+    bool isSameCard(const AppAiSetupGeometry& other) const
+    {
+        return card.size() == other.card.size() && pageHeight - card.bottom() == other.pageHeight - other.card.bottom() && titleTop == other.titleTop && actionsGap == other.actionsGap;
+    }
+
+    QString toString() const
+    {
+        return QStringLiteral("card %1,%2 %3x%4 section %5 page %6 title %7 gap %8 natural %9")
+                .arg(card.x()).arg(card.y()).arg(card.width()).arg(card.height()).arg(section.height()).arg(pageHeight).arg(titleTop).arg(actionsGap).arg(natural);
+    }
+};
+
+class AppAiSetupTestHelper
+{
+public:
+    AppAiSetupTestHelper() = delete;
+
+    /// Padding 16 and the border 1 of the setup card
+    static constexpr int CARD_INSET = 17;
+
+    static AppAiSetupGeometry measure(pdf::PDFAppAiPage* page)
+    {
+        AppAiSetupGeometry geometry;
+        QWidget* card = page->getSetupCard();
+        QWidget* section = page->findChild<QWidget*>(QStringLiteral("connectSection"));
+        QWidget* content = page->findChild<QWidget*>(QStringLiteral("setupContent"));
+        QWidget* title = page->findChild<QWidget*>(QStringLiteral("setupTitle"));
+        QWidget* step = page->findChild<QWidget*>(QStringLiteral("setupStep1"));
+        QWidget* copy = page->getCopySetupButton();
+        if (!card || !section || !content || !title || !step || !copy)
+        {
+            return geometry;
+        }
+        geometry.card = QRect(card->mapTo(page, QPoint(0, 0)), card->size());
+        geometry.section = QRect(section->mapTo(page, QPoint(0, 0)), section->size());
+        geometry.pageHeight = page->height();
+        geometry.titleTop = title->mapTo(card, QPoint(0, 0)).y();
+        QWidget* steps = step->parentWidget();
+        geometry.actionsGap = copy->mapTo(content, QPoint(0, 0)).y() - (steps->mapTo(content, QPoint(0, 0)).y() + steps->height());
+        geometry.natural = content->heightForWidth(content->width());
+        return geometry;
+    }
+
+    /// Settles, until the page and the setup card keep their heights and no
+    /// measured setup is built again (a resized window lays the columns of the
+    /// page out in more passes, a card, which got shorter, too - the page may keep
+    /// the height of the viewport meanwhile; the setups are measured again from
+    /// the event loop after a new width)
+    static void settleLayout(pdf::PDFAppAiPage* page)
+    {
+        QList<int> previous;
+        for (int i = 0; i < 20; ++i)
+        {
+            const QList<int> current = { page->height(), page->getSetupCard() ? page->getSetupCard()->height() : 0, page->getSetupMeasureBuildCount() };
+            if (current == previous)
+            {
+                break;
+            }
+            previous = current;
+            pdftest::AppDocumentFixture::settle();
+        }
+    }
+
+    static void clickClient(pdf::PDFAppAiPage* page, pdf::PDFAppMcpSetupClient client)
+    {
+        if (client == pdf::PDFAppMcpSetupClient::ClaudeDesktop)
+        {
+            page->getTile(pdf::PDFAppMcpSetupClient::ClaudeCode)->click();
+            pdftest::AppDocumentFixture::settle();
+            page->getVariantChips().at(1)->click();
+        }
+        else
+        {
+            page->getTile(client)->click();
+        }
+        pdftest::AppDocumentFixture::settle();
+    }
+
+    static QList<pdf::PDFAppMcpSetupClient> getClients()
+    {
+        return { pdf::PDFAppMcpSetupClient::ClaudeCode, pdf::PDFAppMcpSetupClient::ClaudeDesktop, pdf::PDFAppMcpSetupClient::Codex, pdf::PDFAppMcpSetupClient::Gemini,
+                 pdf::PDFAppMcpSetupClient::Copilot, pdf::PDFAppMcpSetupClient::Cursor, pdf::PDFAppMcpSetupClient::Other };
+    }
+
+    /// Switches through every client: the card and everything below it keep
+    /// their places, no measured setup is built again; returns the geometry and
+    /// the largest natural height of the shown setups (\p maximumNatural)
+    static AppAiSetupGeometry checkSwitching(pdf::PDFAppAiPage* page, int* maximumNatural, const QString& screenshotPrefix = QString())
+    {
+        clickClient(page, pdf::PDFAppMcpSetupClient::ClaudeCode);
+        settleLayout(page);
+        const AppAiSetupGeometry first = measure(page);
+        const int buildCount = page->getSetupMeasureBuildCount();
+        [&]() {
+            QVERIFY2(first.card.height() > 0, qPrintable(first.toString()));
+            QCOMPARE(first.titleTop, CARD_INSET);
+            QCOMPARE(first.actionsGap, 16);
+        }();
+        for (pdf::PDFAppMcpSetupClient client : getClients())
+        {
+            clickClient(page, client);
+            const AppAiSetupGeometry geometry = measure(page);
+            *maximumNatural = qMax(*maximumNatural, geometry.natural);
+            [&]() {
+                QCOMPARE(page->getSetupClient(), client);
+                QVERIFY2(geometry.isSamePlace(first), qPrintable(QStringLiteral("client %1: %2 / first %3").arg(int(client)).arg(geometry.toString(), first.toString())));
+                QVERIFY2(geometry.natural + 2 * CARD_INSET <= geometry.card.height(), qPrintable(geometry.toString()));
+                QCOMPARE(page->getSetupMeasureBuildCount(), buildCount);
+            }();
+            if (QTest::currentTestFailed())
+            {
+                return first;
+            }
+            if (!screenshotPrefix.isEmpty())
+            {
+                screenshot(page->getSetupCard(), QStringLiteral("%1-%2").arg(screenshotPrefix).arg(int(client)));
+            }
+        }
+        return first;
+    }
+
+    /// PDF4QT_APP_SCREENSHOTS: the widget at 1x and 2x
+    static void screenshot(QWidget* widget, const QString& name)
+    {
+        const QString folder = qEnvironmentVariable("PDF4QT_APP_SCREENSHOTS");
+        if (folder.isEmpty() || !widget)
+        {
+            return;
+        }
+        QDir().mkpath(folder);
+        AppAiTestHelper::render(widget, 1.0).save(QDir(folder).absoluteFilePath(name + QStringLiteral(".png")));
+        AppAiTestHelper::render(widget, 2.0).save(QDir(folder).absoluteFilePath(name + QStringLiteral("-2x.png")));
+    }
+
+    /// Vertical center (logical pixels) of the drawn pixels inside of the rectangle
+    /// of the image, which differ from the background (-1 = none)
+    static qreal inkCenter(const QImage& image, const QRect& logicalRect, const QColor& background)
+    {
+        const qreal ratio = image.devicePixelRatio();
+        const QRect rect(qFloor(logicalRect.x() * ratio), qFloor(logicalRect.y() * ratio), qCeil(logicalRect.width() * ratio), qCeil(logicalRect.height() * ratio));
+        int top = -1;
+        int bottom = -1;
+        for (int y = qMax(0, rect.top()); y <= qMin(image.height() - 1, rect.bottom()); ++y)
+        {
+            for (int x = qMax(0, rect.left()); x <= qMin(image.width() - 1, rect.right()); ++x)
+            {
+                const QColor color = image.pixelColor(x, y);
+                if (qAbs(color.red() - background.red()) + qAbs(color.green() - background.green()) + qAbs(color.blue() - background.blue()) > 60)
+                {
+                    top = top < 0 ? y : top;
+                    bottom = y;
+                    break;
+                }
+            }
+        }
+        return top < 0 ? -1.0 : (qreal(top) + qreal(bottom + 1)) / 2.0 / ratio;
+    }
+};
+
+void AppAiTest::setupCardReservedHeight_data()
+{
+    QTest::addColumn<QSize>("size");
+    QTest::newRow("1440") << QSize(1440, 960);
+    QTest::newRow("720x480") << QSize(720, 480);
+}
+
+void AppAiTest::setupCardReservedHeight()
+{
+    // Owner 2026-10-29: the setup card keeps the height of the tallest setup at
+    // its width, so nothing below it moves, when the tiles are switched; a shorter
+    // setup stays at the top of the card. Only the shown state is reserved (every
+    // client with the shown address and token - coordinator 2026-10-29): the
+    // card without the token has no empty area of the setups with the token, a
+    // change of Require access token measures the setups again once, the state
+    // of the server changes nothing
+    QFETCH(QSize, size);
+    pdftest::AppMcpFixture fixture(size);
+    pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
+    QVERIFY(page);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!page->getSetup().containsToken);
+    QCOMPARE(page->getMeasuredSetupCount(), int(AppAiSetupTestHelper::getClients().size()));
+
+    const QString name = QStringLiteral("ai-setup-card-%1").arg(size.width());
+    int reservedHeights[2] = { 0, 0 };
+    for (bool isTokenRequired : { false, true })
+    {
+        if (isTokenRequired)
+        {
+            const int buildCount = page->getSetupMeasureBuildCount();
+            QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
+            QTRY_COMPARE(page->getSetupMeasureBuildCount(), buildCount + 1);
+            QVERIFY(page->getSetup().containsToken);
+            AppAiSetupTestHelper::settleLayout(page);
+            QCOMPARE(page->getSetupMeasureBuildCount(), buildCount + 1);
+        }
+
+        AppAiSetupGeometry reference;
+        for (bool isRunning : { false, true })
+        {
+            if (isRunning)
+            {
+                QVERIFY(fixture.startServer());
+                QTRY_COMPARE(page->getShownState(), pdf::PDFAppAiPage::ShownState::Running);
+            }
+            else if (page->getShownState() != pdf::PDFAppAiPage::ShownState::Stopped)
+            {
+                fixture.controller()->stop();
+                QTRY_COMPARE(page->getShownState(), pdf::PDFAppAiPage::ShownState::Stopped);
+            }
+            AppAiSetupTestHelper::settleLayout(page);
+            QCOMPARE(page->getSetup().containsToken, isTokenRequired);
+
+            int maximumNatural = 0;
+            const QString prefix = isRunning ? QString() : QStringLiteral("%1%2").arg(name, isTokenRequired ? QStringLiteral("-token") : QString());
+            const AppAiSetupGeometry geometry = AppAiSetupTestHelper::checkSwitching(page, &maximumNatural, prefix);
+            QVERIFY(!QTest::currentTestFailed());
+
+            // The reserved height is the tallest setup of the shown state, not more
+            QVERIFY2(geometry.card.height() == maximumNatural + 2 * AppAiSetupTestHelper::CARD_INSET,
+                     qPrintable(QStringLiteral("running %1 token %2: %3 tallest %4").arg(isRunning).arg(isTokenRequired).arg(geometry.toString()).arg(maximumNatural)));
+            if (isRunning)
+            {
+                QVERIFY2(geometry.isSameCard(reference), qPrintable(QStringLiteral("token %1: %2 / %3").arg(isTokenRequired).arg(geometry.toString(), reference.toString())));
+            }
+            reference = geometry;
+        }
+        reservedHeights[isTokenRequired ? 1 : 0] = reference.card.height();
+
+        QWidget* stack = page->findChild<QWidget*>(QStringLiteral("setupStack"));
+        QVERIFY(stack);
+        QCOMPARE(page->getReservedSetupHeight(stack->width()), stack->height());
+    }
+
+    // The token adds the header of the commands: its own, taller reservation
+    QVERIFY2(reservedHeights[1] > reservedHeights[0], qPrintable(QStringLiteral("token on %1 off %2").arg(reservedHeights[1]).arg(reservedHeights[0])));
+
+    // Back without the token: the shorter reservation again, measured once
+    const int buildCount = page->getSetupMeasureBuildCount();
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), false).isError());
+    QTRY_COMPARE(page->getSetupMeasureBuildCount(), buildCount + 1);
+    QVERIFY(!page->getSetup().containsToken);
+    AppAiSetupTestHelper::settleLayout(page);
+    QCOMPARE(page->getSetupMeasureBuildCount(), buildCount + 1);
+    QCOMPARE(AppAiSetupTestHelper::measure(page).card.height(), reservedHeights[0]);
+    AppAiTestHelper::screenshot(fixture.window, name);
+}
+
+void AppAiTest::setupCardReservedHeightRecomputed()
+{
+    // The reserved height follows the width and the language of the texts; a tile
+    // switch builds nothing again (with the token - the tallest setups are shown).
+    // The window starts narrow and grows: a page laid out wide keeps the minimal
+    // width of its columns (PDFAppColumns, a separate finding)
+    pdftest::AppMcpFixture fixture(QSize(800, 960));
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), true).isError());
+    pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
+    QVERIFY(page);
+    pdftest::AppDocumentFixture::settle();
+
+    // A narrow window: the steps and the note wrap, the actions are stacked
+    int narrowNatural = 0;
+    const AppAiSetupGeometry narrow = AppAiSetupTestHelper::checkSwitching(page, &narrowNatural);
+    QVERIFY(!QTest::currentTestFailed());
+    QCOMPARE(narrow.card.height(), narrowNatural + 2 * AppAiSetupTestHelper::CARD_INSET);
+
+    // A wide window: the setups measured again at the new width
+    const int buildCount = page->getSetupMeasureBuildCount();
+    fixture.window->resize(1440, 960);
+    AppAiSetupTestHelper::settleLayout(page);
+    QVERIFY(page->getSetupCard()->width() > narrow.card.width());
+    QVERIFY(page->getSetupMeasureBuildCount() > buildCount);
+    int wideNatural = 0;
+    const AppAiSetupGeometry wide = AppAiSetupTestHelper::checkSwitching(page, &wideNatural);
+    QVERIFY(!QTest::currentTestFailed());
+    QCOMPARE(wide.card.height(), wideNatural + 2 * AppAiSetupTestHelper::CARD_INSET);
+    QVERIFY2(narrow.card.height() > wide.card.height(), qPrintable(narrow.toString() + QStringLiteral(" / ") + wide.toString()));
+
+    // Longer texts of another language
+    AppAiSetupTestTranslator translator;
+    QCoreApplication::installTranslator(&translator);
+    AppAiSetupTestHelper::settleLayout(page);
+    int translatedNatural = 0;
+    const AppAiSetupGeometry translated = AppAiSetupTestHelper::checkSwitching(page, &translatedNatural);
+    QCoreApplication::removeTranslator(&translator);
+    QVERIFY(!QTest::currentTestFailed());
+    QCOMPARE(translated.card.height(), translatedNatural + 2 * AppAiSetupTestHelper::CARD_INSET);
+    QVERIFY2(translated.card.height() > wide.card.height(), qPrintable(translated.toString() + QStringLiteral(" / ") + wide.toString()));
+    AppAiSetupTestHelper::settleLayout(page);
+    QCOMPARE(AppAiSetupTestHelper::measure(page).card.height(), wide.card.height());
+
+    // Require access token off: the tallest setup without the token (only the
+    // shown state is reserved)
+    const int buildCountWithToken = page->getSetupMeasureBuildCount();
+    QVERIFY(!AppAiTestHelper::settings(fixture).setValue(pdf::PDFSettingKeys::mcpRequireToken(), false).isError());
+    QTRY_COMPARE(page->getSetupMeasureBuildCount(), buildCountWithToken + 1);
+    QVERIFY(!page->getSetup().containsToken);
+    AppAiSetupTestHelper::settleLayout(page);
+    int withoutTokenNatural = 0;
+    const AppAiSetupGeometry withoutToken = AppAiSetupTestHelper::checkSwitching(page, &withoutTokenNatural);
+    QVERIFY(!QTest::currentTestFailed());
+    QCOMPARE(withoutToken.card.height(), withoutTokenNatural + 2 * AppAiSetupTestHelper::CARD_INSET);
+    QVERIFY2(withoutToken.card.height() < wide.card.height(), qPrintable(withoutToken.toString() + QStringLiteral(" / ") + wide.toString()));
+}
+
+void AppAiTest::setupNoteCentered_data()
+{
+    QTest::addColumn<bool>("isDark");
+    QTest::addColumn<qreal>("scale");
+    QTest::addColumn<bool>("isRightToLeft");
+    QTest::addColumn<QSize>("size");
+    for (bool isDark : { false, true })
+    {
+        for (qreal scale : { 1.0, 2.0 })
+        {
+            for (bool isRightToLeft : { false, true })
+            {
+                QTest::newRow(qPrintable(QStringLiteral("%1@%2%3").arg(isDark ? "dark" : "light").arg(scale).arg(isRightToLeft ? "-rtl" : ""))) << isDark << scale << isRightToLeft << QSize(1440, 960);
+            }
+        }
+    }
+    QTest::newRow("light@1-720x480") << false << 1.0 << false << QSize(720, 480);
+}
+
+void AppAiTest::setupNoteCentered()
+{
+    // 653:5797 / 955:149437: the info icon and the text of the note centered on
+    // each other and on the buttons beside them (the text sat at the top of the
+    // row); the privacy note 653:5679 and the callouts 940:136797 the same
+    QFETCH(bool, isDark);
+    QFETCH(qreal, scale);
+    QFETCH(bool, isRightToLeft);
+    QFETCH(QSize, size);
+
+    if (isRightToLeft)
+    {
+        QApplication::setLayoutDirection(Qt::RightToLeft);
+    }
+    pdftest::AppMcpFixture fixture(size);
+    pdf::PDFThemeManager::getInstance()->setScheme(isDark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
+    pdf::PDFAppAiPage* page = AppAiTestHelper::open(fixture);
+    QVERIFY(page);
+    pdftest::AppDocumentFixture::settle();
+
+    QWidget* card = page->getSetupCard();
+    pdf::PDFAppParagraph* text = page->findChild<pdf::PDFAppParagraph*>(QStringLiteral("setupNoteText"));
+    QWidget* icon = page->findChild<QWidget*>(QStringLiteral("setupNoteIcon"));
+    QVERIFY(card && text && icon && text->isVisible());
+    const QRect textRect(text->mapTo(card, QPoint(0, 0)), text->size());
+    const QRect iconRect(icon->mapTo(card, QPoint(0, 0)), icon->size());
+    const QRect copyRect(page->getCopySetupButton()->mapTo(card, QPoint(0, 0)), page->getCopySetupButton()->size());
+
+    // The geometry: the lines of the text (a paragraph draws them from its top)
+    // and the icon share their center
+    const int lines = text->getLines(text->width()).size();
+    const qreal textCenter = textRect.top() + lines * text->getLineHeight() / 2.0;
+    const qreal iconCenter = iconRect.top() + iconRect.height() / 2.0;
+    QVERIFY2(qAbs(textCenter - iconCenter) <= 0.5, qPrintable(QStringLiteral("text %1 icon %2 lines %3").arg(textCenter).arg(iconCenter).arg(lines)));
+    const bool isBesideButtons = textRect.top() < copyRect.bottom();
+    if (isBesideButtons)
+    {
+        // One line beside the buttons (653:5797): centered on them
+        QCOMPARE(lines, 1);
+        QVERIFY2(qAbs(textCenter - (copyRect.top() + copyRect.height() / 2.0)) <= 0.5, qPrintable(QStringLiteral("text %1 button %2").arg(textCenter).arg(copyRect.center().y())));
+    }
+    QVERIFY2(isBesideButtons == (size.width() >= 1440), qPrintable(QStringLiteral("text %1 copy %2").arg(textRect.top()).arg(copyRect.bottom())));
+
+    // The drawn pixels: the ink of the text and of the icon centered on each other
+    const QImage image = AppAiTestHelper::render(card, scale);
+    const QColor background = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgSurface);
+    const qreal textInk = AppAiSetupTestHelper::inkCenter(image, textRect, background);
+    const qreal iconInk = AppAiSetupTestHelper::inkCenter(image, iconRect, background);
+    QVERIFY(textInk > 0.0 && iconInk > 0.0);
+    QVERIFY2(qAbs(textInk - iconInk) <= 1.5, qPrintable(QStringLiteral("text ink %1 icon ink %2").arg(textInk).arg(iconInk)));
+    QCOMPARE(AppAiTestHelper::countLeakPixels(image), 0);
+    AppAiSetupTestHelper::screenshot(card, QStringLiteral("ai-setup-note-%1").arg(QString::fromLatin1(QTest::currentDataTag()).replace(QLatin1Char('@'), QLatin1Char('-'))));
+
+    // The privacy note 653:5679: the circle centered on its texts
+    pdf::PDFTintedCard* note = page->getNote();
+    QWidget* noteIcon = note->findChild<pdf::PDFIconBadge*>();
+    QVERIFY(noteIcon);
+    QWidget* noteTexts = nullptr;
+    for (QWidget* child : note->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
+    {
+        noteTexts = child != noteIcon ? child : noteTexts;
+    }
+    QVERIFY(noteTexts);
+    QVERIFY2(qAbs((noteIcon->y() + noteIcon->height() / 2.0) - (noteTexts->y() + noteTexts->height() / 2.0)) <= 0.5,
+             qPrintable(QStringLiteral("icon %1 texts %2").arg(noteIcon->geometry().center().y()).arg(noteTexts->geometry().center().y())));
+
+    // The callout of another instance 940:136797: the texts keep their height in
+    // the middle of the callout (the wide window - in the minimal window the
+    // server card gets less than its height for its width, a separate finding)
+    if (size.width() < 1440)
+    {
+        return;
+    }
+    QVERIFY(AppAiTestHelper::claimOther(fixture, QStringLiteral("other"), QCoreApplication::applicationPid()));
+    QTRY_COMPARE(page->getShownState(), pdf::PDFAppAiPage::ShownState::OtherInstance);
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFTintedCard* callout = page->getCallout();
+    QVERIFY(callout->isVisible());
+    QWidget* calloutTitle = callout->findChild<QWidget*>(QStringLiteral("calloutTitle"));
+    QVERIFY(calloutTitle);
+    QWidget* calloutTexts = calloutTitle->parentWidget();
+    QVERIFY2(calloutTexts->height() == calloutTexts->heightForWidth(calloutTexts->width()),
+             qPrintable(QStringLiteral("texts %1x%2 hfw %3 callout %4x%5 hfw %6 card %7x%8 hfw %9 content %10 hfw %11")
+                                .arg(calloutTexts->width()).arg(calloutTexts->height()).arg(calloutTexts->heightForWidth(calloutTexts->width()))
+                                .arg(callout->width()).arg(callout->height()).arg(callout->heightForWidth(callout->width()))
+                                .arg(page->getServerCard()->width()).arg(page->getServerCard()->height()).arg(page->getServerCard()->heightForWidth(page->getServerCard()->width()))
+                                .arg(callout->parentWidget()->height()).arg(callout->parentWidget()->heightForWidth(callout->parentWidget()->width()))));
+    QVERIFY2(qAbs((calloutTexts->y() + calloutTexts->height() / 2.0) - callout->height() / 2.0) <= 1.0,
+             qPrintable(QStringLiteral("texts %1 callout %2").arg(calloutTexts->geometry().center().y()).arg(callout->height() / 2.0)));
 }
 
 void AppAiTest::startWithApp()

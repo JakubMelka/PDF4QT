@@ -23,6 +23,7 @@
 #include "pdfocrmodelmanager.h"
 #include "config.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QDir>
 #include <QFile>
@@ -1883,7 +1884,7 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
     const QString targetPath = getModelTargetPath(entry);
     const QString engineVersion = getEngineVersion(entry.engineId);
 
-    m_verificationPool.start([this, verifyingDownload, userDirectory, validator, entry, temporaryPath, targetPath, engineVersion]()
+    PDFExecutionPolicy::startTask(&m_verificationPool, [this, verifyingDownload, userDirectory, validator, entry, temporaryPath, targetPath, engineVersion]()
     {
         // The download must always be completed (exactly once), also when the verification
         // throws - otherwise it would stay in the verifying state forever

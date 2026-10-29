@@ -221,6 +221,13 @@ public:
     /// session of Home / Open): the files with their current pages
     void saveLastSession();
 
+    /// Stores the geometry of the visible window (PDFAppWindowGeometry, the state
+    /// setting window.geometry): its normal geometry, maximized (also below the
+    /// full screen and the minimized state) and its screen. Called, when the
+    /// closing of the window is accepted and when the application quits; the last
+    /// window closed in any process wins.
+    void storeGeometry();
+
     /// Command Open… (Ctrl+O): the native dialog of the system for PDF files in the
     /// folder (empty = the default folder of the system); the chosen files are
     /// opened (openDocuments). The dialog runs its own event loop: a second request
@@ -242,6 +249,8 @@ protected:
     virtual bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
     virtual void changeEvent(QEvent* event) override;
     virtual void closeEvent(QCloseEvent* event) override;
+    virtual void moveEvent(QMoveEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
     virtual bool event(QEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
@@ -276,6 +285,23 @@ private:
     bool handleNavigationButton(QEvent* event);
     void updateWindowState();
     void updateWindowTitle();
+
+    /// Remembers the geometry of the visible window in the normal state
+    void updateNormalGeometry();
+
+    /// The normal geometry of the window (also of a maximized, full screen or
+    /// minimized one): the remembered one, unless the system has moved the window
+    /// to another screen meanwhile
+    QRect getRememberedNormalGeometry() const;
+
+    /// The geometry of a new window: the first window of the process takes the
+    /// stored geometry (window.geometry) placed on the screens (maximized as it
+    /// was), another window is cascaded from a visible main window of the process,
+    /// else the default (getInitialGeometry). Set before the window is shown.
+    void applyInitialGeometry();
+
+    /// A visible main window of the process other than this one (the active first)
+    const PDFAppMainWindow* findOtherWindow() const;
 
 
     /// Message box of the window, which does not block the caller
@@ -320,6 +346,10 @@ private:
     void saveNextForQuit();
     void onQuitSaveFinished(bool isSaved);
 
+    /// The application quits without the closing of the window: the geometry of
+    /// the active main window wins (the other visible windows store theirs only,
+    /// when no main window of the process is active)
+    void onAboutToQuit();
     void onCurrentTabChanged(int index);
     void onTabCloseRequested(int index);
     void onTabDestroyed(QObject* object);
@@ -364,6 +394,12 @@ private:
     QPointer<PDFAppDocumentTab> m_quitSavingTab;
     bool m_isFullScreenMode = false;
     Qt::WindowStates m_windowStateBeforeFullScreen = Qt::WindowNoState;
+
+    /// The geometry of the window in the normal state (the last one seen, else the
+    /// initial geometry): QWidget::normalGeometry of a window created maximized is
+    /// off by the frame of the maximized window on Windows (Qt subtracts the frame
+    /// margins of the maximized state from the normal placement)
+    QRect m_normalGeometry;
 };
 
 }   // namespace pdf

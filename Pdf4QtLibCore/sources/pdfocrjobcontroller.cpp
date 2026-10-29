@@ -27,6 +27,7 @@
 #include "pdfpage.h"
 #include "pdfmeshqualitysettings.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QRunnable>
 #include <QDateTime>
@@ -176,7 +177,7 @@ bool PDFOCRJobController::start(PDFOCRJobDescription description, int* generatio
     m_threadPool.setMaxThreadCount(workerCount);
     for (int i = 0; i < workerCount; ++i)
     {
-        m_threadPool.start([this, job]() { workerMain(job); });
+        PDFExecutionPolicy::startTask(&m_threadPool, [this, job]() { workerMain(job); });
     }
 
     return true;
@@ -294,6 +295,7 @@ bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperati
             return false;
         }
         m_memoryCondition.wait(&m_mutex, QDeadlineTimer(qMin<qint64>(100, deadline.isForever() ? 100 : qMax<qint64>(1, deadline.remainingTime()))));
+        PDFThreadAnnotations::happensAfter(&m_mutex); // relocked inside of Qt
     }
 
     m_memoryUsed += bytes;

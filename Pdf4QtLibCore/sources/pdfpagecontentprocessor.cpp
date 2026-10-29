@@ -786,7 +786,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                 // executed, other operators (for example 'Q') are executed as usual. The rest
                 // of the invalid token is skipped, so it is not read as another operand.
                 PDFInteger position = parser.pos();
-                while (position < content.size() && PDFLexicalAnalyzer::isRegular(content[position]))
+                while (position < content.size() && PDFLexicalAnalyzer::isRegular(content.at(position)))
                 {
                     ++position;
                 }

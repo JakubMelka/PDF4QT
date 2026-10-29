@@ -53,6 +53,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpDocumentHeader
 public:
     QString documentId;
     QString title;
+    bool isPagedXFA = false;    ///< The document is the paged layout of an XFA form (step 8; not written, the note of the form fields says it)
 
     static PDFAppMcpDocumentHeader create(const PDFAppDocument* document);
 

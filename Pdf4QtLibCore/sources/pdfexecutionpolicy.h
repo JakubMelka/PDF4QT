@@ -24,6 +24,7 @@
 #define PDFEXECUTIONPOLICY_H
 
 #include "pdfglobal.h"
+#include "pdfthreadannotations.h"
 
 #include <QMutex>
 #include <QScopeGuard>
@@ -34,6 +35,7 @@
 #include <execution>
 #include <exception>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -74,11 +76,11 @@ public:
     class Runnable : public QRunnable
     {
     public:
-        explicit inline Runnable(ForwardIt it, ForwardIt itEnd, UnaryFunction* function, QSemaphore* semaphore) :
+        explicit inline Runnable(ForwardIt it, ForwardIt itEnd, UnaryFunction* function, std::shared_ptr<QSemaphore> semaphore) :
             m_forwardIt(qMove(it)),
             m_forwardItEnd(qMove(itEnd)),
             m_function(function),
-            m_semaphore(semaphore),
+            m_semaphore(std::move(semaphore)),
             m_packSize(static_cast<int>(std::distance(m_forwardIt, m_forwardItEnd)))
         {
             setAutoDelete(true);
@@ -86,18 +88,28 @@ public:
 
         virtual void run() override
         {
-            QSemaphoreReleaser semaphoreReleaser(m_semaphore, m_packSize);
+            // The queue of the thread pool and the semaphore synchronize by futexes
+            // inside of Qt: the data of the caller are handed to the task by the
+            // task itself (see execute), the results back to the caller by the semaphore
+            PDFThreadAnnotations::happensAfter(this);
+            PDFThreadAnnotations::forget(this);
+            QSemaphoreReleaser semaphoreReleaser(m_semaphore.get(), m_packSize);
             for (auto it = m_forwardIt; it != m_forwardItEnd; ++it)
             {
                 (*m_function)(*it);
             }
+            PDFThreadAnnotations::happensBefore(m_semaphore.get());
         }
 
     private:
         ForwardIt m_forwardIt;
         ForwardIt m_forwardItEnd;
         UnaryFunction* m_function;
-        QSemaphore* m_semaphore;
+
+        /// Shared by the caller and the tasks: a task may still be inside of
+        /// QSemaphore::release (the futex wake-up writes the semaphore word) after
+        /// the caller has acquired the last token and left execute
+        std::shared_ptr<QSemaphore> m_semaphore;
         int m_packSize;
     };
 
@@ -106,7 +118,7 @@ public:
     {
         if (isParallelizing(scope))
         {
-            QSemaphore semaphore(0);
+            std::shared_ptr<QSemaphore> semaphore = std::make_shared<QSemaphore>(0);
             const auto distance = std::distance(first, last);
             if (distance < 0 || distance > std::numeric_limits<int>::max())
             {
@@ -116,7 +128,7 @@ public:
             int remainder = count;
 
             // Exceptions must reach the calling thread only after every worker has
-            // stopped using the callable and the semaphore on this stack.
+            // stopped using the callable on this stack.
             QMutex exceptionMutex;
             std::exception_ptr exception;
             auto guardedFunction = [&](auto&& value)
@@ -135,7 +147,13 @@ public:
                 }
             };
             int scheduledCount = 0;
-            auto waitGuard = qScopeGuard([&]() { semaphore.acquire(scheduledCount); });
+            auto joinTasks = [&]()
+            {
+                semaphore->acquire(scheduledCount);
+                PDFThreadAnnotations::happensAfter(semaphore.get());
+                PDFThreadAnnotations::forget(semaphore.get());
+            };
+            auto waitGuard = qScopeGuard(joinTasks);
 
             int bucketSize = 1;
 
@@ -159,7 +177,9 @@ public:
 
                 auto itStart = it;
                 auto itEnd = std::next(it, currentSize);
-                pool->start(new Runnable(itStart, itEnd, &guardedFunction, &semaphore));
+                auto* runnable = new Runnable(itStart, itEnd, &guardedFunction, semaphore);
+                PDFThreadAnnotations::happensBefore(runnable);
+                pool->start(runnable);
                 scheduledCount += currentSize;
 
                 remainder -= currentSize;
@@ -168,8 +188,8 @@ public:
 
             Q_ASSERT(it == last);
 
-            semaphore.acquire(scheduledCount);
             waitGuard.dismiss();
+            joinTasks();
             if (exception)
             {
                 std::rethrow_exception(exception);
@@ -179,6 +199,42 @@ public:
         {
             std::for_each(first, last, f);
         }
+    }
+
+    /// Task of a thread pool started by startTask
+    template<typename Function>
+    class Task : public QRunnable
+    {
+    public:
+        explicit inline Task(Function function) :
+            m_function(std::move(function))
+        {
+            setAutoDelete(true);
+        }
+
+        virtual void run() override
+        {
+            // The queue of the thread pool synchronizes by a futex inside of Qt
+            PDFThreadAnnotations::happensAfter(this);
+            PDFThreadAnnotations::forget(this);
+            m_function();
+        }
+
+    private:
+        Function m_function;
+    };
+
+    /// Starts a function in a thread pool (instead of QThreadPool::start with a
+    /// callable): everything the calling thread did before the call happens before
+    /// the function also for the race detectors (see PDFThreadAnnotations).
+    /// \param pool Thread pool
+    /// \param function Function, which is called in a thread of the pool
+    template<typename Function>
+    static void startTask(QThreadPool* pool, Function function)
+    {
+        Task<Function>* task = new Task<Function>(std::move(function));
+        PDFThreadAnnotations::happensBefore(task);
+        pool->start(task);
     }
 
     template<typename ForwardIt, typename Comparator>

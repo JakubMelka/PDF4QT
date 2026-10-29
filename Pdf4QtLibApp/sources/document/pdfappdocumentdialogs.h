@@ -348,6 +348,11 @@ public:
     QPushButton* getUnlockButton() const { return m_unlockButton; }
     QPushButton* getEditCopyButton() const { return m_editCopyButton; }
 
+    /// The locked document is a display version of an XFA form (step 8,
+    /// PDFAppDocument::isPagedXFA): neither the document nor a copy of it can be
+    /// edited, so the popover offers Unlock only and says why (call before showBelow)
+    void setPagedXFA(bool isPagedXFA);
+
     /// Shows the popover below the rectangle of the lock (global coordinates)
     void showBelow(const QRect& anchor);
 
@@ -361,6 +366,7 @@ private:
 
     QPointer<QPushButton> m_unlockButton;
     QPointer<QPushButton> m_editCopyButton;
+    QPointer<PDFAppParagraph> m_text;
 };
 
 }   // namespace pdf

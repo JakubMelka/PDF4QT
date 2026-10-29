@@ -46,6 +46,18 @@ public:
     /// Returns list of page sizes (after paging is complete)
     std::vector<QSizeF> getPageSizes() const;
 
+    /// Largest number of pages of the layout (also of a hostile template)
+    static constexpr size_t MAXIMUM_PAGE_COUNT = 128;
+
+    /// Lays out the XFA form \p form of \p document and returns the sizes of the
+    /// pages of its layout (the same as getPageSizes after setDocument). Empty,
+    /// when the form is not an XFA form or its template cannot be read. Only the
+    /// template is read: no font of the document is registered in the font
+    /// database, so the function may be called from a worker thread.
+    /// \param document Document
+    /// \param form Form of the document
+    static std::vector<QSizeF> getLayoutPageSizes(const PDFDocument* document, const PDFForm* form);
+
     /// Draws XFA form
     /// \param pagePointToDevicePointMatrix Page point to device point matrix
     /// \param page Page

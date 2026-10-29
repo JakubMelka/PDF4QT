@@ -22,6 +22,7 @@
 
 #include "pdfmcpcall.h"
 #include "pdfmcphost.h"
+#include "pdfthreadannotations.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -201,8 +202,9 @@ PDFMcpCallSink::PDFMcpCallSink(QObject* parent) :
 
 PDFMcpCallSink::~PDFMcpCallSink() = default;
 
-void PDFMcpCallSink::processCall(std::shared_ptr<PDFMcpCall> call)
+void PDFMcpCallSink::processCall(const std::shared_ptr<PDFMcpCall>& call)
 {
+    PDFThreadAnnotations::happensAfter(call.get());
     // The default receiver drops the events (no transport)
     if (call)
     {
@@ -351,6 +353,8 @@ void PDFMcpCall::cancel(PDFMcpCancelReason reason)
     // quit order), so the queued invocation never reaches a dead host
     if (host)
     {
+        PDFThreadAnnotations::happensBefore(this);
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(host.data(), &PDFMcpHost::callCanceled, Qt::QueuedConnection, shared_from_this());
     }
 }
@@ -410,6 +414,8 @@ void PDFMcpCall::postEvent(PDFMcpCallEvent event)
     // never reaches a destroyed sink; an event posted to a sink, which is
     // destroyed later, is removed with it. Posting takes only the lock of the
     // event queue of Qt and never calls back into the call.
+    PDFThreadAnnotations::happensBefore(this);
+    PDFThreadAnnotations::TransportScope transportScope;
     QMetaObject::invokeMethod(m_sink.data(), &PDFMcpCallSink::processCall, Qt::QueuedConnection, shared_from_this());
 }
 

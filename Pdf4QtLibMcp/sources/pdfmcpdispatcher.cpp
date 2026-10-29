@@ -23,6 +23,7 @@
 #include "pdfmcpdispatcher.h"
 #include "pdfmcpdispatcher_p.h"
 #include "pdfmcpconnection.h"
+#include "pdfthreadannotations.h"
 
 #include <QCryptographicHash>
 #include <QHostAddress>
@@ -64,6 +65,8 @@ bool PDFMcpDispatcherLink::submit(std::shared_ptr<PDFMcpExchange> exchange)
     {
         return false;
     }
+    PDFThreadAnnotations::happensBefore(exchange.get());
+    PDFThreadAnnotations::TransportScope transportScope;
     QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleExchange, Qt::QueuedConnection, std::move(exchange));
     return true;
 }
@@ -73,6 +76,8 @@ void PDFMcpDispatcherLink::exchangeClosed(std::shared_ptr<PDFMcpExchange> exchan
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::happensBefore(exchange.get());
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleExchangeClosed, Qt::QueuedConnection, std::move(exchange));
     }
 }
@@ -82,6 +87,7 @@ void PDFMcpDispatcherLink::catalogPublished()
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleCatalogPublished, Qt::QueuedConnection);
     }
 }
@@ -91,6 +97,8 @@ void PDFMcpDispatcherLink::resourceUpdated(const QString& uri)
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::happensBefore(m_dispatcher);
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleResourceUpdated, Qt::QueuedConnection, uri);
     }
 }
@@ -100,6 +108,8 @@ void PDFMcpDispatcherLink::disconnectAssistant(const QString& key)
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::happensBefore(m_dispatcher);
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleDisconnectAssistant, Qt::QueuedConnection, key);
     }
 }
@@ -109,6 +119,7 @@ void PDFMcpDispatcherLink::disconnectAll()
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleDisconnectAll, Qt::QueuedConnection);
     }
 }
@@ -118,6 +129,7 @@ void PDFMcpDispatcherLink::checkTimeouts()
     QMutexLocker locker(&m_mutex);
     if (m_dispatcher)
     {
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_dispatcher, &PDFMcpDispatcher::handleMaintenance, Qt::QueuedConnection);
     }
 }
@@ -181,6 +193,7 @@ bool PDFMcpDispatcherLink::evictIdleConnection()
     PDFMcpConnection* connection = m_idleConnections.front();
     m_idleConnections.erase(m_idleConnections.begin());
     m_evictedConnections.push_back(connection);
+    PDFThreadAnnotations::TransportScope transportScope;
     QMetaObject::invokeMethod(connection, &PDFMcpConnection::evict, Qt::QueuedConnection);
     return true;
 }
@@ -198,6 +211,7 @@ void PDFMcpDispatcherLink::setAssistants(std::vector<PDFMcpAssistantInfo> assist
     if (notify && m_server)
     {
         // The server outlives the run (its threads are joined before it is destroyed)
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_server, &PDFMcpServer::onAssistantsChanged, Qt::QueuedConnection);
     }
 }
@@ -621,8 +635,9 @@ QJsonObject PDFMcpDispatcher::filterInputResponses(const QJsonObject& responses,
     return result;
 }
 
-void PDFMcpDispatcher::handleExchange(std::shared_ptr<PDFMcpExchange> exchange)
+void PDFMcpDispatcher::handleExchange(const std::shared_ptr<PDFMcpExchange>& exchange)
 {
+    PDFThreadAnnotations::happensAfter(exchange.get());
     if (!exchange || exchange->isClosed())
     {
         return;

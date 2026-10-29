@@ -429,7 +429,9 @@ public:
                     const QString choice = getChoice(request);
                     if (choice.isEmpty() || (choice == QLatin1String("A") && request.arguments.value(QStringLiteral("value")).toString() == QLatin1String("twice")))
                     {
-                        QTimer::singleShot(400, qApp, [call]() { call->requestInput(createChoice()); });
+                        // Later than the task creation (taskCreationDelay = 100 of the tests) also
+                        // under valgrind drd, which runs the threads one after another
+                        QTimer::singleShot(400 * McpTestHelper::factor(), qApp, [call]() { call->requestInput(createChoice()); });
                     }
                     else
                     {
@@ -2909,9 +2911,12 @@ void McpTest::authHostOrigin()
 
     // Throttle: 20 failures of an address in a minute - 429 for a minute for a
     // missing or wrong token; the valid token passes the block of the local mode,
-    // where every local process shares the loopback address (follow-up 21)
+    // where every local process shares the loopback address (follow-up 21). The
+    // clock of the server goes back before each failure, so the failures stay
+    // within the minute also in a slow run (valgrind drd: seconds per request)
     for (int i = 0; i < pdf::PDFMcpLimits::MAXIMUM_AUTHORIZATION_FAILURES - 4; ++i)
     {
+        McpTestHelper::stepClockBack();
         QCOMPARE(fixture.raw(McpServerHelper::createRawPost(port, discover, headers, false)).status, 401);
     }
     const pdftest::McpTestResponse blocked = fixture.raw(McpServerHelper::createRawPost(port, discover, headers, false));
@@ -3461,7 +3466,7 @@ void McpTest::listenStreams()
 {
     pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
     config.keepAliveInterval = 200;
-    config.resourceUpdateInterval = 300;
+    config.resourceUpdateInterval = 300 * McpTestHelper::factor();
     McpServerFixture fixture(config);
     QVERIFY(fixture.isRunning);
     pdftest::McpTestClient client = fixture.client();
@@ -3509,7 +3514,7 @@ void McpTest::listenStreams()
         fixture.server->notifyResourceUpdated(QStringLiteral("pdf4qt://documents/ABC"));
     }
     QVERIFY(stream->waitForMessages(4, 5000));
-    QTest::qWait(600);
+    QTest::qWait(600 * McpTestHelper::factor());
     std::vector<QJsonObject> messages = stream->messages();
     int updates = 0;
     for (const QJsonObject& item : messages)
@@ -3838,7 +3843,7 @@ void McpTest::mrtrSealing()
 void McpTest::legacyElicitation()
 {
     pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
-    config.elicitationTimeout = 500;
+    config.elicitationTimeout = 500 * McpTestHelper::factor();
     McpServerFixture fixture(config);
     QVERIFY(fixture.isRunning);
 
@@ -5348,7 +5353,7 @@ void McpTest::reviewTaskInputTimeout()
     // elicitation as a legacy elicitation does.
     pdf::PDFMcpServerConfig config = McpServerHelper::createConfig();
     config.taskCreationDelay = 100;
-    config.elicitationTimeout = 1500;
+    config.elicitationTimeout = 1500 * McpTestHelper::factor();
     McpServerFixture fixture(config);
     QVERIFY(fixture.isRunning);
 
@@ -5865,9 +5870,16 @@ void McpTest::fixLegacyInitializeLimits()
     // refilled by the rate meanwhile - a slow machine - give a few more)
     std::vector<QByteArray> unused;
     pdftest::McpTestClient limited = fixture.client(pdftest::McpTestEra::Legacy20251125);
+
+    // Counted before the sessions are created: in a slow run (valgrind drd) the
+    // periodic maintenance may end an unused session already at the jump of the
+    // clock below, before the explicit check of the timeouts
+    const int sessionsBefore = fixture.countEvents(pdf::PDFMcpAssistantEvent::Kind::SessionEnded);
     QJsonObject refused;
     for (int i = 0; i < 4 * pdf::PDFMcpLimits::INITIALIZE_BURST; ++i)
     {
+        // No refill between the requests also in a slow run (valgrind drd)
+        McpTestHelper::stepClockBack();
         pdftest::McpTestClient many = fixture.client(pdftest::McpTestEra::Legacy20251125);
         const QJsonObject answer = many.request(QStringLiteral("initialize"), params);
         if (many.lastResponse().status != 200)
@@ -5896,7 +5908,6 @@ void McpTest::fixLegacyInitializeLimits()
     QVERIFY(requesting.request(QStringLiteral("ping")).contains(QStringLiteral("result")));
 
     // The unused sessions end after their time, the used ones stay
-    const int sessionsBefore = fixture.countEvents(pdf::PDFMcpAssistantEvent::Kind::SessionEnded);
     pdf::PDFMcpClock::setOffset(pdf::PDFMcpLimits::UNUSED_SESSION_TIME + 1000);
     fixture.server->checkTimeouts();
     QVERIFY(McpTestHelper::waitFor([&]() { return fixture.countEvents(pdf::PDFMcpAssistantEvent::Kind::SessionEnded) >= sessionsBefore + int(unused.size()); }, 5000));

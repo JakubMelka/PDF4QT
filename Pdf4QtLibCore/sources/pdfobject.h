@@ -24,6 +24,7 @@
 #define PDFOBJECT_H
 
 #include "pdfglobal.h"
+#include "pdfthreadannotations.h"
 
 #include <QByteArray>
 #include <QByteArrayView>
@@ -103,8 +104,18 @@ private:
     /// Removes a reference to the content. Returns true, if it was the last
     /// reference, and the content must be deleted by the caller. Acquire-release
     /// ordering guarantees, that all accesses of other threads to the content
-    /// happen before the deletion.
-    inline bool removeReference() const noexcept { return m_referenceCount.fetch_sub(1, std::memory_order_acq_rel) == 1; }
+    /// happen before the deletion (valgrind does not see the atomic operation, it
+    /// is told so by the annotations).
+    inline bool removeReference() const noexcept
+    {
+        PDFThreadAnnotations::releasingReference(m_referenceCount);
+        const bool isLastReference = m_referenceCount.fetch_sub(1, std::memory_order_acq_rel) == 1;
+        if (isLastReference)
+        {
+            PDFThreadAnnotations::releasedLastReference(&m_referenceCount);
+        }
+        return isLastReference;
+    }
 
     /// Returns current number of references (for diagnostic purposes only)
     inline uint32_t getReferenceCount() const noexcept { return m_referenceCount.load(std::memory_order_relaxed); }

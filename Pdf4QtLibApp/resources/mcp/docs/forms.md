@@ -69,6 +69,7 @@ PDF4QT does not run the JavaScript of a document for assistants. Fields, which a
 
 - A field with `readOnly` is refused (reported in `errors`).
 - The whole form is read only when the document is locked in PDF4QT, when the document does not allow filling forms, or for an XFA form. `get_form_fields` then says so (`xfa: true` for an XFA form, a `note` otherwise); XFA forms can only be read.
+- An XFA form, whose layout has more pages or pages of other sizes than the PDF file, is shown with the pages of its layout: the pages of `get_info`, `get_pages`, `text` and `render` are the pages of the layout, and the `note` of `get_form_fields` says so. Such a document cannot be changed at all - `annotations`, `forms` and `outline` are refused with the reason - and `files.save` / `files.save_copy` write the original PDF unchanged.
 
 ## Reset
 

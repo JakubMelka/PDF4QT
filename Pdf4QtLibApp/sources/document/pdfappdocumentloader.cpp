@@ -25,6 +25,7 @@
 
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
+#include "pdfform.h"
 #include "pdfprogress.h"
 #include "pdfsecurityhandler.h"
 
@@ -176,6 +177,15 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
                 result.isEncrypted = securityHandler && securityHandler->getMode() != EncryptionMode::None;
                 result.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
                 result.status = Status::Loaded;
+
+                // A dynamic XFA form, whose layout has more pages or pages of other
+                // sizes, is shown with the pages of its layout (step 8): the paged
+                // document is a display version, the file keeps the original bytes
+                if (PDFDocumentPointer pagedDocument = PDFXFAPaging::createPagedDocument(result.document.data()))
+                {
+                    result.document = std::move(pagedDocument);
+                    result.isPagedXFA = true;
+                }
                 break;
             }
 
@@ -393,11 +403,11 @@ void PDFAppDocumentLoader::onReadingFinished()
         case PDFAppDocumentReading::Status::Loaded:
             if (m_isReload)
             {
-                m_document->reload(result.document, std::move(result.data), result.isEncrypted);
+                m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA);
             }
             else
             {
-                m_document->setLoaded(result.document, std::move(result.data), m_filePath, result.isEncrypted);
+                m_document->setLoaded(result.document, std::move(result.data), m_filePath, result.isEncrypted, result.isPagedXFA);
             }
             break;
 

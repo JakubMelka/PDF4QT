@@ -192,15 +192,15 @@ public:
 
     // Queued invocations of the link ----------------------------------------
 
-    void handleExchange(std::shared_ptr<pdf::PDFMcpExchange> exchange);
-    void handleExchangeClosed(std::shared_ptr<pdf::PDFMcpExchange> exchange);
+    void handleExchange(const std::shared_ptr<pdf::PDFMcpExchange>& exchange);
+    void handleExchangeClosed(const std::shared_ptr<pdf::PDFMcpExchange>& exchange);
     void handleCatalogPublished();
     void handleResourceUpdated(QString uri);
     void handleDisconnectAssistant(QString key);
     void handleDisconnectAll();
     void handleMaintenance();
 
-    virtual void processCall(std::shared_ptr<pdf::PDFMcpCall> call) override;
+    virtual void processCall(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
 
     // Pure helpers (tests) ---------------------------------------------------
 

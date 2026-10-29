@@ -36,6 +36,7 @@
 #include "pdfoptionalcontent.h"
 #include "pdfpainter.h"
 #include "pdfrenderer.h"
+#include "pdfthreadannotations.h"
 
 #include <QBuffer>
 #include <QDateTime>
@@ -284,6 +285,7 @@ void PDFAppThumbnailerThread::run()
             while (m_state->queue.empty() && !m_state->isStopped)
             {
                 m_state->condition.wait(&m_state->mutex);
+                PDFThreadAnnotations::happensAfter(&m_state->mutex); // relocked inside of Qt
             }
 
             if (m_state->isStopped)

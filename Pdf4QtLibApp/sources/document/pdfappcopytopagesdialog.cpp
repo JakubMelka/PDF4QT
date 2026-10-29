@@ -93,7 +93,7 @@ PDFAppCopyToPagesDialog::PDFAppCopyToPagesDialog(PDFAppAnnotationController* con
     m_pageSelection->setPageCount(int(pageCount));
     if (view)
     {
-        m_pageSelection->setCurrentPage(int(view->getCurrentPageIndex()) + 1);
+        m_pageSelection->setCurrentPage(int(view->getDisplayedPageIndex()) + 1);
         QList<int> selectedPages;
         for (const PDFInteger page : view->getSelectedPages())
         {

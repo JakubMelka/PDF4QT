@@ -55,9 +55,13 @@ namespace pdf
 /// main-column + side-column, open-grid, recent-grid, dashboard-split-grid of Home):
 /// columns of a fixed width beside stretched ones, the stretched columns share the
 /// rest of the width by their stretch factors, the gap is 24. A page narrower than
-/// the sum of the fixed widths, the minimal widths of the stretched columns and the
-/// gaps has the columns below each other in the full width (the minimal window
-/// 720 x 480); a hidden widget, which has no width yet, starts beside each other.
+/// the sum of the fixed widths, the minimal widths of the stretched columns (at
+/// least the narrowest width of their content) and the gaps has the columns below
+/// each other in the full width (the minimal window 720 x 480); a hidden widget,
+/// which has no width yet, starts beside each other. The narrowest width of the
+/// columns (minimumSizeHint) is the width of the stacked columns in any
+/// arrangement, so a page built wide shrinks with its window, until the columns
+/// stack, and goes back to the row, when the window grows again.
 /// A column is a new widget with a vertical layout (gaps 24) or a widget of the
 /// page, which the columns take over.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppColumns : public QWidget
@@ -121,8 +125,14 @@ public:
     /// The columns are below each other
     bool isStacked() const { return m_isStacked; }
 
-    /// The columns are below each other at the width
+    /// The columns are below each other at the width (from the current arrangement:
+    /// stacked columns go back to the row in a scroll area with a vertical scroll
+    /// bar beside the viewport only, when the row fits with the scroll bar)
     bool isStackedAt(int width) const;
+
+    /// Narrowest width of the columns below each other, the height of the current
+    /// arrangement (the minimum of the row never keeps a page wide)
+    virtual QSize minimumSizeHint() const override;
 
 protected:
     virtual void resizeEvent(QResizeEvent* event) override;
@@ -138,6 +148,10 @@ private:
     };
 
     void updateArrangement(int width);
+
+    /// Narrowest width of the column beside the others / below each other
+    int getRowMinimumWidth(const Column& column) const;
+    int getStackedMinimumWidth(const Column& column) const;
 
     std::vector<Column> m_columns;
     QPointer<QBoxLayout> m_layout;
@@ -239,7 +253,10 @@ private:
 
 /// Row of a leading and a trailing part (the header of Video tutorials: the
 /// texts and the search with the channel button, the search row of Recent): a row
-/// narrower than the threshold has the trailing part below the leading part
+/// narrower than the threshold (or than the narrowest widths of both parts with
+/// the spacing) has the trailing part below the leading part. The narrowest width
+/// of the row (minimumSizeHint) is the width of the stacked parts in any
+/// arrangement, so the row shrinks with its page and goes back.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppResponsiveRow : public QWidget
 {
     Q_OBJECT
@@ -254,8 +271,16 @@ public:
     /// The trailing part is below the leading part
     bool isStacked() const { return m_isStacked; }
 
+    /// The trailing part is below the leading part at the width (from the current
+    /// arrangement, the hysteresis of PDFAppColumns::isStackedAt)
+    bool isStackedAt(int width) const;
+
+    /// Narrowest width of the stacked parts, the height of the current arrangement
+    virtual QSize minimumSizeHint() const override;
+
 protected:
     virtual void resizeEvent(QResizeEvent* event) override;
+    virtual bool event(QEvent* event) override;
 
 private:
     void updateArrangement(int width);
@@ -265,9 +290,14 @@ private:
     bool m_isStacked = false;
 };
 
-/// Header of a section of a page: the title Bold 15 text/primary (line 18, it
-/// wraps in a narrow column) and an optional widget at the trailing side (a Text
-/// link "View all", a hint)
+/// Header of a section of a page: the title Bold 15 text/primary (line 18) and an
+/// optional widget at the trailing side (a Text link "View all", a hint). The
+/// title keeps its words on one line beside the trailing widget (a hint wraps in
+/// the rest of the width); a header narrower than the title on one line, the gap
+/// and the narrowest width of the trailing widget has the trailing widget below
+/// the title at the leading side (the title wraps only in a page narrower than
+/// itself). The narrowest width of the header (minimumSizeHint) is the width of
+/// this stacked arrangement, so the header shrinks with its page.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppSectionHeader : public QWidget
 {
     Q_OBJECT
@@ -286,10 +316,32 @@ public:
     void setTrailingWidget(QWidget* widget);
     QWidget* getTrailingWidget() const { return m_trailing; }
 
+    /// The trailing widget is below the title
+    bool isStacked() const { return m_isStacked; }
+
+    /// The trailing widget is below the title at the width (from the current
+    /// arrangement, the hysteresis of PDFAppColumns::isStackedAt)
+    bool isStackedAt(int width) const;
+
+    /// Narrowest width of the stacked arrangement, the height of the current one
+    virtual QSize minimumSizeHint() const override;
+
+    /// Gap between the title and the trailing widget beside it / below it
+    static constexpr int ROW_SPACING = 12;
+    static constexpr int STACKED_SPACING = 4;
+
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override;
+    virtual bool event(QEvent* event) override;
+
 private:
+    void updateArrangement(int width);
+    bool hasTrailingWidget() const;
+
     QPointer<PDFAppParagraph> m_title;
     QPointer<QWidget> m_trailing;
-    QPointer<QHBoxLayout> m_layout;
+    QPointer<QBoxLayout> m_layout;
+    bool m_isStacked = false;
 };
 
 /// A card (bg/surface, border border/default, radius 12 - the style draws the

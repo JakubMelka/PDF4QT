@@ -202,16 +202,17 @@ public:
     /// later insert of an AUTOINCREMENT table fail with SQLITE_FULL)
     static int normalizeSequences(sqlite3* handle);
 
-    /// Removes the state of the running instances and the rows of the secret settings
+    /// Removes the state of the running instances and the rows of the private settings
     /// (PDFDatabaseBackup::getPrivateSettingKeys) from a copy (export / import)
     static int clearRuntimeState(sqlite3* handle);
 
-    /// Removes the rows of the secret settings from \p handle (also a key stored
+    /// Removes the rows of the private settings from \p handle (also a key stored
     /// with another type than a text - the rows of a backup are untrusted)
     static int removePrivateSettings(sqlite3* handle);
 
-    /// Copies the rows of the secret settings of \p source into \p target, whose
-    /// rows of these keys are removed first (an import keeps the current token)
+    /// Copies the rows of the private settings of \p source into \p target, whose
+    /// rows of these keys are removed first (an import keeps the current token and
+    /// the current geometry of the window)
     static int copyPrivateSettings(sqlite3* source, sqlite3* target);
 
     /// Changes the page size of the memory copy to the page size of \p target (a
@@ -1714,7 +1715,7 @@ QStringList PDFDatabaseBackup::getSecuritySettingKeys()
 
 QStringList PDFDatabaseBackup::getPrivateSettingKeys()
 {
-    return { PDFSettingKeys::mcpToken() };
+    return { PDFSettingKeys::mcpToken(), PDFSettingKeys::windowGeometry() };
 }
 
 QVariant PDFDatabaseBackup::getSecuritySetting(const QString& key) const
@@ -3113,8 +3114,8 @@ PDFDatabaseError PDFDatabase::exportBackup(const QString& filePath)
     error = PDFDatabaseError::fromHandle(result == SQLITE_OK ? nullptr : source, result);
     closeHandle(source);
 
-    // The state of the running instances and the secret settings (the MCP access
-    // token) are not a part of the backup; the time of the export is (the import
+    // The state of the running instances and the private settings (the MCP access
+    // token, the window geometry) are not a part of the backup; the time of the export is (the import
     // dialog shows it). VACUUM removes the deleted rows from the file.
     if (!error.isError())
     {
@@ -3266,8 +3267,9 @@ PDFDatabaseError PDFDatabase::importBackup(const PDFDatabaseBackup& backup, PDFD
             }
         }
 
-        // The secret settings (the MCP access token) of the open database stay, the
-        // rows of the backup were removed by clearRuntimeState (owner 2026-10-26, Q4)
+        // The private settings (the MCP access token, the window geometry) of the open
+        // database stay, the rows of the backup were removed by clearRuntimeState
+        // (owner 2026-10-26, Q4; owner 2026-10-29)
         if (result == SQLITE_OK)
         {
             result = PDFDatabaseHelper::copyPrivateSettings(target, copy);

@@ -311,10 +311,11 @@ public:
     /// owner 2026-10-26, Q4 of step 7)
     static QStringList getSecuritySettingKeys();
 
-    /// Keys of the settings, which are secrets and never a part of a backup: an
-    /// export omits their rows, an import keeps the rows of the open database (also
-    /// none) and ignores the rows of the backup - the access token of the MCP server
-    /// (owner 2026-10-26, Q4 of step 7)
+    /// Keys of the settings, which are never a part of a backup: an export omits
+    /// their rows, an import keeps the rows of the open database (also none) and
+    /// ignores the rows of the backup - the access token of the MCP server (a secret,
+    /// owner 2026-10-26, Q4 of step 7) and the geometry of the main window (the
+    /// monitors of one computer, owner 2026-10-29)
     static QStringList getPrivateSettingKeys();
 
     /// Data of the rows of trusted_certificate of a valid backup in the order of
@@ -591,8 +592,8 @@ public:
     /// while other instances write), the state of the running instances (the change
     /// log, the markers of the thumbnails, the integrity check, the MCP server and its
     /// activity log - history with the names of documents, owner 2026-10-25) and the
-    /// secret settings (PDFDatabaseBackup::getPrivateSettingKeys - the MCP access
-    /// token) are removed, the time of the export is stored, and the copy is written to a
+    /// private settings (PDFDatabaseBackup::getPrivateSettingKeys - the MCP access
+    /// token, the window geometry) are removed, the time of the export is stored, and the copy is written to a
     /// temporary file of the folder of \p filePath, which is renamed to it (never a
     /// half-written file; only the owner may read it). GUI thread.
     PDFDatabaseError exportBackup(const QString& filePath);
@@ -607,9 +608,10 @@ public:
     /// database of a newer schema (ReadOnlyNewerSchema). Another instance holding the
     /// lock or writing = a busy error. Nothing is changed on an error. GUI thread.
     /// The MCP activity log (mcp_activity) is no part of a backup: the open database
-    /// keeps its rows (owner 2026-10-25), and so are the secret settings: the rows of
+    /// keeps its rows (owner 2026-10-25), and so are the private settings: the rows of
     /// PDFDatabaseBackup::getPrivateSettingKeys of the open database stay, the rows of
-    /// the backup are ignored (owner 2026-10-26, Q4 of step 7). \p certificates: KeepCurrent keeps the rows
+    /// the backup are ignored (owner 2026-10-26, Q4 of step 7; the window geometry
+    /// owner 2026-10-29). \p certificates: KeepCurrent keeps the rows
     /// of trusted_certificate of the open database in the same step (an import never
     /// adds trust, unless the user has asked for it - owner 2026-10-25, Q7).
     /// Every row of sqlite_sequence is set to the largest rowid of its table (a hostile

@@ -9677,6 +9677,9 @@ public:
 
     void setDocument(const PDFModifiedDocument& document, PDFForm* form);
 
+    /// See PDFXFAEngine::getLayoutPageSizes
+    static std::vector<QSizeF> getLayoutPageSizes(const PDFDocument* document, const PDFForm* form);
+
     struct LayoutItem
     {
         QRectF nominalExtent;
@@ -9712,6 +9715,12 @@ private:
 
     void updateResources(const PDFObject& resources);
     void clear();
+
+    /// Reads the template of the XFA form (no resources); throws PDFException
+    void loadTemplate(const PDFForm* form);
+
+    /// Lays out the template (when it has been read)
+    void performLayout();
 
     QMarginsF createMargin(const xfa::XFA_margin* margin);
 
@@ -10154,7 +10163,7 @@ private:
     std::vector<xfa::XFA_ParagraphSettings> m_paragraphSettings;
     std::stack<LayoutParameters> m_layoutParameters;
     size_t m_currentPageIndex = 0;
-    size_t m_maximalPageCount = 128;
+    size_t m_maximalPageCount = PDFXFAEngine::MAXIMUM_PAGE_COUNT;
 };
 
 void PDFXFALayoutEngine::visit(const xfa::XFA_area* node)
@@ -10573,7 +10582,8 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
                 PDFReal maxW = 0.0;
                 PDFReal maxH = 0.0;
 
-                if (breakPages && targetPageIndex < PDFInteger(m_pages.size()))
+                // A layout behind the last page has the index -1 (a hostile template)
+                if (breakPages && targetPageIndex >= 0 && targetPageIndex < PDFInteger(m_pages.size()))
                 {
                     maxH = m_pages[targetPageIndex].contentBox.height() - layoutParameters.margins.top() - layoutParameters.margins.bottom();
                 }
@@ -10591,7 +10601,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
                             // Update page offsets and maximal height
                             ++pageOffset;
                             ++targetPageIndex;
-                            if (targetPageIndex < PDFInteger(m_pages.size()))
+                            if (targetPageIndex >= 0 && targetPageIndex < PDFInteger(m_pages.size()))
                             {
                                 maxH = m_pages[targetPageIndex].contentBox.height() - layoutParameters.margins.top() - layoutParameters.margins.bottom();
                             }
@@ -10868,6 +10878,13 @@ void PDFXFALayoutEngine::performLayout(PDFXFAEngineImpl* engine, const xfa::XFA_
 
     for (Layout& layout : m_layout)
     {
+        // A layout behind the last page (a template, which breaks to more pages
+        // than the limit of the pages) has no page: it is not shown
+        if (layout.pageIndex >= m_pages.size())
+        {
+            continue;
+        }
+
         if (layout.isContentAreaLayout)
         {
             const PageInfo& pageInfo = m_pages.at(layout.pageIndex);
@@ -11618,6 +11635,11 @@ std::vector<QSizeF> PDFXFAEngine::getPageSizes() const
     return m_impl->getPageSizes();
 }
 
+std::vector<QSizeF> PDFXFAEngine::getLayoutPageSizes(const PDFDocument* document, const PDFForm* form)
+{
+    return PDFXFAEngineImpl::getLayoutPageSizes(document, form);
+}
+
 void PDFXFAEngine::draw(const QTransform& pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         QList<PDFRenderError>& errors,
@@ -11653,36 +11675,8 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
             {
                 try
                 {
-                    const PDFObject& xfaObject = m_document->getObject(form->getXFA());
                     updateResources(m_document->getObject(form->getResources()));
-
-                    std::map<QByteArray, QByteArray> xfaData;
-                    if (xfaObject.isArray())
-                    {
-                        const PDFArray* xfaArrayData = xfaObject.getArray();
-                        const size_t pairCount = xfaArrayData->getCount() / 2;
-
-                        for (size_t i = 0; i < pairCount; ++i)
-                        {
-                            const PDFObject& itemName = m_document->getObject(xfaArrayData->getItem(2 * i + 0));
-                            const PDFObject& streamObject = m_document->getObject(xfaArrayData->getItem(2 * i + 1));
-
-                            if (itemName.isString() && streamObject.isStream())
-                            {
-                                xfaData[itemName.getString()] = m_document->getDecodedStream(streamObject.getStream());
-                            }
-                        }
-                    }
-                    else if (xfaObject.isStream())
-                    {
-                        xfaData["template"] = m_document->getDecodedStream(xfaObject.getStream());
-                    }
-
-                    QDomDocument templateDocument;
-                    if (templateDocument.setContent(xfaData["template"]))
-                    {
-                        m_template = xfa::XFA_template::parse(templateDocument.firstChildElement("template"));
-                    }
+                    loadTemplate(form);
                 }
                 catch (const PDFException&)
                 {
@@ -11693,13 +11687,77 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
             }
 
             // Perform layout
-            if (m_template.hasValue())
+            performLayout();
+        }
+    }
+}
+
+void PDFXFAEngineImpl::loadTemplate(const PDFForm* form)
+{
+    const PDFObject& xfaObject = m_document->getObject(form->getXFA());
+
+    std::map<QByteArray, QByteArray> xfaData;
+    if (xfaObject.isArray())
+    {
+        const PDFArray* xfaArrayData = xfaObject.getArray();
+        const size_t pairCount = xfaArrayData->getCount() / 2;
+
+        for (size_t i = 0; i < pairCount; ++i)
+        {
+            const PDFObject& itemName = m_document->getObject(xfaArrayData->getItem(2 * i + 0));
+            const PDFObject& streamObject = m_document->getObject(xfaArrayData->getItem(2 * i + 1));
+
+            if (itemName.isString() && streamObject.isStream())
             {
-                PDFXFALayoutEngine layoutEngine;
-                layoutEngine.performLayout(this, m_template.getValue());
+                xfaData[itemName.getString()] = m_document->getDecodedStream(streamObject.getStream());
             }
         }
     }
+    else if (xfaObject.isStream())
+    {
+        xfaData["template"] = m_document->getDecodedStream(xfaObject.getStream());
+    }
+
+    QDomDocument templateDocument;
+    if (templateDocument.setContent(xfaData["template"]))
+    {
+        m_template = xfa::XFA_template::parse(templateDocument.firstChildElement("template"));
+    }
+}
+
+void PDFXFAEngineImpl::performLayout()
+{
+    if (m_template.hasValue())
+    {
+        PDFXFALayoutEngine layoutEngine;
+        layoutEngine.performLayout(this, m_template.getValue());
+    }
+}
+
+std::vector<QSizeF> PDFXFAEngineImpl::getLayoutPageSizes(const PDFDocument* document, const PDFForm* form)
+{
+    if (!document || !form || form->getFormType() != PDFForm::FormType::XFAForm)
+    {
+        return std::vector<QSizeF>();
+    }
+
+    // Only the template is read and laid out - no font of the resources is added
+    // to the font database, so a worker thread may call it
+    PDFXFAEngineImpl engine;
+    engine.m_document = document;
+
+    try
+    {
+        engine.loadTemplate(form);
+        engine.performLayout();
+    }
+    catch (const std::exception&)
+    {
+        // A damaged template (PDFException) or a layout, which cannot be made
+        return std::vector<QSizeF>();
+    }
+
+    return engine.getPageSizes();
 }
 
 void PDFXFAEngineImpl::draw(const QTransform& pagePointToDevicePointMatrix,

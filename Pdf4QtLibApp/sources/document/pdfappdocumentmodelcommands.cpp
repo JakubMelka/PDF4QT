@@ -88,7 +88,12 @@ bool PDFAppDocumentModelCommandHandler::isEnabled(const QString& commandId) cons
     {
         return !document->isLocked() && !document->isBlockedByOperation() && document->getUndoStack()->canRedo();
     }
-    return commandId == PDFAppCommands::lockDocument() || commandId == PDFAppCommands::editCopy();
+    if (commandId == PDFAppCommands::editCopy())
+    {
+        // A copy of a display version of an XFA form (step 8) could not be edited either
+        return !document->isPagedXFA();
+    }
+    return commandId == PDFAppCommands::lockDocument();
 }
 
 bool PDFAppDocumentModelCommandHandler::isChecked(const QString& commandId) const

@@ -223,9 +223,11 @@ public:
     /// The document of a change: resolves documentId of the invocation and
     /// refuses a document, which is locked (O20, unless \p allowLocked), busy (a
     /// save, a print, a tool) or a request while a modal dialog of the
-    /// application is open (denied_dialog). Returns nullptr after the call has
+    /// application is open (denied_dialog). A display version of an XFA form
+    /// (PDFAppDocument::isPagedXFA, step 8) is refused unless \p allowPagedXFA (the
+    /// files tool writes its original bytes). Returns nullptr after the call has
     /// been finished by the refusal.
-    static PDFAppDocument* prepareDocument(const PDFAppMcpToolInvocation& invocation, bool allowLocked = false);
+    static PDFAppDocument* prepareDocument(const PDFAppMcpToolInvocation& invocation, bool allowLocked = false, bool allowPagedXFA = false);
 
     /// Context of a change of the document by the invocation
     static PDFAppMcpChangeContext createContext(const PDFAppMcpToolInvocation& invocation, PDFAppDocument* document);
@@ -239,6 +241,9 @@ public:
 
     /// Text of a locked document
     static QString getLockedText();
+
+    /// Text of a display version of an XFA form (step 8), which cannot be changed
+    static QString getPagedXFAText();
 
     /// Joins the parts "3 highlights", "1 note" into "3 highlights and 1 note"
     static QString joinParts(const QStringList& parts);

@@ -25,6 +25,7 @@
 #include "pdfappmcpcompletion.h"
 #include "pdfappmcpdocumentresources.h"
 #include "pdfappmcpjob.h"
+#include "pdfthreadannotations.h"
 #include "pdfappmcpprompts.h"
 #include "pdfappmcpreadsupport.h"
 #include "pdfappmcpresources.h"
@@ -421,7 +422,9 @@ void PDFAppMcpHost::startJob(std::shared_ptr<PDFAppMcpJob> job)
         }
         ++m_runningHeavyJobs;
     }
-    m_threadPool.start(new PDFAppMcpJobRunnable(std::move(job), this));
+    PDFAppMcpJobRunnable* runnable = new PDFAppMcpJobRunnable(std::move(job), this);
+    PDFThreadAnnotations::happensBefore(runnable);
+    m_threadPool.start(runnable);
 }
 
 void PDFAppMcpHost::startWaitingHeavyJobs()
@@ -431,12 +434,15 @@ void PDFAppMcpHost::startWaitingHeavyJobs()
         std::shared_ptr<PDFAppMcpJob> job = std::move(m_waitingHeavyJobs.front());
         m_waitingHeavyJobs.pop_front();
         ++m_runningHeavyJobs;
-        m_threadPool.start(new PDFAppMcpJobRunnable(std::move(job), this));
+        PDFAppMcpJobRunnable* runnable = new PDFAppMcpJobRunnable(std::move(job), this);
+        PDFThreadAnnotations::happensBefore(runnable);
+        m_threadPool.start(runnable);
     }
 }
 
-void PDFAppMcpHost::onJobFinished(std::shared_ptr<PDFAppMcpJob> job)
+void PDFAppMcpHost::onJobFinished(const std::shared_ptr<PDFAppMcpJob>& job)
 {
+    PDFThreadAnnotations::happensAfter(job.get());
     m_runningJobs = qMax(0, m_runningJobs - 1);
     if (!job)
     {
@@ -747,8 +753,9 @@ void PDFAppMcpHost::shutdown()
     }
 }
 
-void PDFAppMcpHost::handleCall(std::shared_ptr<PDFMcpCall> call)
+void PDFAppMcpHost::handleCall(const std::shared_ptr<PDFMcpCall>& call)
 {
+    PDFThreadAnnotations::happensAfter(call.get());
     if (!call || call->isFinished())
     {
         return;
@@ -930,8 +937,9 @@ void PDFAppMcpHost::dispatchToolCall(const std::shared_ptr<PDFMcpCall>& call, co
     handler->handle(invocation);
 }
 
-void PDFAppMcpHost::callCanceled(std::shared_ptr<PDFMcpCall> call)
+void PDFAppMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
 {
+    PDFThreadAnnotations::happensAfter(call.get());
     if (!call)
     {
         return;
@@ -954,6 +962,7 @@ void PDFAppMcpHost::callCanceled(std::shared_ptr<PDFMcpCall> call)
 
 void PDFAppMcpHost::assistantEvent(const PDFMcpAssistantEvent& event)
 {
+    PDFThreadAnnotations::happensAfter(static_cast<PDFMcpHost*>(this));
     switch (event.kind)
     {
         case PDFMcpAssistantEvent::Kind::Connected:

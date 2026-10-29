@@ -25,6 +25,7 @@
 
 #include "pdfmcpcatalog.h"
 #include "pdfmcphost.h"
+#include "pdfthreadannotations.h"
 
 #include <QJsonDocument>
 
@@ -54,8 +55,9 @@ public:
     void setHandler(Handler handler) { m_handler = std::move(handler); }
     void setAutoFinish(bool autoFinish) { m_isAutoFinish = autoFinish; }
 
-    virtual void handleCall(std::shared_ptr<pdf::PDFMcpCall> call) override
+    virtual void handleCall(const std::shared_ptr<pdf::PDFMcpCall>& call) override
     {
+        pdf::PDFThreadAnnotations::happensAfter(call.get());
         calls.push_back(call);
         if (m_handler)
         {
@@ -71,13 +73,15 @@ public:
         }
     }
 
-    virtual void callCanceled(std::shared_ptr<pdf::PDFMcpCall> call) override
+    virtual void callCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call) override
     {
+        pdf::PDFThreadAnnotations::happensAfter(call.get());
         canceledCalls.push_back(call);
     }
 
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) override
     {
+        pdf::PDFThreadAnnotations::happensAfter(static_cast<pdf::PDFMcpHost*>(this));
         events.push_back(event);
     }
 

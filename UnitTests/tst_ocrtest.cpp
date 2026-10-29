@@ -191,10 +191,13 @@ private:
         }
     }
 
-    QTcpServer m_server;
     QHash<QString, Response> m_responses;
     QHash<QString, int> m_requestCounts;
     QHash<QTcpSocket*, QByteArray> m_buffers;
+
+    // Destroyed first: the server deletes its open sockets, whose signal disconnected
+    // still reaches the slot above, which needs the buffers
+    QTcpServer m_server;
 };
 
 /// Image of the image documents of the compression tests
@@ -216,6 +219,22 @@ public:
     /// Directory with the built-in OCR data of the build tree (the language models are
     /// extracted there from the archives of the repository by CMake)
     static QString getSourceOcrDirectory();
+
+    /// Multiplier of the time limits: PDF4QT_TEST_TIMEOUT_FACTOR, or 20 under valgrind
+    static int getTimeoutFactor()
+    {
+        bool ok = false;
+        const int factor = qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR", &ok);
+        if (ok && factor > 0)
+        {
+            return qMin(factor, 1000);
+        }
+        if (qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")))
+        {
+            return 20;
+        }
+        return 1;
+    }
 
 #ifdef PDF4QT_OCR_TESSERACT
     static size_t getLevenshteinDistance(const QStringList& first, const QStringList& second);
@@ -5685,13 +5704,16 @@ void OCRTest::memoryWaitHonoursPageDeadline()
     PDFDocument document = createDocument({ spec, spec });
     RenderingContext context(&document);
 
+    // The deadline of a page and the times around it scale with the slowdown of a
+    // checked run (the rendering of a page takes longer than 1 s under valgrind)
+    const int factor = OCRTestHelper::getTimeoutFactor();
     std::atomic<int> calls = { 0 };
     m_testEngine->setRecognitionDelay(0);
-    m_testEngine->setHandler([&calls](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    m_testEngine->setHandler([&calls, factor](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
     {
         if (calls.fetch_add(1) == 0)
         {
-            QThread::msleep(3000);
+            QThread::msleep(3000 * factor);
         }
 
         PDFOCRRecognitionOutput output;
@@ -5709,7 +5731,7 @@ void OCRTest::memoryWaitHonoursPageDeadline()
     description.configuration.detectBlankPages = false;
     description.configuration.dpi = 200;
     description.configuration.memoryBudget = qint64(64) << 20;
-    description.configuration.pageTimeoutSeconds = 1;
+    description.configuration.pageTimeoutSeconds = factor;
     description.models.dataPath = QStringLiteral("/none");
     description.models.languages = { QStringLiteral("eng") };
     for (PDFInteger page : { 0, 1 })
@@ -5728,7 +5750,7 @@ void OCRTest::memoryWaitHonoursPageDeadline()
 
     int generation = 0;
     QVERIFY(controller.start(description, &generation));
-    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 20000 * factor);
     controller.waitForFinished();
     QCOMPARE(summary->workerCount, 2);
     QCOMPARE(results.size(), size_t(2));
@@ -5738,7 +5760,7 @@ void OCRTest::memoryWaitHonoursPageDeadline()
         return result.error.code == PDFOCRErrorCode::Timeout && result.error.step == PDFTranslationContext::tr("Rendering");
     });
     QVERIFY(waitingPage != results.cend());
-    QVERIFY2(waitingPage->elapsedMilliseconds < 2500, qPrintable(QString::number(waitingPage->elapsedMilliseconds)));
+    QVERIFY2(waitingPage->elapsedMilliseconds < 2500 * factor, qPrintable(QString::number(waitingPage->elapsedMilliseconds)));
 }
 
 void OCRTest::pageTimeout()

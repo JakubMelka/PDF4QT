@@ -1238,7 +1238,7 @@ void PDFAppDocumentGoToPanel::showEvent(QShowEvent* event)
     if (m_pageField && view)
     {
         m_pageField->setInvalid(false);
-        const PDFInteger pageIndex = view->getCurrentPageIndex();
+        const PDFInteger pageIndex = view->getDisplayedPageIndex();
         m_pageField->setText(pageIndex >= 0 ? view->getPageLabel(pageIndex) : QString());
     }
 }

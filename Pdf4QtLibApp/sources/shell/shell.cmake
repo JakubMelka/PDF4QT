@@ -47,6 +47,8 @@ set(PDF4QT_LIBAPP_SHELL_SOURCES
     sources/shell/pdfapptopbar.h
     sources/shell/pdfappwindowframe.cpp
     sources/shell/pdfappwindowframe.h
+    sources/shell/pdfappwindowgeometry.cpp
+    sources/shell/pdfappwindowgeometry.h
     sources/shell/pdfappworkspace.cpp
     sources/shell/pdfappworkspace.h
 )

@@ -22,6 +22,7 @@
 
 #include "pdfappmcpjob.h"
 #include "pdfappmcphost.h"
+#include "pdfthreadannotations.h"
 
 #include "pdfexception.h"
 #include "pdfmcperrorcodes.h"
@@ -111,6 +112,10 @@ void PDFAppMcpJobRunnable::execute(PDFAppMcpJob* job)
 
 void PDFAppMcpJobRunnable::run()
 {
+    // The queue of the thread pool synchronizes inside of Qt
+    PDFThreadAnnotations::happensAfter(this);
+    PDFThreadAnnotations::forget(this);
+
     if (!m_job)
     {
         return;
@@ -124,6 +129,8 @@ void PDFAppMcpJobRunnable::run()
     // valid here; the result is delivered in the GUI thread
     if (m_host)
     {
+        PDFThreadAnnotations::happensBefore(m_job.get());
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_host.data(), &PDFAppMcpHost::onJobFinished, Qt::QueuedConnection, m_job);
     }
 }

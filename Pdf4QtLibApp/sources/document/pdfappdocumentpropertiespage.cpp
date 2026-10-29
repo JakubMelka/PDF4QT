@@ -334,7 +334,7 @@ PDFAppDocumentTab* PDFAppDocumentPropertiesPage::getDocumentTab() const
 
 bool PDFAppDocumentPropertiesPage::isEditable() const
 {
-    return m_document && m_document->isReady() && !m_document->isLocked() && !m_document->isBlockedByOperation() && m_document->getDocument();
+    return m_document && m_document->isEditable() && !m_document->isBlockedByOperation() && m_document->getDocument();
 }
 
 void PDFAppDocumentPropertiesPage::buildSkeleton()
@@ -1268,7 +1268,8 @@ bool PDFAppDocumentPropertiesPage::commitDocument(PDFDocumentPointer document, c
 
     if (!isEditable())
     {
-        showStatusMessage(m_document->isLocked() ? tr("The document is locked, it cannot be changed.") : tr("The document cannot be changed now."));
+        showStatusMessage(m_document->isPagedXFA() ? PDFAppDocument::getPagedXFARefusalText()
+                          : m_document->isLocked() ? tr("The document is locked, it cannot be changed.") : tr("The document cannot be changed now."));
         return false;
     }
 

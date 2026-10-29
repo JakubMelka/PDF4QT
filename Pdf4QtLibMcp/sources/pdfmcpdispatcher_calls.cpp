@@ -23,6 +23,7 @@
 #include "pdfmcpdispatcher.h"
 #include "pdfmcpdispatcher_p.h"
 #include "pdfmcphost.h"
+#include "pdfthreadannotations.h"
 
 namespace pdf
 {
@@ -115,6 +116,8 @@ void PDFMcpDispatcher::launchCall(PendingCall& pending)
     }
 
     pending.call->setHost(host);
+    PDFThreadAnnotations::happensBefore(pending.call.get());
+    PDFThreadAnnotations::TransportScope transportScope;
     QMetaObject::invokeMethod(host, &PDFMcpHost::handleCall, Qt::QueuedConnection, pending.call);
 }
 
@@ -220,8 +223,9 @@ void PDFMcpDispatcher::removePending(quint64 pendingId)
 // Events and results of the calls
 // ----------------------------------------------------------------------------
 
-void PDFMcpDispatcher::processCall(std::shared_ptr<PDFMcpCall> call)
+void PDFMcpDispatcher::processCall(const std::shared_ptr<PDFMcpCall>& call)
 {
+    PDFThreadAnnotations::happensAfter(call.get());
     if (!call)
     {
         return;

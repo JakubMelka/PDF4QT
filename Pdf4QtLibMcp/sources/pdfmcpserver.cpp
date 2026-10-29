@@ -24,6 +24,7 @@
 #include "pdfmcpdispatcher.h"
 #include "pdfmcphttp.h"
 #include "pdfmcplistener.h"
+#include "pdfthreadannotations.h"
 
 #include <QCryptographicHash>
 #include <QHostAddress>
@@ -248,7 +249,10 @@ bool PDFMcpServer::start(const PDFMcpServerConfig& config)
 
     // The listen is queued before the state is announced: a slot of stateChanged
     // may stop or delete the server (nothing of the server is used after it)
-    QMetaObject::invokeMethod(m_control, &PDFMcpControl::listen, Qt::QueuedConnection);
+    {
+        PDFThreadAnnotations::TransportScope transportScope;
+        QMetaObject::invokeMethod(m_control, &PDFMcpControl::listen, Qt::QueuedConnection);
+    }
     setState(PDFMcpServerState::Starting);
     return true;
 }
@@ -293,7 +297,11 @@ void PDFMcpServer::stopInternals()
 
     if (m_control && m_controlThread && m_controlThread->isRunning())
     {
-        QMetaObject::invokeMethod(m_control, &PDFMcpControl::shutdown, Qt::BlockingQueuedConnection);
+        {
+            PDFThreadAnnotations::TransportScope transportScope;
+            QMetaObject::invokeMethod(m_control, &PDFMcpControl::shutdown, Qt::BlockingQueuedConnection);
+        }
+        PDFThreadAnnotations::happensAfter(m_control);
     }
 
     // 5: the sockets are closed and the threads joined
@@ -326,6 +334,7 @@ void PDFMcpServer::setState(PDFMcpServerState state)
 
 void PDFMcpServer::onListenFinished(quint64 run, bool ok, int socketError, const QString& message, quint16 port)
 {
+    PDFThreadAnnotations::happensAfter(m_control);
     // A result of an older run (stopped meanwhile) is dropped
     if (run != m_run || m_state != PDFMcpServerState::Starting)
     {

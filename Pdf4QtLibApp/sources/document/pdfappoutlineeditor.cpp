@@ -208,7 +208,7 @@ void PDFAppOutlineEditor::onDocumentDestroyed()
 bool PDFAppOutlineEditor::isEditingAllowed() const
 {
     const PDFAppDocument* document = getDocument();
-    if (!document || !document->isReady() || document->isLocked())
+    if (!document || !document->isEditable())
     {
         return false;
     }
@@ -238,6 +238,10 @@ QString PDFAppOutlineEditor::getEditingRefusalReason() const
     if (!document || !document->isReady())
     {
         return tr("No document is shown.");
+    }
+    if (document->isPagedXFA())
+    {
+        return PDFAppDocument::getPagedXFARefusalText();
     }
     if (document->isLocked())
     {
@@ -1363,7 +1367,8 @@ bool PDFAppOutlineEditor::commit(const PDFAppAnnotationResult& result, const QSt
 
     if (!isCommitted)
     {
-        showStatusMessage(document->isLocked() ? tr("The document is locked. Unlock it to make changes.") : tr("The change cannot be made."));
+        showStatusMessage(document->isPagedXFA() ? PDFAppDocument::getPagedXFARefusalText()
+                                                 : document->isLocked() ? tr("The document is locked. Unlock it to make changes.") : tr("The change cannot be made."));
         return false;
     }
 

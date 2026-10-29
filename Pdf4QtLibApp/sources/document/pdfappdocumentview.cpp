@@ -585,6 +585,12 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
         signatures = m_document->getSignatureResults();
     }
 
+    // A new version of the shown document with another layout (Rotate, undo / redo of
+    // it) keeps the page the user looks at in its place; the layout changes in steps,
+    // the current page of a step is not announced
+    const PageAnchor anchor = capturePageAnchor(modified);
+    m_isRestoringPageAnchor = anchor.pageIndex >= 0;
+
     // Each manager notifies the application (the draw space, the view): a slot may
     // delete the view with its tab or window (UnitTestsAppMcpLifetime)
     QPointer<PDFAppDocumentView> guard(this);
@@ -605,13 +611,22 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
     {
         m_toolManager->setDocument(modified);
     }
+    if (guard && m_isRestoringPageAnchor)
+    {
+        restorePageAnchor(anchor);
+    }
     if (!guard)
     {
         return;
     }
+    m_isRestoringPageAnchor = false;
 
     // The selected pages of a document with fewer pages
     PDFAppDocumentViewHelper::removePagesOutOfRange(m_selectedPages, getPageCount());
+    if (m_chosenPageIndex >= getPageCount())
+    {
+        m_chosenPageIndex = -1;
+    }
 
     if (modified.getDocument() && !m_isDefaultViewApplied)
     {
@@ -624,6 +639,7 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
 
     // Slots of the signals may delete the view (the tab)
     m_lastPageIndex = -2;
+    m_lastDisplayedPageIndex = -2;
     onDrawSpaceChanged();
     if (!guard)
     {
@@ -636,6 +652,77 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
         return;
     }
     Q_EMIT commandStatesChanged();
+}
+
+PDFAppDocumentView::PageAnchor PDFAppDocumentView::capturePageAnchor(const PDFModifiedDocument& modified) const
+{
+    PageAnchor anchor;
+
+    // Only a new version of the shown document with the same pages, whose layout is
+    // computed again (a Reset change); the first document gets its default view
+    const PDFDrawWidgetProxy* proxy = getProxy();
+    const PDFDocument* shownDocument = proxy ? proxy->getDocument() : nullptr;
+    const PDFDocument* newDocument = modified.getDocument();
+    if (!m_isDefaultViewApplied || !shownDocument || !newDocument || shownDocument == newDocument || !modified.hasReset() ||
+        shownDocument->getCatalog()->getPageCount() != newDocument->getCatalog()->getPageCount())
+    {
+        return anchor;
+    }
+
+    const PDFInteger pageIndex = getCurrentPageIndex();
+    const PDFWidgetSnapshot snapshot = proxy->getSnapshot();
+    const PDFWidgetSnapshot::SnapshotItem* item = snapshot.getPageSnapshot(pageIndex);
+    if (item && item->rect.height() > 0.0)
+    {
+        anchor.pageIndex = pageIndex;
+        anchor.top = item->rect.top();
+        anchor.height = item->rect.height();
+    }
+    return anchor;
+}
+
+void PDFAppDocumentView::restorePageAnchor(const PageAnchor& anchor)
+{
+    PDFDrawWidgetProxy* proxy = getProxy();
+    if (!proxy || anchor.pageIndex < 0 || anchor.pageIndex >= getPageCount())
+    {
+        return;
+    }
+
+    // A page, which has left the canvas, is placed at the top first (goToPage applies
+    // the zoom mode for the page, so only then; a receiver of drawSpaceChanged may
+    // delete the view), then moved to its former top
+    if (!proxy->getSnapshot().hasPage(anchor.pageIndex))
+    {
+        QPointer<PDFAppDocumentView> guard(this);
+        QPointer<PDFDrawWidgetProxy> proxyGuard(proxy);
+        proxy->goToPage(anchor.pageIndex);
+        if (!guard || !proxyGuard)
+        {
+            return;
+        }
+    }
+
+    const PDFWidgetSnapshot snapshot = proxy->getSnapshot();
+    const PDFWidgetSnapshot::SnapshotItem* item = snapshot.getPageSnapshot(anchor.pageIndex);
+    if (!item)
+    {
+        return;
+    }
+
+    // A page scrolled partly above the canvas shows the same part of it at the top
+    // also, when its height has changed (the page itself was rotated)
+    double top = anchor.top;
+    if (top < 0.0)
+    {
+        top = anchor.top * item->rect.height() / anchor.height;
+    }
+
+    const int delta = int(std::lround(top - item->rect.top()));
+    if (delta != 0)
+    {
+        proxy->scrollByPixels(QPoint(0, delta));
+    }
 }
 
 void PDFAppDocumentView::onSignatureResultsChanged()
@@ -740,13 +827,64 @@ void PDFAppDocumentView::goToPage(PDFInteger pageIndex)
 
 PDFInteger PDFAppDocumentView::getCurrentPageIndex() const
 {
+    const std::vector<PDFInteger> pages = getShownPages();
+    return pages.empty() ? -1 : pages.front();
+}
+
+std::vector<PDFInteger> PDFAppDocumentView::getShownPages() const
+{
     if (!m_pdfWidget || getPageCount() <= 0)
+    {
+        return std::vector<PDFInteger>();
+    }
+    return m_pdfWidget->getDrawWidget()->getCurrentPages();
+}
+
+bool PDFAppDocumentView::isPageShown(PDFInteger pageIndex) const
+{
+    const std::vector<PDFInteger> pages = getShownPages();
+    return std::binary_search(pages.cbegin(), pages.cend(), pageIndex);
+}
+
+PDFInteger PDFAppDocumentView::getDisplayedPageIndex() const
+{
+    return getDisplayedPageIndex(getShownPages());
+}
+
+PDFInteger PDFAppDocumentView::getDisplayedPageIndex(const std::vector<PDFInteger>& shownPages) const
+{
+    if (shownPages.empty())
     {
         return -1;
     }
 
-    const std::vector<PDFInteger> pages = m_pdfWidget->getDrawWidget()->getCurrentPages();
-    return pages.empty() ? -1 : pages.front();
+    // The page clicked in the thumbnails, while the user sees it (the thumbnails keep
+    // it selected by the same rule): the right page of a row of two pages is not the
+    // current page, the left one is
+    if (m_chosenPageIndex >= 0 && std::binary_search(shownPages.cbegin(), shownPages.cend(), m_chosenPageIndex))
+    {
+        return m_chosenPageIndex;
+    }
+    return shownPages.front();
+}
+
+void PDFAppDocumentView::updateDisplayedPage()
+{
+    const PDFInteger pageIndex = getDisplayedPageIndex();
+    if (pageIndex == m_lastDisplayedPageIndex)
+    {
+        return;
+    }
+    m_lastDisplayedPageIndex = pageIndex;
+
+    if (m_statusBar)
+    {
+        const bool isPageItemShown = pageIndex >= 0 && hasPageLabels();
+        m_statusBar->setPageText(isPageItemShown ? tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount()))
+                                                 : QString());
+    }
+
+    Q_EMIT displayedPageChanged(pageIndex);
 }
 
 PDFInteger PDFAppDocumentView::getPageCount() const
@@ -859,16 +997,23 @@ std::vector<PDFInteger> PDFAppDocumentView::getSelectedPages() const
     return pages;
 }
 
-void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages)
+void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages, PDFInteger chosenPage)
 {
     PDFAppDocumentViewHelper::removePagesOutOfRange(pages, getPageCount());
     std::sort(pages.begin(), pages.end());
     pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    m_chosenPageIndex = chosenPage >= 0 && chosenPage < getPageCount() ? chosenPage : -1;
 
+    // A slot may delete the view (the tab)
+    QPointer<PDFAppDocumentView> guard(this);
     if (m_selectedPages != pages)
     {
         m_selectedPages = std::move(pages);
         Q_EMIT selectedPagesChanged();
+    }
+    if (guard)
+    {
+        updateDisplayedPage();
     }
 }
 
@@ -1074,6 +1219,12 @@ void PDFAppDocumentView::onThemeChanged()
 
 void PDFAppDocumentView::onDrawSpaceChanged()
 {
+    if (m_isRestoringPageAnchor)
+    {
+        // The pages are placed again (onDocumentChanged announces the result)
+        return;
+    }
+
     const PDFInteger pageIndex = getCurrentPageIndex();
     if (pageIndex != m_lastPageIndex)
     {
@@ -1090,13 +1241,6 @@ void PDFAppDocumentView::onDrawSpaceChanged()
             }
         }
 
-        if (m_statusBar)
-        {
-            const bool isPageItemShown = pageIndex >= 0 && hasPageLabels();
-            m_statusBar->setPageText(isPageItemShown ? tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount()))
-                                                     : QString());
-        }
-
         // A slot may delete the view (the tab) from the signal
         QPointer<PDFAppDocumentView> guard(this);
         Q_EMIT currentPageChanged(pageIndex);
@@ -1104,6 +1248,15 @@ void PDFAppDocumentView::onDrawSpaceChanged()
         {
             return;
         }
+    }
+
+    // The page for the user (the page item of the status bar): also the selected page
+    // of the thumbnails, which has come to the canvas or left it (a slot may delete the view)
+    QPointer<PDFAppDocumentView> guard(this);
+    updateDisplayedPage();
+    if (!guard)
+    {
+        return;
     }
 
     Q_EMIT viewChanged();
@@ -2005,6 +2158,7 @@ void PDFAppDocumentView::changeEvent(QEvent* event)
         }
 
         m_lastPageIndex = -2;
+        m_lastDisplayedPageIndex = -2;
         onDrawSpaceChanged();
         updateStatusMessage();
     }

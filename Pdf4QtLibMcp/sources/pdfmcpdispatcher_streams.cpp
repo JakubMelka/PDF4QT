@@ -23,6 +23,7 @@
 #include "pdfmcpdispatcher.h"
 #include "pdfmcpdispatcher_p.h"
 #include "pdfmcphost.h"
+#include "pdfthreadannotations.h"
 
 #include <algorithm>
 
@@ -33,8 +34,9 @@ namespace pdf
 // Closed exchanges
 // ----------------------------------------------------------------------------
 
-void PDFMcpDispatcher::handleExchangeClosed(std::shared_ptr<PDFMcpExchange> exchange)
+void PDFMcpDispatcher::handleExchangeClosed(const std::shared_ptr<PDFMcpExchange>& exchange)
 {
+    PDFThreadAnnotations::happensAfter(exchange.get());
     if (!exchange)
     {
         return;
@@ -155,6 +157,7 @@ void PDFMcpDispatcher::sendListChanged(ListKind kind)
 
 void PDFMcpDispatcher::handleResourceUpdated(QString uri)
 {
+    PDFThreadAnnotations::happensAfter(this);
     if (uri.isEmpty() || uri.size() > PDFMcpUriTemplate::MAXIMUM_URI_LENGTH)
     {
         return;
@@ -317,6 +320,8 @@ void PDFMcpDispatcher::postAssistantEvent(const PDFMcpAssistantEvent& event)
     PDFMcpHost* host = m_shared->host.data();
     if (host && !event.key.isEmpty())
     {
+        PDFThreadAnnotations::happensBefore(host);
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(host, &PDFMcpHost::assistantEvent, Qt::QueuedConnection, event);
     }
 }
@@ -396,6 +401,7 @@ void PDFMcpDispatcher::endSession(const QString& key, PDFMcpAssistantEvent::Kind
 
 void PDFMcpDispatcher::handleDisconnectAssistant(QString key)
 {
+    PDFThreadAnnotations::happensAfter(this);
     if (!PDFMcpAssistantRegistry::isValidKey(key))
     {
         return;

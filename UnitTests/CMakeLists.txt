@@ -890,14 +890,16 @@ add_test(UnitTestsMcp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsMc
 # The MCP server in the application (step 7): wave 0 and package B in
 # UnitTestsAppMcp, package C in UnitTestsAppMcpEdit, package E in UnitTestsAppAi,
 # package D in UnitTestsAppMcpContent, all with the fixture appmcpfixture (the
-# fixture of the document tab with the controller, the host and the client)
+# fixture of the document tab with the controller, the host and the client);
+# UnitTestsAppXfa: the paged XFA forms of step 8 (document tab and MCP)
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     foreach(PDF4QT_MCP_TEST
             AppMcp
             AppMcpEdit
             AppAi
             AppMcpContent
-            AppMcpLifetime)
+            AppMcpLifetime
+            AppXfa)
         string(TOLOWER "${PDF4QT_MCP_TEST}" PDF4QT_MCP_TEST_FILE)
         add_executable(UnitTests${PDF4QT_MCP_TEST}
             tst_${PDF4QT_MCP_TEST_FILE}test.cpp
@@ -919,6 +921,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_test(UnitTests${PDF4QT_MCP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_MCP_TEST}")
         set_tests_properties(UnitTests${PDF4QT_MCP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
+    # The print of a paged XFA form (the printers of the test)
+    target_link_libraries(UnitTestsAppXfa PRIVATE Qt6::PrintSupport)
 endif()
 
 # The core of the tools of phase 2 (Pdf4QtLibCore, step 6 package D): the extended

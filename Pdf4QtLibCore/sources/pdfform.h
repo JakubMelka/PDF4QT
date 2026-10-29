@@ -681,6 +681,45 @@ private:
     PDFXFAEngine m_xfaEngine;
 };
 
+/// Paging of a dynamic XFA form (shared by PDFFormManager::performPaging of the old
+/// applications and by the document tab of PDF4QT): the layout of the template of
+/// an XFA form may have more pages, or pages of other sizes, than the PDF document.
+/// The paged document has the pages of the layout - the page tree is flattened,
+/// pages beyond the layout are removed, missing pages are copies of the first page,
+/// and the media box of each page is the size of its layout page. The original
+/// document is not changed. All functions are thread safe (no font is registered).
+class PDF4QTLIBCORESHARED_EXPORT PDFXFAPaging
+{
+public:
+    PDFXFAPaging() = delete;
+
+    /// Largest number of pages of a paged document (the limit of the layout engine)
+    static constexpr size_t MAXIMUM_PAGE_COUNT = PDFXFAEngine::MAXIMUM_PAGE_COUNT;
+
+    /// Largest width or height of a page of the layout (PDF 1.7, Annex C: 14 400
+    /// units); a layout with a larger, empty or invalid page is not paged
+    static constexpr PDFReal MAXIMUM_PAGE_SIZE = 14400.0;
+
+    /// Sizes of the pages of the layout of the XFA form of \p document (empty,
+    /// when the document has no XFA form or its template cannot be laid out)
+    static std::vector<QSizeF> getLayoutPageSizes(const PDFDocument* document);
+
+    /// The pages of the layout \p pageSizes differ from the pages of \p document -
+    /// in their count or in their sizes (the comparison of the old applications).
+    /// False for a document without pages, for an empty layout, a layout with more
+    /// than MAXIMUM_PAGE_COUNT pages or with a page, which is not a valid size.
+    static bool isPagingNeeded(const PDFDocument* document, const std::vector<QSizeF>& pageSizes);
+
+    /// Creates the paged document of \p document with the pages \p pageSizes;
+    /// nullptr, when no paging is needed (isPagingNeeded) or the document cannot
+    /// be paged. \p formManager is given to the document builder (appearance streams).
+    static PDFDocumentPointer createPagedDocument(const PDFDocument* document, const std::vector<QSizeF>& pageSizes, const PDFFormManager* formManager);
+
+    /// Lays out the XFA form of \p document and creates its paged document;
+    /// nullptr, when the document has no XFA form or no paging is needed
+    static PDFDocumentPointer createPagedDocument(const PDFDocument* document);
+};
+
 }   // namespace pdf
 
 #endif // PDFFORM_H

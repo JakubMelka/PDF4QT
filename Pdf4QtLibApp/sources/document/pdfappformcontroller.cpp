@@ -563,7 +563,10 @@ void PDFAppFormController::updateInfoBars()
         request.id = getXFABarId();
         request.tone = PDFAppInfoBarTone::Information;
         request.title = tr("This form cannot be filled in");
-        request.text = tr("PDF4QT shows XFA forms, but it does not fill them in.");
+        // A dynamic form is shown with the pages of its layout (step 8): the shown
+        // document is a display version, the file keeps the original PDF
+        request.text = m_document->isPagedXFA() ? tr("PDF4QT shows the pages of this XFA form as laid out. The document cannot be edited; Save As keeps the original file.")
+                                                : tr("PDF4QT shows XFA forms, but it does not fill them in.");
         const PDFAppInfoBarRequest* shown = view->findInfoBar(request.id);
         if (!shown || !(*shown == request))
         {

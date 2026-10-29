@@ -96,6 +96,14 @@ public:
     /// Hit test of the logical position of the window
     PDFAppHitTestResult hitTest(const QPoint& windowPosition) const;
 
+    /// The native window is in the normal state (Windows: neither maximized nor
+    /// minimized; other modes: true). The system maximizes and restores a window
+    /// (its button, a double click of the caption, Win+Up, Aero Snap) by a new
+    /// geometry, which Qt delivers before the new state (QWindowsWindow::handleResized
+    /// posts both), so a resize event of a window being maximized still has the
+    /// state of Qt Normal
+    bool isNativeNormalState() const;
+
     /// Starts the system move of the window (Client and MacOS modes)
     void startSystemMove();
 

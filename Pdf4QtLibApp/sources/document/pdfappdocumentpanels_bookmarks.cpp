@@ -243,7 +243,7 @@ qint64 PDFAppBookmarks::addCurrentPage(PDFAppDocumentView* view, QWidget* parent
         return 0;
     }
 
-    const PDFInteger page = view->getCurrentPageIndex();
+    const PDFInteger page = view->getDisplayedPageIndex();
     if (page < 0)
     {
         return 0;
@@ -285,7 +285,7 @@ bool PDFAppBookmarks::goToNext(PDFAppDocumentView* view, bool isForward)
     std::vector<PDFAppBookmarkItem> items = getItems(view->getContext(), document);
     std::stable_sort(items.begin(), items.end(), &PDFAppBookmarksHelper::isPageBefore);
 
-    const PDFInteger currentPage = view->getCurrentPageIndex();
+    const PDFInteger currentPage = view->getDisplayedPageIndex();
     const PDFAppBookmarkItem* target = nullptr;
     if (isForward)
     {
@@ -619,7 +619,7 @@ void PDFAppBookmarksPanel::setDocument(PDFAppDocument* document, PDFAppDocumentV
     }
     if (isNewView)
     {
-        connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppBookmarksPanel::onCurrentPageChanged);
+        connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppBookmarksPanel::onCurrentPageChanged);
         PDFAppContext* context = view->getContext();
         if (context && context->getNotifier())
         {
@@ -698,7 +698,7 @@ void PDFAppBookmarksPanel::selectCurrentPage()
     }
 
     // The bookmark of the current page is selected (195:3445 "Page 308")
-    const PDFInteger page = view ? view->getCurrentPageIndex() : -1;
+    const PDFInteger page = view ? view->getDisplayedPageIndex() : -1;
     const bool wasSelecting = m_isSelecting;
     m_isSelecting = true;
     m_view->selectionModel()->clearSelection();

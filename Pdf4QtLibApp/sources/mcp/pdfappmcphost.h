@@ -196,12 +196,12 @@ public:
 
     // PDFMcpHost ------------------------------------------------------------
 
-    virtual void handleCall(std::shared_ptr<pdf::PDFMcpCall> call) override;
-    virtual void callCanceled(std::shared_ptr<pdf::PDFMcpCall> call) override;
+    virtual void handleCall(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
+    virtual void callCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) override;
 
     /// A job has ended (queued from the worker)
-    void onJobFinished(std::shared_ptr<pdf::PDFAppMcpJob> job);
+    void onJobFinished(const std::shared_ptr<pdf::PDFAppMcpJob>& job);
 
     /// Continues a tools/call after its read approval (the dispatch to the handler)
     void continueToolCall(const std::shared_ptr<PDFMcpCall>& call, const QString& toolName, const QString& actionName, const QJsonObject& arguments);

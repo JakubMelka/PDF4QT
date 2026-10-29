@@ -357,6 +357,7 @@ PDFAppMcpDocumentHeader PDFAppMcpDocumentHeader::create(const PDFAppDocument* do
     {
         header.documentId = document->getId();
         header.title = PDFAppMcpReadSupport::sanitizeName(document->getTitle(), 256);
+        header.isPagedXFA = document->isPagedXFA();
     }
     return header;
 }
@@ -1092,7 +1093,16 @@ QByteArray PDFAppMcpDocumentReader::getFormFields(const PDFAppMcpDocumentHeader&
     if (form.isXFAForm())
     {
         writer.writeMember(QLatin1StringView("xfa"), true);
-        writer.writeMember(QLatin1StringView("note"), QLatin1StringView("The form is an XFA form: PDF4QT shows its AcroForm part only and does not change its values."));
+        if (header.isPagedXFA)
+        {
+            // Step 8: the pages of the document are the pages of the layout of the form
+            writer.writeMember(QLatin1StringView("note"), QLatin1StringView("The form is an XFA form: PDF4QT shows it with the pages of its layout and does not change the document or its values. "
+                                                                            "The pages of this document are the pages of the layout; files.save_copy writes the original PDF."));
+        }
+        else
+        {
+            writer.writeMember(QLatin1StringView("note"), QLatin1StringView("The form is an XFA form: PDF4QT shows its AcroForm part only and does not change its values."));
+        }
     }
     else if (fields.empty())
     {

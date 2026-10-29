@@ -676,6 +676,7 @@ void PDFSettingDefinitions::registerState(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::updateLastError(), QString(), 4096));
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastSuccess(), 0, 0, std::numeric_limits<qint64>::max()));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::storageBackupFolder(), QString(), 32767));
+    add(registry, PDFSettingDefinition::createString(PDFSettingKeys::windowGeometry(), QString(), 1024)); // PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH
 }
 
 }   // namespace pdf

@@ -163,7 +163,7 @@ public:
 
     /// The text has a bidirectional embedding, override or isolate (U+202A to
     /// U+202E, U+2066 to U+2069): a path or a file name shown with it is spoofed
-    /// ("report‮fdp.exe"); the marks U+200E / U+200F stay (texts of right-to-left scripts)
+    /// ("report" U+202E "fdp.exe" shows as "reportexe.pdf"); the marks U+200E / U+200F stay (texts of right-to-left scripts)
     static bool hasBidirectionalControl(const QString& text)
     {
         for (const QChar character : text)

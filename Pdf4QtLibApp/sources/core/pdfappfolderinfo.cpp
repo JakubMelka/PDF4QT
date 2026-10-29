@@ -22,6 +22,7 @@
 
 #include "pdfappfolderinfo.h"
 #include "pdfrepositoryhelper.h"
+#include "pdfthreadannotations.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -65,6 +66,9 @@ public:
 
     virtual void run() override
     {
+        // The queue of the thread pool synchronizes inside of Qt
+        PDFThreadAnnotations::happensAfter(this);
+        PDFThreadAnnotations::forget(this);
         m_shared->runningCount.fetch_add(1);
 
         const int delay = m_shared->testDelay.load();
@@ -81,6 +85,8 @@ public:
             {
                 // Posted event: the service cannot be destroyed while the mutex is held,
                 // a destroyed receiver drops its posted events
+                PDFThreadAnnotations::happensBefore(m_shared.get());
+                PDFThreadAnnotations::TransportScope transportScope;
                 QMetaObject::invokeMethod(m_shared->receiver, &PDFAppFolderInfoService::onResult, Qt::QueuedConnection, info, m_countPdfFiles);
             }
         }
@@ -185,7 +191,9 @@ bool PDFAppFolderInfoService::request(const QString& path, bool countPdfFiles)
     }
 
     m_pending.insert(key);
-    m_pool->start(new PDFAppFolderInfoTask(m_shared, path, countPdfFiles));
+    PDFAppFolderInfoTask* task = new PDFAppFolderInfoTask(m_shared, path, countPdfFiles);
+    PDFThreadAnnotations::happensBefore(task);
+    m_pool->start(task);
     return true;
 }
 
@@ -211,6 +219,7 @@ int PDFAppFolderInfoService::getRunningCount() const
 
 void PDFAppFolderInfoService::onResult(const PDFAppFolderInfo& info, bool countPdfFiles)
 {
+    PDFThreadAnnotations::happensAfter(m_shared.get());
     m_pending.remove(PDFAppFolderInfoHelper::getKey(info.path, countPdfFiles));
     Q_EMIT infoReady(info);
 }

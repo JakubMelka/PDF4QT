@@ -327,7 +327,7 @@ PDFAppDocument* PDFAppDocumentToolsPanel::getDocument() const
 bool PDFAppDocumentToolsPanel::isDocumentLocked() const
 {
     const PDFAppDocument* document = getDocument();
-    return document && document->isLocked();
+    return document && (document->isLocked() || document->isPagedXFA());
 }
 
 bool PDFAppDocumentToolsPanel::isToolAvailable(const QString& toolId) const
@@ -696,7 +696,9 @@ void PDFAppDocumentToolsPanel::updateTexts()
 
 void PDFAppDocumentToolsPanel::updateAvailability()
 {
-    const QString lockedToolTip = getLockedToolTip();
+    // A display version of an XFA form (step 8) cannot be unlocked: its own reason
+    const PDFAppDocument* document = getDocument();
+    const QString lockedToolTip = document && document->isPagedXFA() ? PDFAppDocument::getPagedXFARefusalText() : getLockedToolTip();
 
     // Tool shortcuts and rows: disabled by the lock (text/disabled, icon/disabled
     // of the components), the tooltip says why

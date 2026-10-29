@@ -236,7 +236,7 @@ public:
     virtual ~PDFMcpCallSink() override;
 
     /// New events of the call (progress, log, finish) are available
-    virtual void processCall(std::shared_ptr<pdf::PDFMcpCall> call);
+    virtual void processCall(const std::shared_ptr<pdf::PDFMcpCall>& call);
 };
 
 /// One call of a client in flight (plan 2.2): created by the dispatcher, handed

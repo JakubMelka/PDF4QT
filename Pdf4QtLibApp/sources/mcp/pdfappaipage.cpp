@@ -63,10 +63,13 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QStackedLayout>
 #include <QToolButton>
 #include <QVBoxLayout>
+
 
 namespace pdf
 {
@@ -106,11 +109,59 @@ public:
     static constexpr int TILE_COLUMNS = 6;
     static constexpr int TILE_GAP = 12;
 
+    // The setup card 653:5730: the header has the chips below the titles in a card
+    // narrower than this, the actions the note below the buttons
+    static constexpr int SETUP_HEADER_STACK_WIDTH = 560;
+    static constexpr int SETUP_ACTIONS_STACK_WIDTH = 960;
+    static constexpr int SETUP_SPACING = 16;
+
     static PDFAppParagraph* createText(const QString& text, QFont::Weight weight, int pixelSize, int lineHeight, PDFThemeColors::Color color, QWidget* parent)
     {
         PDFAppParagraph* paragraph = new PDFAppParagraph(PDFThemeFonts::getFont(weight, pixelSize), lineHeight, color, parent);
         paragraph->setText(text);
         return paragraph;
+    }
+
+    /// Arranges a measured setup at the width of the card content: its rows by
+    /// their rule (the same as the rows of the shown setup at this width) - a
+    /// hidden widget gets no resize events of its layout -, the setup itself has
+    /// the width (a layout pass of the hidden setup - its pending resize event
+    /// sent by QWidget::render - lays the rows out at it, never at the default
+    /// width of a new widget). \returns true, when a row has changed its
+    /// arrangement.
+    static bool arrangeMeasuredSetup(QWidget* setup, int width)
+    {
+        bool isChanged = false;
+        const int setupWidth = qMax(0, width);
+        for (PDFAppResponsiveRow* row : setup->findChildren<PDFAppResponsiveRow*>())
+        {
+            const bool wasStacked = row->isStacked();
+            const QSize oldSize = row->size();
+            const QSize size(setupWidth, oldSize.height());
+            if (size != oldSize)
+            {
+                row->resize(size);
+                QResizeEvent event(size, oldSize);
+                QCoreApplication::sendEvent(row, &event);
+            }
+            isChanged = isChanged || row->isStacked() != wasStacked;
+        }
+        if (setup->width() != setupWidth)
+        {
+            setup->resize(setupWidth, qMax(0, setup->heightForWidth(setupWidth)));
+        }
+        return isChanged;
+    }
+
+    /// The texts of a setup, which decide its height
+    static QString getSetupSignature(const PDFAppMcpSetup& setup)
+    {
+        QStringList parts = { QString::number(int(setup.client)), setup.title, setup.subtitle, setup.copyButtonText, setup.documentationText, setup.note };
+        for (const PDFAppMcpSetupStep& step : setup.steps)
+        {
+            parts << step.text << step.code << QString::number(int(step.codeKind));
+        }
+        return parts.join(QChar(0x1F));
     }
 
     static QHBoxLayout* createRow(QWidget* widget, int spacing)
@@ -411,6 +462,7 @@ PDFAppAiPage::PDFAppAiPage(PDFAppContext* context, QWidget* parent) :
         connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppAiPage::onDatabaseChanged);
         connect(context->getNotifier(), &PDFDatabaseNotifier::everythingChanged, this, &PDFAppAiPage::onEverythingChanged);
     }
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppAiPage::onThemeChanged);
 }
 
 PDFAppAiPage::~PDFAppAiPage()
@@ -458,6 +510,9 @@ void PDFAppAiPage::buildContent()
 
     m_hasShownClients = false;
     m_setupSignature.clear();
+    m_setupMeasureSignature.clear();
+    m_setupMeasures.clear();
+    m_setupContent = nullptr;
     updateAll();
 }
 
@@ -494,6 +549,18 @@ void PDFAppAiPage::changeEvent(QEvent* event)
     {
         rebuild();
     }
+}
+
+bool PDFAppAiPage::eventFilter(QObject* watched, QEvent* event)
+{
+    // A new width of the setup card may arrange the rows of the measured setups
+    // otherwise (they are built again from the event loop - not inside of the
+    // layout, which resizes the card)
+    if (watched == m_setupStack.data() && event->type() == QEvent::Resize)
+    {
+        requestSetupMeasure();
+    }
+    return BaseClass::eventFilter(watched, event);
 }
 
 void PDFAppAiPage::showEvent(QShowEvent* event)
@@ -631,7 +698,9 @@ QWidget* PDFAppAiPage::createServerCard(QWidget* parent)
     m_calloutText->setObjectName(QStringLiteral("calloutText"));
     calloutTextLayout->addWidget(m_calloutTitle);
     calloutTextLayout->addWidget(m_calloutText);
-    calloutLayout->addWidget(calloutText, 1);
+    // The texts centered on the icon and the button (940:136797 items-center; a
+    // column filling the callout spreads its texts from the top)
+    calloutLayout->addWidget(calloutText, 1, Qt::AlignVCenter);
     m_calloutButton = PDFAppPageWidgets::createButton(QString(), QString(), false, m_callout);
     m_calloutButton->setIcon(QIcon());
     m_calloutButton->setObjectName(QStringLiteral("calloutButton"));
@@ -772,7 +841,7 @@ QWidget* PDFAppAiPage::createConnectionGroup(QWidget* parent)
     warningLayout->addWidget(warningIcon, 0, Qt::AlignVCenter);
     warningLayout->addWidget(Helper::createText(tr("Anyone on your network who knows the address and the access token can work with your open documents. "
                                                    "Traffic is not encrypted – allow remote connections only on a network you trust."),
-                                                QFont::Normal, 12, Helper::NOTE_LINE, PDFThemeColors::TextSecondary, warning), 1);
+                                                QFont::Normal, 12, Helper::NOTE_LINE, PDFThemeColors::TextSecondary, warning), 1, Qt::AlignVCenter);
     warningRow->setBlockWidget(warning, QMargins(0, 0, 0, 0));
 
     // A flat row without the divider above it (653:6658, 54 high - not the minimal
@@ -933,15 +1002,16 @@ QWidget* PDFAppAiPage::createNote(QWidget* parent)
     QHBoxLayout* layout = new QHBoxLayout(m_note);
     layout->setContentsMargins(15, 15, 15, 15);
     layout->setSpacing(12);
+    // The circle centered on the texts (653:5679 items-center)
     m_noteIcon = new PDFIconBadge(QStringLiteral("shield"), 36, 18, m_note);
-    layout->addWidget(m_noteIcon, 0, Qt::AlignTop);
+    layout->addWidget(m_noteIcon, 0, Qt::AlignVCenter);
     QWidget* text = new QWidget(m_note);
     QVBoxLayout* textLayout = PDFAppPageWidgets::createColumn(text, 2);
     m_noteTitle = Helper::createText(QString(), QFont::Bold, 14, 17, PDFThemeColors::TextPrimary, text);
     m_noteText = Helper::createText(QString(), QFont::Normal, 12, Helper::NOTE_LINE, PDFThemeColors::TextSecondary, text);
     textLayout->addWidget(m_noteTitle);
     textLayout->addWidget(m_noteText);
-    layout->addWidget(text, 1);
+    layout->addWidget(text, 1, Qt::AlignVCenter);
     return m_note;
 }
 
@@ -986,8 +1056,22 @@ QWidget* PDFAppAiPage::createConnectSection(QWidget* parent)
     connect(m_tileGroup.data(), &QButtonGroup::idToggled, this, &PDFAppAiPage::onTileToggled);
     layout->addWidget(tiles);
 
-    m_setupCard = PDFAppPageWidgets::createCard(16, 16, section);
-    m_setupCard->setObjectName(QStringLiteral("setupCard"));
+    // The card keeps the height of the tallest setup at its width (owner
+    // 2026-10-29: nothing below it moves, when the tiles are switched): the
+    // stack shows the content of the chosen client, its hidden measured setups
+    // (every client with the shown address and token - the shown state only, so
+    // the card has no empty area of a state, which is not shown) give it their
+    // height for its width - QStackedLayout takes the largest one; the content
+    // stays at the top
+    PDFAppCard* card = PDFAppPageWidgets::createCard(16, Helper::SETUP_SPACING, section);
+    card->setObjectName(QStringLiteral("setupCard"));
+    m_setupCard = card;
+    m_setupStack = new QWidget(card);
+    m_setupStack->setObjectName(QStringLiteral("setupStack"));
+    m_setupStackLayout = new QStackedLayout(m_setupStack);
+    m_setupStackLayout->setContentsMargins(0, 0, 0, 0);
+    m_setupStack->installEventFilter(this);
+    card->getLayout()->addWidget(m_setupStack);
     layout->addWidget(m_setupCard);
     return section;
 }
@@ -1573,17 +1657,16 @@ void PDFAppAiPage::updateSetup()
     // The card is built again only for other texts (the address, the token, the
     // client, the language)
     const PDFAppMcpSetup display = PDFAppMcpClientSetup::createForDisplay(m_setupClient, getShownAddress(), getShownToken());
-    QStringList signatureParts = { QString::number(int(m_setupClient)), display.title, display.subtitle, display.copyButtonText, display.note };
-    for (const PDFAppMcpSetupStep& step : display.steps)
-    {
-        signatureParts << step.text << step.code;
-    }
-    const QString signature = signatureParts.join(QChar(0x1F));
+    const QString signature = PDFAppAiPageHelper::getSetupSignature(display);
     if (signature != m_setupSignature)
     {
         m_setupSignature = signature;
         rebuildSetupCard();
     }
+
+    // The height of the tallest setup (built again only for other texts or another
+    // arrangement of the rows, never for a switch of the client)
+    updateSetupMeasure();
 
     // Copy Command is Primary while a server runs (653:5787), Secondary otherwise (653:6357)
     if (m_copySetupButton)
@@ -1598,40 +1681,57 @@ void PDFAppAiPage::updateSetup()
 
 void PDFAppAiPage::rebuildSetupCard()
 {
-    using Helper = PDFAppAiPageHelper;
-
-    PDFAppCard* card = qobject_cast<PDFAppCard*>(m_setupCard.data());
-    if (!card)
+    if (!m_setupCard || !m_setupStack || !m_setupStackLayout)
     {
         return;
     }
 
-    // The old content goes (its focus is given back to the same kind of widget)
-    const QString focusName = PDFAppPageRebuild::getFocusedName(card);
-    for (QWidget* child : card->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
-    {
-        child->hide();
-        child->deleteLater();
-    }
+    // The old content goes, when the new one is shown (QStackedLayout would show
+    // another widget of the stack - a measured setup - at the removal of the
+    // current one); its focus is given back to the same kind of widget
+    const QString focusName = PDFAppPageRebuild::getFocusedName(m_setupCard);
+    QPointer<QWidget> oldContent = m_setupContent;
     m_variantChips.clear();
     m_codeBoxes.clear();
     delete m_variantGroup.data();
 
     const PDFAppMcpSetup display = PDFAppMcpClientSetup::createForDisplay(m_setupClient, getShownAddress(), getShownToken());
     const PDFAppMcpSetup full = getSetup();
-    QVBoxLayout* layout = card->getLayout();
+    QWidget* content = createSetupContent(display, &full, m_setupStack->width(), m_setupStack);
+    content->setObjectName(QStringLiteral("setupContent"));
+    m_setupContent = content;
+    m_setupStackLayout->addWidget(content);
+    m_setupStackLayout->setCurrentWidget(content);
+    if (oldContent)
+    {
+        oldContent->hide();
+        m_setupStackLayout->removeWidget(oldContent);
+        oldContent->deleteLater();
+    }
+
+    // In the new content (the old one with the same names is deleted later)
+    PDFAppPageRebuild::restoreFocus(content, focusName);
+}
+
+QWidget* PDFAppAiPage::createSetupContent(const PDFAppMcpSetup& display, const PDFAppMcpSetup* full, int width, QWidget* parent)
+{
+    using Helper = PDFAppAiPageHelper;
+
+    const bool isMeasured = !full;
+    QWidget* content = new QWidget(parent);
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(content, Helper::SETUP_SPACING);
 
     // header 653:5731: the title Semi Bold 14, the subtitle 12 and the variant chips
-    QWidget* header = new QWidget(card);
+    QWidget* header = new QWidget(content);
     QVBoxLayout* headerLayout = PDFAppPageWidgets::createColumn(header, 2);
     QWidget* titles = new QWidget(header);
     QVBoxLayout* titlesLayout = PDFAppPageWidgets::createColumn(titles, 2);
     PDFAppParagraph* title = Helper::createText(display.title, QFont::DemiBold, 14, 17, PDFThemeColors::TextPrimary, titles);
-    title->setObjectName(QStringLiteral("setupTitle"));
     titlesLayout->addWidget(title);
     titlesLayout->addWidget(Helper::createText(display.subtitle, QFont::Normal, 12, 15, PDFThemeColors::TextTertiary, titles));
 
-    const PDFAppMcpSetupClient tileClient = m_setupClient == PDFAppMcpSetupClient::ClaudeDesktop ? PDFAppMcpSetupClient::ClaudeCode : m_setupClient;
+    const PDFAppMcpSetupClient client = display.client;
+    const PDFAppMcpSetupClient tileClient = client == PDFAppMcpSetupClient::ClaudeDesktop ? PDFAppMcpSetupClient::ClaudeCode : client;
     const std::vector<PDFAppMcpSetupClient> variants = PDFAppMcpClientSetup::getVariants(tileClient);
     QWidget* chips = nullptr;
     if (variants.size() > 1)
@@ -1639,38 +1739,47 @@ void PDFAppAiPage::rebuildSetupCard()
         // Filter chips 653:5735 (gap 6)
         chips = new QWidget(header);
         PDFAppFlowLayout* chipsLayout = new PDFAppFlowLayout(chips, 6, 6);
-        m_variantGroup = new QButtonGroup(chips);
-        m_variantGroup->setExclusive(true);
+        QButtonGroup* variantGroup = isMeasured ? nullptr : new QButtonGroup(chips);
+        if (variantGroup)
+        {
+            variantGroup->setExclusive(true);
+            m_variantGroup = variantGroup;
+        }
         for (PDFAppMcpSetupClient variant : variants)
         {
             const QString name = PDFAppMcpClientSetup::getVariantName(variant);
             QPushButton* chip = new QPushButton(PDFAppPageWidgets::escapeMnemonic(name), chips);
-            chip->setObjectName(QStringLiteral("variant-%1").arg(int(variant)));
             chip->setProperty(PDFWidgetStyleProperties::CHIP, true);
             chip->setCheckable(true);
             chip->setAutoDefault(false);
-            chip->setChecked(variant == m_setupClient);
-            chip->setAccessibleName(name);
-            m_variantGroup->addButton(chip, int(variant));
+            chip->setChecked(variant == client);
             chipsLayout->addWidget(chip);
-            m_variantChips.append(chip);
+            if (variantGroup)
+            {
+                chip->setObjectName(QStringLiteral("variant-%1").arg(int(variant)));
+                chip->setAccessibleName(name);
+                variantGroup->addButton(chip, int(variant));
+                m_variantChips.append(chip);
+            }
         }
-        connect(m_variantGroup.data(), &QButtonGroup::idToggled, this, &PDFAppAiPage::onVariantToggled);
+        if (variantGroup)
+        {
+            connect(variantGroup, &QButtonGroup::idToggled, this, &PDFAppAiPage::onVariantToggled);
+        }
     }
-    PDFAppResponsiveRow* headerRow = new PDFAppResponsiveRow(titles, chips ? chips : new QWidget(header), 560, 12, header);
+    PDFAppResponsiveRow* headerRow = new PDFAppResponsiveRow(titles, chips ? chips : new QWidget(header), Helper::SETUP_HEADER_STACK_WIDTH, 12, header);
     headerLayout->addWidget(headerRow);
     layout->addWidget(header);
 
     // steps 653:5748 (V gap 14): the first step in the whole width, the others in
     // two columns of the width (H gap 24, 653:5761)
-    QWidget* steps = new QWidget(card);
+    QWidget* steps = new QWidget(content);
     QVBoxLayout* stepsLayout = PDFAppPageWidgets::createColumn(steps, 14);
     PDFAppGrid* stepGrid = nullptr;
     for (size_t i = 0; i < display.steps.size(); ++i)
     {
         const PDFAppMcpSetupStep& step = display.steps[i];
         QWidget* stepWidget = new QWidget(steps);
-        stepWidget->setObjectName(QStringLiteral("setupStep%1").arg(i + 1));
         QHBoxLayout* stepLayout = Helper::createRow(stepWidget, 12);
         PDFAppStepBadge* number = new PDFAppStepBadge(stepWidget);
         number->setText(QString::number(i + 1));
@@ -1682,20 +1791,27 @@ void PDFAppAiPage::rebuildSetupCard()
         if (step.codeKind != PDFAppMcpSetupCodeKind::None && !step.code.isEmpty())
         {
             PDFCodeBox* codeBox = new PDFCodeBox(step.code, stepContent);
-            codeBox->setObjectName(QStringLiteral("codeBox%1").arg(i + 1));
             codeBox->setMonospace(step.codeKind != PDFAppMcpSetupCodeKind::Prompt);
-            codeBox->setCopyToolTip(tr("Copy"));
-            codeBox->setAccessibleName(step.text);
-            if (i < full.steps.size())
+            if (!isMeasured)
             {
-                // The shown token is shortened, Copy gives the whole text
-                codeBox->setCopyText(full.steps[i].code);
+                codeBox->setObjectName(QStringLiteral("codeBox%1").arg(i + 1));
+                codeBox->setCopyToolTip(tr("Copy"));
+                codeBox->setAccessibleName(step.text);
+                if (i < full->steps.size())
+                {
+                    // The shown token is shortened, Copy gives the whole text
+                    codeBox->setCopyText(full->steps[i].code);
+                }
+                m_codeBoxes.append(codeBox);
             }
             contentLayout->addWidget(codeBox);
-            m_codeBoxes.append(codeBox);
         }
         contentLayout->addStretch(1);
         stepLayout->addWidget(stepContent, 1);
+        if (!isMeasured)
+        {
+            stepWidget->setObjectName(QStringLiteral("setupStep%1").arg(i + 1));
+        }
 
         if (i == 0)
         {
@@ -1715,37 +1831,167 @@ void PDFAppAiPage::rebuildSetupCard()
 
     // actions 653:5786 (gap 10): Copy Command, the documentation and the note,
     // which goes below the buttons in a narrow card (the minimal window)
-    QWidget* buttons = new QWidget(card);
+    QWidget* buttons = new QWidget(content);
     PDFAppFlowLayout* buttonsLayout = new PDFAppFlowLayout(buttons, 10, 10);
-    m_copySetupButton = PDFAppPageWidgets::createButton(display.copyButtonText, QStringLiteral("copy"), false, buttons);
-    m_copySetupButton->setObjectName(QStringLiteral("copySetupButton"));
-    connect(m_copySetupButton.data(), &QPushButton::clicked, this, &PDFAppAiPage::onCopySetupClicked);
-    buttonsLayout->addWidget(m_copySetupButton);
-    m_documentationButton = PDFAppPageWidgets::createButton(display.documentationText, QStringLiteral("external-link"), false, buttons);
-    m_documentationButton->setObjectName(QStringLiteral("documentationButton"));
-    withLink(m_documentationButton, display.documentationLink);
-    m_documentationButton->setVisible(!display.documentationText.isEmpty() && !display.documentationLink.isEmpty());
-    buttonsLayout->addWidget(m_documentationButton);
+    QPushButton* copyButton = PDFAppPageWidgets::createButton(display.copyButtonText, QStringLiteral("copy"), false, buttons);
+    buttonsLayout->addWidget(copyButton);
+    QPushButton* documentationButton = PDFAppPageWidgets::createButton(display.documentationText, QStringLiteral("external-link"), false, buttons);
+    documentationButton->setVisible(!display.documentationText.isEmpty() && !display.documentationLink.isEmpty());
+    buttonsLayout->addWidget(documentationButton);
+    if (!isMeasured)
+    {
+        m_copySetupButton = copyButton;
+        m_copySetupButton->setObjectName(QStringLiteral("copySetupButton"));
+        connect(m_copySetupButton.data(), &QPushButton::clicked, this, &PDFAppAiPage::onCopySetupClicked);
+        m_documentationButton = documentationButton;
+        m_documentationButton->setObjectName(QStringLiteral("documentationButton"));
+        withLink(m_documentationButton, display.documentationLink);
+    }
 
-    // note 653:5797: pl 6, gap 8, the icon info 14 and Regular 12 text/muted
-    QWidget* note = new QWidget(card);
-    note->setObjectName(QStringLiteral("setupNote"));
+    // note 653:5797 / 955:149437: pl 6, gap 8, the icon info 14 and Regular 12
+    // text/muted, the icon and the text centered on each other (items-center) and
+    // on the buttons beside them: the row gives the note its height, the text
+    // keeps the height of its lines in the middle of it (a label filling the row
+    // draws its text at the top)
+    QWidget* note = new QWidget(content);
     QHBoxLayout* noteLayout = Helper::createRow(note, 8);
     noteLayout->setContentsMargins(6, 0, 0, 0);
     PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("info"), 14, 14, note);
     icon->setColors(std::nullopt, PDFThemeColors::IconMuted);
     noteLayout->addWidget(icon, 0, Qt::AlignVCenter);
-    noteLayout->addWidget(Helper::createText(display.note, QFont::Normal, 12, 15, PDFThemeColors::TextMuted, note), 1);
+    PDFAppParagraph* noteText = Helper::createText(display.note, QFont::Normal, 12, 15, PDFThemeColors::TextMuted, note);
+    noteLayout->addWidget(noteText, 1, Qt::AlignVCenter);
     note->setVisible(!display.note.isEmpty());
+    if (!isMeasured)
+    {
+        note->setObjectName(QStringLiteral("setupNote"));
+        icon->setObjectName(QStringLiteral("setupNoteIcon"));
+        noteText->setObjectName(QStringLiteral("setupNoteText"));
+        title->setObjectName(QStringLiteral("setupTitle"));
+    }
 
     // The buttons keep their width beside the note, which takes the rest (653:5797)
     QSizePolicy buttonsPolicy(QSizePolicy::Maximum, QSizePolicy::Preferred);
     buttonsPolicy.setHeightForWidth(true);
     buttons->setSizePolicy(buttonsPolicy);
-    PDFAppResponsiveRow* actions = new PDFAppResponsiveRow(buttons, note, 960, 10, card);
+    PDFAppResponsiveRow* actions = new PDFAppResponsiveRow(buttons, note, Helper::SETUP_ACTIONS_STACK_WIDTH, 10, content);
     layout->addWidget(actions);
 
-    PDFAppPageRebuild::restoreFocus(card, focusName);
+    // A shorter setup stays at the top of the reserved height (no stretched gaps)
+    layout->addStretch(1);
+
+    if (isMeasured)
+    {
+        // A measured setup gives the stack only its height for a width, never a
+        // minimal or preferred size (a wider arrangement would keep the card wide);
+        // its rows are arranged at the width of the card content (the rows of the
+        // shown setup follow their widths)
+        content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+        Helper::arrangeMeasuredSetup(content, width);
+    }
+    return content;
+}
+
+std::vector<PDFAppMcpSetup> PDFAppAiPage::getMeasuredSetups() const
+{
+    // Every client in the shown state: the shown address and the shown token (a
+    // change of Require access token, of the address or of the port measures the
+    // setups again - a switch of the client never)
+    const QString address = getShownAddress();
+    const QString token = getShownToken();
+    std::vector<PDFAppMcpSetup> setups;
+    for (int i = int(PDFAppMcpSetupClient::ClaudeCode); i <= int(PDFAppMcpSetupClient::Other); ++i)
+    {
+        setups.push_back(PDFAppMcpClientSetup::createForDisplay(PDFAppMcpSetupClient(i), address, token));
+    }
+    return setups;
+}
+
+void PDFAppAiPage::requestSetupMeasure()
+{
+    if (!m_isSetupMeasurePending)
+    {
+        m_isSetupMeasurePending = true;
+        QMetaObject::invokeMethod(this, &PDFAppAiPage::updateSetupMeasure, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppAiPage::updateSetupMeasure()
+{
+    using Helper = PDFAppAiPageHelper;
+
+    m_isSetupMeasurePending = false;
+    if (!m_setupStack || !m_setupStackLayout || !m_setupContent)
+    {
+        // The measured setups never become the current widget of the stack
+        return;
+    }
+
+    // The texts of all setups and the arrangement of their rows at the width (a
+    // row, which arranges itself otherwise at the new width, gives a new setup -
+    // the layouts of a hidden widget would keep the heights of the old one)
+    const int width = m_setupStack->width();
+    const std::vector<PDFAppMcpSetup> setups = getMeasuredSetups();
+    QStringList parts;
+    for (const PDFAppMcpSetup& setup : setups)
+    {
+        parts << Helper::getSetupSignature(setup);
+    }
+    const QString signature = parts.join(QChar(0x1E));
+    bool isArrangementChanged = false;
+    for (const QPointer<QWidget>& measure : std::as_const(m_setupMeasures))
+    {
+        if (measure)
+        {
+            isArrangementChanged = Helper::arrangeMeasuredSetup(measure, width) || isArrangementChanged;
+        }
+    }
+    if (signature == m_setupMeasureSignature && !isArrangementChanged)
+    {
+        return;
+    }
+    m_setupMeasureSignature = signature;
+    ++m_setupMeasureBuildCount;
+
+    for (const QPointer<QWidget>& measure : std::as_const(m_setupMeasures))
+    {
+        if (measure)
+        {
+            m_setupStackLayout->removeWidget(measure);
+            measure->deleteLater();
+        }
+    }
+    m_setupMeasures.clear();
+
+    for (const PDFAppMcpSetup& setup : setups)
+    {
+        // Hidden by the stack (it is not its current widget)
+        QWidget* measure = createSetupContent(setup, nullptr, width, m_setupStack);
+        m_setupStackLayout->addWidget(measure);
+        m_setupMeasures.append(measure);
+    }
+}
+
+void PDFAppAiPage::onThemeChanged()
+{
+    // The fonts and the metrics of the style may differ
+    m_setupMeasureSignature.clear();
+    requestSetupMeasure();
+}
+
+int PDFAppAiPage::getReservedSetupHeight(int width) const
+{
+    return m_setupStackLayout ? m_setupStackLayout->heightForWidth(width) : 0;
+}
+
+int PDFAppAiPage::getMeasuredSetupCount() const
+{
+    int count = 0;
+    for (const QPointer<QWidget>& measure : m_setupMeasures)
+    {
+        count += measure ? 1 : 0;
+    }
+    return count;
 }
 
 PDFAppMcpSetup PDFAppAiPage::getSetup() const

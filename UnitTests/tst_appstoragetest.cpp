@@ -23,6 +23,7 @@
 #include "pdfannotationstylerepository.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfthreadannotations.h"
 #include "pdfdatabaseschema.h"
 #include "pdfdatabasestatement.h"
 #include "pdfsettingdefinition.h"
@@ -734,6 +735,7 @@ private Q_SLOTS:
     void backupCertificatesAndSecurity();
     void backupHostileSequences();
     void backupTokenExcluded();
+    void backupWindowGeometryExcluded();
 
 private:
     QString createPath(const QString& name);
@@ -1909,8 +1911,12 @@ void AppStorageTest::concurrentProcesses()
 
 void AppStorageTest::concurrentThreads()
 {
+    // The four writers wait for the write lock of each other: under valgrind drd (one
+    // thread at a time, 60 times slower) a commit waited longer than the busy timeout
+    pdf::PDFDatabaseOptions options = AppStorageTestHelper::createOptions(createPath(QStringLiteral("threads")));
+    options.busyTimeout *= AppStorageTestHelper::getTimeoutFactor();
     pdf::PDFDatabase database;
-    database.open(AppStorageTestHelper::createOptions(createPath(QStringLiteral("threads"))));
+    database.open(options);
     QVERIFY(AppStorageTestHelper::execute(&database, "INSERT INTO setting(key, value, modified) VALUES ('test.main', 42, 0)"));
 
     const int count = AppStorageTestHelper::getTransactionCount(500);
@@ -2714,13 +2720,16 @@ void AppStorageTest::threadConnectionsClosed()
     std::atomic<bool> mayEnd = false;
     std::thread lateThread([&shortLived, &isConnected, &mayEnd]()
     {
-        isConnected = shortLived->getConnection() != nullptr;
+        const bool connected = shortLived->getConnection() != nullptr;
+        pdf::PDFThreadAnnotations::happensBefore(&isConnected);
+        isConnected = connected;
         while (!mayEnd)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     });
     QTRY_VERIFY(isConnected.load());
+    pdf::PDFThreadAnnotations::happensAfter(&isConnected);
     shortLived.reset();
     mayEnd = true;
     lateThread.join();
@@ -4366,7 +4375,7 @@ void AppStorageTest::backupTokenExcluded()
     // - an export omits its row (no trace in the file), an import keeps the token of
     // the open database and ignores a token of the backup (an older or hostile
     // backup may have one); the rest of the settings is imported
-    QCOMPARE(pdf::PDFDatabaseBackup::getPrivateSettingKeys(), QStringList({ QStringLiteral("mcp.token") }));
+    QVERIFY(pdf::PDFDatabaseBackup::getPrivateSettingKeys().contains(QStringLiteral("mcp.token")));
 
     const QString folder = createFolder(QStringLiteral("backup-token-files"));
     const QString exportedPath = QDir(folder).filePath(QStringLiteral("exported.pdf4qt-backup"));
@@ -4453,6 +4462,80 @@ void AppStorageTest::backupTokenExcluded()
     QFile second(secondPath);
     QVERIFY(second.open(QFile::ReadOnly));
     QVERIFY(!second.readAll().contains("NEW-TOKEN"));
+}
+
+void AppStorageTest::backupWindowGeometryExcluded()
+{
+    // Owner 2026-10-29: the geometry of the main window (window.geometry) describes
+    // the monitors of one computer - an export has no row of it, an import keeps the
+    // geometry of the open database (also none) and ignores the one of the backup
+    const QByteArray sourceGeometry = R"({"version":1,"x":-1700,"y":25,"width":1200,"height":800,"maximized":true,"screen":"SOURCE-MONITOR","screen-x":-1920,"screen-y":0,"screen-width":1920,"screen-height":1080})";
+    const QByteArray currentGeometry = R"({"version":1,"x":40,"y":30,"width":900,"height":600,"maximized":false,"screen":"CURRENT-MONITOR","screen-x":0,"screen-y":0,"screen-width":2560,"screen-height":1440})";
+    const QString folder = createFolder(QStringLiteral("backup-geometry-files"));
+    const QString exportedPath = QDir(folder).filePath(QStringLiteral("exported.pdf4qt-backup"));
+    const QString hostilePath = QDir(folder).filePath(QStringLiteral("hostile.pdf4qt-backup"));
+    {
+        pdf::PDFDatabase source;
+        source.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-geometry-source"))));
+        pdf::PDFDatabaseStatement statement(source.getConnection(), "INSERT INTO setting(key, value, modified) VALUES ('window.geometry', ?1, 1)");
+        statement.bindText(1, QString::fromUtf8(sourceGeometry));
+        QVERIFY(statement.execute());
+        QVERIFY(AppStorageTestHelper::execute(&source, "INSERT INTO setting(key, value, modified) VALUES ('appearance.colorScheme', 'dark', 1)"));
+        QVERIFY(!source.exportBackup(exportedPath).isError());
+
+        // The open database keeps its geometry
+        QCOMPARE(AppStorageTestHelper::getSettingText(&source, "window.geometry"), QString::fromUtf8(sourceGeometry));
+    }
+
+    // The exported file: no row and no bytes of the geometry, the other settings
+    {
+        QFile file(exportedPath);
+        QVERIFY(file.open(QFile::ReadOnly));
+        const QByteArray data = file.readAll();
+        QVERIFY(!data.isEmpty());
+        QVERIFY(!data.contains("SOURCE-MONITOR"));
+    }
+    sqlite3* handle = pdf::PDFDatabase::openFileConnection(exportedPath, true, 5000, nullptr);
+    QVERIFY(handle);
+    QCOMPARE(pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'window.geometry'", -1), qint64(0));
+    QCOMPARE(pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT COUNT(*) FROM setting WHERE key = 'appearance.colorScheme'", -1), qint64(1));
+    pdf::PDFDatabase::closeHandle(handle);
+
+    // A backup with a geometry (an older version, a hostile writer), also under a key stored as a blob
+    QVERIFY(QFile::copy(exportedPath, hostilePath));
+    QVERIFY(AppStorageTestHelper::executeOnFile(hostilePath,
+        "INSERT INTO setting(key, value, modified) VALUES ('window.geometry', '{\"version\":1,\"screen\":\"HOSTILE-MONITOR\"}', 2);"
+        "INSERT INTO setting(key, value, modified) VALUES (CAST('window.geometry' AS BLOB), 'HOSTILE-BLOB', 2);"));
+    const pdf::PDFDatabaseBackup exported = pdf::PDFDatabaseBackup::read(exportedPath);
+    QVERIFY2(exported.isValid(), qPrintable(exported.getDetail()));
+    const pdf::PDFDatabaseBackup hostile = pdf::PDFDatabaseBackup::read(hostilePath);
+    QVERIFY2(hostile.isValid(), qPrintable(hostile.getDetail()));
+
+    // A database with its own geometry keeps it (also the time of its row)
+    pdf::PDFDatabase target;
+    target.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-geometry-target"))));
+    {
+        pdf::PDFDatabaseStatement statement(target.getConnection(), "INSERT INTO setting(key, value, modified) VALUES ('window.geometry', ?1, 77)");
+        statement.bindText(1, QString::fromUtf8(currentGeometry));
+        QVERIFY(statement.execute());
+    }
+    for (const pdf::PDFDatabaseBackup* backup : { &exported, &hostile })
+    {
+        const pdf::PDFDatabaseError error = target.importBackup(*backup, pdf::PDFDatabaseImportCertificates::KeepCurrent);
+        QVERIFY2(!error.isError(), qPrintable(error.toString()));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "window.geometry"), QString::fromUtf8(currentGeometry));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT modified FROM setting WHERE key = 'window.geometry'"), qint64(77));
+        QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'window.geometry'"), qint64(1));
+        QCOMPARE(AppStorageTestHelper::getSettingText(&target, "appearance.colorScheme"), QStringLiteral("dark"));
+    }
+
+    // A database without a geometry stays without one (the default of the window)
+    pdf::PDFDatabase empty;
+    empty.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-geometry-empty"))));
+    const pdf::PDFDatabaseError error = empty.importBackup(hostile, pdf::PDFDatabaseImportCertificates::FromBackup);
+    QVERIFY2(!error.isError(), qPrintable(error.toString()));
+    QCOMPARE(AppStorageTestHelper::queryInteger(&empty, "SELECT COUNT(*) FROM setting WHERE CAST(key AS TEXT) = 'window.geometry'"), qint64(0));
+    QCOMPARE(AppStorageTestHelper::getSettingText(&empty, "appearance.colorScheme"), QStringLiteral("dark"));
 }
 
 int main(int argc, char* argv[])

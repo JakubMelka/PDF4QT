@@ -382,7 +382,11 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
     // The change must come from the version, which the engine shows; the document
     // refuses a locked document, a blocking operation and a stale version
     QString refusal;
-    if (document->isLocked())
+    if (document->isPagedXFA())
+    {
+        refusal = PDFAppDocument::getPagedXFARefusalText();
+    }
+    else if (document->isLocked())
     {
         refusal = tr("The document is locked. Unlock it to make changes.");
     }
@@ -486,7 +490,7 @@ void PDFAppAnnotationController::showStatusMessage(const QString& text)
 bool PDFAppAnnotationController::isAnnotationEditingAllowed() const
 {
     const PDFAppDocument* document = m_document.data();
-    if (!document || !document->isReady() || document->isLocked())
+    if (!document || !document->isEditable())
     {
         return false;
     }
@@ -496,7 +500,7 @@ bool PDFAppAnnotationController::isAnnotationEditingAllowed() const
 bool PDFAppAnnotationController::isFormFillingAllowed() const
 {
     const PDFAppDocument* document = m_document.data();
-    if (!document || !document->isReady() || document->isLocked())
+    if (!document || !document->isEditable())
     {
         return false;
     }
@@ -518,6 +522,10 @@ QString PDFAppAnnotationController::getEditingRefusalReason() const
     if (!document || !document->isReady())
     {
         return tr("No document is shown.");
+    }
+    if (document->isPagedXFA())
+    {
+        return PDFAppDocument::getPagedXFARefusalText();
     }
     if (document->isLocked())
     {

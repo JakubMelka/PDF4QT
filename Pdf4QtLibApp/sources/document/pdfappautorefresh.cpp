@@ -30,6 +30,7 @@
 
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
+#include "pdfform.h"
 #include "pdfmessagebox.h"
 #include "pdfsecurityhandler.h"
 
@@ -128,6 +129,13 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
                 result.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
                 result.data = std::move(data);
                 result.outcome = Outcome::Changed;
+
+                // The file of a dynamic XFA form is paged again (step 8)
+                if (PDFDocumentPointer pagedDocument = PDFXFAPaging::createPagedDocument(result.document.data()))
+                {
+                    result.document = std::move(pagedDocument);
+                    result.isPagedXFA = true;
+                }
                 break;
             }
 
@@ -446,7 +454,7 @@ void PDFAppAutoRefresh::applyResult(const PDFAppAutoRefreshReader::Result& resul
 
     ++m_reloadCount;
     QPointer<PDFAppAutoRefresh> guard(this);
-    document->reload(result.document, result.data, result.isPasswordProtected);
+    document->reload(result.document, result.data, result.isPasswordProtected, result.isPagedXFA);
     if (guard)
     {
         Q_EMIT reloaded();
@@ -518,7 +526,7 @@ void PDFAppAutoRefresh::onDialogFinished(int result)
         }
         else
         {
-            document->reload(pending.document, pending.data, pending.isPasswordProtected);
+            document->reload(pending.document, pending.data, pending.isPasswordProtected, pending.isPagedXFA);
             if (guard)
             {
                 Q_EMIT reloaded();

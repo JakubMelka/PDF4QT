@@ -31,6 +31,7 @@
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgettool.h"
+#include "xfatestsamples.h"
 
 #include <QtTest>
 #include <QAction>
@@ -80,6 +81,10 @@ private slots:
     void pageTabOrder_data();
     void pageTabOrder();
     void emptyFieldVisit();
+    void xfaPaging_data();
+    void xfaPaging();
+    void xfaPagingFormManager();
+    void xfaPagingHostile();
 };
 
 /// Creates the documents with the form fields
@@ -1745,6 +1750,237 @@ void FormFieldsTest::emptyFieldVisit()
     const PDFObject value = fixture.document->getObject(fixture.dictionary(a)->get("V"));
     QVERIFY(value.isString());
     QVERIFY(loader.readTextString(value, QStringLiteral("x")).isEmpty());
+}
+
+/// The paging of PDFFormManager::performPaging before it was shared by PDFXFAPaging
+/// (step 8) - the reference of the old applications
+class XFAPagingReference
+{
+public:
+    XFAPagingReference() = delete;
+
+    static PDFDocumentPointer page(const PDFDocument* document, const std::vector<QSizeF>& pageSizes)
+    {
+        const PDFCatalog* catalog = document->getCatalog();
+        const size_t pageCount = catalog->getPageCount();
+        bool changed = pageSizes.size() != pageCount;
+        for (size_t i = 0; !changed && i < pageCount; ++i)
+        {
+            const QSizeF size = catalog->getPage(i)->getMediaBox().size();
+            changed = !qFuzzyCompare(pageSizes[i].width(), size.width()) || !qFuzzyCompare(pageSizes[i].height(), size.height());
+        }
+        if (!changed || pageCount == 0)
+        {
+            return PDFDocumentPointer();
+        }
+
+        PDFDocumentModifier modifier(document);
+        modifier.markReset();
+        PDFDocumentBuilder* builder = modifier.getBuilder();
+        builder->flattenPageTree();
+        std::vector<PDFObjectReference> pages = builder->getPages();
+        if (pages.size() > pageSizes.size())
+        {
+            pages.resize(pageSizes.size());
+        }
+        while (pages.size() < pageSizes.size())
+        {
+            std::vector<PDFObjectReference> references = PDFDocumentBuilder::createReferencesFromObjects(builder->copyFrom(PDFDocumentBuilder::createObjectsFromReferences({ pages.front() }), *builder->getStorage(), true));
+            pages.push_back(references.front());
+        }
+        for (size_t i = 0; i < pages.size(); ++i)
+        {
+            builder->setPageMediaBox(pages[i], QRectF(QPointF(0, 0), pageSizes[i]));
+        }
+        builder->setPages(std::move(pages));
+        return modifier.finalize() ? modifier.getDocument() : PDFDocumentPointer();
+    }
+
+    /// The pages are the same: media boxes and the content streams
+    static bool isSame(const PDFDocument* a, const PDFDocument* b)
+    {
+        if (!a || !b || a->getCatalog()->getPageCount() != b->getCatalog()->getPageCount())
+        {
+            return false;
+        }
+        for (size_t i = 0; i < a->getCatalog()->getPageCount(); ++i)
+        {
+            const PDFPage* pageA = a->getCatalog()->getPage(i);
+            const PDFPage* pageB = b->getCatalog()->getPage(i);
+            if (pageA->getMediaBox() != pageB->getMediaBox() || pageA->getPageReference() != pageB->getPageReference() ||
+                pageA->getContents() != pageB->getContents() || pageA->getResources() != pageB->getResources())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+void FormFieldsTest::xfaPaging_data()
+{
+    using S = pdftest::XFATestSamples;
+    QTest::addColumn<QList<QSizeF>>("pdfPagesList");
+    QTest::addColumn<QByteArray>("xfaTemplate");
+    QTest::addColumn<QList<QSizeF>>("expectedPagesList");     // empty = not paged
+
+    const QSizeF custom(360.0, 504.0);
+    QTest::newRow("morePages") << QList<QSizeF>{ S::letter() } << S::pagedTemplate(3) << QList<QSizeF>{ S::letter(), S::letter(), S::letter() };
+    QTest::newRow("otherSize") << QList<QSizeF>{ S::a4() } << S::pagedTemplate(1) << QList<QSizeF>{ S::letter() };
+    QTest::newRow("otherSizes") << QList<QSizeF>{ S::letter(), S::letter() } << S::pagedTemplate(2, QStringLiteral("5in"), QStringLiteral("7in"))
+                                << QList<QSizeF>{ custom, custom };
+    QTest::newRow("fewerPages") << QList<QSizeF>{ S::letter(), S::letter(), S::letter() } << S::pagedTemplate(1) << QList<QSizeF>{ S::letter() };
+    QTest::newRow("static") << QList<QSizeF>{ S::letter(), S::letter() } << S::pagedTemplate(2) << QList<QSizeF>();
+    QTest::newRow("garbageTemplate") << QList<QSizeF>{ S::letter() } << S::garbageTemplate() << QList<QSizeF>();
+    QTest::newRow("noXfa") << QList<QSizeF>{ S::letter() } << QByteArray() << QList<QSizeF>();
+    QTest::newRow("noPages") << QList<QSizeF>() << S::pagedTemplate(2) << QList<QSizeF>();
+}
+
+void FormFieldsTest::xfaPaging()
+{
+    using S = pdftest::XFATestSamples;
+    QFETCH(QList<QSizeF>, pdfPagesList);
+    const std::vector<QSizeF> pdfPages(pdfPagesList.cbegin(), pdfPagesList.cend());
+    QFETCH(QByteArray, xfaTemplate);
+    QFETCH(QList<QSizeF>, expectedPagesList);
+    const std::vector<QSizeF> expectedPages(expectedPagesList.cbegin(), expectedPagesList.cend());
+
+    const PDFDocument document = S::createDocument(pdfPages, xfaTemplate);
+    const QByteArray originalBytes = S::write(document);
+    QCOMPARE(S::getPageSizes(&document), pdfPages);
+
+    // The layout of the template: the pages of the paging
+    const std::vector<QSizeF> layout = PDFXFAPaging::getLayoutPageSizes(&document);
+    PDFDocumentPointer paged = PDFXFAPaging::createPagedDocument(&document);
+    QCOMPARE(PDFXFAPaging::isPagingNeeded(&document, layout), !expectedPages.empty());
+    if (expectedPages.empty())
+    {
+        QVERIFY(!paged);
+    }
+    else
+    {
+        QVERIFY(paged);
+        QCOMPARE(layout, expectedPages);
+        QCOMPARE(S::getPageSizes(paged.data()), expectedPages);
+
+        // The pages beyond the PDF pages are copies of the first page
+        const PDFCatalog* catalog = paged->getCatalog();
+        for (size_t i = 0; i < catalog->getPageCount(); ++i)
+        {
+            QVERIFY(catalog->getPage(i)->getPageReference().isValid());
+        }
+
+        // The paged document has the same layout (paging it again does nothing)
+        QCOMPARE(PDFXFAPaging::getLayoutPageSizes(paged.data()), expectedPages);
+        QVERIFY(!PDFXFAPaging::createPagedDocument(paged.data()));
+
+        // The same result as the paging of the old applications
+        const PDFDocumentPointer reference = XFAPagingReference::page(&document, layout);
+        QVERIFY(XFAPagingReference::isSame(paged.data(), reference.data()));
+    }
+
+    // The original document is not changed
+    QCOMPARE(S::getPageSizes(&document), pdfPages);
+    QCOMPARE(S::write(document), originalBytes);
+}
+
+void FormFieldsTest::xfaPagingFormManager()
+{
+    // PDFFormManager::performPaging of the old applications (the form manager lays
+    // out the form of the document and emits the paged document)
+    using S = pdftest::XFATestSamples;
+    PDFDocument document = S::createDocument({ S::a4() }, S::pagedTemplate(3));
+
+    PDFFormManager manager(nullptr);
+    std::vector<PDFModifiedDocument> emitted;
+    connect(&manager, &PDFFormManager::documentModified, &manager, [&emitted](PDFModifiedDocument modified) { emitted.push_back(modified); });
+    manager.setDocument(PDFModifiedDocument(&document, nullptr));
+    QVERIFY(manager.hasXFAForm());
+    manager.performPaging();
+    QCOMPARE(emitted.size(), size_t(1));
+    QCOMPARE(emitted.front().getFlags(), PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset));
+
+    const PDFDocumentPointer reference = XFAPagingReference::page(&document, { S::letter(), S::letter(), S::letter() });
+    QVERIFY(XFAPagingReference::isSame(emitted.front().getDocument(), reference.data()));
+    QVERIFY(XFAPagingReference::isSame(emitted.front().getDocument(), PDFXFAPaging::createPagedDocument(&document).data()));
+
+    // The paged document set to the manager: nothing more to page
+    PDFDocumentPointer paged = emitted.front();
+    emitted.clear();
+    manager.setDocument(PDFModifiedDocument(paged, nullptr));
+    manager.performPaging();
+    QVERIFY(emitted.empty());
+
+    // A document without XFA, no document
+    PDFDocument plain = S::createDocument({ S::letter() }, QByteArray());
+    manager.setDocument(PDFModifiedDocument(&plain, nullptr));
+    manager.performPaging();
+    QVERIFY(emitted.empty());
+
+    // A damaged template is not paged (the old applications made a document
+    // without pages of it)
+    PDFDocument garbage = S::createDocument({ S::letter() }, S::garbageTemplate());
+    manager.setDocument(PDFModifiedDocument(&garbage, nullptr));
+    QVERIFY(manager.hasXFAForm());
+    manager.performPaging();
+    QVERIFY(emitted.empty());
+}
+
+void FormFieldsTest::xfaPagingHostile()
+{
+    using S = pdftest::XFATestSamples;
+
+    // A template, which breaks to more pages than the limit of the layout engine:
+    // the layout ends at the limit (no exception of a page behind the last one)
+    for (const int occurrences : { 127, 128, 129, 1000, 3000 })
+    {
+        // The form manager of the old applications lays out the same template (an
+        // exception of the layout escaped from it before)
+        {
+            PDFFormManager manager(nullptr);
+            PDFDocument drawn = S::createDocument({ S::letter() }, S::manyPagesTemplate(occurrences));
+            manager.setDocument(PDFModifiedDocument(&drawn, nullptr));
+            QVERIFY(manager.hasXFAForm());
+        }
+
+        const PDFDocument document = S::createDocument({ S::letter() }, S::manyPagesTemplate(occurrences));
+        const std::vector<QSizeF> layout = PDFXFAPaging::getLayoutPageSizes(&document);
+        QVERIFY2(layout.size() > 100 && layout.size() <= PDFXFAPaging::MAXIMUM_PAGE_COUNT, qPrintable(QString::number(layout.size())));
+        const PDFDocumentPointer paged = PDFXFAPaging::createPagedDocument(&document);
+        QVERIFY(paged);
+        QVERIFY(paged->getCatalog()->getPageCount() <= PDFXFAPaging::MAXIMUM_PAGE_COUNT);
+        QCOMPARE(paged->getCatalog()->getPageCount(), layout.size());
+    }
+
+    // Layouts, which are not paged: too many pages, invalid sizes
+    const PDFDocument document = S::createDocument({ S::letter() }, S::pagedTemplate(1));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, std::vector<QSizeF>(PDFXFAPaging::MAXIMUM_PAGE_COUNT + 1, S::letter())));
+    QVERIFY(PDFXFAPaging::isPagingNeeded(&document, std::vector<QSizeF>(PDFXFAPaging::MAXIMUM_PAGE_COUNT, S::letter())));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, { QSizeF(0.0, 100.0) }));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, { QSizeF(-5.0, 100.0) }));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, { QSizeF(qQNaN(), 100.0) }));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, { QSizeF(qInf(), 100.0) }));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, { QSizeF(100.0, PDFXFAPaging::MAXIMUM_PAGE_SIZE + 1.0) }));
+    QVERIFY(PDFXFAPaging::isPagingNeeded(&document, { QSizeF(100.0, PDFXFAPaging::MAXIMUM_PAGE_SIZE) }));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(&document, {}));
+    QVERIFY(!PDFXFAPaging::isPagingNeeded(nullptr, { S::a4() }));
+    QVERIFY(!PDFXFAPaging::createPagedDocument(nullptr));
+    QVERIFY(PDFXFAPaging::getLayoutPageSizes(nullptr).empty());
+
+    // Templates of a hostile writer: huge and invalid sizes of the medium, a
+    // medium missing, an empty template - never a paged document with such pages
+    for (const QByteArray& xml : { S::pagedTemplate(2, QStringLiteral("1000000in"), QStringLiteral("11in")),
+                                   S::pagedTemplate(2, QStringLiteral("-3in"), QStringLiteral("11in")),
+                                   S::pagedTemplate(2, QStringLiteral("0in"), QStringLiteral("0in")),
+                                   QByteArray("<template><subform name=\"a\"><pageSet><pageArea name=\"p\"><contentArea w=\"1in\" h=\"1in\"/></pageArea></pageSet>"
+                                              "<draw name=\"d\" w=\"1in\" h=\"1in\"/></subform></template>"),
+                                   QByteArray("<template/>"),
+                                   QByteArray("<notATemplate/>") })
+    {
+        const PDFDocument hostile = S::createDocument({ S::letter() }, xml);
+        const PDFDocumentPointer paged = PDFXFAPaging::createPagedDocument(&hostile);
+        QVERIFY(!paged);
+    }
 }
 
 QTEST_MAIN(FormFieldsTest)

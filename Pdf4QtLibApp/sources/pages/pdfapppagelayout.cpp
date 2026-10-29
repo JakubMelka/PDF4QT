@@ -37,11 +37,86 @@
 #include <QScrollBar>
 #include <QShowEvent>
 #include <QStyle>
+#include <QStyleOptionSlider>
 
 #include <cmath>
 
 namespace pdf
 {
+
+/// Widths of the parts of the responsive helpers
+class PDFAppPageLayoutHelper
+{
+public:
+    PDFAppPageLayoutHelper() = delete;
+
+    /// Narrowest width, which a box layout gives the widget (the rule of the
+    /// layouts of Qt: the minimal width set on the widget, else the minimal size
+    /// hint by the size policy); a hidden widget takes no place. \p isOwnLimit
+    /// ignores the limits of the width set on the widget (the fixed width of a
+    /// column set by PDFAppColumns), so the width of its content is returned.
+    static int getMinimumWidth(const QWidget* widget, bool isOwnLimit)
+    {
+        if (!widget || widget->isHidden())
+        {
+            return 0;
+        }
+
+        if (!isOwnLimit && widget->minimumWidth() > 0)
+        {
+            return widget->minimumWidth();
+        }
+
+        const QSizePolicy::Policy policy = widget->sizePolicy().horizontalPolicy();
+        if (policy == QSizePolicy::Ignored)
+        {
+            return 0;
+        }
+
+        const int minimumHint = widget->minimumSizeHint().width();
+        const int width = (policy & QSizePolicy::ShrinkFlag) ? minimumHint : qMax(widget->sizeHint().width(), minimumHint);
+        return qMax(0, isOwnLimit ? width : qMin(width, widget->maximumWidth()));
+    }
+
+    /// Hysteresis of the arrangement of a widget in a scroll area, whose vertical
+    /// scroll bar is shown as needed beside the viewport (not over it, as the
+    /// overlay scroll bars of the page area): the extent of the scroll bar, else 0.
+    /// Stacked parts are often taller than the row (the scroll bar appears and
+    /// makes the viewport narrower), but they may be shorter (a wrapped text in the
+    /// full width): the scroll bar disappears and the wider viewport would give the
+    /// row again - the row, which needs the scroll bar, and so on. The row comes
+    /// back only, when it fits with the scroll bar: a change of the arrangement
+    /// changes the width by the scroll bar at most, so it never changes it back.
+    static int getScrollBarHysteresis(const QWidget* widget)
+    {
+        const QWidget* child = widget;
+        for (QWidget* parent = widget ? widget->parentWidget() : nullptr; parent; child = parent, parent = parent->parentWidget())
+        {
+            const QAbstractScrollArea* area = qobject_cast<const QAbstractScrollArea*>(parent);
+            if (!area)
+            {
+                continue;
+            }
+
+            // The nearest scroll area, whose viewport holds the widget
+            QScrollBar* scrollBar = area->verticalScrollBar();
+            if (child != area->viewport() || area->verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded || !scrollBar)
+            {
+                return 0;
+            }
+
+            QStyleOptionSlider option;
+            option.initFrom(scrollBar);
+            option.orientation = Qt::Vertical;
+            if (scrollBar->style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, &option, scrollBar) > 0)
+            {
+                return 0;
+            }
+            return qMax(0, scrollBar->sizeHint().width());
+        }
+        return 0;
+    }
+};
 
 PDFAppColumns::PDFAppColumns(QWidget* parent) :
     BaseClass(parent)
@@ -124,6 +199,24 @@ QWidget* PDFAppColumns::getColumn(int index) const
     return index >= 0 && index < int(m_columns.size()) ? m_columns[size_t(index)].widget.data() : nullptr;
 }
 
+int PDFAppColumns::getRowMinimumWidth(const Column& column) const
+{
+    // A stretched column is never narrower than its content beside the others (a
+    // narrower row would squeeze the content), a fixed column has its width
+    if (column.fixedWidth > 0)
+    {
+        return column.fixedWidth;
+    }
+    return qMax(column.minimumWidth, PDFAppPageLayoutHelper::getMinimumWidth(column.widget, false));
+}
+
+int PDFAppColumns::getStackedMinimumWidth(const Column& column) const
+{
+    // The width of the content (a fixed column has the width set by the columns
+    // only beside the others)
+    return PDFAppPageLayoutHelper::getMinimumWidth(column.widget, column.fixedWidth > 0);
+}
+
 bool PDFAppColumns::isStackedAt(int width) const
 {
     int required = 0;
@@ -132,12 +225,38 @@ bool PDFAppColumns::isStackedAt(int width) const
     {
         if (column.widget)
         {
-            required += column.fixedWidth > 0 ? column.fixedWidth : column.minimumWidth;
+            required += getRowMinimumWidth(column);
             ++count;
         }
     }
     required += GAP * qMax(0, count - 1);
+
+    // Stacked parts go back to the row only, when it fits with a scroll bar of the
+    // scroll area (no flip at each layout request at the threshold)
+    if (m_isStacked)
+    {
+        required += PDFAppPageLayoutHelper::getScrollBarHysteresis(this);
+    }
     return width < required;
+}
+
+QSize PDFAppColumns::minimumSizeHint() const
+{
+    const QSize size = BaseClass::minimumSizeHint();
+    if (!m_layout)
+    {
+        return size;
+    }
+
+    // The narrowest arrangement: a page, whose columns are beside each other,
+    // shrinks, until they stack (the minimum of the row would keep the width of a
+    // wide window: a page built at 1440 kept its width in a window of 800)
+    int width = 0;
+    for (const Column& column : m_columns)
+    {
+        width = qMax(width, getStackedMinimumWidth(column));
+    }
+    return QSize(width, size.height());
 }
 
 void PDFAppColumns::resizeEvent(QResizeEvent* event)
@@ -158,7 +277,15 @@ bool PDFAppColumns::event(QEvent* event)
             it = (!it->widget || it->widget.data() == child) ? m_columns.erase(it) : std::next(it);
         }
     }
-    return BaseClass::event(event);
+
+    const bool result = BaseClass::event(event);
+    if (event->type() == QEvent::LayoutRequest)
+    {
+        // The content of a column has changed its narrowest width (the layout has
+        // been activated): the arrangement is decided again for the same width
+        updateArrangement(width());
+    }
+    return result;
 }
 
 void PDFAppColumns::updateArrangement(int width)
@@ -194,7 +321,14 @@ void PDFAppColumns::updateArrangement(int width)
                 column.widget->setFixedWidth(column.fixedWidth);
             }
         }
-        m_layout->setStretchFactor(column.widget, isStacked ? 0 : column.stretch);
+        // A stretch factor invalidates the layout even when it is the same (the
+        // arrangement is decided again at each layout request)
+        const int index = m_layout->indexOf(column.widget);
+        const int stretch = isStacked ? 0 : column.stretch;
+        if (index >= 0 && m_layout->stretch(index) != stretch)
+        {
+            m_layout->setStretch(index, stretch);
+        }
     }
 }
 
@@ -610,9 +744,71 @@ void PDFAppResponsiveRow::resizeEvent(QResizeEvent* event)
     updateArrangement(event->size().width());
 }
 
+bool PDFAppResponsiveRow::isStackedAt(int width) const
+{
+    if (!m_layout)
+    {
+        return width < m_threshold;
+    }
+
+    // Below the threshold of the page, or narrower than both parts beside each other
+    int required = 0;
+    int count = 0;
+    for (int i = 0; i < m_layout->count(); ++i)
+    {
+        QLayoutItem* item = m_layout->itemAt(i);
+        QWidget* part = item ? item->widget() : nullptr;
+        if (part && !part->isHidden())
+        {
+            required += PDFAppPageLayoutHelper::getMinimumWidth(part, false);
+            ++count;
+        }
+    }
+    required += m_layout->spacing() * qMax(0, count - 1);
+    required = qMax(m_threshold, required);
+
+    // Stacked parts go back to the row only, when it fits with a scroll bar of the
+    // scroll area (no flip at each layout request at the threshold)
+    if (m_isStacked)
+    {
+        required += PDFAppPageLayoutHelper::getScrollBarHysteresis(this);
+    }
+    return width < required;
+}
+
+QSize PDFAppResponsiveRow::minimumSizeHint() const
+{
+    const QSize size = BaseClass::minimumSizeHint();
+    if (!m_layout)
+    {
+        return size;
+    }
+
+    // The narrowest arrangement (the trailing part below the leading part): the
+    // row shrinks with its page, until it stacks
+    int width = 0;
+    for (int i = 0; i < m_layout->count(); ++i)
+    {
+        QLayoutItem* item = m_layout->itemAt(i);
+        width = qMax(width, PDFAppPageLayoutHelper::getMinimumWidth(item ? item->widget() : nullptr, false));
+    }
+    return QSize(width, size.height());
+}
+
+bool PDFAppResponsiveRow::event(QEvent* event)
+{
+    const bool result = BaseClass::event(event);
+    if (event->type() == QEvent::LayoutRequest)
+    {
+        // A part has changed its narrowest width: decided again for the same width
+        updateArrangement(width());
+    }
+    return result;
+}
+
 void PDFAppResponsiveRow::updateArrangement(int width)
 {
-    const bool isStacked = width < m_threshold;
+    const bool isStacked = isStackedAt(width);
     if (!m_layout || isStacked == m_isStacked)
     {
         return;
@@ -625,9 +821,9 @@ void PDFAppResponsiveRow::updateArrangement(int width)
 PDFAppSectionHeader::PDFAppSectionHeader(const QString& title, QWidget* parent) :
     BaseClass(parent)
 {
-    m_layout = new QHBoxLayout(this);
+    m_layout = new QBoxLayout(QBoxLayout::LeftToRight, this);
     m_layout->setContentsMargins(0, 0, 0, 0);
-    m_layout->setSpacing(12);
+    m_layout->setSpacing(ROW_SPACING);
 
     // Title Bold 15, line 18
     m_title = PDFAppPageWidgets::createText(title, PDFThemeFonts::getFont(PDFThemeFonts::Role::Title), 18, PDFThemeColors::TextPrimary, this);
@@ -636,6 +832,100 @@ PDFAppSectionHeader::PDFAppSectionHeader(const QString& title, QWidget* parent) 
 }
 
 PDFAppSectionHeader::~PDFAppSectionHeader() = default;
+
+bool PDFAppSectionHeader::hasTrailingWidget() const
+{
+    return m_layout && m_trailing && !m_trailing->isHidden() && m_layout->indexOf(m_trailing.data()) >= 0;
+}
+
+bool PDFAppSectionHeader::isStackedAt(int width) const
+{
+    if (!hasTrailingWidget())
+    {
+        return false;
+    }
+
+    // The title on one line (its hint), the gap and the trailing widget at its
+    // narrowest width (a hint wraps)
+    int required = (m_title ? m_title->sizeHint().width() + ROW_SPACING : 0) + PDFAppPageLayoutHelper::getMinimumWidth(m_trailing.data(), false);
+    if (m_isStacked)
+    {
+        required += PDFAppPageLayoutHelper::getScrollBarHysteresis(this);
+    }
+    return width < required;
+}
+
+QSize PDFAppSectionHeader::minimumSizeHint() const
+{
+    const QSize size = BaseClass::minimumSizeHint();
+    if (!hasTrailingWidget())
+    {
+        return size;
+    }
+
+    // The title wrapped at its longest word (not the width of its line set beside
+    // the trailing widget), the trailing widget below it
+    const int width = qMax(PDFAppPageLayoutHelper::getMinimumWidth(m_title.data(), true), PDFAppPageLayoutHelper::getMinimumWidth(m_trailing.data(), false));
+    return QSize(width, size.height());
+}
+
+void PDFAppSectionHeader::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateArrangement(event->size().width());
+}
+
+bool PDFAppSectionHeader::event(QEvent* event)
+{
+    const bool result = BaseClass::event(event);
+    if (event->type() == QEvent::LayoutRequest)
+    {
+        // The title, or the trailing widget has changed (a text, a language, the
+        // trailing widget hidden or deleted): decided again for the same width
+        updateArrangement(width());
+    }
+    return result;
+}
+
+void PDFAppSectionHeader::updateArrangement(int width)
+{
+    if (!m_layout)
+    {
+        return;
+    }
+
+    // A widget, which has no width yet, starts beside each other
+    const bool isStacked = width > 0 && isStackedAt(width);
+    const bool isTrailing = hasTrailingWidget();
+
+    // Beside the trailing widget the title never breaks its line (the trailing
+    // widget takes the rest); stacked or alone it wraps in a narrow page
+    if (m_title)
+    {
+        const int minimumWidth = (isTrailing && !isStacked) ? m_title->sizeHint().width() : 0;
+        if (m_title->minimumWidth() != minimumWidth)
+        {
+            m_title->setMinimumWidth(minimumWidth);
+        }
+    }
+
+    // Stacked: at the leading side below the title (a hint wraps in the width); an
+    // alignment invalidates the layout even when it is the same (the arrangement is
+    // decided again at each layout request)
+    QLayoutItem* trailingItem = isTrailing ? m_layout->itemAt(m_layout->indexOf(m_trailing.data())) : nullptr;
+    const Qt::Alignment alignment = isStacked ? Qt::Alignment(Qt::AlignLeading | Qt::AlignTop) : Qt::Alignment(Qt::AlignVCenter);
+    if (trailingItem && trailingItem->alignment() != alignment)
+    {
+        m_layout->setAlignment(m_trailing.data(), alignment);
+    }
+
+    if (isStacked != m_isStacked)
+    {
+        m_isStacked = isStacked;
+        m_layout->setDirection(isStacked ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+        m_layout->setSpacing(isStacked ? STACKED_SPACING : ROW_SPACING);
+    }
+}
 
 void PDFAppSectionHeader::setTrailingWidget(QWidget* widget)
 {
@@ -655,6 +945,9 @@ void PDFAppSectionHeader::setTrailingWidget(QWidget* widget)
         widget->setParent(this);
         m_layout->addWidget(widget, 0, Qt::AlignVCenter);
     }
+
+    // The arrangement is decided again for the new trailing widget
+    updateArrangement(width());
 }
 
 PDFAppCard::PDFAppCard(const QMargins& margins, int spacing, QWidget* parent) :

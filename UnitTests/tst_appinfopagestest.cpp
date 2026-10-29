@@ -41,6 +41,7 @@
 #include "pdfapppaths.h"
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
+#include "pdfappsettingssection.h"
 #include "pdfappsponsorpage.h"
 #include "pdfappsupportpage.h"
 #include "pdfapptab.h"
@@ -72,6 +73,7 @@
 #include <QClipboard>
 #include <QDir>
 #include <QHeaderView>
+#include <QLabel>
 #include <QMenu>
 #include <QStyleOptionHeader>
 #include <QPainter>
@@ -88,6 +90,7 @@
 #include <QVBoxLayout>
 #include <QtTest>
 
+#include <map>
 #include <memory>
 
 class InfoFixture
@@ -230,6 +233,153 @@ public:
     static QRect rectIn(const QWidget* widget, const QWidget* ancestor)
     {
         return QRect(widget->mapTo(ancestor, QPoint(0, 0)), widget->size());
+    }
+
+    /// Checks the arrangement of the responsive helpers of the page: the state of
+    /// each PDFAppColumns / PDFAppResponsiveRow follows its width, no part is
+    /// narrower than its content, stacked parts are below each other in the full
+    /// width, parts of a row side by side; the states are appended to \p states.
+    /// Returns a description of the first failure (empty = no failure).
+    static QString checkArrangement(QWidget* page, QList<bool>* states)
+    {
+        for (pdf::PDFAppColumns* columns : page->findChildren<pdf::PDFAppColumns*>())
+        {
+            if (!columns->isVisibleTo(page))
+            {
+                continue;
+            }
+
+            const QString name = QStringLiteral("columns %1 (%2 px): ").arg(columns->objectName()).arg(columns->width());
+            states->append(columns->isStacked());
+            if (columns->isStacked() != columns->isStackedAt(columns->width()))
+            {
+                return name + QStringLiteral("the state does not follow the width");
+            }
+
+            int previousBottom = -1;
+            int widthSum = 0;
+            int count = 0;
+            for (int i = 0; i < columns->getColumnCount(); ++i)
+            {
+                QWidget* column = columns->getColumn(i);
+                if (!column || !column->isVisibleTo(page))
+                {
+                    continue;
+                }
+
+                const QString columnName = name + QStringLiteral("column %1 ").arg(i);
+                if (column->sizePolicy().horizontalPolicy() != QSizePolicy::Ignored && column->width() < column->minimumSizeHint().width())
+                {
+                    return columnName + QStringLiteral("narrower than its content %1 < %2").arg(column->width()).arg(column->minimumSizeHint().width());
+                }
+
+                if (columns->isStacked())
+                {
+                    if (column->x() != 0 || column->width() != columns->width())
+                    {
+                        return columnName + QStringLiteral("not in the full width when stacked");
+                    }
+                    if (column->y() <= previousBottom)
+                    {
+                        return columnName + QStringLiteral("not below the previous column");
+                    }
+                    previousBottom = column->geometry().bottom();
+                }
+                else
+                {
+                    if (column->y() != 0)
+                    {
+                        return columnName + QStringLiteral("not in the row");
+                    }
+                    widthSum += column->width();
+                    ++count;
+                }
+            }
+
+            if (!columns->isStacked() && count > 0 && widthSum + (count - 1) * pdf::PDFAppColumns::GAP != columns->width())
+            {
+                return name + QStringLiteral("the columns of the row do not share its width (%1)").arg(widthSum + (count - 1) * pdf::PDFAppColumns::GAP);
+            }
+        }
+
+        for (pdf::PDFAppResponsiveRow* row : page->findChildren<pdf::PDFAppResponsiveRow*>())
+        {
+            if (!row->isVisibleTo(page) || !row->layout())
+            {
+                continue;
+            }
+
+            const QString name = QStringLiteral("responsive row %1 (%2 px) of %3: ").arg(row->objectName()).arg(row->width()).arg(row->parentWidget() ? row->parentWidget()->objectName() : QString());
+            states->append(row->isStacked());
+            QList<QWidget*> parts;
+            for (int i = 0; i < row->layout()->count(); ++i)
+            {
+                QWidget* part = row->layout()->itemAt(i)->widget();
+                if (part && part->isVisibleTo(page))
+                {
+                    parts.append(part);
+                }
+            }
+
+            for (QWidget* part : parts)
+            {
+                if (part->sizePolicy().horizontalPolicy() != QSizePolicy::Ignored && part->width() < qMin(part->minimumSizeHint().width(), part->maximumWidth()))
+                {
+                    return name + QStringLiteral("a part narrower than its content %1 < %2").arg(part->width()).arg(part->minimumSizeHint().width());
+                }
+                if (part->geometry().right() >= row->width())
+                {
+                    return name + QStringLiteral("a part outside of the row");
+                }
+            }
+
+            if (parts.size() == 2)
+            {
+                const bool isBelow = parts[1]->y() > parts[0]->geometry().bottom();
+                if (isBelow != row->isStacked())
+                {
+                    const QRect first = parts[0]->geometry();
+                    const QRect second = parts[1]->geometry();
+                    return name + QStringLiteral("the parts are not arranged by the state %1: %2 / %3, (%4, %5, %6 x %7) / (%8, %9, %10 x %11)")
+                                      .arg(row->isStacked())
+                                      .arg(parts[0]->objectName(), parts[1]->objectName())
+                                      .arg(first.x()).arg(first.y()).arg(first.width()).arg(first.height())
+                                      .arg(second.x()).arg(second.y()).arg(second.width()).arg(second.height());
+                }
+            }
+        }
+
+        // A section title, which fits the header alone, keeps its words on one line
+        // (beside its trailing widget, or with the trailing widget below it)
+        for (pdf::PDFAppSectionHeader* header : page->findChildren<pdf::PDFAppSectionHeader*>())
+        {
+            pdf::PDFAppParagraph* title = header->getTitleLabel();
+            if (!header->isVisibleTo(page) || !title || header->width() <= 0)
+            {
+                continue;
+            }
+
+            const QString name = QStringLiteral("section header \"%1\" (%2 px): ").arg(title->text()).arg(header->width());
+            states->append(header->isStacked());
+            if (header->isStacked() != header->isStackedAt(header->width()))
+            {
+                return name + QStringLiteral("the state does not follow the width");
+            }
+            if (title->sizeHint().width() <= header->width() && title->getLines(title->width()).size() > 1)
+            {
+                return name + QStringLiteral("the title is broken into %1 lines in %2 px").arg(title->getLines(title->width()).size()).arg(title->width());
+            }
+            QWidget* trailing = header->getTrailingWidget();
+            if (trailing && trailing->isVisibleTo(page) && (trailing->geometry().right() >= header->width() || trailing->x() < 0))
+            {
+                return name + QStringLiteral("the trailing widget outside of the header");
+            }
+            if (trailing && trailing->isVisibleTo(page) && header->isStacked() != (trailing->y() > title->geometry().bottom()))
+            {
+                return name + QStringLiteral("the trailing widget is not arranged by the state %1").arg(header->isStacked());
+            }
+        }
+        return QString();
     }
 
     /// Texts of the labels, buttons, fact pills and fields of the widget and its descendants
@@ -536,7 +686,14 @@ private slots:
     void gridFractionalColumns();
     void columns();
     void columnsEdges();
+    void columnsShrinkAndGrow();
+    void columnsContentMinimum();
+    void responsiveRowShrinkAndGrow();
+    void columnsScrollBarAtThreshold();
+    void pagesShrinkAndGrow_data();
+    void pagesShrinkAndGrow();
     void sectionHeader();
+    void sectionHeaderNarrow();
     void contentPageLinks();
     void contentPageScroll();
     void contentPageDeferredScroll();
@@ -2248,8 +2405,12 @@ void AppInfoPagesTest::geometrySponsor()
     QCOMPARE(page->findChild<QWidget*>(QStringLiteral("waysCard"))->height(), 328);
     QCOMPARE(page->getPriorityRows()[0]->height(), 46);
     QCOMPARE(page->getPriorityRows()[0]->width(), 322);
-    QCOMPARE(page->findChild<QWidget*>(QStringLiteral("priorities"))->y(), 300);
-    QCOMPARE(page->getPromise()->y(), 602);
+    // The promise right below the note of the author, the priorities after it (owner 2026-10-29)
+    // (122:2757: promise 300 / 118, priorities 442)
+    QWidget* priorities = page->findChild<QWidget*>(QStringLiteral("priorities"));
+    QCOMPARE(page->getPromise()->y(), 300);
+    QCOMPARE(page->getPromise()->height(), 118);
+    QCOMPARE(priorities->y(), 442);
 }
 
 void AppInfoPagesTest::pixels_data()
@@ -3060,6 +3221,479 @@ void AppInfoPagesTest::columnsEdges()
     broken.show();
     QCoreApplication::processEvents();
     QVERIFY(!broken.isStacked());
+}
+
+void AppInfoPagesTest::columnsShrinkAndGrow()
+{
+    // Main and side columns of a page in the scroll area of a tab: the main column
+    // holds a responsive row (each part at least 300 wide, a row from 610), the side
+    // column a block at least 200 wide. Built wide, the page must shrink until the
+    // columns stack - the minimum of the row does not stay (the bug: a window of
+    // 1440 resized to 800 kept the page at the width of the row with a horizontal
+    // scroll bar) - and the columns go back to the row, any number of times.
+    QScrollArea area;
+    area.setFrameShape(QFrame::NoFrame);
+    area.setWidgetResizable(true);
+    area.setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    area.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget* content = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    pdf::PDFAppColumns* columns = pdf::PDFAppColumns::createMainAndSide(content);
+    contentLayout->addWidget(columns);
+    contentLayout->addStretch(1);
+
+    QWidget* leading = new QWidget();
+    leading->setMinimumSize(300, 20);
+    QWidget* trailing = new QWidget();
+    trailing->setMinimumSize(300, 20);
+    pdf::PDFAppResponsiveRow* row = new pdf::PDFAppResponsiveRow(leading, trailing, 610, 10);
+    columns->getMainLayout()->addWidget(row);
+    QWidget* sideBlock = new QWidget();
+    sideBlock->setMinimumSize(200, 40);
+    columns->getSideLayout()->addWidget(sideBlock);
+    area.setWidget(content);
+
+    // Stacked below 400 + 24 + 340 (the nested row stacks itself in a narrow main column)
+    QVERIFY(columns->isStackedAt(763));
+    QVERIFY(!columns->isStackedAt(764));
+
+    area.resize(1200, 600);
+    area.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&area));
+    InfoFixture::settle();
+    QVERIFY(!columns->isStacked());
+    QVERIFY(!row->isStacked());
+    QCOMPARE(columns->getMainColumn()->width(), 1200 - 24 - 340);
+    QCOMPARE(columns->getSideColumn()->width(), 340);
+
+    struct Step
+    {
+        int width;
+        bool isColumnsStacked;
+        bool isRowStacked;
+    };
+    const Step steps[] = {
+        { 800, false, true },   // 800 - 364 = 436 for the main column, its row stacks
+        { 700, true, false },   // below each other in the full width 700, the row beside again
+        { 500, true, true },    // the narrowest arrangement: everything stacked
+        { 1200, false, false },
+        { 700, true, false },
+        { 1200, false, false },
+        { 500, true, true },
+        { 764, false, true },
+        { 763, true, false },
+        { 1200, false, false }
+    };
+    for (const Step& step : steps)
+    {
+        area.resize(step.width, 600);
+        InfoFixture::settle();
+        const QByteArray message = QByteArray::number(step.width);
+        QVERIFY2(area.viewport()->width() == step.width, message.constData());
+        QVERIFY2(area.horizontalScrollBar()->maximum() == 0, message.constData());
+        QVERIFY2(content->width() == step.width, message.constData());
+        QVERIFY2(columns->width() == step.width, message.constData());
+        QVERIFY2(columns->isStacked() == step.isColumnsStacked, message.constData());
+        QVERIFY2(row->isStacked() == step.isRowStacked, message.constData());
+        if (step.isColumnsStacked)
+        {
+            QVERIFY2(columns->getMainColumn()->width() == step.width, message.constData());
+            QVERIFY2(columns->getSideColumn()->width() == step.width, message.constData());
+            QVERIFY2(columns->getSideColumn()->y() == columns->getMainColumn()->geometry().bottom() + 1 + pdf::PDFAppColumns::GAP, message.constData());
+        }
+        else
+        {
+            QVERIFY2(columns->getMainColumn()->width() == step.width - 24 - 340, message.constData());
+            QVERIFY2(columns->getSideColumn()->width() == 340, message.constData());
+            QVERIFY2(columns->getSideColumn()->x() == step.width - 340, message.constData());
+        }
+
+        QList<bool> states;
+        const QString failure = InfoTestHelper::checkArrangement(content, &states);
+        QVERIFY2(failure.isEmpty(), qPrintable(QString::number(step.width) + QStringLiteral(": ") + failure));
+    }
+
+    // The narrowest width of the columns is the width of the widest stacked part
+    QCOMPARE(columns->minimumSizeHint().width(), 300);
+}
+
+void AppInfoPagesTest::columnsContentMinimum()
+{
+    // A main column, whose content cannot be narrower than 500 (a fixed row of
+    // buttons): beside the side column only from 500 + 24 + 340 = 864, a narrower
+    // row would squeeze the content below its minimum
+    QScrollArea area;
+    area.setFrameShape(QFrame::NoFrame);
+    area.setWidgetResizable(true);
+    area.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget* content = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    pdf::PDFAppColumns* columns = pdf::PDFAppColumns::createMainAndSide(content);
+    contentLayout->addWidget(columns);
+    QWidget* block = new QWidget();
+    block->setMinimumSize(500, 30);
+    columns->getMainLayout()->addWidget(block);
+    area.setWidget(content);
+
+    QVERIFY(columns->isStackedAt(863));
+    QVERIFY(!columns->isStackedAt(864));
+
+    area.resize(1200, 400);
+    area.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&area));
+    InfoFixture::settle();
+    QVERIFY(!columns->isStacked());
+
+    for (const int width : { 800, 1200, 864, 863, 600, 900 })
+    {
+        area.resize(width, 400);
+        InfoFixture::settle();
+        const QByteArray message = QByteArray::number(width);
+        QVERIFY2(area.horizontalScrollBar()->maximum() == 0, message.constData());
+        QVERIFY2(columns->isStacked() == (width < 864), message.constData());
+        QVERIFY2(block->width() >= 500, message.constData());
+        QVERIFY2(columns->getMainColumn()->width() == (width < 864 ? width : width - 24 - 340), message.constData());
+    }
+
+    // The content grows while the columns are in a row (no resize of the page):
+    // the columns stack, so the content keeps its minimum; it shrinks - a row again
+    area.resize(900, 400);
+    InfoFixture::settle();
+    QVERIFY(!columns->isStacked());
+    block->setMinimumWidth(600);
+    InfoFixture::settle();
+    QVERIFY(columns->isStacked());
+    QVERIFY(block->width() >= 600);
+    QCOMPARE(area.horizontalScrollBar()->maximum(), 0);
+    block->setMinimumWidth(500);
+    InfoFixture::settle();
+    QVERIFY(!columns->isStacked());
+    QCOMPARE(columns->getMainColumn()->width(), 900 - 24 - 340);
+}
+
+void AppInfoPagesTest::responsiveRowShrinkAndGrow()
+{
+    // A row of parts at least 300 and 200 wide with the threshold 400 of the page:
+    // the parts fit beside each other only from 300 + 10 + 200 = 510. Built wide,
+    // the row shrinks to the width of its widest part (stacked) and goes back.
+    QScrollArea area;
+    area.setFrameShape(QFrame::NoFrame);
+    area.setWidgetResizable(true);
+    area.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget* content = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    QWidget* leading = new QWidget();
+    leading->setMinimumSize(300, 20);
+    QWidget* trailing = new QWidget();
+    trailing->setMinimumSize(200, 20);
+    pdf::PDFAppResponsiveRow* row = new pdf::PDFAppResponsiveRow(leading, trailing, 400, 10);
+    contentLayout->addWidget(row);
+    contentLayout->addStretch(1);
+    area.setWidget(content);
+
+    area.resize(900, 300);
+    area.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&area));
+    InfoFixture::settle();
+    QVERIFY(!row->isStacked());
+    QCOMPARE(row->minimumSizeHint().width(), 300);
+
+    for (const int width : { 450, 900, 509, 510, 320, 900, 300, 600 })
+    {
+        area.resize(width, 300);
+        InfoFixture::settle();
+        const QByteArray message = QByteArray::number(width);
+        QVERIFY2(area.horizontalScrollBar()->maximum() == 0, message.constData());
+        QVERIFY2(row->width() == width, message.constData());
+        QVERIFY2(row->isStacked() == (width < 510), message.constData());
+        QVERIFY2(leading->width() >= 300 && trailing->width() >= 200, message.constData());
+        QVERIFY2(trailing->geometry().right() < width, message.constData());
+        QVERIFY2(row->minimumSizeHint().width() == 300, message.constData());
+    }
+
+    // A part grows, while the parts are beside each other (no resize of the row):
+    // the row stacks (300 + 10 + 320 > 600); the part shrinks - beside each other again
+    QVERIFY(!row->isStacked());
+    trailing->setMinimumWidth(320);
+    InfoFixture::settle();
+    QVERIFY(row->isStacked());
+    QVERIFY(trailing->geometry().right() < 600);
+    QCOMPARE(row->minimumSizeHint().width(), 320);
+    trailing->setMinimumWidth(200);
+    InfoFixture::settle();
+    QVERIFY(!row->isStacked());
+    QCOMPARE(leading->y(), trailing->y());
+}
+
+void AppInfoPagesTest::sectionHeaderNarrow()
+{
+    // The header of Connect an assistant (653:5686) with its hint: beside each
+    // other the title keeps its line (the hint wraps in the rest), narrower than
+    // the title + 12 + the longest word of the hint the hint goes below the title
+    // at the leading side, the title wraps only in a header narrower than itself
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        QWidget parent;
+        parent.setLayoutDirection(direction);
+        QVBoxLayout* layout = new QVBoxLayout(&parent);
+        layout->setContentsMargins(0, 0, 0, 0);
+        pdf::PDFAppParagraph* hint = pdf::PDFAppPageWidgets::createHint(QStringLiteral("Pick your assistant – the commands are prepared for this server"), nullptr);
+        pdf::PDFAppSectionHeader* header = pdf::PDFAppPageWidgets::createSectionHeader(QStringLiteral("Connect an assistant"), hint, &parent);
+        layout->addWidget(header);
+        layout->addStretch(1);
+        pdf::PDFAppParagraph* title = header->getTitleLabel();
+
+        const int titleWidth = title->sizeHint().width();
+        const int hintWord = hint->minimumSizeHint().width();
+        const int threshold = titleWidth + pdf::PDFAppSectionHeader::ROW_SPACING + hintWord;
+        QVERIFY(header->isStackedAt(threshold - 1));
+        QVERIFY(!header->isStackedAt(threshold));
+        QCOMPARE(header->minimumSizeHint().width(), qMax(title->minimumSizeHint().width(), hintWord));
+
+        parent.resize(1100, 200);
+        parent.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&parent));
+        InfoFixture::settle();
+
+        for (const int width : { 1100, threshold, threshold - 1, titleWidth, titleWidth - 1, title->minimumSizeHint().width(), threshold + 40, 1100 })
+        {
+            parent.resize(width, 200);
+            InfoFixture::settle();
+            const QString message = QStringLiteral("%1 at %2: ").arg(direction).arg(width);
+            QVERIFY2(header->width() == width, qPrintable(message));
+            QVERIFY2(header->isStacked() == (width < threshold), qPrintable(message));
+            QVERIFY2((title->getLines(title->width()).size() > 1) == (width < titleWidth), qPrintable(message + QStringLiteral("title lines %1").arg(title->getLines(title->width()).size())));
+            QVERIFY2(hint->geometry().right() < width && hint->x() >= 0, qPrintable(message));
+            if (header->isStacked())
+            {
+                // Below the title, 4 px apart, at the leading side
+                QVERIFY2(hint->y() == title->geometry().bottom() + 1 + pdf::PDFAppSectionHeader::STACKED_SPACING, qPrintable(message));
+                QVERIFY2(direction == Qt::LeftToRight ? hint->x() == 0 : hint->geometry().right() == width - 1, qPrintable(message));
+            }
+            else
+            {
+                // Beside each other: the title at the leading side on one line, the hint 12 px after it
+                QVERIFY2(title->height() >= 18 && title->y() == 0 && hint->y() >= 0, qPrintable(message));
+                const QRect titleRect = QStyle::visualRect(direction, header->rect(), title->geometry());
+                const QRect hintRect = QStyle::visualRect(direction, header->rect(), hint->geometry());
+                QVERIFY2(titleRect.x() == 0 && titleRect.width() >= titleWidth, qPrintable(message));
+                QVERIFY2(hintRect.x() >= titleRect.right() + 1 + pdf::PDFAppSectionHeader::ROW_SPACING, qPrintable(message));
+            }
+            QList<bool> states;
+            const QString failure = InfoTestHelper::checkArrangement(&parent, &states);
+            QVERIFY2(failure.isEmpty(), qPrintable(message + failure));
+        }
+
+        // The hint hidden, deleted: the title alone in the whole width; a new one
+        parent.resize(threshold - 30, 200);
+        InfoFixture::settle();
+        QVERIFY(header->isStacked());
+        hint->hide();
+        InfoFixture::settle();
+        QVERIFY(!header->isStacked());
+        QCOMPARE(title->width(), threshold - 30);
+        hint->show();
+        InfoFixture::settle();
+        QVERIFY(header->isStacked());
+        delete hint;
+        InfoFixture::settle();
+        QVERIFY(!header->isStacked());
+        QCOMPARE(title->minimumWidth(), 0);
+        header->setTrailingWidget(pdf::PDFAppPageWidgets::createHint(QStringLiteral("A hint"), nullptr));
+        InfoFixture::settle();
+        QVERIFY(!header->isStacked());
+        QCOMPARE(title->minimumWidth(), titleWidth);
+        QCOMPARE(title->getLines(title->width()).size(), 1);
+    }
+}
+
+void AppInfoPagesTest::columnsScrollBarAtThreshold()
+{
+    // A plain scroll area (no overlay scroll bars, as the properties page): its
+    // vertical scroll bar takes the width of the viewport. The main column holds a
+    // long wrapped text, which is taller in the narrow main column of the row than
+    // stacked in the full width (with the short side column below it). At a width
+    // just above the threshold, in a height between the two: the row needs the
+    // scroll bar, which makes the viewport narrower than the threshold (stacked),
+    // the stacked columns do not need it, which makes the viewport wide enough for
+    // the row again - the arrangement must settle, not flip at each layout request.
+    QScrollArea area;
+    area.setFrameShape(QFrame::NoFrame);
+    area.setWidgetResizable(true);
+    area.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area.setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    QWidget* content = new QWidget();
+    QVBoxLayout* contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    pdf::PDFAppColumns* columns = pdf::PDFAppColumns::createMainAndSide(content);
+    contentLayout->addWidget(columns);
+    contentLayout->addStretch(1);
+    QLabel* text = new QLabel(QStringLiteral("word ").repeated(1500).trimmed());
+    text->setWordWrap(true);
+    columns->getMainLayout()->addWidget(text);
+    QWidget* sideBlock = new QWidget();
+    sideBlock->setFixedHeight(20);
+    columns->getSideLayout()->addWidget(sideBlock);
+    area.setWidget(content);
+
+    const int threshold = pdf::PDFAppColumns::MINIMUM_MAIN_WIDTH + pdf::PDFAppColumns::GAP + pdf::PDFAppColumns::SIDE_WIDTH;
+    // (stacked columns of a width, which has no scroll area yet, would add the hysteresis)
+    QVERIFY(columns->isStackedAt(threshold - 1));
+    QVERIFY(columns->isStacked() || !columns->isStackedAt(threshold));
+    const int scrollBar = area.verticalScrollBar()->sizeHint().width();
+    QVERIFY(scrollBar >= 4);
+
+    const int width = threshold + scrollBar / 2;
+    const int rowHeight = text->heightForWidth(width - pdf::PDFAppColumns::GAP - pdf::PDFAppColumns::SIDE_WIDTH);
+    const int stackedHeight = text->heightForWidth(width) + pdf::PDFAppColumns::GAP + 20;
+    QVERIFY2(stackedHeight + 40 < rowHeight, qPrintable(QStringLiteral("%1 / %2").arg(stackedHeight).arg(rowHeight)));
+
+    const int height = (rowHeight + stackedHeight) / 2;
+    area.resize(width, height);
+    area.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&area));
+
+    // Widths around the threshold, each reached from the previous one: the
+    // arrangement changes at most a few times in single rounds of the event loop
+    // and then stays; stacked columns go back to the row only, when it fits with
+    // the scroll bar (threshold + scroll bar)
+    struct Step
+    {
+        int width;
+        int isStacked; ///< -1 = either (the hysteresis band)
+    };
+    const Step steps[] = {
+        { width, 1 },
+        { threshold + scrollBar, 0 },
+        { width, 1 },
+        { threshold + scrollBar - 1, 1 },
+        { threshold + 200, 0 },
+        { threshold + scrollBar - 1, -1 },
+        { threshold - 1, 1 },
+        { width, 1 }
+    };
+    for (const Step& step : steps)
+    {
+        area.resize(step.width, height);
+        const QString message = QStringLiteral("%1: ").arg(step.width);
+        int changes = 0;
+        bool isStacked = columns->isStacked();
+        for (int i = 0; i < 60; ++i)
+        {
+            QCoreApplication::processEvents();
+            if (columns->isStacked() != isStacked)
+            {
+                isStacked = columns->isStacked();
+                ++changes;
+                QVERIFY2(i < 30, qPrintable(message + QStringLiteral("the arrangement still changes after %1 rounds (%2 changes)").arg(i).arg(changes)));
+            }
+        }
+        QVERIFY2(changes <= 2, qPrintable(message + QStringLiteral("%1 changes").arg(changes)));
+        if (step.isStacked >= 0)
+        {
+            QVERIFY2(columns->isStacked() == bool(step.isStacked), qPrintable(message + QStringLiteral("stacked %1").arg(columns->isStacked())));
+        }
+
+        // The settled arrangement is consistent: no part narrower than its content,
+        // no horizontal overflow, the state follows the width
+        InfoFixture::settle();
+        QVERIFY2(columns->isStacked() == isStacked, qPrintable(message));
+        QVERIFY2(columns->isStacked() == columns->isStackedAt(columns->width()), qPrintable(message));
+        QVERIFY2(columns->width() <= area.viewport()->width(), qPrintable(message));
+        QList<bool> states;
+        const QString failure = InfoTestHelper::checkArrangement(content, &states);
+        QVERIFY2(failure.isEmpty(), qPrintable(message + failure));
+    }
+}
+
+void AppInfoPagesTest::pagesShrinkAndGrow_data()
+{
+    QTest::addColumn<QString>("route");
+
+    QStringList routes = { QStringLiteral("/home"), QStringLiteral("/open"), QStringLiteral("/recent"), QStringLiteral("/about"),
+                           QStringLiteral("/support"), QStringLiteral("/sponsor"), QStringLiteral("/whats-new"), QStringLiteral("/whats-new/1.6.0/notes"),
+                           QStringLiteral("/help/getting-started"), QStringLiteral("/search?q=page"), QStringLiteral("/tools"),
+                           QStringLiteral("/tools?q=merge"), QStringLiteral("/tools/collections"), QStringLiteral("/tools/collections/new"),
+                           QStringLiteral("/tools/merge"), QStringLiteral("/ai"), QStringLiteral("/settings?q=color"), QStringLiteral("/not-a-page") };
+    for (const QString& section : pdf::PDFAppSettingsSectionRegistry::getSectionIds())
+    {
+        routes.append(QStringLiteral("/settings/") + section);
+    }
+    for (const QString& route : routes)
+    {
+        QTest::newRow(qPrintable(route)) << route;
+    }
+}
+
+void AppInfoPagesTest::pagesShrinkAndGrow()
+{
+    // Every page in a window resized down and up again (a page built wide must
+    // stack its columns, when the window shrinks, and go back to a row): no
+    // horizontal scroll bar at any width of at least the minimal window, the
+    // helpers arranged by their widths, the same arrangement at the same width
+    QFETCH(QString, route);
+
+    // The banner of the portable mode stays (its buttons go below its text in a narrow page)
+    InfoFixture fixture;
+    fixture.navigate(route);
+    QPointer<pdf::PDFAppPage> page = fixture.currentPage();
+    QVERIFY(page);
+    pdf::PDFAppWorkspaceTab* tab = qobject_cast<pdf::PDFAppWorkspaceTab*>(fixture.currentTab());
+    QVERIFY(tab);
+    QScrollArea* scrollArea = tab->getPageScrollArea();
+    QVERIFY(scrollArea);
+
+    std::map<int, QList<bool>> statesOfWidth;
+    for (const int width : { 1440, 800, 720, 1440, 800, 1100, 720, 1440, 800 })
+    {
+        fixture.window->resize(width, 700);
+        // Each level of the nested layouts of a page takes a round of the event loop
+        for (int i = 0; i < 4; ++i)
+        {
+            InfoFixture::settle();
+        }
+        QCOMPARE(fixture.window->width(), width);
+        QCOMPARE(fixture.currentPage(), page.data());
+
+        const QString message = route + QStringLiteral(" at ") + QString::number(width) + QStringLiteral(": ");
+        QVERIFY2(scrollArea->horizontalScrollBar()->maximum() == 0, qPrintable(message + QStringLiteral("horizontal scroll range %1, page %2, viewport %3").arg(scrollArea->horizontalScrollBar()->maximum()).arg(page->width()).arg(scrollArea->viewport()->width())));
+        QVERIFY2(page->width() <= scrollArea->viewport()->width(), qPrintable(message + QStringLiteral("page wider than the viewport")));
+
+        QList<bool> states;
+        const QString failure = InfoTestHelper::checkArrangement(page, &states);
+        QVERIFY2(failure.isEmpty(), qPrintable(message + failure));
+
+        // The same arrangement at the same width (down and up, any number of times)
+        auto it = statesOfWidth.find(width);
+        if (it == statesOfWidth.end())
+        {
+            statesOfWidth[width] = states;
+        }
+        else
+        {
+            QVERIFY2(it->second == states, qPrintable(message + QStringLiteral("another arrangement than before at this width")));
+        }
+
+        // The main and the side column of the design: a row in the wide window,
+        // below each other in the narrow ones (the page is narrower than 400 + 24 + 340)
+        for (pdf::PDFAppColumns* columns : page->findChildren<pdf::PDFAppColumns*>())
+        {
+            if (columns->isVisibleTo(page) && columns->getSideColumn() && columns->getSideColumn()->objectName() == QStringLiteral("sideColumn"))
+            {
+                if (width == 1440)
+                {
+                    QVERIFY2(!columns->isStacked(), qPrintable(message + QStringLiteral("main and side columns stacked")));
+                }
+                if (width <= 800)
+                {
+                    QVERIFY2(columns->isStacked(), qPrintable(message + QStringLiteral("main and side columns in a row")));
+                }
+            }
+        }
+    }
 }
 
 void AppInfoPagesTest::sectionHeader()

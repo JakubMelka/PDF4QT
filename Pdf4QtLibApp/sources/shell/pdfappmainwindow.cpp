@@ -34,7 +34,9 @@
 #include "pdfapptab.h"
 #include "pdfapptopbar.h"
 #include "pdfappwindowframe.h"
+#include "pdfappwindowgeometry.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfsettingdefinitions.h"
 #include "pdfshortcutrepository.h"
 #include "pdfworkspacerepository.h"
 
@@ -131,7 +133,7 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
 
     // PDF files dropped anywhere onto the window are opened (step 2)
     setAcceptDrops(true);
-    setGeometry(PDFAppMainWindowHelper::getInitialGeometry(this));
+    applyInitialGeometry();
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -173,6 +175,10 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
         }
         connect(context, &PDFAppContext::openRequested, this, &PDFAppMainWindow::onOpenRequested);
     }
+
+    // The geometry is stored also, when the application quits without the closing
+    // of the window (QCoreApplication::quit, the end of the session of the system)
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &PDFAppMainWindow::onAboutToQuit);
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMainWindow::update));
 
     // The Home tab with its Home page
@@ -1491,7 +1497,7 @@ std::vector<PDFAppOpenDocument> PDFAppMainWindow::getOpenDocuments() const
         openDocument.path = document->getFilePath();
         openDocument.title = tab->getTabTitle();
         openDocument.pageCount = int(qMin<PDFInteger>(document->getPageCount(), std::numeric_limits<int>::max()));
-        const PDFInteger pageIndex = tab->getView() ? tab->getView()->getCurrentPageIndex() : -1;
+        const PDFInteger pageIndex = tab->getView() ? tab->getView()->getDisplayedPageIndex() : -1;
         openDocument.page = pageIndex >= 0 ? int(qMin<PDFInteger>(pageIndex + 1, std::numeric_limits<int>::max())) : 0;
         openDocument.isModified = document->isModified();
         documents.push_back(std::move(openDocument));
@@ -1709,6 +1715,148 @@ void PDFAppMainWindow::saveLastSession()
     }
 }
 
+void PDFAppMainWindow::storeGeometry()
+{
+    if (!m_context || !m_context->getDatabase() || !isVisible())
+    {
+        return;
+    }
+
+    // Full screen is stored as the state below it, minimized as the state, which
+    // the window restores (Qt keeps the maximized flag of a minimized window)
+    const bool isMaximizedState = m_isFullScreenMode ? m_windowStateBeforeFullScreen.testFlag(Qt::WindowMaximized) : windowState().testFlag(Qt::WindowMaximized);
+    PDFAppWindowGeometry geometry = PDFAppWindowGeometry::fromWindow(this, isMaximizedState);
+    if (geometry.isValid())
+    {
+        geometry = PDFAppWindowGeometry(getRememberedNormalGeometry(), isMaximizedState, geometry.getScreenName(), geometry.getScreenGeometry());
+    }
+
+    const QString text = geometry.toText();
+    if (text.isEmpty())
+    {
+        return;
+    }
+
+    PDFSettingsRepository settings = m_context->getSettings();
+    if (settings.getString(PDFSettingKeys::windowGeometry()) == text)
+    {
+        return;
+    }
+
+    const PDFDatabaseError error = settings.setValue(PDFSettingKeys::windowGeometry(), text);
+    if (error.isError())
+    {
+        qWarning("The geometry of the window cannot be stored: %s", qPrintable(error.toString()));
+    }
+}
+
+void PDFAppMainWindow::onAboutToQuit()
+{
+    // The slots of aboutToQuit run in the order of the creation of the windows: an
+    // inactive window gives the place to the active one, which may store later
+    const PDFAppMainWindow* activeWindow = qobject_cast<const PDFAppMainWindow*>(QApplication::activeWindow());
+    if (activeWindow && activeWindow != this && activeWindow->isVisible())
+    {
+        return;
+    }
+    storeGeometry();
+}
+
+QRect PDFAppMainWindow::getRememberedNormalGeometry() const
+{
+    // The normal geometry of a maximized, full screen or minimized window is the one
+    // seen last in the normal state; the normal geometry of Qt is taken only when
+    // the system has moved the window to another screen (Win+Shift+Arrow)
+    const QRect normalGeometry = this->normalGeometry().isValid() ? this->normalGeometry() : geometry();
+    if (m_normalGeometry.isValid() && windowState().testAnyFlags(Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen) &&
+        QGuiApplication::screenAt(m_normalGeometry.center()) == QGuiApplication::screenAt(normalGeometry.center()))
+    {
+        return m_normalGeometry;
+    }
+    return normalGeometry;
+}
+
+const PDFAppMainWindow* PDFAppMainWindow::findOtherWindow() const
+{
+    const PDFAppMainWindow* activeWindow = qobject_cast<const PDFAppMainWindow*>(QApplication::activeWindow());
+    if (activeWindow && activeWindow != this && activeWindow->isVisible())
+    {
+        return activeWindow;
+    }
+
+    for (QWidget* widget : QApplication::topLevelWidgets())
+    {
+        const PDFAppMainWindow* window = qobject_cast<const PDFAppMainWindow*>(widget);
+        if (window && window != this && window->isVisible())
+        {
+            return window;
+        }
+    }
+    return nullptr;
+}
+
+void PDFAppMainWindow::applyInitialGeometry()
+{
+    const std::vector<PDFAppWindowGeometry::Screen> screens = PDFAppWindowGeometry::getScreens();
+
+    // Another window of the process (a forwarded request, a new window): next to
+    // it, never exactly over it
+    if (const PDFAppMainWindow* otherWindow = findOtherWindow())
+    {
+        const QRect otherGeometry = otherWindow->getRememberedNormalGeometry();
+        setGeometry(QRect(PDFAppWindowGeometry::cascade(otherGeometry, screens).topLeft(), otherGeometry.size().expandedTo(minimumSize())));
+        m_normalGeometry = geometry();
+        return;
+    }
+
+    // The first window: the geometry of the last closed window (a value, which
+    // cannot be placed, is the default)
+    if (m_context && m_context->getDatabase())
+    {
+        const PDFAppWindowGeometry stored = PDFAppWindowGeometry::fromText(m_context->getSettings().getString(PDFSettingKeys::windowGeometry()));
+        QRect geometry;
+        if (stored.place(screens, minimumSize(), &geometry))
+        {
+            setGeometry(geometry);
+            m_normalGeometry = geometry;
+            if (stored.isMaximized())
+            {
+                // Shown maximized at once; the geometry above is the normal geometry
+                // of Restore (QWidget::setWindowState keeps it)
+                setWindowState(windowState() | Qt::WindowMaximized);
+            }
+            return;
+        }
+    }
+
+    setGeometry(PDFAppMainWindowHelper::getInitialGeometry(this));
+    m_normalGeometry = this->geometry();
+}
+
+void PDFAppMainWindow::moveEvent(QMoveEvent* event)
+{
+    BaseClass::moveEvent(event);
+    updateNormalGeometry();
+}
+
+void PDFAppMainWindow::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateNormalGeometry();
+}
+
+void PDFAppMainWindow::updateNormalGeometry()
+{
+    // The system maximizes a window (its button, a double click of the caption,
+    // Win+Up, Aero Snap at the top edge) by a new geometry, which Qt delivers before
+    // the new state: the native state of the window decides
+    if (isVisible() && !windowState().testAnyFlags(Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen) &&
+        (!m_frame || m_frame->isNativeNormalState()))
+    {
+        m_normalGeometry = geometry();
+    }
+}
+
 void PDFAppMainWindow::closeEvent(QCloseEvent* event)
 {
     // The server stops listening before the questions about unsaved changes and it
@@ -1759,8 +1907,10 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
         server->quit();
     }
 
-    // The documents of the window are the last session (Restore last session)
+    // The documents of the window are the last session (Restore last session), the
+    // geometry of the window is the geometry of the next start
     saveLastSession();
+    storeGeometry();
     event->accept();
 }
 

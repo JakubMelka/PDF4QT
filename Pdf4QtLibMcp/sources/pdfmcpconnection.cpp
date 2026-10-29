@@ -24,6 +24,7 @@
 #include "pdfmcpassistants.h"
 #include "pdfmcpdispatcher.h"
 #include "pdfmcperrorcodes.h"
+#include "pdfthreadannotations.h"
 #include "pdfmcpserver.h"
 #include "pdfmcpsse.h"
 
@@ -86,6 +87,7 @@ bool PDFMcpExchange::queue(QByteArray data, bool finish, bool closeConnection)
         // The connection lives while it is attached (its destructor detaches it
         // under this mutex); an event posted to it is removed with it
         m_isNotified = true;
+        PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(m_connection, &PDFMcpConnection::flushExchange, Qt::QueuedConnection);
     }
     return true;

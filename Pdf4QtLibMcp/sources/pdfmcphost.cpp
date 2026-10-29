@@ -22,6 +22,7 @@
 
 
 #include "pdfmcphost.h"
+#include "pdfthreadannotations.h"
 
 namespace pdf
 {
@@ -34,9 +35,9 @@ PDFMcpHost::PDFMcpHost(QObject* parent) :
 
 PDFMcpHost::~PDFMcpHost() = default;
 
-void PDFMcpHost::callCanceled(std::shared_ptr<PDFMcpCall> call)
+void PDFMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
 {
-    Q_UNUSED(call);
+    PDFThreadAnnotations::happensAfter(call.get());
 }
 
 }   // namespace pdf

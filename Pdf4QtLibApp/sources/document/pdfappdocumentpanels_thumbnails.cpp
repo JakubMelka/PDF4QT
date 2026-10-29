@@ -25,6 +25,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpanelcommands.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
@@ -45,8 +46,10 @@
 #include <QItemSelectionModel>
 #include <QLocale>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPixmapCache>
 #include <QResizeEvent>
+#include <QScrollBar>
 #include <QSlider>
 #include <QTimer>
 #include <QToolButton>
@@ -540,6 +543,33 @@ void PDFAppThumbnailListView::contextMenuEvent(QContextMenuEvent* event)
     event->accept();
 }
 
+void PDFAppThumbnailListView::mousePressEvent(QMouseEvent* event)
+{
+    // Qt selects a page outside of the selection by the right button: the panel
+    // takes it as the page of the context menu (the canvas stays)
+    QPointer<PDFAppThumbnailListView> self(this);
+    const bool wasContextClick = m_isContextClick;
+    m_isContextClick = event->button() == Qt::RightButton;
+    BaseClass::mousePressEvent(event);
+    if (self)
+    {
+        m_isContextClick = wasContextClick;
+    }
+}
+
+void PDFAppThumbnailListView::mouseReleaseEvent(QMouseEvent* event)
+{
+    // A style activating the items by a single click activates them also by the right button
+    QPointer<PDFAppThumbnailListView> self(this);
+    const bool wasContextClick = m_isContextClick;
+    m_isContextClick = event->button() == Qt::RightButton;
+    BaseClass::mouseReleaseEvent(event);
+    if (self)
+    {
+        m_isContextClick = wasContextClick;
+    }
+}
+
 PDFAppThumbnailsPanel::PDFAppThumbnailsPanel(QWidget* parent) :
     BaseClass(parent)
 {
@@ -665,25 +695,37 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
     if (view && m_connectedView != view)
     {
         connect(view, &PDFAppDocumentView::currentPageChanged, this, &PDFAppThumbnailsPanel::onCurrentPageChanged);
+        connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppThumbnailsPanel::onCanvasViewChanged);
         connect(view, &QObject::destroyed, this, &PDFAppThumbnailsPanel::onConnectedViewDestroyed);
     }
     m_connectedDocument = document;
     m_connectedView = view;
+    m_lastCurrentPageIndex = -1;
+    m_shownSelectedPage = -1;
+    m_userSelectedPage = -1;
 
     if (m_scheduler)
     {
         m_scheduler->setProxy(view ? view->getProxy() : nullptr);
     }
-    applyDocument();
+    applyDocument(false);
 }
 
-void PDFAppThumbnailsPanel::applyDocument()
+void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion)
 {
     PDFAppDocument* document = getDocument();
-    if (!m_model)
+    if (!m_model || !m_view)
     {
         return;
     }
+
+    // A new version of the document (Rotate, undo, an annotation) keeps the selection
+    // of the user and the scroll position of the list: the next click of the user
+    // lands on the page, which he sees there
+    const std::vector<PDFInteger> selection = isNewVersion ? getSelectedPages() : std::vector<PDFInteger>();
+    const PDFInteger userSelectedPage = m_userSelectedPage;
+    const int scrollPosition = m_view->verticalScrollBar()->value();
+    const int rowCount = m_model->rowCount();
 
     PDFDocumentPointer pointer = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
     m_model->setDocument(pointer, document ? document->getId() : QString());
@@ -692,9 +734,37 @@ void PDFAppThumbnailsPanel::applyDocument()
         m_scheduler->reset();
     }
 
+    std::vector<PDFInteger> keptSelection;
+    for (const PDFInteger page : selection)
+    {
+        if (page < m_model->rowCount())
+        {
+            keptSelection.push_back(page);
+        }
+    }
+
+    // The page chosen by the user stays chosen (the reset of the rows has cleared it)
+    m_userSelectedPage = keptSelection.size() == 1 && keptSelection.front() == userSelectedPage ? userSelectedPage : -1;
+
     // The synchronized selection is reported at once: a slot may delete the panel
     QPointer<PDFAppThumbnailsPanel> self(this);
-    syncToCurrentPage(true);
+    if (keptSelection.empty())
+    {
+        syncToCurrentPage(true);
+    }
+    else if (m_model->rowCount() != rowCount)
+    {
+        // The rows are new (another number of pages): the valid part of the
+        // selection and the scroll position are given back
+        m_view->doItemsLayout();
+        m_view->verticalScrollBar()->setValue(scrollPosition);
+        selectPages(keptSelection);
+    }
+    else if (keptSelection != getSelectedPages())
+    {
+        selectPages(keptSelection);
+    }
+
     if (self)
     {
         Q_EMIT titleChanged();
@@ -706,13 +776,8 @@ void PDFAppThumbnailsPanel::onDocumentChanged(const PDFModifiedDocument& modifie
     Q_UNUSED(modified);
 
     // A new version of the document: new keys of the pictures (also, when the
-    // number of pages is the same, a page may be different)
-    const std::vector<PDFInteger> selection = getSelectedPages();
-    applyDocument();
-    if (selection.size() > 1)
-    {
-        selectPages(selection);
-    }
+    // number of pages is the same, a page may be different), the rows stay
+    applyDocument(true);
 }
 
 void PDFAppThumbnailsPanel::onConnectedViewDestroyed()
@@ -860,11 +925,17 @@ void PDFAppThumbnailsPanel::onSyncToggled(bool checked)
 
 void PDFAppThumbnailsPanel::onCurrentPageChanged(PDFInteger pageIndex)
 {
-    Q_UNUSED(pageIndex);
+    // The view announces its current page also after a new version of the document,
+    // when the page has stayed: only a move of the canvas changes the selection
+    const bool isMoved = pageIndex != m_lastCurrentPageIndex;
+    m_lastCurrentPageIndex = pageIndex;
 
     // The synchronized selection is reported at once: a slot may delete the panel
     QPointer<PDFAppThumbnailsPanel> self(this);
-    syncToCurrentPage(false);
+    if (isMoved)
+    {
+        syncToCurrentPage(false);
+    }
     if (!self)
     {
         return;
@@ -881,16 +952,23 @@ void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
     }
 
     const PDFInteger page = view->getCurrentPageIndex();
+    m_lastCurrentPageIndex = page;
     if (page < 0 || page >= m_model->rowCount())
     {
         return;
     }
 
     // A selection of more pages is kept (the user works with it), only the
-    // current page is shown
-    const QModelIndex index = m_model->index(int(page));
-    if (getSelectedPages().size() <= 1)
+    // current page is shown. One page chosen by the user and seen in the canvas is
+    // kept too (the right page of a row of two pages is not the current page, the
+    // left one is): the selection follows the canvas, when its page has left the
+    // canvas. A page selected by the sync follows the current page.
+    const std::vector<PDFInteger> selection = getSelectedPages();
+    const bool isSelectionShown = selection.size() == 1 && selection.front() == m_userSelectedPage && view->isPageShown(selection.front());
+    const QModelIndex index = m_model->index(int(isSelectionShown ? selection.front() : page));
+    if (selection.size() <= 1 && !isSelectionShown)
     {
+        m_userSelectedPage = -1;
         const bool wasSyncing = m_isSyncing;
         m_isSyncing = true;
         m_view->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
@@ -908,12 +986,73 @@ void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
     {
         m_view->scrollTo(index, QAbstractItemView::EnsureVisible);
     }
+    updateShownSelectedPage();
+}
+
+void PDFAppThumbnailsPanel::onCanvasViewChanged()
+{
+    // The selected page has left the canvas also without a change of the current page
+    // (the canvas scrolled up: the page below the current page leaves at the bottom),
+    // the selection follows the canvas. Only a page, which was seen - a page selected
+    // outside of the canvas (the right button) stays until the current page changes.
+    // The view emits viewChanged at every scroll and zoom: one search of the shown
+    // pages, no list of a selection of more pages (Select all of 2000 pages)
+    PDFAppDocumentView* view = getView();
+    if (!view || !m_isSyncEnabled || m_userSelectedPage < 0)
+    {
+        m_shownSelectedPage = -1;
+        return;
+    }
+
+    const PDFInteger selectedPage = getSingleSelectedPage() == m_userSelectedPage ? m_userSelectedPage : -1;
+    const bool isShown = selectedPage >= 0 && view->isPageShown(selectedPage);
+    if (!isShown && selectedPage >= 0 && selectedPage == m_shownSelectedPage && view->getCurrentPageIndex() >= 0)
+    {
+        // The synchronized selection is reported at once: a slot may delete the panel
+        syncToCurrentPage(false);
+        return;
+    }
+    m_shownSelectedPage = isShown ? selectedPage : -1;
+}
+
+void PDFAppThumbnailsPanel::updateShownSelectedPage()
+{
+    PDFAppDocumentView* view = getView();
+    const PDFInteger selectedPage = m_userSelectedPage >= 0 && getSingleSelectedPage() == m_userSelectedPage ? m_userSelectedPage : -1;
+    const bool isShown = view && selectedPage >= 0 && view->isPageShown(selectedPage);
+    m_shownSelectedPage = isShown ? selectedPage : -1;
+}
+
+PDFInteger PDFAppThumbnailsPanel::getSingleSelectedPage() const
+{
+    if (!m_view || !m_view->selectionModel())
+    {
+        return -1;
+    }
+
+    // One range of one row (the usual selection) without the list of the indices;
+    // other ranges are counted by getSelectedPages (they may overlap)
+    const QItemSelection selection = m_view->selectionModel()->selection();
+    if (selection.size() == 1)
+    {
+        const QItemSelectionRange& range = selection.front();
+        return range.isValid() && range.top() == range.bottom() ? PDFInteger(range.top()) : -1;
+    }
+    if (selection.isEmpty())
+    {
+        return -1;
+    }
+
+    const std::vector<PDFInteger> pages = getSelectedPages();
+    return pages.size() == 1 ? pages.front() : -1;
 }
 
 void PDFAppThumbnailsPanel::onViewClicked(const QModelIndex& index)
 {
-    // A click without a modifier goes to the page also, when it is selected already
-    if (index.isValid() && getSelectedPages().size() == 1)
+    // A click without a modifier goes to the page also, when it is selected already;
+    // Ctrl + click, which leaves another page selected, goes nowhere
+    const std::vector<PDFInteger> selection = getSelectedPages();
+    if (index.isValid() && selection.size() == 1 && selection.front() == index.row() && m_view && !m_view->isContextClick())
     {
         scheduleGoToPage(index.row());
     }
@@ -921,7 +1060,7 @@ void PDFAppThumbnailsPanel::onViewClicked(const QModelIndex& index)
 
 void PDFAppThumbnailsPanel::onViewActivated(const QModelIndex& index)
 {
-    if (index.isValid())
+    if (index.isValid() && m_view && !m_view->isContextClick())
     {
         scheduleGoToPage(index.row());
     }
@@ -961,11 +1100,12 @@ void PDFAppThumbnailsPanel::updateViewSelection()
     }
 
     std::vector<PDFInteger> pages = getSelectedPages();
+    const PDFInteger chosenPage = pages.size() == 1 && pages.front() == m_userSelectedPage ? m_userSelectedPage : -1;
     if (pages.size() == 1 && pages.front() == view->getCurrentPageIndex())
     {
         pages.clear();
     }
-    view->setSelectedPages(std::move(pages));
+    view->setSelectedPages(std::move(pages), chosenPage);
 }
 
 void PDFAppThumbnailsPanel::onSelectionChanged()
@@ -975,7 +1115,13 @@ void PDFAppThumbnailsPanel::onSelectionChanged()
     // survive the deletion of its view inside of its own signal)
     if (!m_isSyncing)
     {
-        m_isUserSelectionPending = true;
+        // A page selected by the right button is the page of the context menu: the
+        // canvas stays (the user may rotate a page, which he does not read)
+        m_isUserSelectionPending = !m_view || !m_view->isContextClick();
+
+        // A click, the keys or the right button: the one page is chosen by the user
+        // (known at once - the sync may run before the queued change)
+        m_userSelectedPage = getSingleSelectedPage();
     }
     if (!m_isSelectionChangePending)
     {
@@ -1007,7 +1153,12 @@ bool PDFAppThumbnailsPanel::processSelectionChange()
         return true;
     }
     updateViewSelection();
-    if (!self || !isUserSelection)
+    if (!self)
+    {
+        return true;
+    }
+    updateShownSelectedPage();
+    if (!isUserSelection)
     {
         return true;
     }
@@ -1031,8 +1182,19 @@ QMenu* PDFAppThumbnailsPanel::createContextMenu()
 
     PDFAppDocumentTab* tab = PDFAppPanelWidgets::findDocumentTab(this);
     PDFAppDocument* document = getDocument();
-    const bool hasSelection = !getSelectedPages().empty();
-    const bool isLocked = document && document->isLocked();
+    m_contextPages = getSelectedPages();
+    m_contextPageReferences.clear();
+    const PDFDocumentPointer shownDocument = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
+    const PDFCatalog* catalog = shownDocument ? shownDocument->getCatalog() : nullptr;
+    for (const PDFInteger pageIndex : m_contextPages)
+    {
+        if (catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount())
+        {
+            m_contextPageReferences.push_back(catalog->getPage(size_t(pageIndex))->getPageReference());
+        }
+    }
+    const bool hasSelection = !m_contextPageReferences.empty();
+    const bool isLocked = document && !document->isEditable();
 
     QAction* rotateLeft = menu->addAction(PDFThemeIcons::getIcon(QStringLiteral("rotate-ccw")), tr("Rotate Left"));
     rotateLeft->setObjectName(QStringLiteral("rotateLeft"));
@@ -1080,9 +1242,20 @@ void PDFAppThumbnailsPanel::onContextMenuRequested(const QPoint& globalPosition)
 
     // A click on a page outside of the selection selects the page (the canvas stays)
     const QModelIndex index = m_view->indexAt(m_view->viewport()->mapFromGlobal(globalPosition));
+    QPointer<PDFAppThumbnailsPanel> self(this);
     if (index.isValid() && !m_view->selectionModel()->isSelected(index))
     {
+        m_userSelectedPage = index.row();
         selectPages({ PDFInteger(index.row()) });
+    }
+    else
+    {
+        // The selection of the press (Linux sends the menu before the event loop runs)
+        processSelectionChange();
+    }
+    if (!self || !m_view)
+    {
+        return;
     }
 
     QPoint position = globalPosition;
@@ -1098,23 +1271,66 @@ void PDFAppThumbnailsPanel::onContextMenuRequested(const QPoint& globalPosition)
     menu->popup(position);
 }
 
-void PDFAppThumbnailsPanel::executeCommand(const QString& commandId)
-{
-    PDFAppDocumentTab* tab = PDFAppPanelWidgets::findDocumentTab(this);
-    if (tab && tab->isCommandEnabled(commandId))
-    {
-        tab->executeCommand(commandId);
-    }
-}
-
 void PDFAppThumbnailsPanel::onRotateLeft()
 {
-    executeCommand(PDFAppCommands::rotatePagesLeft());
+    rotateContextPages(false);
 }
 
 void PDFAppThumbnailsPanel::onRotateRight()
 {
-    executeCommand(PDFAppCommands::rotatePagesRight());
+    rotateContextPages(true);
+}
+
+std::vector<PDFInteger> PDFAppThumbnailsPanel::getCurrentContextPages() const
+{
+    std::vector<PDFInteger> pages;
+    const PDFAppDocument* document = getDocument();
+    const PDFDocumentPointer current = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
+    if (!current)
+    {
+        return pages;
+    }
+
+    const PDFCatalog* catalog = current->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    for (size_t i = 0; i < m_contextPageReferences.size(); ++i)
+    {
+        // The page is at its index, unless the pages before it have changed
+        const PDFObjectReference reference = m_contextPageReferences[i];
+        const PDFInteger oldIndex = i < m_contextPages.size() ? m_contextPages[i] : -1;
+        size_t index = PDFCatalog::INVALID_PAGE_INDEX;
+        if (oldIndex >= 0 && size_t(oldIndex) < pageCount && catalog->getPage(size_t(oldIndex))->getPageReference() == reference)
+        {
+            index = size_t(oldIndex);
+        }
+        else
+        {
+            index = catalog->getPageIndexFromPageReference(reference);
+        }
+
+        if (index != PDFCatalog::INVALID_PAGE_INDEX)
+        {
+            pages.push_back(PDFInteger(index));
+        }
+    }
+    std::sort(pages.begin(), pages.end());
+    pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    return pages;
+}
+
+void PDFAppThumbnailsPanel::rotateContextPages(bool isRight)
+{
+    // Exactly the pages, for which the menu was opened (the selection may follow
+    // the canvas meanwhile, the document may have a new version with other pages);
+    // the command decides, if the document can be changed
+    const QString commandId = isRight ? PDFAppCommands::rotatePagesRight() : PDFAppCommands::rotatePagesLeft();
+    PDFAppDocumentTab* tab = PDFAppPanelWidgets::findDocumentTab(this);
+    PDFAppDocumentPanelCommandHandler* handler = tab ? qobject_cast<PDFAppDocumentPanelCommandHandler*>(tab->findHandler(commandId)) : nullptr;
+    const std::vector<PDFInteger> pages = getCurrentContextPages();
+    if (handler && !pages.empty() && handler->isEnabled(commandId))
+    {
+        handler->rotatePages(pages, isRight);
+    }
 }
 
 void PDFAppThumbnailsPanel::openTool(const QString& toolId)

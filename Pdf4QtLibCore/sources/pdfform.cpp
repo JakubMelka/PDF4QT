@@ -24,6 +24,9 @@
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfpainterutils.h"
+
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -998,38 +1001,96 @@ void PDFFormManager::performPaging()
         return;
     }
 
-    std::vector<QSizeF> pageSizes = m_xfaEngine.getPageSizes();
-
-    const PDFCatalog* catalog = m_document->getCatalog();
-    const size_t pageCount = catalog->getPageCount();
-    std::vector<QSizeF> oldPageSizes;
-    oldPageSizes.reserve(pageCount);
-
-    for (size_t i = 0; i < pageCount; ++i)
+    // The paging is shared with PDF4QT (PDFXFAPaging): the page sizes of the layout
+    // of the engine of this manager
+    PDFDocumentPointer pagedDocument = PDFXFAPaging::createPagedDocument(m_document, m_xfaEngine.getPageSizes(), this);
+    if (pagedDocument)
     {
-        oldPageSizes.push_back(catalog->getPage(i)->getMediaBox().size());
+        Q_EMIT documentModified(PDFModifiedDocument(std::move(pagedDocument), nullptr, PDFModifiedDocument::Reset));
+    }
+}
+
+std::vector<QSizeF> PDFXFAPaging::getLayoutPageSizes(const PDFDocument* document)
+{
+    if (!document)
+    {
+        return std::vector<QSizeF>();
     }
 
-    bool changed = pageSizes.size() != oldPageSizes.size();
-    if (!changed)
+    try
     {
-        for (size_t i = 0; i < pageCount; ++i)
+        const PDFForm form = PDFForm::parse(document, document->getCatalog()->getFormObject());
+        return PDFXFAEngine::getLayoutPageSizes(document, &form);
+    }
+    catch (const std::exception&)
+    {
+        // A damaged form
+        return std::vector<QSizeF>();
+    }
+}
+
+bool PDFXFAPaging::isPagingNeeded(const PDFDocument* document, const std::vector<QSizeF>& pageSizes)
+{
+    if (!document || pageSizes.empty() || pageSizes.size() > MAXIMUM_PAGE_COUNT)
+    {
+        return false;
+    }
+
+    // A page of a hostile template, which cannot be a page
+    for (const QSizeF& size : pageSizes)
+    {
+        if (!std::isfinite(size.width()) || !std::isfinite(size.height()) ||
+            size.width() < 1.0 || size.height() < 1.0 || size.width() > MAXIMUM_PAGE_SIZE || size.height() > MAXIMUM_PAGE_SIZE)
         {
-            changed = changed ||
-                      !qFuzzyCompare(pageSizes[i].width(), oldPageSizes[i].width()) ||
-                      !qFuzzyCompare(pageSizes[i].height(), oldPageSizes[i].height());
+            return false;
         }
     }
 
-    if (changed && !oldPageSizes.empty())
+    const PDFCatalog* catalog = document->getCatalog();
+    const size_t pageCount = catalog->getPageCount();
+    if (pageCount == 0)
     {
-        PDFDocumentModifier modifier(m_document);
-        modifier.getBuilder()->setFormManager(this);
+        return false;
+    }
+
+    if (pageSizes.size() != pageCount)
+    {
+        return true;
+    }
+
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        const QSizeF oldPageSize = catalog->getPage(i)->getMediaBox().size();
+        if (!qFuzzyCompare(pageSizes[i].width(), oldPageSize.width()) ||
+            !qFuzzyCompare(pageSizes[i].height(), oldPageSize.height()))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+PDFDocumentPointer PDFXFAPaging::createPagedDocument(const PDFDocument* document, const std::vector<QSizeF>& pageSizes, const PDFFormManager* formManager)
+{
+    if (!isPagingNeeded(document, pageSizes))
+    {
+        return PDFDocumentPointer();
+    }
+
+    try
+    {
+        PDFDocumentModifier modifier(document);
+        modifier.getBuilder()->setFormManager(formManager);
         modifier.markReset();
 
         PDFDocumentBuilder* builder = modifier.getBuilder();
         builder->flattenPageTree();
         std::vector<PDFObjectReference> pages = builder->getPages();
+        if (pages.empty())
+        {
+            return PDFDocumentPointer();
+        }
 
         // Do we have more pages?
         if (pages.size() > pageSizes.size())
@@ -1041,7 +1102,10 @@ void PDFFormManager::performPaging()
         while (pages.size() < pageSizes.size())
         {
             std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(builder->copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences({ pages.front() }), *builder->getStorage(), true));
-            Q_ASSERT(references.size() == 1);
+            if (references.size() != 1)
+            {
+                return PDFDocumentPointer();
+            }
             pages.push_back(references.front());
         }
 
@@ -1055,9 +1119,20 @@ void PDFFormManager::performPaging()
 
         if (modifier.finalize())
         {
-            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            return modifier.getDocument();
         }
     }
+    catch (const std::exception&)
+    {
+        // A damaged document (PDFException), which cannot be paged
+    }
+
+    return PDFDocumentPointer();
+}
+
+PDFDocumentPointer PDFXFAPaging::createPagedDocument(const PDFDocument* document)
+{
+    return createPagedDocument(document, getLayoutPageSizes(document), nullptr);
 }
 
 bool PDFFormManager::isFocused(PDFObjectReference widget) const

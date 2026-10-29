@@ -955,6 +955,7 @@ PDFAppLockPopover::PDFAppLockPopover(QWidget* parent) :
     PDFAppParagraph* text = PDFAppPageWidgets::createText(tr("Editing is turned off so the file is not changed by accident. Unlock it to edit the file, or edit a copy and keep the original locked."),
                                                         PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 17, PDFThemeColors::TextSecondary, content);
     text->setObjectName(QStringLiteral("lockText"));
+    m_text = text;
 
     // The menu sizes the content by its size hint: the wrapped text has its height for the width
     const int textWidth = WIDTH - 14 - 20;
@@ -985,6 +986,23 @@ PDFAppLockPopover::PDFAppLockPopover(QWidget* parent) :
 
 PDFAppLockPopover::~PDFAppLockPopover() = default;
 
+void PDFAppLockPopover::setPagedXFA(bool isPagedXFA)
+{
+    // A copy of a display version of an XFA form is a display version too, so
+    // Edit a Copy is not offered (as the command Edit a Copy of the File panel)
+    if (m_editCopyButton)
+    {
+        m_editCopyButton->setVisible(!isPagedXFA);
+    }
+
+    if (m_text && isPagedXFA)
+    {
+        m_text->setText(tr("Editing is turned off so the file is not changed by accident. The pages of this XFA form are shown as laid out, so the document cannot be edited, also when it is unlocked."));
+        const int textWidth = m_text->width();
+        m_text->setFixedSize(textWidth, m_text->heightForWidth(textWidth));
+    }
+}
+
 void PDFAppLockPopover::showBelow(const QRect& anchor)
 {
     // The panel starts 24 px before the middle of the lock (the caret of the frame
@@ -994,9 +1012,13 @@ void PDFAppLockPopover::showBelow(const QRect& anchor)
     setProperty(PDFWidgetStyleProperties::POPUP_ANCHOR, QRect(QPoint(position.x() - (isRightToLeft ? 1 : 0), anchor.top()), QSize(1, position.y() - anchor.top())));
     popup(position);
 
-    if (m_editCopyButton)
+    if (m_editCopyButton && !m_editCopyButton->isHidden())
     {
         m_editCopyButton->setFocus(Qt::PopupFocusReason);
+    }
+    else if (m_unlockButton)
+    {
+        m_unlockButton->setFocus(Qt::PopupFocusReason);
     }
 }
 

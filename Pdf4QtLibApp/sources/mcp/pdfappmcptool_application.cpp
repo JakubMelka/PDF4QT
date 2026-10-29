@@ -188,7 +188,7 @@ QByteArray PDFAppMcpApplicationTool::createState(PDFAppMcpHost* host, const PDFM
                 writer.writeMember(QLatin1StringView("path"), Support::sanitizeName(QDir::toNativeSeparators(document->getFilePath()), PDFAppMcpToolSet::MAXIMUM_PATH_LENGTH));
             }
             writer.writeMember(QLatin1StringView("pageCount"), qint64(document->isReady() ? document->getPageCount() : 0));
-            writer.writeMember(QLatin1StringView("currentPage"), qint64(view && document->isReady() ? view->getCurrentPageIndex() + 1 : 0));
+            writer.writeMember(QLatin1StringView("currentPage"), qint64(view && document->isReady() ? view->getDisplayedPageIndex() + 1 : 0));
             writer.writeMember(QLatin1StringView("isActive"), document == activeDocument);
             writer.writeMember(QLatin1StringView("isLocked"), document->isLocked());
             writer.writeMember(QLatin1StringView("isModified"), document->isModified());

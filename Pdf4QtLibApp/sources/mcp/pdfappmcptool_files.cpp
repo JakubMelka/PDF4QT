@@ -281,7 +281,8 @@ public:
         request.document = getSnapshot().document;
         request.originalData = getSnapshot().originalData;
         request.filePath = m_filePath;
-        request.isIncremental = m_isIncremental && !request.originalData.isEmpty();
+        request.isIncremental = m_isIncremental && !request.originalData.isEmpty() && !getSnapshot().isPagedXFA;
+        request.isOriginalData = getSnapshot().isPagedXFA;
         request.version = getSnapshot().version;
         request.markSourceFilePath = m_markSourceFilePath;
         m_result = PDFAppDocumentFileWriter::write(request);
@@ -959,7 +960,7 @@ void PDFAppMcpFilesTool::handle(const PDFAppMcpToolInvocation& invocation)
 
     // save, save_copy: the document of the tab (a locked document may save a copy)
     const bool isCopy = invocation.actionName == QLatin1String("save_copy");
-    PDFAppDocument* document = PDFAppMcpChangeJob::prepareDocument(invocation, isCopy);
+    PDFAppDocument* document = PDFAppMcpChangeJob::prepareDocument(invocation, isCopy, true);
     if (!document)
     {
         return;

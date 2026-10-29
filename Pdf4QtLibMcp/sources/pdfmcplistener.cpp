@@ -24,6 +24,7 @@
 #include "pdfmcpdispatcher.h"
 #include "pdfmcpiothreads.h"
 #include "pdfmcpserver.h"
+#include "pdfthreadannotations.h"
 
 #include <QHostAddress>
 
@@ -77,6 +78,8 @@ void PDFMcpControl::listen()
             const int error = int(primary->serverError());
             const QString message = primary->errorString();
             delete primary;
+            PDFThreadAnnotations::happensBefore(this);
+            PDFThreadAnnotations::TransportScope transportScope;
             Q_EMIT listenFinished(m_run, false, error, message, config.port);
             return;
         }
@@ -112,6 +115,8 @@ void PDFMcpControl::listen()
         delete primary;
         if (attempt + 1 == attempts || error != QAbstractSocket::AddressInUseError)
         {
+            PDFThreadAnnotations::happensBefore(this);
+            PDFThreadAnnotations::TransportScope transportScope;
             Q_EMIT listenFinished(m_run, false, int(error), message, config.port);
             return;
         }
@@ -121,6 +126,8 @@ void PDFMcpControl::listen()
     {
         m_dispatcher->setPort(port);
     }
+    PDFThreadAnnotations::happensBefore(this);
+    PDFThreadAnnotations::TransportScope transportScope;
     Q_EMIT listenFinished(m_run, true, -1, QString(), port);
 }
 
@@ -153,6 +160,9 @@ void PDFMcpControl::shutdown()
         m_dispatcher->shutdown();
         delete m_dispatcher.data();
     }
+
+    // The server waits for the end of this slot inside of Qt (BlockingQueuedConnection)
+    PDFThreadAnnotations::happensBefore(this);
 }
 
 }   // namespace pdf

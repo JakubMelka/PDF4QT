@@ -39,7 +39,9 @@
 #include "pdfappdocumentpanels_outline.h"
 #include "pdfappdocumentpanels_thumbnails.h"
 #include "pdfappdocumentsidebar.h"
+#include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
 #include "pdfappundostack.h"
@@ -49,6 +51,7 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfcomponentpanels.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfdrawspacecontroller.h"
@@ -75,6 +78,7 @@
 #include <QtTest>
 
 #include <limits>
+#include <numeric>
 
 /// Package C of step 3: the sidebar, the navigation panels, the personal
 /// bookmarks and their repository, the commands of the package
@@ -100,6 +104,13 @@ private slots:
     void thumbnailsContextMenu();
     void thumbnailsRotateUndoLocked();
     void thumbnailsLargeDocument();
+    void thumbnailsRightClickRotate_data();
+    void thumbnailsRightClickRotate();
+    void thumbnailsRightClickSelection();
+    void thumbnailsMenuDocumentChanged();
+    void thumbnailsRightPageOfRow_data();
+    void thumbnailsRightPageOfRow();
+    void rotateKeepsCanvasPage();
     void outline();
     void outlineHostile();
     void layers();
@@ -486,6 +497,137 @@ public:
             }
         }
         return nullptr;
+    }
+
+    /// Pages of different sizes: every third page (1, 4, 7, ...) landscape 600 x 300,
+    /// the others portrait 300 x 400
+    static QString mixedPages(const QString& folder, int pageCount)
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int i = 0; i < pageCount; ++i)
+        {
+            builder.appendPage(i % 3 == 1 ? QRectF(0, 0, 600, 300) : QRectF(0, 0, 300, 400));
+        }
+        return write(builder, folder, QStringLiteral("mixed-pages.pdf"));
+    }
+
+    /// Pages 300 x 400 with the page labels "P-1", "P-2", ... (the status bar shows its
+    /// page item for a document with page labels only)
+    static QString labeledPages(const QString& folder, int pageCount)
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int i = 0; i < pageCount; ++i)
+        {
+            builder.appendPage(QRectF(0, 0, 300, 400));
+        }
+        const pdf::PDFObject labels = dictionary({ { "Nums", array({ pdf::PDFObject::createInteger(0), dictionary({ { "S", name("D") }, { "P", text(QStringLiteral("P-")) } }) }) } });
+        builder.mergeTo(builder.getCatalogReference(), dictionary({ { "PageLabels", labels } }));
+        return write(builder, folder, QStringLiteral("labeled-pages.pdf"));
+    }
+
+    /// The page shown to the user: the page index of the view, the text of the page
+    /// field of the toolbar and the page item of the status bar of a document of
+    /// labeledPages ("8 | P-9 | Page 9 (P-9) of 30" for the page index 8)
+    static QString displayedPage(pdf::PDFAppDocumentView* view)
+    {
+        return QStringLiteral("%1 | %2 | %3").arg(view->getDisplayedPageIndex()).arg(view->getToolbar()->getPageField()->text(), view->getStatusBar()->getPageText());
+    }
+
+    static QString displayedPage(pdf::PDFInteger pageIndex, int pageCount)
+    {
+        return QStringLiteral("%1 | P-%2 | Page %2 (P-%2) of %3").arg(pageIndex).arg(pageIndex + 1).arg(pageCount);
+    }
+
+    /// Pages of the document with the given rotation
+    static std::vector<pdf::PDFInteger> rotatedPages(const pdf::PDFAppDocument* document, pdf::PageRotation rotation)
+    {
+        std::vector<pdf::PDFInteger> pages;
+        const pdf::PDFCatalog* catalog = document->getDocument()->getCatalog();
+        for (size_t i = 0; i < catalog->getPageCount(); ++i)
+        {
+            if (catalog->getPage(i)->getPageRotation() == rotation)
+            {
+                pages.push_back(pdf::PDFInteger(i));
+            }
+        }
+        return pages;
+    }
+
+    /// Top of the page on the canvas (pixels of the draw widget, NaN when the page is not shown)
+    static double pageTop(pdf::PDFAppDocumentView* view, pdf::PDFInteger pageIndex)
+    {
+        const pdf::PDFWidgetSnapshot snapshot = view->getProxy()->getSnapshot();
+        const pdf::PDFWidgetSnapshot::SnapshotItem* item = snapshot.getPageSnapshot(pageIndex);
+        return item ? item->rect.top() : std::numeric_limits<double>::quiet_NaN();
+    }
+
+    /// Scrolls the list to the page and clicks its thumbnail by the right button (rightClickAt)
+    static QMenu* rightClickThumbnail(pdf::PDFAppThumbnailsPanel* thumbnails, int pageIndex, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    {
+        QListView* list = thumbnails->getListView();
+        const QModelIndex index = thumbnails->getModel()->index(pageIndex);
+        list->scrollTo(index);
+        pdftest::AppDocumentFixture::settle();
+        return rightClickAt(thumbnails, list->visualRect(index).center(), modifiers);
+    }
+
+    /// A right click by the mouse at the point of the viewport of the thumbnails as
+    /// Windows sends it: the pointer moves there, press, release, then the context menu
+    /// event (the event loop runs between them). \returns the open context menu.
+    static QMenu* rightClickAt(pdf::PDFAppThumbnailsPanel* thumbnails, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    {
+        QListView* list = thumbnails->getListView();
+        if (!list->viewport()->rect().contains(position))
+        {
+            return nullptr;
+        }
+        QTest::mouseMove(list->viewport(), position);
+        QTest::mousePress(list->viewport(), Qt::RightButton, modifiers, position);
+        pdftest::AppDocumentFixture::settle();
+        QTest::mouseRelease(list->viewport(), Qt::RightButton, modifiers, position);
+        pdftest::AppDocumentFixture::settle();
+        QContextMenuEvent event(QContextMenuEvent::Mouse, position, list->viewport()->mapToGlobal(position), modifiers);
+        QApplication::sendEvent(list->viewport(), &event);
+        pdftest::AppDocumentFixture::settle();
+        QMenu* menu = thumbnails->findChild<QMenu*>(QStringLiteral("thumbnailsContextMenu"));
+        return menu && menu->isVisible() ? menu : nullptr;
+    }
+
+    /// A left click by the mouse on the thumbnail of the page (the list scrolled to it first)
+    static void clickThumbnail(pdf::PDFAppThumbnailsPanel* thumbnails, int pageIndex, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    {
+        QListView* list = thumbnails->getListView();
+        const QModelIndex index = thumbnails->getModel()->index(pageIndex);
+        list->scrollTo(index);
+        pdftest::AppDocumentFixture::settle();
+        const QPoint position = list->visualRect(index).center();
+        QTest::mouseMove(list->viewport(), position);
+        QTest::mouseClick(list->viewport(), Qt::LeftButton, modifiers, position);
+        pdftest::AppDocumentFixture::settle();
+    }
+
+    /// The page is seen in the canvas (its rectangle intersects the draw widget)
+    static bool isOnCanvas(pdf::PDFAppDocumentView* view, pdf::PDFInteger pageIndex)
+    {
+        const pdf::PDFWidgetSnapshot snapshot = view->getProxy()->getSnapshot();
+        const pdf::PDFWidgetSnapshot::SnapshotItem* item = snapshot.getPageSnapshot(pageIndex);
+        return item && item->rect.intersects(QRectF(view->getPdfWidget()->getDrawWidget()->getWidget()->geometry()));
+    }
+
+    /// Clicks the item of the open menu by the mouse (as the user)
+    static bool clickMenuItem(QMenu* menu, const QString& objectName)
+    {
+        QAction* action = menu ? findAction(menu, objectName) : nullptr;
+        if (!action || !action->isEnabled())
+        {
+            return false;
+        }
+        const QPoint position = menu->actionGeometry(action).center();
+        QSignalSpy spy(action, &QAction::triggered);
+        QTest::mouseMove(menu, position);
+        QTest::mouseClick(menu, Qt::LeftButton, Qt::NoModifier, position);
+        pdftest::AppDocumentFixture::settle();
+        return spy.count() == 1;
     }
 
     static void restoreHandlers()
@@ -1129,11 +1271,505 @@ void AppDocumentPanelsTest::thumbnailsLargeDocument()
     qInfo("2000 pages: open %lld ms, first thumbnails %lld ms, scroll to the end and its thumbnails %lld ms, %d pictures drawn",
           openTime, firstPictures, scrollPictures, thumbnails->getScheduler()->getDrawnCount());
 
+    // The canvas scrolled with a page chosen in the thumbnails and with all pages
+    // selected: each step of the canvas (viewChanged) checks the shown pages once,
+    // the selection of 2000 pages stays
+    pdf::PDFAppDocumentView* view = tab->getView();
+    view->goToPage(1000);
+    fixture.settle();
+    PanelsTestHelper::clickThumbnail(thumbnails, 1001);
+    QTRY_VERIFY(view->isPageShown(1001));
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 1001 }));
+    QCOMPARE(view->getDisplayedPageIndex(), pdf::PDFInteger(1001));
+    timer.restart();
+    for (int step = 0; step < 5000 && view->isPageShown(1001); ++step)
+    {
+        view->getProxy()->scrollByPixels(QPoint(0, -2));
+    }
+    const qint64 chosenScrollTime = timer.elapsed();
+    fixture.settle();
+    QVERIFY(!view->isPageShown(1001));
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ view->getCurrentPageIndex() }));
+    QCOMPARE(view->getDisplayedPageIndex(), view->getCurrentPageIndex());
+
+    std::vector<pdf::PDFInteger> allPages(2000);
+    std::iota(allPages.begin(), allPages.end(), pdf::PDFInteger(0));
+    thumbnails->selectPages(allPages);
+    fixture.settle();
+    timer.restart();
+    for (int step = 0; step < 1000; ++step)
+    {
+        view->getProxy()->scrollByPixels(QPoint(0, -2));
+    }
+    const qint64 allScrollTime = timer.elapsed();
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages().size(), size_t(2000));
+    QCOMPARE(view->getDisplayedPageIndex(), view->getCurrentPageIndex());
+    qInfo("2000 pages: the canvas scrolled by steps of 2 px - with a chosen page until it has left %lld ms, with all pages selected 1000 steps %lld ms",
+          chosenScrollTime, allScrollTime);
+
     // Closing the tab while compilations wait never blocks
     timer.restart();
     fixture.window->closeTab(tab);
     fixture.settle();
     QVERIFY(timer.elapsed() < 10000);
+}
+
+void AppDocumentPanelsTest::thumbnailsRightClickRotate_data()
+{
+    QTest::addColumn<int>("layout");
+    QTest::addColumn<bool>("sync");
+    QTest::addColumn<int>("canvasPageIndex");
+
+    // Two pages: the pages 3 and 4 (indices 2, 3) have the same width - the zoom of Fit width of
+    // PDFDrawWidgetProxy is computed for its current page, two pages of other widths
+    // get another zoom by any update of the layout
+    QTest::newRow("continuous") << int(pdf::PDFAppViewLayout::Continuous) << true << 5;
+    QTest::newRow("continuous-sync-off") << int(pdf::PDFAppViewLayout::Continuous) << false << 5;
+    QTest::newRow("two-columns") << int(pdf::PDFAppViewLayout::TwoColumns) << true << 4;
+    QTest::newRow("two-pages") << int(pdf::PDFAppViewLayout::TwoPages) << true << 2;
+}
+
+void AppDocumentPanelsTest::thumbnailsRightClickRotate()
+{
+    // The owner's report: Rotate of the context menu of a thumbnail rotated nothing
+    // or another page, the canvas jumped. A right click by the mouse on a page far
+    // from the canvas, rotated again at the same position of the mouse.
+    QFETCH(int, layout);
+    QFETCH(bool, sync);
+    QFETCH(int, canvasPageIndex);
+    const pdf::PDFInteger canvasPage = canvasPageIndex;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::mixedPages(fixture.folder(), 30));
+    QVERIFY(tab);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(thumbnails && document && view);
+
+    view->setViewLayout(pdf::PDFAppViewLayout(layout));
+    fixture.settle();
+    view->goToPage(canvasPage);
+    fixture.settle();
+    thumbnails->setSyncEnabled(sync);
+    QCOMPARE(view->getCurrentPageIndex(), canvasPage);
+    const double canvasTop = PanelsTestHelper::pageTop(view, canvasPage);
+    QVERIFY(!std::isnan(canvasTop));
+
+    // The list scrolled to page 26 (index 25), the canvas stays at its page
+    QListView* list = thumbnails->getListView();
+    list->scrollTo(thumbnails->getModel()->index(25), QAbstractItemView::PositionAtCenter);
+    fixture.settle();
+    const int scrollPosition = list->verticalScrollBar()->value();
+    QVERIFY(scrollPosition > 0);
+    const QPoint position = list->visualRect(thumbnails->getModel()->index(25)).center();
+
+    const std::vector<pdf::PDFInteger> clickedPage({ 25 });
+    const pdf::PageRotation expected[] = { pdf::PageRotation::Rotate90, pdf::PageRotation::Rotate180, pdf::PageRotation::Rotate90 };
+    const char* items[] = { "rotateRight", "rotateRight", "rotateLeft" };
+    for (int round = 0; round < 3; ++round)
+    {
+        QCOMPARE(list->indexAt(position).row(), 25);
+        QMenu* menu = PanelsTestHelper::rightClickAt(thumbnails, position);
+        QVERIFY(menu);
+
+        // The page of the menu is selected, the canvas has not moved
+        QCOMPARE(thumbnails->getSelectedPages(), clickedPage);
+        QCOMPARE(view->getSelectedPages(), clickedPage);
+        QCOMPARE(thumbnails->getContextPages(), clickedPage);
+        QCOMPARE(view->getCurrentPageIndex(), canvasPage);
+        QCOMPARE(PanelsTestHelper::pageTop(view, canvasPage), canvasTop);
+
+        QVERIFY(PanelsTestHelper::clickMenuItem(menu, QString::fromLatin1(items[round])));
+        fixture.settle();
+
+        // Only the clicked page is rotated; the canvas, the list and the selection stay
+        QCOMPARE(document->getDocument()->getCatalog()->getPage(25)->getPageRotation(), expected[round]);
+        QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::None).size(), size_t(29));
+        QCOMPARE(view->getCurrentPageIndex(), canvasPage);
+        QVERIFY2(qAbs(PanelsTestHelper::pageTop(view, canvasPage) - canvasTop) <= 1.0, qPrintable(QStringLiteral("%1, before %2").arg(PanelsTestHelper::pageTop(view, canvasPage)).arg(canvasTop)));
+        QCOMPARE(list->verticalScrollBar()->value(), scrollPosition);
+        QCOMPARE(thumbnails->getSelectedPages(), clickedPage);
+        QCOMPARE(view->getSelectedPages(), clickedPage);
+        QCOMPARE(fixture.undoCount(document), round + 1);
+    }
+
+    // Undo / redo keep the canvas, the list and the selection too
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    fixture.settle();
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(25)->getPageRotation(), pdf::PageRotation::Rotate180);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::redo()));
+    fixture.settle();
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(25)->getPageRotation(), pdf::PageRotation::Rotate90);
+    QCOMPARE(view->getCurrentPageIndex(), canvasPage);
+    QVERIFY(qAbs(PanelsTestHelper::pageTop(view, canvasPage) - canvasTop) <= 1.0);
+    QCOMPARE(list->verticalScrollBar()->value(), scrollPosition);
+    QCOMPARE(thumbnails->getSelectedPages(), clickedPage);
+
+    // A left click still goes to the page
+    QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, position);
+    fixture.settle();
+    QTRY_COMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(layout == int(pdf::PDFAppViewLayout::Continuous) ? 25 : 24));
+}
+
+void AppDocumentPanelsTest::thumbnailsRightClickSelection()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::mixedPages(fixture.folder(), 30));
+    QVERIFY(tab);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(thumbnails && document && view);
+    view->goToPage(2);
+    fixture.settle();
+
+    // A right click on a page of a selection of more pages: the menu acts on all of them
+    const std::vector<pdf::PDFInteger> selection({ 10, 11, 12 });
+    thumbnails->selectPages(selection);
+    fixture.settle();
+    QVERIFY(PanelsTestHelper::clickMenuItem(PanelsTestHelper::rightClickThumbnail(thumbnails, 11), QStringLiteral("rotateLeft")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate270), selection);
+    QCOMPARE(thumbnails->getSelectedPages(), selection);
+    QCOMPARE(thumbnails->getSubtitle(), QStringLiteral("3 of 30 pages selected"));
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+
+    // A right click on a page outside of the selection: that page alone
+    QMenu* menu = PanelsTestHelper::rightClickThumbnail(thumbnails, 20);
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 20 }));
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+    QVERIFY(PanelsTestHelper::clickMenuItem(menu, QStringLiteral("rotateRight")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), std::vector<pdf::PDFInteger>({ 20 }));
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate270), selection);
+
+    // Ctrl + the right button on a page outside of the selection: that page alone
+    menu = PanelsTestHelper::rightClickThumbnail(thumbnails, 22, Qt::ControlModifier);
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 22 }));
+    QVERIFY(PanelsTestHelper::clickMenuItem(menu, QStringLiteral("rotateRight")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), std::vector<pdf::PDFInteger>({ 20, 22 }));
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+
+    // The canvas moves while the menu is open (the selection follows it): the menu
+    // still rotates the page, for which it was opened
+    menu = PanelsTestHelper::rightClickThumbnail(thumbnails, 25);
+    QVERIFY(menu);
+    QCOMPARE(thumbnails->getContextPages(), std::vector<pdf::PDFInteger>({ 25 }));
+    view->goToPage(8);
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 8 }));
+    QVERIFY(menu->isVisible());
+    QVERIFY(PanelsTestHelper::clickMenuItem(menu, QStringLiteral("rotateRight")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), std::vector<pdf::PDFInteger>({ 20, 22, 25 }));
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(8)->getPageRotation(), pdf::PageRotation::None);
+}
+
+void AppDocumentPanelsTest::thumbnailsMenuDocumentChanged()
+{
+    // A new version of the document with other pages while the context menu is open
+    // (an assistant, another window): the menu rotates the page, for which it was
+    // opened, never the page now at its index
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::mixedPages(fixture.folder(), 30));
+    QVERIFY(tab);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(thumbnails && document);
+
+    // The page references of the version, for which the menu is opened
+    const pdf::PDFObjectReference page26 = document->getDocument()->getCatalog()->getPage(25)->getPageReference();
+    const pdf::PDFObjectReference page29 = document->getDocument()->getCatalog()->getPage(28)->getPageReference();
+
+    // Two pages inserted before page 26 (copies of page 1): page 26 is at index 27 now
+    QMenu* menu = PanelsTestHelper::rightClickThumbnail(thumbnails, 25);
+    QVERIFY(menu);
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        std::vector<pdf::PDFObjectReference> pages = builder.getPages();
+        const pdf::PDFObject firstPage = builder.getObjectByReference(pages.front());
+        pages.insert(pages.begin(), { builder.addObject(firstPage), builder.addObject(firstPage) });
+        builder.setPages(pages);
+        pdf::PDFDocumentPointer inserted(new pdf::PDFDocument(builder.build()));
+        QVERIFY(document->commit(pdf::PDFModifiedDocument(inserted, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                                 QStringLiteral("Insert pages"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    }
+    fixture.settle();
+    QCOMPARE(document->getPageCount(), pdf::PDFInteger(32));
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(27)->getPageReference(), page26);
+    QVERIFY(menu->isVisible());
+    QVERIFY(PanelsTestHelper::clickMenuItem(menu, QStringLiteral("rotateRight")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), std::vector<pdf::PDFInteger>({ 27 }));
+    QCOMPARE(fixture.undoCount(document), 2);
+
+    // The page of the menu removed meanwhile: nothing is rotated (no other page)
+    menu = PanelsTestHelper::rightClickThumbnail(thumbnails, 30);
+    QVERIFY(menu);
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(30)->getPageReference(), page29);
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        std::vector<pdf::PDFObjectReference> pages = builder.getPages();
+        pages.erase(pages.begin() + 30);
+        builder.setPages(pages);
+        pdf::PDFDocumentPointer removed(new pdf::PDFDocument(builder.build()));
+        QVERIFY(document->commit(pdf::PDFModifiedDocument(removed, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                                 QStringLiteral("Remove page"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    }
+    fixture.settle();
+    QCOMPARE(document->getPageCount(), pdf::PDFInteger(31));
+    QVERIFY(menu->isVisible());
+    QVERIFY(PanelsTestHelper::clickMenuItem(menu, QStringLiteral("rotateLeft")));
+    fixture.settle();
+    QVERIFY(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate270).empty());
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), std::vector<pdf::PDFInteger>({ 27 }));
+    QCOMPARE(fixture.undoCount(document), 3);
+}
+
+void AppDocumentPanelsTest::thumbnailsRightPageOfRow_data()
+{
+    QTest::addColumn<int>("layout");
+    QTest::addColumn<bool>("firstPageRight");
+    QTest::addColumn<bool>("sync");
+
+    QTest::newRow("two-pages") << int(pdf::PDFAppViewLayout::TwoPages) << false << true;
+    QTest::newRow("two-pages-sync-off") << int(pdf::PDFAppViewLayout::TwoPages) << false << false;
+    QTest::newRow("two-pages-first-page-right") << int(pdf::PDFAppViewLayout::TwoPages) << true << true;
+    QTest::newRow("two-columns") << int(pdf::PDFAppViewLayout::TwoColumns) << false << true;
+    QTest::newRow("two-columns-sync-off") << int(pdf::PDFAppViewLayout::TwoColumns) << false << false;
+    QTest::newRow("two-columns-first-page-right") << int(pdf::PDFAppViewLayout::TwoColumns) << true << true;
+    QTest::newRow("continuous") << int(pdf::PDFAppViewLayout::Continuous) << false << true;
+    QTest::newRow("continuous-sync-off") << int(pdf::PDFAppViewLayout::Continuous) << false << false;
+}
+
+void AppDocumentPanelsTest::thumbnailsRightPageOfRow()
+{
+    // The owner's report (2026-10-29): with two pages side by side a click on the right
+    // page of a row in the thumbnails moved the canvas to the row and the sync with the
+    // canvas selected the left page of the row. The selection stays on the clicked page
+    // while the page is seen in the canvas, it follows the canvas only when the page has
+    // left it; Rotate turns the clicked page. The page field of the toolbar and the
+    // page item of the status bar show the clicked page by the same rule (owner
+    // 2026-10-29), the current page otherwise.
+    QFETCH(int, layout);
+    QFETCH(bool, firstPageRight);
+    QFETCH(bool, sync);
+    const bool isPairs = layout != int(pdf::PDFAppViewLayout::Continuous);
+    const bool isBlockMode = layout == int(pdf::PDFAppViewLayout::TwoPages);
+    using Pages = std::vector<pdf::PDFInteger>;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::labeledPages(fixture.folder(), 30));
+    QVERIFY(tab);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(thumbnails && document && view);
+    const auto displayed = [](pdf::PDFInteger pageIndex) { return PanelsTestHelper::displayedPage(pageIndex, 30); };
+
+    view->setViewLayout(pdf::PDFAppViewLayout(layout));
+    view->setFirstPageRight(firstPageRight);
+    fixture.settle();
+    view->goToPage(24);
+    fixture.settle();
+    thumbnails->setSyncEnabled(sync);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(view->getCurrentPageIndex()));
+
+    // Rows (0, 1), (2, 3), ... or (0), (1, 2), (3, 4), ... with the first page on the right
+    const pdf::PDFInteger rightPage = firstPageRight ? 8 : 9;
+    const pdf::PDFInteger leftPage = isPairs ? rightPage - 1 : rightPage;
+    const Pages clicked({ rightPage });
+
+    // A click on the right page: the canvas goes to its row, the page stays selected
+    PanelsTestHelper::clickThumbnail(thumbnails, int(rightPage));
+    QTRY_COMPARE(view->getCurrentPageIndex(), leftPage);
+    fixture.settle();
+    QVERIFY(PanelsTestHelper::isOnCanvas(view, rightPage));
+    QCOMPARE(thumbnails->getSelectedPages(), clicked);
+    QCOMPARE(view->getSelectedPages(), clicked);
+    QCOMPARE(thumbnails->getListView()->currentIndex().row(), int(rightPage));
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(rightPage));
+
+    // The sync turned on (off rows) or on again keeps the page seen in the canvas
+    thumbnails->setSyncEnabled(!sync);
+    thumbnails->setSyncEnabled(sync);
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), clicked);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(rightPage));
+
+    // Rotate of the toolbar (the command of the view) and of the context menu turn the clicked page
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::rotatePagesRight()));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate90), clicked);
+    QCOMPARE(thumbnails->getSelectedPages(), clicked);
+    QCOMPARE(view->getSelectedPages(), clicked);
+    QVERIFY(PanelsTestHelper::clickMenuItem(PanelsTestHelper::rightClickThumbnail(thumbnails, int(rightPage)), QStringLiteral("rotateRight")));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::Rotate180), clicked);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    fixture.settle();
+    QCOMPARE(PanelsTestHelper::rotatedPages(document, pdf::PageRotation::None).size(), size_t(30));
+    QCOMPARE(view->getCurrentPageIndex(), leftPage);
+    QCOMPARE(thumbnails->getSelectedPages(), clicked);
+    QCOMPARE(view->getSelectedPages(), clicked);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(rightPage));
+
+    // Ctrl adds the other page and removes it again, the canvas stays; more pages
+    // selected show the current page
+    const pdf::PDFInteger otherPage = rightPage - 1;
+    PanelsTestHelper::clickThumbnail(thumbnails, int(otherPage), Qt::ControlModifier);
+    QCOMPARE(thumbnails->getSelectedPages(), Pages({ otherPage, rightPage }));
+    QCOMPARE(view->getSelectedPages(), Pages({ otherPage, rightPage }));
+    QCOMPARE(view->getCurrentPageIndex(), leftPage);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(leftPage));
+    PanelsTestHelper::clickThumbnail(thumbnails, int(otherPage), Qt::ControlModifier);
+    QTRY_COMPARE(view->getCurrentPageIndex(), leftPage);
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), clicked);
+    QCOMPARE(view->getSelectedPages(), clicked);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(rightPage));
+
+    // Shift selects more pages without a move of the canvas, a click on the right page
+    // of the next row goes there and keeps that page
+    const pdf::PDFInteger nextRight = rightPage + 2;
+    const pdf::PDFInteger nextLeft = leftPage + 2;
+    PanelsTestHelper::clickThumbnail(thumbnails, int(nextRight), Qt::ShiftModifier);
+    QVERIFY(thumbnails->getSelectedPages().size() > 1);
+    QCOMPARE(view->getCurrentPageIndex(), leftPage);
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(leftPage));
+    PanelsTestHelper::clickThumbnail(thumbnails, int(nextRight));
+    QTRY_COMPARE(view->getCurrentPageIndex(), nextLeft);
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), Pages({ nextRight }));
+    QCOMPARE(view->getSelectedPages(), Pages({ nextRight }));
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(nextRight));
+
+    // The canvas scrolled up by steps: the selection stays while the page is seen
+    // (also when another page has become the current page), then it follows the
+    // canvas (sync on) or stays (sync off)
+    if (!isBlockMode)
+    {
+        bool isCurrentChangedWhileSeen = false;
+        bool hasLeft = false;
+        for (int step = 0; step < 400 && !hasLeft; ++step)
+        {
+            view->getProxy()->scrollByPixels(QPoint(0, 20));
+            fixture.settle();
+            hasLeft = !PanelsTestHelper::isOnCanvas(view, nextRight);
+            if (!hasLeft)
+            {
+                QCOMPARE(thumbnails->getSelectedPages(), Pages({ nextRight }));
+                QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(nextRight));
+                isCurrentChangedWhileSeen = isCurrentChangedWhileSeen || view->getCurrentPageIndex() != nextLeft;
+            }
+        }
+        QVERIFY(hasLeft);
+        QVERIFY(isCurrentChangedWhileSeen);
+        const pdf::PDFInteger currentPage = view->getCurrentPageIndex();
+        QVERIFY(currentPage >= 0 && currentPage < nextLeft);
+        QCOMPARE(thumbnails->getSelectedPages(), sync ? Pages({ currentPage }) : Pages({ nextRight }));
+        QCOMPARE(view->getSelectedPages(), sync ? Pages({ currentPage }) : Pages({ nextRight }));
+        QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(currentPage));
+
+        // Back to the clicked page by the mouse
+        PanelsTestHelper::clickThumbnail(thumbnails, int(nextRight));
+        QTRY_COMPARE(view->getCurrentPageIndex(), nextLeft);
+        fixture.settle();
+        QCOMPARE(thumbnails->getSelectedPages(), Pages({ nextRight }));
+        QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(nextRight));
+    }
+
+    // A navigation elsewhere: the page has left the canvas
+    view->goToPage(24);
+    fixture.settle();
+    const pdf::PDFInteger currentPage = view->getCurrentPageIndex();
+    QVERIFY(currentPage >= 22 && currentPage <= 24);
+    QVERIFY(!PanelsTestHelper::isOnCanvas(view, nextRight));
+    QCOMPARE(thumbnails->getSelectedPages(), sync ? Pages({ currentPage }) : Pages({ nextRight }));
+    QCOMPARE(view->getSelectedPages(), sync ? Pages({ currentPage }) : Pages({ nextRight }));
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(currentPage));
+
+    // The sync turned on while the selected page is not seen selects the current page
+    thumbnails->setSyncEnabled(true);
+    fixture.settle();
+    QCOMPARE(thumbnails->getSelectedPages(), Pages({ currentPage }));
+    QCOMPARE(view->getSelectedPages(), Pages({ currentPage }));
+    QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(currentPage));
+
+    // Plain scrolling: the selection and the page field follow the current page
+    for (int step = 0; step < 40; ++step)
+    {
+        view->getProxy()->scrollByPixels(QPoint(0, 40));
+        fixture.settle();
+        QCOMPARE(PanelsTestHelper::displayedPage(view), displayed(view->getCurrentPageIndex()));
+        QCOMPARE(thumbnails->getSelectedPages(), Pages({ view->getCurrentPageIndex() }));
+    }
+    QVERIFY(isBlockMode || view->getCurrentPageIndex() < currentPage);
+}
+
+void AppDocumentPanelsTest::rotateKeepsCanvasPage()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::mixedPages(fixture.folder(), 30));
+    QVERIFY(tab);
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(thumbnails && document && view);
+    pdf::PDFAppDocumentPanelCommandHandler* handler = qobject_cast<pdf::PDFAppDocumentPanelCommandHandler*>(tab->findHandler(pdf::PDFAppCommands::rotatePagesRight()));
+    QVERIFY(handler);
+
+    // Page 21 scrolled 100 px above the top of the canvas
+    view->goToPage(20);
+    fixture.settle();
+    view->getProxy()->scrollByPixels(QPoint(0, -100));
+    fixture.settle();
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(20));
+    const double top = PanelsTestHelper::pageTop(view, 20);
+    QVERIFY2(top < 0.0, qPrintable(QString::number(top)));
+    QListView* list = thumbnails->getListView();
+    const int scrollPosition = list->verticalScrollBar()->value();
+
+    // A rotated page above it (portrait 4 and landscape 5 have other heights then),
+    // its undo and redo: page 21 stays at its place
+    QVERIFY(handler->rotatePages({ 3, 4 }, true));
+    fixture.settle();
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(4)->getPageRotation(), pdf::PageRotation::Rotate90);
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(20));
+    QVERIFY2(qAbs(PanelsTestHelper::pageTop(view, 20) - top) <= 1.0, qPrintable(QString::number(PanelsTestHelper::pageTop(view, 20))));
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::undo()));
+    fixture.settle();
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(4)->getPageRotation(), pdf::PageRotation::None);
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(20));
+    QVERIFY(qAbs(PanelsTestHelper::pageTop(view, 20) - top) <= 1.0);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::redo()));
+    fixture.settle();
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(20));
+    QVERIFY(qAbs(PanelsTestHelper::pageTop(view, 20) - top) <= 1.0);
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 20 }));
+    QCOMPARE(list->verticalScrollBar()->value(), scrollPosition);
+
+    // The shown page itself (the command of the canvas without a selection): the same
+    // part of the page stays at the top of the canvas
+    const pdf::PDFWidgetSnapshot before = view->getProxy()->getSnapshot();
+    const double heightBefore = before.getPageSnapshot(20)->rect.height();
+    const double fractionBefore = -top / heightBefore;
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::rotatePagesRight()));
+    fixture.settle();
+    QCOMPARE(document->getDocument()->getCatalog()->getPage(20)->getPageRotation(), pdf::PageRotation::Rotate90);
+    QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(20));
+    const pdf::PDFWidgetSnapshot after = view->getProxy()->getSnapshot();
+    const pdf::PDFWidgetSnapshot::SnapshotItem* item = after.getPageSnapshot(20);
+    QVERIFY(item);
+    QVERIFY2(qAbs(item->rect.height() - heightBefore) > 10.0, "the rotated page has another height");
+    QVERIFY2(qAbs(-item->rect.top() / item->rect.height() - fractionBefore) * item->rect.height() <= 1.0,
+             qPrintable(QStringLiteral("top %1 height %2, before %3 of %4").arg(item->rect.top()).arg(item->rect.height()).arg(top).arg(heightBefore)));
+    QCOMPARE(thumbnails->getSelectedPages(), std::vector<pdf::PDFInteger>({ 20 }));
 }
 
 void AppDocumentPanelsTest::outline()
@@ -2647,7 +3283,10 @@ void AppDocumentPanelsTest::deletionFromOwnSignals_data()
     // A thumbnail clicked by the mouse: the panel reacts to the signals of the
     // selection model and of the list view of Qt from the event loop, so the view
     // moves (and the title changes) outside of QAbstractItemView::mousePressEvent
-    for (const char* name : { "panelChanged", "thumbnailsScrolled", "rotateFromMenu", "toolFromMenu", "thumbnailClicked", "thumbnailSelected" })
+    // The page for the user (displayedPageChanged of the view): the right page of a
+    // row of two pages clicked (setSelectedPages of the panel), the chosen page left
+    // by a navigation (the sync of the panel inside of currentPageChanged)
+    for (const char* name : { "panelChanged", "thumbnailsScrolled", "rotateFromMenu", "toolFromMenu", "thumbnailClicked", "thumbnailSelected", "rightPageChosen", "chosenPageLeft" })
     {
         QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
         QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
@@ -2752,6 +3391,34 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
             connect(thumbnails, &pdf::PDFAppDocumentPanel::titleChanged, &receiver, deleteNow);
         }
         QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, list->visualRect(index).center());
+    }
+    else if (signal == QStringLiteral("rightPageChosen") || signal == QStringLiteral("chosenPageLeft"))
+    {
+        // Rows (0, 1), (2, 3), (4) of the 5 pages
+        pdf::PDFAppDocumentView* view = tab->getView();
+        view->setViewLayout(pdf::PDFAppViewLayout::TwoColumns);
+        fixture.settle();
+        const bool isLeft = signal == QStringLiteral("chosenPageLeft");
+        if (isLeft)
+        {
+            PanelsTestHelper::clickThumbnail(thumbnails, 3);
+            QTRY_COMPARE(view->getDisplayedPageIndex(), pdf::PDFInteger(3));
+            QCOMPARE(view->getCurrentPageIndex(), pdf::PDFInteger(2));
+        }
+        else
+        {
+            view->goToPage(0);
+            fixture.settle();
+        }
+        connect(view, &pdf::PDFAppDocumentView::displayedPageChanged, &receiver, deleteNow);
+        if (isLeft)
+        {
+            view->goToPage(4);
+        }
+        else
+        {
+            PanelsTestHelper::clickThumbnail(thumbnails, 1);
+        }
     }
 
     QTRY_VERIFY_WITH_TIMEOUT(isDeleted, 30000);

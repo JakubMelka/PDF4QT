@@ -245,7 +245,7 @@ void PDFAppMcpChangeJob::execute()
     m_change = build();
 }
 
-PDFAppDocument* PDFAppMcpChangeJob::prepareDocument(const PDFAppMcpToolInvocation& invocation, bool allowLocked)
+PDFAppDocument* PDFAppMcpChangeJob::prepareDocument(const PDFAppMcpToolInvocation& invocation, bool allowLocked, bool allowPagedXFA)
 {
     PDFAppMcpHost* host = invocation.host;
     const std::shared_ptr<PDFMcpCall>& call = invocation.call;
@@ -267,6 +267,12 @@ PDFAppDocument* PDFAppMcpChangeJob::prepareDocument(const PDFAppMcpToolInvocatio
     }
 
     PDFAppDocument* document = resolved.document;
+    if (!allowPagedXFA && document->isPagedXFA())
+    {
+        host->finishWithError(call, actionId, document, getPagedXFAText(), PDFMcpActivityStatus::Failed);
+        return nullptr;
+    }
+
     if (!allowLocked && document->isLocked())
     {
         host->finishWithError(call, actionId, document, getLockedText(), PDFMcpActivityStatus::DeniedLocked);
@@ -365,6 +371,11 @@ QString PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision decision)
 QString PDFAppMcpChangeJob::getLockedText()
 {
     return QStringLiteral("The document is locked in PDF4QT. Ask the user to unlock it or to use Edit a Copy.");
+}
+
+QString PDFAppMcpChangeJob::getPagedXFAText()
+{
+    return QStringLiteral("The document is an XFA form, which PDF4QT shows with the pages of its layout; it cannot be changed. files.save_copy writes the original PDF.");
 }
 
 QString PDFAppMcpChangeJob::joinParts(const QStringList& parts)
@@ -476,6 +487,12 @@ void PDFAppMcpChangeJob::finish(PDFAppMcpHost* host)
     {
         // Nothing to change (a reset of a form at its defaults, the same values)
         succeed(createResult(m_context.actionName, document, m_change.output));
+        return;
+    }
+
+    if (document->isPagedXFA() && m_context.permission == PDFAppMcpPermissionKind::Edit)
+    {
+        fail(getPagedXFAText(), PDFMcpActivityStatus::Failed);
         return;
     }
 
@@ -620,6 +637,12 @@ void PDFAppMcpChangeJob::proceed()
     if (!document)
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
+        return;
+    }
+
+    if (document->isPagedXFA() && m_context.permission == PDFAppMcpPermissionKind::Edit)
+    {
+        fail(getPagedXFAText(), PDFMcpActivityStatus::Failed);
         return;
     }
 

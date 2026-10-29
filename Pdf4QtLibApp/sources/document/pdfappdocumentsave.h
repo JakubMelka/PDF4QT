@@ -66,6 +66,7 @@ public:
         QByteArray originalData;        ///< Bytes of the opened file (incremental update)
         QString filePath;               ///< Target file
         bool isIncremental = false;     ///< Append an incremental update to the original data (signed documents)
+        bool isOriginalData = false;    ///< Write \p originalData unchanged - \p document is a display version (the paged layout of an XFA form, step 8)
         quint64 version = 0;            ///< Version of the document (given back in the result)
         QString markSourceFilePath;     ///< File, whose Mark of the Web the written file takes over (the file of the document or of its origin, O18)
     };

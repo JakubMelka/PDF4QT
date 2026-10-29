@@ -94,9 +94,10 @@ void PDFAppSponsorPage::buildContent()
     mainLayout->addWidget(createPossibilities(m_columns->getMainColumn()));
     mainLayout->addWidget(createWaysToHelp(m_columns->getMainColumn()));
     mainLayout->addStretch(1);
+    // The promise before the priorities (owner 2026-10-29): it is visible without a scroll
     sideLayout->addWidget(createAuthorNote(m_columns->getSideColumn()));
-    sideLayout->addWidget(createPriorities(m_columns->getSideColumn()));
     sideLayout->addWidget(createPromise(m_columns->getSideColumn()));
+    sideLayout->addWidget(createPriorities(m_columns->getSideColumn()));
     sideLayout->addStretch(1);
 }
 

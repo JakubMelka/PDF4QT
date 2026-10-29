@@ -25,7 +25,18 @@ A button of the form, which resets the form, returns the fields to their default
 - A **locked** document cannot be changed – unlock it in its tab first.
 - A document, which does not allow the filling of its form, shows the fields, but they do not react.
 - **Read-only fields** keep their values. You can allow their editing in [Settings › Editing](/settings/editing#allow-editing-of-read-only-fields).
-- **XFA forms** are shown, but PDF4QT does not fill them in; a bar above the page says so.
+- **XFA forms** are shown, but PDF4QT does not fill them in; a bar above the page says so. See [XFA forms](#xfa-forms).
+
+## XFA forms
+
+An XFA form describes its own pages. PDF4QT draws the form and shows it with the pages of its layout – also when the layout has more pages, or pages of other sizes, than the PDF file. Its fields cannot be filled in and PDF4QT does not run its scripts.
+
+When the pages of the layout differ from the pages of the file, the document is shown for reading only:
+
+- Annotations, notes, the outline, the pages and the properties of the document cannot be changed, and assistants cannot change it either. The bar above the page says so.
+- Opening the document does not change it, so it has no unsaved changes. **Save As** writes the original file unchanged, and **Send by E-mail** attaches the original file.
+- The thumbnails, the navigation, the page numbers and printing use the pages of the layout. The form itself is drawn on the pages of the document view; the thumbnails and the printed pages show the content of the PDF pages in the size of the layout pages.
+- The text of the form is drawn by the form, not by the pages of the file, so the search finds only the text, which the pages of the file contain.
 
 ## Calculated fields
 

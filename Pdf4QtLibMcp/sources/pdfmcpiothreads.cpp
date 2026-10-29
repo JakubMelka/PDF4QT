@@ -23,6 +23,7 @@
 #include "pdfmcpiothreads.h"
 #include "pdfmcpconnection.h"
 #include "pdfmcpserver.h"
+#include "pdfthreadannotations.h"
 
 #include <QAbstractSocket>
 #include <QThread>
@@ -63,6 +64,8 @@ PDFMcpIoWorker::~PDFMcpIoWorker() = default;
 
 void PDFMcpIoWorker::addConnection(qintptr socketDescriptor)
 {
+    // The socket accepted by the listener of another thread (see PDFMcpIoThreads::dispatch)
+    PDFThreadAnnotations::happensAfter(this);
     PDFMcpConnection* connection = new PDFMcpConnection(m_shared, this);
     if (!connection->start(socketDescriptor))
     {
@@ -79,6 +82,9 @@ void PDFMcpIoWorker::closeAll()
         connection->abort();
         delete connection;
     }
+
+    // The caller waits for the end of this slot inside of Qt (BlockingQueuedConnection)
+    PDFThreadAnnotations::happensBefore(this);
 }
 
 PDFMcpIoThreads::~PDFMcpIoThreads()
@@ -112,6 +118,8 @@ void PDFMcpIoThreads::dispatch(qintptr socketDescriptor)
     }
 
     const size_t index = size_t(m_next++ % m_workers.size());
+    PDFThreadAnnotations::happensBefore(m_workers[index]);
+    PDFThreadAnnotations::TransportScope transportScope;
     QMetaObject::invokeMethod(m_workers[index], &PDFMcpIoWorker::addConnection, Qt::QueuedConnection, socketDescriptor);
 }
 
@@ -121,7 +129,11 @@ void PDFMcpIoThreads::stop()
     {
         if (m_threads[i]->isRunning())
         {
-            QMetaObject::invokeMethod(m_workers[i], &PDFMcpIoWorker::closeAll, Qt::BlockingQueuedConnection);
+            {
+                PDFThreadAnnotations::TransportScope transportScope;
+                QMetaObject::invokeMethod(m_workers[i], &PDFMcpIoWorker::closeAll, Qt::BlockingQueuedConnection);
+            }
+            PDFThreadAnnotations::happensAfter(m_workers[i]);
         }
         m_threads[i]->quit();
     }

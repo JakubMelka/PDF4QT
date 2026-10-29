@@ -116,3 +116,9 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** the setup cards of the AI page (`claude mcp add ... --header "Authorization: Bearer <token>"`, `gemini mcp add ...`).
 - **Problem:** a command pasted into a shell with the token stays in the shell history file (bash, PowerShell PSReadLine) readable by other programs of the user.
 - **Fix:** commands, which read the token from an environment variable or a file, or a note to prefix the command by a space (bash `HISTCONTROL=ignorespace`); the help topic already warns (plan 4.5).
+
+### 18. Unbounded occurrences of the XFA layout engine
+
+- **Where:** `PDFXFALayoutEngine` (`pdfxfaengine.cpp`, `getOccurenceCount` and the loops of `visit(XFA_subform)` / `visit(XFA_subformSet)`), run by `PDFFormManager::setDocument` (GUI thread of every application) and by `PDFXFAPaging` (worker of the reading of PDF4QT).
+- **Problem:** the `occur` element of a subform of a hostile template gives any repetition count (`initial="1000000000"`), nested subforms multiply it; the layout repeats the content that many times (time and memory). The number of pages is bounded (`PDFXFAEngine::MAXIMUM_PAGE_COUNT` = 128, a layout behind the last page is dropped since step 8), the work of the repetitions is not.
+- **Fix:** a budget of laid out items for the whole layout (an occurrence count bounded by the remaining budget), the layout stopped when it is spent.

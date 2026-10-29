@@ -87,6 +87,10 @@ public:
     QByteArray originalData;
     QString filePath;
 
+    /// The document is the paged layout of an XFA form (step 8,
+    /// PDFAppDocument::isPagedXFA): a file is written from \p originalData
+    bool isPagedXFA = false;
+
     bool isValid() const { return !document.isNull(); }
 };
 
@@ -242,6 +246,22 @@ public:
 
     /// The document is locked (editing commands are off, recent_file.locked)
     bool isLocked() const { return m_isLocked; }
+
+    /// The shown document is the paged layout of a dynamic XFA form (step 8, owner
+    /// decision of 28. 10. 2026): the layout of the form has more pages or pages of
+    /// other sizes than the PDF document, so the document shows the pages of the
+    /// layout (PDFXFAPaging). It is a display version: nothing changes it (commit
+    /// refuses every change, the lock does not matter), it is not modified by the
+    /// paging, and a file is always written from the original bytes of the file
+    /// (Save As, Save a Copy, MCP files.save / files.save_copy).
+    bool isPagedXFA() const { return m_isPagedXFA; }
+
+    /// The document can be changed now: ready, not locked and not a display version
+    /// (isPagedXFA); a running operation is not considered
+    bool isEditable() const { return isReady() && !m_isLocked && !m_isPagedXFA; }
+
+    /// Text of a change refused for a display version of an XFA form (isPagedXFA)
+    static QString getPagedXFARefusalText();
     void setLocked(bool locked);
 
     /// The user interface has edits, which are not committed yet (step 4, package
@@ -352,13 +372,15 @@ public:
     /// Result of a loader: the document is shown (state Ready, a new saved version,
     /// the undo stack is cleared). A document read from the memory
     /// (setLoadingFromMemory, an empty \p filePath) stays a modified copy.
-    void setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected);
+    /// \p isPagedXFA says, that \p document is the paged layout of the XFA form
+    /// of the file (isPagedXFA, the loader pages it in its worker thread).
+    void setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA = false);
 
     /// Result of a reload of the file (automatic refresh of package E): the document
     /// is replaced (flags Reset and PreserveView, the state stays Ready), the undo
     /// stack is cleared and the new version is saved. Ignored, when the document is
     /// not shown.
-    void reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected);
+    void reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA = false);
 
     /// Result of a loader: the file needs a password (\p isWrong after a wrong
     /// password, 228:8965)
@@ -429,6 +451,7 @@ private:
     QByteArray m_originalData;
     QPointer<PDFOptionalContentActivity> m_optionalContentActivity;
     bool m_isLocked = false;
+    bool m_isPagedXFA = false;
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;
     bool m_isPasswordWrong = false;

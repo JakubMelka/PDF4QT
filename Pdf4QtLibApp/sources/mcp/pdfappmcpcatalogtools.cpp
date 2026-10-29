@@ -268,6 +268,14 @@ public:
             return;
         }
 
+        // A display version of an XFA form (step 8) is never changed, nor written
+        // as a changed copy: its pages are not the pages of the file
+        if (m_document && m_document->isPagedXFA())
+        {
+            host->finishWithError(call, getActionId(), m_document, PDFAppMcpChangeJob::getPagedXFAText(), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         // A locked document is never changed by an assistant - no question (O20)
         if (m_mode == PDFAppMcpToolResultMode::Keep && (!m_document || m_document->isLocked()))
         {
@@ -396,6 +404,12 @@ private:
         if (!document)
         {
             host->finishWithError(call, getActionId(), nullptr, QStringLiteral("The tab of the document was closed."), PDFMcpActivityStatus::DeniedClosed);
+            return;
+        }
+
+        if (document->isPagedXFA())
+        {
+            host->finishWithError(call, getActionId(), document, PDFAppMcpChangeJob::getPagedXFAText(), PDFMcpActivityStatus::Failed);
             return;
         }
 

@@ -49,6 +49,7 @@ endif()
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
+option(PDF4QT_ENABLE_VALGRIND_ANNOTATIONS "Annotate the hand-offs between threads and QMutex for valgrind helgrind / drd (needs the headers of valgrind, Linux)" OFF)
 option(PDF4QT_ENABLE_OCR "Build the OCR support with the Tesseract engine (requires Tesseract and Leptonica)" ON)
 option(PDF4QT_OCR_REQUIRED "Release gate of the OCR support: fail the configuration instead of disabling OCR silently when the Tesseract engine is not found, when a built-in language model declared by a manifest (ocr/tesseract/<profile>/manifest.json) has no archive or is not extracted, or when a runtime library of the engine is missing in the installer. Turn it on for the distributed builds, which must ship the OCR engine and the declared built-in model set (OPS-01, LANG-01, LANG-02)" OFF)
 
@@ -142,6 +143,27 @@ if(PDF4QT_ENABLE_COVERAGE)
         link_directories("${PDF4QT_CLANG_RESOURCE_DIR}/lib/windows")
     else()
         add_link_options(-fprofile-instr-generate)
+    endif()
+endif()
+
+if(PDF4QT_ENABLE_VALGRIND_ANNOTATIONS)
+    # Client requests of valgrind helgrind / drd in PDFThreadAnnotations and in the
+    # QMutex / QReadWriteLock of Qt (Pdf4QtLibCore/threadannotations/QtCore/qtsan_impl.h
+    # replaces the hooks of ThreadSanitizer of Qt), see pdfthreadannotations.h
+    find_path(PDF4QT_VALGRIND_INCLUDE_DIR valgrind/helgrind.h)
+    if(NOT PDF4QT_VALGRIND_INCLUDE_DIR)
+        message(FATAL_ERROR "PDF4QT_ENABLE_VALGRIND_ANNOTATIONS needs the headers of valgrind (set PDF4QT_VALGRIND_INCLUDE_DIR to the directory containing valgrind/helgrind.h).")
+    endif()
+    add_compile_definitions(PDF4QT_VALGRIND_ANNOTATIONS)
+    include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/Pdf4QtLibCore/threadannotations)
+    include_directories(SYSTEM ${PDF4QT_VALGRIND_INCLUDE_DIR})
+    # The wrappers of the hand-offs inside of Qt are in Pdf4QtLibCore: every binary of
+    # PDF4QT loads it (a library using only its headers would drop it as not needed)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_link_options(-Wl,--no-as-needed)
+        # The reference count of std::shared_ptr of libstdc++ is annotated by its hooks
+        # (the release of the last reference happens after the releases of the others)
+        add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/Pdf4QtLibCore/threadannotations/pdf4qtvalgrindprelude.h>")
     endif()
 endif()
 

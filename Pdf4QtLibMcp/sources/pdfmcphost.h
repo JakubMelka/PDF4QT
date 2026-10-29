@@ -84,11 +84,11 @@ public:
     virtual ~PDFMcpHost() override;
 
     /// tools/call, resources/read of a document resource, prompts/get, completion/complete
-    virtual void handleCall(std::shared_ptr<pdf::PDFMcpCall> call) = 0;
+    virtual void handleCall(const std::shared_ptr<pdf::PDFMcpCall>& call) = 0;
 
     /// The call was canceled by the transport, the assistant or the server (the
     /// default does nothing; jobs see the cancellation by PDFOperationControl)
-    virtual void callCanceled(std::shared_ptr<pdf::PDFMcpCall> call);
+    virtual void callCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call);
 
     /// An assistant was connected / became idle / was disconnected / its session ended
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) = 0;

@@ -223,8 +223,25 @@ public:
     /// Page navigation (page index from 0; an index out of range is ignored)
     void goToPage(PDFInteger pageIndex);
 
-    /// First page shown in the canvas (-1 without a document)
+    /// First page shown in the canvas (-1 without a document); with two pages side by
+    /// side the left page of the first row shown
     PDFInteger getCurrentPageIndex() const;
+
+    /// Pages seen in the canvas, sorted (all pages of the rows shown, also partly);
+    /// empty without a document
+    std::vector<PDFInteger> getShownPages() const;
+
+    /// The page is seen in the canvas (one of getShownPages)
+    bool isPageShown(PDFInteger pageIndex) const;
+
+    /// The page of the document for the user (owner 2026-10-29): the page chosen in the
+    /// thumbnails (setSelectedPages) while it is seen in the canvas - the right page of
+    /// a row of two pages, which the user has clicked - otherwise the current page. The page field of the toolbar, the page item of the status bar, the Go to
+    /// panel, the route ?page=, the reading state, Add bookmark, Print Current page, the
+    /// state of MCP and the starts of Copy to Pages and of the speech show it; the
+    /// navigation and the synchronization of the panels use getCurrentPageIndex.
+    /// -1 without a document.
+    PDFInteger getDisplayedPageIndex() const;
 
     /// Number of the pages of the shown document (0 without a document)
     PDFInteger getPageCount() const;
@@ -250,7 +267,9 @@ public:
 
     /// Pages selected in the thumbnails (package C); an empty list = no selection
     /// (getSelectedPages returns the current page). Pages out of range are dropped.
-    void setSelectedPages(std::vector<PDFInteger> pages);
+    /// \p chosenPage is the one page the user has chosen in the thumbnails (a click, the
+    /// keys, the right button; -1 for none): getDisplayedPageIndex while it is seen.
+    void setSelectedPages(std::vector<PDFInteger> pages, PDFInteger chosenPage = -1);
 
     /// Shows the panel of the sidebar (?panel=). \returns false for an unknown panel.
     bool showPanel(const QString& panelId);
@@ -393,6 +412,10 @@ Q_SIGNALS:
     /// The current page has changed (page index from 0)
     void currentPageChanged(pdf::PDFInteger pageIndex);
 
+    /// The page for the user has changed (getDisplayedPageIndex): the current page, or
+    /// the selected page of the thumbnails seen in the canvas
+    void displayedPageChanged(pdf::PDFInteger pageIndex);
+
     /// The shown panel of the sidebar has changed
     void panelChanged(const QString& panelId);
 
@@ -439,7 +462,23 @@ private:
         qint64 wheelSpeedVertical = -1;
     };
 
+    /// The page the user looks at and the top of its rectangle on the canvas: it is
+    /// kept in its place over a new version of the document, whose layout changes
+    /// (a rotated page above it, undo / redo of it)
+    struct PageAnchor
+    {
+        PDFInteger pageIndex = -1;
+        double top = 0.0;
+        double height = 0.0;
+    };
+
     void onDocumentChanged(const pdf::PDFModifiedDocument& modified);
+    PDFInteger getDisplayedPageIndex(const std::vector<PDFInteger>& shownPages) const;
+    /// Announces a change of the page for the user (the page item of the status bar,
+    /// displayedPageChanged); a slot may delete the view
+    void updateDisplayedPage();
+    PageAnchor capturePageAnchor(const PDFModifiedDocument& modified) const;
+    void restorePageAnchor(const PageAnchor& anchor);
     void onDocumentStateChanged();
     void onDocumentAboutToBeDestroyed();
     void onDocumentDestroyed();
@@ -498,11 +537,14 @@ private:
     std::vector<PDFAppInfoBarRequest> m_infoBars;
     std::vector<QPointer<PDFAppInfoBar>> m_infoBarWidgets;
     std::vector<PDFInteger> m_selectedPages;
+    PDFInteger m_chosenPageIndex = -1;          ///< The page chosen by the user in the thumbnails (setSelectedPages)
     PDFInteger m_lastPageIndex = -1;
+    PDFInteger m_lastDisplayedPageIndex = -1;   ///< The page announced by displayedPageChanged (-2 = announce again)
     PDFAppViewLayout m_layout = PDFAppViewLayout::Continuous;
     bool m_isFirstPageRight = false;
     bool m_isFullScreen = false;
     bool m_isDefaultViewApplied = false;
+    bool m_isRestoringPageAnchor = false;     ///< The layout changes under the anchored page (no signals of the current page)
     bool m_isHandMode = true;
     bool m_isSelectAllPending = false;
     bool m_isApplyingSettings = false;

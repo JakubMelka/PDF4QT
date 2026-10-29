@@ -49,6 +49,7 @@ class QButtonGroup;
 class QLineEdit;
 class QPushButton;
 class QRadioButton;
+class QStackedLayout;
 class QToolButton;
 
 namespace pdf
@@ -209,10 +210,24 @@ public:
     QList<PDFCodeBox*> getCodeBoxes() const;
     QPushButton* getCopySetupButton() const { return m_copySetupButton; }
     QPushButton* getDocumentationButton() const { return m_documentationButton; }
+    QWidget* getSetupCard() const { return m_setupCard; }
+
+    /// Height of the content of the setup card at the width of the card content
+    /// reserved for the tallest setup (every client in the shown state - the shown
+    /// address and token; tests)
+    int getReservedSetupHeight(int width) const;
+
+    /// Number of the setups measured for the reserved height (tests)
+    int getMeasuredSetupCount() const;
+
+    /// Number of times the measured setups have been built (tests: a tile switch
+    /// builds none)
+    int getSetupMeasureBuildCount() const { return m_setupMeasureBuildCount; }
 
 protected:
     virtual void changeEvent(QEvent* event) override;
     virtual void showEvent(QShowEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     /// A row of Recent activity with the data of its row mcp_activity
@@ -249,6 +264,22 @@ private:
     void updateActivity();
     void updateSetup();
     void rebuildSetupCard();
+
+    /// The content of the setup card: the header, the steps and the actions. A
+    /// measured setup (\p full is nullptr) has no names, connections and members,
+    /// and its rows are arranged by \p width (the width of the card content) -
+    /// a hidden widget gets no resize events, which arrange PDFAppResponsiveRow.
+    QWidget* createSetupContent(const PDFAppMcpSetup& display, const PDFAppMcpSetup* full, int width, QWidget* parent);
+
+    /// The setups of every client with the shown address and the shown token (as
+    /// createForDisplay gives them)
+    std::vector<PDFAppMcpSetup> getMeasuredSetups() const;
+
+    /// Builds the measured setups again, when their texts or the arrangement of
+    /// their rows at the width of the card changed (not at a switch of a tile)
+    void updateSetupMeasure();
+    void requestSetupMeasure();
+    void onThemeChanged();
 
     void onStateChanged();
     void onAssistantsChanged();
@@ -330,6 +361,13 @@ private:
     QPointer<QButtonGroup> m_tileGroup;
     QList<QPointer<PDFAssistantTile>> m_tiles;
     QPointer<QWidget> m_setupCard;
+    QPointer<QWidget> m_setupStack;
+    QPointer<QStackedLayout> m_setupStackLayout;
+    QPointer<QWidget> m_setupContent;
+    QList<QPointer<QWidget>> m_setupMeasures;
+    QString m_setupMeasureSignature;
+    bool m_isSetupMeasurePending = false;
+    int m_setupMeasureBuildCount = 0;
     QPointer<QButtonGroup> m_variantGroup;
     QList<QPointer<QPushButton>> m_variantChips;
     QList<QPointer<PDFCodeBox>> m_codeBoxes;

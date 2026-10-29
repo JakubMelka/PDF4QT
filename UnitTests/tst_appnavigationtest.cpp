@@ -36,9 +36,11 @@
 #include "pdfapptopbar.h"
 #include "pdfappwindowfactory.h"
 #include "pdfappwindowframe.h"
+#include "pdfappwindowgeometry.h"
 #include "pdfappworkspace.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfdatabasestatement.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfaccenthue.h"
@@ -314,6 +316,52 @@ public:
 
 int NavigationFixture::s_counter = 0;
 
+/// A context of the tests of the window geometry on a database file, which is not
+/// portable (a context on the same file is another start or another instance)
+class GeometryContext
+{
+public:
+    explicit GeometryContext(const QString& filePath)
+    {
+        context = std::make_unique<pdf::PDFAppContext>(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT") }, QDir::currentPath()));
+        context->setPagesEnabled(false);
+
+        pdf::PDFDatabaseOptions options;
+        options.filePath = filePath;
+        options.memoryName = QStringLiteral("/pdf4qt-navigation-geometry-%1-%2").arg(QCoreApplication::applicationPid()).arg(++s_counter);
+        context->open(options);
+    }
+
+    ~GeometryContext()
+    {
+        window.reset();
+        context->close();
+    }
+
+    /// A new main window of the context (not shown)
+    pdf::PDFAppMainWindow* createWindow()
+    {
+        window = std::make_unique<pdf::PDFAppMainWindow>(context.get());
+        window->getNavigator()->setExternalUrlsEnabled(false);
+        return window.get();
+    }
+
+    bool show()
+    {
+        window->show();
+        return QTest::qWaitForWindowExposed(window.get());
+    }
+
+    QString storedText() const { return context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry()); }
+
+    std::unique_ptr<pdf::PDFAppContext> context;
+    std::unique_ptr<pdf::PDFAppMainWindow> window;
+
+    static int s_counter;
+};
+
+int GeometryContext::s_counter = 0;
+
 /// Translator of the texts of the footer and of the banner ("[text]"), a language with longer texts
 class FooterTranslator : public QTranslator
 {
@@ -413,6 +461,12 @@ private slots:
     void maximizedClientRect();
     void nativeWindowsFrame();
     void windowControls();
+    void windowGeometryText();
+    void windowGeometryHostile_data();
+    void windowGeometryHostile();
+    void windowGeometryPlacement();
+    void windowGeometryRestored();
+    void windowGeometryOtherWindow();
     void closeAndCancel();
     void quitWithPendingRequests();
     void cancelQuitWhileLocked();
@@ -3020,6 +3074,107 @@ void AppNavigationTest::nativeWindowsFrame()
     GetWindowRect(newHwnd, &windowRect);
     QVERIFY2(newOrigin.y == windowRect.top, qPrintable(QStringLiteral("same hwnd %1 origin %2 top %3 style %4").arg(newHwnd == hwnd).arg(newOrigin.y).arg(windowRect.top).arg(qulonglong(GetWindowLongPtrW(newHwnd, GWL_STYLE)), 0, 16)));
     QTRY_COMPARE(fixture.window->size(), QSize(1200, 800));
+
+    // The geometry of the next start with the frame of Windows: a restored window
+    // has the client geometry it had (no drift by the height of a title bar at each
+    // start), a maximized one is maximized at once with its client area in the work
+    // area of its monitor, and Restore gives its normal geometry back. A window of
+    // the process is cascaded from the window of the fixture with its size
+    {
+        pdf::PDFAppMainWindow cascaded(fixture.context.get());
+        QCOMPARE(cascaded.geometry(), QRect(fixture.window->geometry().topLeft() + QPoint(32, 32), QSize(1200, 800)));
+        cascaded.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&cascaded));
+        QTRY_COMPARE(cascaded.geometry(), QRect(fixture.window->geometry().topLeft() + QPoint(32, 32), QSize(1200, 800)));
+    }
+    delete fixture.window.data();
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString filePath = directory.filePath(QStringLiteral("geometry.db"));
+        const QScreen* screen = QGuiApplication::primaryScreen();
+        const QRect available = screen->availableGeometry();
+        const QRect normal(available.topLeft() + QPoint(80, 60), QSize(1000, 700).boundedTo(available.size() - QSize(160, 120)).expandedTo(QSize(720, 480)));
+        const pdf::PDFAppWindowGeometry written(normal, false, screen->name(), screen->geometry());
+
+        for (int start = 0; start < 3; ++start)
+        {
+            GeometryContext context(filePath);
+            if (start == 0)
+            {
+                QVERIFY(!context.context->getSettings().setValue(pdf::PDFSettingKeys::windowGeometry(), written.toText()).isError());
+            }
+            pdf::PDFAppMainWindow* window = context.createWindow();
+            QVERIFY(context.show());
+            QCoreApplication::processEvents();
+            const HWND windowHwnd = reinterpret_cast<HWND>(window->winId());
+            RECT rect = { };
+            GetWindowRect(windowHwnd, &rect);
+            POINT origin = { 0, 0 };
+            ClientToScreen(windowHwnd, &origin);
+            QVERIFY2(window->geometry() == normal, qPrintable(QStringLiteral("start %1: %2,%3 %4x%5 instead of %6,%7 %8x%9").arg(start).arg(window->x()).arg(window->y()).arg(window->width()).arg(window->height())
+                                                             .arg(normal.x()).arg(normal.y()).arg(normal.width()).arg(normal.height())));
+            QCOMPARE(origin.y, rect.top);
+            QVERIFY(window->close());
+            QCOMPARE(pdf::PDFAppWindowGeometry::fromText(context.storedText()).getNormalGeometry(), normal);
+        }
+
+        // Maximized by the system (the button of the frame, a double click of the
+        // caption, Win+Up: WM_SYSCOMMAND / SC_MAXIMIZE - Qt gets the new geometry
+        // before the new state), closed and started again
+        {
+            GeometryContext context(filePath);
+            pdf::PDFAppMainWindow* window = context.createWindow();
+            QVERIFY(context.show());
+            SendMessageW(reinterpret_cast<HWND>(window->winId()), WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+            QTRY_VERIFY(window->isMaximized());
+            QCoreApplication::processEvents();
+            QVERIFY(window->close());
+            const pdf::PDFAppWindowGeometry stored = pdf::PDFAppWindowGeometry::fromText(context.storedText());
+            QVERIFY(stored.isMaximized());
+            QCOMPARE(stored.getNormalGeometry(), normal);
+        }
+        {
+            GeometryContext context(filePath);
+            pdf::PDFAppMainWindow* window = context.createWindow();
+            QVERIFY(context.show());
+            QTRY_VERIFY(window->isMaximized());
+            const HWND windowHwnd = reinterpret_cast<HWND>(window->winId());
+            QVERIFY(IsZoomed(windowHwnd));
+            QVERIFY(window->getTopBar()->getWindowControls()->isMaximized());
+            MONITORINFO monitor = { };
+            monitor.cbSize = sizeof(monitor);
+            QVERIFY(GetMonitorInfoW(MonitorFromWindow(windowHwnd, MONITOR_DEFAULTTONEAREST), &monitor));
+            POINT origin = { 0, 0 };
+            ClientToScreen(windowHwnd, &origin);
+            QVERIFY(origin.y >= monitor.rcWork.top);
+            QVERIFY(origin.y <= monitor.rcWork.top + pdf::PDFAppWindowFrame::AUTO_HIDE_TASKBAR_INSET);
+            QVERIFY(origin.x >= monitor.rcWork.left);
+            window->showNormal();
+            QTRY_VERIFY(!window->isMaximized());
+            QTRY_COMPARE(window->geometry(), normal);
+            RECT rect = { };
+            GetWindowRect(windowHwnd, &rect);
+            origin = { 0, 0 };
+            ClientToScreen(windowHwnd, &origin);
+            QCOMPARE(origin.y, rect.top);
+        }
+
+        // Started maximized and closed maximized at each start: the normal geometry
+        // stays (Qt reports the normal geometry of a window created maximized off by
+        // the frame of the maximized window)
+        for (int start = 0; start < 3; ++start)
+        {
+            GeometryContext context(filePath);
+            pdf::PDFAppMainWindow* window = context.createWindow();
+            QVERIFY(context.show());
+            QTRY_VERIFY(window->isMaximized());
+            QVERIFY(window->close());
+            const pdf::PDFAppWindowGeometry stored = pdf::PDFAppWindowGeometry::fromText(context.storedText());
+            QVERIFY(stored.isMaximized());
+            QCOMPARE(stored.getNormalGeometry(), normal);
+        }
+    }
 #endif
 }
 
@@ -3082,6 +3237,382 @@ void AppNavigationTest::windowControls()
     // Close (the window hides, the application quits by the last window)
     controls->getButton(pdf::PDFWindowControls::Kind::Close)->click();
     QTRY_VERIFY(!fixture.window->isVisible());
+}
+
+void AppNavigationTest::windowGeometryText()
+{
+    // Round trip of the stored text (the screen name is data: quotes, a backslash,
+    // characters other than ASCII)
+    const pdf::PDFAppWindowGeometry geometry(QRect(-1700, 25, 1200, 800), true, QStringLiteral("\\\\.\\DISPLAY2 \"Dell\" č"), QRect(-1920, 0, 1920, 1080));
+    QVERIFY(geometry.isValid());
+    const QString text = geometry.toText();
+    QVERIFY(!text.isEmpty());
+    QVERIFY(text.size() <= pdf::PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH);
+    const pdf::PDFAppWindowGeometry read = pdf::PDFAppWindowGeometry::fromText(text);
+    QVERIFY(read.isValid());
+    QCOMPARE(read.getNormalGeometry(), geometry.getNormalGeometry());
+    QCOMPARE(read.isMaximized(), true);
+    QCOMPARE(read.getScreenName(), geometry.getScreenName());
+    QCOMPARE(read.getScreenGeometry(), geometry.getScreenGeometry());
+
+    // The longest name of a screen still fits into the definition of the setting
+    const pdf::PDFAppWindowGeometry longName(QRect(-1000000, -1000000, 100000, 100000), false, QString(1000, QChar(0x1F600)), QRect(-1000000, -1000000, 100000, 100000));
+    QCOMPARE(longName.getScreenName().size(), pdf::PDFAppWindowGeometry::MAXIMUM_SCREEN_NAME_LENGTH);
+    QVERIFY(longName.toText().size() <= pdf::PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH);
+    QVERIFY(pdf::PDFAppWindowGeometry::fromText(longName.toText()).isValid());
+
+    // A name of a screen, whose JSON escapes do not fit into the setting (control
+    // characters are  each): the geometry is stored without the name
+    const pdf::PDFAppWindowGeometry escapedName(QRect(-1000000, -1000000, 100000, 100000), true, QString(256, QChar(1)), QRect(-1000000, -1000000, 100000, 100000));
+    QCOMPARE(escapedName.getScreenName().size(), 256);
+    const QString escapedText = escapedName.toText();
+    QVERIFY(!escapedText.isEmpty());
+    QVERIFY(escapedText.size() <= pdf::PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH);
+    const pdf::PDFAppWindowGeometry escapedRead = pdf::PDFAppWindowGeometry::fromText(escapedText);
+    QVERIFY(escapedRead.isValid());
+    QCOMPARE(escapedRead.getNormalGeometry(), escapedName.getNormalGeometry());
+    QVERIFY(escapedRead.isMaximized());
+    QVERIFY(escapedRead.getScreenName().isEmpty());
+    QCOMPARE(escapedRead.getScreenGeometry(), escapedName.getScreenGeometry());
+    pdf::PDFAppContext context(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT"), QStringLiteral("--portable") }, QDir::currentPath()));
+    const pdf::PDFSettingDefinition* definition = context.getSettingRegistry()->findDefinition(pdf::PDFSettingKeys::windowGeometry());
+    QVERIFY(definition);
+    QVERIFY(!definition->isVisible());
+    QCOMPARE(definition->getMaximumLength(), qsizetype(pdf::PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH));
+
+    // An invalid geometry has no text
+    QVERIFY(pdf::PDFAppWindowGeometry().toText().isEmpty());
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(0, 0, 0, 10), false, QString(), QRect(0, 0, 100, 100)).toText().isEmpty());
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(0, 0, 10, 10), false, QString(), QRect(0, 0, 100001, 100)).toText().isEmpty());
+}
+
+void AppNavigationTest::windowGeometryHostile_data()
+{
+    QTest::addColumn<QVariant>("value");
+
+    const QString valid = QStringLiteral("\"version\":1,\"x\":10,\"y\":10,\"width\":740,\"height\":500,\"maximized\":false,\"screen\":\"s\",\"screen-x\":0,\"screen-y\":0,\"screen-width\":800,\"screen-height\":600");
+    auto with = [&valid](const QString& from, const QString& to)
+    {
+        QString text = valid;
+        text.replace(from, to);
+        return QVariant(QStringLiteral("{%1}").arg(text));
+    };
+
+    QTest::newRow("garbage") << QVariant(QStringLiteral("garbage"));
+    QTest::newRow("empty object") << QVariant(QStringLiteral("{}"));
+    QTest::newRow("array") << QVariant(QStringLiteral("[1,2,3,4]"));
+    QTest::newRow("truncated") << QVariant(QStringLiteral("{%1").arg(valid));
+    QTest::newRow("integer type") << QVariant(qint64(42));
+    QTest::newRow("real type") << QVariant(1.5);
+    QTest::newRow("blob") << QVariant(QByteArray("\x00\x01\x02", 3));
+    QTest::newRow("too long") << QVariant(QStringLiteral("{%1,\"padding\":\"%2\"}").arg(valid, QString(2000, QLatin1Char('x'))));
+    QTest::newRow("other version") << with(QStringLiteral("\"version\":1"), QStringLiteral("\"version\":2"));
+    QTest::newRow("no version") << with(QStringLiteral("\"version\":1,"), QString());
+    QTest::newRow("zero width") << with(QStringLiteral("\"width\":740"), QStringLiteral("\"width\":0"));
+    QTest::newRow("negative height") << with(QStringLiteral("\"height\":500"), QStringLiteral("\"height\":-500"));
+    QTest::newRow("huge width") << with(QStringLiteral("\"width\":740"), QStringLiteral("\"width\":1000000000"));
+    QTest::newRow("infinite width") << with(QStringLiteral("\"width\":740"), QStringLiteral("\"width\":1e400"));
+    QTest::newRow("fraction") << with(QStringLiteral("\"x\":10"), QStringLiteral("\"x\":10.5"));
+    QTest::newRow("huge position") << with(QStringLiteral("\"y\":10"), QStringLiteral("\"y\":2000000"));
+    QTest::newRow("width as text") << with(QStringLiteral("\"width\":740"), QStringLiteral("\"width\":\"740\""));
+    QTest::newRow("maximized as number") << with(QStringLiteral("\"maximized\":false"), QStringLiteral("\"maximized\":1"));
+    QTest::newRow("screen as number") << with(QStringLiteral("\"screen\":\"s\""), QStringLiteral("\"screen\":7"));
+    QTest::newRow("long screen name") << with(QStringLiteral("\"screen\":\"s\""), QStringLiteral("\"screen\":\"%1\"").arg(QString(300, QLatin1Char('s'))));
+    QTest::newRow("no screen geometry") << with(QStringLiteral(",\"screen-x\":0,\"screen-y\":0,\"screen-width\":800,\"screen-height\":600"), QString());
+    QTest::newRow("null screen width") << with(QStringLiteral("\"screen-width\":800"), QStringLiteral("\"screen-width\":null"));
+}
+
+void AppNavigationTest::windowGeometryHostile()
+{
+    QFETCH(QVariant, value);
+
+    // A hostile stored value is the default geometry of the window
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("geometry.db"));
+
+    QRect defaultGeometry;
+    {
+        GeometryContext reference(filePath);
+        defaultGeometry = reference.createWindow()->geometry();
+    }
+
+    GeometryContext context(filePath);
+    pdf::PDFDatabaseStatement statement(context.context->getDatabase()->getConnection(), "INSERT OR REPLACE INTO setting(key, value, modified) VALUES (?1, ?2, 0)");
+    statement.bindText(1, pdf::PDFSettingKeys::windowGeometry());
+    statement.bindVariant(2, value);
+    QVERIFY(statement.execute());
+    QVERIFY(!pdf::PDFAppWindowGeometry::fromText(context.context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry())).isValid());
+
+    pdf::PDFAppMainWindow* window = context.createWindow();
+    QCOMPARE(window->geometry(), defaultGeometry);
+    QVERIFY(!window->isMaximized());
+    QVERIFY(context.show());
+    QVERIFY(!window->isMaximized());
+}
+
+void AppNavigationTest::windowGeometryPlacement()
+{
+    using Screen = pdf::PDFAppWindowGeometry::Screen;
+    const QSize minimumSize(720, 480);
+
+    // Two monitors: the left one has a taskbar at the bottom
+    const Screen left{ QStringLiteral("LEFT"), QRect(-1920, 0, 1920, 1080), QRect(-1920, 0, 1920, 1040) };
+    const Screen right{ QStringLiteral("RIGHT"), QRect(0, 0, 2560, 1440), QRect(0, 0, 2560, 1400) };
+    const std::vector<Screen> screens = { left, right };
+
+    QRect geometry;
+
+    // The same screen: the rectangle as it was (also on a screen with negative coordinates)
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-1800, 40, 1200, 800), false, left.name, left.geometry).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(-1800, 40, 1200, 800));
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(300, 200, 1500, 900), true, right.name, right.geometry).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(300, 200, 1500, 900));
+
+    // Partly below the taskbar: moved up into the available geometry
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-1800, 400, 1200, 800), false, left.name, left.geometry).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(-1800, 240, 1200, 800));
+
+    // Larger than the screen: bounded by its available geometry
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-1950, -20, 4000, 3000), false, left.name, left.geometry).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, left.availableGeometry);
+
+    // Below the minimal size of the window: the minimal size
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(100, 100, 50, 20), false, right.name, right.geometry).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(QPoint(100, 100), minimumSize));
+
+    // The left monitor was disconnected: the window goes to the nearest screen
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-1800, 40, 1200, 800), true, left.name, left.geometry).place({ right }, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(0, 40, 1200, 800));
+
+    // The screen of the name has another geometry (rearranged, another resolution):
+    // the position relative to the screen (120, 40), bounded by it
+    const Screen movedLeft{ left.name, QRect(2560, 0, 1280, 720), QRect(2560, 0, 1280, 680) };
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-1800, 40, 1200, 800), false, left.name, left.geometry).place({ right, movedLeft }, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(2640, 0, 1200, 680));
+
+    // A screen of another name at the same place takes the window inside of it
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(500, 300, 1200, 800), false, QStringLiteral("GONE"), QRect(0, 0, 1920, 1080)).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(500, 300, 1200, 800));
+
+    // Far beyond every screen: on the nearest screen, inside of it
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(900000, -900000, 1200, 800), false, QStringLiteral("GONE"), QRect(900000, -900000, 1920, 1080)).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(2560 - 1200, 0, 1200, 800));
+    QVERIFY(pdf::PDFAppWindowGeometry(QRect(-900000, 900000, 1200, 800), false, QStringLiteral("GONE"), QRect(-900000, 900000, 1920, 1080)).place(screens, minimumSize, &geometry));
+    QCOMPARE(geometry, QRect(-1920, 1040 - 800, 1200, 800));
+
+    // No screen, an invalid geometry: nothing placed (the default of the window)
+    QVERIFY(!pdf::PDFAppWindowGeometry(QRect(0, 0, 1200, 800), false, left.name, left.geometry).place({ }, minimumSize, &geometry));
+    QVERIFY(!pdf::PDFAppWindowGeometry().place(screens, minimumSize, &geometry));
+    QVERIFY(!pdf::PDFAppWindowGeometry(QRect(0, 0, 1200, 800), false, left.name, left.geometry).place({ Screen{ QStringLiteral("EMPTY"), QRect(), QRect() } }, minimumSize, &geometry));
+
+    // Cascade: next to the other window, to the corner of the screen at its edge,
+    // never at the same position
+    QCOMPARE(pdf::PDFAppWindowGeometry::cascade(QRect(100, 100, 1200, 800), screens), QRect(132, 132, 1200, 800));
+    QCOMPARE(pdf::PDFAppWindowGeometry::cascade(QRect(1300, 590, 1200, 800), screens), QRect(0, 0, 1200, 800));
+    QCOMPARE(pdf::PDFAppWindowGeometry::cascade(QRect(0, 0, 2560, 1400), screens), QRect(32, 32, 2560, 1400));
+    QCOMPARE(pdf::PDFAppWindowGeometry::cascade(QRect(-1920, 0, 1920, 1040), screens), QRect(-1888, 32, 1920, 1040));
+}
+
+void AppNavigationTest::windowGeometryRestored()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("geometry.db"));
+    const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+    const QSize size = QSize(740, 500).boundedTo(available.size()).expandedTo(QSize(720, 480));
+    const QRect moved(available.topLeft() + QPoint(qMin(23, available.width() - size.width()), qMin(31, available.height() - size.height())), size);
+
+    QRect defaultGeometry;
+    {
+        GeometryContext reference(filePath);
+        defaultGeometry = reference.createWindow()->geometry();
+        QVERIFY(reference.storedText().isEmpty());
+    }
+    QVERIFY2(defaultGeometry != moved, "the moved geometry must differ from the default one");
+
+    // A moved and resized window closed: the next window of a new context on the
+    // database file (the next start) has its geometry before it is shown
+    {
+        GeometryContext first(filePath);
+        pdf::PDFAppMainWindow* window = first.createWindow();
+        QVERIFY(first.show());
+        window->setGeometry(moved);
+        QTRY_COMPARE(window->geometry(), moved);
+        QVERIFY(window->close());
+        QVERIFY(!first.storedText().isEmpty());
+
+        // A hidden window stores nothing (it was not seen)
+        QVERIFY(!first.context->getSettings().resetValue(pdf::PDFSettingKeys::windowGeometry()).isError());
+        window->close();
+        QVERIFY(QMetaObject::invokeMethod(qApp, "aboutToQuit", Qt::DirectConnection));
+        QVERIFY(first.storedText().isEmpty());
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QVERIFY(window->close());
+    }
+    {
+        GeometryContext second(filePath);
+        pdf::PDFAppMainWindow* window = second.createWindow();
+        QCOMPARE(window->geometry(), moved);
+        QVERIFY(!window->isMaximized());
+        QVERIFY(second.show());
+        QCOMPARE(window->geometry(), moved);
+
+        // Maximized: the next window is maximized before it is shown, Restore gives
+        // the normal geometry back
+        window->showMaximized();
+        QTRY_VERIFY(window->isMaximized());
+        QVERIFY(window->close());
+    }
+    {
+        GeometryContext third(filePath);
+        pdf::PDFAppMainWindow* window = third.createWindow();
+        QVERIFY(window->windowState().testFlag(Qt::WindowMaximized));
+        QVERIFY(third.show());
+        QTRY_VERIFY(window->isMaximized());
+        QVERIFY(window->getTopBar()->getWindowControls()->isMaximized());
+        window->showNormal();
+        QTRY_VERIFY(!window->isMaximized());
+        QTRY_COMPARE(window->geometry(), moved);
+
+        // Full screen of a normal window is stored as the normal window
+        window->setFullScreenMode(true);
+        QTRY_VERIFY(window->isFullScreen());
+        QVERIFY(window->close());
+    }
+    {
+        GeometryContext fourth(filePath);
+        pdf::PDFAppMainWindow* window = fourth.createWindow();
+        QVERIFY(!window->windowState().testAnyFlags(Qt::WindowMaximized | Qt::WindowFullScreen));
+        QCOMPARE(window->geometry(), moved);
+        QVERIFY(fourth.show());
+
+        // Full screen of a maximized window is stored as maximized
+        window->showMaximized();
+        QTRY_VERIFY(window->isMaximized());
+        window->setFullScreenMode(true);
+        QTRY_VERIFY(window->isFullScreen());
+        QVERIFY(window->close());
+    }
+    {
+        GeometryContext fifth(filePath);
+        pdf::PDFAppMainWindow* window = fifth.createWindow();
+        QVERIFY(window->windowState().testFlag(Qt::WindowMaximized));
+        QVERIFY(!window->windowState().testFlag(Qt::WindowFullScreen));
+        QVERIFY(fifth.show());
+        QTRY_VERIFY(window->isMaximized());
+        window->showNormal();
+        QTRY_COMPARE(window->geometry(), moved);
+
+        // Minimized is stored as the state, which the window restores (normal)
+        window->showMinimized();
+        QTRY_VERIFY(window->isMinimized());
+        QVERIFY(window->close());
+    }
+    {
+        GeometryContext sixth(filePath);
+        pdf::PDFAppMainWindow* window = sixth.createWindow();
+        QVERIFY(!window->windowState().testAnyFlags(Qt::WindowMaximized | Qt::WindowMinimized));
+        QCOMPARE(window->geometry(), moved);
+
+        // The quit of the application without the closing of the window stores it
+        QVERIFY(sixth.show());
+        const QRect quitGeometry = moved.translated(1, 2);
+        window->setGeometry(quitGeometry);
+        QTRY_COMPARE(window->geometry(), quitGeometry);
+        QVERIFY(QMetaObject::invokeMethod(qApp, "aboutToQuit", Qt::DirectConnection));
+        QCOMPARE(pdf::PDFAppWindowGeometry::fromText(sixth.storedText()).getNormalGeometry(), quitGeometry);
+        window->setGeometry(moved);
+        QTRY_COMPARE(window->geometry(), moved);
+        QVERIFY(window->close());
+    }
+
+    // A value written by another instance (another connection) is used by the next window
+    {
+        GeometryContext running(filePath);
+        GeometryContext other(filePath);
+        const QRect otherGeometry(available.topLeft() + QPoint(5, 7), size);
+        const pdf::PDFAppWindowGeometry written(otherGeometry, false, QGuiApplication::primaryScreen()->name(), QGuiApplication::primaryScreen()->geometry());
+        QVERIFY(!other.context->getSettings().setValue(pdf::PDFSettingKeys::windowGeometry(), written.toText()).isError());
+        QCOMPARE(running.createWindow()->geometry(), otherGeometry);
+    }
+
+    // A geometry beyond every screen (a disconnected monitor) is placed on a screen
+    {
+        GeometryContext context(filePath);
+        const pdf::PDFAppWindowGeometry written(QRect(50000, -40000, 740, 500), true, QStringLiteral("disconnected"), QRect(49000, -41000, 1920, 1080));
+        QVERIFY(!context.context->getSettings().setValue(pdf::PDFSettingKeys::windowGeometry(), written.toText()).isError());
+        pdf::PDFAppMainWindow* window = context.createWindow();
+
+        // Inside of the available geometry of a screen (more monitors of a native
+        // run: any of them), in its corner towards the stored position (top right)
+        const QScreen* placedScreen = nullptr;
+        for (const QScreen* screen : QGuiApplication::screens())
+        {
+            if (screen->availableGeometry().contains(window->geometry()))
+            {
+                placedScreen = screen;
+            }
+        }
+        QVERIFY2(placedScreen, qPrintable(QStringLiteral("%1,%2 %3x%4").arg(window->x()).arg(window->y()).arg(window->width()).arg(window->height())));
+        QCOMPARE(window->size(), QSize(740, 500));
+        const QRect placedAvailable = placedScreen->availableGeometry();
+        QCOMPARE(window->geometry().topLeft(), QPoint(placedAvailable.right() + 1 - window->width(), placedAvailable.top()));
+        QVERIFY(window->windowState().testFlag(Qt::WindowMaximized));
+        QVERIFY(context.show());
+        QTRY_VERIFY(window->isMaximized());
+    }
+}
+
+void AppNavigationTest::windowGeometryOtherWindow()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("geometry.db"));
+    const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+    const QRect stored(available.topLeft() + QPoint(10, 12), QSize(720, 480));
+    const pdf::PDFAppWindowGeometry written(stored, false, QGuiApplication::primaryScreen()->name(), QGuiApplication::primaryScreen()->geometry());
+
+    // The first window of the process takes the stored geometry, a second window
+    // of the process (a forwarded request, another context) is cascaded from it -
+    // never exactly over it, never at the stored position
+    GeometryContext first(filePath);
+    QVERIFY(!first.context->getSettings().setValue(pdf::PDFSettingKeys::windowGeometry(), written.toText()).isError());
+    pdf::PDFAppMainWindow* firstWindow = first.createWindow();
+    QCOMPARE(firstWindow->geometry(), stored);
+    QVERIFY(first.show());
+
+    GeometryContext second(filePath);
+    pdf::PDFAppMainWindow* secondWindow = second.createWindow();
+    QVERIFY(secondWindow->geometry().topLeft() != firstWindow->geometry().topLeft());
+    QCOMPARE(secondWindow->geometry(), pdf::PDFAppWindowGeometry::cascade(stored, pdf::PDFAppWindowGeometry::getScreens()));
+    QVERIFY(second.show());
+
+    // A third window of the same context, while the second one is active: next to it
+    secondWindow->activateWindow();
+    QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(secondWindow));
+    pdf::PDFAppMainWindow thirdWindow(second.context.get());
+    QVERIFY(thirdWindow.geometry().topLeft() != secondWindow->geometry().topLeft());
+    QCOMPARE(thirdWindow.geometry(), pdf::PDFAppWindowGeometry::cascade(secondWindow->geometry(), pdf::PDFAppWindowGeometry::getScreens()));
+
+    // A maximized other window: the cascade of its normal geometry, not maximized
+    firstWindow->showMaximized();
+    QTRY_VERIFY(firstWindow->isMaximized());
+    firstWindow->activateWindow();
+    QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(firstWindow));
+    pdf::PDFAppMainWindow fourthWindow(first.context.get());
+    QVERIFY(!fourthWindow.windowState().testFlag(Qt::WindowMaximized));
+    QCOMPARE(fourthWindow.geometry(), pdf::PDFAppWindowGeometry::cascade(stored, pdf::PDFAppWindowGeometry::getScreens()));
+
+    // The application quits with two visible windows (the slots of aboutToQuit run
+    // in the order of their creation): the active window is stored, not the newest one
+    QVERIFY(!first.context->getSettings().resetValue(pdf::PDFSettingKeys::windowGeometry()).isError());
+    QVERIFY(QMetaObject::invokeMethod(qApp, "aboutToQuit", Qt::DirectConnection));
+    const pdf::PDFAppWindowGeometry quitGeometry = pdf::PDFAppWindowGeometry::fromText(second.storedText());
+    QVERIFY(quitGeometry.isValid());
+    QVERIFY(quitGeometry.isMaximized());
+    QCOMPARE(quitGeometry.getNormalGeometry(), stored);
 }
 
 void AppNavigationTest::closeAndCancel()
