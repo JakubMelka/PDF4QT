@@ -95,8 +95,18 @@ public:
         return QStringLiteral("failed");
     }
 
-    /// Result of files.open: the document, its state and the link to its information
-    static PDFMcpCallResult createOpenResult(const PDFAppDocument* document)
+    /// The assistant may read the documents now (Read documents = Allow, or Ask with
+    /// its read approval) - without a question
+    static bool isReadAllowed(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call)
+    {
+        return host && call && host->getPolicy().evaluate(PDFAppMcpPermissionKind::Read, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Allowed;
+    }
+
+    /// Result of files.open: the document, its state and the link to its information.
+    /// The number of pages is data of the document: only with \p isReadAllowed (a new
+    /// file is opened by Open and save files alone - review RPKT 96-7); the title is
+    /// the name of the file, which the assistant gave.
+    static PDFMcpCallResult createOpenResult(const PDFAppDocument* document, bool isReadAllowed)
     {
         PDFMcpJsonWriter writer;
         writer.beginObject();
@@ -105,7 +115,10 @@ public:
         writer.beginObject();
         writer.writeMember(QLatin1StringView("documentId"), QStringView(document->getId()));
         writer.writeMember(QLatin1StringView("title"), QStringView(document->getTitle()));
-        writer.writeMember(QLatin1StringView("pageCount"), qint64(document->isReady() ? document->getPageCount() : 0));
+        if (isReadAllowed)
+        {
+            writer.writeMember(QLatin1StringView("pageCount"), qint64(document->isReady() ? document->getPageCount() : 0));
+        }
         writer.writeMember(QLatin1StringView("state"), QStringView(getStateName(document->getState())));
         writer.endObject();
         writer.endObject();
@@ -157,7 +170,7 @@ public:
             return;
         }
         host->recordActivity(call, actionId, documentGuard, QJsonObject(), PDFMcpActivityStatus::Ok);
-        call->finish(createOpenResult(documentGuard));
+        call->finish(createOpenResult(documentGuard, true));
     }
 };
 
@@ -529,7 +542,7 @@ public:
         switch (document->getState())
         {
             case PDFAppDocumentState::Ready:
-                succeed(PDFAppMcpFilesToolHelper::createOpenResult(document));
+                succeed(PDFAppMcpFilesToolHelper::createOpenResult(document, PDFAppMcpFilesToolHelper::isReadAllowed(m_host, m_call)));
                 return;
             case PDFAppDocumentState::PasswordRequired:
                 fail(isTimeout ? QStringLiteral("The document needs a password, which the user did not type in PDF4QT within 2 minutes (state password_required). The password is typed only in PDF4QT.")

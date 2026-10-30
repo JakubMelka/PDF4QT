@@ -582,13 +582,17 @@ void PDFAppMarkResults::cancel()
     {
         m_progressTimer->stop();
     }
-    if (m_operation)
-    {
-        m_operation->disconnect(this);
-        m_operation->finish();
-        m_operation = nullptr;
-    }
+
+    // The members are cleared first: finish() announces the end synchronously and a
+    // slot may delete the tab with this object (review RPKT 95a)
+    QPointer<PDFAppDocumentOperation> operation = m_operation;
+    m_operation = nullptr;
     m_control.reset();
+    if (operation)
+    {
+        operation->disconnect(this);
+        operation->finish();
+    }
 }
 
 bool PDFAppMarkResults::mark(AnnotationType type, const QColor& color, Scope scope)
@@ -630,7 +634,15 @@ bool PDFAppMarkResults::mark(AnnotationType type, const QColor& color, Scope sco
     m_runningType = type;
     m_runningVersion = snapshot.version;
     m_runningTotal = matches.size();
-    m_operation = document->beginOperation(PDFAppDocumentOperationKind::Edit, QCoreApplication::translate("pdf::PDFAppMarkResults", "Marking the search results"), true);
+    // The document announces the operation synchronously: a slot may delete the tab
+    // (this object, the document and the operation) - review RPKT 95a
+    QPointer<PDFAppMarkResults> beginGuard(this);
+    PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Edit, QCoreApplication::translate("pdf::PDFAppMarkResults", "Marking the search results"), true);
+    if (!beginGuard)
+    {
+        return false;
+    }
+    m_operation = operation;
     if (m_operation)
     {
         connect(m_operation.data(), &PDFAppDocumentOperation::cancelRequested, this, &PDFAppMarkResults::onOperationCancelRequested);
@@ -706,17 +718,26 @@ void PDFAppMarkResults::onWorkerFinished()
         m_progressTimer->stop();
     }
 
-    // The operation ends first (it blocks the commit)
-    if (m_operation)
-    {
-        m_operation->disconnect(this);
-        m_operation->finish();
-        m_operation = nullptr;
-    }
+    // The operation ends first (it blocks the commit); its end is announced
+    // synchronously - a slot may delete the tab with this object (review RPKT 95a)
     const bool isCanceled = m_control && m_control->isOperationCancelled();
     m_control.reset();
+    const AnnotationType type = m_runningType;
+    const quint64 version = m_runningVersion;
+    QPointer<PDFAppDocumentOperation> operation = m_operation;
+    m_operation = nullptr;
+    if (operation)
+    {
+        QPointer<PDFAppMarkResults> guard(this);
+        operation->disconnect(this);
+        operation->finish();
+        if (!guard)
+        {
+            return;
+        }
+    }
 
-    finishMarking(isCanceled ? PDFAppAnnotationResult() : outcome.change, isCanceled ? 0 : outcome.count, m_runningType, m_runningVersion);
+    finishMarking(isCanceled ? PDFAppAnnotationResult() : outcome.change, isCanceled ? 0 : outcome.count, type, version);
 }
 
 void PDFAppMarkResults::finishMarking(const PDFAppAnnotationResult& change, size_t count, AnnotationType type, quint64 expectedVersion)

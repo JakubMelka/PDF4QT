@@ -68,6 +68,11 @@ public:
     /// Two stored paths denote the same file (case insensitive on Windows and macOS)
     static bool isSamePath(const QString& first, const QString& second);
 
+    /// The paths of this system have no case (isSamePath of "/a" and "/A"): a key of
+    /// a path in the database (UNIQUE, an index) compares the bytes, so a repository
+    /// finds a row of the same file in another case by isSamePath
+    static bool isPathCaseInsensitive();
+
     /// Name entered by the user (workspace, pinned location): white space at the
     /// ends removed, control characters replaced by spaces. Empty, when nothing
     /// remains or the name is longer than MAXIMUM_NAME_LENGTH (refused).

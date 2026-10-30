@@ -135,12 +135,18 @@ public:
     /// an empty text = canceled
     static QString getOpenBackupFileName(QWidget* parent, const QString& folder);
 
+    /// The file of a print to a printer, whose port asks for a file (Microsoft Print
+    /// to PDF; step 9, N5): \p filePath is the proposed file, \p suffix the suffix of
+    /// the file of the driver; an empty text = canceled
+    static QString getPrintFileName(QWidget* parent, const QString& filePath, const QString& suffix);
+
     /// Handlers replacing the dialogs (tests); an empty handler restores the dialog
     static void setOpenFilesHandler(OpenFilesHandler handler);
     static void setFolderHandler(FolderHandler handler);
     static void setSaveFileHandler(SaveFileHandler handler);
     static void setSaveBackupHandler(SaveFileHandler handler);
     static void setOpenBackupHandler(FolderHandler handler);
+    static void setPrintFileHandler(SaveFileHandler handler);
 
 private:
     static OpenFilesHandler& getOpenFilesHandler();
@@ -148,6 +154,7 @@ private:
     static SaveFileHandler& getSaveFileHandler();
     static SaveFileHandler& getSaveBackupHandler();
     static FolderHandler& getOpenBackupHandler();
+    static SaveFileHandler& getPrintFileHandler();
 };
 
 /// Document open in a window, which a workspace can save (Save as workspace

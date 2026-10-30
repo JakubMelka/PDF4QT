@@ -40,9 +40,28 @@
 //    starting a task happens before the task (QThreadPool::start of a callable),
 //  - QFutureInterfaceBase::reportStarted / isCanceled: QtConcurrent::run reports the start
 //    of its task (the stored function and arguments are complete) and the task asks the same
-//    future interface for its cancellation at its start, before it calls the function.
+//    future interface for its cancellation at its start, before it calls the function,
+//  - QArrayData::allocate / allocate1 / allocate2: the deallocation of a storage happens
+//    before its next allocation ([new.delete.dataraces]), so a new block of QString /
+//    QByteArray / QList has no accesses of other threads before it. helgrind and
+//    ThreadSanitizer forget the state of new memory themselves; drd forgets only the
+//    requested bytes of a block at free(), not the bytes behind them in the same chunk of the
+//    allocator, which the SIMD code of Qt reads by aligned 16-byte loads (qHash of a short
+//    string - aeshash128_lt16: "this may produce valgrind warnings, but it's safe" -,
+//    qustrlen). A block of another thread allocated later in that chunk was reported as a
+//    conflicting store against the thread, which had read and freed the old block (drd,
+//    UnitTestsMcp listenStreams: a QString of a task id hashed by PDFMcpSubscriptionFilter::parse
+//    in the control thread of the MCP server, the QByteArray of the response in the test
+//    thread). The wrapper forgets the history of the whole new block (ANNOTATE_NEW_MEMORY -
+//    the clean memory request of helgrind, which drd understands too), so the later accesses
+//    of the block are checked against its own life only; the header written inside of the
+//    allocation function itself before the wrapper gets the block is covered by the entry
+//    qarraydata-new-header of pdf4qt-drd.supp (gen-thread-supp.py, top frame QArrayData::allocate*).
+//    QArrayData::reallocateUnaligned keeps the contents of its block, so it is not wrapped.
 // The wrappers must have the encoded names of valgrind and C linkage, so they are free
 // functions (an exception of the conventions of the project, nothing calls them).
+
+#include <malloc.h>
 
 #include <valgrind/valgrind.h>
 #include <valgrind/helgrind.h>
@@ -134,6 +153,49 @@ PDF4QT_VALGRIND_WRAPPER bool I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZNK20QFu
     CALL_FN_W_W(result, function, futureInterface);
     return (result & 0xFF) != 0;
 }
+
+// The whole new block (malloc_usable_size of valgrind is the requested size); no block
+// (capacity 0, the shared null) - nothing to forget
+#define PDF4QT_FORGET_NEW_ARRAY_DATA(header) \
+    if (header) \
+    { \
+        ANNOTATE_NEW_MEMORY((header), malloc_usable_size(header)); \
+    }
+
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData8allocateEPPS_xxxNS_16AllocationOptionE)(void** header, long long objectSize, long long alignment, long long capacity, int option);
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData8allocateEPPS_xxxNS_16AllocationOptionE)(void** header, long long objectSize, long long alignment, long long capacity, int option)
+{
+    OrigFn function;
+    void* result = nullptr;
+    VALGRIND_GET_ORIG_FN(function);
+    CALL_FN_W_5W(result, function, header, objectSize, alignment, capacity, option);
+    PDF4QT_FORGET_NEW_ARRAY_DATA(header ? *header : nullptr);
+    return result;
+}
+
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData9allocate1EPPS_xNS_16AllocationOptionE)(void** header, long long capacity, int option);
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData9allocate1EPPS_xNS_16AllocationOptionE)(void** header, long long capacity, int option)
+{
+    OrigFn function;
+    void* result = nullptr;
+    VALGRIND_GET_ORIG_FN(function);
+    CALL_FN_W_WWW(result, function, header, capacity, option);
+    PDF4QT_FORGET_NEW_ARRAY_DATA(header ? *header : nullptr);
+    return result;
+}
+
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData9allocate2EPPS_xNS_16AllocationOptionE)(void** header, long long capacity, int option);
+PDF4QT_VALGRIND_WRAPPER void* I_WRAP_SONAME_FNNAME_ZU(libQt6CoreZdsoZa, _ZN10QArrayData9allocate2EPPS_xNS_16AllocationOptionE)(void** header, long long capacity, int option)
+{
+    OrigFn function;
+    void* result = nullptr;
+    VALGRIND_GET_ORIG_FN(function);
+    CALL_FN_W_WWW(result, function, header, capacity, option);
+    PDF4QT_FORGET_NEW_ARRAY_DATA(header ? *header : nullptr);
+    return result;
+}
+
+#undef PDF4QT_FORGET_NEW_ARRAY_DATA
 
 }   // extern "C"
 

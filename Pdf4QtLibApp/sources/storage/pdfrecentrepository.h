@@ -288,7 +288,9 @@ public:
     /// Lock of the document at the next opening (step 3)
     PDFDatabaseError setLocked(const QString& path, bool locked);
 
-    /// The recorded file of the path (path as stored, see PDFRepositoryHelper::normalizePath)
+    /// The recorded file of the path (path as stored, see PDFRepositoryHelper::normalizePath;
+    /// on a system with paths without case also the row of another case of the path -
+    /// as the updates of setReadingState, setViewState and setLocked)
     std::optional<PDFRecentFile> getFile(const QString& path) const;
 
     /// Recent files by the query (Home, Open, Recent; the pinned ones included,

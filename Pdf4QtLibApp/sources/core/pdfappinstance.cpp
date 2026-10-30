@@ -44,6 +44,16 @@
 
 #include <vector>
 
+// X11: the startup notification of a forwarded launch (PDFAppXcbMessenger); the
+// functions of libxcb are resolved at run time, only its header is needed
+#if !defined(Q_OS_WIN) && QT_CONFIG(xcb) && __has_include(<xcb/xcb.h>)
+#define PDF4QT_APP_XCB_ACTIVATION
+#include <QLibrary>
+#include <cstdlib>
+#include <cstring>
+#include <xcb/xcb.h>
+#endif
+
 #if defined(Q_OS_WIN)
 #include <qt_windows.h>
 #include <lmcons.h>
@@ -1362,11 +1372,280 @@ QString PDFAppActivation::readStartupToken()
     return PDFAppInstanceProtocol::isValidToken(token) ? token : QString();
 }
 
-void PDFAppActivation::activateWindow(QWidget* window, const QString& activationToken)
+QByteArray PDFAppStartupNotification::escapeValue(const QByteArray& value)
+{
+    // Startup Notification Protocol 0.1, "Message format": a space, a double quote
+    // and a backslash of a value are escaped by a backslash
+    QByteArray escaped;
+    escaped.reserve(value.size() * 2);
+    for (const char character : value)
+    {
+        if (character == ' ' || character == '"' || character == '\\')
+        {
+            escaped.append('\\');
+        }
+        escaped.append(character);
+    }
+    return escaped;
+}
+
+QByteArray PDFAppStartupNotification::createRemoveMessage(const QString& startupId)
+{
+    return QByteArrayLiteral("remove: ID=") + escapeValue(startupId.toUtf8());
+}
+
+std::vector<QByteArray> PDFAppStartupNotification::splitMessage(const QByteArray& message)
+{
+    // The message is sent with its terminating NUL byte
+    QByteArray data = message;
+    data.append('\0');
+
+    std::vector<QByteArray> chunks;
+    for (qsizetype start = 0; start < data.size(); start += CHUNK_SIZE)
+    {
+        QByteArray chunk = data.mid(start, CHUNK_SIZE);
+        chunk.append(QByteArray(CHUNK_SIZE - chunk.size(), '\0'));
+        chunks.push_back(std::move(chunk));
+    }
+    return chunks;
+}
+
+bool PDFAppStartupNotification::getTimestamp(const QString& startupId, quint32* timestamp)
+{
+    // The launchers end the id by "_TIME<the X server time of the user action>"
+    const qsizetype index = startupId.lastIndexOf(QLatin1String("_TIME"));
+    if (index < 0)
+    {
+        return false;
+    }
+
+    const QString digits = startupId.mid(index + 5);
+    if (digits.isEmpty() || digits.size() > 10)
+    {
+        return false;
+    }
+    for (const QChar character : digits)
+    {
+        if (character < QLatin1Char('0') || character > QLatin1Char('9'))
+        {
+            return false;
+        }
+    }
+
+    bool ok = false;
+    const qulonglong value = digits.toULongLong(&ok);
+    if (!ok || value > 0xFFFFFFFFULL)
+    {
+        return false;
+    }
+
+    if (timestamp)
+    {
+        *timestamp = quint32(value);
+    }
+    return true;
+}
+
+PDFAppX11Messenger::~PDFAppX11Messenger() = default;
+
+#if defined(PDF4QT_APP_XCB_ACTIVATION)
+
+/// The X11 messages of the activation sent to the X server of Qt. The functions of
+/// libxcb are taken from the library, which the platform plugin xcb has loaded
+/// (Pdf4QtLibApp does not link libxcb); without them nothing is sent.
+class PDFAppXcbMessenger : public PDFAppX11Messenger
+{
+public:
+    virtual bool sendStartupMessage(QWidget* window, const std::vector<QByteArray>& chunks) override
+    {
+        const Functions* functions = getFunctions();
+        xcb_connection_t* connection = getConnection();
+        if (!functions || !connection || !window || chunks.empty())
+        {
+            return false;
+        }
+
+        const xcb_window_t windowId = xcb_window_t(window->window()->winId());
+        const xcb_window_t root = getRoot(functions, connection, windowId);
+        const xcb_atom_t beginAtom = getAtom(functions, connection, "_NET_STARTUP_INFO_BEGIN");
+        const xcb_atom_t infoAtom = getAtom(functions, connection, "_NET_STARTUP_INFO");
+        if (root == XCB_NONE || beginAtom == XCB_ATOM_NONE || infoAtom == XCB_ATOM_NONE)
+        {
+            return false;
+        }
+
+        for (size_t i = 0; i < chunks.size(); ++i)
+        {
+            xcb_client_message_event_t event = { };
+            event.response_type = XCB_CLIENT_MESSAGE;
+            event.format = 8;
+            event.window = windowId;
+            event.type = i == 0 ? beginAtom : infoAtom;
+            std::memcpy(event.data.data8, chunks[i].constData(), size_t(qMin<qsizetype>(chunks[i].size(), sizeof(event.data.data8))));
+            functions->sendEvent(connection, 0, root, XCB_EVENT_MASK_PROPERTY_CHANGE, reinterpret_cast<const char*>(&event));
+        }
+        functions->flush(connection);
+        return true;
+    }
+
+    virtual bool requestActivation(QWidget* window, quint32 timestamp) override
+    {
+        const Functions* functions = getFunctions();
+        xcb_connection_t* connection = getConnection();
+        if (!functions || !connection || !window)
+        {
+            return false;
+        }
+
+        const xcb_window_t windowId = xcb_window_t(window->window()->winId());
+        const xcb_window_t root = getRoot(functions, connection, windowId);
+        const xcb_atom_t activeAtom = getAtom(functions, connection, "_NET_ACTIVE_WINDOW");
+        if (root == XCB_NONE || activeAtom == XCB_ATOM_NONE)
+        {
+            return false;
+        }
+
+        // EWMH _NET_ACTIVE_WINDOW: source 1 = an application, the time of the user
+        // action, no window of the application is active
+        xcb_client_message_event_t event = { };
+        event.response_type = XCB_CLIENT_MESSAGE;
+        event.format = 32;
+        event.window = windowId;
+        event.type = activeAtom;
+        event.data.data32[0] = 1;
+        event.data.data32[1] = timestamp;
+        event.data.data32[2] = XCB_NONE;
+        functions->sendEvent(connection, 0, root, XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+                             reinterpret_cast<const char*>(&event));
+        functions->flush(connection);
+        return true;
+    }
+
+private:
+    struct Functions
+    {
+        decltype(&xcb_send_event) sendEvent = nullptr;
+        decltype(&xcb_flush) flush = nullptr;
+        decltype(&xcb_intern_atom) internAtom = nullptr;
+        decltype(&xcb_intern_atom_reply) internAtomReply = nullptr;
+        decltype(&xcb_query_tree) queryTree = nullptr;
+        decltype(&xcb_query_tree_reply) queryTreeReply = nullptr;
+    };
+
+    static const Functions* getFunctions()
+    {
+        static const Functions functions = resolveFunctions();
+        return functions.sendEvent && functions.flush && functions.internAtom && functions.internAtomReply && functions.queryTree && functions.queryTreeReply
+                   ? &functions : nullptr;
+    }
+
+    static Functions resolveFunctions()
+    {
+        // The library is loaded already (the platform plugin links it)
+        QLibrary library(QStringLiteral("xcb"), 1);
+        Functions functions;
+        functions.sendEvent = reinterpret_cast<decltype(&xcb_send_event)>(library.resolve("xcb_send_event"));
+        functions.flush = reinterpret_cast<decltype(&xcb_flush)>(library.resolve("xcb_flush"));
+        functions.internAtom = reinterpret_cast<decltype(&xcb_intern_atom)>(library.resolve("xcb_intern_atom"));
+        functions.internAtomReply = reinterpret_cast<decltype(&xcb_intern_atom_reply)>(library.resolve("xcb_intern_atom_reply"));
+        functions.queryTree = reinterpret_cast<decltype(&xcb_query_tree)>(library.resolve("xcb_query_tree"));
+        functions.queryTreeReply = reinterpret_cast<decltype(&xcb_query_tree_reply)>(library.resolve("xcb_query_tree_reply"));
+        return functions;
+    }
+
+    static xcb_connection_t* getConnection()
+    {
+        const QNativeInterface::QX11Application* x11 = qApp ? qApp->nativeInterface<QNativeInterface::QX11Application>() : nullptr;
+        return x11 ? x11->connection() : nullptr;
+    }
+
+    static xcb_atom_t getAtom(const Functions* functions, xcb_connection_t* connection, const char* name)
+    {
+        const xcb_intern_atom_cookie_t cookie = functions->internAtom(connection, 0, uint16_t(std::strlen(name)), name);
+        xcb_intern_atom_reply_t* reply = functions->internAtomReply(connection, cookie, nullptr);
+        const xcb_atom_t atom = reply ? reply->atom : xcb_atom_t(XCB_ATOM_NONE);
+        std::free(reply);
+        return atom;
+    }
+
+    static xcb_window_t getRoot(const Functions* functions, xcb_connection_t* connection, xcb_window_t window)
+    {
+        const xcb_query_tree_cookie_t cookie = functions->queryTree(connection, window);
+        xcb_query_tree_reply_t* reply = functions->queryTreeReply(connection, cookie, nullptr);
+        const xcb_window_t root = reply ? reply->root : xcb_window_t(XCB_NONE);
+        std::free(reply);
+        return root;
+    }
+};
+
+#endif
+
+PDFAppActivation::Platform& PDFAppActivation::getPlatformOverride()
+{
+    static Platform platform = Platform::Automatic;
+    return platform;
+}
+
+PDFAppX11Messenger*& PDFAppActivation::getX11MessengerOverride()
+{
+    static PDFAppX11Messenger* messenger = nullptr;
+    return messenger;
+}
+
+void PDFAppActivation::setPlatformOverride(Platform platform)
+{
+    getPlatformOverride() = platform;
+}
+
+void PDFAppActivation::setX11Messenger(PDFAppX11Messenger* messenger)
+{
+    getX11MessengerOverride() = messenger;
+}
+
+PDFAppX11Messenger* PDFAppActivation::getX11Messenger()
+{
+    if (PDFAppX11Messenger* messenger = getX11MessengerOverride())
+    {
+        return messenger;
+    }
+
+#if defined(PDF4QT_APP_XCB_ACTIVATION)
+    static PDFAppXcbMessenger messenger;
+    return &messenger;
+#else
+    return nullptr;
+#endif
+}
+
+PDFAppActivation::Platform PDFAppActivation::getPlatform()
+{
+    const Platform platform = getPlatformOverride();
+    if (platform != Platform::Automatic)
+    {
+        return platform;
+    }
+
+#if defined(Q_OS_WIN)
+    return Platform::Windows;
+#else
+    const QString platformName = QGuiApplication::platformName();
+    if (platformName.startsWith(QLatin1String("wayland")))
+    {
+        return Platform::Wayland;
+    }
+    if (platformName == QLatin1String("xcb"))
+    {
+        return Platform::X11;
+    }
+    return Platform::Other;
+#endif
+}
+
+PDFAppActivation::Result PDFAppActivation::activateWindow(QWidget* window, const QString& activationToken)
 {
     if (!window)
     {
-        return;
+        return Result::None;
     }
 
     if (window->isMinimized())
@@ -1381,21 +1660,57 @@ void PDFAppActivation::activateWindow(QWidget* window, const QString& activation
     window->raise();
 
     const QString token = PDFAppInstanceProtocol::isValidToken(activationToken) ? activationToken : QString();
-    if (!token.isEmpty() && QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+    switch (getPlatform())
     {
-        // The xdg-shell integration of Qt activates the window by this token and
-        // clears the variable (QWaylandXdgSurface::requestActivate)
-        qputenv("XDG_ACTIVATION_TOKEN", token.toLatin1());
-    }
-    window->activateWindow();
+        case Platform::Windows:
+            // The starting process has allowed the foreground (AllowSetForegroundWindow)
+            window->activateWindow();
+            return Result::Activated;
 
-#if !defined(Q_OS_WIN)
-    // Windows: the starting process has allowed the foreground (AllowSetForegroundWindow)
-    if (token.isEmpty())
-    {
-        QApplication::alert(window);
+        case Platform::Wayland:
+            if (!token.isEmpty())
+            {
+                // The xdg-shell integration of Qt activates the window by this token and
+                // clears the variable (QWaylandXdgSurface::requestActivate)
+                qputenv("XDG_ACTIVATION_TOKEN", token.toLatin1());
+                window->activateWindow();
+                return Result::ActivatedByToken;
+            }
+            break;
+
+        case Platform::X11:
+            if (!token.isEmpty())
+            {
+                // Qt ends a startup notification only when it shows a new window
+                // (QXcbScreen::windowShown) and only of its own id: the notification of
+                // the forwarding process is ended here, and the window is activated by
+                // the time of the user action of the launch, which the window manager
+                // accepts (the last event time of Qt is older than the launch)
+                PDFAppX11Messenger* messenger = getX11Messenger();
+                const bool isRemoved = messenger && messenger->sendStartupMessage(window, PDFAppStartupNotification::splitMessage(PDFAppStartupNotification::createRemoveMessage(token)));
+                quint32 timestamp = 0;
+                if (isRemoved && PDFAppStartupNotification::getTimestamp(token, &timestamp) && messenger->requestActivation(window, timestamp))
+                {
+                    return Result::ActivatedByStartupId;
+                }
+            }
+            break;
+
+        case Platform::Automatic:
+        case Platform::Other:
+            if (!token.isEmpty())
+            {
+                window->activateWindow();
+                return Result::Activated;
+            }
+            break;
     }
-#endif
+
+    // No token, or a token, which cannot be used: the platform may refuse the
+    // activation, the user is alerted
+    window->activateWindow();
+    QApplication::alert(window);
+    return Result::Alerted;
 }
 
 QString PDFAppInstanceGuard::getRuntimeDirectory()

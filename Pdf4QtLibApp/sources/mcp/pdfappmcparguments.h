@@ -86,7 +86,8 @@ public:
     static QString checkPath(const QString& path, bool requirePdfExtension, QString* errorMessage);
 
     /// The path lies in the folder (or is the folder), compared on the canonical
-    /// paths (case insensitive on Windows); false for an empty / missing folder
+    /// paths (case insensitive on Windows; the junctions of NTFS of the folder
+    /// resolved as by checkPath); false for an empty / missing folder
     static bool isInFolder(const QString& canonicalPath, const QString& folder);
 
     /// Annotation id "obj:gen" -> object number and generation

@@ -36,6 +36,7 @@
 #include "pdfdatabasenotifier.h"
 #include "pdfdatabaseschema.h"
 #include "pdfdatabasestatement.h"
+#include "pdfbookmarkrepository.h"
 #include "pdfrecentrepository.h"
 #include "pdfrepositoryhelper.h"
 #include "pdfsettingdefinition.h"
@@ -638,6 +639,8 @@ private slots:
     void recentThumbnails();
     void recentClearHistory_data();
     void recentClearHistory();
+    void recentCaseVariants();
+    void bookmarkCaseVariants();
     void recentFolders();
     void pinnedLocations();
     void hostileRows();
@@ -646,6 +649,8 @@ private slots:
     void toolCollectionRepository();
     void toolCollectionNames();
     void toolCollectionHostileRows();
+    void toolCollectionNewerTools();
+    void toolCollectionSaveReusedId();
     void toolCollectionEdges();
     void toolCollectionTwoProcesses();
     void toolUsageClear();
@@ -1928,6 +1933,150 @@ void AppDataTest::recentClearHistory_data()
     QTest::addColumn<bool>("includePinned");
     QTest::newRow("keep pinned") << false;
     QTest::newRow("remove pinned") << true;
+}
+
+void AppDataTest::recentCaseVariants()
+{
+    // Review RPKT 95: the same file in another case is one row of Recent on a system
+    // with paths without case (Windows, macOS - PDFRepositoryHelper::isSamePath);
+    // UNIQUE of recent_file.path compares the bytes. The row takes the newest
+    // spelling and keeps its pin and reading state. On Linux the two spellings are
+    // two files - two rows.
+    DataFixture fixture;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString folder = QFileInfo(directory.path()).canonicalFilePath();
+    {
+        QFile file(folder + QStringLiteral("/Quarterly Report.pdf"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("%PDF-1.7");
+    }
+
+    pdf::PDFRecentRepository recent = fixture.recent(100);
+    QString first;
+    QVERIFY(!recent.recordOpened(folder + QStringLiteral("/Quarterly Report.pdf"), &first).isError());
+    QVERIFY(!recent.setPinned(first, true).isError());
+    QVERIFY(!recent.setReadingState(first, 3, 10, false).isError());
+
+    // Existing files and files, which do not exist (the key is the absolute path then)
+    const QString upper = folder + QStringLiteral("/QUARTERLY REPORT.PDF");
+    const QString missingLower = folder + QStringLiteral("/missing č.pdf");
+    const QString missingUpper = folder + QStringLiteral("/MISSING Č.PDF");
+    QString second;
+    QVERIFY(!fixture.recent(200).recordOpened(upper, &second).isError());
+    QString third;
+    QString fourth;
+    QVERIFY(!fixture.recent(300).recordOpened(missingLower, &third).isError());
+    QVERIFY(!fixture.recent(400).recordOpened(missingUpper, &fourth).isError());
+
+    const std::vector<pdf::PDFRecentFile> files = recent.getFiles();
+    if (pdf::PDFRepositoryHelper::isSamePath(QStringLiteral("/a"), QStringLiteral("/A")))
+    {
+        QCOMPARE(files.size(), size_t(2));
+        QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM recent_file"), qint64(2));
+
+        // One row of the report: the stored path of the second opening, its count,
+        // its pin and its reading state
+        const std::optional<pdf::PDFRecentFile> report = recent.getFile(second);
+        QVERIFY(report);
+        QVERIFY(pdf::PDFRepositoryHelper::isSamePath(report->path, first));
+        QCOMPARE(report->openCount, qint64(2));
+        QVERIFY(report->pinned);
+        QCOMPARE(report->lastPage, 3);
+        const std::optional<pdf::PDFRecentFile> missing = recent.getFile(fourth);
+        QVERIFY(missing);
+        QCOMPARE(missing->openCount, qint64(2));
+
+        // The later updates of the document use its path
+        QVERIFY(!recent.setReadingState(second, 5, 10, false).isError());
+        QCOMPARE(recent.getFile(second)->lastPage, 5);
+
+        // Review RFIX: a tab opened by the older spelling keeps it (the registry finds
+        // the open tab by isSamePath, the second opening only activates it) - its
+        // reading state, view state and lock reach the renamed row, and it reads the
+        // row back (the spellings of a missing file are kept as typed)
+        QVERIFY(third != fourth);
+        QVERIFY(!recent.setReadingState(third, 7, 9, false).isError());
+        QVERIFY(!recent.setViewState(third, QStringLiteral("view")).isError());
+        QVERIFY(!recent.setLocked(third, true).isError());
+        const std::optional<pdf::PDFRecentFile> byOlder = recent.getFile(third);
+        QVERIFY(byOlder);
+        QCOMPARE(byOlder->path, fourth);
+        QCOMPARE(byOlder->lastPage, 7);
+        QCOMPARE(byOlder->pageCount, 9);
+        QCOMPARE(byOlder->viewState, QStringLiteral("view"));
+        QVERIFY(byOlder->locked);
+        QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM recent_file"), qint64(2));
+        // A path of no row in any case is still no file
+        QVERIFY(recent.setReadingState(folder + QStringLiteral("/missing x.pdf"), 1, 1, false).isError());
+        QVERIFY(!recent.getFile(folder + QStringLiteral("/missing x.pdf")));
+    }
+    else
+    {
+        QCOMPARE(files.size(), size_t(4));
+    }
+
+    // Review RFIX: the folders of Open are one row per folder too (recent_folder.path
+    // compares the bytes as well) - the newest spelling; two folders on Linux
+    QVERIFY(!fixture.recent(500).recordOpened(folder + QStringLiteral("/Sub Folder/a.pdf")).isError());
+    QVERIFY(!fixture.recent(600).recordOpened(folder + QStringLiteral("/SUB FOLDER/b.pdf")).isError());
+    QStringList subFolders;
+    for (const pdf::PDFRecentFolder& usedFolder : recent.getUsedFolders())
+    {
+        if (QString::compare(usedFolder.path, folder + QStringLiteral("/Sub Folder"), Qt::CaseInsensitive) == 0)
+        {
+            subFolders << usedFolder.path;
+        }
+    }
+    if (pdf::PDFRepositoryHelper::isPathCaseInsensitive())
+    {
+        QCOMPARE(subFolders, QStringList({ folder + QStringLiteral("/SUB FOLDER") }));
+    }
+    else
+    {
+        QCOMPARE(subFolders.size(), qsizetype(2));
+    }
+}
+
+void AppDataTest::bookmarkCaseVariants()
+{
+    // Review RFIX: the bookmarks of a file stored under another case of its path (the
+    // file opened as "report.pdf" one day and as "REPORT.PDF" another day) are the
+    // bookmarks of the same file on a system with paths without case, as the panel
+    // takes their notifications (PDFRepositoryHelper::isSamePath); another file of the
+    // same length is not. On Linux the spellings are two files.
+    DataFixture fixture;
+    pdf::PDFBookmarkRepository bookmarks(fixture.database.get());
+    const QString lower = QDir::rootPath() + QStringLiteral("docs/report.pdf");
+    const QString upper = QDir::rootPath() + QStringLiteral("DOCS/REPORT.PDF");
+    const QString other = QDir::rootPath() + QStringLiteral("docs/record.pdf");
+    QVERIFY(!bookmarks.addBookmark(lower, 2, QStringLiteral("Two")).isError());
+    QVERIFY(!bookmarks.addBookmark(upper, 5, QStringLiteral("Five")).isError());
+    QVERIFY(!bookmarks.addBookmark(upper, 1, QStringLiteral("One")).isError());
+    QVERIFY(!bookmarks.addBookmark(other, 3, QStringLiteral("Other")).isError());
+
+    const auto titles = [&](const QString& path)
+    {
+        QStringList result;
+        for (const pdf::PDFBookmark& bookmark : bookmarks.getBookmarks(path))
+        {
+            result << bookmark.title;
+        }
+        return result;
+    };
+
+    if (pdf::PDFRepositoryHelper::isPathCaseInsensitive())
+    {
+        // One list in the order of the pages (each new bookmark placed among all of them)
+        QCOMPARE(titles(lower), QStringList({ QStringLiteral("One"), QStringLiteral("Two"), QStringLiteral("Five") }));
+        QCOMPARE(titles(upper), titles(lower));
+    }
+    else
+    {
+        QCOMPARE(titles(lower), QStringList({ QStringLiteral("Two") }));
+        QCOMPARE(titles(upper), QStringList({ QStringLiteral("One"), QStringLiteral("Five") }));
+    }
+    QCOMPARE(titles(other), QStringList({ QStringLiteral("Other") }));
 }
 
 void AppDataTest::recentClearHistory()
@@ -4823,6 +4972,141 @@ void AppDataTest::toolCollectionHostileRows()
     QVERIFY(pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("custom-99999999999")));
     QVERIFY(!pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("custom-0")));
     QVERIFY(!pdf::PDFAppToolCollections::isValidRouteId(QStringLiteral("prepare")));
+}
+
+void AppDataTest::toolCollectionNewerTools()
+{
+    // O25: an override of a built-in collection with a tool of a newer version (the
+    // same schema, the same file) is never equal to the built-in definition - this
+    // version leaves the unknown item out when it reads the tools, but a Save and an
+    // Add / Remove giving the built-in tools again keep the override and the item
+    DataFixture fixture;
+    pdf::PDFDatabase* database = fixture.database.get();
+    pdf::PDFToolCollectionRepository repository = fixture.collections();
+    const pdf::PDFAppBuiltinToolCollection& builtin = pdf::PDFAppBuiltinToolCollections::getCollections().front();
+    const QStringList builtinTools = builtin.getToolIds();
+    QString extraTool;
+    for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        if (!builtinTools.contains(entry.getId()))
+        {
+            extraTool = entry.getId();
+            break;
+        }
+    }
+    QVERIFY(!extraTool.isEmpty());
+
+    const auto writeOverride = [&](bool isNewerToolAdded)
+    {
+        QVERIFY(!repository.resetBuiltin(builtin.getId()).isError());
+        QVERIFY(!repository.addTool(0, builtin.getId(), extraTool).isError());
+        const std::optional<pdf::PDFToolCollectionRow> row = repository.getBuiltinOverride(builtin.getId());
+        QVERIFY(row);
+        if (isNewerToolAdded)
+        {
+            const QByteArray sql = "INSERT INTO tool_collection_item(collection_id, tool_id, position) VALUES (" + QByteArray::number(row->id) + ", 'newer.tool', 0)";
+            QVERIFY(AppDataTestHelper::execute(database, sql.constData()));
+        }
+        // The tool of the newer version is not shown by this version
+        QCOMPARE(repository.getBuiltinOverride(builtin.getId())->toolIds, builtinTools + QStringList({ extraTool }));
+    };
+    const auto newerItems = [&]()
+    {
+        return AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_collection_item WHERE tool_id = 'newer.tool'");
+    };
+
+    pdf::PDFToolCollectionDraft draft;
+    draft.builtinId = builtin.getId();
+    draft.name = builtin.getName();
+    draft.iconName = builtin.getIconName();
+    draft.toolIds = builtinTools;
+
+    // Save of the built-in tools: the override with the newer tool stays (its item too)
+    writeOverride(true);
+    QVERIFY(!repository.saveCollection(draft).isError());
+    std::optional<pdf::PDFToolCollectionRow> row = repository.getBuiltinOverride(builtin.getId());
+    QVERIFY(row);
+    QCOMPARE(row->toolIds, builtinTools);
+    QCOMPARE(newerItems(), qint64(1));
+
+    // Remove of the added tool (the built-in tools again): the same
+    writeOverride(true);
+    QVERIFY(!repository.setToolIncluded(0, builtin.getId(), extraTool, false).isError());
+    row = repository.getBuiltinOverride(builtin.getId());
+    QVERIFY(row);
+    QCOMPARE(row->toolIds, builtinTools);
+    QCOMPARE(newerItems(), qint64(1));
+
+    // The control: without a tool of a newer version the override equal to the
+    // built-in definition is not needed and goes
+    writeOverride(false);
+    QVERIFY(!repository.saveCollection(draft).isError());
+    QVERIFY(!repository.getBuiltinOverride(builtin.getId()));
+    writeOverride(false);
+    QVERIFY(!repository.setToolIncluded(0, builtin.getId(), extraTool, false).isError());
+    QVERIFY(!repository.getBuiltinOverride(builtin.getId()));
+    QCOMPARE(AppDataTestHelper::queryInteger(database, "SELECT COUNT(*) FROM tool_collection"), qint64(0));
+}
+
+void AppDataTest::toolCollectionSaveReusedId()
+{
+    // Two connections of one database file (two instances): the editor of the first
+    // one saves a custom collection, which the second one has deleted meanwhile and
+    // whose id a new collection of the second one has got (no AUTOINCREMENT). The
+    // time of the change, which the editor has seen, refuses the save - the new
+    // collection is never overwritten (as deleteCollection of a confirmed row).
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString databasePath = directory.filePath(QStringLiteral("pdf4qt.db"));
+    pdf::PDFDatabase first;
+    first.open(AppDataTestHelper::createFileOptions(databasePath));
+    QCOMPARE(first.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    pdf::PDFDatabase second;
+    second.open(AppDataTestHelper::createFileOptions(databasePath));
+    QCOMPARE(second.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+
+    pdf::PDFToolCollectionRepository firstRepository(&first);
+    pdf::PDFToolCollectionRepository secondRepository(&second);
+    firstRepository.setCurrentTime(1000);
+    secondRepository.setCurrentTime(2000);
+
+    qint64 id = 0;
+    QVERIFY(!firstRepository.createCollection(QStringLiteral("Edited here"), QString(), { QStringLiteral("pages.merge") }, &id).isError());
+    const std::optional<pdf::PDFToolCollectionRow> seen = firstRepository.getCollection(id);
+    QVERIFY(seen);
+    QCOMPARE(seen->modified, qint64(1000));
+
+    // The other instance deletes it and creates its own collection with the same id
+    QVERIFY(!secondRepository.deleteCollection(id).isError());
+    qint64 reused = 0;
+    QVERIFY(!secondRepository.createCollection(QStringLiteral("Created elsewhere"), QString(), { QStringLiteral("pages.rotate") }, &reused).isError());
+    QCOMPARE(reused, id);
+
+    pdf::PDFToolCollectionDraft draft;
+    draft.id = id;
+    draft.name = QStringLiteral("Edited here, renamed");
+    draft.toolIds = { QStringLiteral("pages.merge"), QStringLiteral("pages.split") };
+    draft.expectedModified = seen->modified;
+    bool isChanged = false;
+    QVERIFY(firstRepository.saveCollection(draft, nullptr, nullptr, nullptr, &isChanged).isError());
+    QVERIFY(isChanged);
+    std::optional<pdf::PDFToolCollectionRow> stored = secondRepository.getCollection(reused);
+    QVERIFY(stored);
+    QCOMPARE(stored->name, QStringLiteral("Created elsewhere"));
+    QCOMPARE(stored->toolIds, QStringList({ QStringLiteral("pages.rotate") }));
+    QCOMPARE(stored->modified, qint64(2000));
+
+    // The time the editor has seen now (Keep my changes) saves it
+    draft.expectedModified = stored->modified;
+    QVERIFY(!firstRepository.saveCollection(draft, nullptr, nullptr, nullptr, &isChanged).isError());
+    QVERIFY(!isChanged);
+    stored = secondRepository.getCollection(reused);
+    QCOMPARE(stored->name, QStringLiteral("Edited here, renamed"));
+    QCOMPARE(stored->toolIds, draft.toolIds);
+    QCOMPARE(stored->modified, qint64(1000));
+
+    first.close();
+    second.close();
 }
 
 void AppDataTest::toolCollectionTwoProcesses()

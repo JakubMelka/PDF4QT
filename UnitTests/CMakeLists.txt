@@ -925,6 +925,58 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     target_link_libraries(UnitTestsAppXfa PRIVATE Qt6::PrintSupport)
 endif()
 
+# Generic lifetime test of the pages (step 9): every route of the route table opened,
+# closed and deleted in every order and from every signal. It tracks the living
+# objects by the hooks of QtCore (private headers), so it is built only when they
+# are installed.
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    find_package(Qt6 QUIET COMPONENTS CorePrivate)
+    if(TARGET Qt6::CorePrivate)
+        add_executable(UnitTestsAppPagesLifetime
+            tst_apppageslifetimetest.cpp
+            appdocumentfixture.cpp
+            appdocumentfixture.h
+            apptoolsfixture.cpp
+            apptoolsfixture.h
+        )
+        target_link_libraries(UnitTestsAppPagesLifetime PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test Qt6::CorePrivate)
+        set_target_properties(UnitTestsAppPagesLifetime PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTestsAppPagesLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppPagesLifetime")
+        set_tests_properties(UnitTestsAppPagesLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    else()
+        message(STATUS "UnitTestsAppPagesLifetime is not built: the private headers of QtCore (Qt6::CorePrivate) are not installed")
+    endif()
+endif()
+
+# Several real instances of the new application on one data folder (step 9): the
+# test starts itself as full application instances (child mode --multi-child -
+# the instance guard, the context and the window of main.cpp) and the executable
+# PDF4QT, drives them by a local socket and reads what the user would see
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsAppMultiInstance
+        tst_appmultiinstancetest.cpp
+        appdocumentfixture.cpp
+        appdocumentfixture.h
+        mcptestclient.cpp
+        mcptestclient.h
+    )
+    target_link_libraries(UnitTestsAppMultiInstance PRIVATE Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    add_dependencies(UnitTestsAppMultiInstance Pdf4QtApp)
+    set_target_properties(UnitTestsAppMultiInstance PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppMultiInstance "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppMultiInstance")
+    set_tests_properties(UnitTestsAppMultiInstance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
 # The core of the tools of phase 2 (Pdf4QtLibCore, step 6 package D): the extended
 # data of the catalog, the suggestions of the next tools, the tool interface, its
 # parameters, results and registry

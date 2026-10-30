@@ -324,46 +324,24 @@ QString PDFAppShortcutsModel::getRefusalReason(const QKeySequence& shortcut)
         return QString();
     }
 
+    // One rule with the stored shortcuts (PDFAppCommandRegistry::fromStoredText)
     const QString text = getShortcutText(shortcut);
-    for (int i = 0; i < shortcut.count(); ++i)
+    switch (PDFAppCommandRegistry::getReservedKey(shortcut))
     {
-        const QKeyCombination combination = shortcut[i];
-        const Qt::Key key = combination.key();
-        const Qt::KeyboardModifiers modifiers = combination.keyboardModifiers() & ~Qt::KeypadModifier;
+        case PDFAppCommandRegistry::ReservedKey::FocusOrClose:
+            return tr("%1 moves the focus or closes a dialog and cannot be a shortcut.").arg(text);
 
-        switch (key)
-        {
-            case Qt::Key_Escape:
-            case Qt::Key_Tab:
-            case Qt::Key_Backtab:
-                return tr("%1 moves the focus or closes a dialog and cannot be a shortcut.").arg(text);
+        case PDFAppCommandRegistry::ReservedKey::Confirm:
+            return tr("%1 confirms dialogs and cannot be a shortcut.").arg(text);
 
-            case Qt::Key_Return:
-            case Qt::Key_Enter:
-                if (modifiers == Qt::NoModifier)
-                {
-                    return tr("%1 confirms dialogs and cannot be a shortcut.").arg(text);
-                }
-                break;
+        case PDFAppCommandRegistry::ReservedKey::CloseWindow:
+            return tr("%1 closes the window and cannot be a shortcut.").arg(text);
 
-            case Qt::Key_F4:
-                if (modifiers == Qt::AltModifier)
-                {
-                    return tr("%1 closes the window and cannot be a shortcut.").arg(text);
-                }
-                break;
+        case PDFAppCommandRegistry::ReservedKey::Modifier:
+            return tr("A modifier key alone cannot be a shortcut.");
 
-            case Qt::Key_Shift:
-            case Qt::Key_Control:
-            case Qt::Key_Meta:
-            case Qt::Key_Alt:
-            case Qt::Key_AltGr:
-            case Qt::Key_unknown:
-                return tr("A modifier key alone cannot be a shortcut.");
-
-            default:
-                break;
-        }
+        case PDFAppCommandRegistry::ReservedKey::None:
+            break;
     }
 
     return QString();

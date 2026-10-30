@@ -41,6 +41,8 @@ set(PDF4QT_LIBAPP_SHELL_SOURCES
     sources/shell/pdfapproute.h
     sources/shell/pdfapproutetable.cpp
     sources/shell/pdfapproutetable.h
+    sources/shell/pdfappsessionend.cpp
+    sources/shell/pdfappsessionend.h
     sources/shell/pdfapptab.cpp
     sources/shell/pdfapptab.h
     sources/shell/pdfapptopbar.cpp

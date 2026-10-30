@@ -103,7 +103,7 @@ PDFAnnotationStyle PDFAnnotationStyleSettings::boundStyle(PDFAnnotationStyle sty
     }
     style.strokeColor.setAlpha(255);
 
-    // Jakub Melka: invalid fill color is a valid value - the shape is not filled
+    // Invalid fill color is a valid value - the shape is not filled
     if (style.fillColor.isValid())
     {
         style.fillColor.setAlpha(255);
@@ -179,7 +179,7 @@ void PDFAnnotationStyleQSettingsStorage::setWindowPosition(QPoint position)
 
 QColor PDFAnnotationStyleQSettingsStorage::getLegacyRedactColor()
 {
-    // Jakub Melka: the redaction color was originally stored in a separate group
+    // The redaction color was originally stored in a separate group
     // of the settings
     QSettings settings = PDFAnnotationStyleHelper::createSettings();
     settings.beginGroup("RedactTool");

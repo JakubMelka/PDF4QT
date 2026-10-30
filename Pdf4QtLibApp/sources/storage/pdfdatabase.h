@@ -308,7 +308,7 @@ public:
 
     /// Keys of the security, signature and AI settings, which the import confirmation
     /// compares with the current values (owner 2026-10-25, Q7; the AI settings of
-    /// owner 2026-10-26, Q4 of step 7)
+    /// owner 2026-10-26, Q4 of step 7; Start with PDF4QT of owner 2026-10-29)
     static QStringList getSecuritySettingKeys();
 
     /// Keys of the settings, which are never a part of a backup: an export omits

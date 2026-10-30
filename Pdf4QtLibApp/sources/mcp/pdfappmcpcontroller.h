@@ -180,6 +180,25 @@ private:
     void releaseOwnership();
     void raiseWindow();
 
+    /// The row belongs to another instance, which runs the server: its heartbeat
+    /// is not stale and its process runs (the start, the state, the heartbeat)
+    bool isOtherOwnerAlive(const PDFMcpServerRow& row) const;
+
+    /// Remembers the row of the owner, whether another owner is alive in it and
+    /// whether the process of the row runs. \returns true, when the owner has
+    /// changed since the last row: another instance, port or address, its end
+    /// (released, stale heartbeat, process gone) or the end of the process of a
+    /// row, which was stale already (a hung owner killed)
+    bool setLastRow(const PDFMcpServerRow& row);
+
+    /// The row has changed and no other owner is alive (it has released the row,
+    /// its heartbeat is stale or its process is gone): a start of this instance
+    /// refused, because a PDF4QT had the port (PDFMcpServerState::PortInUseByPdf4Qt),
+    /// is over - the server is stopped, so Start is enabled. A PDF4QT without a
+    /// row (another profile) changes no row and keeps the state: the callers
+    /// call it only for a change of the row. The controller may be deleted by a slot.
+    void clearRefusedStart();
+
     QPointer<PDFAppContext> m_context;
     QPointer<PDFAppMcpHost> m_host;
     QPointer<PDFMcpServer> m_server;
@@ -190,6 +209,8 @@ private:
     bool m_isInitialized = false;
     int m_portProbeTimeout = PDFMcpLimits::PORT_PROBE_TIMEOUT;
     PDFMcpServerRow m_lastRow;
+    bool m_isLastRowAlive = false;
+    bool m_isLastRowProcessRunning = false;
 };
 
 }   // namespace pdf

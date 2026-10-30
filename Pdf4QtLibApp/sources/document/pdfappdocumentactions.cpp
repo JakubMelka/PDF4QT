@@ -567,8 +567,17 @@ bool PDFAppDocumentActionHandler::isExecutable(const QString& filePath)
 {
     // One list of programs and scripts with the attachments (D8): a file, which
     // the shell starts, gets the confirmation of a program
+    // The name before a stream of NTFS ("a.exe::$DATA", "a.exe:stream" - the
+    // shell starts the program of the file) - trailing dots and spaces are left out
+    // by sanitizeFileName (review RPKT 95)
     const QFileInfo fileInfo(filePath);
-    if (PDFAppAttachments::isExecutable(fileInfo.fileName()))
+    QString fileName = fileInfo.fileName();
+    const qsizetype colon = fileName.indexOf(QChar(u':'));
+    if (colon >= 0)
+    {
+        fileName.truncate(colon);
+    }
+    if (PDFAppAttachments::isExecutable(fileName))
     {
         return true;
     }

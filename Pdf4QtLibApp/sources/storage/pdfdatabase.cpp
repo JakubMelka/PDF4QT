@@ -1710,7 +1710,7 @@ QStringList PDFDatabaseBackup::getSecuritySettingKeys()
     return { PDFSettingKeys::securityOpenLinks(), PDFSettingKeys::securityLaunchFiles(), PDFSettingKeys::signaturesVerify(),
              PDFSettingKeys::signaturesStrict(), PDFSettingKeys::signaturesIgnoreExpiration(), PDFSettingKeys::signaturesUseSystemStore(),
              PDFSettingKeys::mcpPermissionRead(), PDFSettingKeys::mcpPermissionEdit(), PDFSettingKeys::mcpPermissionFiles(),
-             PDFSettingKeys::mcpAllowRemote(), PDFSettingKeys::mcpRequireToken() };
+             PDFSettingKeys::mcpAllowRemote(), PDFSettingKeys::mcpRequireToken(), PDFSettingKeys::mcpStartWithApp() };
 }
 
 QStringList PDFDatabaseBackup::getPrivateSettingKeys()

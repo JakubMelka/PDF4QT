@@ -412,6 +412,7 @@ bool PDFAppToolCollectionsPage::saveCollection()
         else
         {
             draft.id = m_editor->getRowId();
+            draft.expectedModified = m_editor->getSeenModified();
         }
     }
 

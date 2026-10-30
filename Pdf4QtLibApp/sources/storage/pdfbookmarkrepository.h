@@ -80,7 +80,8 @@ public:
 
     explicit PDFBookmarkRepository(PDFDatabase* database);
 
-    /// Bookmarks of the file in their order (position, then id)
+    /// Bookmarks of the file in their order (position, then id); on a system with
+    /// paths without case also the bookmarks stored under another case of the path
     std::vector<PDFBookmark> getBookmarks(const QString& filePath) const;
 
     /// Adds a bookmark of the page; it is placed before the first bookmark of a

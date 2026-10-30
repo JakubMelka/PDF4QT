@@ -228,6 +228,10 @@ public:
     /// window closed in any process wins.
     void storeGeometry();
 
+    /// The main window of the process, which was active last (O29; the end of the
+    /// session of the system stores its state - PDFAppSessionEnd), nullptr if none
+    static PDFAppMainWindow* getLastActiveMainWindow();
+
     /// Command Open… (Ctrl+O): the native dialog of the system for PDF files in the
     /// folder (empty = the default folder of the system); the chosen files are
     /// opened (openDocuments). The dialog runs its own event loop: a second request

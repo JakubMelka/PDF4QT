@@ -644,6 +644,65 @@ void AppSettingsShortcutsTest::shortcutReservedKeys()
     QVERIFY(!section->getModel()->setData(print, QStringLiteral("Ctrl+Nonsense+%%"), pdf::PDFComponentRoles::ShortcutRole));
     QVERIFY(!section->getModel()->setData(print, QVariant::fromValue(QKeySequence(Qt::Key_F9)), Qt::DisplayRole));
     QVERIFY(!ShortcutsTestHelper::stored(fixture.context.get(), pdf::PDFAppCommands::print()));
+
+    // Review RPKT 96-5: the same keys stored in the database (another version, an
+    // imported backup) are no shortcuts of the user either - a stored "Tab" would
+    // never let the focus move on (O20); the command keeps its default keys
+    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
+    const auto store = [&](const QString& command, const QString& keys)
+    {
+        pdf::PDFDatabaseStatement insert(connection, "INSERT OR REPLACE INTO shortcut(command_id, keys) VALUES (?1, ?2)");
+        insert.bindText(1, command);
+        insert.bindText(2, keys);
+        return insert.execute();
+    };
+
+    // The control: a valid stored shortcut applies to the action of the window
+    QVERIFY(store(pdf::PDFAppCommands::open(), QStringLiteral("Ctrl+Shift+F9")));
+    QTRY_COMPARE(fixture.window->getCommandAction(pdf::PDFAppCommands::open())->shortcut(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F9));
+    QCOMPARE(section->getModel()->getShortcut(pdf::PDFAppCommands::open()), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F9));
+
+    const std::pair<QString, QString> reserved[] = { { pdf::PDFAppCommands::open(), QStringLiteral("Tab") },
+                                                     { pdf::PDFAppCommands::save(), QStringLiteral("Esc") },
+                                                     { pdf::PDFAppCommands::print(), QStringLiteral("Return") },
+                                                     { pdf::PDFAppCommands::copy(), QStringLiteral("Alt+F4") } };
+    for (const auto& [command, keys] : reserved)
+    {
+        QVERIFY(store(command, keys));
+    }
+    QTRY_COMPARE(fixture.window->getCommandAction(pdf::PDFAppCommands::open())->shortcut(), QKeySequence(Qt::CTRL | Qt::Key_O));
+    QCOMPARE(fixture.window->getCommandAction(pdf::PDFAppCommands::save())->shortcut(), QKeySequence(Qt::CTRL | Qt::Key_S));
+    QCOMPARE(fixture.window->getCommandAction(pdf::PDFAppCommands::print())->shortcut(), QKeySequence(Qt::CTRL | Qt::Key_P));
+    QCOMPARE(section->getModel()->getShortcut(pdf::PDFAppCommands::open()), QKeySequence(Qt::CTRL | Qt::Key_O));
+    QCOMPARE(section->getModel()->getShortcut(pdf::PDFAppCommands::copy()), QKeySequence(Qt::CTRL | Qt::Key_C));
+    const pdf::PDFAppCommandRegistry::UserShortcuts user = fixture.context->getShortcuts().getShortcuts();
+    for (const auto& [command, keys] : reserved)
+    {
+        QCOMPARE(user.at(command), keys);
+        for (const QKeySequence& shortcut : fixture.context->getCommandRegistry()->getShortcuts(command, user))
+        {
+            QCOMPARE(pdf::PDFAppCommandRegistry::getReservedKey(shortcut), pdf::PDFAppCommandRegistry::ReservedKey::None);
+        }
+    }
+    for (QAction* action : fixture.window->findChildren<QAction*>())
+    {
+        for (const QKeySequence& shortcut : action->shortcuts())
+        {
+            QVERIFY2(shortcut != QKeySequence(Qt::Key_Tab) && shortcut != QKeySequence(Qt::Key_Escape) && shortcut != QKeySequence(Qt::Key_Return) &&
+                     shortcut != QKeySequence(Qt::ALT | Qt::Key_F4), qPrintable(action->objectName() + QStringLiteral(" ") + shortcut.toString()));
+        }
+    }
+
+    // The core rule itself: the stored texts of the reserved keys are refused
+    bool ok = true;
+    for (const char* text : { "Tab", "Shift+Tab", "Ctrl+Tab", "Esc", "Return", "Enter", "Alt+F4", "Ctrl", "Ctrl+K, Tab" })
+    {
+        QVERIFY2(pdf::PDFAppCommandRegistry::fromStoredText(QString::fromLatin1(text), &ok).isEmpty() && !ok, text);
+    }
+    QCOMPARE(pdf::PDFAppCommandRegistry::fromStoredText(QStringLiteral("Ctrl+Return"), &ok), QKeySequence(Qt::CTRL | Qt::Key_Return));
+    QVERIFY(ok);
+    QCOMPARE(pdf::PDFAppCommandRegistry::fromStoredText(QStringLiteral("F4"), &ok), QKeySequence(Qt::Key_F4));
+    QVERIFY(ok);
 }
 
 void AppSettingsShortcutsTest::shortcutResetAndRemove()
@@ -1840,6 +1899,21 @@ void AppSettingsShortcutsTest::importWeakensMcp()
     QCOMPARE(weakened(weakPath), QStringList({ QStringLiteral("Open and save files: Deny") + arrow + QStringLiteral("Allow"),
                                                QStringLiteral("Allow remote connections: Off") + arrow + QStringLiteral("On"),
                                                QStringLiteral("Require access token: On") + arrow + QStringLiteral("Off") }));
+
+    // Owner 2026-10-29: Start with PDF4QT off → on is a weakening too - the server
+    // would listen at every start without a question; on in both or a backup with
+    // the server off lists nothing
+    QVERIFY(setMcp(deny, deny, deny, false, true));
+    QVERIFY(!fixture.settings().setValue(Keys::mcpStartWithApp(), true).isError());
+    const QString autoStartPath = exportBackup(QStringLiteral("auto-start"));
+    QVERIFY(!autoStartPath.isEmpty());
+    QVERIFY(!fixture.settings().setValue(Keys::mcpStartWithApp(), false).isError());
+    QCOMPARE(weakened(autoStartPath), QStringList({ QStringLiteral("Start with PDF4QT: Off") + arrow + QStringLiteral("On") }));
+    QVERIFY(weakened(strongPath).isEmpty());
+    QVERIFY(!fixture.settings().setValue(Keys::mcpStartWithApp(), true).isError());
+    QVERIFY(weakened(autoStartPath).isEmpty());
+    QVERIFY(weakened(strongPath).isEmpty());
+    QVERIFY(!fixture.settings().setValue(Keys::mcpStartWithApp(), false).isError());
 
     // The confirmation of the import lists the rows
     QVERIFY(setMcp(deny, deny, deny, false, true));

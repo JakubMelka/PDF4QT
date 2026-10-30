@@ -31,6 +31,7 @@
 #include "pdfappfiledrop.h"
 #include "pdfapphomewidgets.h"
 #include "pdfappnavigator.h"
+#include "pdfappsessionend.h"
 #include "pdfapptab.h"
 #include "pdfapptopbar.h"
 #include "pdfappwindowframe.h"
@@ -80,6 +81,14 @@ class PDFAppMainWindowHelper
 {
 public:
     PDFAppMainWindowHelper() = delete;
+
+    /// The main window of the process, which was active last (the thread of the
+    /// user interface only): the window of the quit, when no window is active (O29)
+    static QPointer<PDFAppMainWindow>& getLastActiveWindow()
+    {
+        static QPointer<PDFAppMainWindow> window;
+        return window;
+    }
 
     /// Geometry of the new window: the size of the frames of the design (1440 x 977),
     /// at most 90 % of the screen of the pointer, centered on it. The position is
@@ -179,6 +188,10 @@ PDFAppMainWindow::PDFAppMainWindow(PDFAppContext* context, QWidget* parent) :
     // The geometry is stored also, when the application quits without the closing
     // of the window (QCoreApplication::quit, the end of the session of the system)
     connect(qApp, &QCoreApplication::aboutToQuit, this, &PDFAppMainWindow::onAboutToQuit);
+
+    // The end of the session of the system asks about the unsaved changes of all
+    // windows (step 9, N7): one handler of the process
+    PDFAppSessionEnd::install();
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, qOverload<>(&PDFAppMainWindow::update));
 
     // The Home tab with its Home page
@@ -1574,13 +1587,14 @@ bool PDFAppMainWindow::confirmClose()
         }
     }
 
-    // The documents with unsaved changes: pdf4qt-quit-unsaved 955:145378
+    // The documents with unsaved changes: pdf4qt-quit-unsaved 955:145378 (not the
+    // changes discarded at the end of the session - Qt closes the windows then)
     std::vector<const PDFAppDocument*> documents;
     std::vector<QPointer<PDFAppDocumentTab>> tabs;
     for (PDFAppDocumentTab* tab : getDocumentTabs())
     {
         const PDFAppDocument* document = tab->getDocument();
-        if (document && document->isReady() && document->isModified())
+        if (document && document->isReady() && document->isModified() && !PDFAppSessionEnd::isDiscarded(document))
         {
             documents.push_back(document);
             tabs.emplace_back(tab);
@@ -1750,11 +1764,22 @@ void PDFAppMainWindow::storeGeometry()
     }
 }
 
+PDFAppMainWindow* PDFAppMainWindow::getLastActiveMainWindow()
+{
+    return PDFAppMainWindowHelper::getLastActiveWindow().data();
+}
+
 void PDFAppMainWindow::onAboutToQuit()
 {
     // The slots of aboutToQuit run in the order of the creation of the windows: an
     // inactive window gives the place to the active one, which may store later
+    // No active window at the quit (another application is active, a dialog of
+    // its own): the window, which was active last (review RPKT 96-10)
     const PDFAppMainWindow* activeWindow = qobject_cast<const PDFAppMainWindow*>(QApplication::activeWindow());
+    if (!activeWindow || !activeWindow->isVisible())
+    {
+        activeWindow = PDFAppMainWindowHelper::getLastActiveWindow().data();
+    }
     if (activeWindow && activeWindow != this && activeWindow->isVisible())
     {
         return;
@@ -2095,6 +2120,10 @@ void PDFAppMainWindow::changeEvent(QEvent* event)
     else if (event->type() == QEvent::LayoutDirectionChange)
     {
         updateActionIcons();
+    }
+    else if (event->type() == QEvent::ActivationChange && isActiveWindow())
+    {
+        PDFAppMainWindowHelper::getLastActiveWindow() = this;
     }
 }
 

@@ -34,6 +34,8 @@
 #include <QStringList>
 #include <QTimer>
 
+#include <vector>
+
 class QLocalServer;
 class QLocalSocket;
 class QWidget;
@@ -360,6 +362,54 @@ public:
                        qint64* serverProcessId = nullptr);
 };
 
+/// Messages of the startup notification of X11 (freedesktop.org Startup Notification
+/// Protocol 0.1): the launcher shows a busy cursor or a launch feedback until the
+/// started application sends "remove: ID=<DESKTOP_STARTUP_ID>". A process, which
+/// forwards its files to the running instance, never shows a window, so the running
+/// instance ends the notification of its token (newapplication.md 3).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppStartupNotification
+{
+public:
+    PDFAppStartupNotification() = delete;
+
+    /// Bytes of a message in one client message (format 8) of the protocol
+    static constexpr int CHUNK_SIZE = 20;
+
+    /// The value of a key of a message: a space, '"' and '\' are preceded by '\'
+    static QByteArray escapeValue(const QByteArray& value);
+
+    /// The message, which ends the startup notification of \p startupId
+    static QByteArray createRemoveMessage(const QString& startupId);
+
+    /// The message with its terminating NUL in chunks of CHUNK_SIZE bytes (the last
+    /// one padded by NUL bytes): the first one is sent as _NET_STARTUP_INFO_BEGIN,
+    /// the others as _NET_STARTUP_INFO
+    static std::vector<QByteArray> splitMessage(const QByteArray& message);
+
+    /// The time of the user action of the launch: the number of the suffix
+    /// "_TIME<n>" of the id (an X server time of 32 bits). \returns false, when the
+    /// id has no such suffix.
+    static bool getTimestamp(const QString& startupId, quint32* timestamp);
+};
+
+/// Messages of the activation of a window on X11, which Qt does not send for a
+/// shown window (the tests replace them by PDFAppActivation::setX11Messenger)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppX11Messenger
+{
+public:
+    virtual ~PDFAppX11Messenger();
+
+    /// Sends the chunks of a message of the startup notification
+    /// (PDFAppStartupNotification::splitMessage) to the root window of \p window.
+    /// \returns false, when they cannot be sent.
+    virtual bool sendStartupMessage(QWidget* window, const std::vector<QByteArray>& chunks) = 0;
+
+    /// Asks the window manager to activate \p window (_NET_ACTIVE_WINDOW of an
+    /// application) by the time of the user action of the launch. \returns false,
+    /// when the request cannot be sent.
+    virtual bool requestActivation(QWidget* window, quint32 timestamp) = 0;
+};
+
 /// Activation of the window of the running instance (newapplication.md 3): the token
 /// of the starting process is read before QApplication is created (the platform
 /// plugin consumes it), it travels with the request and the receiving window uses it.
@@ -368,14 +418,51 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppActivation
 public:
     PDFAppActivation() = delete;
 
+    /// Window system of the activation
+    enum class Platform
+    {
+        Automatic,  ///< The platform of the process (setPlatformOverride: none)
+        Windows,
+        Wayland,
+        X11,
+        Other       ///< macOS, offscreen, ...
+    };
+
+    /// How the window has been activated
+    enum class Result
+    {
+        None,               ///< No window
+        Activated,          ///< Activated by Qt (Windows: the starting process has allowed it)
+        ActivatedByToken,   ///< Wayland: by the XDG activation token
+        ActivatedByStartupId,///< X11: the startup notification ended, activated by its time
+        Alerted             ///< The token cannot be used: activated by Qt and the user alerted
+    };
+
     /// XDG_ACTIVATION_TOKEN (Wayland) or DESKTOP_STARTUP_ID (X11) of this process,
     /// empty when there is none or it is not valid. Call it before QApplication exists.
     static QString readStartupToken();
 
-    /// Restores a minimized window, raises and activates it. Wayland: by the token of
-    /// the starting process. Windows: the starting process has allowed it. Without a
-    /// token the platform may refuse the activation, the user is alerted then.
-    static void activateWindow(QWidget* window, const QString& activationToken);
+    /// Restores a minimized window (a maximized one stays maximized), raises and
+    /// activates it. Wayland: by the token of the starting process. X11: the startup
+    /// notification of the token is ended and the window is activated by the time
+    /// of the token. Windows: the starting process has allowed it. A token, which
+    /// cannot be used, and no token alert the user (except on Windows).
+    static Result activateWindow(QWidget* window, const QString& activationToken);
+
+    /// The platform of the activation (the override, else the platform of the process)
+    static Platform getPlatform();
+
+    /// Tests: the platform of the activation; Automatic restores the real one
+    static void setPlatformOverride(Platform platform);
+
+    /// Tests: the X11 messages; nullptr restores the messages to the X server
+    /// (the messenger is not owned)
+    static void setX11Messenger(PDFAppX11Messenger* messenger);
+
+private:
+    static Platform& getPlatformOverride();
+    static PDFAppX11Messenger*& getX11MessengerOverride();
+    static PDFAppX11Messenger* getX11Messenger();
 };
 
 /// Decides, whether this process forwards its files to a running instance or

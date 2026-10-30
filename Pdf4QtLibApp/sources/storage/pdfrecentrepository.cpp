@@ -123,6 +123,99 @@ public:
         return PDFRepositoryHelper::isValidStoredPath(path);
     }
 
+    /// Most rows of the length of a path compared by findCaseVariant
+    static constexpr qint64 MAXIMUM_CASE_CANDIDATES = 100000;
+
+    /// Table of the paths compared by findCaseVariant / renameCaseVariant
+    enum class PathTable
+    {
+        File,       ///< recent_file.path
+        Folder      ///< recent_folder.path
+    };
+
+    /// A row of the same path in another case (the paths of this system have no case,
+    /// the key of the path compares the bytes) - only when \p path has no row itself.
+    /// Empty without such a row and on a system with paths with case.
+    static QString findCaseVariant(PDFDatabaseConnection* connection, PathTable table, const QString& path, PDFDatabaseError* error)
+    {
+        if (!PDFRepositoryHelper::isPathCaseInsensitive())
+        {
+            return QString();
+        }
+
+        // Candidates of the same length (a case variant has it), compared by the rule of the paths
+        const char* sql = (table == PathTable::File)
+                ? "SELECT path FROM recent_file WHERE typeof(path) = 'text' AND length(path) = length(?1) AND path <> ?1 "
+                  "AND NOT EXISTS (SELECT 1 FROM recent_file WHERE path = ?1) LIMIT ?2"
+                : "SELECT path FROM recent_folder WHERE typeof(path) = 'text' AND length(path) = length(?1) AND path <> ?1 "
+                  "AND NOT EXISTS (SELECT 1 FROM recent_folder WHERE path = ?1) LIMIT ?2";
+        QString variant;
+        PDFDatabaseStatement candidates(connection, sql);
+        candidates.bindText(1, path);
+        candidates.bindInt64(2, MAXIMUM_CASE_CANDIDATES);
+        while (candidates.next())
+        {
+            const QString candidate = candidates.getText(0);
+            if (PDFRepositoryHelper::isSamePath(candidate, path))
+            {
+                variant = candidate;
+                break;
+            }
+        }
+        candidates.reset();
+        if (candidates.getError().isError())
+        {
+            *error = candidates.getError();
+            return QString();
+        }
+        return variant;
+    }
+
+    /// A row of the same path in another case (findCaseVariant) is renamed to \p path,
+    /// when \p path has no row itself: one row per file / folder, the newest spelling
+    static PDFDatabaseError renameCaseVariant(PDFDatabaseConnection* connection, PathTable table, const QString& path)
+    {
+        PDFDatabaseError error;
+        const QString variant = findCaseVariant(connection, table, path, &error);
+        if (error.isError() || variant.isEmpty())
+        {
+            return error;
+        }
+
+        PDFDatabaseStatement rename(connection, (table == PathTable::File) ? "UPDATE recent_file SET path = ?2 WHERE path = ?1"
+                                                                           : "UPDATE recent_folder SET path = ?2 WHERE path = ?1");
+        rename.bindText(1, variant);
+        rename.bindText(2, path);
+        if (!rename.execute())
+        {
+            return rename.getError();
+        }
+        return PDFDatabaseError();
+    }
+
+    /// The key of the row of the file of \p path: \p path itself, else the row of the
+    /// same file in another case (a tab opened as "a.pdf" keeps its path, while a later
+    /// opening as "A.pdf" has given the row its spelling). Empty without a row.
+    static QString findStoredPath(PDFDatabaseConnection* connection, const QString& path, PDFDatabaseError* error)
+    {
+        {
+            PDFDatabaseStatement exists(connection, "SELECT 1 FROM recent_file WHERE path = ?1");
+            exists.bindText(1, path);
+            const bool found = exists.next();
+            exists.reset();
+            if (exists.getError().isError())
+            {
+                *error = exists.getError();
+                return QString();
+            }
+            if (found)
+            {
+                return path;
+            }
+        }
+        return findCaseVariant(connection, PathTable::File, path, error);
+    }
+
     /// Reads one row of pinned_location
     static bool readLocation(const PDFDatabaseStatement& statement, PDFPinnedLocation& location)
     {
@@ -316,6 +409,13 @@ PDFDatabaseError PDFRecentRepository::pruneFolders(PDFDatabaseConnection* connec
 
 PDFDatabaseError PDFRecentRepository::recordFolderImpl(PDFDatabaseConnection* connection, const QString& folderPath) const
 {
+    // The same folder of another case: one row, the newest spelling (as recent_file)
+    const PDFDatabaseError error = PDFRecentRepositoryHelper::renameCaseVariant(connection, PDFRecentRepositoryHelper::PathTable::Folder, folderPath);
+    if (error.isError())
+    {
+        return error;
+    }
+
     const PDFRecentFolderKind kind = PDFRecentRepositoryHelper::getFolderKind(folderPath, getStandardFolders());
     PDFDatabaseStatement statement(connection, "INSERT INTO recent_folder(path, last_used, kind) VALUES (?1, ?2, ?3) "
                                                "ON CONFLICT(path) DO UPDATE SET last_used = excluded.last_used, kind = excluded.kind");
@@ -355,6 +455,17 @@ PDFDatabaseError PDFRecentRepository::recordOpened(const QString& filePath, QStr
         return transaction.getError();
     }
 
+    // The same file of another case (Windows, macOS - PDFRepositoryHelper::isSamePath),
+    // while UNIQUE of recent_file.path compares the bytes: its row takes the new
+    // spelling (one row per file, its pin, reading and view state kept - the later
+    // updates of the document find it also by an older spelling - findStoredPath;
+    // schema 1 is released, newapp_storage.md 5)
+    PDFDatabaseError error = PDFRecentRepositoryHelper::renameCaseVariant(connection, PDFRecentRepositoryHelper::PathTable::File, path);
+    if (error.isError())
+    {
+        return error;
+    }
+
     // A hostile open_count (text, negative, huge) restarts the counter
     PDFDatabaseStatement statement(connection,
         "INSERT INTO recent_file(path, name, folder, last_opened, open_count, file_size, file_mtime) VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6) "
@@ -387,7 +498,7 @@ PDFDatabaseError PDFRecentRepository::recordOpened(const QString& filePath, QStr
         return statement.getError();
     }
 
-    PDFDatabaseError error = recordFolderImpl(connection, folder);
+    error = recordFolderImpl(connection, folder);
     if (error.isError())
     {
         return error;
@@ -425,15 +536,15 @@ PDFDatabaseError PDFRecentRepository::updateFile(const char* sql, const QString&
         return transaction.getError();
     }
 
-    PDFDatabaseStatement exists(connection, "SELECT 1 FROM recent_file WHERE path = ?1");
-    exists.bindText(1, path);
-    const bool found = exists.next();
-    exists.reset();
-    if (exists.getError().isError())
+    // The row of the file, also of another case (the document of a tab keeps the
+    // spelling of its opening, a later opening may have renamed the row)
+    PDFDatabaseError error;
+    const QString storedPath = PDFRecentRepositoryHelper::findStoredPath(connection, path, &error);
+    if (error.isError())
     {
-        return exists.getError();
+        return error;
     }
-    if (!found)
+    if (storedPath.isEmpty())
     {
         return PDFRecentRepositoryHelper::notFound();
     }
@@ -441,7 +552,7 @@ PDFDatabaseError PDFRecentRepository::updateFile(const char* sql, const QString&
     // ?1 = path, ?2 .. ?4 = values; the statements change the row only when a value
     // differs (no change notification without a change)
     PDFDatabaseStatement statement(connection, sql);
-    statement.bindText(1, path);
+    statement.bindText(1, storedPath);
     statement.bindVariant(2, first);
     if (second.isValid())
     {
@@ -695,6 +806,26 @@ std::optional<PDFRecentFile> PDFRecentRepository::getFile(const QString& path) c
             result = file;
         }
         statement.reset();
+        return result;
+    }
+    statement.reset();
+
+    // The row of the same file in another case (the document of a tab keeps the
+    // spelling of its opening, a later opening may have renamed the row)
+    PDFDatabaseError error;
+    const QString variant = PDFRecentRepositoryHelper::findCaseVariant(getConnection(), PDFRecentRepositoryHelper::PathTable::File, path, &error);
+    if (!variant.isEmpty())
+    {
+        statement.bindText(1, variant);
+        if (statement.next())
+        {
+            PDFRecentFile file;
+            if (readFile(statement, file))
+            {
+                result = file;
+            }
+            statement.reset();
+        }
     }
     return result;
 }

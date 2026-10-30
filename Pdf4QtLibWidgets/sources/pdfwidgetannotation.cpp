@@ -1192,7 +1192,7 @@ QString PDFWidgetAnnotationManager::getCapabilitiesHint(const PageAnnotation& an
     const PDFAnnotationManipulator::Capabilities capabilities = getAnnotationCapabilities(annotation);
     if (!capabilities.testFlag(PDFAnnotationManipulator::Move))
     {
-        // Jakub Melka: the document, which does not allow changes, and a locked
+        // The document, which does not allow changes, and a locked
         // annotation are two different reasons for the user (owner decision O8)
         if (!isModificationAllowed())
         {
@@ -3684,7 +3684,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
             QRectF annotationRect = pageAnnotation.annotation->getRectangle();
             QTransform matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
 
-            // Jakub Melka: a position outside of the bounding box is outside of the rectangle,
+            // A position outside of the bounding box is outside of the rectangle,
             // the path is made only for the annotations near the cursor (a page can have
             // thousands of annotations and this runs at every move of the mouse)
             bool isUnderCursor = false;
@@ -6422,7 +6422,7 @@ PDFInteger PDFWidgetAnnotationManager::findAnnotationPageInDocument(PDFObjectRef
         return pageIndex;
     }
 
-    // Jakub Melka: the entry P is optional and the annotation is not on a displayed page
+    // The entry P is optional and the annotation is not on a displayed page
     // (a list of all annotations - the Notes). The arrays Annots of the pages are searched,
     // the annotations of only the found page are parsed.
     const size_t pageCount = m_document->getCatalog()->getPageCount();

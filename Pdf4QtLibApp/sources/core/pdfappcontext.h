@@ -44,8 +44,10 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QUrl>
 
 #include <memory>
+#include <vector>
 
 namespace pdf
 {
@@ -164,6 +166,15 @@ public:
     void setPagesEnabled(bool enabled) { m_isPagesEnabled = enabled; }
     bool isPagesEnabled() const { return m_isPagesEnabled; }
 
+    /// The request of a file, which the system asks to open by QFileOpenEvent (macOS:
+    /// a document opened in the Finder; step 9, N2): a local file goes the way of a
+    /// file of the command line (PDFAppInstanceProtocol::createRequest), any other
+    /// URL is refused with the error of an invalid argument
+    static PDFAppInstanceRequest createFileOpenRequest(const QUrl& url);
+
+    /// Maximal number of the requests of QFileOpenEvent held until a window exists
+    static constexpr int MAXIMUM_PENDING_FILE_OPENS = 64;
+
 Q_SIGNALS:
     /// Another process asks to open the files (absolute paths) at the page, or only
     /// to raise the window (no files). The shell opens them as new tabs of the last
@@ -173,7 +184,18 @@ Q_SIGNALS:
     /// The state of the storage has changed (banners)
     void storageStateChanged();
 
+protected:
+    /// QFileOpenEvent of the application is opened as a forwarded request (openRequested)
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+    /// A window, which connects openRequested, gets the held requests of QFileOpenEvent
+    virtual void connectNotify(const QMetaMethod& signal) override;
+
 private:
+    /// Emits openRequested, or holds the request until a window connects it
+    void requestOpen(const PDFAppInstanceRequest& request);
+    void deliverPendingRequests();
+
     void onSettingChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
     void onSystemColorSchemeChanged();
@@ -194,6 +216,7 @@ private:
     QPointer<PDFAppMcpController> m_mcpController;
     std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
     bool m_isPagesEnabled = true;
+    std::vector<PDFAppInstanceRequest> m_pendingRequests;   ///< QFileOpenEvent before a window exists
 };
 
 }   // namespace pdf

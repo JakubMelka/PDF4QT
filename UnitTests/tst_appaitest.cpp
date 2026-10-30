@@ -650,6 +650,15 @@ void AppAiTest::pageStatePortInUsePdf4Qt()
     QTRY_COMPARE_WITH_TIMEOUT(page->getShownState(), pdf::PDFAppAiPage::ShownState::OtherInstance, AppAiTestHelper::timeout(10000));
     QVERIFY(page->getCallout()->isVisibleTo(page));
     QVERIFY(!page->getCalloutButton()->isVisibleTo(page));
+
+    // Unknown changes of the database (a gap of the notifier, an imported backup)
+    // change no row of an owner: the other PDF4QT still has the port, the refused
+    // start stays (review RMULTI of step 9)
+    Q_EMIT fixture.context->getNotifier()->everythingChanged();
+    QCOMPARE(fixture.controller()->getState(), pdf::PDFAppMcpServerState::OtherInstance);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(page->getShownState(), pdf::PDFAppAiPage::ShownState::OtherInstance);
+    QVERIFY(page->getCallout()->isVisibleTo(page));
     other.stop();
 }
 

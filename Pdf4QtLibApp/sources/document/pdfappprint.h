@@ -73,6 +73,12 @@ public:
     QList<QPageSize> pageSizes;         ///< Supported paper sizes (empty = the standard sizes)
     QPageSize defaultPageSize;          ///< Default paper size (invalid = the size of the locale)
     QString outputFile;                 ///< Tests: the printer writes a PDF file instead of printing
+
+    /// The port of the printer asks for a file (Windows PORTPROMPT: - Microsoft Print
+    /// to PDF, Microsoft XPS Document Writer): the driver would show its own save
+    /// dialog from the worker of the job, so the file is chosen before the job
+    bool isPortPrompt = false;
+    QString outputSuffix;               ///< Suffix of the file of a port prompt ("pdf", "oxps", "prn")
 };
 
 /// Printers of the system for the print dialog. The tests replace them by a
@@ -134,6 +140,10 @@ private:
     static Provider& getProvider();
     static PropertiesHandler& getPropertiesHandler();
     static bool showNativePrinterProperties(QWidget* parent, QPrinter* printer, const QString& printerName);
+
+    /// Windows: the port of the printer is PORTPROMPT: (GetPrinter level 2; QPrinterInfo
+    /// does not tell it), \p suffix gets the suffix of the file of its driver
+    static bool isPortPromptPrinter(const QString& printerName, QString* suffix);
 };
 
 /// Orientation of the paper
@@ -330,6 +340,9 @@ Q_SIGNALS:
 private:
     void openDialog(const std::vector<PDFInteger>& initialPages, int copies);
     void onDialogFinished(int result);
+    /// The file of a printer with a port prompt, asked in the thread of the user
+    /// interface before the job (an empty text = canceled by the user)
+    QString askPrintFile(const PDFAppPrinterInfo& info);
     void startJob(std::shared_ptr<QPrinter> printer, const PDFAppPrintSettings& settings, const QString& printerName);
     void onJobFinished();
     void onProgressTimeout();

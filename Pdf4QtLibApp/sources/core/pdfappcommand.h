@@ -150,8 +150,24 @@ public:
     /// Text of the shortcut for the table shortcut
     static QString toStoredText(const QKeySequence& shortcut);
 
+    /// Keys, which can never be a shortcut (O20 - no keyboard trap): the recording
+    /// refuses them and a stored text of them (also of an imported backup) is no
+    /// shortcut of the user
+    enum class ReservedKey
+    {
+        None,           ///< The shortcut can be assigned
+        FocusOrClose,   ///< Esc, Tab, Shift+Tab (with any modifiers)
+        Confirm,        ///< Enter / Return alone
+        CloseWindow,    ///< Alt+F4
+        Modifier        ///< A modifier key alone, an unknown key
+    };
+
+    /// The first reserved key of the shortcut (ReservedKey::None for an empty one)
+    static ReservedKey getReservedKey(const QKeySequence& shortcut);
+
     /// Shortcut from the stored text. \returns false in \p ok for a text, which is not
-    /// a valid key sequence (an empty text is valid - no shortcut)
+    /// a valid key sequence or contains a reserved key (getReservedKey); an empty text
+    /// is valid - no shortcut
     static QKeySequence fromStoredText(const QString& text, bool* ok);
 
     /// The two shortcuts conflict (equal, or one is the beginning of the other)

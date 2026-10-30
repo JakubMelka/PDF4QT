@@ -547,8 +547,10 @@ void PDFAppSearchPopup::setResults(const PDFAppSearchResults& results)
             }
         }
     }
-    setCurrentRow(currentRow);
+
+    // The last call: its signal currentRowChanged may delete the popup
     update();
+    setCurrentRow(currentRow);
 }
 
 std::vector<int> PDFAppSearchPopup::selectRows(int rowBudget) const
@@ -1013,7 +1015,13 @@ void PDFAppSearchPopup::mouseMoveEvent(QMouseEvent* event)
     const int row = getRowAt(position);
     if (row >= 0 && event->buttons() == Qt::NoButton)
     {
+        // The signal currentRowChanged may delete the popup
+        QPointer<PDFAppSearchPopup> guard(this);
         setCurrentRow(row);
+        if (!guard)
+        {
+            return;
+        }
     }
 
     const bool isLinkHovered = getShowAllRect().contains(position);
@@ -1043,11 +1051,12 @@ void PDFAppSearchPopup::mousePressEvent(QMouseEvent* event)
     const QPoint position = event->position().toPoint();
     m_pressedRow = getRowAt(position);
     m_isShowAllPressed = m_pressedRow < 0 && getShowAllRect().contains(position);
+    update();
     if (m_pressedRow >= 0)
     {
+        // The last call: its signal currentRowChanged may delete the popup
         setCurrentRow(m_pressedRow);
     }
-    update();
 }
 
 void PDFAppSearchPopup::mouseReleaseEvent(QMouseEvent* event)
@@ -1067,8 +1076,13 @@ void PDFAppSearchPopup::mouseReleaseEvent(QMouseEvent* event)
 
     if (pressedRow >= 0 && getRowAt(position) == pressedRow)
     {
+        // The signal currentRowChanged may delete the popup
+        QPointer<PDFAppSearchPopup> guard(this);
         setCurrentRow(pressedRow);
-        activateCurrent();
+        if (guard)
+        {
+            activateCurrent();
+        }
     }
     else if (isShowAllPressed && getShowAllRect().contains(position))
     {
@@ -1323,7 +1337,15 @@ void PDFAppSearchController::openPopup(const PDFAppSearchResults& results)
 
     m_popup->setLayoutDirection(m_field->layoutDirection());
     placePopup();
+
+    // The popup emits currentRowChanged: its receivers may delete the field with
+    // this controller (and the popup with it)
+    QPointer<PDFAppSearchController> guard(this);
     m_popup->setResults(results);
+    if (!guard || !m_popup)
+    {
+        return;
+    }
     m_popup->open();
     watch(true);
     onCurrentRowChanged(m_popup->getCurrentRow());
@@ -1569,10 +1591,16 @@ bool PDFAppSearchController::handleFieldKey(QKeyEvent* event)
         case Qt::Key_Return:
         case Qt::Key_Enter:
         {
-            // The results of the typed text (a pending search is done first)
+            // The results of the typed text (a pending search is done first; the
+            // search may delete the field with this controller - currentRowChanged)
             if (isSearchPending() || isPopupOpen())
             {
+                QPointer<PDFAppSearchController> guard(this);
                 updateSearch();
+                if (!guard)
+                {
+                    return true;
+                }
             }
             if (isPopupOpen() && m_popup->getCurrentResult())
             {
@@ -1644,7 +1672,15 @@ bool PDFAppSearchController::eventFilter(QObject* watched, QEvent* event)
             case QEvent::LanguageChange:
                 if (isPopupOpen())
                 {
+                    // The search may delete the field with this controller
+                    // (currentRowChanged of the popup)
+                    QPointer<PDFAppSearchController> guard(this);
                     updateSearch();
+                    if (!guard)
+                    {
+                        // Qt reads nothing of the deleted field after a consumed event
+                        return true;
+                    }
                 }
                 break;
 

@@ -182,6 +182,11 @@ public:
     const PDFAppToolCollectionDraftState& getDraft() const { return m_draft; }
     const PDFAppToolCollectionDraftState& getBase() const { return m_base; }
 
+    /// Time of the last change of the stored collection, which the editor has seen
+    /// (a change reported by Reload / Keep my changes, else the base of the draft):
+    /// Save is refused, when the stored row has another time (PDFToolCollectionDraft::expectedModified)
+    qint64 getSeenModified() const { return m_pendingStored ? m_pendingStored->modified : m_baseModified; }
+
     /// Replaces the draft (a draft restored from the history); invalid values are
     /// sanitized as by PDFAppToolCollectionDraftState::fromVariantMap
     void setDraft(const PDFAppToolCollectionDraftState& draft);

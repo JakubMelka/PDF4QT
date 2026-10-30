@@ -26,6 +26,7 @@
 
 #include "pdfappaipage.h"
 #include "pdfappcontext.h"
+#include "pdfapplog.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
@@ -59,6 +60,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -207,8 +209,11 @@ private slots:
     void fixListedTitlesWhileReadAsk();
     void fixConfirmationAfterShutdown();
     void fixJunctionsResolved();
+    void reviewDataFolderBehindJunction();
     void reviewMountPointFolder();
     void fixOwnerRequests();
+    void fixOwnerShowWindowKeepsMaximized();
+    void reviewFailedClaimTakesNothing();
 
     // Package B: the read tools, resources, prompts, completion (appmcpreadtests.h)
     void documentActions() { AppMcpReadTests::documentActions(); }
@@ -1008,6 +1013,58 @@ void AppMcpTest::controllerOwnership()
     QVERIFY(b->start());
     QTRY_COMPARE_WITH_TIMEOUT(b->getState(), pdf::PDFAppMcpServerState::Running, 10000);
     second.close();
+}
+
+void AppMcpTest::reviewFailedClaimTakesNothing()
+{
+    // Mutation check of step 9: the server of an instance, which loses the claim
+    // of the row (another live instance claimed it while the server was starting),
+    // stops - the instance is not the owner, so it never rewrites the client rows
+    // of the owner and never takes the requests of other instances (plan 2.6:
+    // only the owner of the row handles mcp_request and writes mcp_client)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    pdf::PDFDatabaseOptions options;
+    options.filePath = directory.filePath(QStringLiteral("pdf4qt-1.db"));
+    pdf::PDFAppContext context(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT") }, QDir::currentPath()));
+    context.open(options);
+    QCOMPARE(context.getDatabase()->getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    context.getNotifier()->setPollInterval(20);
+    pdf::PDFAppMcpController* controller = context.getMcpController();
+    QVERIFY(controller);
+    QSignalSpy showSpy(controller, &pdf::PDFAppMcpController::showWindowRequested);
+    QVERIFY(!context.getSettings().setValue(pdf::PDFSettingKeys::mcpPort(), int(pdftest::AppMcpFixture::findFreePort())).isError());
+
+    // The start binds in the control thread; before the server runs, another
+    // live instance (this process) claims the row, has a connected assistant and
+    // a request of a third instance waits for it
+    QVERIFY(controller->start());
+    pdf::PDFMcpRepository other(context.getDatabase());
+    bool claimed = false;
+    QVERIFY(!other.claimServer(QStringLiteral("other"), QCoreApplication::applicationPid(), 1, pdf::PDFMcpServerRowState::Running, QString(), &claimed).isError());
+    QVERIFY(claimed);
+    pdf::PDFMcpClientRow client;
+    client.key = QStringLiteral("a:0123456789abcdef0123456789abcdef");
+    client.name = QStringLiteral("Claude Code");
+    client.connected = 1;
+    QVERIFY(!other.upsertClient(client).isError());
+    QVERIFY(!other.postRequest(pdf::PDFMcpRequestKind::ShowWindow).isError());
+
+    QTRY_COMPARE_WITH_TIMEOUT(controller->getState(), pdf::PDFAppMcpServerState::OtherInstance, 10000);
+    QVERIFY(!controller->isOwner());
+    QVERIFY(!controller->isRunning());
+    pdftest::AppDocumentFixture::settle();
+
+    QCOMPARE(other.getServer().instance, QStringLiteral("other"));
+    const std::vector<pdf::PDFMcpClientRow> clients = other.getClients();
+    QCOMPARE(clients.size(), size_t(1));
+    QCOMPARE(clients.front().key, client.key);
+    QCOMPARE(showSpy.count(), 0);
+    const std::vector<pdf::PDFMcpRequestRow> requests = other.takeRequests();
+    QCOMPARE(requests.size(), size_t(1));
+    QCOMPARE(requests.front().kind, pdf::PDFMcpRequestKind::ShowWindow);
+    QVERIFY(!other.releaseServer(QStringLiteral("other")).isError());
+    context.close();
 }
 
 void AppMcpTest::controllerSecondProcess()
@@ -2116,6 +2173,47 @@ void AppMcpTest::fixJunctionsResolved()
     QVERIFY(pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked/a.pdf")), true, &error).isEmpty());
 }
 
+void AppMcpTest::reviewDataFolderBehindJunction()
+{
+    // Review RPKT 96-4: the folder of the logs (and of the data) behind a junction -
+    // the checked path is resolved to the target of the junction, so the refused
+    // folder must be resolved the same way; a file reached by the junction and by
+    // the target are both refused, a sibling folder is not
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(QDir(directory.path()).mkpath(QStringLiteral("real/logs")));
+    QVERIFY(QDir(directory.path()).mkpath(QStringLiteral("real/other")));
+    if (!AppMcpTestHelper::createDirectoryLink(directory.filePath(QStringLiteral("real")), directory.filePath(QStringLiteral("linked"))))
+    {
+        QSKIP("A link of a folder cannot be created here");
+    }
+
+    // isInFolder of a resolved path and the folder given by the junction
+    const QString realLogs = QFileInfo(directory.filePath(QStringLiteral("real/logs"))).canonicalFilePath();
+    const QString linkedLogs = directory.filePath(QStringLiteral("linked/logs"));
+    QVERIFY(pdf::PDFAppMcpArguments::isInFolder(realLogs + QStringLiteral("/x.pdf"), linkedLogs));
+    QVERIFY(pdf::PDFAppMcpArguments::isInFolder(realLogs, linkedLogs));
+    QVERIFY(!pdf::PDFAppMcpArguments::isInFolder(QFileInfo(directory.filePath(QStringLiteral("real/other"))).canonicalFilePath() + QStringLiteral("/x.pdf"), linkedLogs));
+
+    // checkPath with the log of the process installed into the folder behind the junction
+    if (pdf::PDFAppLog::isInstalled())
+    {
+        QSKIP("The process has its own log");
+    }
+    pdf::PDFAppLogOptions logOptions;
+    logOptions.directory = linkedLogs;
+    QVERIFY(pdf::PDFAppLog::install(logOptions));
+    const auto logGuard = qScopeGuard([]() { pdf::PDFAppLog::uninstall(); });
+
+    QString error;
+    for (const QString& path : { directory.filePath(QStringLiteral("linked/logs/x.pdf")), directory.filePath(QStringLiteral("real/logs/x.pdf")) })
+    {
+        QVERIFY2(pdf::PDFAppMcpArguments::checkPath(path, true, &error).isEmpty(), qPrintable(path));
+        QVERIFY2(error.contains(QStringLiteral("of the logs")), qPrintable(error));
+    }
+    QVERIFY2(!pdf::PDFAppMcpArguments::checkPath(directory.filePath(QStringLiteral("linked/other/x.pdf")), true, &error).isEmpty(), qPrintable(error));
+}
+
 void AppMcpTest::reviewMountPointFolder()
 {
     // Review RFW7-M: a volume mounted into a folder without a drive letter is a
@@ -2178,6 +2276,33 @@ void AppMcpTest::fixOwnerRequests()
     pdftest::AppDocumentFixture::settle();
     QVERIFY(controller->isRunning());
     QCOMPARE(showSpy.count(), 1);
+}
+
+void AppMcpTest::fixOwnerShowWindowKeepsMaximized()
+{
+    // Step 9, N4: Show Other Window of another instance restores a minimized window
+    // of the owner into the state it had before - a maximized window stays
+    // maximized (PDFAppActivation::activateWindow, not showNormal)
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.startServer());
+    pdf::PDFAppMcpController* controller = fixture.controller();
+    QTRY_VERIFY(controller->isOwner());
+    QSignalSpy showSpy(controller, &pdf::PDFAppMcpController::showWindowRequested);
+
+    fixture.window->showMaximized();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(fixture.window->isMaximized());
+    fixture.window->showMinimized();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(fixture.window->isMinimized());
+    QVERIFY(fixture.window->windowState().testFlag(Qt::WindowMaximized));
+
+    pdf::PDFMcpRepository repository(fixture.context->getDatabase());
+    QVERIFY(!repository.postRequest(pdf::PDFMcpRequestKind::ShowWindow).isError());
+    QTRY_COMPARE(showSpy.count(), 1);
+    QTRY_VERIFY(!fixture.window->isMinimized());
+    QVERIFY(fixture.window->isMaximized());
+    QVERIFY(fixture.window->isVisible());
 }
 
 int main(int argc, char* argv[])

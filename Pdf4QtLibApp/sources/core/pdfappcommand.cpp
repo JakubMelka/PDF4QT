@@ -105,6 +105,49 @@ QString PDFAppCommandRegistry::toStoredText(const QKeySequence& shortcut)
     return shortcut.toString(QKeySequence::PortableText);
 }
 
+PDFAppCommandRegistry::ReservedKey PDFAppCommandRegistry::getReservedKey(const QKeySequence& shortcut)
+{
+    for (int i = 0; i < shortcut.count(); ++i)
+    {
+        const QKeyCombination combination = shortcut[i];
+        const Qt::KeyboardModifiers modifiers = combination.keyboardModifiers() & ~Qt::KeypadModifier;
+        switch (combination.key())
+        {
+            case Qt::Key_Escape:
+            case Qt::Key_Tab:
+            case Qt::Key_Backtab:
+                return ReservedKey::FocusOrClose;
+
+            case Qt::Key_Return:
+            case Qt::Key_Enter:
+                if (modifiers == Qt::NoModifier)
+                {
+                    return ReservedKey::Confirm;
+                }
+                break;
+
+            case Qt::Key_F4:
+                if (modifiers == Qt::AltModifier)
+                {
+                    return ReservedKey::CloseWindow;
+                }
+                break;
+
+            case Qt::Key_Shift:
+            case Qt::Key_Control:
+            case Qt::Key_Meta:
+            case Qt::Key_Alt:
+            case Qt::Key_AltGr:
+            case Qt::Key_unknown:
+                return ReservedKey::Modifier;
+
+            default:
+                break;
+        }
+    }
+    return ReservedKey::None;
+}
+
 QKeySequence PDFAppCommandRegistry::fromStoredText(const QString& text, bool* ok)
 {
     if (text.trimmed().isEmpty())
@@ -123,6 +166,9 @@ QKeySequence PDFAppCommandRegistry::fromStoredText(const QString& text, bool* ok
         const Qt::Key key = shortcut[i].key();
         isValid = key != Qt::Key_unknown && key != 0;
     }
+
+    // A stored or imported "Tab" would never let the focus move on (O20)
+    isValid = isValid && getReservedKey(shortcut) == ReservedKey::None;
 
     if (ok)
     {

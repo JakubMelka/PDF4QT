@@ -1567,8 +1567,13 @@ void AppDocumentPropertiesTest::webLinksBlocked()
     pdf::PDFAppDocumentActionHandler::setLaunchHandler([&launched](const pdf::PDFAppExternalLaunch&) { ++launched; return true; });
     QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::securityOpenLinks(), false).isError());
 
-    // No dialog: the info bar link-blocked with Copy Link and Security Settings
+    // No dialog: the info bar link-blocked with Copy Link and Security Settings (a
+    // confirmation shown against the setting is canceled and fails the test at once)
+    QStringList confirmationTexts;
+    QPointer<QTimer> dialogTimer = PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton"), &confirmationTexts);
     handler->performAction(actions[2]);
+    delete dialogTimer.data();
+    QVERIFY2(confirmationTexts.isEmpty(), qPrintable(confirmationTexts.join(QLatin1Char('|'))));
     fixture.settle();
     QCOMPARE(launched, 0);
     const pdf::PDFAppInfoBarRequest* bar = tab->getView()->findInfoBar(pdf::PDFAppDocumentActionHandler::getLinkBlockedBarId());
@@ -1907,6 +1912,43 @@ void AppDocumentPropertiesTest::securityRules()
     }
     QVERIFY(!pdf::PDFAppAttachments::isExecutable(QStringLiteral("a.pdf")));
     QVERIFY(!pdf::PDFAppAttachments::isExecutable(QStringLiteral("a.docx")));
+
+    // Review RPKT 95: a stream of NTFS, trailing dots and spaces never hide the
+    // extension of a program - the shell starts "a.exe::$DATA" as a.exe, so Launch
+    // asks Start a program, not Open a file
+    for (const char* name : { "a.exe::$DATA", "a.exe:stream", "a.exe:stream:$DATA", "a.bat.", "a.cmd . ", "a.exe .::$DATA", "a.LNK::$data" })
+    {
+        QVERIFY2(Handler::isExecutable(QStringLiteral("C:/x/") + QString::fromLatin1(name)), name);
+    }
+    for (const char* name : { "a.pdf::$DATA", "a.txt:x.exe", "report.docx:stream" })
+    {
+        QVERIFY2(!Handler::isExecutable(QStringLiteral("C:/x/") + QString::fromLatin1(name)), name);
+    }
+
+#ifndef Q_OS_WIN
+    // A file with the executable permission is a program also without an extension
+    // of the list (a script with #!) - it gets the confirmation of a program; a PDF
+    // document with the permission stays a document, a folder is no program (step 9
+    // MUT-B: the permission itself was never checked)
+    {
+        QTemporaryDir folder;
+        QVERIFY(folder.isValid());
+        const QString script = folder.filePath(QStringLiteral("report-viewer"));
+        const QString document = folder.filePath(QStringLiteral("report.pdf"));
+        for (const QString& filePath : { script, document })
+        {
+            QFile file(filePath);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QVERIFY(file.write("#!/bin/sh\n") > 0);
+        }
+        QVERIFY(!Handler::isExecutable(script));
+        QVERIFY(QFile::setPermissions(script, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QVERIFY(QFile::setPermissions(document, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QVERIFY(Handler::isExecutable(script));
+        QVERIFY(!Handler::isExecutable(document));
+        QVERIFY(!Handler::isExecutable(folder.path()));
+    }
+#endif
 
     // Reserved names of devices: also COM0 / LPT0 and the superscript digits
     QCOMPARE(pdf::PDFAppAttachments::sanitizeFileName(QStringLiteral("COM") + QChar(0x00B9) + QStringLiteral(".txt")), QStringLiteral("_COM") + QChar(0x00B9) + QStringLiteral(".txt"));

@@ -49,6 +49,7 @@
 #include <QLockFile>
 #include <QProcess>
 #include <QRandomGenerator>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTimeZone>
@@ -319,6 +320,8 @@ private Q_SLOTS:
     void languageDefinition();
     void executableSmoke();
     void executablePortable();
+    void startupNotificationMessages();
+    void activationPlatforms();
 
 private:
     QProcess* startChild(const QStringList& arguments);
@@ -721,6 +724,9 @@ void AppCoreTest::protocol()
         "{\"version\": 1, \"files\": [], \"errors\": \"text\"}",
         "{\"version\": 1, \"files\": [], \"errors\": [1]}",
         "{\"version\": 1, \"files\": [], \"errors\": [\"" + QByteArray(pdf::PDFAppInstanceProtocol::MAXIMUM_ERROR_LENGTH + 1, 'e') + "\"]}",
+        // A NUL is never a part of an error of a command line (no argument has one):
+        // the text of a foreign process, which would be shown cut, is refused
+        "{\"version\": 1, \"files\": [], \"errors\": [\"shown\\u0000hidden\"]}",
         "{\"version\": 1, \"files\": [\"//./PhysicalDrive0\"]}",
         "{\"version\": 1, \"files\": [\"\\\\\\\\.\\\\pipe\\\\x\"]}",
         "{\"version\": 1, \"files\": [\"//?/GLOBALROOT/x.pdf\"]}",
@@ -1902,9 +1908,13 @@ void AppCoreTest::logs()
         QVERIFY(content.contains(QStringLiteral("thread %1 message 49").arg(i)));
     }
     QCOMPARE(content.count(QStringLiteral("[debug] thread")), 200);
+    // Whole lines with the id of the process: more instances append to the file of
+    // the day (newapplication.md, Logs - review RPKT 95c)
+    const QString linePrefix = QStringLiteral("2026-10-19T12:00:00.000 [%1] [").arg(QCoreApplication::applicationPid());
+    QVERIFY(content.contains(linePrefix + QStringLiteral("info] log message from the main thread")));
     for (const QString& line : content.split(QLatin1Char('\n')))
     {
-        QVERIFY2(line.isEmpty() || line.startsWith(QStringLiteral("2026-10-19T12:00:00.000 [")) || line.startsWith(QStringLiteral("    ")), qPrintable(line));
+        QVERIFY2(line.isEmpty() || line.startsWith(linePrefix) || line.startsWith(QStringLiteral("    ")), qPrintable(line));
         QVERIFY2(!line.startsWith(QStringLiteral("2026-10-19T12:00:00.000 [info] forged")), qPrintable(line));
         QVERIFY(!line.contains(QChar(1)) && !line.contains(QLatin1Char('\r')));
         QVERIFY(!line.contains(QStringLiteral("end")) || line.contains(QStringLiteral("forged two") + QChar(0xFFFD) + QStringLiteral("end")));
@@ -2016,6 +2026,20 @@ void AppCoreTest::logRotationAndRetention()
     QCOMPARE(deleted.size(), 3);
     files = QDir(sizeDirectory).entryList(QStringList() << QStringLiteral("pdf4qt-*.log"), QDir::Files, QDir::Name);
     QCOMPARE(files, QStringList({ "pdf4qt-2026-10-04.log", "pdf4qt-2026-10-05.log" }));
+
+    // The clock was set back: a file of a later date sorts after the file of the day,
+    // which is still never deleted by the size (it alone is within the limit)
+    const QString futureDirectory = m_directory.filePath(QStringLiteral("size-future"));
+    QDir().mkpath(futureDirectory);
+    for (const QDate& date : { QDate(2026, 10, 5), QDate(2026, 10, 6) })
+    {
+        QFile file(QDir(futureDirectory).filePath(pdf::PDFAppLog::getFileName(date)));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QByteArray(1000, 'x'));
+    }
+    const QString todayPath = QDir(futureDirectory).filePath(pdf::PDFAppLog::getFileName(QDate(2026, 10, 5)));
+    QVERIFY(!pdf::PDFAppLog::cleanup(futureDirectory, QDate(2026, 10, 5), 7, 1500).contains(todayPath));
+    QVERIFY(QFile::exists(todayPath));
 
     // The file of the day alone over the limit is deleted
     QVERIFY(pdf::PDFAppLog::cleanup(sizeDirectory, QDate(2026, 10, 5), 7, 500).size() == 2);
@@ -2881,6 +2905,199 @@ void AppCoreTest::executablePortable()
 
     // Nothing on the disk
     QVERIFY(!QDir(dataDirectory).exists());
+}
+
+/// X11 messages of the activation recorded instead of being sent to the X server
+class AppCoreX11Recorder : public pdf::PDFAppX11Messenger
+{
+public:
+    virtual bool sendStartupMessage(QWidget* window, const std::vector<QByteArray>& chunks) override
+    {
+        startupWindows.push_back(window);
+        startupMessages.push_back(chunks);
+        return isStartupAccepted;
+    }
+
+    virtual bool requestActivation(QWidget* window, quint32 timestamp) override
+    {
+        activationWindows.push_back(window);
+        timestamps.push_back(timestamp);
+        return isActivationAccepted;
+    }
+
+    void reset()
+    {
+        isStartupAccepted = true;
+        isActivationAccepted = true;
+        startupWindows.clear();
+        startupMessages.clear();
+        activationWindows.clear();
+        timestamps.clear();
+    }
+
+    bool isStartupAccepted = true;
+    bool isActivationAccepted = true;
+    std::vector<QWidget*> startupWindows;
+    std::vector<std::vector<QByteArray>> startupMessages;
+    std::vector<QWidget*> activationWindows;
+    std::vector<quint32> timestamps;
+};
+
+void AppCoreTest::startupNotificationMessages()
+{
+    // Step 9, N1: the message, which ends the startup notification of a forwarded
+    // launch (Startup Notification Protocol 0.1 of freedesktop.org)
+    using Notification = pdf::PDFAppStartupNotification;
+
+    // "remove: ID=<id>"; a space, '"' and '\' of a value are escaped by '\'
+    QCOMPARE(Notification::createRemoveMessage(QStringLiteral("pdf4qt-1234_TIME5678")), QByteArray("remove: ID=pdf4qt-1234_TIME5678"));
+    QCOMPARE(Notification::createRemoveMessage(QStringLiteral("a\"b\\c")), QByteArray("remove: ID=a\\\"b\\\\c"));
+    QCOMPARE(Notification::escapeValue("a b"), QByteArray("a\\ b"));
+    QCOMPARE(Notification::escapeValue("plain"), QByteArray("plain"));
+
+    // The message with its NUL in client messages of 20 bytes, the last one padded
+    // by NULs (format 8: XClientMessageEvent.data.b[20])
+    QCOMPARE(Notification::CHUNK_SIZE, 20);
+    const std::vector<QByteArray> short12 = Notification::splitMessage("remove: ID=x");
+    QCOMPARE(short12.size(), size_t(1));
+    QCOMPARE(short12[0], QByteArray("remove: ID=x") + QByteArray(8, '\0'));
+
+    const QByteArray message19(19, 'a');
+    const std::vector<QByteArray> chunks19 = Notification::splitMessage(message19);
+    QCOMPARE(chunks19.size(), size_t(1));
+    QCOMPARE(chunks19[0], message19 + QByteArray(1, '\0'));
+
+    // 20 characters: the NUL starts the second message
+    const QByteArray message20(20, 'b');
+    const std::vector<QByteArray> chunks20 = Notification::splitMessage(message20);
+    QCOMPARE(chunks20.size(), size_t(2));
+    QCOMPARE(chunks20[0], message20);
+    QCOMPARE(chunks20[1], QByteArray(20, '\0'));
+
+    const QByteArray remove = Notification::createRemoveMessage(QStringLiteral("kwin-launcher/pdf4qt/42-0-host_TIME3141592"));
+    const std::vector<QByteArray> chunks = Notification::splitMessage(remove);
+    QCOMPARE(chunks.size(), size_t((remove.size() + 1 + 19) / 20));
+    QByteArray joined;
+    for (const QByteArray& chunk : chunks)
+    {
+        QCOMPARE(chunk.size(), qsizetype(20));
+        joined += chunk;
+    }
+    QCOMPARE(joined.left(remove.size()), remove);
+    QCOMPARE(joined.mid(remove.size()), QByteArray(joined.size() - remove.size(), '\0'));
+
+    // The time of the user action of the launch: the suffix _TIME<n>
+    quint32 timestamp = 0;
+    QVERIFY(Notification::getTimestamp(QStringLiteral("kde-launch_TIME42"), &timestamp));
+    QCOMPARE(timestamp, quint32(42));
+    QVERIFY(Notification::getTimestamp(QStringLiteral("a_TIME1_TIME4294967295"), &timestamp));
+    QCOMPARE(timestamp, quint32(4294967295U));
+    for (const QString& id : { QStringLiteral("no-time"), QStringLiteral("id_TIME"), QStringLiteral("id_TIME12a"), QStringLiteral("id_TIME-5"),
+                               QStringLiteral("id_TIME4294967296"), QStringLiteral("id_TIME99999999999"), QStringLiteral("id_TIME5_x") })
+    {
+        timestamp = 7;
+        QVERIFY2(!Notification::getTimestamp(id, &timestamp), qPrintable(id));
+        QCOMPARE(timestamp, quint32(7));
+    }
+}
+
+void AppCoreTest::activationPlatforms()
+{
+    // Step 9, N1: the activation of the running instance by the token of the
+    // forwarding process on each window system (newapplication.md 3)
+    using Activation = pdf::PDFAppActivation;
+    AppCoreX11Recorder recorder;
+    Activation::setX11Messenger(&recorder);
+    const QByteArray waylandToken = qgetenv("XDG_ACTIVATION_TOKEN");
+    auto restore = qScopeGuard([&]()
+    {
+        Activation::setPlatformOverride(Activation::Platform::Automatic);
+        Activation::setX11Messenger(nullptr);
+        if (waylandToken.isEmpty())
+        {
+            qunsetenv("XDG_ACTIVATION_TOKEN");
+        }
+        else
+        {
+            qputenv("XDG_ACTIVATION_TOKEN", waylandToken);
+        }
+    });
+
+#if defined(Q_OS_WIN)
+    QCOMPARE(Activation::getPlatform(), Activation::Platform::Windows);
+#else
+    QCOMPARE(Activation::getPlatform(), Activation::Platform::Other);
+#endif
+
+    QWidget window;
+    window.resize(300, 200);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // X11: the startup notification of the token ends and the window is activated
+    // by the time of the launch
+    Activation::setPlatformOverride(Activation::Platform::X11);
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("launcher-12_TIME1234")), Activation::Result::ActivatedByStartupId);
+    QCOMPARE(recorder.startupMessages.size(), size_t(1));
+    QCOMPARE(recorder.startupWindows.front(), &window);
+    QCOMPARE(recorder.startupMessages.front(), pdf::PDFAppStartupNotification::splitMessage("remove: ID=launcher-12_TIME1234"));
+    QCOMPARE(recorder.activationWindows.size(), size_t(1));
+    QCOMPARE(recorder.activationWindows.front(), &window);
+    QCOMPARE(recorder.timestamps.front(), quint32(1234));
+
+    // A token without the time ends the notification, the user is alerted
+    recorder.reset();
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("launcher-2")), Activation::Result::Alerted);
+    QCOMPARE(recorder.startupMessages.size(), size_t(1));
+    QCOMPARE(recorder.startupMessages.front(), pdf::PDFAppStartupNotification::splitMessage("remove: ID=launcher-2"));
+    QVERIFY(recorder.activationWindows.empty());
+
+    // Messages, which cannot be sent: alerted
+    recorder.reset();
+    recorder.isStartupAccepted = false;
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("launcher-3_TIME9")), Activation::Result::Alerted);
+    QVERIFY(recorder.activationWindows.empty());
+    recorder.reset();
+    recorder.isActivationAccepted = false;
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("launcher-4_TIME9")), Activation::Result::Alerted);
+
+    // No token (Show Other Window of MCP, a launch without a startup id), an invalid
+    // token: nothing is sent, the user is alerted
+    recorder.reset();
+    QCOMPARE(Activation::activateWindow(&window, QString()), Activation::Result::Alerted);
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("with space")), Activation::Result::Alerted);
+    QVERIFY(recorder.startupMessages.empty());
+    QVERIFY(recorder.activationWindows.empty());
+
+    // Wayland: the token goes to the xdg-shell integration of Qt, no X11 message
+    Activation::setPlatformOverride(Activation::Platform::Wayland);
+    qunsetenv("XDG_ACTIVATION_TOKEN");
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("wayland-token")), Activation::Result::ActivatedByToken);
+    QCOMPARE(qgetenv("XDG_ACTIVATION_TOKEN"), QByteArray("wayland-token"));
+    qunsetenv("XDG_ACTIVATION_TOKEN");
+    QCOMPARE(Activation::activateWindow(&window, QString()), Activation::Result::Alerted);
+    QVERIFY(recorder.startupMessages.empty());
+
+    // Windows: the starting process has allowed the foreground, never an alert
+    Activation::setPlatformOverride(Activation::Platform::Windows);
+    QCOMPARE(Activation::activateWindow(&window, QString()), Activation::Result::Activated);
+    QCOMPARE(Activation::activateWindow(&window, QStringLiteral("x_TIME1")), Activation::Result::Activated);
+    QVERIFY(recorder.startupMessages.empty());
+
+    // A minimized maximized window comes back maximized on every platform
+    for (const Activation::Platform platform : { Activation::Platform::Windows, Activation::Platform::X11, Activation::Platform::Wayland })
+    {
+        Activation::setPlatformOverride(platform);
+        window.showMaximized();
+        QTRY_VERIFY(window.isMaximized());
+        window.showMinimized();
+        QTRY_VERIFY(window.isMinimized());
+        Activation::activateWindow(&window, QString());
+        QTRY_VERIFY(!window.isMinimized());
+        QVERIFY(window.isMaximized());
+    }
+
+    QCOMPARE(Activation::activateWindow(nullptr, QStringLiteral("x_TIME1")), Activation::Result::None);
 }
 
 int main(int argc, char* argv[])

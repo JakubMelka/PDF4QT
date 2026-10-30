@@ -182,7 +182,7 @@ Více instancí: server běží v instanci, která obsadí port (*Start with PDF
 
 - Nastavení a oprávnění jsou sdílená: vlastník serveru reaguje na změny `mcp.port`, `mcp.allowRemote`, `mcp.requireToken` (restart), `mcp.permission*` (nový katalog, `list_changed`) a `mcp.token` (odpojení všech).
 - Akce z jiné instance (*Disconnect*, *Disconnect all*, *Show Other Window*) jdou přes tabulku `mcp_request`, kterou vlastník zpracuje a smaže (řádky starší než 60 s se zahodí); *Clear* smaže hotové řádky `mcp_activity` přímo ([newapp_storage.md](newapp_storage.md) 4). Dotazy na potvrzení se ukazují jen v okně vlastníka.
-- Vlastník zapisuje každé 2 s `mcp_server.heartbeat`; starší než 10 s = server zanikl (pád) a ostatní instance smažou jeho klienty a povolí *Start server*.
+- Vlastník zapisuje každé 2 s `mcp_server.heartbeat`; starší než 10 s (nebo proces vlastníka už neběží) = server zanikl (pád) a ostatní instance jeho klienty jen skryjí a povolí *Start server*. Řádky `mcp_client` zaniklého vlastníka smaže až další vlastník, když si řádek `mcp_server` převezme (`PDFAppMcpController::syncClients`).
 
 ## 5. Fáze 1 – tooly (hierarchicky)
 

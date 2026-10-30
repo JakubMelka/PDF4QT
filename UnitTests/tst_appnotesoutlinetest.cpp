@@ -516,6 +516,23 @@ public:
             builder.mergeTo(builder.getCatalogReference(), dictionary({ { "AcroForm", reference(c) } }));
             builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
         }
+        else if (kind == QStringLiteral("fieldItem"))
+        {
+            // /Next reaches a non-terminal field of the form (/Kids, /T, no /Type -
+            // ISO 32000-2 12.7.4: its kids have /Parent of the field)
+            const pdf::PDFObjectReference d = builder.addObject(pdf::PDFObject());
+            builder.setObject(c, dictionary({ { "T", text(QStringLiteral("Group")) }, { "Kids", array({ reference(d) }) } }));
+            builder.setObject(d, dictionary({ { "T", text(QStringLiteral("x")) }, { "FT", name("Tx") }, { "Parent", reference(c) } }));
+            builder.mergeTo(builder.getCatalogReference(), dictionary({ { "AcroForm", dictionary({ { "Fields", array({ reference(c) }) } }) } }));
+            builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(c) } }));
+        }
+        else if (kind == QStringLiteral("untitledItem"))
+        {
+            // An item without /Title (required by ISO 32000-2 Table 151): it is not
+            // provably an outline item
+            builder.setObject(a, dictionary({ { "Title", text(QStringLiteral("A")) }, { "Parent", reference(root) }, { "Next", reference(b) } }));
+            builder.setObject(b, dictionary({ { "Parent", reference(root) }, { "Prev", reference(a) }, { "Dest", fit(page) } }));
+        }
         builder.mergeTo(builder.getCatalogReference(), dictionary({ { "Outlines", reference(root) } }));
         return write(builder, folder, QStringLiteral("hostile-%1.pdf").arg(kind));
     }
@@ -1048,7 +1065,7 @@ void AppNotesOutlineTest::outlineHostile()
     // the editing would write /Parent, /Prev, /Next into the page (its page tree) or
     // empty the object of a removed item - such an outline is read only, a new
     // outline replacing it leaves the objects untouched
-    for (const QString& kind : { QStringLiteral("pageItem"), QStringLiteral("infoItem"), QStringLiteral("annotationItem") })
+    for (const QString& kind : { QStringLiteral("pageItem"), QStringLiteral("infoItem"), QStringLiteral("annotationItem"), QStringLiteral("fieldItem") })
     {
         document = H::read(H::hostileOutline(folder.path(), kind));
         QVERIFY2(document, qPrintable(kind));
@@ -1109,6 +1126,24 @@ void AppNotesOutlineTest::outlineHostile()
         QVERIFY(H::titles(changed.data()).isEmpty());
         QVERIFY(changed->getObjectByReference(items[0]).isNull());
         QCOMPARE(changed->getObjectByReference(items[1]), formObject);
+    }
+
+    // An item without /Title (not provably an outline item): the outline is
+    // editable, a removed item without a title is only unlinked
+    {
+        document = H::read(H::hostileOutline(folder.path(), QStringLiteral("untitledItem")));
+        QVERIFY(document);
+        QCOMPARE(H::titles(document.data()).size(), 2);
+        QVERIFY(Operations::isOutlineEditable(document.data()));
+        const std::vector<pdf::PDFObjectReference> items = Operations::getOutlineItemReferences(document.data());
+        QCOMPARE(items.size(), size_t(2));
+        const pdf::PDFObject untitledObject = document->getObjectByReference(items[1]);
+        QVERIFY(untitledObject.isDictionary() && !untitledObject.getDictionary()->hasKey("Title"));
+        changed = H::apply(Operations::removeOutlineItem(document, { 1 }));
+        QVERIFY(changed);
+        QCOMPARE(H::titles(changed.data()), QStringList({ "A" }));
+        QCOMPARE(H::checkStructure(changed.data()), QString());
+        QCOMPARE(changed->getObjectByReference(items[1]), untitledObject);
     }
 
     // A removed item, which another object of the document references (here an

@@ -294,6 +294,7 @@ private Q_SLOTS:
     void suggestions();
     void cancelAndReset();
     void deleteCustom();
+    void saveReusedId();
     void builtinNotDeletable();
     void draftInHistory();
     void otherInstanceWhileEditing();
@@ -1211,6 +1212,41 @@ void AppToolCollectionsTest::deleteCustom()
     QVERIFY(fixture.collections().getCollection(reused));
     QVERIFY(!fixture.collections().deleteCollection(reused, row->name, row->modified).isError());
     QVERIFY(!fixture.collections().getCollection(reused));
+}
+
+void AppToolCollectionsTest::saveReusedId()
+{
+    // Another instance deletes the edited collection and creates a new one, which gets
+    // the same id (no AUTOINCREMENT); Save before its notification arrives is refused -
+    // the new collection is never overwritten by the draft (review RPKT 96-3)
+    pdftest::AppToolsFixture fixture;
+    const qint64 id = CollectionsTestHelper::createAt(fixture, QStringLiteral("Edited here"), { QStringLiteral("pages.merge") }, 1000);
+    QVERIFY(id > 0);
+    pdf::PDFAppToolCollectionsPage* page = CollectionsTestHelper::open(fixture, QStringLiteral("/tools/collections/custom-%1").arg(id));
+    QVERIFY(page);
+    pdf::PDFAppToolCollectionEditor* editor = page->getEditor();
+    CollectionsTestHelper::typeName(editor, QStringLiteral("Renamed here"));
+    QCOMPARE(editor->getDraft().name, QStringLiteral("Renamed here"));
+
+    QVERIFY(!fixture.collections().deleteCollection(id).isError());
+    const qint64 reused = CollectionsTestHelper::create(fixture, QStringLiteral("Created elsewhere"), { QStringLiteral("pages.rotate") });
+    QCOMPARE(reused, id);
+
+    QVERIFY(!page->saveCollection());
+    std::optional<pdf::PDFToolCollectionRow> stored = fixture.collections().getCollection(reused);
+    QVERIFY(stored);
+    QCOMPARE(stored->name, QStringLiteral("Created elsewhere"));
+    QCOMPARE(stored->toolIds, QStringList({ QStringLiteral("pages.rotate") }));
+    QVERIFY2(editor->getSaveError().contains(QStringLiteral("changed in another window")), qPrintable(editor->getSaveError()));
+    QCOMPARE(editor->getDraft().name, QStringLiteral("Renamed here"));
+
+    // The control: an unchanged stored collection saves the draft
+    const qint64 own = CollectionsTestHelper::createAt(fixture, QStringLiteral("Own"), { QStringLiteral("pages.merge") }, 1000);
+    page = CollectionsTestHelper::open(fixture, QStringLiteral("/tools/collections/custom-%1").arg(own));
+    QVERIFY(page);
+    CollectionsTestHelper::typeName(page->getEditor(), QStringLiteral("Own renamed"));
+    QVERIFY(page->saveCollection());
+    QCOMPARE(fixture.collections().getCollection(own)->name, QStringLiteral("Own renamed"));
 }
 
 void AppToolCollectionsTest::builtinNotDeletable()

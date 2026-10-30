@@ -611,6 +611,34 @@ void AppNavigationTest::routeParse_data()
     QTest::newRow("many segments") << QStringLiteral("/a").repeated(17) << int(Error::TooManySegments) << QStringList() << QString() << QString();
     QTest::newRow("many query items") << QStringLiteral("/search?") + QStringList({ "a=1", "b=1", "c=1", "d=1", "e=1", "f=1", "g=1", "h=1", "i=1", "j=1", "k=1", "l=1", "m=1", "n=1", "o=1", "p=1", "q=1" }).join(QLatin1Char('&'))
                                       << int(Error::InvalidQuery) << QStringList() << QString() << QString();
+
+    // A percent escape is "%" and exactly two hexadecimal digits (PDFAppRoute::Error::InvalidEncoding):
+    // an invalid second digit is an invalid encoding in every part, never a byte made of the first digit
+    QTest::newRow("bad second percent digit") << "/tools/a%2G" << int(Error::InvalidEncoding) << QStringList() << QString() << QString();
+    QTest::newRow("bad second percent digit in query") << "/search?q=%4Z" << int(Error::InvalidEncoding) << QStringList() << QString() << QString();
+    QTest::newRow("bad second percent digit in fragment") << "/about#%6g" << int(Error::InvalidEncoding) << QStringList() << QString() << QString();
+
+    // Control characters never belong to a route (Error::InvalidCharacter): C0, DEL and the C1 controls
+    // (Unicode Cc - NEL U+0085 breaks a line as a new line) and the line / paragraph separators
+    // U+2028 / U+2029, which would break the one line of the requested text of Page Not Found; a
+    // decoded one in the fragment is Error::InvalidFragment ("Fragment ... with control characters")
+    QTest::newRow("encoded DEL") << "/help/a%7F" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded NEL") << "/help/a%C2%85" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded line separator") << "/help/a%E2%80%A8" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded paragraph separator") << "/help/a%E2%80%A9" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded line separator in query") << "/search?q=a%E2%80%A8b" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded paragraph separator in query") << "/search?q=a%E2%80%A9b" << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("encoded C1 in fragment") << "/about#a%C2%9F" << int(Error::InvalidFragment) << QStringList() << QString() << QString();
+    QTest::newRow("encoded line separator in fragment") << "/about#a%E2%80%A8" << int(Error::InvalidFragment) << QStringList() << QString() << QString();
+
+    // A raw control character is refused in the whole text before anything is decoded or split
+    // (Error::InvalidCharacter) - also in the fragment and in a query key, whose own checks would
+    // give another error
+    QTest::newRow("raw line separator") << QString(QStringLiteral("/help/a") + QChar(0x2028)) << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("raw line separator in fragment") << QString(QStringLiteral("/about#a") + QChar(0x2028)) << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("raw NEL in fragment") << QString(QStringLiteral("/about#a") + QChar(0x85)) << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("raw control in fragment") << QString(QStringLiteral("/about#a") + QChar(0x01) + QLatin1Char('b')) << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
+    QTest::newRow("raw control in query key") << QString(QStringLiteral("/search?q") + QChar(0x09) + QStringLiteral("x=a")) << int(Error::InvalidCharacter) << QStringList() << QString() << QString();
 }
 
 void AppNavigationTest::routeParse()
@@ -3613,6 +3641,35 @@ void AppNavigationTest::windowGeometryOtherWindow()
     QVERIFY(quitGeometry.isValid());
     QVERIFY(quitGeometry.isMaximized());
     QCOMPARE(quitGeometry.getNormalGeometry(), stored);
+
+    // Review RPKT 96-10 (O29): no main window is active at the quit (another window
+    // has the activation) - the main window, which was active last, is stored, not
+    // the newest one (the last slot of aboutToQuit)
+    QWidget otherWindow;
+    otherWindow.setGeometry(available.topLeft().x() + 300, available.topLeft().y() + 300, 200, 100);
+    const auto quitWithoutActiveWindow = [&](pdf::PDFAppMainWindow* lastActive)
+    {
+        lastActive->activateWindow();
+        QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(lastActive));
+        otherWindow.show();
+        otherWindow.activateWindow();
+        QTRY_COMPARE(QApplication::activeWindow(), &otherWindow);
+        QVERIFY(!first.context->getSettings().resetValue(pdf::PDFSettingKeys::windowGeometry()).isError());
+        QVERIFY(QMetaObject::invokeMethod(qApp, "aboutToQuit", Qt::DirectConnection));
+        otherWindow.hide();
+    };
+    quitWithoutActiveWindow(firstWindow);
+    const pdf::PDFAppWindowGeometry firstQuit = pdf::PDFAppWindowGeometry::fromText(second.storedText());
+    QVERIFY(firstQuit.isValid());
+    QVERIFY(firstQuit.isMaximized());
+    QCOMPARE(firstQuit.getNormalGeometry(), stored);
+
+    secondWindow->showNormal();
+    quitWithoutActiveWindow(secondWindow);
+    const pdf::PDFAppWindowGeometry secondQuit = pdf::PDFAppWindowGeometry::fromText(first.storedText());
+    QVERIFY(secondQuit.isValid());
+    QVERIFY(!secondQuit.isMaximized());
+    QCOMPARE(secondQuit.getNormalGeometry(), secondWindow->geometry());
 }
 
 void AppNavigationTest::closeAndCancel()

@@ -1985,7 +1985,7 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
             const PDFReal vCornerRadius = border.getVerticalCornerRadius();
             const bool isRounded = !qFuzzyIsNull(hCornerRadius) || !qFuzzyIsNull(vCornerRadius);
 
-            // Jakub Melka: the border lies inside of the rectangle (ISO 32000-2, 12.5.6.8) - the
+            // The border lies inside of the rectangle (ISO 32000-2, 12.5.6.8) - the
             // stroke is not cut in half by the bounding box of the appearance stream (Rect)
             const PDFReal halfWidth = std::isfinite(border.getWidth()) ? qMax(border.getWidth(), 0.0) * 0.5 : 0.0;
             QRectF rectangle = getRectangle();
@@ -2191,7 +2191,7 @@ QString PDFTextAnnotation::getTextForIcon(const QString& key)
     }
     else if (key == "Note")
     {
-        // Jakub Melka: a memo (U+1F4DD), not a musical note - the icon is a note of the user
+        // A memo (U+1F4DD), not a musical note - the icon is a note of the user
         text = QString::fromUtf16(u"\U0001F4DD");
     }
     else if (key == "Paragraph")
@@ -3089,7 +3089,7 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
         }
     };
 
-    // Jakub Melka: a path with curves (the entry Path of PDF 2.0) is drawn as it is
+    // A path with curves (the entry Path of PDF 2.0) is drawn as it is
     const int elementCount = path.elementCount();
     bool hasSpline = false;
     for (int i = 0; i < elementCount; ++i)
@@ -3114,7 +3114,7 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
     else
     {
         // Each path of the ink list is drawn as a smooth stroke through its points - a
-        // centripetal Catmull-Rom spline. Jakub Melka: every segment was a quadratic curve
+        // centripetal Catmull-Rom spline. Every segment was a quadratic curve
         // bulging to the same side (scallops), then a uniform Catmull-Rom spline, which
         // overshoots between a short and a long segment and loops at a repeated point.
         std::vector<QPointF> points;

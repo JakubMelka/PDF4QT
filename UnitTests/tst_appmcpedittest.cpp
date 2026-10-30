@@ -73,6 +73,7 @@
 #include <QJsonDocument>
 #include <QPainter>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QToolButton>
 #include <QTemporaryDir>
 #include <QTranslator>
@@ -1479,9 +1480,20 @@ void AppMcpEditTest::lockedBusyDialogOpen()
     pdf::PDFAppDocument* document = tab->getDocument();
     const QJsonObject add = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})");
 
-    // Locked (O20): denied at once without a dialog
+    // Locked (O20) while the change is computed in a worker (after the call came,
+    // before the question): denied without a dialog too
+    std::shared_ptr<pdf::PDFMcpCall> lockedCall = fixture.startCall(QStringLiteral("annotations"), add);
+    QVERIFY(!lockedCall->isFinished());
     document->setLocked(true);
-    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("annotations"), add);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(lockedCall, 10000);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("locked")), qPrintable(H::text(result)));
+    QVERIFY(fixture.ui()->getWaitingIds().empty());
+    QVERIFY(!fixture.ui()->getDialog());
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
+
+    // Locked (O20): denied at once without a dialog
+    result = fixture.callTool(QStringLiteral("annotations"), add);
     QVERIFY(H::isError(result));
     QVERIFY(H::text(result).contains(QStringLiteral("locked")));
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedLocked));
@@ -2128,6 +2140,40 @@ void AppMcpEditTest::filesOpen()
     QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
     QCOMPARE(fixture.window->getCurrentTab(), current);
 
+    // Review RPKT 96-7: a new file is opened by Open and save files alone - without
+    // the read permission the result has no data of the document (no pageCount),
+    // only its id, the name of the file and the state; Read = Ask without the read
+    // approval of the assistant the same, Read = Allow gives the count
+    struct ReadCase
+    {
+        pdf::PDFAppMcpPermission read;
+        const char* fileName;
+        bool hasPageCount;
+    };
+    for (const ReadCase& readCase : { ReadCase{ pdf::PDFAppMcpPermission::Deny, "read-deny.pdf", false },
+                                      ReadCase{ pdf::PDFAppMcpPermission::Ask, "read-ask.pdf", false },
+                                      ReadCase{ pdf::PDFAppMcpPermission::Allow, "read-allow.pdf", true } })
+    {
+        QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Read, readCase.read));
+        const QString readFile = pdftest::AppDocumentSamples::simple(fixture.folder(), QString::fromLatin1(readCase.fileName), 4);
+        open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), readFile }, { QStringLiteral("activate"), false } }));
+        result = fixture.callTool(QStringLiteral("files"), open);
+        QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+        QVERIFY(fixture.ui()->getWaitingIds().empty());
+        const QJsonObject readOpened = H::structured(result).value(QStringLiteral("open")).toObject();
+        pdf::PDFAppDocument* readDocument = fixture.context->getDocumentRegistry()->findByCanonicalPath(QFileInfo(readFile).canonicalFilePath());
+        QVERIFY(readDocument && readDocument->isReady());
+        QCOMPARE(readOpened.value(QStringLiteral("documentId")).toString(), readDocument->getId());
+        QCOMPARE(readOpened.value(QStringLiteral("title")).toString(), QString::fromLatin1(readCase.fileName));
+        QCOMPARE(readOpened.value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        QCOMPARE(readOpened.contains(QStringLiteral("pageCount")), readCase.hasPageCount);
+        QVERIFY2(H::text(result).contains(QStringLiteral("pageCount")) == readCase.hasPageCount, qPrintable(H::text(result)));
+        if (readCase.hasPageCount)
+        {
+            QCOMPARE(readOpened.value(QStringLiteral("pageCount")).toInt(), 4);
+        }
+    }
+
     // A password: the call waits for the password screen of the tab (here no
     // password is typed - password_required). The time of the user starts with
     // the password screen, not with the request: the reading of the file (longer
@@ -2432,12 +2478,24 @@ void AppMcpEditTest::filesPathLinksAndFolders()
     QVERIFY(!pdf::PDFAppMcpArguments::checkPath(QDir(dataFolder).filePath(QStringLiteral("x.pdf")), true, nullptr, &error).isEmpty());
     QVERIFY(!pdf::PDFAppMcpArguments::checkPath(QDir(workFolder).filePath(QStringLiteral("x.pdf")), true, &context, &error).isEmpty());
 
-    // The folder of the logs (also without the context)
-    const QString logDirectory = pdf::PDFAppLog::getLogDirectory();
-    if (!logDirectory.isEmpty() && QDir(logDirectory).exists())
+    // The folder of the logs (also without the context): a log of the test is
+    // installed, when the process has none (plan 7 - the logs of PDF4QT are
+    // never written by an assistant; step 9 MUT-B, the check was never reached)
+    const bool isOwnLog = !pdf::PDFAppLog::isInstalled();
+    if (isOwnLog)
     {
-        QVERIFY(pdf::PDFAppMcpArguments::checkPath(QDir(logDirectory).filePath(QStringLiteral("x.pdf")), true, nullptr, &error).isEmpty());
+        QDir(directory.path()).mkdir(QStringLiteral("logs"));
+        pdf::PDFAppLogOptions logOptions;
+        logOptions.directory = directory.filePath(QStringLiteral("logs"));
+        QVERIFY(pdf::PDFAppLog::install(logOptions));
     }
+    const auto logGuard = qScopeGuard([isOwnLog]() { if (isOwnLog) { pdf::PDFAppLog::uninstall(); } });
+    const QString logDirectory = pdf::PDFAppLog::getLogDirectory();
+    QVERIFY(!logDirectory.isEmpty() && QDir(logDirectory).exists());
+    QVERIFY(pdf::PDFAppMcpArguments::checkPath(QDir(logDirectory).filePath(QStringLiteral("x.pdf")), true, nullptr, &error).isEmpty());
+    QVERIFY2(error.contains(QStringLiteral("of the logs")), qPrintable(error));
+    QVERIFY(pdf::PDFAppMcpFilesTool::checkFilePath(QDir(logDirectory).filePath(QStringLiteral("sub/../y.pdf")), Access::Write, &context, &error).isEmpty());
+    QVERIFY2(error.contains(QStringLiteral("of the logs")), qPrintable(error));
 
     // isInFolder: the folder itself and its files, not a sibling with the same prefix
     const QString canonicalData = QFileInfo(dataFolder).canonicalFilePath();
@@ -2523,6 +2581,31 @@ void AppMcpEditTest::filesSaveCopyTargetAppeared()
         QVERIFY(file.open(QIODevice::ReadOnly));
         QCOMPARE(file.readAll(), userData);
     }
+
+    // A folder of the path replaced by a link to another folder while the
+    // confirmation waits: the rules of the path are checked again, nothing is
+    // written through the link (the copy would land in another folder)
+    QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("linked")));
+    QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("elsewhere")));
+    copy.insert(QStringLiteral("save_copy"), QJsonObject({ { QStringLiteral("path"), fixture.path(QStringLiteral("linked/copy.pdf")) } }));
+    call = fixture.startCall(QStringLiteral("files"), copy);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(QDir(fixture.path(QStringLiteral("linked"))).removeRecursively());
+    std::error_code folderCode;
+    std::filesystem::create_directory_symlink(std::filesystem::path(QDir::toNativeSeparators(fixture.path(QStringLiteral("elsewhere"))).toStdWString()),
+                                              std::filesystem::path(QDir::toNativeSeparators(fixture.path(QStringLiteral("linked"))).toStdWString()), folderCode);
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    result = fixture.waitResult(call);
+    QVERIFY(H::isError(result));
+    // The refusal of the check after the confirmation, not a failed write: with the
+    // link the resolved path differs from the confirmed one, without it (Windows
+    // without the privilege of links) the folder of the path is missing
+    QVERIFY2(H::text(result).startsWith(QStringLiteral("path: ")), qPrintable(H::text(result)));
+    QVERIFY2(H::text(result).contains(folderCode ? QStringLiteral("the folder of the file does not exist") : QStringLiteral("the path has changed since the confirmation")),
+             qPrintable(H::text(result)));
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("elsewhere/copy.pdf"))));
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("linked/copy.pdf"))));
 
     // A dangling link, which appeared meanwhile, is not followed
     const QString linkPath = fixture.path(QStringLiteral("link.pdf"));

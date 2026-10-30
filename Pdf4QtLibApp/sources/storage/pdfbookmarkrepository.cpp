@@ -47,6 +47,10 @@ public:
     static QString getFormatName() { return QStringLiteral("pdf4qt-bookmarks"); }
     static constexpr int FORMAT_VERSION = 1;
 
+    /// Most rows of the length of a path read by getBookmarks on a system with paths
+    /// without case (a hostile database is bounded)
+    static constexpr qint64 MAXIMUM_CASE_CANDIDATES = 100000;
+
     static PDFDatabaseError invalidFile()
     {
         return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFBookmarkRepository", "The document has no file."));
@@ -135,13 +139,31 @@ std::vector<PDFBookmark> PDFBookmarkRepository::getBookmarks(const QString& file
         return bookmarks;
     }
 
-    PDFDatabaseStatement statement(getConnection(), "SELECT id, page, CASE WHEN typeof(title) = 'text' AND length(title) <= 4096 THEN title END FROM bookmark "
-                                                    "WHERE file_path = ?1 AND auto IS NOT 1 "
-                                                    "ORDER BY CASE WHEN typeof(position) = 'integer' THEN position END IS NULL, position, id LIMIT ?2");
+    // The paths of this system without case: the bookmarks of the same file stored
+    // under another case belong to it too (the file opened as "a.pdf" and as "A.pdf";
+    // the index of file_path compares the bytes) - rows of the same length compared
+    // by PDFRepositoryHelper::isSamePath, as the notifications of the panel
+    const bool isCaseInsensitive = PDFRepositoryHelper::isPathCaseInsensitive();
+    PDFDatabaseStatement statement(getConnection(), isCaseInsensitive
+        ? "SELECT id, page, CASE WHEN typeof(title) = 'text' AND length(title) <= 4096 THEN title END, file_path FROM bookmark "
+          "WHERE typeof(file_path) = 'text' AND length(file_path) = length(?1) AND auto IS NOT 1 "
+          "ORDER BY CASE WHEN typeof(position) = 'integer' THEN position END IS NULL, position, id LIMIT ?2"
+        : "SELECT id, page, CASE WHEN typeof(title) = 'text' AND length(title) <= 4096 THEN title END, file_path FROM bookmark "
+          "WHERE file_path = ?1 AND auto IS NOT 1 "
+          "ORDER BY CASE WHEN typeof(position) = 'integer' THEN position END IS NULL, position, id LIMIT ?2");
     statement.bindText(1, filePath);
-    statement.bindInt64(2, MAXIMUM_BOOKMARKS);
-    while (statement.next())
+    statement.bindInt64(2, isCaseInsensitive ? PDFBookmarkRepositoryHelper::MAXIMUM_CASE_CANDIDATES : MAXIMUM_BOOKMARKS);
+    while (bookmarks.size() < size_t(MAXIMUM_BOOKMARKS) && statement.next())
     {
+        if (isCaseInsensitive)
+        {
+            const QString storedPath = statement.getText(3);
+            if (storedPath != filePath && !PDFRepositoryHelper::isSamePath(storedPath, filePath))
+            {
+                continue;
+            }
+        }
+
         PDFBookmark bookmark;
         bookmark.id = PDFRepositoryHelper::readInteger(statement, 0, 0, 1, std::numeric_limits<qint64>::max());
         bookmark.page = PDFRepositoryHelper::readInteger(statement, 1, -1, 0, MAXIMUM_PAGE);
@@ -154,6 +176,7 @@ std::vector<PDFBookmark> PDFBookmarkRepository::getBookmarks(const QString& file
         bookmark.title = normalizeTitle(PDFRepositoryHelper::readText(statement, 2, 4096));
         bookmarks.push_back(std::move(bookmark));
     }
+    statement.reset();
     return bookmarks;
 }
 

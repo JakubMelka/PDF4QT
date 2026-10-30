@@ -65,6 +65,13 @@ public:
     QString name;               ///< Name entered by the user
     QString iconName;           ///< Icon of getIconChoices; empty or another one = the default icon
     QStringList toolIds;        ///< Tools in their order (at least one; invalid / duplicate ids are refused)
+
+    /// Custom collection: the time of the last change of the stored row, which the
+    /// editor has seen. Another time refuses the save - the collection was changed
+    /// by another instance, or deleted and its id reused by a new collection
+    /// (tool_collection has no AUTOINCREMENT), and the notification has not reached
+    /// the editor yet. std::nullopt = not checked.
+    std::optional<qint64> expectedModified;
 };
 
 /// Collections of tools (newapp_storage.md 4, plan of step 6 chapter 2). The
@@ -143,8 +150,10 @@ public:
     /// as not renamed, the built-in icon as NULL). Refused: an invalid name, a
     /// duplicate name (\p isDuplicate), no tool, an invalid tool, an unknown
     /// built-in collection, a custom collection which does not exist (deleted by
-    /// another instance), a new collection over MAXIMUM_CUSTOM_COLLECTIONS (\p isLimit).
-    PDFDatabaseError saveCollection(const PDFToolCollectionDraft& draft, qint64* id = nullptr, bool* isDuplicate = nullptr, bool* isLimit = nullptr);
+    /// another instance) or whose time differs from draft.expectedModified (\p isChanged),
+    /// a new collection over MAXIMUM_CUSTOM_COLLECTIONS (\p isLimit).
+    PDFDatabaseError saveCollection(const PDFToolCollectionDraft& draft, qint64* id = nullptr, bool* isDuplicate = nullptr, bool* isLimit = nullptr,
+                                    bool* isChanged = nullptr);
 
     /// Creates a custom collection (saveCollection of a draft with id 0)
     PDFDatabaseError createCollection(const QString& name, const QString& iconName, const QStringList& toolIds,

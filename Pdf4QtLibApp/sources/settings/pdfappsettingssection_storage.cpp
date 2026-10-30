@@ -113,7 +113,8 @@ public:
     };
 
     /// Security, signature and AI settings and their weaker values (owner
-    /// 2026-10-25, Q7; the AI settings of owner 2026-10-26, Q4 of step 7)
+    /// 2026-10-25, Q7; the AI settings of owner 2026-10-26, Q4 of step 7; the
+    /// automatic start of the MCP server of owner 2026-10-29)
     static std::vector<SecurityRule> getSecurityRules()
     {
         const QStringList permissionOrder = { PDFSettingValues::permissionDeny(), PDFSettingValues::permissionAsk(), PDFSettingValues::permissionAllow() };
@@ -127,7 +128,8 @@ public:
                  { PDFSettingKeys::mcpPermissionEdit(), false, permissionOrder },
                  { PDFSettingKeys::mcpPermissionFiles(), false, permissionOrder },
                  { PDFSettingKeys::mcpAllowRemote(), true, QStringList() },             // other computers connect
-                 { PDFSettingKeys::mcpRequireToken(), false, QStringList() } };         // no access token
+                 { PDFSettingKeys::mcpRequireToken(), false, QStringList() },           // no access token
+                 { PDFSettingKeys::mcpStartWithApp(), true, QStringList() } };          // the server runs at every start
     }
 
     /// The imported value of a rule is weaker than the current one (both values

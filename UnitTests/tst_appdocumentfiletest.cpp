@@ -71,6 +71,7 @@
 #include <QSaveFile>
 #include <QSemaphore>
 #include <QSignalSpy>
+#include <QThread>
 #include <QtTest>
 
 #include <atomic>
@@ -270,6 +271,7 @@ private slots:
     void printDialogDefaults();
     void printSelectedPagesPreselected();
     void printToFile();
+    void printPortPrompt();
     void printCopiesAndCollate();
     void printPreview();
     void printNoPrinter();
@@ -340,6 +342,7 @@ void AppDocumentFileTest::initTestCase()
 void AppDocumentFileTest::cleanup()
 {
     pdf::PDFAppPrinters::setProvider(pdf::PDFAppPrinters::Provider());
+    pdf::PDFAppFileDialogs::setPrintFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
     pdf::PDFAppPrinters::setPropertiesHandler(pdf::PDFAppPrinters::PropertiesHandler());
     pdf::PDFAppSendMail::setLauncher(pdf::PDFAppSendMail::Launcher());
     pdf::PDFAppSendMail::setXdgOverride(std::nullopt);
@@ -1339,6 +1342,108 @@ void AppDocumentFileTest::printToFile()
     QVERIFY(!tab->getView()->findInfoBar(pdf::PDFAppPrintController::getInfoBarId()));
     QVERIFY(tab->getDocument()->getOperations().empty());
     QVERIFY(tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("Test Printer 1")));
+}
+
+void AppDocumentFileTest::printPortPrompt()
+{
+    // Step 9, N5: a printer, whose port asks for a file (Windows PORTPROMPT: -
+    // Microsoft Print to PDF, XPS Document Writer), gets its file from a dialog in the
+    // thread of the user interface before the job; the driver never asks from the
+    // worker of the job, and a cancel is no error of the printer
+    pdftest::AppDocumentFixture fixture;
+    const QString folder = fixture.folder();
+    pdf::PDFAppPrinters::setProvider([folder]()
+    {
+        pdf::PDFAppPrinterInfo info;
+        info.name = QStringLiteral("Print to File Printer");
+        info.isDefault = true;
+        info.stateText = QStringLiteral("Ready");
+        info.outputFile = QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"));
+        info.isPortPrompt = true;
+        info.outputSuffix = QStringLiteral("pdf");
+        return std::vector<pdf::PDFAppPrinterInfo>{ info };
+    });
+
+    struct Request
+    {
+        QWidget* parent = nullptr;
+        QString proposedPath;
+        bool isGuiThread = false;
+    };
+    std::vector<Request> requests;
+    QString answer;
+    pdf::PDFAppFileDialogs::setPrintFileHandler([&requests, &answer](QWidget* parent, const QString& proposedPath)
+    {
+        requests.push_back(Request{ parent, proposedPath, QThread::currentThread() == qApp->thread() });
+        return answer;
+    });
+
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFAppPrintController* controller = FileTestHelper::handler(tab)->getPrintController();
+    QSignalSpy finishedSpy(controller, &pdf::PDFAppPrintController::printFinished);
+
+    // Cancel of the file dialog: nothing printed, no error, the printing can start again
+    pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    QCOMPARE(requests.size(), size_t(1));
+    QVERIFY(requests[0].isGuiThread);
+    QCOMPARE(requests[0].parent, tab->window());
+    QCOMPARE(QDir::cleanPath(requests[0].proposedPath), QDir::cleanPath(QDir(folder).absoluteFilePath(QStringLiteral("Contract.pdf"))));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!controller->isPrinting());
+    QVERIFY(!controller->getErrorDialog());
+    QCOMPARE(finishedSpy.count(), 0);
+    QVERIFY(!QFileInfo::exists(QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"))));
+    QCOMPARE(tab->getView()->getStatusBar()->getMessage(), QStringLiteral("Printing canceled"));
+    QVERIFY(FileTestHelper::handler(tab)->isEnabled(pdf::PDFAppCommands::print()));
+
+    // A chosen file: the job writes the file, which the user has chosen
+    answer = QDir(folder).absoluteFilePath(QStringLiteral("chosen output.pdf"));
+    dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    QCOMPARE(requests.size(), size_t(2));
+    QVERIFY(requests[1].isGuiThread);
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 60000);
+    QVERIFY(controller->getLastResult().isCompleted);
+    QCOMPARE(FileTestHelper::getPageCount(answer), 3);
+    QVERIFY(!QFileInfo::exists(QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"))));
+
+    // A printer without a port prompt never asks
+    FileTestHelper::setTestPrinters(folder);
+    dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 2, 60000);
+    QCOMPARE(requests.size(), size_t(2));
+    QCOMPARE(FileTestHelper::getPageCount(fixture.path(QStringLiteral("printed-1.pdf"))), 3);
+
+    // The tab deleted from the file dialog: nothing printed, no crash of the controller
+    pdf::PDFAppPrinters::setProvider([folder]()
+    {
+        pdf::PDFAppPrinterInfo info;
+        info.name = QStringLiteral("Print to File Printer");
+        info.isDefault = true;
+        info.outputFile = QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"));
+        info.isPortPrompt = true;
+        info.outputSuffix = QStringLiteral("pdf");
+        return std::vector<pdf::PDFAppPrinterInfo>{ info };
+    });
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    const QString deletedAnswer = QDir(folder).absoluteFilePath(QStringLiteral("deleted.pdf"));
+    pdf::PDFAppFileDialogs::setPrintFileHandler([&tabGuard, deletedAnswer](QWidget*, const QString&)
+    {
+        delete tabGuard.data();
+        return deletedAnswer;
+    });
+    dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!tabGuard);
+    QVERIFY(!QFileInfo::exists(deletedAnswer));
 }
 
 void AppDocumentFileTest::printCopiesAndCollate()

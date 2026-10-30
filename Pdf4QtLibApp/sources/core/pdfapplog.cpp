@@ -22,6 +22,7 @@
 
 #include "pdfapplog.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -277,8 +278,12 @@ bool PDFAppLogHelper::openForAppend(QFile& file, const QString& filePath)
 
 QByteArray PDFAppLogHelper::createLine(const QDateTime& time, const char* type, const char* category, const QString& message)
 {
+    // More instances append to the file of the day: whole lines with the process id
+    // (newapplication.md, Logs)
     QByteArray line = time.toString(Qt::ISODateWithMs).toUtf8();
     line += " [";
+    line += QByteArray::number(QCoreApplication::applicationPid());
+    line += "] [";
     line += type;
     line += "] ";
     if (category && qstrcmp(category, "default") != 0)

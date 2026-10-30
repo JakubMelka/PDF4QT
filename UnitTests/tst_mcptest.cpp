@@ -3508,13 +3508,36 @@ void McpTest::listenStreams()
     QCOMPARE(changed.value(QStringLiteral("params")).toObject().value(QStringLiteral("_meta")).toObject().value(QStringLiteral("io.modelcontextprotocol/subscriptionId")).toString(), QStringLiteral("listen-1"));
     fixture.server->publishCatalog(McpServerHelper::createCatalog(3, 0, { QStringLiteral("extra") }));
 
-    // A document prefix updates the subscribed URIs below it (not ABCD); updates are coalesced
-    for (int i = 0; i < 5; ++i)
+    // A document prefix updates the subscribed URIs below it (not ABCD); the updates of one URI
+    // are coalesced to one per resourceUpdateInterval (newapp_mcp.md 7.2: at most once per 250 ms
+    // per URI): the first one at once, the later ones within the interval as one update at its
+    // end. The interval is measured by the clock of the server: the clock is moved back while
+    // the later updates are delivered, so they lie inside of the interval however slowly the
+    // threads run (drd delivered a burst of five updates over more than one interval - three
+    // notifications), and forward again for the trailing update.
+    const auto countUpdates = [&stream]()
+    {
+        int count = 0;
+        for (const QJsonObject& item : stream->messages())
+        {
+            count += item.value(QStringLiteral("method")).toString() == QLatin1String("notifications/resources/updated") ? 1 : 0;
+        }
+        return count;
+    };
+    fixture.server->notifyResourceUpdated(QStringLiteral("pdf4qt://documents/ABC"));
+    QVERIFY(McpTestHelper::waitFor([&countUpdates]() { return countUpdates() >= 1; }, 5000));
+    const qint64 clockOffset = pdf::PDFMcpClock::getOffset();
+    pdf::PDFMcpClock::setOffset(clockOffset - qint64(10) * config.resourceUpdateInterval);
+    for (int i = 0; i < 4; ++i)
     {
         fixture.server->notifyResourceUpdated(QStringLiteral("pdf4qt://documents/ABC"));
     }
-    QVERIFY(stream->waitForMessages(4, 5000));
-    QTest::qWait(600 * McpTestHelper::factor());
+    // The control thread handles the listing after the updates posted before it
+    QVERIFY(client.listTools().contains(QStringLiteral("result")));
+    QCOMPARE(countUpdates(), 1);
+    pdf::PDFMcpClock::setOffset(clockOffset);
+    QVERIFY(McpTestHelper::waitFor([&countUpdates]() { return countUpdates() >= 2; }, 5000));
+    QTest::qWait(2 * config.resourceUpdateInterval);
     std::vector<QJsonObject> messages = stream->messages();
     int updates = 0;
     for (const QJsonObject& item : messages)

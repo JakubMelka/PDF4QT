@@ -77,8 +77,8 @@ private:
     int m_radius;
 };
 
-/// Floating bar over the canvas of a document view (step 4 plan 3.1, Figma map
-/// SCR/newapp/step4_floating_bar_geometry.md): the base of the tool bar of package A
+/// Floating bar over the canvas of a document view (step 4 plan 3.1, Figma frames
+/// below): the base of the tool bar of package A
 /// (198:4978, 877:132786, 207:6306, 207:6770), of the annotation bar of package B
 /// (1015:17319, 1018:18584) and of the markup bar (877:133774).
 ///

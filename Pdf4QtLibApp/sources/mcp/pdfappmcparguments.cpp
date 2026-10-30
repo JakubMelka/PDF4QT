@@ -319,7 +319,10 @@ bool PDFAppMcpArguments::isInFolder(const QString& canonicalPath, const QString&
         return false;
     }
 
-    const QString canonicalFolder = QFileInfo(folder).canonicalFilePath();
+    // The folder resolved as the checked path (checkPath): a folder of the data or of
+    // the logs behind a junction of NTFS is its target (review RPKT 96-4)
+    const QString linkedFolder = QFileInfo(folder).canonicalFilePath();
+    const QString canonicalFolder = linkedFolder.isEmpty() ? QString() : PDFAppMcpArgumentsHelper::resolveJunctions(linkedFolder);
     if (canonicalFolder.isEmpty())
     {
         return false;

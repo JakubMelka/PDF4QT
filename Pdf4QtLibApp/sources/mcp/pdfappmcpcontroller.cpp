@@ -27,6 +27,7 @@
 #include "pdfappmcppermissions.h"
 #include "pdfappmcpresources.h"
 #include "pdfappcontext.h"
+#include "pdfappinstance.h"
 #include "pdfappmainwindow.h"
 #include "pdfappsysteminfo.h"
 #include "pdfsettingdefinitions.h"
@@ -93,7 +94,7 @@ void PDFAppMcpController::initialize()
 
     // The heartbeat also watches the row of another owner (its staleness)
     m_heartbeatTimer->start();
-    m_lastRow = getServerRow();
+    setLastRow(getServerRow());
 
     if (m_context && m_context->getDatabase() && m_context->getSettings().getBool(PDFSettingKeys::mcpStartWithApp()))
     {
@@ -197,10 +198,7 @@ bool PDFAppMcpController::start()
     }
 
     // Another live instance owns the server: no bind is attempted
-    const PDFMcpServerRow row = getServerRow();
-    PDFMcpRepository repository(m_context ? m_context->getDatabase() : nullptr);
-    if (row.instance != m_instanceId && row.isAlive(repository.getCurrentTime(), PDFMcpRepository::STALE_TIME) &&
-        PDFAppProcessInfo::isProcessRunning(row.pid))
+    if (isOtherOwnerAlive(getServerRow()))
     {
         Q_EMIT stateChanged();
         return false;
@@ -308,9 +306,7 @@ PDFAppMcpServerState PDFAppMcpController::getState() const
 
     // The row of another live owner (a killed owner, whose process has ended, is
     // gone at once, not only after its heartbeat is stale - the Start of the page)
-    PDFMcpRepository repository(m_context ? m_context->getDatabase() : nullptr);
-    const PDFMcpServerRow row = getServerRow();
-    if (row.instance != m_instanceId && row.isAlive(repository.getCurrentTime(), PDFMcpRepository::STALE_TIME) && PDFAppProcessInfo::isProcessRunning(row.pid))
+    if (isOtherOwnerAlive(getServerRow()))
     {
         return PDFAppMcpServerState::OtherInstance;
     }
@@ -481,6 +477,39 @@ QStringList PDFAppMcpController::getRemoteHosts(quint16 port)
     }
     hosts.removeDuplicates();
     return hosts;
+}
+
+bool PDFAppMcpController::isOtherOwnerAlive(const PDFMcpServerRow& row) const
+{
+    PDFMcpRepository repository(m_context ? m_context->getDatabase() : nullptr);
+    return row.instance != m_instanceId && row.isAlive(repository.getCurrentTime(), PDFMcpRepository::STALE_TIME) && PDFAppProcessInfo::isProcessRunning(row.pid);
+}
+
+bool PDFAppMcpController::setLastRow(const PDFMcpServerRow& row)
+{
+    const bool wasAlive = m_isLastRowAlive;
+    const bool wasProcessRunning = m_isLastRowProcessRunning;
+    const bool isOwnerChanged = row.instance != m_lastRow.instance || row.port != m_lastRow.port || row.address != m_lastRow.address;
+    m_lastRow = row;
+    m_isLastRowAlive = isOtherOwnerAlive(row);
+
+    // The process of a row, whose heartbeat is stale already (a hung owner), may
+    // still hold the port: its end is a change too (review RMULTI of step 9)
+    m_isLastRowProcessRunning = row.exists && PDFAppProcessInfo::isProcessRunning(row.pid);
+    return isOwnerChanged || wasAlive != m_isLastRowAlive || wasProcessRunning != m_isLastRowProcessRunning;
+}
+
+void PDFAppMcpController::clearRefusedStart()
+{
+    // Two instances started with PDF4QT at the same time (the second one binds
+    // before the first one claims the row), or Start while the owner hangs (its
+    // heartbeat is stale, its port is bound): the probe of the port ended the
+    // start, and the AI page showed the other window until the restart, also
+    // after that window had quit (step 9, UnitTestsAppMultiInstance)
+    if (!m_isLastRowAlive && m_server && m_server->getState() == PDFMcpServerState::PortInUseByPdf4Qt)
+    {
+        m_server->stop();
+    }
 }
 
 void PDFAppMcpController::claimOwnership()
@@ -674,16 +703,24 @@ void PDFAppMcpController::onHeartbeat()
         return;
     }
 
-    // The row of another owner: its staleness enables Start (plan 2.6)
-    const PDFMcpServerRow row = repository.getServer();
-    const qint64 now = repository.getCurrentTime();
-    const bool wasAlive = m_lastRow.instance != m_instanceId && m_lastRow.isAlive(now, PDFMcpRepository::STALE_TIME);
-    const bool isAlive = row.instance != m_instanceId && row.isAlive(now, PDFMcpRepository::STALE_TIME);
-    const bool changed = wasAlive != isAlive || row.instance != m_lastRow.instance || row.port != m_lastRow.port || row.address != m_lastRow.address;
-    m_lastRow = row;
-    if (changed)
+    // The row of another owner: its end (its heartbeat stale, its process gone)
+    // enables Start (plan 2.6). Whether the owner was alive is remembered from the
+    // previous tick: the previous row tested against the current time is stale
+    // at the same moment as the current one, so the end of an owner, which was
+    // killed, was never announced (step 9, UnitTestsAppMultiInstance)
+    if (setLastRow(repository.getServer()))
     {
+        QPointer<PDFAppMcpController> guard(this);
+        clearRefusedStart();
+        if (!guard)
+        {
+            return;
+        }
         Q_EMIT stateChanged();
+        if (!guard)
+        {
+            return;
+        }
         Q_EMIT assistantsChanged();
     }
 }
@@ -727,14 +764,13 @@ void PDFAppMcpController::raiseWindow()
         return;
     }
 
+    // The window of the owner as a forwarded request without a token: a minimized
+    // maximized window stays maximized, outside of Windows the user is alerted, when
+    // the window system refuses the activation (the request of the other instance
+    // carries no activation token)
     if (PDFAppMainWindow* window = m_host->getResolver().getWindow())
     {
-        if (window->isMinimized())
-        {
-            window->showNormal();
-        }
-        window->raise();
-        window->activateWindow();
+        PDFAppActivation::activateWindow(window, QString());
     }
 }
 
@@ -808,8 +844,15 @@ void PDFAppMcpController::onNotifierChanged(const QString& topic, const QString&
     }
     else if (topic == PDFMcpRepository::getServerTopic())
     {
-        m_lastRow = getServerRow();
-        Q_EMIT stateChanged();
+        QPointer<PDFAppMcpController> guard(this);
+        if (setLastRow(getServerRow()))
+        {
+            clearRefusedStart();
+        }
+        if (guard)
+        {
+            Q_EMIT stateChanged();
+        }
     }
     else if (topic == PDFMcpRepository::getClientTopic())
     {
@@ -845,7 +888,16 @@ void PDFAppMcpController::onEverythingChanged()
     {
         return;
     }
-    m_lastRow = getServerRow();
+    // Only a change of the row ends a refused start: a PDF4QT of another profile
+    // still has the port (review RMULTI of step 9)
+    if (setLastRow(getServerRow()))
+    {
+        clearRefusedStart();
+        if (!guard)
+        {
+            return;
+        }
+    }
 
     Q_EMIT stateChanged();
     if (!guard)

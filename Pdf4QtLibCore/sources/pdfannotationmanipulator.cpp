@@ -669,7 +669,7 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
 
         if (parsedAnnotation->getType() == AnnotationType::Link)
         {
-            // Jakub Melka: the areas of a link follow its rectangle. The library does not
+            // The areas of a link follow its rectangle. The library does not
             // create the appearance of a link (its highlight is drawn by the viewer), so an
             // appearance of other software is kept and it is fitted into the new rectangle.
             const QPointF offset = newRectangle.center() - rectangle.center();

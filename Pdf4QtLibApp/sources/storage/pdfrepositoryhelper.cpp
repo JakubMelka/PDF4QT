@@ -93,6 +93,11 @@ bool PDFRepositoryHelper::isSamePath(const QString& first, const QString& second
     return QString::compare(QDir::cleanPath(QDir::fromNativeSeparators(first)), QDir::cleanPath(QDir::fromNativeSeparators(second)), sensitivity) == 0;
 }
 
+bool PDFRepositoryHelper::isPathCaseInsensitive()
+{
+    return isSamePath(QStringLiteral("/a"), QStringLiteral("/A"));
+}
+
 QString PDFRepositoryHelper::normalizeName(const QString& name)
 {
     QString result = sanitizeStoredName(name);

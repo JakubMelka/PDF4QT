@@ -405,7 +405,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
             setup.copyButtonText = tr("Copy Command");
             setup.copyText = command;
             setup.documentationText = tr("Claude Code Documentation");
-            setup.documentationLink = QStringLiteral("https://code.claude.com/docs/en/mcp");    // verified: SCR/mcp/c/cc_env.md
+            setup.documentationLink = QStringLiteral("https://code.claude.com/docs/en/mcp");    // verified against the documentation at this address
             setup.note = hasToken ? tr("The command contains your access token. Run it again after you create a new token.")
                                   : tr("The command contains the address of the server. Run it again after you change the port.");
             break;
@@ -423,7 +423,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
             setup.copyButtonText = tr("Copy Configuration");
             setup.copyText = configuration;
             setup.documentationText = tr("Claude Desktop Documentation");
-            setup.documentationLink = QStringLiteral("https://modelcontextprotocol.io/docs/develop/connect-local-servers");    // unverified address (SCR/mcp/c/mcp_local.md has no address)
+            setup.documentationLink = QStringLiteral("https://modelcontextprotocol.io/docs/develop/connect-local-servers");    // unverified address
             setup.note = hasToken ? tr("The configuration contains your access token. Copy it again after you create a new token.")
                                   : tr("The configuration contains the address of the server. Copy it again after you change the port.");
             break;
@@ -441,7 +441,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
             setup.copyButtonText = tr("Copy Configuration");
             setup.copyText = configuration;
             setup.documentationText = tr("Codex Documentation");
-            setup.documentationLink = QStringLiteral("https://learn.chatgpt.com/docs/extend/mcp");    // verified: SCR/mcp/c/codex_0a6eda.txt
+            setup.documentationLink = QStringLiteral("https://learn.chatgpt.com/docs/extend/mcp");    // verified against the documentation at this address
             setup.note = hasToken ? tr("The configuration contains your access token. Copy it again after you create a new token.")
                                   : tr("The configuration contains the address of the server. Copy it again after you change the port.");
             break;
@@ -449,7 +449,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
 
         case PDFAppMcpSetupClient::Gemini:
         {
-            // Flags verified by wave 0 (SCR/mcp/c/gemini_mcp.md 1151-1208); --scope user,
+            // Flags verified by wave 0 (https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md); --scope user,
             // because the default scope "project" is only the current folder
             QString command = QStringLiteral("gemini mcp add --scope user --transport http");
             if (hasToken)
@@ -483,7 +483,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
             setup.copyButtonText = tr("Copy Configuration");
             setup.copyText = configuration;
             setup.documentationText = tr("Visual Studio Code Documentation");
-            setup.documentationLink = QStringLiteral("https://code.visualstudio.com/docs/agent-customization/mcp-servers");    // unverified address (derived from SCR/mcp/c/vscode_mcpcfg.md)
+            setup.documentationLink = QStringLiteral("https://code.visualstudio.com/docs/agent-customization/mcp-servers");    // unverified address (derived from the configuration reference of Visual Studio Code)
             setup.note = hasToken ? tr("The configuration contains your access token. Copy it again after you create a new token.")
                                   : tr("The configuration contains the address of the server. Copy it again after you change the port.");
             break;
@@ -500,7 +500,7 @@ PDFAppMcpSetup PDFAppMcpClientSetup::createSetup(PDFAppMcpSetupClient client, co
             setup.copyButtonText = tr("Copy Configuration");
             setup.copyText = configuration;
             setup.documentationText = tr("Cursor Documentation");
-            setup.documentationLink = QStringLiteral("https://cursor.com/docs/mcp");    // verified: SCR/mcp/c/cursor_793eda.md
+            setup.documentationLink = QStringLiteral("https://cursor.com/docs/mcp");    // verified against the documentation at this address
             setup.note = hasToken ? tr("The configuration contains your access token. Copy it again after you create a new token.")
                                   : tr("The configuration contains the address of the server. Copy it again after you change the port.");
             break;

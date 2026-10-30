@@ -416,6 +416,7 @@ private slots:
     void markupBarDisabled();
     void markAsAnnotations();
     void markAsAnnotationsLarge();
+    void markAsAnnotationsLargeLifetime();
     void markResultsFooterGeometry();
     void deleteTool();
     void lockedDocument();
@@ -2247,6 +2248,90 @@ void AppAnnotateTest::markAsAnnotationsLarge()
     QVERIFY(!tabGuard);
     QTest::qWait(200);
     pdftest::AppDocumentFixture::settle();
+}
+
+void AppAnnotateTest::markAsAnnotationsLargeLifetime()
+{
+    // Review RPKT 95a: the operation of the worker path (more than SYNCHRONOUS_LIMIT
+    // results) announces its start, its end and its cancellation synchronously
+    // (operationsChanged of the document) - the tab deleted from there takes the
+    // object of the marking with it; nothing of it is used afterwards (run under
+    // ASan), nothing is committed, the window works on
+    pdftest::AppDocumentFixture fixture;
+    const QString path = pdftest::AppDocumentSamples::large(fixture.folder(), 2000);
+    enum class Site
+    {
+        Begin,
+        WorkerEnd,
+        Cancel
+    };
+
+    for (Site site : { Site::Begin, Site::WorkerEnd, Site::Cancel })
+    {
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, path);
+        QVERIFY(tab);
+        QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+        QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+        QPointer<pdf::PDFAppMarkResults> markResults = H::markResults(tab);
+        QVERIFY(H::search(tab, QStringLiteral("alpha")));
+        QVERIFY(markResults->getMatchCount(pdf::PDFAppMarkResults::Scope::All) > int(pdf::PDFAppMarkResults::SYNCHRONOUS_LIMIT));
+
+        // The tab deleted synchronously from the announcement of the operations: at
+        // the start (Begin), or when no operation runs any longer (the end, Cancel)
+        bool isArmed = site == Site::Begin;
+        int deletions = 0;
+        QObject context;
+        QObject::connect(document.data(), &pdf::PDFAppDocument::operationsChanged, &context, [&]()
+        {
+            if (isArmed && tabGuard && (site == Site::Begin || document->getOperations().empty()))
+            {
+                isArmed = false;
+                ++deletions;
+                delete tabGuard.data();
+            }
+        });
+
+        const bool isStarted = markResults->mark(pdf::AnnotationType::Highlight, QColor(), pdf::PDFAppMarkResults::Scope::All);
+        switch (site)
+        {
+            case Site::Begin:
+                QVERIFY(!isStarted);
+                QVERIFY(!tabGuard);
+                QVERIFY(!markResults);
+                break;
+
+            case Site::WorkerEnd:
+                QVERIFY(isStarted);
+                QVERIFY(markResults->isRunning());
+                isArmed = true;
+                QTRY_VERIFY_WITH_TIMEOUT(!tabGuard, 120000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+                QVERIFY(!markResults);
+                break;
+
+            case Site::Cancel:
+                QVERIFY(isStarted);
+                QVERIFY(markResults->isRunning());
+                isArmed = true;
+                QCOMPARE(document->getOperations().size(), size_t(1));
+                document->getOperations().front()->requestCancel();
+                QVERIFY(!tabGuard);
+                QVERIFY(!markResults);
+                break;
+        }
+        QCOMPARE(deletions, 1);
+        QVERIFY(!document);
+
+        // The worker of a deleted marking ends by itself, nothing reaches a document
+        QTest::qWait(200);
+        pdftest::AppDocumentFixture::settle();
+
+        // The window works on: the file opens again
+        pdf::PDFAppDocumentTab* again = H::openReady(fixture, path);
+        QVERIFY(again);
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(again->getDocument()), 0);
+        delete again;
+        pdftest::AppDocumentFixture::settle();
+    }
 }
 
 void AppAnnotateTest::deleteTool()

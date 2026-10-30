@@ -36,7 +36,9 @@
 #include "pdfthememanager.h"
 #include "pdfutils.h"
 
+#include <QFileOpenEvent>
 #include <QGuiApplication>
+#include <QMetaMethod>
 #include <QLoggingCategory>
 #include <QStyleHints>
 
@@ -71,6 +73,89 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
     {
         connect(application->styleHints(), &QStyleHints::colorSchemeChanged, this, &PDFAppContext::onSystemColorSchemeChanged);
     }
+
+    // The documents, which the system asks to open (macOS: QFileOpenEvent of the
+    // Finder, also at the start before a window exists)
+    if (QCoreApplication* application = QCoreApplication::instance())
+    {
+        application->installEventFilter(this);
+    }
+}
+
+PDFAppInstanceRequest PDFAppContext::createFileOpenRequest(const QUrl& url)
+{
+    if (!url.isValid() || !url.isLocalFile())
+    {
+        // Only local files are opened (as an argument file: of the command line)
+        PDFAppCommandLineError error;
+        error.kind = PDFAppCommandLineError::Kind::InvalidArgument;
+        error.argument = url.toString(QUrl::FullyEncoded).left(PDFAppCommandLine::MAXIMUM_ARGUMENT_LENGTH);
+        PDFAppInstanceRequest request;
+        request.errors << error.getMessage().left(PDFAppInstanceProtocol::MAXIMUM_ERROR_LENGTH);
+        return request;
+    }
+
+    // "--" ends the options: a file named like an option is a file
+    const PDFAppCommandLine commandLine = PDFAppCommandLine::parse({ QCoreApplication::applicationFilePath(), QStringLiteral("--"), url.toLocalFile() }, QString());
+    return PDFAppInstanceProtocol::createRequest(commandLine, QString());
+}
+
+bool PDFAppContext::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::FileOpen && watched == QCoreApplication::instance())
+    {
+        const QFileOpenEvent* fileOpenEvent = static_cast<const QFileOpenEvent*>(event);
+        requestOpen(createFileOpenRequest(fileOpenEvent->url()));
+        return true;
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+void PDFAppContext::connectNotify(const QMetaMethod& signal)
+{
+    QObject::connectNotify(signal);
+
+    // The window connects the signal in its constructor: the held requests are
+    // delivered from the event loop, when the window is complete
+    if (signal == QMetaMethod::fromSignal(&PDFAppContext::openRequested) && !m_pendingRequests.empty())
+    {
+        QMetaObject::invokeMethod(this, &PDFAppContext::deliverPendingRequests, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppContext::requestOpen(const PDFAppInstanceRequest& request)
+{
+    if (isSignalConnected(QMetaMethod::fromSignal(&PDFAppContext::openRequested)))
+    {
+        Q_EMIT openRequested(request);
+        return;
+    }
+
+    if (m_pendingRequests.size() < size_t(MAXIMUM_PENDING_FILE_OPENS))
+    {
+        m_pendingRequests.push_back(request);
+    }
+}
+
+void PDFAppContext::deliverPendingRequests()
+{
+    if (!isSignalConnected(QMetaMethod::fromSignal(&PDFAppContext::openRequested)))
+    {
+        return;
+    }
+
+    // A receiver may delete the context
+    QPointer<PDFAppContext> guard(this);
+    std::vector<PDFAppInstanceRequest> requests = std::move(m_pendingRequests);
+    m_pendingRequests.clear();
+    for (const PDFAppInstanceRequest& request : requests)
+    {
+        Q_EMIT openRequested(request);
+        if (!guard)
+        {
+            return;
+        }
+    }
 }
 
 PDFAppMcpController* PDFAppContext::getMcpController() const
@@ -80,6 +165,11 @@ PDFAppMcpController* PDFAppContext::getMcpController() const
 
 PDFAppContext::~PDFAppContext()
 {
+    // No QFileOpenEvent reaches the context, while its members are destroyed
+    if (QCoreApplication* application = QCoreApplication::instance())
+    {
+        application->removeEventFilter(this);
+    }
     close();
 }
 

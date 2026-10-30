@@ -102,6 +102,11 @@ public:
         return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFToolCollectionRepository", "The collection does not exist."));
     }
 
+    static PDFDatabaseError changedElsewhere()
+    {
+        return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFToolCollectionRepository", "The collection was changed in another window."));
+    }
+
     static PDFDatabaseError unknownTool()
     {
         return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFToolCollectionRepository", "Unknown tool."));
@@ -135,6 +140,45 @@ public:
     static bool isSameName(const QString& left, const QString& right)
     {
         return !left.isEmpty() && QString::compare(getComparisonKey(left), getComparisonKey(right), Qt::CaseInsensitive) == 0;
+    }
+
+    /// The collection has an item, which is not a tool of this catalog - a tool of a
+    /// newer version (the same schema, the same file) or a value of another type.
+    /// readItems leaves such items out and writeItems keeps them, so an override with
+    /// them is never equal to its built-in definition and is never deleted as one
+    /// (O25). An error of the query counts as such an item (the override is kept).
+    static bool hasForeignItems(PDFDatabaseConnection* connection, qint64 collectionId)
+    {
+        const std::vector<PDFDocumentToolCatalogEntry>& tools = PDFDocumentToolCatalog::getTools();
+        QByteArray sql("SELECT EXISTS (SELECT 1 FROM tool_collection_item WHERE collection_id = ?1 AND (tool_id IS NULL");
+        if (!tools.empty())
+        {
+            sql += " OR tool_id NOT IN (";
+            for (size_t i = 0; i < tools.size(); ++i)
+            {
+                sql += (i > 0 ? ", ?" : "?") + QByteArray::number(qulonglong(i + 2));
+            }
+            sql += ")";
+        }
+        else
+        {
+            sql += " OR 1";
+        }
+        sql += "))";
+
+        PDFDatabaseStatement statement(connection, sql.constData());
+        statement.bindInt64(1, collectionId);
+        for (size_t i = 0; i < tools.size(); ++i)
+        {
+            statement.bindText(int(i + 2), tools[i].getId());
+        }
+        if (!statement.next())
+        {
+            return true;
+        }
+        const bool hasItems = statement.getInt64(0) != 0;
+        statement.reset();
+        return hasItems;
     }
 };
 
@@ -439,10 +483,14 @@ PDFDatabaseError PDFToolCollectionRepository::writeItems(PDFDatabaseConnection* 
     return PDFDatabaseError();
 }
 
-PDFDatabaseError PDFToolCollectionRepository::saveCollection(const PDFToolCollectionDraft& draft, qint64* id, bool* isDuplicate, bool* isLimit)
+PDFDatabaseError PDFToolCollectionRepository::saveCollection(const PDFToolCollectionDraft& draft, qint64* id, bool* isDuplicate, bool* isLimit, bool* isChanged)
 {
     using Helper = PDFToolCollectionRepositoryHelper;
 
+    if (isChanged)
+    {
+        *isChanged = false;
+    }
     if (id)
     {
         *id = 0;
@@ -505,9 +553,11 @@ PDFDatabaseError PDFToolCollectionRepository::saveCollection(const PDFToolCollec
         const bool isDefaultIcon = iconName.isEmpty() || iconName == builtin->getIconName();
         const std::optional<PDFToolCollectionRow> override = getBuiltinOverride(builtin->getId());
 
-        if (!isRenamed && isDefaultIcon && draft.toolIds == builtin->getToolIds())
+        if (!isRenamed && isDefaultIcon && draft.toolIds == builtin->getToolIds() &&
+            !(override && Helper::hasForeignItems(connection, override->id)))
         {
-            // The built-in definition: the override is not needed (Reset to default + Save)
+            // The built-in definition: the override is not needed (Reset to default +
+            // Save); an override with the tools of a newer version stays (O25)
             for (const char* sql : { "DELETE FROM tool_collection_item WHERE collection_id IN (SELECT id FROM tool_collection WHERE builtin_id = ?1)",
                                      "DELETE FROM tool_collection WHERE builtin_id = ?1" })
             {
@@ -575,6 +625,21 @@ PDFDatabaseError PDFToolCollectionRepository::saveCollection(const PDFToolCollec
     }
     else
     {
+        // The collection the editor has seen (as deleteCustomCollection): the id of a
+        // collection deleted by another instance may denote its new collection now
+        if (draft.expectedModified)
+        {
+            const std::optional<PDFToolCollectionRow> row = getCollection(draft.id);
+            if (row && !row->isBuiltin() && row->modified != *draft.expectedModified)
+            {
+                if (isChanged)
+                {
+                    *isChanged = true;
+                }
+                return Helper::changedElsewhere();
+            }
+        }
+
         PDFDatabaseStatement statement(connection, "UPDATE tool_collection SET name = ?2, icon = ?3, modified = ?4 WHERE id = ?1 AND builtin_id IS NULL");
         statement.bindInt64(1, draft.id);
         statement.bindText(2, normalizedName);
@@ -669,7 +734,7 @@ PDFDatabaseError PDFToolCollectionRepository::deleteCustomCollection(qint64 id, 
         const std::optional<PDFToolCollectionRow> row = getCollection(id);
         if (!row || row->name != *expectedName || row->modified != expectedModified)
         {
-            return PDFDatabaseError::fromMessage(QCoreApplication::translate("pdf::PDFToolCollectionRepository", "The collection was changed in another window."));
+            return PDFToolCollectionRepositoryHelper::changedElsewhere();
         }
     }
 
@@ -781,10 +846,11 @@ PDFDatabaseError PDFToolCollectionRepository::setToolIncluded(qint64 collectionI
     if (builtin && row)
     {
         // The change gives the built-in definition again (not renamed, the default
-        // icon, its tools in their order): the override is not needed, as by Save
+        // icon, its tools in their order, no tool of a newer version - O25): the
+        // override is not needed, as by Save
         const bool isRenamed = !row->name.isEmpty() && !Helper::isBuiltinName(*builtin, row->name);
         const bool isDefaultIcon = row->iconName.isEmpty() || row->iconName == builtin->getIconName();
-        if (!isRenamed && isDefaultIcon && toolIds == builtin->getToolIds())
+        if (!isRenamed && isDefaultIcon && toolIds == builtin->getToolIds() && !Helper::hasForeignItems(connection, row->id))
         {
             for (const char* sql : { "DELETE FROM tool_collection_item WHERE collection_id IN (SELECT id FROM tool_collection WHERE builtin_id = ?1)",
                                      "DELETE FROM tool_collection WHERE builtin_id = ?1" })

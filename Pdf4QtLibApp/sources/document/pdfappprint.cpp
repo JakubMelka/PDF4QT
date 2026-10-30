@@ -28,6 +28,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfappprintdialog.h"
+#include "pdfappfiledrop.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfannotation.h"
@@ -44,9 +45,13 @@
 #include "pdftextlayout.h"
 
 #include <QCheckBox>
+#include <QDir>
+#include <QFileInfo>
 #include <QLocale>
 #include <QPainter>
+#include <QPrintEngine>
 #include <QPrinterInfo>
+#include <QStandardPaths>
 #include <QPushButton>
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
@@ -54,12 +59,15 @@
 #include <algorithm>
 #include <map>
 
-#if defined(Q_OS_WIN) && defined(PDF4QT_APP_PRINTER_PROPERTIES)
+#if defined(Q_OS_WIN)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <Windows.h>
 #include <winspool.h>
+#endif
+
+#if defined(Q_OS_WIN) && defined(PDF4QT_APP_PRINTER_PROPERTIES)
 #include <QtPrintSupport/private/qprintengine_win_p.h>
 #endif
 
@@ -129,6 +137,7 @@ std::vector<PDFAppPrinterInfo> PDFAppPrinters::getPrinters()
             info.isDefault = info.name == defaultName;
             info.pageSizes = printerInfo.supportedPageSizes();
             info.defaultPageSize = printerInfo.defaultPageSize();
+            info.isPortPrompt = isPortPromptPrinter(info.name, &info.outputSuffix);
 
             switch (printerInfo.state())
             {
@@ -325,6 +334,69 @@ bool PDFAppPrinters::showNativePrinterProperties(QWidget* parent, QPrinter* prin
     Q_UNUSED(parent);
     Q_UNUSED(printer);
     Q_UNUSED(printerName);
+    return false;
+#endif
+}
+
+bool PDFAppPrinters::isPortPromptPrinter(const QString& printerName, QString* suffix)
+{
+#if defined(Q_OS_WIN)
+    if (printerName.isEmpty())
+    {
+        return false;
+    }
+
+    std::wstring name = printerName.toStdWString();
+    HANDLE printerHandle = nullptr;
+    if (!::OpenPrinterW(name.data(), &printerHandle, nullptr) || !printerHandle)
+    {
+        return false;
+    }
+
+    bool isPortPrompt = false;
+    DWORD size = 0;
+    ::GetPrinterW(printerHandle, 2, nullptr, 0, &size);
+    if (size >= sizeof(PRINTER_INFO_2W))
+    {
+        std::vector<BYTE> buffer(size);
+        if (::GetPrinterW(printerHandle, 2, buffer.data(), size, &size))
+        {
+            const PRINTER_INFO_2W* printerInfo = reinterpret_cast<const PRINTER_INFO_2W*>(buffer.data());
+
+            // The ports of a printer are separated by commas
+            const QString ports = printerInfo->pPortName ? QString::fromWCharArray(printerInfo->pPortName) : QString();
+            for (const QString& port : ports.split(QLatin1Char(','), Qt::SkipEmptyParts))
+            {
+                isPortPrompt = isPortPrompt || port.trimmed().compare(QLatin1String("PORTPROMPT:"), Qt::CaseInsensitive) == 0;
+            }
+
+            // The file of the driver: Microsoft Print to PDF writes a PDF file, the XPS
+            // Document Writer v4 an OpenXPS file, the older one XPS, the others the
+            // data of the printer
+            const QString driver = printerInfo->pDriverName ? QString::fromWCharArray(printerInfo->pDriverName) : QString();
+            if (suffix && isPortPrompt)
+            {
+                if (driver.contains(QLatin1String("PDF"), Qt::CaseInsensitive))
+                {
+                    *suffix = QStringLiteral("pdf");
+                }
+                else if (driver.contains(QLatin1String("XPS"), Qt::CaseInsensitive))
+                {
+                    *suffix = driver.contains(QLatin1String("v4"), Qt::CaseInsensitive) ? QStringLiteral("oxps") : QStringLiteral("xps");
+                }
+                else
+                {
+                    *suffix = QStringLiteral("prn");
+                }
+            }
+        }
+    }
+
+    ::ClosePrinter(printerHandle);
+    return isPortPrompt;
+#else
+    Q_UNUSED(printerName);
+    Q_UNUSED(suffix);
     return false;
 #endif
 }
@@ -864,7 +936,8 @@ void PDFAppPrintController::onDialogFinished(int result)
     std::shared_ptr<QPrinter> printer = dialog->getPrinter();
     const PDFAppPrintSettings settings = dialog->getSettings();
     const int printerIndex = dialog->getPrinterIndex();
-    const QString printerName = printerIndex >= 0 && printerIndex < int(dialog->getPrinters().size()) ? dialog->getPrinters()[size_t(printerIndex)].name : QString();
+    const PDFAppPrinterInfo printerInfo = printerIndex >= 0 && printerIndex < int(dialog->getPrinters().size()) ? dialog->getPrinters()[size_t(printerIndex)] : PDFAppPrinterInfo();
+    const QString printerName = printerInfo.name;
 
     QPointer<PDFAppPrintController> guard(this);
     Q_EMIT stateChanged();
@@ -875,8 +948,55 @@ void PDFAppPrintController::onDialogFinished(int result)
 
     if (result == QDialog::Accepted && printer && !settings.pages.empty())
     {
+        // A printer, whose port asks for a file (Microsoft Print to PDF), gets the file
+        // now: its driver would show the save dialog from the worker of the job without
+        // an owner, and its cancel would be an error of the printer (step 9, N5)
+        if (printerInfo.isPortPrompt)
+        {
+            const QString fileName = askPrintFile(printerInfo);
+            if (!guard)
+            {
+                return;
+            }
+            if (fileName.isEmpty())
+            {
+                // Canceled by the user: nothing is printed, no error
+                PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
+                if (view && view->getStatusBar())
+                {
+                    view->getStatusBar()->showMessage(tr("Printing canceled"), 5000);
+                }
+                return;
+            }
+
+            // Set on the engine: QPrinter::setOutputFileName would switch a file *.pdf
+            // to the PDF writer of Qt instead of the driver of the printer
+            if (QPrintEngine* engine = printer->printEngine())
+            {
+                engine->setProperty(QPrintEngine::PPK_OutputFileName, fileName);
+            }
+        }
+
         startJob(std::move(printer), settings, printerName);
     }
+}
+
+QString PDFAppPrintController::askPrintFile(const PDFAppPrinterInfo& info)
+{
+    // The proposed file: the name of the document with the suffix of the driver in
+    // the folder of the document (Documents for a copy without a file)
+    const PDFAppDocument* document = m_document.data();
+    const QString filePath = document ? document->getFilePath() : QString();
+    const QString folder = !filePath.isEmpty() ? QFileInfo(filePath).absolutePath() : QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QString baseName = !filePath.isEmpty() ? QFileInfo(filePath).completeBaseName() : (document ? QFileInfo(document->getTitle()).completeBaseName() : QString());
+    if (baseName.isEmpty())
+    {
+        baseName = tr("Document");
+    }
+    const QString suffix = info.outputSuffix.isEmpty() ? QStringLiteral("prn") : info.outputSuffix;
+    const QString proposedPath = QDir(folder).filePath(baseName + QLatin1Char('.') + suffix);
+
+    return PDFAppFileDialogs::getPrintFileName(m_tab ? m_tab->window() : nullptr, proposedPath, suffix);
 }
 
 void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PDFAppPrintSettings& settings, const QString& printerName)

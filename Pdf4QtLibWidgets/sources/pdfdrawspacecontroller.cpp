@@ -1360,7 +1360,7 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPointF point, QPointF* pagePoi
         // so we must also use translation from the block beginning.
         const QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
 
-        // Jakub Melka: the page contains the pixels of its right and bottom edges too
+        // The page contains the pixels of its right and bottom edges too
         // (a closed rectangle, as the integer rectangle extended by one pixel was). The
         // point is mapped exactly by the matrix, by which the page is drawn (getSnapshot) -
         // QTransform::map(QPoint) would round the page point to whole points of the page,

@@ -39,6 +39,7 @@
 #include "pdfappfiledrop.h"
 #include "pdfapphomebasepage.h"
 #include "pdfappnavigator.h"
+#include "pdfappsessionend.h"
 #include "pdfapproutetable.h"
 #include "pdfappfloatingbar.h"
 #include "pdfappundostack.h"
@@ -63,6 +64,7 @@
 #include "pdfoptionalcontent.h"
 
 #include <QClipboard>
+#include <QFileOpenEvent>
 #include <QSemaphore>
 #include <QThreadPool>
 #include <QMimeData>
@@ -248,6 +250,8 @@ private slots:
     void closeRunning();
     void quitUnsaved();
     void quitSaveAll();
+    void sessionEndUnsaved();
+    void fileOpenEvent();
     void lastSession();
     void workspacePages();
     void emptyNewTabReplaced();
@@ -1394,6 +1398,202 @@ void AppDocumentTest::quitSaveAll()
     fixture.settle();
     QVERIFY(fixture.window->isVisible());
     QVERIFY(copy->getDocument()->isModified());
+}
+
+/// The session manager of the system replaced by a recorder (QSessionManager has
+/// no public constructor)
+class AppDocumentSessionManager : public pdf::PDFAppSessionManager
+{
+public:
+    virtual bool allowsInteraction() override { ++interactionRequests; return isInteractionAllowed; }
+    virtual void release() override { ++releaseCount; }
+    virtual void cancel() override { ++cancelCount; }
+
+    bool isInteractionAllowed = true;
+    int interactionRequests = 0;
+    int releaseCount = 0;
+    int cancelCount = 0;
+};
+
+void AppDocumentTest::sessionEndUnsaved()
+{
+    // Step 9, N7: the end of the session of the system (logoff, shutdown) asks about
+    // the unsaved changes by quit-unsaved 955:145378 - Qt itself neither asks nor
+    // closes the windows
+    pdftest::AppDocumentFixture fixture;
+    QVERIFY(pdf::PDFAppSessionEnd::isInstalled());
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Session.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    QCOMPARE(fixture.context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry()), QString());
+
+    // No unsaved changes: no question, the session may end; the last session and the
+    // geometry are stored as at a quit (O29)
+    {
+        bool isDialogShown = false;
+        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isDialogShown](pdf::PDFAppQuitUnsavedDialog* dialog) { isDialogShown = true; dialog->reject(); }, 0);
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::NoChanges);
+        fixture.settle();
+        QVERIFY(!isDialogShown);
+        QCOMPARE(manager.cancelCount, 0);
+        QVERIFY(!fixture.context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry()).isEmpty());
+        std::optional<pdf::PDFWorkspace> session = fixture.context->getWorkspaces().getLastSession();
+        QVERIFY(session);
+        QCOMPARE(session->documents.size(), size_t(1));
+        QCOMPARE(QFileInfo(session->documents[0].path), QFileInfo(file));
+    }
+
+    // Cancel: the end of the session is canceled, the changes stay
+    QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed before the logoff")));
+    {
+        int rows = 0;
+        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&rows](pdf::PDFAppQuitUnsavedDialog* dialog)
+        {
+            rows = dialog->getList()->getItemCount();
+            dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
+        });
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(rows, 1);
+        QCOMPARE(manager.cancelCount, 1);
+        QVERIFY(tab->getDocument()->isModified());
+        QVERIFY(fixture.window->isVisible());
+    }
+
+    // Quit Without Saving: the session may end, the file is not written
+    auto readFile = [](const QString& path)
+    {
+        QFile fileData(path);
+        return fileData.open(QIODevice::ReadOnly) ? fileData.readAll() : QByteArray();
+    };
+    const QByteArray original = readFile(file);
+    {
+        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard);
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Discarded);
+        QCOMPARE(manager.cancelCount, 0);
+        QCOMPARE(readFile(file), original);
+
+        // Qt closes the windows, when the session ends (Windows: quit() at
+        // WM_ENDSESSION, X11: Die of the session manager): the discarded changes are
+        // not asked about a second time (review RFIX2)
+        bool isAskedAgain = false;
+        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isAskedAgain](pdf::PDFAppQuitUnsavedDialog* dialog) { isAskedAgain = true; dialog->reject(); }, 0);
+        QVERIFY(fixture.window->close());
+        fixture.settle();
+        QVERIFY(!isAskedAgain);
+        QVERIFY(tab->getDocument()->isModified());
+        QCOMPARE(readFile(file), original);
+        fixture.window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(fixture.window.data()));
+
+        // A change after the decision is a new change: the window asks again
+        QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed after the discard")));
+        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel);
+        QVERIFY(!fixture.window->close());
+        QVERIFY(fixture.window->isVisible());
+    }
+
+    // Save All: the file is written before the handler returns (the session ends after it)
+    {
+        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Saved);
+        QCOMPARE(manager.cancelCount, 0);
+        QVERIFY(!tab->getDocument()->isModified());
+        const QByteArray saved = readFile(file);
+        QVERIFY(saved != original);
+    }
+
+    // A save, which fails (Save As of a copy canceled), cancels the end of the session
+    pdf::PDFAppDocumentTab* copy = fixture.window->openDocumentCopy(tab->getDocument());
+    QVERIFY(copy);
+    QVERIFY(copy->getDocument()->isModified());
+    pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
+    {
+        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(manager.cancelCount, 1);
+        QVERIFY(copy->getDocument()->isModified());
+    }
+
+    // Unsaved changes without the permission to ask: never lost silently - the end
+    // of the session is canceled without a dialog
+    {
+        bool isDialogShown = false;
+        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isDialogShown](pdf::PDFAppQuitUnsavedDialog* dialog) { isDialogShown = true; dialog->reject(); }, 0);
+        AppDocumentSessionManager manager;
+        manager.isInteractionAllowed = false;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::CanceledWithoutInteraction);
+        fixture.settle();
+        QVERIFY(!isDialogShown);
+        QCOMPARE(manager.cancelCount, 1);
+        QVERIFY(copy->getDocument()->isModified());
+    }
+
+    // The window deleted while the question is open: canceled, nothing used after it
+    {
+        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([window](pdf::PDFAppQuitUnsavedDialog*) { delete window.data(); });
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(manager.cancelCount, 1);
+        fixture.settle();
+        QVERIFY(!window);
+    }
+}
+
+void AppDocumentTest::fileOpenEvent()
+{
+    // Step 9, N2: a document opened in the Finder of macOS (QFileOpenEvent of the
+    // application) opens as a forwarded file
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Finder.pdf"), 2);
+    QFileOpenEvent event(QUrl::fromLocalFile(file));
+    QVERIFY(QCoreApplication::sendEvent(qApp, &event));
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.window->getDocumentTabs().size(), qsizetype(1), 20000);
+    QCOMPARE(QFileInfo(fixture.window->getDocumentTabs().front()->getDocument()->getFilePath()), QFileInfo(file));
+
+    // An address, which is not a local file, is refused as an invalid argument
+    QFileOpenEvent remote(QUrl(QStringLiteral("https://example.com/remote.pdf")));
+    QVERIFY(QCoreApplication::sendEvent(qApp, &remote));
+    QTRY_VERIFY(fixture.window->getOpenFailedDialog());
+    const std::vector<pdf::PDFAppOpenFailure>& failures = fixture.window->getOpenFailedDialog()->getFailures();
+    QCOMPARE(failures.size(), size_t(1));
+    QCOMPARE(failures[0].name, QStringLiteral("Invalid argument https://example.com/remote.pdf."));
+    QCOMPARE(fixture.window->getDocumentTabs().size(), qsizetype(1));
+    fixture.closeMessageBoxes();
+
+    // The request of the system before a window exists (macOS sends it at the start)
+    // waits for the first window
+    const QString early = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Early.pdf"), 1);
+    {
+        pdf::PDFAppContext context(pdf::PDFAppCommandLine::parse({ QStringLiteral("PDF4QT"), QStringLiteral("--portable") }, QDir::currentPath()));
+        pdf::PDFDatabaseOptions options;
+        options.memoryName = QStringLiteral("/pdf4qt-fileopen-%1").arg(QCoreApplication::applicationPid());
+        context.open(options);
+        QFileOpenEvent earlyEvent(QUrl::fromLocalFile(early));
+        QVERIFY(QCoreApplication::sendEvent(qApp, &earlyEvent));
+        fixture.settle();
+
+        QPointer<pdf::PDFAppMainWindow> window = new pdf::PDFAppMainWindow(&context);
+        window->show();
+        QTRY_COMPARE_WITH_TIMEOUT(window->getDocumentTabs().size(), qsizetype(1), 20000);
+        QCOMPARE(QFileInfo(window->getDocumentTabs().front()->getDocument()->getFilePath()), QFileInfo(early));
+        delete window.data();
+        fixture.settle();
+    }
+    QCOMPARE(fixture.window->getDocumentTabs().size(), qsizetype(1));
+
+    // The forwarded request of the command line: a missing file and a refused address
+    pdf::PDFAppInstanceRequest request = pdf::PDFAppContext::createFileOpenRequest(QUrl::fromLocalFile(fixture.path(QStringLiteral("missing.pdf"))));
+    QCOMPARE(request.files, QStringList({ QDir::cleanPath(fixture.path(QStringLiteral("missing.pdf"))) }));
+    QVERIFY(request.errors.isEmpty());
+    request = pdf::PDFAppContext::createFileOpenRequest(QUrl(QStringLiteral("ftp://host/x.pdf")));
+    QVERIFY(request.files.isEmpty());
+    QCOMPARE(request.errors, QStringList({ QStringLiteral("Invalid argument ftp://host/x.pdf.") }));
 }
 
 void AppDocumentTest::lastSession()
@@ -3004,6 +3204,25 @@ void AppDocumentTest::reviewMergeSessionOnlyOwnChanges()
     QVERIFY(document->getUndoStack()->undo());
     QVERIFY(AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square")).isValid());
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 8);
+
+    // A change of the annotations, which does not come from the engine (a reply,
+    // a command, a panel), made while the session is open is a new step, which
+    // ends the session - the next live change is a new step too
+    const pdf::PDFObjectReference squareAgain = AppDocumentReviewHelper::findAnnotation(document, QStringLiteral("square"));
+    controller->selectAnnotations({ squareAgain });
+    controller->beginMergeSession(pdf::PDFAppAnnotationController::createMergeKey(QStringLiteral("color"), { squareAgain }, 5));
+    manager->setSelectedAnnotationsColor(QColor(Qt::magenta));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 9);
+    QVERIFY(controller->isMergeSessionOpen());
+    pdf::PDFDocumentBuilder panelBuilder(document->getDocument().data());
+    panelBuilder.setDocumentTitle(QStringLiteral("Panel"));
+    pdf::PDFDocumentPointer panelChange(new pdf::PDFDocument(panelBuilder.build()));
+    QVERIFY(controller->commit(pdf::PDFModifiedDocument(panelChange, nullptr, pdf::PDFModifiedDocument::None), pdf::PDFAppAnnotationChangeKind::Annotation, QStringLiteral("Panel change")));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 10);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Panel change"));
+    QVERIFY(!controller->isMergeSessionOpen());
+    manager->setSelectedAnnotationsColor(QColor(Qt::darkGreen));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 11);
 }
 
 void AppDocumentTest::reviewStaleEngineChangeRefused()

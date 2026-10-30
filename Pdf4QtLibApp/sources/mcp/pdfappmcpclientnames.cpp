@@ -48,25 +48,25 @@ public:
 
     static std::vector<PDFAppMcpKnownClient> createTable()
     {
-        // clientInfo.name of the clients (plan 2.7). The sources are the copies of
-        // the client code and documentation in the scratchpad of step 7 (SCR/mcp/c);
-        // a name without a local source is marked unverified - the display only
-        // depends on it, never a decision.
+        // clientInfo.name of the clients (plan 2.7). The source is the public
+        // repository of the client, where its MCP client sets the name; a name,
+        // which was not checked in the source of the client, is marked unverified -
+        // the display only depends on it, never a decision.
         return {
             create({ QStringLiteral("claude-code") }, "Claude Code", "Cl", PDFAccentHue::Amber, true,
                    "unverified (no local copy of the Claude Code client source; public name of its MCP client)"),
             create({ QStringLiteral("claude-ai"), QStringLiteral("Claude Desktop") }, "Claude Desktop", "Cl", PDFAccentHue::Amber, false,
                    "unverified (Claude Desktop through mcp-remote forwards the name of Claude Desktop)"),
             create({ QStringLiteral("codex-mcp-client"), QStringLiteral("codex") }, "Codex CLI", "Cx", PDFAccentHue::Green, true,
-                   "unverified (codex-rs mcp-client; SCR/mcp/c/codex_*.txt are the configuration documents only)"),
+                   "unverified (codex-rs mcp-client of https://github.com/openai/codex)"),
             create({ QStringLiteral("gemini-cli-mcp-client") }, "Gemini CLI", "Ge", PDFAccentHue::Blue, true,
-                   "SCR/mcp/c/gemini_client.ts:1871 (new Client({ name: 'gemini-cli-mcp-client' }))"),
+                   "https://github.com/google-gemini/gemini-cli (MCP client of packages/core: new Client({ name: 'gemini-cli-mcp-client' }))"),
             create({ QStringLiteral("Visual Studio Code"), QStringLiteral("Visual Studio Code - Insiders") }, "GitHub Copilot", "Co", PDFAccentHue::Violet, false,
-                   "SCR/mcp/c/vscode_rh.ts:135 (clientInfo.name = productService.nameLong)"),
+                   "https://github.com/microsoft/vscode (MCP request handler: clientInfo.name = productService.nameLong)"),
             create({ QStringLiteral("cursor-vscode"), QStringLiteral("cursor") }, "Cursor", "Cu", PDFAccentHue::Neutral, false,
                    "unverified (no local copy of the Cursor client source)"),
             create({ QStringLiteral("mcp-inspector"), QStringLiteral("inspector-client") }, "MCP Inspector", "", PDFAccentHue::Teal, true,
-                   "unverified (SCR/mcp/s/docs_2026-07-28_tools_inspector_*.md name the binary mcp-inspector, not its clientInfo)")
+                   "unverified (https://modelcontextprotocol.io/docs/tools/inspector names the binary mcp-inspector, not its clientInfo)")
         };
     }
 };

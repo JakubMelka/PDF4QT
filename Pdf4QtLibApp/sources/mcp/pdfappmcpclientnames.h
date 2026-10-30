@@ -58,7 +58,7 @@ public:
     QString monogram;
     PDFAccentHue hue = PDFAccentHue::Teal;
     bool isCommandLine = false;
-    QString source;                 ///< Where the name was verified (the copies of SCR/mcp/c), or "unverified"
+    QString source;                 ///< Where the name was verified (the public source of the client), or "unverified"
 };
 
 /// Display names of the assistants (clientInfo is self-reported: display only,

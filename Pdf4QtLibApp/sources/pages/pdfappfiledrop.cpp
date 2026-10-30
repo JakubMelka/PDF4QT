@@ -293,6 +293,42 @@ QString PDFAppFileDialogs::getOpenBackupFileName(QWidget* parent, const QString&
                                         QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup);;All files (*)"));
 }
 
+QString PDFAppFileDialogs::getPrintFileName(QWidget* parent, const QString& filePath, const QString& suffix)
+{
+    if (const SaveFileHandler& handler = getPrintFileHandler())
+    {
+        return handler(parent, filePath);
+    }
+
+    QString filter;
+    if (suffix == QLatin1String("pdf"))
+    {
+        filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf)");
+    }
+    else if (suffix == QLatin1String("oxps") || suffix == QLatin1String("xps"))
+    {
+        filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "XPS files (*.oxps *.xps)");
+    }
+    else
+    {
+        filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Printer files (*.prn)");
+    }
+    filter += QStringLiteral(";;") + QCoreApplication::translate("pdf::PDFAppFileDialogs", "All files (*)");
+
+    return QFileDialog::getSaveFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Print to File"), filePath, filter);
+}
+
+void PDFAppFileDialogs::setPrintFileHandler(SaveFileHandler handler)
+{
+    getPrintFileHandler() = std::move(handler);
+}
+
+PDFAppFileDialogs::SaveFileHandler& PDFAppFileDialogs::getPrintFileHandler()
+{
+    static SaveFileHandler handler;
+    return handler;
+}
+
 void PDFAppFileDialogs::setSaveBackupHandler(SaveFileHandler handler)
 {
     getSaveBackupHandler() = std::move(handler);

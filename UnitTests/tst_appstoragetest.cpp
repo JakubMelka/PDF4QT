@@ -694,6 +694,7 @@ private Q_SLOTS:
     void concurrentThreads();
     void busyLockOtherProcess();
     void migrationsFromOlderVersions();
+    void releasedMigrationPinned();
     void damagedFile_data();
     void damagedFile();
     void integrityCheckPolicy();
@@ -1449,6 +1450,12 @@ void AppStorageTest::shortcutsBatch()
     QVERIFY(shortcuts.setShortcuts({ { QStringLiteral("edit.copy"), QStringLiteral("Ctrl+C") }, { QStringLiteral("edit.paste"), QString(1000, QLatin1Char('a')) } }).isError());
     QVERIFY(shortcuts.setShortcuts({ { QString(1000, QLatin1Char('c')), QStringLiteral("Ctrl+C") } }).isError());
 
+    // A command, whose keys are set and reset at once, is a contradiction (an id may
+    // not be in both): the whole batch is refused, the stored rows stay as they were
+    QVERIFY(shortcuts.setShortcuts({ { QStringLiteral("edit.copy"), QStringLiteral("Ctrl+C") }, { QStringLiteral("edit.cut"), QStringLiteral("Ctrl+K") } },
+                                   { QStringLiteral("edit.cut") }).isError());
+    QVERIFY(shortcuts.getShortcuts() == stored);
+
     // The command id has its own limit: the longest id is stored and read back, a
     // longer one is refused, a longer row of a damaged file is skipped
     const QString longestId = QString(pdf::PDFShortcutRepository::MAXIMUM_COMMAND_ID_LENGTH, QLatin1Char('l'));
@@ -2030,6 +2037,36 @@ void AppStorageTest::busyLockOtherProcess()
     QCOMPARE(AppStorageTestHelper::queryInteger(&database, "SELECT value FROM setting WHERE key = 'test.locked'"), qint64(1));
 }
 
+void AppStorageTest::releasedMigrationPinned()
+{
+    // A released migration is never changed (newapp_storage.md 5): a change of the
+    // schema is a new migration and a new schema version (O19). The SQL of schema
+    // version 1 - the tables, indexes and the triggers of the change log of every
+    // table - is pinned by its SHA-256 (the text of the release, commit of step 3,
+    // line ends normalized). This test fails for any change of createVersion1, of
+    // createTriggers or of the table list used by version 1; never update the hash -
+    // add a migration instead (review RPKT 95d).
+    static constexpr const char* RELEASED_VERSION_1_SHA256 = "77d0d28950853d79f826f8b91f1ca24c17e8a35da544f26ed9c3d3e52d6ccde5";
+
+    const std::vector<pdf::PDFDatabaseMigration> migrations = pdf::PDFDatabaseSchema::getMigrations();
+    QVERIFY(!migrations.empty());
+    QCOMPARE(migrations.front().version, 1);
+    QByteArray sql = migrations.front().sql;
+    sql.replace("\r\n", "\n");
+    const QByteArray hash = QCryptographicHash::hash(sql, QCryptographicHash::Sha256).toHex();
+    QVERIFY2(hash == RELEASED_VERSION_1_SHA256, hash.constData());
+
+    // The text is the schema the database has: the tables of the notifications
+    // are created by it, also the two tables without triggers
+    for (const pdf::PDFDatabaseTableInfo& table : pdf::PDFDatabaseSchema::getTables())
+    {
+        QVERIFY2(sql.contains("CREATE TABLE " + table.name.toLatin1() + "("), qPrintable(table.name));
+        QVERIFY2(sql.contains("CREATE TRIGGER " + table.name.toLatin1() + "_log_insert "), qPrintable(table.name));
+    }
+    QVERIFY(sql.contains(QByteArray("CREATE TABLE ") + pdf::PDFDatabaseSchema::MAINTENANCE_TABLE + "("));
+    QVERIFY(sql.contains(QByteArray("CREATE TABLE ") + pdf::PDFDatabaseSchema::THUMBNAIL_RENDERING_TABLE + "("));
+}
+
 void AppStorageTest::migrationsFromOlderVersions()
 {
     const std::vector<pdf::PDFDatabaseMigration> builtin = pdf::PDFDatabaseSchema::getMigrations();
@@ -2278,6 +2315,15 @@ void AppStorageTest::integrityCheckPolicy()
     QVERIFY(AppStorageTestHelper::setLastCheck(filePath, now - 10000));
     QVERIFY(AppStorageTestHelper::executeOnFile(filePath, QByteArray("INSERT INTO storage_maintenance(key, value) VALUES ('integrity.requested', " +
                                                                      QByteArray::number(now - 5000) + ")").constData()));
+    QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
+    QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
+
+    // A request in the same tick of the clock as the start of the last check may be
+    // newer than the check ("since the start of the last check"): the check runs again
+    QVERIFY(AppStorageTestHelper::setLastCheck(filePath, now - 10000));
+    QVERIFY(AppStorageTestHelper::executeOnFile(filePath, QByteArray("UPDATE storage_maintenance SET value = " + QByteArray::number(now - 10000) +
+                                                                     " WHERE key = 'integrity.requested'").constData()));
+    QCOMPARE(AppStorageTestHelper::getMaintenanceValue(filePath, pdf::PDFDatabaseSchema::INTEGRITY_REQUESTED_KEY), now - 10000);
     QVERIFY(AppStorageTestHelper::openAndCheck(filePath));
     QVERIFY(!AppStorageTestHelper::openAndCheck(filePath));
 
@@ -4258,7 +4304,7 @@ void AppStorageTest::backupCertificatesAndSecurity()
              QStringList({ QStringLiteral("security.openLinks"), QStringLiteral("security.launchFiles"), QStringLiteral("signatures.verify"),
                            QStringLiteral("signatures.strict"), QStringLiteral("signatures.ignoreExpiration"), QStringLiteral("signatures.useSystemStore"),
                            QStringLiteral("mcp.permissionRead"), QStringLiteral("mcp.permissionEdit"), QStringLiteral("mcp.permissionFiles"),
-                           QStringLiteral("mcp.allowRemote"), QStringLiteral("mcp.requireToken") }));
+                           QStringLiteral("mcp.allowRemote"), QStringLiteral("mcp.requireToken"), QStringLiteral("mcp.startWithApp") }));
 
     const QString backupPath = QDir(createFolder(QStringLiteral("backup-security-files"))).filePath(QStringLiteral("s.pdf4qt-backup"));
     {
@@ -4346,10 +4392,22 @@ void AppStorageTest::backupHostileSequences()
     pdf::PDFDatabase target;
     target.open(AppStorageTestHelper::createFolderOptions(createFolder(QStringLiteral("backup-sequence-target"))));
     pdf::PDFDatabaseNotifier notifier(&target);
-    notifier.setPollInterval(10000);
+    notifier.setPollInterval(3600 * 1000);
+    QSignalSpy everythingSpy(&notifier, &pdf::PDFDatabaseNotifier::everythingChanged);
+
+    // The opening and the notifier (it prunes the change log in a write transaction
+    // of its own) queue notifications of their own commits; they are delivered
+    // first, so below only the import itself can wake the notifier up
+    QCoreApplication::processEvents();
+    QCOMPARE(everythingSpy.count(), 0);
+
     const qint64 sequenceBefore = notifier.getLastSequence();
     const pdf::PDFDatabaseError error = target.importBackup(backup, pdf::PDFDatabaseImportCertificates::FromBackup);
     QVERIFY2(!error.isError(), qPrintable(error.toString()));
+
+    // The own notifier reads the imported content at once (the poll timer is
+    // practically off): the window of the import shows the new values without a delay
+    QTRY_COMPARE_WITH_TIMEOUT(everythingSpy.count(), 1, 2000 * AppStorageTestHelper::getTimeoutFactor());
 
     // One row of each table with rowids, the largest rowid; the change log jumped
     QCOMPARE(AppStorageTestHelper::queryInteger(&target, "SELECT COUNT(*) FROM sqlite_sequence WHERE name NOT IN ('change_log', 'setting', 'recent_file')"), qint64(0));
